@@ -105,7 +105,7 @@ public static partial class NativeBattleClash26Controller
 
         private void Burst(uint address, byte bone, bool ring, ushort padding)
         {
-            int actor = Frame.Effect.Parameters!.Actor78;
+            int actor = Frame.Effect.Parameters!.Source;
             NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), bone, 0x1800);
             uint first = unchecked((ushort)point.X);
             uint second = unchecked((ushort)point.Z | (uint)padding << 16);

@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect290Controller
         frame = inputs.Execute(frame, new NativeBattleEffect290UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect290 requires its actual parameters.");
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78) };
-        uint caster = ModelAddress(parameters.Actor78);
+        uint caster = ModelAddress(parameters.Source);
         frame = frame with { State = frame.State.WriteDword(CasterGlobal, caster) };
         frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(caster, 2, 0xFFF3, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(caster, 1, 255, 8));

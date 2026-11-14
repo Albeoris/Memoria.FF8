@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274DolphinInputs(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<short, NativeBattleVector> ReadBone502170, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
+public sealed record NativeBattleDuel274DolphinInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<short, NativeBattleVector> ReadBone502170, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
 
 public static class NativeBattleDuel274Dolphin
 {
@@ -20,7 +20,7 @@ public static class NativeBattleDuel274Dolphin
         }
         frame = frame with { Staging = frame.Staging.Write(0x2508454, BitConverter.GetBytes(billboard.X)).Write(0x2508458, BitConverter.GetBytes(billboard.Y)).Write(0x250845C, BitConverter.GetBytes(billboard.Z)) };
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Dolphin Blow requires its actor parameter owner.");
-        int actor = parameters.Actor78;
+        int actor = parameters.Source;
         int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
         if (task.ReadWord(12) == 0)
         {

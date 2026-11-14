@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffect207Resources resources = effect.Binding.Effect207Resources ?? throw new NotSupportedException("Effect207 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect207 requires its current process memory.");
         NativeBattleEffect207Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect207 requires its current CRT stream."), memory.Effect207 ?? throw new NotSupportedException("Effect207 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect207 requires its current addressed memory.") };
-        NativeBattleEffect207Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect207 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => CaptureNativeEffect207Model(graphics.Models[actor]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect207 requires its current projection."), _ => Camera().Roll, Anchor571400, Execute);
+        NativeBattleEffect207Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect207 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => CaptureNativeEffect207Model(graphics.ActorModels.Get(actor)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect207 requires its current projection."), _ => Camera().Roll, Anchor571400, Execute);
         frame = initialize ? NativeBattleEffect207Controller.Initialize(frame, resources, inputs) : NativeBattleEffect207Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect207PointStep Anchor571400(NativeBattleEffect207Frame current, int actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect207 requires its current actor transform.");
             if ((model.Flags0 & 2) == 0)
             {

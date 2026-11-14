@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicGridActor3C(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
-        NativeBattleCinematicGridActorServices services = new(address => graphics.Models[Index(address)], (address, actor) => graphics = graphics with { Models = graphics.Models.SetItem(Index(address), actor) }, (current, selector) =>
+        NativeBattleCinematicGridActorServices services = new(address => graphics.ActorModels.Get(Index(address)), (address, actor) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(Index(address), actor) }, (current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
             int index = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);

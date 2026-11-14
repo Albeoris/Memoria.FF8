@@ -6,7 +6,7 @@ public sealed record NativeBattleStare45Frame(NativeBattleEffectMemory Memory, N
 }
 
 public sealed record NativeBattleStare45PointStep(NativeBattleStare45Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleStare45Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleStare45Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleStare45Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleStare45Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleStare45Frame, int, int, int, NativeBattleStare45PointStep> ReadBone502170, Func<NativeBattleStare45Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleStare45Frame, NativeBattleStare45Operation, NativeBattleStare45Frame> Execute);
+public sealed record NativeBattleStare45Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleStare45Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleStare45Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleStare45Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleStare45Frame, BattleModelOwner, int, int, NativeBattleStare45PointStep> ReadBone502170, Func<NativeBattleStare45Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleStare45Frame, NativeBattleStare45Operation, NativeBattleStare45Frame> Execute);
 
 public abstract record NativeBattleStare45Operation;
 public sealed record NativeBattleStare45UpdateCaster8DC740(uint TaskAddress) : NativeBattleStare45Operation;

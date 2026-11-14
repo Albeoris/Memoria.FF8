@@ -12,10 +12,10 @@ public sealed partial class BattleSession
         NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect210 bounds require their current addressed memory.");
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect210 bounds require their current primary skeleton.");
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect210 bounds require their current actor world matrix.");
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, world);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Effect210 bounds require their current primary geometry.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect210 bounds require their current object mask.");
@@ -75,8 +75,8 @@ public sealed partial class BattleSession
         current = WriteBytes(current, operation.DestinationAddress, output, 4);
         current = Release(current, 24);
         (current, uint restoreAddress) = Allocate(current, 88);
-        NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actor], source, Context(current, restoreAddress, 88));
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, restored.Model) };
+        NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), source, Context(current, restoreAddress, 88));
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) };
         current = PublishContext(current, restoreAddress, restored.Temporary58, 88);
         current = Release(current, 88);
         NativeFileStaging = current.Staging;

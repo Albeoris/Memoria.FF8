@@ -116,7 +116,7 @@ public sealed partial class BattleSession
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
             if (NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
-                var model = graphics.Models[actorIndex];
+                var model = graphics.ActorModels.Get(actorIndex);
                 program.Validate();
                 if (program.Source[program.Offset] == 255 && (model.Flags0 & 2) != 0 && model.ResourceFlags44 is ushort flags && (flags & 0x40) == 0 && model.Sequence == task.Payload[9])
                 {

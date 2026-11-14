@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (72), 756);
             workspace = workspace.Initialize7016B0(resources.Hierarchy, 756);
             task = StoreEffect311Workspace(task, workspace);
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
             int count = header.ReadContactCount();
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native665380 requires its actual first contact.");
             if (count == 0 || count > 14)
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
                 task = task.WriteWord(14, unchecked((ushort)NativeBattleEffect311Timing.Radius6658B3(phase)));
                 if (phase == 49)
                 {
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
                     int first = header.FirstContactIndex ?? throw new InvalidDataException("Native506BA0 requires its actual all-target contact pointer.");
                     var pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first + index)).ToImmutableArray() });
@@ -173,7 +173,7 @@ public sealed partial class BattleSession
             NativeBattleEffect311Bounds bounds = new(short.MaxValue, short.MaxValue, -32767, -32767, 65536, false);
             for (int index = 0; index < main.ReadWord(16); index++)
             {
-                bounds = NativeBattleEffect311Geometry.IncludeBounds6661D0(bounds, graphics.Models[Effect107Model(main.ReadDword(20 + index * 4))], projection.View!, projection);
+                bounds = NativeBattleEffect311Geometry.IncludeBounds6661D0(bounds, graphics.ActorModels.Get(Effect107Model(main.ReadDword(20 + index * 4))), projection.View!, projection);
             }
             int depth = unchecked(bounds.MinimumDepth - 128);
             if (!bounds.Visible || depth <= 0)

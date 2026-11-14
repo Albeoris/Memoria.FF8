@@ -60,7 +60,7 @@ public sealed record NativeBattleHeroStackInput(NativeBattleExecutionStack? Exec
     }
 }
 
-public sealed record NativeBattleHeroInputs(NativeBattleActionPacketsState Packets, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<byte, NativeBattleModuleAnchor> ReadAnchor571400, NativeBattleHeroStackInput Stack, Func<NativeBattleHeroFrame, NativeBattleHeroOperation, NativeBattleHeroFrame> Execute)
+public sealed record NativeBattleHeroInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, NativeBattleHeroStackInput Stack, Func<NativeBattleHeroFrame, NativeBattleHeroOperation, NativeBattleHeroFrame> Execute)
 {
     public Func<NativeBattleHeroFrame, byte, NativeBattleHeroFrame>? ObserveAnchor571400 { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]

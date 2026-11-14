@@ -25,7 +25,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Duel requires its retained effect memory.");
         NativeBattleDuel112Resources resources = memory.Duel112?.Resources ?? throw new NotSupportedException("Native Duel requires resources retained by its actual entry.");
-        NativeBattleEffectParameters parameters = memory.Duel112?.Parameters ?? throw new NotSupportedException("Native Duel requires its entered action parameters.");
+        NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new NotSupportedException("Native Duel requires its entered action parameters.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Duel requires its current camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Duel requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Duel requires its current view matrix.");
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Duel stage depth requires its actual retained groups.");
             NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)intensity), ColorFlags = 0 }).ToImmutableArray() };
         }, Contact);
-        frame = NativeBattleDuel112Controller.Advance6CBCF0(frame, () => nativeActionPackets.Headers[parameters.HeaderIndex7C].ReadByte(17), (current, slot, sequence) => NativeBattleDuel112Target.Initialize6CBF90(current, slot, sequence, actor), Child, current =>
+        frame = NativeBattleDuel112Controller.Advance6CBCF0(frame, () => nativeActionPackets.Headers[parameters.Header].ReadByte(17), (current, slot, sequence) => NativeBattleDuel112Target.Initialize6CBF90(current, slot, sequence, actor), Child, current =>
         {
             NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Duel animation registration requires its retained animation owner.");
             textures = textures.Register5099A0(new("Duel112", resources.StaticData), checked((int)(0x12DAFA8u - NativeBattleDuel112Resources.Address)));
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
 
         int FirstContact(int sequence)
         {
-            int header = checked(parameters.HeaderIndex7C + sequence);
+            int header = checked(parameters.Header + sequence);
             if ((uint)header >= NativeBattleActionPacketsState.HeaderCapacity)
             {
                 throw new InvalidDataException("Native Duel sequence leaves the actual physical action-header arena.");

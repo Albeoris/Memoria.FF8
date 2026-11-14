@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gastric Juice requires its actual process memory.");
         NativeBattleGastricJuice128Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gastric Juice requires its CRT stream."), memory.GastricJuice128 ?? throw new NotSupportedException("Gastric Juice requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gastric Juice requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gastric Juice requires its original interpolation constants.");
-        NativeBattleGastricJuice128Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Gastric Juice requires its current projection."), Anchor, Bone, Execute) { CapturePresentation = true };
+        NativeBattleGastricJuice128Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Gastric Juice requires its current projection."), Anchor, Bone, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleGastricJuice128Controller.Initialize(frame, resources, inputs) : NativeBattleGastricJuice128Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         NativeBattleGastricJuice128AnchorStep Anchor(NativeBattleGastricJuice128Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its current actor skeleton.");
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         NativeBattleGastricJuice128PointStep Bone(NativeBattleGastricJuice128Frame current, int actor, short selector, short distance)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, checked((byte)selector), distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, checked((byte)selector), distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Gastric Juice bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -89,8 +89,8 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Value, 0, null) { Pan = checked((byte)sound.Pan) });
                     return Import(current);
                 case NativeBattleGastricJuice128ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleGastricJuice128SnapshotBody snapshot:
                     NativeDeformedBodyBridge captured = SnapshotNativeDeformedBody(current.Memory, current.Effect, current.Random, current.Staging!, graphics, snapshot.Actor, snapshot.CacheAddress, NativeBattleGastricJuice128Profile.BodyCacheBytes);

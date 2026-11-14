@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect83 requires its process memory.");
         NativeBattleEffect83Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect83 requires its current CRT stream."), memory.Effect83 ?? throw new NotSupportedException("Effect83 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect83 requires its temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect83 requires its arithmetic constants.");
-        NativeBattleEffect83Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), _ => Camera().Roll, ReadColor, Execute) { CapturePresentation = true };
+        NativeBattleEffect83Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => Pose(actor), _ => Camera().Roll, ReadColor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect83Controller.Initialize(frame, resources, inputs) : NativeBattleEffect83Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect83ObserveBone bone:
-                    NativeBattleBoneAnchorProducer observed = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[bone.Actor], Pose(bone.Actor), bone.Selector, 0);
+                    NativeBattleBoneAnchorProducer observed = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(bone.Actor), Pose(bone.Actor), bone.Selector, 0);
                     return current with { Memory = ObserveNativeBoneAnchor(current.Memory, observed) };
                 case NativeBattleEffect83UpdateCaster8DC740 caster:
                     NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect83Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
@@ -102,11 +102,11 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect83Controller.Read(current, bounds.TaskAddress);
                     int boundsActor = boundsTask.ReadByte(0x2D);
                     NativeBattlePoseSource source = Pose(boundsActor);
-                    boundsTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[boundsActor].SequenceState ?? throw new NotSupportedException("Effect83 requires its target pose."), source));
+                    boundsTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(boundsActor).SequenceState ?? throw new NotSupportedException("Effect83 requires its target pose."), source));
                     return NativeBattleEffect83Controller.Write(current, bounds.TaskAddress, boundsTask);
                 case NativeBattleEffect83Point502170 point:
                     int pointActor = Actor(point.ModelAddress);
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[pointActor], Pose(pointActor), checked((byte)point.Selector), 0);
+                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(pointActor), Pose(pointActor), checked((byte)point.Selector), 0);
                     current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
                     NativeBattleVector vector = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
                     NativeBattleEffectArena result = NativeBattleEffect83Controller.ReadBytes(current, point.OutputAddress, 8);
@@ -148,9 +148,9 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect83TargetFlags flags:
                     int flagActor = Actor(flags.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[flagActor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(flagActor);
                     ushort mask = flags.WordWidth ? flags.AndMask : (ushort)(0xFF00 | (byte)flags.AndMask);
-                    graphics = graphics with { Models = graphics.Models.SetItem(flagActor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flagActor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect83PublishMatrix1D99AB0 matrix:
                     return current with { Memory = current.Memory.PublishEffectLight1D99AB0(matrix.Matrix) };
@@ -167,7 +167,7 @@ public sealed partial class BattleSession
                     return CaptureNativeEffect83Target(current, capture.TaskAddress, graphics);
                 case NativeBattleEffect83TargetDraw79DA20 draw:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect83Frame bodyFrame) = DrawNativeEffect83Target(graphics, current, draw.BodyAddress, Deliver);
-                    graphics = graphics with { Models = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.Models };
                     current = bodyFrame;
                     return current;
                 case NativeBattleEffect83StageTransition transition:

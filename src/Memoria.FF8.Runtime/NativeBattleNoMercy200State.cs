@@ -57,23 +57,21 @@ public sealed record NativeBattleNoMercy200State([property: JsonRequired] bool G
     public NativeBattleNoMercy200Resources? Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleGuardianCameraTask? CameraTask { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleEffectParameters? Parameters { get; init; }
     public static NativeBattleNoMercy200State FromColdProcess() => new(false);
 
     public void Validate()
     {
         if (!GlobalsInitialized)
         {
-            if (Resources is not null || Parameters is not null || CameraTask is not null)
+            if (Resources is not null || CameraTask is not null)
             {
                 throw new InvalidDataException("Native No Mercy cannot retain entered owners before actual entry.");
             }
             return;
         }
-        if (Resources is null || Parameters is null || Parameters.Actor78 >= 7 || Parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity)
+        if (Resources is null)
         {
-            throw new InvalidDataException("Native No Mercy requires resources and parameters retained by its actual entry.");
+            throw new InvalidDataException("Native No Mercy requires resources retained by its actual entry.");
         }
         Resources.Validate();
     }
@@ -92,6 +90,6 @@ public sealed partial record NativeBattleEffectMemory
 public sealed record NativeBattleNoMercy200Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
 {
     [JsonIgnore]
-    public NativeBattleEffectParameters Parameters => Memory.NoMercy200?.Parameters ?? throw new NotSupportedException("Native No Mercy requires its entered parameter owner.");
+    public NativeBattleEffectParameters Parameters => Effect.Parameters ?? throw new NotSupportedException("Native No Mercy requires its entered parameter owner.");
 }
 public sealed record NativeBattleNoMercy200ChildStep(NativeBattleNoMercy200Frame Frame, NativeBattleEffectTaskPool Pool, int Result);

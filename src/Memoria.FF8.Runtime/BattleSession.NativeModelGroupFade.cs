@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState SubmitNativeModelGroup50F190(NativeBattleGraphicsState graphics, int index, byte group, byte counter, uint sourceColor, ImmutableArray<NativeBattleActionMatrix>? deformed = null)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, model);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native50F190 requires its prior published camera matrix.");
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         else
         {
             model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
             matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         }
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native50F190 requires its actual original geometry directory.");
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
         }
         if (deformed is null)
         {
-            graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source)) };
         }
         return graphics;
     }

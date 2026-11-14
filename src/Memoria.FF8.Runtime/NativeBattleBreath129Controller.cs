@@ -27,7 +27,7 @@ public static partial class NativeBattleBreath129Controller
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (roots, int slot) = roots.Append(0x6B4CB0);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleBreath129State state = frame.State.RequireSeeds(resources).WriteDword(0x2521158, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(0x2521160, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleBreath129State state = frame.State.RequireSeeds(resources).WriteDword(0x2521158, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(0x2521160, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -99,12 +99,12 @@ public static partial class NativeBattleBreath129Controller
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(resources.Act(source), size);
                 task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace);
             }
-            int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
             if (count is < 1 or > 3)
             {
                 throw new NotSupportedException("Breath targets must fit its three actual pointer fields.");
             }
-            int contact = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Breath requires its captured contacts.");
+            int contact = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Breath requires its captured contacts.");
             task = task.WriteWord(14, checked((ushort)count));
             for (int index = 0; index < count; index++)
             {

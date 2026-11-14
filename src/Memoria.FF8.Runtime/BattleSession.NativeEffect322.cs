@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect322Resources resources = effect.Binding.Effect322Resources ?? throw new NotSupportedException("Effect322 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect322 requires current process memory.");
         NativeBattleEffect322Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect322 requires its current CRT stream."), memory.Effect322 ?? throw new NotSupportedException("Effect322 requires its retained state.")) { Staging = NativeFileStaging };
-        NativeBattleEffect322Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect322 requires its color tables."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect322Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect322 requires its current projection."), _ => Camera().Roll, Point, Anchor, (current, controls, segment, parameter, retained) => NativeBattleEffect322Trajectory.Sample(current, controls, segment, parameter, retained, definition.NativeGraphics!.Rules.SummonColors!), SelectIo, (current, operation) => ExecuteNativeEffect322Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
+        NativeBattleEffect322Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect322 requires its color tables."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect322Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect322 requires its current projection."), _ => Camera().Roll, Point, Anchor, (current, controls, segment, parameter, retained) => NativeBattleEffect322Trajectory.Sample(current, controls, segment, parameter, retained, definition.NativeGraphics!.Rules.SummonColors!), SelectIo, (current, operation) => ExecuteNativeEffect322Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect322Controller.Initialize(frame, resources, inputs) : NativeBattleEffect322Controller.Advance(frame, resources, inputs);
         PublishNativeEffect322Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleEffect322PointStep Point(NativeBattleEffect322Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect322Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect322 requires its current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect322 requires its current skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect322PointStep Anchor(NativeBattleEffect322Frame current, uint address, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[NativeEffect322Actor(graphics, address)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect322Actor(graphics, address));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect322 requires its current target transform.");
             if ((model.Flags0 & 2) == 0)
             {

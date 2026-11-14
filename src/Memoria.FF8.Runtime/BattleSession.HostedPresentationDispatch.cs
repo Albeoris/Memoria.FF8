@@ -90,7 +90,7 @@ public sealed partial class BattleSession
             uint argument = checked(0x1D280C4u + 20u * (uint)selected);
             (descriptors, int slot) = descriptors.Enqueue(104, 128, argument);
             HostedPresentationInvocation invocation = new(checked(lastHostedActionIssued + 1), slot, descriptors.Packets[slot].Serial, selected, argument);
-            action = new(invocation, row, source, graphics.Models[row].ModelId4, roster[row].IsParty, roster.PartyRows.Count());
+            action = new(invocation, row, source, graphics.ActorModels.Get(row).ModelId4, roster[row].IsParty, roster.PartyRows.Count());
         }
         HostedCompletionInvocation? nextCompletion = null;
         if (completion is not null)

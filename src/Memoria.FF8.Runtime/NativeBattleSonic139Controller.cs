@@ -19,7 +19,7 @@ public static partial class NativeBattleSonic139Controller
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (roots, int slot) = roots.Append(RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleSonic139State state = frame.State.CopyEntrySnapshot6A8860(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleSonic139State state = frame.State.CopyEntrySnapshot6A8860(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -81,7 +81,7 @@ public static partial class NativeBattleSonic139Controller
             NativeBattleModulePoolTask task = Read(frame, mainAddress).WriteBytes(12, new byte[0x4D0]);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x30, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
             task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x30, workspace);
-            int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
             int capacity = inputs.AllowFourthTarget ? HostedTargetCapacity : TargetCapacity;
             if (count < 1 || count > capacity)
             {
@@ -124,7 +124,7 @@ public static partial class NativeBattleSonic139Controller
 
     private static uint ReadContactActor(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, int index)
     {
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its captured contacts.");
         return ModelAddress(inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex);
     }

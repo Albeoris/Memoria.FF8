@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Poison Gas171 requires its actual process memory.");
         NativeBattlePoisonGas171Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Poison Gas171 requires its actual CRT stream."), memory.PoisonGas171 ?? throw new NotSupportedException("Poison Gas171 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Poison Gas171 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Poison Gas171 requires its interpolation constants.");
-        NativeBattlePoisonGas171Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Poison Gas171 requires its current projection."), _ => Camera().FocalLength ?? throw new NotSupportedException("Poison Gas171 requires its current scalar focal WORD."), (_, actor) => graphics.Models[actor], (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Poison Gas171 requires its current model world matrix."), null), Bone, Execute) { CapturePresentation = true };
+        NativeBattlePoisonGas171Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Poison Gas171 requires its current projection."), _ => Camera().FocalLength ?? throw new NotSupportedException("Poison Gas171 requires its current scalar focal WORD."), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Poison Gas171 requires its current model world matrix."), null), Bone, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattlePoisonGas171Controller.Initialize(frame, resources, inputs) : NativeBattlePoisonGas171Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         NativeBattlePoisonGas171PointStep Bone(NativeBattlePoisonGas171Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Poison Gas171 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Poison Gas171 bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
                     graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
                     return Import(current);
                 case NativeBattlePoisonGas171ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = unchecked((ushort)((graphics.Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = unchecked((ushort)((graphics.ActorModels.Get(flags.Actor).Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattlePoisonGas171Stage5713E0 stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Poison Gas171 requires its retained stage groups.");

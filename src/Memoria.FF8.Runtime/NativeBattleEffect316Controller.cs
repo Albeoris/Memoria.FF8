@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect316Controller
         frame = inputs.Execute(frame, new NativeBattleEffect316UploadTim505E30(texture));
         frame = inputs.Execute(frame, new NativeBattleEffect316UploadTim505E30(EmbeddedTimAddress));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect316 requires its actual current parameters.");
-        uint model = ModelAddress(parameters.Actor78);
+        uint model = ModelAddress(parameters.Source);
         frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model).WriteDword(WorkGlobal, CommonAddress) };
         frame = inputs.Execute(frame, new NativeBattleEffect316ModelFlags(model, 2, 0xFFF3, 0));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);

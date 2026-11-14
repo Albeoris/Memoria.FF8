@@ -49,7 +49,7 @@ public static partial class NativeBattleBreath157Controller
         }
         if (age == 65)
         {
-            frame = inputs.Execute(frame, new NativeBattleBreath157ContactFirst(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleBreath157ContactFirst(Parameters(frame).Header));
         }
         if (age == 1)
         {

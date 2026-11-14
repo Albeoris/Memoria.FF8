@@ -22,10 +22,10 @@ public sealed record NativeBattleAuxiliaryInputs
     public Action? InitializeTimerDisplay47D910 { get; init; }
     public Action<byte, bool>? ApplyScreenFade501D10 { get; init; }
     public Action<uint>? ApplyScreenBlend501E80 { get; init; }
-    public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<NativeBattleVector, byte>? ReadPan { get; init; }
-    public Func<int, NativeBattleGraphicsModel>? ReadModel { get; init; }
-    public Action<int, NativeBattleGraphicsModel>? WriteModel { get; init; }
+    public Func<BattleModelOwner, NativeBattleGraphicsModel>? ReadModel { get; init; }
+    public Action<BattleModelOwner, NativeBattleGraphicsModel>? WriteModel { get; init; }
     public Action<short>? WriteCameraTranslationY { get; init; }
     public Action<short>? WriteStageColorDepth { get; init; }
     public Action<int, byte, byte, uint>? DrawModelGroup50F190 { get; init; }

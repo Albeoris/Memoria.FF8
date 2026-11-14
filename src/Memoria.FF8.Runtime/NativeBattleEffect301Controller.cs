@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect301Controller
         {
             frame = inputs.Execute(frame, new NativeBattleEffect301ModelFlags(ModelAddress(actor), 2, ushort.MaxValue, 4));
         }
-        uint caster = ModelAddress(parameters.Actor78);
+        uint caster = ModelAddress(parameters.Source);
         ushort casterFlags = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(inputs.ReadModelArena9C(frame, caster).Read(0, 2));
         frame = frame with { State = frame.State.WriteDword(CasterGlobal, caster).WriteDword(SavedCasterFlagsGlobal, casterFlags) };
         frame = inputs.Execute(frame, new NativeBattleEffect301ModelFlags(caster, 1, 255, 12));

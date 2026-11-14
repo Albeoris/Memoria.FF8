@@ -29,7 +29,7 @@ public static class NativeBattleFiraController
         main = Put(main, root, main.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 150);
         (children, int controller) = children.Append(0x61CEC0);
-        NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         children = Put(children, controller, InitializeController(children.Slots[controller], 0, header, packets));
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress };
     }
@@ -286,7 +286,7 @@ public static class NativeBattleFiraController
             return value % modulus;
         }
 
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[checked(parameters.HeaderIndex7C + sequence)];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
     }
 
     private static NativeBattleModulePoolTask InitializeController(NativeBattleModulePoolTask task, int sequence, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)

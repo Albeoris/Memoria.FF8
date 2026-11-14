@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Additional effect181 requires its actual process memory.");
         NativeBattleAdditional181Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Additional effect181 requires its actual CRT stream."), memory.Additional181 ?? throw new NotSupportedException("Additional effect181 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Additional effect181 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Additional effect181 requires its interpolation constants.");
-        NativeBattleAdditional181Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Additional effect181 requires its current projection."), (_, actor) => graphics.Models[actor], Bone, Anchor, Execute) { CapturePresentation = true };
+        NativeBattleAdditional181Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Additional effect181 requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), Bone, Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleAdditional181Controller.Initialize(frame, resources, inputs) : NativeBattleAdditional181Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         NativeBattleAdditional181PointStep Bone(NativeBattleAdditional181Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Additional effect181 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Additional effect181 bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleAdditional181PointStep Anchor(NativeBattleAdditional181Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Additional effect181 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleAdditional181ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = unchecked((ushort)((graphics.Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = unchecked((ushort)((graphics.ActorModels.Get(flags.Actor).Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleAdditional181Flash5712C0 flash:
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(checked((short)flash.Arg0), checked((short)flash.Arg1), checked((short)flash.Arg2), checked((short)flash.Arg3)) };

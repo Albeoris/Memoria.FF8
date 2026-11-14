@@ -7,15 +7,15 @@ public sealed partial class BattleSession
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) ExecuteNativeCinematicShadow71(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics, NativeBattleWaterSlotBank bank)
     {
         NativeBattleCinematicShadow71Services services = new(
-            address => graphics.Models[ActorIndex(address)].Flags0,
+            address => graphics.ActorModels.Get(ActorIndex(address)).Flags0,
             (address, flags) =>
             {
                 int index = ActorIndex(address);
-                graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = flags }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = flags }) };
             },
             (current, actorAddress, ordering, shift, output) =>
             {
-                NativeBattleGraphicsModel actor = graphics.Models[ActorIndex(actorAddress)];
+                NativeBattleGraphicsModel actor = graphics.ActorModels.Get(ActorIndex(actorAddress));
                 NativeBattleEffectMemory memory = RequireWaterMemory();
                 NativeBattleGraphicsDefinition native = definition.NativeGraphics ?? throw new NotSupportedException("Native explicit shadow requires its current graphics definition.");
                 NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native explicit shadow requires its current staging owner.");

@@ -12,7 +12,7 @@ public static partial class NativeBattleBadBreath300Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Bad Breath requires its executed texture initializer pointer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Bad Breath requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Bad Breath requires its working arena."), tim);
-        frame = frame with { State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)) };
+        frame = frame with { State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int index) = root.Append(RootCallback);
         root = root.WriteSlot(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0));
@@ -64,7 +64,7 @@ public static partial class NativeBattleBadBreath300Controller
             (frame, uint address) = Append(frame, 1, MainCallback);
             NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[48]);
             int firstContact = FirstContact(frame, inputs);
-            int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
             if (count is < 1 or > 4)
             {
                 throw new InvalidDataException("Bad Breath requires one to four captured target contacts.");

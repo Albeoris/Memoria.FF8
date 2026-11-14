@@ -38,21 +38,21 @@ public sealed record NativeBattleBlastingZone164Resources(NativeBattleEffectHeap
     }
 }
 
-public sealed record NativeBattleBlastingZone164State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] byte? FirstRecipient, [property: JsonRequired] NativeBattleBlastingZone164Resources? RetainedResources, [property: JsonRequired] NativeBattleGuardianCameraTask? CameraTask)
+public sealed record NativeBattleBlastingZone164State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleBlastingZone164Resources? RetainedResources, [property: JsonRequired] NativeBattleGuardianCameraTask? CameraTask)
 {
-    public static NativeBattleBlastingZone164State FromColdProcess() => new(false, null, null, null, null);
+    public static NativeBattleBlastingZone164State FromColdProcess() => new(false, null, null);
 
     public void Validate()
     {
         if (GlobalsInitialized)
         {
-            if (Parameters is null || Parameters.Actor78 >= 7 || Parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || FirstRecipient is null or >= 7 || RetainedResources is null)
+            if (RetainedResources is null)
             {
-                throw new InvalidDataException("Native Blasting Zone requires its actual entered action and immutable resources.");
+                throw new InvalidDataException("Native Blasting Zone requires its immutable resources retained by actual entry.");
             }
             RetainedResources.Validate();
         }
-        else if (Parameters is not null || FirstRecipient is not null || RetainedResources is not null || CameraTask is not null)
+        else if (RetainedResources is not null || CameraTask is not null)
         {
             throw new InvalidDataException("Native Blasting Zone cannot retain entered owners before entry.");
         }
@@ -71,8 +71,8 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattleBlastingZone164Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
 {
-    public NativeBattleEffectParameters Parameters => Memory.BlastingZone164?.Parameters ?? throw new InvalidDataException("Native Blasting Zone requires its actual entered parameter owner.");
-    public byte FirstRecipient => Memory.BlastingZone164?.FirstRecipient ?? throw new InvalidDataException("Native Blasting Zone requires its actual first recipient.");
+    public NativeBattleEffectParameters Parameters => Effect.Parameters ?? throw new InvalidDataException("Native Blasting Zone requires its actual entered parameter owner.");
+    public BattleModelOwner FirstRecipient => Effect.EntryFirstRecipient ?? throw new InvalidDataException("Native Blasting Zone requires its actual first recipient.");
 }
 
 public sealed record NativeBattleBlastingZone164ChildStep(NativeBattleBlastingZone164Frame Frame, NativeBattleEffectTaskPool Pool, int Result);

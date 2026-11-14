@@ -6,7 +6,7 @@ public sealed record NativeBattleBlaster186Frame(NativeBattleEffectMemory Memory
 }
 
 public sealed record NativeBattleBlaster186PointStep(NativeBattleBlaster186Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleBlaster186Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleBlaster186Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleBlaster186Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleBlaster186Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleBlaster186Frame, int, int, int, NativeBattleBlaster186PointStep> ReadBone502170, Func<NativeBattleBlaster186Frame, int, NativeBattleBlaster186PointStep> ReadAnchor571400, Func<NativeBattleBlaster186Frame, NativeBattleBlaster186Operation, NativeBattleBlaster186Frame> Execute);
+public sealed record NativeBattleBlaster186Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleBlaster186Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleBlaster186Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleBlaster186Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleBlaster186Frame, BattleModelOwner, int, int, NativeBattleBlaster186PointStep> ReadBone502170, Func<NativeBattleBlaster186Frame, BattleModelOwner, NativeBattleBlaster186PointStep> ReadAnchor571400, Func<NativeBattleBlaster186Frame, NativeBattleBlaster186Operation, NativeBattleBlaster186Frame> Execute);
 
 public abstract record NativeBattleBlaster186Operation
 {

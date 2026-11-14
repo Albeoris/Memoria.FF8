@@ -20,9 +20,9 @@ public sealed partial class BattleSession
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect323MeshMask mask:
                 int actorIndex = NativeEffect323Actor(graphics, mask.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[actorIndex];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actorIndex);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect323 requires its current mesh-mask owner.");
-                graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };
                 return frame;
             case NativeBattleEffect323Sound501330 sound:
                 PublishNativeEffect323Frame(frame);

@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleNoMercy200TargetInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleModuleAnchor> ReadAnchor, Func<int, short> ReadScale38, Func<int, short> ReadGround36);
+public sealed record NativeBattleNoMercy200TargetInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor, Func<int, short> ReadScale38, Func<int, short> ReadGround36);
 
 public static partial class NativeBattleNoMercy200Controller
 {
@@ -25,11 +25,11 @@ public static partial class NativeBattleNoMercy200Controller
         {
             return new(frame, pool, 0);
         }
-        NativeBattleEffectParameters parameters = frame.Memory.NoMercy200?.Parameters ?? throw new NotSupportedException("Native No Mercy target requires its entered action parameters.");
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native No Mercy target requires its entered action parameters.");
         if (Word(task, 34) == 12)
         {
             int next = Word(task, 14) + 1;
-            if (next <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+            if (next <= inputs.Packets.Headers[parameters.Header].ReadByte(17))
             {
                 pool = AppendHeader(frame, pool, inputs.Packets, next);
             }
@@ -57,7 +57,7 @@ public static partial class NativeBattleNoMercy200Controller
             }
             else
             {
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[checked(parameters.HeaderIndex7C + Word(task, 14))];
+                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[checked(parameters.Header + Word(task, 14))];
                 int count = header.ReadContactCount();
                 if (count > 0)
                 {
@@ -113,8 +113,8 @@ public static partial class NativeBattleNoMercy200Controller
 
     private static NativeBattleEffectTaskPool AppendHeader(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool, NativeBattleActionPacketsState packets, int relative)
     {
-        NativeBattleEffectParameters parameters = frame.Memory.NoMercy200?.Parameters ?? throw new NotSupportedException("Native No Mercy target requires its actual parameter block.");
-        NativeBattleActionHeaderSlot header = packets.Headers[checked(parameters.HeaderIndex7C + relative)];
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native No Mercy target requires its actual parameter block.");
+        NativeBattleActionHeaderSlot header = packets.Headers[checked(parameters.Header + relative)];
         bool single = header.ReadContactCount() <= 1;
         (pool, int slot) = pool.Append(single ? 0x639FD0u : 0x639800u);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)relative)).WriteWord(34, 0);

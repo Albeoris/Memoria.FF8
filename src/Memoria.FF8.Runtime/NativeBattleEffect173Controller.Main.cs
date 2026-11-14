@@ -84,7 +84,7 @@ public static partial class NativeBattleEffect173Controller
         if (age == 85)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect173 requires current contacts.");
-            NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).ReadHeader(parameters.Header);
             frame = inputs.Execute(frame, new NativeBattleEffect173AllContacts506BA0(header.FirstContactIndex ?? throw new NotSupportedException("Effect173 requires the actual contact pointer."), header.ReadContactCount()));
         }
         if (age <= 16)

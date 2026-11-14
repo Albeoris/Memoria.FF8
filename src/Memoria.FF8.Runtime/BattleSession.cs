@@ -148,6 +148,7 @@ public sealed partial class BattleSession
                 PublishNativeElementAttack(actor);
             }
         }
+        RefreshNativePacketBindings();
         if (initializeNativeAi)
         {
             RefreshNativeKnownMagicStocks();

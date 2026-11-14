@@ -59,6 +59,6 @@ public static partial class NativeBattleEffect322Controller
     private static int FirstContact(NativeBattleEffect322Frame frame, NativeBattleEffect322Inputs inputs)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect322 requires its current action header.");
-        return inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect322 requires its native first contact pointer.");
+        return inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect322 requires its native first contact pointer.");
     }
 }

@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleDiablos325Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDiablosRecipient657CB0(NativeBattleDiablos325Frame frame, int index, int scaleY, NativeBattleGraphicsState graphics)
     {
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleModelTextureOwner? material = presentationForeignActors?.ContainsKey(index) == true
             ? null
             : SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
@@ -52,11 +52,11 @@ public sealed partial class BattleSession
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Diablos sink requires its current actor rig.");
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         ImmutableArray<NativeBattleRawMesh> body = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor);
         DrawBody(body, NativeBattleBodyBoneMatrices.Require(actor, source), actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Diablos sink requires its current body object mask."));
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Diablos sink requires its actual linked geometry presence.");
         if (!linked.IsEmpty && !(resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Diablos sink requires its original linked skeleton layout.")))
         {

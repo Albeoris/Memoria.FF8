@@ -20,11 +20,11 @@ public sealed partial class BattleSession
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Acid170 target requires its addressed temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativeAcid170View(staging, 0x1D969A8, 4);
-        bool linked = graphics.Models[actor].LinkedTransform is not null;
-        NativeBattleAcid170ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeAcid170View(staging, temporaryAddress, 172));
+        bool linked = graphics.ActorModels.Get(actor).LinkedTransform is not null;
+        NativeBattleAcid170ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativeAcid170View(staging, temporaryAddress, 172));
         NativeBattleAcid170ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleAcid170ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary172, 172) }, graphics);
 
         NativeBattleAcid170ModelFrame Shadow(NativeBattleAcid170ModelFrame current)

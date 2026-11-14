@@ -12,7 +12,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native actor anchor requires its actual physical model pointer.");
             }
-            NativeBattleGraphicsModel actor = graphics.Models[index];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
                 if (linked)
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
                 publication = actor.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native actor anchor requires its actual current matrix publication.");
             }
             NativeBattleBodyBoneMatrices.RequirePublication(publication, source);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
             return new NativeBattleCinematicBonePose(current, source.Skeleton, publication.Matrices, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native actor anchor requires the caller's actual world matrix."));
         }, update, (current, address) =>
         {
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                 {
                     throw new NotSupportedException("Native radial anchor requires its actual physical actor pointer.");
                 }
-                return graphics.Models[actorIndex].Transform?.Scale38 ?? throw new NotSupportedException("Native radial anchor requires the actual actor scale WORD38.");
+                return graphics.ActorModels.Get(actorIndex).Transform?.Scale38 ?? throw new NotSupportedException("Native radial anchor requires the actual actor scale WORD38.");
             }
         };
         return (NativeBattleCinematicActorAnchorCommands.Execute(frame, program, services), graphics);

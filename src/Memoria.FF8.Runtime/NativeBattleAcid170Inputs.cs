@@ -6,7 +6,7 @@ public sealed record NativeBattleAcid170Frame(NativeBattleEffectMemory Memory, N
 }
 
 public sealed record NativeBattleAcid170PointStep(NativeBattleAcid170Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleAcid170Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleAcid170Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleAcid170Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleAcid170Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleAcid170Frame, int, int, int, NativeBattleAcid170PointStep> ReadBone502170, Func<NativeBattleAcid170Frame, int, NativeBattleAcid170PointStep> ReadAnchor571400, Func<NativeBattleAcid170Frame, NativeBattleAcid170Operation, NativeBattleAcid170Frame> Execute);
+public sealed record NativeBattleAcid170Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleAcid170Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleAcid170Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleAcid170Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleAcid170Frame, BattleModelOwner, int, int, NativeBattleAcid170PointStep> ReadBone502170, Func<NativeBattleAcid170Frame, BattleModelOwner, NativeBattleAcid170PointStep> ReadAnchor571400, Func<NativeBattleAcid170Frame, NativeBattleAcid170Operation, NativeBattleAcid170Frame> Execute);
 
 public abstract record NativeBattleAcid170Operation
 {

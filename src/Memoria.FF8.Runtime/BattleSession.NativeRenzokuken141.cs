@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleRenzokuken160Inputs Inputs(NativeBattleRenzokuken160Frame current) => new(graphics.Flags, NativeBattleRenzokukenVariantController.ReadState(current).Core.AbSegments.IsEmpty ? graphics.TriggerWidget?.Block.Segments ?? [] : NativeBattleRenzokukenVariantController.ReadState(current).Core.AbSegments, actor => graphics.Models[actor], Execute)
+        NativeBattleRenzokuken160Inputs Inputs(NativeBattleRenzokuken160Frame current) => new(graphics.Flags, NativeBattleRenzokukenVariantController.ReadState(current).Core.AbSegments.IsEmpty ? graphics.TriggerWidget?.Block.Segments ?? [] : NativeBattleRenzokukenVariantController.ReadState(current).Core.AbSegments, actor => graphics.ActorModels.Get(actor), Execute)
         {
             ReadBoneCount = actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Renzokuken variant requires its actual body skeleton.")).BoneCount,
             ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction),
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Renzokuken contact requires its original offset-vector table.");
             }
-            NativeBattleActionMatrix body = graphics.Models[state.Actor].GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken contact requires its actual actor matrix64.");
+            NativeBattleActionMatrix body = graphics.ActorModels.Get(state.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken contact requires its actual actor matrix64.");
             NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(body, offsets[contact]);
             NativeBattleVector origin = new(unchecked((short)(state.Origin.X + offset.X)), unchecked((short)(state.Origin.Y + offset.Y)), unchecked((short)(state.Origin.Z + offset.Z)));
             return new(origin, null);
@@ -101,15 +101,15 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleRenzokuken160ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = flags.Flags }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleRenzokuken160ActorColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color40 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleRenzokuken160ActorResource binding:
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor));
                     model = model with { ResourceMagicId = binding.Resource.MagicId, Flags2 = (ushort)((model.Flags2 ?? throw new NotSupportedException("Native5022C0 requires the actual model WORD2.")) | 8) };
-                    graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(actor, model) }, actor, binding.Sequence);
+                    graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(actor, model) }, actor, binding.Sequence);
                     return current;
                 case NativeBattleRenzokuken160Stage stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");
@@ -158,7 +158,7 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, NativeBattleModuleCallback Callback) AdvanceNativeRenzokukenVariantShared(NativeBattleGraphicsState graphics, NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs, NativeBattleRenzokukenVariantProfile profile)
     {
         modules = NativeBattleRenzokukenVisualLifetimes.EnsureShared(modules, slot, profile.Effect);
-        inputs = inputs with { ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires its actual angleWORD36.")).Angle36 } };
+        inputs = inputs with { ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native571400 requires its actual angleWORD36.")).Angle36 } };
         if (modules.Slots[slot].Callback == profile.SharedEmitterCallback)
         {
             return (graphics, NativeBattleRenzokuken160Controller.AdvanceShared5FF4E0(modules, slot, inputs, profile.SharedStreakCallback));

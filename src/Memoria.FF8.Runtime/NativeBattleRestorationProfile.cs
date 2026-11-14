@@ -88,7 +88,7 @@ public sealed record NativeBattleRestorationState([property: JsonRequired] int S
 public sealed record NativeBattleRestorationFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRestorationState State);
 public sealed record NativeBattleRestorationLeafStep(NativeBattleRestorationFrame Frame, int Result);
 public sealed record NativeBattleRestorationControllerStep(NativeBattleRestorationFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
-public sealed record NativeBattleRestorationControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleRestorationControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<NativeBattleRestorationFrame, int, NativeBattleRestorationFrame>? ApplyContact { get; init; }
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }

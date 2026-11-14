@@ -128,7 +128,7 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattleTonberry90Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public sealed record NativeBattleTonberry90TaskStep(NativeBattleTonberry90Frame Frame, bool Complete);
-public sealed record NativeBattleTonberry90Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTonberry90Frame, uint, NativeBattleTonberry90Frame> InitializeTarget, Func<NativeBattleTonberry90Frame, uint, NativeBattleTonberry90TaskStep> AdvanceLeaf, Func<NativeBattleTonberry90Frame, int, NativeBattleTonberry90Frame> ApplyContact, Func<NativeBattleTonberry90Frame, NativeBattleChoco97Operation, NativeBattleTonberry90Frame> Execute)
+public sealed record NativeBattleTonberry90Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTonberry90Frame, uint, NativeBattleTonberry90Frame> InitializeTarget, Func<NativeBattleTonberry90Frame, uint, NativeBattleTonberry90TaskStep> AdvanceLeaf, Func<NativeBattleTonberry90Frame, int, NativeBattleTonberry90Frame> ApplyContact, Func<NativeBattleTonberry90Frame, NativeBattleChoco97Operation, NativeBattleTonberry90Frame> Execute)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }

@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         NativeBattleWendigoFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Wendigo requires its process memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Wendigo requires its shared CRT stream."));
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Wendigo requires its camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Wendigo requires its published projection.");
-        NativeBattleWendigoInputs inputs = new(nativeActionPackets, projection, camera.Roll, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Wendigo requires its original interpolation constants."), index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Wendigo requires its current actor skeleton."), Execute);
+        NativeBattleWendigoInputs inputs = new(nativeActionPackets, projection, camera.Roll, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Wendigo requires its original interpolation constants."), index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Wendigo requires its current actor skeleton."), Execute);
         frame = NativeBattleWendigoController.Advance(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Wendigo contact lost its process owner.") };
                 case NativeBattleWendigoModel model:
-                    graphics = graphics with { Models = graphics.Models.SetItem(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
                     return current;
                 case NativeBattleWendigoSequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);

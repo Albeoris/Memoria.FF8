@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect187 body requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect187 body requires its current projection.");
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Effect187 body requires its current addressed memory.");
-        NativeDeformedBodyBridge current = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], staging, NativeDeformedBodyView(staging, temporaryAddress, 464), temporaryAddress);
+        NativeDeformedBodyBridge current = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), staging, NativeDeformedBodyView(staging, temporaryAddress, 464), temporaryAddress);
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect187 body requires its retained projected capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         if ((current.Model.Flags0 & 0x20) == 0)
@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         current = Draw(current with { Temporary = context }, false, NativeBattleBodyBoneMatrices.Require(current.Model, source));
         current = RestoreNativeDeformedBody(current, source, false);
         current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary, 464) };
-        return (current.Graphics with { Models = current.Graphics.Models.SetItem(actor, current.Model) }, frame with { Memory = current.Memory, Staging = current.Staging });
+        return (current.Graphics with { ActorModels = current.Graphics.ActorModels.Set(actor, current.Model) }, frame with { Memory = current.Memory, Staging = current.Staging });
 
         NativeDeformedBodyBridge Deliver(NativeDeformedBodyBridge value, NativeBattleGfGeometryBatch batch)
         {

@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect64Controller
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect64UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect64 requires its current parameters.");
-        uint model = ModelAddress(parameters.Actor78);
+        uint model = ModelAddress(parameters.Source);
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model) };
         frame = inputs.Execute(frame, new NativeBattleEffect64ModelFlags(model, 0xFFF3, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect64ModelMeshMask(model, uint.MaxValue));

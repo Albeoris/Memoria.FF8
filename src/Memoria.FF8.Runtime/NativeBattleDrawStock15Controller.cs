@@ -148,7 +148,7 @@ public static class NativeBattleDrawStock15Controller
                 case 0x8B5AE0:
                 case 0x8B5C70:
                 case 0x8B6440:
-                    NativeBattleDrawStock15ParticleStep step = NativeBattleDrawStock15Particles.Advance(state, address, current.Random, new(parameters.Actor78, Select, inputs.ReadBone241));
+                    NativeBattleDrawStock15ParticleStep step = NativeBattleDrawStock15Particles.Advance(state, address, current.Random, new(parameters.Source, Select, inputs.ReadBone241));
                     state = step.Hierarchy;
                     current = current with { Random = step.Random };
                     foreach (NativeBattleDrawStock15ParticleOperation operation in step.Operations)
@@ -194,8 +194,8 @@ public static class NativeBattleDrawStock15Controller
                 case 2:
                     if (Word(task, 0x24) >= 15)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Draw Stock requires its selected physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Draw Stock requires its selected physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         state = Execute(state, new NativeBattleDrawStock15Contact(contact));
                         task = state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1));
                         state = state.Write(address, task);
@@ -243,7 +243,7 @@ public static class NativeBattleDrawStock15Controller
     {
         task = task.WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte targets = header.ReadByte(0x10);
         byte groups = header.ReadByte(0x11);
         byte maximum = unchecked((byte)(targets - 1));

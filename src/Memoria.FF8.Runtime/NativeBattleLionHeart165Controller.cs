@@ -33,7 +33,7 @@ public static partial class NativeBattleLionHeart165Controller
         {
             return new(frame, pool, 0);
         }
-        byte actor = frame.Parameters.Actor78;
+        BattleModelOwner actor = frame.Parameters.Source;
         if (counter == 0)
         {
             Execute(new NativeBattleLionHeart165Silence());

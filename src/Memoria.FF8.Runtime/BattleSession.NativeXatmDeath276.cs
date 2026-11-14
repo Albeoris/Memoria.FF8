@@ -11,19 +11,19 @@ public sealed partial class BattleSession
         effect = effect with { PresentationPackets = [] };
         NativeBattleXatmDeath276Resources resources = effect.Binding.XatmDeath276Resources ?? throw new NotSupportedException("Native X-ATM092 requires its authenticated executable resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native X-ATM092 requires its retained effect memory.");
-        int caster = effect.Parameters?.Actor78 ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster parameter.");
+        int caster = effect.Parameters?.Source ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster parameter.");
         if (initialize)
         {
             NativeBattleXatmDeath276Frame initialized = NativeBattleXatmDeath276Controller.Initialize684F10(memory, effect, resources);
             NativeEffectMemory = initialized.Memory;
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native X-ATM092 requires its actual camera.")).RegisterControlResource(initialized.Memory.Textures!.Animation);
-            NativeBattleGraphicsModel actor = graphics.Models[caster];
-            return graphics with { Models = graphics.Models.SetItem(caster, actor with { Flags0 = (ushort)(actor.Flags0 & 0xFFFB) }), OriginalEffect = initialized.Effect with { XatmDeath276 = initialized.State } };
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
+            return graphics with { ActorModels = graphics.ActorModels.Set(caster, actor with { Flags0 = (ushort)(actor.Flags0 & 0xFFFB) }), OriginalEffect = initialized.Effect with { XatmDeath276 = initialized.State } };
         }
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native X-ATM092 requires its published projection.");
         NativeBattleXatmDeath276State state = effect.XatmDeath276 ?? throw new NotSupportedException("Native X-ATM092 requires its executed684F10 state.");
         NativeBattleXatmDeath276Frame frame = new(memory, effect, state);
-        NativeBattleXatmDeath276Inputs inputs = new(projection, () => graphics.Models[caster], ReadModelAddress, ReadBone, ReadVertexCount, ReadVertex, Execute, StartVibration, AdvanceArc, AdvancePrim) { CapturePresentation = true };
+        NativeBattleXatmDeath276Inputs inputs = new(projection, () => graphics.ActorModels.Get(caster), ReadModelAddress, ReadBone, ReadVertexCount, ReadVertex, Execute, StartVibration, AdvanceArc, AdvancePrim) { CapturePresentation = true };
         frame = NativeBattleXatmDeath276Controller.Advance684FA0(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
         return graphics with { OriginalEffect = frame.Effect with { XatmDeath276 = frame.State } };
@@ -31,10 +31,10 @@ public sealed partial class BattleSession
         NativeBattleGraphicsResource Resource() => NativeGraphicsPoseResource(graphics, caster);
         NativeBattlePoseSource Pose() => Resource().PoseSource ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster rig.");
         ImmutableArray<NativeBattleRawMesh> Geometry() => Resource().Geometry ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster geometry.");
-        ImmutableArray<NativeBattleActionMatrix> Bones() => NativeBattleBodyBoneMatrices.Require(graphics.Models[caster], Pose());
+        ImmutableArray<NativeBattleActionMatrix> Bones() => NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(caster), Pose());
         uint ReadModelAddress()
         {
-            int row = graphics.Models[caster].ActiveResourceRow100 ?? throw new NotSupportedException("Native X-ATM092 requires its actual physical body resource row.");
+            int row = graphics.ActorModels.Get(caster).ActiveResourceRow100 ?? throw new NotSupportedException("Native X-ATM092 requires its actual physical body resource row.");
             int capacity = NativeModelResourceRowCapacity();
             if ((uint)row >= (uint)capacity)
             {
@@ -64,12 +64,12 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleXatmDeath276Bones bones:
-                    NativeBattleGraphicsModel actor = graphics.Models[caster];
+                    NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
                     actor = bones.World ? NativeBattleBodyBoneMatrices.Compose5095B0(actor, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native X-ATM092 requires its retained model matrix.")) : NativeBattleBodyBoneMatrices.Publish508C90(actor, Pose());
-                    graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
                     return current;
                 case NativeBattleXatmDeath276Model model:
-                    graphics = graphics with { Models = graphics.Models.SetItem(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
                     return current;
                 case NativeBattleXatmDeath276Caster body:
                     return DrawCaster(current, body.Hidden);
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                     (graphics, current) = InitializeNativeXatmDeath276Prim(graphics, current, prim.Slot);
                     return current;
                 case NativeBattleXatmDeath276Burst burst:
-                    NativeBattleGraphicsModel owner = graphics.Models[caster];
+                    NativeBattleGraphicsModel owner = graphics.ActorModels.Get(caster);
                     return NativeBattleXatmDeath276Debris.Burst687150(current, resources, burst, Geometry(), Bones(), owner.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native X-ATM092 requires its actual object mask."), Resource().GeometryRelocated507550 ? null : owner.BodyTextureSlots ?? throw new NotSupportedException("Native X-ATM092 requires its executed body material relocation."));
                 case NativeBattleXatmDeath276Sprite sprite:
                     NativeBattleModulePacketBatch sprites = NativeBattleModulePackets.EmitSprite571DC0(sprite.Draw, projection, NativeCamera!.Roll, 17, 2);
@@ -164,13 +164,13 @@ public sealed partial class BattleSession
         NativeBattleXatmDeath276Frame DrawCaster(NativeBattleXatmDeath276Frame current, ImmutableArray<byte> hiddenList)
         {
             NativeEffectMemory = current.Memory;
-            NativeBattleGraphicsModel actor = graphics.Models[caster];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
             NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native685750 requires its actual view.");
             graphics = graphics with { OriginalEffect = current.Effect };
             graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 0x1010, false, callerPilotIdentity: NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], 1), ReadModelAddress()));
             current = current with { Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native body shadow lost its selected effect owner.") };
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, NativeBattleGfMatrices.Compose56C2F0(view, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native685750 requires its actual model matrix.")));
-            graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
             current = current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native685750 shadow lost process memory.") };
             HashSet<int> hidden = hiddenList.Where(bone => bone != 255).Select(bone => (int)bone).ToHashSet();
             uint mask = actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native685750 requires its actual object mask.");
@@ -191,8 +191,8 @@ public sealed partial class BattleSession
                 NativeBattleGfGeometryBatch batch = NativeBattleXatmDeath276Body.CapturedPackets6859D0(mesh.Polygons, projected, actor.Color40 ?? throw new NotSupportedException("Native685750 requires its entity color DWORD40."), Resource().GeometryRelocated507550 ? null : actor.BodyTextureSlots ?? throw new NotSupportedException("Native685750 requires body materials."), registers.Zsf3 ?? throw new NotSupportedException("Native685750 requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native685750 requires ZSF4."), NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], index + 10), ReadModelAddress(), checked((uint)index)));
                 (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, batch);
             }
-            actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[caster], Pose());
-            graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
+            actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(caster), Pose());
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
             return current;
         }
     }

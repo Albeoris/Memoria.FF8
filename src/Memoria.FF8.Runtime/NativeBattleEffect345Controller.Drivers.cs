@@ -11,12 +11,12 @@ public static partial class NativeBattleEffect345Controller
             throw new NotSupportedException("Effect345 requires its current action parameter owner.");
         }
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int header = checked(Parameters(frame).HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+        BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
         if ((uint)header >= packets.Headers.Length)
         {
             throw new InvalidDataException("Effect345 signed header selector leaves its physical packet storage.");
         }
-        int contact = checked((packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect345 requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+        int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect345 requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
         _ = packets.ReadContact(contact);
         return contact;
     }

@@ -25,7 +25,7 @@ public static partial class NativeBattleLionHeart165Controller
         {
             if (counter == 0)
             {
-                NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Actor78);
+                NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Source);
                 NativeBattleVector point = new(unchecked((short)(tip.Position.X + ((380 * tip.DirectionX) >> 12))), unchecked((short)(tip.Position.Y + ((380 * tip.DirectionY) >> 12))), unchecked((short)(tip.Position.Z + ((380 * tip.DirectionZ) >> 12))));
                 frame = frame with { Staging = Point(frame.Staging, 0x23C6930, point) };
             }

@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidOperationException("The presentation has no current graphics owner.");
         NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("The current presentation service lost its parameter owner.");
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
         uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
         ushort action = header.Action;
         if (callback == 0x50A9A0 && action == 65534)
@@ -50,11 +50,11 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("A direct presentation phase waits for the previous native service and consumed output.");
         }
         packets.Validate();
-        if (parameters.Actor78 != 0 || parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity)
+        if (parameters.Source != 0 || parameters.Header is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new InvalidDataException("A direct presentation phase requires its bound source and physical header.");
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
         if (callback is not (0x50BDC0 or 0x50BEE0))
         {
@@ -63,21 +63,21 @@ public sealed partial class BattleSession
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidDataException("The direct presentation phase lost its graphics owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its process owner.");
         NativeBattleOriginalEffectState selected = memory.RequireDirectEntry21DFEC4(graphics.OriginalEffect);
-        NativeBattleGraphicsModel loaded = graphics.Models[0];
+        NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(0);
         source = source with { ActiveResourceRow100 = loaded.ActiveResourceRow100, OriginalResourceRow104 = loaded.OriginalResourceRow104, TextureResourceIndex = loaded.TextureResourceIndex, LinkedTextureResourceIndex = loaded.LinkedTextureResourceIndex, BodyTextureSlots = loaded.BodyTextureSlots, LinkedTextureSlots = loaded.LinkedTextureSlots, TextureAllocationMask = loaded.TextureAllocationMask };
         Dictionary<int, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
         if (!foreignActors.IsDefault)
         {
             presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
         }
-        nativeActionPackets = packets.ActivateHeader(parameters.HeaderIndex7C);
+        nativeActionPackets = packets.ActivateHeader(parameters.Header);
         nativeCrtRandom = randomState;
         NativeEffectMemory = memory with { Textures = textures };
-        NativeGraphics = graphics with { Models = BindPresentationForeignModels(graphics.Models.SetItem(0, source), roster: null, previous: previousForeignActors) };
+        NativeGraphics = graphics with { ActorModels = BindPresentationForeignModels(graphics.ActorModels.Set(0, source), roster: null, previous: previousForeignActors) };
         InitializeEffectPresentationServices(parameters);
         graphics = NativeGraphics!;
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The direct presentation phase lost its normalized source service.");
-        if (context.Callback != callback || context.ActorIndex != parameters.Actor78 || context.TargetMask != parameters.TargetMask7A)
+        if (context.Callback != callback || context.ActorIndex != parameters.Source || context.TargetMask != parameters.TargetActors)
         {
             throw new InvalidDataException("The direct presentation parameters contradict their physical source header.");
         }

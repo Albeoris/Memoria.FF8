@@ -75,7 +75,7 @@ public static partial class NativeBattleEffect63Controller
         if (age == 54)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect63 requires its current action header.");
-            int firstContact = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect63 requires its current first contact.");
+            int firstContact = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect63 requires its current first contact.");
             frame = inputs.Execute(frame, new NativeBattleEffect63Contact506690(firstContact));
         }
         if (age >= 64)

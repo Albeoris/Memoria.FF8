@@ -13,7 +13,7 @@ public static partial class NativeBattleDuel112Target
         {
             throw new InvalidDataException("Native Duel target completion requires its actual task owner.");
         }
-        int actor = frame.Memory.Duel112?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel target completion requires its actual actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel target completion requires its actual actor.");
         short phase = unchecked((short)task.ReadWord(12));
         NativeBattleGraphicsModel model = services.ReadModel(actor);
         int fadeOut = phase - 137;

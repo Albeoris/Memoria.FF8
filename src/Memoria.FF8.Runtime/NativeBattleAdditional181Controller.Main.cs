@@ -52,7 +52,7 @@ public static partial class NativeBattleAdditional181Controller
         }
         if (age == 38)
         {
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Additional requires its captured first physical contact pointer.");
             frame = inputs.Execute(frame, new NativeBattleAdditional181Contact506690(first));
         }

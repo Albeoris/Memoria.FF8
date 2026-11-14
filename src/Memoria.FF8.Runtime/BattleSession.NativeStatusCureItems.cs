@@ -36,7 +36,7 @@ public sealed partial class BattleSession
 
         short ReadModelY(int index)
         {
-            return (graphics.Models[index].Transform ?? throw new NotSupportedException("Native status-cure item requires its actual target position.")).Position28.Y;
+            return (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native status-cure item requires its actual target position.")).Position28.Y;
         }
 
         NativeBattleVector ReadAnchor(int index)
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             {
                 return position;
             }
-            short height = graphics.Models[index].MinimumY146 ?? throw new NotSupportedException("Native status-cure item requires its original target WORD92h.");
+            short height = graphics.ActorModels.Get(index).MinimumY146 ?? throw new NotSupportedException("Native status-cure item requires its original target WORD92h.");
             return NativeBattleStatusCureItemGeometry.Anchor(resources.Effect, position, ReadModelY(index), height);
         }
 

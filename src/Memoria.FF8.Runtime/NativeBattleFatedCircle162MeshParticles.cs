@@ -107,7 +107,7 @@ public static partial class NativeBattleFatedCircle162Controller
             NativeBattleVector offset = new(0, 0, 0);
             if (streaks)
             {
-                byte actor = frame.Memory.FatedCircle162?.Parameters?.Actor78 ?? throw new InvalidDataException("Native5FAF50 requires its entered caster.");
+                BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new InvalidDataException("Native5FAF50 requires its entered caster.");
                 NativeBattleActionMatrix body = inputs.ReadModel(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native5FAF50 requires its actual actor matrix64.");
                 offset = NativeBattleGfMatrices.RotateShort56C4F0(body, new(0, 0, -2400));
             }

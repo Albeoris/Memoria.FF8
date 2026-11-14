@@ -52,7 +52,7 @@ public static partial class NativeBattleChainGun190Controller
         }
         if (age == 30)
         {
-            frame = inputs.Execute(frame, new NativeBattleChainGun190Contacts506BA0(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleChainGun190Contacts506BA0(Parameters(frame).Header));
         }
         if (age == 1)
         {

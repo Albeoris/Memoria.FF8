@@ -35,7 +35,7 @@ public static class NativeBattleStatusCureItemController
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 20, 1);
         (roots, int slot) = roots.Append(profile.RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleStatusCureItemExecution execution = new(arenaOffset, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78));
+        NativeBattleStatusCureItemExecution execution = new(arenaOffset, NativeBattleGraphicsModelAddress.Encode(parameters.Source));
         return new(memory with { Textures = textures }, effect with { Pools = [roots], ReturnedDescriptor = profile.MainDescriptor, StatusCureItem = execution, DrawArenaOffset = null }, execution);
     }
 
@@ -76,7 +76,7 @@ public static class NativeBattleStatusCureItemController
                 NativeBattleModulePoolTask retainedChild = children.Slots[0].WriteRetainedBytes(12, arena.Read(checked(frame.Execution.ArenaOffset + 12), profile.ChildStride - 12));
                 children = children.WriteSlot(0, retainedChild);
                 (children, int childSlot) = children.Append(profile.ChildCallback);
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
                 int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native status-cure item requires its actual first contact pointer.");
                 int target = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
                 NativeBattleVector anchor = inputs.ReadTargetAnchor(target);
@@ -128,7 +128,7 @@ public static class NativeBattleStatusCureItemController
                     child = StoreWorkspace(child, advance.Workspace);
                     if (advance.Remaining == 0)
                     {
-                        int first = inputs.Packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Native status-cure item completion lost its actual first contact pointer.");
+                        int first = inputs.Packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Native status-cure item completion lost its actual first contact pointer.");
                         contacts.Add(first);
                     }
                     return new(childPool.WriteSlot(childSlot, child), advance.Remaining == 0 ? 2 : 0);

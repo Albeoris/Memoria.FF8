@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleMeltdownResources resources = effect.Binding.MeltdownResources ?? throw new NotSupportedException("Native Meltdown requires its original resources.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Meltdown requires its current projection.");
         NativeBattleMeltdownFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Meltdown requires retained memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Meltdown requires its CRT random owner."));
-        NativeBattleMeltdownInputs inputs = new(nativeActionPackets, projection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Meltdown requires its original interpolation constants."), (graphics.Flags & 0x201) != 0, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Meltdown requires its current actor pose."), Execute) { ReadAnchor = index => ReadNativeModelAnchor(graphics, index) };
+        NativeBattleMeltdownInputs inputs = new(nativeActionPackets, projection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Meltdown requires its original interpolation constants."), (graphics.Flags & 0x201) != 0, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Meltdown requires its current actor pose."), Execute) { ReadAnchor = index => ReadNativeModelAnchor(graphics, index) };
         NativeBattleMeltdownFrame advanced = NativeBattleMeltdownController.Advance(frame, resources, inputs);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             }
             if (operation is NativeBattleMeltdownFlags flags)
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = flags.Flags }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = flags.Flags }) };
                 return current;
             }
             if (operation is NativeBattleMeltdownActor actor)

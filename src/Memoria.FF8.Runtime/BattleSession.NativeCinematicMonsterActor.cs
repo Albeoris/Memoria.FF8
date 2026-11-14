@@ -40,8 +40,8 @@ public sealed partial class BattleSession
             }
             else
             {
-                NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-                graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) }) };
+                NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) }) };
                 (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
                 StoreDword(clone + 0xC, actorAddress);
                 StoreDword(clone + 0x54, 0);
@@ -62,10 +62,10 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
                 NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native cinematic glow requires its original pose resource.");
-                NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actorIndex], source);
+                NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actorIndex), source);
                 NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native cinematic glow requires its actual entity matrix.");
                 actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
-                graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
                 InitializeGlow(CinematicActorMeshes(actor, resource, NativeBattleBodyBoneMatrices.Require(actor, source), world, false));
             }
         }
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
             frame = frame with { Arena = frame.Arena.MarkUnknown(ArenaOffset(clone + 0x10, 12), 12).MarkUnknown(ArenaOffset(clone + 0x30, 16), 16) };
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native cinematic monster drawing requires its body pose resource.");
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             if (glow)
             {
                 actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native cinematic monster drawing requires its retained entity matrix.");
             NativeBattleActionMatrix basis = NativeBattleGfMatrices.Compose56C2F0(node, world);
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
             meshes = CinematicActorMeshes(actor, resource, NativeBattleBodyBoneMatrices.Require(actor, source), node, !glow);
             visualSource = actor.ActiveStagedResourceRow100 is not null || actor.ActiveResourceRow100 is not null ? NativeModelResourceAddress100(actor) : NativeBattlePilotVisualLifetimes.EpochFor(resource);
             if (!glow)
@@ -125,7 +125,7 @@ public sealed partial class BattleSession
                 byte[] rgb = frame.Arena.Read(ArenaOffset(rampAddress + 4u * (uint)index, 3), 3);
                 return (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
             }).ToImmutableArray();
-            uint actorColor = graphics.Models[actorIndex].Color40 ?? throw new NotSupportedException("Native cinematic glow requires its current actor color.");
+            uint actorColor = graphics.ActorModels.Get(actorIndex).Color40 ?? throw new NotSupportedException("Native cinematic glow requires its current actor color.");
             for (int index = 0; index < count; index++)
             {
                 uint color = NativeBattleCinematicMonsterVertices.Glow(Word(Dword(state + 4) + 2u * (uint)index), unchecked((short)SlotWord(frame, 0x8C)), unchecked((short)SlotWord(frame, 0x8E)), unchecked((short)SlotWord(frame, 0x90)), actorColor, offset, ramp);
@@ -257,7 +257,7 @@ public sealed partial class BattleSession
 
         void Shadow()
         {
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             if ((actor.Flags0 & 0x20) != 0)
             {
                 return;

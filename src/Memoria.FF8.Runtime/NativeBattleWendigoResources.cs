@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -57,4 +57,4 @@ public sealed record NativeBattleWendigoSprite(NativeBattleModuleDraw Draw, bool
 public sealed record NativeBattleWendigoModel(NativeBattleGraphicsModel Model) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoSequence(byte Actor, byte Sequence) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoDrawBall(int Actor) : NativeBattleWendigoOperation;
-public sealed record NativeBattleWendigoInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleWendigoFrame, NativeBattleWendigoOperation, NativeBattleWendigoFrame> Execute);
+public sealed record NativeBattleWendigoInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleWendigoFrame, NativeBattleWendigoOperation, NativeBattleWendigoFrame> Execute);

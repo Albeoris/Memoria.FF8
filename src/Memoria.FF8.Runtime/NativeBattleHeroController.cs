@@ -34,7 +34,7 @@ public static class NativeBattleHeroController
         inputs.Packets.Validate();
         NativeBattleHeroProfile profile = frame.Profile;
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         NativeBattleHeroFrame current = frame;
         NativeBattleEffectTaskStep rootStep = frame.Effect.Pools[0].Advance((rootPool, rootIndex) =>
         {
@@ -236,7 +236,7 @@ public static class NativeBattleHeroController
         }
         if (age == 32)
         {
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("The Hero contact callback requires its actual physical contact pointer.");
             if (profile.Effect == 309)
             {

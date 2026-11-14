@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         bool frozen = (graphics.Flags & 0x201) != 0;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Wall requires its current target contact list.");
         int firstActor = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
         NativeBattleEffectTaskStep stepped = roots.Advance((pool, slot) =>
@@ -122,8 +122,8 @@ public sealed partial class BattleSession
             int age = WindWord(task, 12);
             if (age == 0)
             {
-                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.EnumerateRows().Select(index => graphics.Models[index].Transform?.Position28 ?? throw new NotSupportedException("Native Wall center requires every actual target position.")).ToArray());
-                NativeBattleActionMatrix world = graphics.Models[firstActor].GeometryWorldMatrix ?? throw new NotSupportedException("Native Wall requires its target's actual model matrix.");
+                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.EnumerateRows().Select(index => graphics.ActorModels.Get(index).Transform?.Position28 ?? throw new NotSupportedException("Native Wall center requires every actual target position.")).ToArray());
+                NativeBattleActionMatrix world = graphics.ActorModels.Get(firstActor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Wall requires its target's actual model matrix.");
                 NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(world, new(0, 0, -1500));
                 center = new(unchecked((short)(center.X + offset.X)), unchecked((short)(center.Y + offset.Y)), unchecked((short)(center.Z + offset.Z)));
                 task = WindStore(task, 16, center);

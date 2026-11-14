@@ -14,7 +14,7 @@ public sealed record NativeBattleEffect345Inputs(NativeBattleSummonColors Colors
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }
 
-    public required Func<NativeBattleEffect345Frame, int, NativeBattleGraphicsModel> ReadModel { get; init; }
+    public required Func<NativeBattleEffect345Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel { get; init; }
     public required Func<NativeBattleEffect345Frame, int, NativeBattlePoseSource> ReadPoseSource { get; init; }
 }
 

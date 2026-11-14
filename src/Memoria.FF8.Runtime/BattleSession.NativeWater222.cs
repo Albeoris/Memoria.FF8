@@ -17,9 +17,9 @@ public sealed partial class BattleSession
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Water requires its action parameters.");
         NativeBattleWaterInitializationResource first = WaterResource(effect, resources, 0);
         NativeBattleWaterInitializationResource second = WaterResource(effect, resources, 1);
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
         ImmutableArray<byte> contacts = WaterContacts(header);
-        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C), 0x186C84C, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header.ReadContactCount(), header.ReadByte(0x11), graphics.Models);
+        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.Header), 0x186C84C, parameters.Source, parameters.Header, contacts[0], contacts, header.ReadContactCount(), header.ReadByte(0x11), graphics.Models);
         NativeBattleWater222Frame initialized = NativeBattleWater222Controller.InitializeA9B200(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Water requires its retained CRT state.")), resources, inputs);
         NativeEffectMemory = initialized.Memory;
         nativeCrtRandom = initialized.Random;
@@ -38,10 +38,10 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess process = RequireWaterMemory().PrimitiveProcess ?? throw new NotSupportedException("Native Water requires its COMMON packet bank.");
         uint common = checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native Water COMMON cursor is unknown.")));
         NativeBattleWaterCallbackInput input = new(resources, checked((ushort)graphics.Flags), MatrixBytes(view), 0, common, focal);
-        NativeBattleWaterPresentationServices presentation = new((_, pointer) => graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].Flags0, (current, pointer, flags) =>
+        NativeBattleWaterPresentationServices presentation = new((_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).Flags0, (current, pointer, flags) =>
         {
             int index = PhysicalActor(pointer, graphics.Models.Length);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = flags }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = flags }) };
             return current;
         }, (current, address, argument, pan) =>
         {
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         });
         NativeBattleWaterContextServices context = new((_, pointer) =>
         {
-            int? linked = graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].ReadLinkedModelIndex140();
+            int? linked = graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).ReadLinkedModelIndex140();
             return linked is int index ? ActorPointer(index) : 0;
         }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer, graphics.Models.Length)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
         {
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
         }) { ActionPackets = nativeActionPackets.PresentationRoster is not null ? nativeActionPackets : null };
-        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.Models[PhysicalActor(pointer, graphics.Models.Length)], ActorAnchor, (_, _, address) => address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C) : throw new NotSupportedException("Native Water parameter base does not identify its current action."), (_, _, address, _) => CaptureInputs(address), _ => RequireTextures(), (current, textures) =>
+        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)), ActorAnchor, (_, _, address) => address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.Header) : throw new NotSupportedException("Native Water parameter base does not identify its current action."), (_, _, address, _) => CaptureInputs(address), _ => RequireTextures(), (current, textures) =>
         {
             NativeEffectMemory = RequireWaterMemory() with { Textures = textures };
             return current;
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
             }
             NativeBattlePoseSource source = PoseSource(actor.Index);
             NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor.Index, published) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Index, published) };
             return new(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(published, source));
         }, (current, actor, matrices) =>
         {
@@ -98,8 +98,8 @@ public sealed partial class BattleSession
             {
                 return current;
             }
-            NativeBattleBodyBoneMatrices owner = graphics.Models[actor.Index].CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native Water actor composition requires its actual body publication.");
-            graphics = graphics with { Models = graphics.Models.SetItem(actor.Index, actor with { CurrentBodyBoneMatrices = owner with { Matrices = matrices } }) };
+            NativeBattleBodyBoneMatrices owner = graphics.ActorModels.Get(actor.Index).CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native Water actor composition requires its actual body publication.");
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Index, actor with { CurrentBodyBoneMatrices = owner with { Matrices = matrices } }) };
             return current;
         }, CreateNativeActorAnchorServices());
         NativeBattleWaterDrawInputs drawInput = new(resources, registers.Zsf3 ?? throw new NotSupportedException("Native Water requires its initialized current ZSF3."), registers.Dqa, registers.Dqb, 0);
@@ -114,7 +114,7 @@ public sealed partial class BattleSession
             return current;
         }, _ => graphics.Models, (current, models) =>
         {
-            graphics = graphics with { Models = models.Select((model, index) => model with { CurrentBodyBoneMatrices = graphics.Models[index].CurrentBodyBoneMatrices }).ToImmutableArray() };
+            graphics = graphics with { ActorModels = models.Select((model, index) => model with { CurrentBodyBoneMatrices = graphics.ActorModels.Get(index).CurrentBodyBoneMatrices }).ToImmutableArray() };
             return current;
         }, actors, ReadMetadata, OtBucket)
         {
@@ -161,28 +161,28 @@ public sealed partial class BattleSession
             int index = PhysicalActor(pointer, graphics.Models.Length);
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
-                NativeBattleGraphicsModel model = graphics.Models[index];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 return new([], [], NativeBattleForeignPlacement.World(model.Transform!, model.Rotation12 ?? 0, model.Rotation14 ?? foreign.Facing, model.Rotation16 ?? 0)) { Pose = foreign.Pose ?? throw new NotSupportedException("The host actor cannot supply posed semantic anchors.") };
             }
             NativeBattlePoseSource source = PoseSource(index);
-            NativeBattleGraphicsModel actor = graphics.Models[index];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
             return new(source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Water actor world matrix is unknown."));
         }
         NativeBattleWaterResetCaptureInputs CaptureInputs(uint address)
         {
             int index = HeaderIndex(address);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-            NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-            return new(parameters.Actor78, index, WaterContacts(first)[0], WaterContacts(header), header.ReadContactCount(), graphics.Models);
+            NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(parameters.Header);
+            return new(parameters.Source, index, WaterContacts(first)[0], WaterContacts(header), header.ReadContactCount(), graphics.Models);
         }
         byte ParameterByte(uint address)
         {
             return unchecked(address - WaterParametersAddress) switch
             {
-                0 => parameters.Actor78,
+                0 => parameters.Source,
                 1 => parameters.Flags79,
-                2 => (byte)parameters.TargetMask7A,
-                3 => (byte)(parameters.TargetMask7A >> 8),
+                2 => (byte)parameters.TargetActors,
+                3 => (byte)(parameters.TargetActors >> 8),
                 8 => parameters.Parameter80 ?? throw new NotSupportedException("Native Water parameter80 is unknown."),
                 9 => parameters.Parameter81,
                 10 => parameters.Parameter82 ?? throw new NotSupportedException("Native Water parameter82 is unknown."),

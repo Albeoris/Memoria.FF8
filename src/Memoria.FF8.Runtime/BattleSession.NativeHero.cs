@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         {
             ResolveCurrentWord = initialized => initialized ? null : ReadNativeCurrentStackOperand().Bytes
         };
-        NativeBattleHeroInputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], Anchor571400, stack, Execute) { ObserveAnchor571400 = ObserveAnchor, CapturePresentation = true };
+        NativeBattleHeroInputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), Anchor571400, stack, Execute) { ObserveAnchor571400 = ObserveAnchor, CapturePresentation = true };
         frame = NativeBattleHeroController.Advance(frame, resources, inputs);
         if (fanTemporary is not null || nextFanIndex is not null)
         {
@@ -49,12 +49,12 @@ public sealed partial class BattleSession
         NativeBattleModuleAnchor Anchor571400(byte actor)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            return anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("The Hero anchor requires its actual model WORD24.")).Angle36 };
+            return anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("The Hero anchor requires its actual model WORD24.")).Angle36 };
         }
 
         NativeBattleHeroFrame ObserveAnchor(NativeBattleHeroFrame current, byte actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return current;

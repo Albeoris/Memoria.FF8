@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa88Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRinoa88State State);
 public sealed record NativeBattleRinoa88LeafStep(NativeBattleRinoa88Frame Frame, int Result);
-public sealed record NativeBattleRinoa88Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88LeafStep> AdvanceLeaf, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> BeginTextureRelease)
+public sealed record NativeBattleRinoa88Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88LeafStep> AdvanceLeaf, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> BeginTextureRelease)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
 }
@@ -29,7 +29,7 @@ public static class NativeBattleRinoa88Controller
         NativeBattleEffectHierarchy hierarchy = new(Enumerable.Range(0, Descriptors.Length).Select(index => NativeBattleEffectTaskPool.Initialize(Descriptors[index], Banks[index], Strides[index], Capacities[index])).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x768690, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native7684F0 requires its original first contact pointer.");
         byte target = packets.ReadContact(first).Primary.ActorIndex;
         byte targets = header.ReadContactCount();
@@ -193,8 +193,8 @@ public static class NativeBattleRinoa88Controller
             case 1:
                 if (inputs.ReadContactReady(frame) == 1)
                 {
-                    int header = checked(frame.Effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(42)));
-                    NativeBattleActionHeaderSlot group = controller.Packets.Headers[header];
+                    BattleActionHeaderReference header = frame.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
+                    NativeBattleActionHeaderSlot group = controller.Packets.ReadHeader(header);
                     int first = group.FirstContactIndex ?? throw new NotSupportedException("Native7842F0 requires its selected group's actual contact pointer.");
                     for (int contact = 0; contact < group.ReadContactCount(); contact++)
                     {

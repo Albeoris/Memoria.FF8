@@ -35,15 +35,15 @@ public sealed partial class BattleSession
                 case 3:
                     for (int actor = 0; actor < 7; actor++)
                     {
-                        state = state.SetDword(checked(0x278C8F0u + (uint)actor * 4), graphics.Models[actor].Flags0);
+                        state = state.SetDword(checked(0x278C8F0u + (uint)actor * 4), graphics.ActorModels.Get(actor).Flags0);
                     }
                     task = task.WriteWord(28, 0);
                     foreach (int actor in FadedActors)
                     {
                         if ((SavedFlags[actor] & 4) == 0)
                         {
-                            NativeBattleGraphicsModel model = graphics.Models[actor];
-                            graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x800), Color40 = (Colors.Color40 & 0xFFFFFFu) | 0x02000000u }) };
+                            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x800), Color40 = (Colors.Color40 & 0xFFFFFFu) | 0x02000000u }) };
                         }
                     }
                     DrawGround();
@@ -66,16 +66,16 @@ public sealed partial class BattleSession
                     {
                         if ((SavedFlags[actor] & 4) == 0)
                         {
-                            NativeBattleGraphicsModel model = graphics.Models[actor];
-                            graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
                         }
                     }
                     foreach (int actor in TargetActors)
                     {
                         if ((SavedFlags[actor] & 4) == 0)
                         {
-                            NativeBattleGraphicsModel model = graphics.Models[actor];
-                            graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1020) }) };
+                            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1020) }) };
                         }
                     }
                     task = Next(task);
@@ -100,10 +100,10 @@ public sealed partial class BattleSession
                             continue;
                         }
                         bool hit = Enumerable.Range(0, header.ReadContactCount()).Any(index => session.nativeActionPackets.ReadContact(first + index).Primary.ActorIndex == actor);
-                        NativeBattleQuake38ActorBounceStep bounce = NativeBattleQuake38ActorBounce.Advance8DBCA0(graphics.Models[actor], state.SavedActors[actor], state, resources, RandomState, hit);
+                        NativeBattleQuake38ActorBounceStep bounce = NativeBattleQuake38ActorBounce.Advance8DBCA0(graphics.ActorModels.Get(actor), state.SavedActors[actor], state, resources, RandomState, hit);
                         RandomState = bounce.Random;
                         NativeBattleGraphicsModel model = bounce.Model;
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                         if (bounce.ModelSequence is { } sequence && NativeBattleSequenceSelections.CanSelectReady505CE0(model))
                         {
                             graphics = session.SelectNativeHeaderSequence(graphics, checked((byte)actor), sequence);
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
                     {
                         for (int actor = 0; actor < 7; actor++)
                         {
-                            graphics = graphics with { Models = graphics.Models.SetItem(actor, state.SavedActors[actor].Restore8DBE40(graphics.Models[actor])) };
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, state.SavedActors[actor].Restore8DBE40(graphics.ActorModels.Get(actor))) };
                         }
                         task = Next(task);
                     }
@@ -124,8 +124,8 @@ public sealed partial class BattleSession
                     task = task.WriteWord(28, 4096);
                     for (int actor = 0; actor < 7; actor++)
                     {
-                        NativeBattleGraphicsModel model = graphics.Models[actor];
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = NativeBattleQuake38ActorFlags.Restore8DBE80(actor, model.Flags0, SavedFlags, TargetsParty) }) };
+                        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = NativeBattleQuake38ActorFlags.Restore8DBE80(actor, model.Flags0, SavedFlags, TargetsParty) }) };
                     }
                     task = Next(task);
                     break;
@@ -142,8 +142,8 @@ public sealed partial class BattleSession
                     {
                         if ((SavedFlags[actor] & 4) == 0)
                         {
-                            NativeBattleGraphicsModel model = graphics.Models[actor];
-                            graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = NativeBattleQuake38ActorFlags.Restore8DC180(actor, model.Flags0, SavedFlags, TargetsParty), Color40 = Colors.Color40, Color44 = Colors.Color44 }) };
+                            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = NativeBattleQuake38ActorFlags.Restore8DC180(actor, model.Flags0, SavedFlags, TargetsParty), Color40 = Colors.Color40, Color44 = Colors.Color44 }) };
                         }
                     }
                     task = Next(task.WriteByte(38, (byte)(task.ReadByte(38) | 1)));
@@ -181,8 +181,8 @@ public sealed partial class BattleSession
             {
                 if ((SavedFlags[actor] & 4) == 0)
                 {
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Color40 = FadeRgb(model.Color40 ?? throw new NotSupportedException("Native Quake fade requires its current actor transition color."), Colors.Color40, fade), Color44 = FadeRgb(model.Color44 ?? throw new NotSupportedException("Native Quake fade requires its current actor normal color."), Colors.Color44, fade) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Color40 = FadeRgb(model.Color40 ?? throw new NotSupportedException("Native Quake fade requires its current actor transition color."), Colors.Color40, fade), Color44 = FadeRgb(model.Color44 ?? throw new NotSupportedException("Native Quake fade requires its current actor normal color."), Colors.Color44, fade) }) };
                 }
             }
         }

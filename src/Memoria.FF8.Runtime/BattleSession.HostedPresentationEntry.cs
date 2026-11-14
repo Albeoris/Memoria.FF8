@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted battle presentation requires an expanded logical roster.");
         }
         definition = NativeBattleStorageSnapshots.Capture(CloneDefinition(presentationResources));
-        BattleModelRoster roster = logicalOwner.ReadExpandedPresentationRoster();
+        var (roster, aliases) = logicalOwner.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsDefinition source = definition.NativeGraphics ?? throw new InvalidDataException("Hosted entry requires its installed graphics definition.");
         NativeBattleRetainedMemory retained = definition.NativeRetainedMemory ?? throw new InvalidDataException("Hosted entry requires its retained native process memory.");
         if (definition.StageId is null || definition.NativeStageSource?.PhysicalSource is null || definition.NativeStageCameraBank is null ||
@@ -60,6 +60,7 @@ public sealed partial class BattleSession
         NativeGlobalSoundProcess = definition.NativeGlobalSoundProcess;
         NativeMusicProcess = definition.NativeMusicProcess;
         InitializeNativeRetainedMemory();
+        nativeActionPackets = nativeActionPackets.WithRoster(roster, aliases);
         InitializeNativePrimitiveDepth47CE10();
         InitializeNativeGraphicsProcessOwners();
         InitializeNativeGraphicsModelOwners();
@@ -203,7 +204,7 @@ public sealed partial class BattleSession
 
     private void ValidateHostedEntryModelCompletion(NativeBattleGraphicsState graphics, int row, NativeBattleGraphicsBinding binding, bool isParty)
     {
-        NativeBattleGraphicsModel model = graphics.Models[row];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(row);
         if (binding.ModelId == 143)
         {
             throw new NotSupportedException("Hosted entry model143 requires its original model142 linked-ring ownership.");

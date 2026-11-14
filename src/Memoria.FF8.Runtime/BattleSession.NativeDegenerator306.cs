@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Degenerator requires its actual process memory.");
         NativeBattleDegenerator306Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Degenerator requires its CRT stream."), memory.Degenerator306 ?? throw new NotSupportedException("Degenerator requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Degenerator requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Degenerator requires its original interpolation constants.");
-        NativeBattleDegenerator306Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), () => Camera().FocalLength ?? throw new NotSupportedException("Degenerator requires its retained focal shadow."), actor => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x0C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), Bone, Anchor, Execute) { CapturePresentation = true };
+        NativeBattleDegenerator306Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), () => Camera().FocalLength ?? throw new NotSupportedException("Degenerator requires its retained focal shadow."), actor => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), 0x0C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), Bone, Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleDegenerator306Controller.Initialize(frame, resources, inputs) : NativeBattleDegenerator306Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         NativeBattleDegenerator306AnchorStep Anchor(NativeBattleDegenerator306Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Degenerator requires its current actor skeleton.");
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Degenerator requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, unchecked((byte)selector), distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, unchecked((byte)selector), distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Degenerator bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -92,10 +92,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Degenerator caster binding leaves its original resource and saved row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Degenerator requires its current CPU rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)
@@ -137,26 +137,26 @@ public sealed partial class BattleSession
                     NativeStage = flaggedStage with { Groups = flaggedStage.Groups.Select(group => group with { Flags = (byte)((group.Flags & ~flags.ClearMask) | flags.SetMask) }).ToImmutableArray() };
                     return current;
                 case NativeBattleDegenerator306ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = (ushort)((graphics.Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = (ushort)((graphics.ActorModels.Get(flags.Actor).Flags0 & ~flags.ClearMask) | flags.SetMask) }) };
                     return current;
                 case NativeBattleDegenerator306ActorAlpha alpha:
-                    graphics = graphics with { Models = graphics.Models.SetItem(alpha.Actor, graphics.Models[alpha.Actor] with { Alpha7 = alpha.Value }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(alpha.Actor, graphics.ActorModels.Get(alpha.Actor) with { Alpha7 = alpha.Value }) };
                     return current;
                 case NativeBattleDegenerator306ActorRotation8 rotation:
-                    graphics = graphics with { Models = graphics.Models.SetItem(rotation.Actor, NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(graphics.Models[rotation.Actor], 0x0C, rotation.Packed8, 0, 4), 0x10, rotation.Packed8, 4, 4)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(rotation.Actor, NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(rotation.Actor), 0x0C, rotation.Packed8, 0, 4), 0x10, rotation.Packed8, 4, 4)) };
                     return current;
                 case NativeBattleDegenerator306ActorPackedPosition8 position:
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(graphics.Models[position.Actor], 0x1C, position.Packed8, 0, 4), 0x20, position.Packed8, 4, 4)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(position.Actor), 0x1C, position.Packed8, 0, 4), 0x20, position.Packed8, 4, 4)) };
                     return current;
                 case NativeBattleDegenerator306ActorPosition position:
                     byte[] xyz = new byte[6];
                     BinaryPrimitives.WriteInt16LittleEndian(xyz, position.Position.X);
                     BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(2), position.Position.Y);
                     BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(4), position.Position.Z);
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(graphics.Models[position.Actor], 0x1C, NativeBattleEffectArena.Clear().Write(0, xyz), 0, 4), 0x20, NativeBattleEffectArena.Clear().Write(0, xyz), 4, 2)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(position.Actor), 0x1C, NativeBattleEffectArena.Clear().Write(0, xyz), 0, 4), 0x20, NativeBattleEffectArena.Clear().Write(0, xyz), 4, 2)) };
                     return current;
                 case NativeBattleDegenerator306RestoreShadow restore:
-                    graphics = graphics with { Models = graphics.Models.SetItem(restore.Actor, graphics.Models[restore.Actor] with { Color40 = colors.Transition }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(restore.Actor, graphics.ActorModels.Get(restore.Actor) with { Color40 = colors.Transition }) };
                     return current;
                 case NativeBattleDegenerator306ActorRecolor recolor:
                     NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Degenerator requires its current color control owner.");
@@ -166,7 +166,7 @@ public sealed partial class BattleSession
                     NativeBattleScriptedDpcsResult normal = NativeBattleScriptedDpcs.Transform45F270(colorRegisters, 0x32000000, unchecked((uint)recolor.Cue), far, colors);
                     far = LoadFar(colors.Transition, far);
                     NativeBattleScriptedDpcsResult shadow = NativeBattleScriptedDpcs.Transform45F270(normal.Registers, 0, normal.Registers.Ir0!.Value, far, colors);
-                    graphics = graphics with { Models = graphics.Models.SetItem(recolor.Actor, graphics.Models[recolor.Actor] with { Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000 }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(recolor.Actor, graphics.ActorModels.Get(recolor.Actor) with { Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000 }) };
                     return current with { Memory = current.Memory with { ScriptedColorRegisters = shadow.Registers, PrimitiveProcess = process with { ModelRendererRegisters = far } } };
                 case NativeBattleDegenerator306CommonTexture texture:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(texture.SourceAddress, texture.CompletionAddress, (address, value) => current = NativeBattleDegenerator306Controller.WriteCompletionByte(current, address, value));

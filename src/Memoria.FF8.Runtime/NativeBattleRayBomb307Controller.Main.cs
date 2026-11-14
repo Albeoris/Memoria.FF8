@@ -150,7 +150,7 @@ public static partial class NativeBattleRayBomb307Controller
         }
         if (age == 85)
         {
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Ray-Bomb requires its actual contact pointer.");
             for (int index = 0; index < header.ReadContactCount(); index++)
             {

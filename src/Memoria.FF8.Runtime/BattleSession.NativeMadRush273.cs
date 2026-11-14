@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectTaskPool? targets = effect.Pools.Length > 1 ? effect.Pools[1] : null;
         NativeBattleEffectTaskPool? particles = effect.Pools.Length > 2 ? effect.Pools[2] : null;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Mad Rush requires its projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Mad Rush requires its view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                 int actor = nativeActionPackets.ReadContact(first + contact).Primary.ActorIndex;
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                 task = WindStore(task.WriteWord(12, unchecked((ushort)(-contact * 2))).WriteWord(14, (ushort)contact).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor)), 20, anchor);
-                task = task.WriteWord(22, unchecked((ushort)(graphics.Models[actor].Transform?.Angle36 ?? throw new NotSupportedException("Mad Rush requires its target height."))));
+                task = task.WriteWord(22, unchecked((ushort)(graphics.ActorModels.Get(actor).Transform?.Angle36 ?? throw new NotSupportedException("Mad Rush requires its target height."))));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x10), 0x2F4);
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Animation, 0x2F4));
                 targets = pool.WriteSlot(slot, task);

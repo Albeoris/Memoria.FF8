@@ -66,7 +66,7 @@ public static class NativeBattleCarbuncle278Construction
         }
         task = task.WriteWord(0x72, 0).WriteDword(0x74, 0).WriteWord(0x3C, 0).WriteDword(0x78, unchecked((uint)-20)).WriteWord(0x3E, unchecked((ushort)-20)).WriteDword(0x7C, unchecked((uint)state.Base81CC)).WriteWord(0x40, unchecked((ushort)state.Base81CC));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle requires its current action header.");
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         task = task.WriteWord(0xE, (ushort)count);
         for (int index = 0; index < count; index++)

@@ -11,11 +11,11 @@ public sealed partial class BattleSession
         if (initialize)
         {
             NativeBattlePandemona291Resources resources = effect.Binding.Pandemona291Resources ?? throw new NotSupportedException("Native Pandemona requires its original static TIM resources.");
-            frame = NativeBattlePandemona291Entry.Initialize6ED250(frame, resources, nativeActionPackets, actor => graphics.Models[actor]);
+            frame = NativeBattlePandemona291Entry.Initialize6ED250(frame, resources, nativeActionPackets, actor => graphics.ActorModels.Get(actor));
         }
         else
         {
-            NativeBattlePandemona291ConstructionInputs construction = new(nativeActionPackets, actor => graphics.Models[actor], (current, actor) =>
+            NativeBattlePandemona291ConstructionInputs construction = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), (current, actor) =>
             {
                 var captured = CaptureNativePandemona291Bounds(graphics, current.Memory, actor);
                 graphics = captured.Graphics;
@@ -138,7 +138,7 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Native Pandemona caster pointer leaves its current graphics-model rows.");
                     }
-                    NativeBattlePandemona291ChildStep initialized = NativeBattlePandemona291Body.Initialize99(current, address, task, () => graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Alpha7 = 0 }) });
+                    NativeBattlePandemona291ChildStep initialized = NativeBattlePandemona291Body.Initialize99(current, address, task, () => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Alpha7 = 0 }) });
                     NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pandemona requires its current camera globals.");
                     int center = initialized.Frame.Memory.Pandemona291!.Center25562E8!.Value;
                     NativeCamera = camera.WriteEffectGlobals(NativeBattlePandemona291Timeline.FinalBodyCamera99(center, camera.FocalLength, camera.Roll));

@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleCactuar199Resources resources = effect.Binding.Cactuar199Resources ?? throw new NotSupportedException("Native Cactuar requires its original per-module resources.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Cactuar requires its depth-cue constants.");
         NativeBattleCactuar199Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Cactuar requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Cactuar requires its retained CRT random state."));
-        NativeBattleCactuar199Inputs inputs = new(graphics.Flags, nativeActionPackets, ReadView, ReadCameraPose, () => NativeEffectMemory?.GuardianCameraProcess ?? throw new NotSupportedException("Native Cactuar requires the retained paired camera banks."), actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Cactuar requires its target's current skeleton."), ReadBone, ReadCentroid, DrawBody, DrawMesh, DrawParticle, DrawNeedle, StartVibration, Execute) { ReadBoneCount = actor => ReadNativeGraphicsBoneCount(graphics, actor) };
+        NativeBattleCactuar199Inputs inputs = new(graphics.Flags, nativeActionPackets, ReadView, ReadCameraPose, () => NativeEffectMemory?.GuardianCameraProcess ?? throw new NotSupportedException("Native Cactuar requires the retained paired camera banks."), actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Cactuar requires its target's current skeleton."), ReadBone, ReadCentroid, DrawBody, DrawMesh, DrawParticle, DrawNeedle, StartVibration, Execute) { ReadBoneCount = actor => ReadNativeGraphicsBoneCount(graphics, actor) };
         frame = initialize ? NativeBattleCactuar199Controller.Initialize5A8750(frame.Memory, frame.Effect, inputs, resources, frame.Random) : NativeBattleCactuar199Controller.Advance5AA3A0(frame, inputs, resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
         ImmutableArray<byte> ReadCentroid(BattleModelTargets targets)
         {
-            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
+            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
             return RawVector(NativeBattleActionGeometryRules.TargetCenter(positions));
         }
 

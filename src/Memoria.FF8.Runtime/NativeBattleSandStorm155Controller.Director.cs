@@ -62,7 +62,7 @@ public static partial class NativeBattleSandStorm155Controller
         }
         if (age == 50)
         {
-            frame = inputs.Execute(frame, new NativeBattleSandStorm155ContactsAll(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleSandStorm155ContactsAll(Parameters(frame).Header));
         }
         if (age == 1)
         {

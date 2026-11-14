@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCurse47ActorIdentity(byte Flags, byte? ModelId);
 public sealed record NativeBattleCurse47AnchorStep(NativeBattleCurse47Frame Frame, NativeBattleVector Position);
 public sealed record NativeBattleCurse47ActPreparation(NativeBattleCurse47Frame Frame, NativeBattleEffectArena Context92);
-public sealed record NativeBattleCurse47ActInputs(Func<NativeBattleCurse47Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleCurse47Frame, int, NativeBattleCurse47ActorIdentity> ReadActorIdentity, Func<NativeBattleCurse47Frame, int, short, int, NativeBattleCurse47AnchorStep> ReadAnchor, Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47ActPreparation> PrepareDraw, Func<NativeBattleCurse47Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleCurse47Frame> EmitNode);
+public sealed record NativeBattleCurse47ActInputs(Func<NativeBattleCurse47Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleCurse47Frame, int, NativeBattleCurse47ActorIdentity> ReadActorIdentity, Func<NativeBattleCurse47Frame, BattleModelOwner, short, int, NativeBattleCurse47AnchorStep> ReadAnchor, Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47ActPreparation> PrepareDraw, Func<NativeBattleCurse47Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleCurse47Frame> EmitNode);
 
 public static class NativeBattleCurse47Act
 {

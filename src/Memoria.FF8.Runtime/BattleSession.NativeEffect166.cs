@@ -11,10 +11,10 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect166 requires its current process memory.");
         NativeBattleEffect166Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect166 requires its current CRT stream."), memory.Effect166 ?? throw new NotSupportedException("Effect166 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect166 requires its current addressed memory.") };
         NativeBattleEffect166Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect166 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], ReadBone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect166 requires its current model world matrix."), null), (_, actor) => graphics.Models[actor].Sequence ?? throw new NotSupportedException("Effect166 requires its current sequence header BYTE0."), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect166 requires its current projection."), Execute)
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect166 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), ReadBone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect166 requires its current model world matrix."), null), (_, actor) => graphics.ActorModels.Get(actor).Sequence ?? throw new NotSupportedException("Effect166 requires its current sequence header BYTE0."), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect166 requires its current projection."), Execute)
         {
             CapturePresentation = true,
-            ReadModelArena9C = (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]),
+            ReadModelArena9C = (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)),
             ReadCameraRoll = _ => Camera().Roll,
             ReadAnchor571400 = Anchor
         };
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         {
             NativeFileStaging = current.Staging;
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect166 requires its current caster skeleton.");
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
             if ((uint)selector >= (uint)bones.Length)
             {
                 throw new InvalidDataException("Effect166 selected a bone outside its current physical skeleton.");
@@ -52,12 +52,12 @@ public sealed partial class BattleSession
         NativeBattleEffect166PointStep Anchor(NativeBattleEffect166Frame current, int actor, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            if ((graphics.Models[actor].Flags0 & 2) != 0)
+            if ((graphics.ActorModels.Get(actor).Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect166 requires its current anchor skeleton.");
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, selector, 0)), Staging = NativeFileStaging };
+                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, selector, 0)), Staging = NativeFileStaging };
                 }
             }
             NativeBattleModuleAnchor point = ReadNativeModelAnchor(graphics, actor);
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect166TargetCenter5020A0 target:
-                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect166 target center requires its actual selected physical positions.")).ToArray());
+                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect166 target center requires its actual selected physical positions.")).ToArray());
                     NativeBattleEffectArena vector = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
                     return NativeBattleEffect166Controller.WriteBytes(current, target.DestinationAddress, vector, 6);
                 case NativeBattleEffect166Flash5712C0 flash:
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(resources.Sounds[soundIndex], sound.Flags, null) { Pan = sound.Pan });
                     return Import(current);
                 case NativeBattleEffect166WriteModelBytes model:
-                    graphics = graphics with { Models = graphics.Models.SetItem(model.Actor, NativeBattleRaldo19ModelMemory.Apply(graphics.Models[model.Actor], model.Offset, model.Data, 0, model.Length)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Actor, NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(model.Actor), model.Offset, model.Data, 0, model.Length)) };
                     return current;
                 case NativeBattleEffect166Sequence505C00 sequence:
                     graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)sequence.Actor), sequence.Sequence);
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect166Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
                     int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Effect166 requires its actual current header contact base.");
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(firstContact + contact.Index))] });
                     graphics = graphics with { PendingContacts = pending };

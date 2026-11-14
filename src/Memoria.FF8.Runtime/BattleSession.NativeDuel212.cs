@@ -25,14 +25,14 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Burning Rave requires retained effect memory.");
         NativeBattleDuel212Resources resources = memory.Duel212?.Resources ?? throw new NotSupportedException("Native Burning Rave requires its actual entered resources.");
-        NativeBattleEffectParameters parameters = memory.Duel212?.Parameters ?? throw new NotSupportedException("Native Burning Rave requires its entered parameters.");
+        NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new NotSupportedException("Native Burning Rave requires its entered parameters.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Burning Rave requires its current camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Burning Rave requires its current projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Burning Rave requires its current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Burning Rave requires its authenticated color arithmetic.");
         NativeBattleDuel212Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Burning Rave requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Burning Rave requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Burning Rave requires retained CRT state."));
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Burning Rave requires its actual action contact pointer.");
         int count = header.ReadContactCount();
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
         }
         NativeBattleDuel212Frame ExecuteScene(NativeBattleDuel212Frame current, NativeBattleDuel212Operation operation)
         {
-            int actor = parameters.Actor78;
+            BattleModelOwner actor = parameters.Source;
             NativeBattleModulePoolTask task = TargetTask(current);
             switch (operation)
             {

@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         PublishNativeModuleSound(new(0x15, 0, null) { Pan = 128 });
         for (byte index = 0; index < 3; index++)
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;

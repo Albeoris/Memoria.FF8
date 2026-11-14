@@ -19,7 +19,7 @@ public static class NativeBattleDoomtrain191Controller
         NativeBattleDoomtrain191State state = memory.Doomtrain191 ?? throw new NotSupportedException("Native Doomtrain requires its retained module state.");
         state.Validate();
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Doomtrain requires its established571B50 arena.");
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain requires the actual first contact pointer.");
         int actor = inputs.Packets.ReadContact(first).Primary.ActorIndex;
         int[] offsets = [0x2E000, 0x2F000, 0x30000, 0x31000, 0x32000, 0x33000];
@@ -45,7 +45,7 @@ public static class NativeBattleDoomtrain191Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 0x24, 100);
         (children, int childSlot) = children.Append(0x63F2D0);
         children = Put(children, childSlot, children.Slots[childSlot].WriteWord(0xC, 0));
-        state = state with { BaseMatrix = Pack(rotation, state.BaseMatrix, true), ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress, WorkPointers = offsets.Append(0x37000).Select(value => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)value)).ToImmutableArray(), Caster = parameters.Actor78, FirstTarget = actor, LookupCounter = 0 };
+        state = state with { BaseMatrix = Pack(rotation, state.BaseMatrix, true), ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress, WorkPointers = offsets.Append(0x37000).Select(value => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)value)).ToImmutableArray(), Caster = parameters.Source, FirstTarget = actor, LookupCounter = 0 };
         return new(memory with { Arena = arena, Textures = textures, Doomtrain191 = state }, effect with { Pools = [main, children], ReturnedDescriptor = MainDescriptor }, random);
     }
 
@@ -228,7 +228,7 @@ public static class NativeBattleDoomtrain191Controller
         void CaptureTargets()
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
             int count = header.ReadByte(0x10);
             int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain target capture requires its current contact pointer.");
             List<int> targets = [];

@@ -3,15 +3,15 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel212PreparationServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, Func<NativeBattleDuel212Frame, NativeBattleVector, NativeBattleThundaga105Bounds, NativeBattleDuel212Frame> Capture6A12B0, Func<NativeBattleDuel212Frame, int, uint, NativeBattleDuel212Frame> BindActor5022C0, Func<NativeBattleDuel212Frame, int, byte, NativeBattleDuel212Frame> SelectSequence505C00);
+public sealed record NativeBattleDuel212PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, Func<NativeBattleDuel212Frame, NativeBattleVector, NativeBattleThundaga105Bounds, NativeBattleDuel212Frame> Capture6A12B0, Func<NativeBattleDuel212Frame, int, uint, NativeBattleDuel212Frame> BindActor5022C0, Func<NativeBattleDuel212Frame, int, byte, NativeBattleDuel212Frame> SelectSequence505C00);
 
 public static class NativeBattleDuel212Preparation
 {
     public static NativeBattleDuel212Frame Initialize6A0DC0(NativeBattleDuel212Frame frame, int slot, NativeBattleDuel212PreparationServices services)
     {
-        NativeBattleEffectParameters parameters = frame.Memory.Duel212?.Parameters ?? throw new NotSupportedException("Native Burning Rave preparation requires its entered action parameters.");
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Burning Rave preparation requires its entered action parameters.");
         NativeBattleDuel212Resources resources = frame.Memory.Duel212.Resources ?? throw new NotSupportedException("Native Burning Rave preparation requires its actual resources.");
-        int actor = parameters.Actor78;
+        BattleModelOwner actor = parameters.Source;
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleDuel212Controller.Targets);
         NativeBattleModulePoolTask task = pool.Slots[slot];
         if (task.Callback != 0x6A1660 || services.Targets.IsDefaultOrEmpty || services.Targets.Length > 7 || services.Targets.Any(target => target >= 7))

@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffect289Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect289 requires its current CRT stream."), memory.Effect289 ?? throw new NotSupportedException("Effect289 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect289 requires its temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect289 requires its arithmetic constants.");
         NativeBattleEffect289Inputs? inputs = null;
-        inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Anchor, CasterPoint, Execute, (current, source, node, caller) => NativeBattleEffect289Controller.DrawProgrammeNode6780F0(current, source, node, caller, resources, inputs!));
+        inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), _ => nativeActionPackets, Anchor, CasterPoint, Execute, (current, source, node, caller) => NativeBattleEffect289Controller.DrawProgrammeNode6780F0(current, source, node, caller, resources, inputs!));
         frame = initialize ? NativeBattleEffect289Controller.Initialize(frame, resources, inputs) : NativeBattleEffect289Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
             Publish(current);
             graphics = graphics with { OriginalEffect = current.Effect };
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect289 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, selector, 0);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, selector, 0);
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         NativeBattleEffect289PointStep Anchor(NativeBattleEffect289Frame current, uint pointer)
         {
             int actor = Actor(pointer);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect289 requires its current model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             Publish(current);
             graphics = graphics with { OriginalEffect = current.Effect };
             int actor = Actor(current.State.ReadDword(NativeBattleEffect289Profile.CasterGlobal));
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect289 requires its current caster skeleton.");
             var bones = NativeBattleBodyBoneMatrices.Require(model, source);
             short selector = BinaryPrimitives.ReadInt16LittleEndian(source8.Read(6, 2));
@@ -157,8 +157,8 @@ public sealed partial class BattleSession
                 case NativeBattleEffect289Contact506690:
                     Publish(current);
                     var pending = graphics.PendingContacts;
-                    int header = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Effect289 requires its current action header.");
-                    int contact = nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect289 requires its current first contact.");
+                    BattleActionHeaderReference header = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Effect289 requires its current action header.");
+                    int contact = nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect289 requires its current first contact.");
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

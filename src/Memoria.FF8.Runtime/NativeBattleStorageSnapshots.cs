@@ -13,6 +13,12 @@ internal interface INativeBattleStorageNode
     object RestoreOwned(NativeBattleStorageRestoreContext context);
 }
 
+internal enum NativeBattleStorageRestorePurpose
+{
+    PrivateContinuation,
+    NewBattle
+}
+
 internal static class NativeBattleStorageSnapshots
 {
     public static T Capture<T>(T value)
@@ -26,9 +32,13 @@ internal static class NativeBattleStorageSnapshots
         return result is NativeBattleRetainedMemory retained ? (T)(object)context.AttachStorageGraph(retained) : result;
     }
 
-    public static T Restore<T>(T value)
+    public static T Restore<T>(T value) => Restore(value, NativeBattleStorageRestorePurpose.PrivateContinuation);
+
+    internal static NativeBattleRetainedMemory RestoreForNewBattle(NativeBattleRetainedMemory value) => Restore(value, NativeBattleStorageRestorePurpose.NewBattle);
+
+    private static T Restore<T>(T value, NativeBattleStorageRestorePurpose purpose)
     {
-        NativeBattleStorageRestoreContext context = new();
+        NativeBattleStorageRestoreContext context = new(purpose);
         if (value is BattleSnapshot snapshot)
         {
             NativeBattleRetainedSourceAliases.Validate(snapshot);
@@ -69,6 +79,19 @@ internal sealed partial class NativeBattleStorageRestoreContext : NativeBattleSt
 {
     private readonly List<NativeBattleEffectMemory> retainedMemories = [];
     private readonly List<NativeBattleOriginalEffectState> retainedEffects = [];
+
+    internal NativeBattleStorageRestoreContext(NativeBattleStorageRestorePurpose purpose) => Purpose = purpose;
+    internal NativeBattleStorageRestorePurpose Purpose { get; }
+
+    internal ImmutableDictionary<TKey, BattleExecutionReferenceEntry> RetainExecutionReferences<TKey>(ImmutableDictionary<TKey, BattleExecutionReferenceEntry> references) where TKey : notnull
+        => Purpose == NativeBattleStorageRestorePurpose.NewBattle ? references.Clear() : references;
+
+    internal NativeBattleWorkingMemory RestoreWorkingMemory(NativeBattleWorkingMemorySnapshot snapshot)
+    {
+        var references = RetainExecutionReferences(snapshot.ExecutionReferences);
+        return NativeBattleWorkingMemory.Restore(ReferenceEquals(references, snapshot.ExecutionReferences) ? snapshot : snapshot with { ExecutionReferences = references });
+    }
+
     internal void RegisterRetained(NativeBattleEffectMemory memory) => retainedMemories.Add(memory);
     internal void RegisterRetained(NativeBattleOriginalEffectState effect) => retainedEffects.Add(effect);
 
@@ -282,6 +305,11 @@ internal abstract class NativeBattleStorageContext
         {
             result ??= Clone.Invoke(source, null)!;
             NativeBattleOriginalEffectState effect = (NativeBattleOriginalEffectState)result;
+            if (this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+            {
+                effect = effect with { Parameters = null, EntryFirstRecipient = null, FireModelCompletion = null };
+                result = effect;
+            }
             effect.RetainedAuthority = null;
             NativeBattleOriginalEffectState originalEffect = (NativeBattleOriginalEffectState)source;
             effect.RetainedReceipt = this is NativeBattleStorageCaptureContext && originalEffect.RetainedAuthority is { } authority ? GetOrAddOwner(authority, static () => new NativeBattleRetainedAuthorityReceipt()) : originalEffect.RetainedReceipt;
@@ -289,6 +317,11 @@ internal abstract class NativeBattleStorageContext
             {
                 restore.RegisterRetained(effect);
             }
+        }
+        if (source is NativeBattleScriptedEffectMemory && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            NativeBattleScriptedEffectMemory scripted = (NativeBattleScriptedEffectMemory)(result ?? source);
+            return scripted.PresentationActors is null ? scripted : scripted with { PresentationActors = null };
         }
         return result ?? source;
     }

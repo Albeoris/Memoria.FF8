@@ -18,18 +18,18 @@ public sealed partial class BattleSession
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect251WriteModelBytes write:
                 int writtenActor = NativeEffect301Actor(graphics, write.ModelAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(writtenActor, ApplyNativeEffect301ModelBytes(graphics.Models[writtenActor], write.Offset, write.Data, write.Length)) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(writtenActor, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(writtenActor), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect251ModelFlags flags:
                 int actor = NativeEffect301Actor(graphics, flags.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
                     1 => unchecked((ushort)((model.Flags0 & 0xFF00) | (((model.Flags0 & flags.AndMask) | flags.OrMask) & 0xFF))),
                     2 => unchecked((ushort)((model.Flags0 & flags.AndMask) | flags.OrMask)),
                     _ => throw new InvalidDataException("Effect251 requires its actual model flag store width.")
                 };
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = updated }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect251InitializeIo534110 initialize:
                 return frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, NativeBattleWaterExecutionFields.ArenaOffset(initialize.Address, 5)) };
@@ -64,7 +64,7 @@ public sealed partial class BattleSession
             case NativeBattleEffect251DrawTarget6A2F60 body:
                 PublishNativeEffect251Frame(frame);
                 int target = NativeEffect301Actor(graphics, body.ModelAddress);
-                NativeBattleActionMatrix world = graphics.Models[target].GeometryWorldMatrix ?? throw new NotSupportedException("Effect251 transformed body requires its actual current world matrix.");
+                NativeBattleActionMatrix world = graphics.ActorModels.Get(target).GeometryWorldMatrix ?? throw new NotSupportedException("Effect251 transformed body requires its actual current world matrix.");
                 NativeBattleActionMatrix matrix = NativeBattleDuel212Body.Matrix6A2F60(world, inputs.ReadView(frame).ReadMatrix(), NativeBattleEffect251Controller.Vector(body.Angles8), NativeBattleEffect251Controller.Vector(body.Pivot8));
                 graphics = DrawNativeEffectModelContext92(graphics, target, matrix, NativeBattleEffect251Controller.Vector(body.Pivot8), inputs.ReadProjection(frame), -47, 4, pilotIdentity: body.PilotIdentity);
                 return ImportNativeEffect251Frame(frame);

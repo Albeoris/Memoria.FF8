@@ -8,12 +8,12 @@ public static partial class NativeBattleGatlingGun305Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleGatlingGun305Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Gatling Gun requires its captured action parameters.");
     private static int FirstContact(NativeBattleGatlingGun305Frame frame, NativeBattleGatlingGun305Inputs inputs)
     {
-        int index = Parameters(frame).HeaderIndex7C;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.Headers[index].ReadByte(16) == 0)
+        BattleActionHeaderReference index = Parameters(frame).Header;
+        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
         {
             throw new InvalidDataException("Gatling Gun requires its first captured target contact.");
         }
-        return inputs.Packets.Headers[index].FirstContactIndex ?? throw new NotSupportedException("Gatling Gun requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Gatling Gun requires its actual captured contact pointer.");
     }
     private static void RequireBinding(NativeBattleGatlingGun305Frame frame)
     {

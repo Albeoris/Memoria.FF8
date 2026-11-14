@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect70 requires its current process memory.");
         NativeBattleEffect70Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect70 requires its current CRT stream."), memory.Effect70 ?? throw new NotSupportedException("Effect70 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect70 requires its current addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect70 requires its arithmetic constants.");
-        NativeBattleEffect70Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect70 requires its current projection."), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), _ => Camera().Roll, (_, address) => address switch
+        NativeBattleEffect70Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect70 requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => Pose(actor), _ => Camera().Roll, (_, address) => address switch
         {
             0xB8B7D8 => NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Effect70 requires its current model color."),
             0xB8B9A8 => NativeStage?.ModelColors?.Color44 ?? throw new NotSupportedException("Effect70 requires its current model color."),
@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         }, Execute)
         {
             CapturePresentation = true,
-            ReadPosition8 = (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8),
+            ReadPosition8 = (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8),
             ReadAnchor571400 = Anchor,
             SelectIo5342C0 = PollIo,
             ReadSavedFocal = _ => unchecked((ushort)(Camera().CapturedPose?.FocalLength ?? throw new NotSupportedException("Effect70 requires its actual captured focal WORD.")))
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect70PointStep Anchor(NativeBattleEffect70Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -112,29 +112,29 @@ public sealed partial class BattleSession
                     NativeBattleEffectHeapAllocation tim = new("current-effect-texture", NativeBattleEffect70Controller.ReadBytes(current, upload.Source, resources.MainTim.Data.Length).Read(0, resources.MainTim.Data.Length).ToImmutableArray());
                     return current with { Memory = current.Memory with { Textures = (current.Memory.Textures ?? throw new NotSupportedException("Effect70 requires its current texture queue.")).EnqueueTim505E30(tim).State } };
                 case NativeBattleEffect70ModelFlags flags:
-                    NativeBattleGraphicsModel model = graphics.Models[flags.Actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
                     ushort mask = flags.WordWidth ? flags.AndMask : (ushort)(0xFF00 | (byte)flags.AndMask);
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect70ModelPositionWord position:
-                    NativeBattleGraphicsModel changed = NativeBattleRaldo19ModelMemory.Apply(graphics.Models[position.Actor], position.Offset, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(position.Value)), 0, 2);
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, changed) };
+                    NativeBattleGraphicsModel changed = NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(position.Actor), position.Offset, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(position.Value)), 0, 2);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, changed) };
                     return current;
                 case NativeBattleEffect70ModelPositionPacked position:
-                    NativeBattleGraphicsModel restored = NativeBattleRaldo19ModelMemory.Apply(graphics.Models[position.Actor], 0x1C, position.Position8, 0, 4);
+                    NativeBattleGraphicsModel restored = NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(position.Actor), 0x1C, position.Position8, 0, 4);
                     restored = NativeBattleRaldo19ModelMemory.Apply(restored, 0x20, position.Position8, 4, 4);
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, restored) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, restored) };
                     return current;
                 case NativeBattleEffect70CaptureBounds6DFD90 bounds:
                     (NativeBattleGraphicsState boundsGraphics, NativeBattleEffect70Frame boundsFrame) = CaptureNativeEffect70Bounds(graphics, current, bounds);
-                    graphics = graphics with { Models = boundsGraphics.Models };
+                    graphics = graphics with { ActorModels = boundsGraphics.Models };
                     return boundsFrame;
                 case NativeBattleEffect70DrawActor693170 actor:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect70Frame bodyFrame) = DrawNativeEffect70Actor(graphics, current, actor, colors, (body, batch) => Deliver(body, batch, null));
-                    graphics = graphics with { Models = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.Models };
                     return bodyFrame;
                 case NativeBattleEffect70QueryBonePoint bone:
-                    NativeBattleEffect70RingAnchorStep point = NativeBattleEffect70RingAnchor.Resolve6DFC70(graphics.Models[bone.Actor], Pose(bone.Actor), bone.Selector, NativeBattleEffect70Controller.ReadBytes(current, bone.Destination, 12));
+                    NativeBattleEffect70RingAnchorStep point = NativeBattleEffect70RingAnchor.Resolve6DFC70(graphics.ActorModels.Get(bone.Actor), Pose(bone.Actor), bone.Selector, NativeBattleEffect70Controller.ReadBytes(current, bone.Destination, 12));
                     return NativeBattleEffect70Controller.WriteBytes(current, bone.Destination, point.Output12, 12);
                 case NativeBattleEffect70StageIntensity5713E0 stageWrite:
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect70 requires its current stage rows.");
@@ -179,7 +179,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect70ConsumeContacts506BA0:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.HeaderIndex7C) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect70DeliverPrivate packets:

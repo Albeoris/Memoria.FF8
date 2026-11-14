@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect218 requires its current hardware capability.");
         NativeBattleEffect218Inputs main = new(_ => Camera().CapturePackedView1D97778(), current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect218 requires its signed current I/O result.")) < 0), StartVibration, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect218 requires its retained vibration process.")).IsPlaying(handle), Execute);
         NativeBattleEffect218RuntimeInputs inputs = new(main, colors, hardware, _ => graphics.Flags, _ => Projection(), _ => CameraEye(), _ => Camera().Roll, _ => Camera().FocalLength ?? throw new NotSupportedException("Effect218 requires its current normal-depth WORD."), current => NativeBattleTemporaryMemory.ReadView(current.Staging ?? throw new NotSupportedException("Effect218 requires its current primitive flag bytes."), 0x1D969A8, 4), current => NativeEffect218CommonCursor(current.Memory), ReadBone, CaptureServices, (current, batch) => Deliver(current, batch, 0), DeliverModule, RestoreCommon, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect218 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, PublishGuardian);
-        frame = initialize ? Initialize6326D0(frame, resources, new(nativeActionPackets, actor => graphics.Models[actor], Center)) : Advance(frame, resources, inputs);
+        frame = initialize ? Initialize6326D0(frame, resources, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), Center)) : Advance(frame, resources, inputs);
         int commonEnd = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect218 lost its actual callback COMMON cursor.");
         frame = frame with { State = frame.State with { CommonPacketStart = commonStart, CommonPacketEnd = commonEnd } };
         Publish(frame);
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return actorIndex;
         }
 
-        NativeBattleVector Center(BattleModelTargets targets) => NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect218 requires its selected target position WORDs.")).ToArray());
+        NativeBattleVector Center(BattleModelTargets targets) => NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect218 requires its selected target position WORDs.")).ToArray());
 
         void Publish(NativeBattleEffect218Frame current)
         {
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
             else
             {
                 int actor = Actor(address);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect218 requires its actual recipient skeleton.");
                 producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, fraction);
             }
@@ -233,18 +233,18 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect218ModelFlags flags:
                     int modelIndex = Actor(flags.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[modelIndex];
-                    graphics = graphics with { Models = graphics.Models.SetItem(modelIndex, model with { Flags0 = (ushort)((model.Flags0 & (0xFF00 | flags.AndMask)) | flags.OrMask) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(modelIndex);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelIndex, model with { Flags0 = (ushort)((model.Flags0 & (0xFF00 | flags.AndMask)) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect218CapturePoint571400 point:
                     NativeBattleEffect218PointStep first = ReadBone(current, point.ModelAddress, 240, 0);
                     NativeBattleEffect218PointStep second = ReadBone(first.Frame, point.ModelAddress, 241, 0);
                     NativeBattleVector center = new(unchecked((short)((first.Point.X + second.Point.X) / 2)), unchecked((short)((first.Point.Y + second.Point.Y) / 2)), unchecked((short)((first.Point.Z + second.Point.Z) / 2)));
-                    short angle = (graphics.Models[Actor(point.ModelAddress)].Transform ?? throw new NotSupportedException("Effect218 requires its current recipient angle WORD36.")).Angle36;
+                    short angle = (graphics.ActorModels.Get(Actor(point.ModelAddress)).Transform ?? throw new NotSupportedException("Effect218 requires its current recipient angle WORD36.")).Angle36;
                     return WriteBytes(second.Frame, point.DestinationAddress, PointView(center, angle), 8);
                 case NativeBattleEffect218Contact506690:
                     Publish(current);
-                    int contact = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect218 requires its actual first contact.");
+                    int contact = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new NotSupportedException("Effect218 requires its actual first contact.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                     graphics = graphics with { PendingContacts = pending };

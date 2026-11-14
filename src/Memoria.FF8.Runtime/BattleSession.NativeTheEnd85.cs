@@ -64,7 +64,7 @@ public sealed partial class BattleSession
             return graphics with { OriginalEffect = frame.Effect };
         }
 
-        private NativeBattleGraphicsModel ReadModel(int actor) => graphics.Models[actor];
+        private NativeBattleGraphicsModel ReadModel(int actor) => graphics.ActorModels.Get(actor);
         private NativeBattlePoseSource ReadPose(int actor) => owner.NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native The End requires its current actor pose source.");
         private NativeBattleModulePoolTask Task(uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         private void Put(uint address, NativeBattleModulePoolTask task) => frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };

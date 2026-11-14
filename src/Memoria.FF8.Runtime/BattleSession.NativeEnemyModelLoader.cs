@@ -118,7 +118,7 @@ public sealed partial class BattleSession
 
     private void BindNativeEnemyModel(ref NativeBattleGraphicsState graphics, NativeBattleModelLoadTask task, int row, NativeBattleModelTextureBinding binding)
     {
-        NativeBattleGraphicsModel model = graphics.Models[task.PhysicalIndex];
-        graphics = graphics with { Models = graphics.Models.SetItem(task.PhysicalIndex, model with { ActiveResourceRow100 = row, OriginalResourceRow104 = row, ActiveStagedResourceRow100 = null, TextureResourceIndex = row, BodyTextureSlots = binding, TextureAllocationMask = NativeModelTextureCache!.Rows[row].TextureMask, ResourceMagicId = null, ResourceRenzokukenTargetBank = null }) };
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(task.PhysicalIndex);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(task.PhysicalIndex, model with { ActiveResourceRow100 = row, OriginalResourceRow104 = row, ActiveStagedResourceRow100 = null, TextureResourceIndex = row, BodyTextureSlots = binding, TextureAllocationMask = NativeModelTextureCache!.Rows[row].TextureMask, ResourceMagicId = null, ResourceRenzokukenTargetBank = null }) };
     }
 }

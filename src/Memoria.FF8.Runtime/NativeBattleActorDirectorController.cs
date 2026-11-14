@@ -20,7 +20,7 @@ public static class NativeBattleActorDirectorController
         NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(0, profile.Callback(0x8AB290), 100);
         NativeBattleModulePoolTask task = append.Hierarchy.Read(append.Address);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
@@ -178,8 +178,8 @@ public static class NativeBattleActorDirectorController
                         case 1:
                             if (current.State.Word(0x48) == 1)
                             {
-                                int header = parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A));
-                                int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("The actor director contact requires its physical header.");
+                                BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                                int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("The actor director contact requires its physical header.");
                                 Emit(ref state, new NativeBattleActorDirectorContact(first + unchecked((sbyte)task.ReadByte(0x2B))));
                                 state = Next(state, address);
                             }

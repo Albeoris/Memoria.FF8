@@ -26,7 +26,7 @@ public static partial class NativeBattleLionHeart165Controller
                 continue;
             }
             uint local = 0xD88758u + (uint)index * 8;
-            NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(inputs.ReadModel(frame.Parameters.Actor78).GeometryWorldMatrix ?? throw new NotSupportedException("Native Lion Heart contacts require their actual actor geometry matrix."), new(ReadWord(frame.Staging, local), ReadWord(frame.Staging, local + 2), ReadWord(frame.Staging, local + 4)));
+            NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(inputs.ReadModel(frame.Parameters.Source).GeometryWorldMatrix ?? throw new NotSupportedException("Native Lion Heart contacts require their actual actor geometry matrix."), new(ReadWord(frame.Staging, local), ReadWord(frame.Staging, local + 2), ReadWord(frame.Staging, local + 4)));
             NativeBattleVector point = new(unchecked((short)(ReadWord(frame.Staging, 0x23C58B8) + offset.X)), unchecked((short)(ReadWord(frame.Staging, 0x23C58BA) + offset.Y)), unchecked((short)(ReadWord(frame.Staging, 0x23C58BC) + offset.Z)));
             if (index > 3)
             {
@@ -161,7 +161,7 @@ public static partial class NativeBattleLionHeart165Controller
 
     private static IEnumerable<byte> TargetRing(NativeBattleLionHeart165Frame frame, NativeBattleLionHeart165Inputs inputs)
     {
-        byte first = frame.FirstRecipient;
+        BattleModelOwner first = frame.FirstRecipient;
         yield return first;
         int? next = inputs.ReadModel(first).ReadLinkedModelIndex140();
         HashSet<int> seen = [first];

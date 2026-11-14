@@ -1,11 +1,11 @@
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleSiren95VibrationStep(NativeBattleSiren95Frame Frame, short Handle);
-public sealed record NativeBattleSiren95DirectorServices(NativeBattleActionPacketsState Packets, Func<NativeBattleSiren95Frame, uint, int, int, NativeBattleSiren95VibrationStep> StartVibration, Func<NativeBattleSiren95Frame, short, NativeBattleSiren95Frame> StopVibration, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95Frame> SpawnStage, Func<NativeBattleSiren95Frame, uint, int, int, NativeBattleSiren95Frame> PlaySound, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, int, NativeBattleGraphicsModel, NativeBattleSiren95Frame> WriteModel);
+public sealed record NativeBattleSiren95DirectorServices(NativeBattleActionPacketsState Packets, Func<NativeBattleSiren95Frame, uint, int, int, NativeBattleSiren95VibrationStep> StartVibration, Func<NativeBattleSiren95Frame, short, NativeBattleSiren95Frame> StopVibration, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95Frame> SpawnStage, Func<NativeBattleSiren95Frame, uint, int, int, NativeBattleSiren95Frame> PlaySound, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleSiren95Frame> WriteModel);
 
 public static class NativeBattleSiren95Director
 {
-    public static NativeBattleSiren95Frame Initialize73A6E0(NativeBattleSiren95Frame frame, Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleSiren95Frame Initialize73A6E0(NativeBattleSiren95Frame frame, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         uint director = Director(frame);
         NativeBattleSiren95State state = State(frame).Write(director, new byte[0x54]).Write(unchecked(director + 4), BitConverter.GetBytes((ushort)0xCC0));

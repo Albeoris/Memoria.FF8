@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect316 requires its current process memory.");
         NativeBattleEffect316Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect316 requires its current CRT stream."), memory.Effect316 ?? throw new NotSupportedException("Effect316 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect316 requires its current addressed memory.") };
         NativeBattleEffect316Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect316 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.Models[NativeEffect316Actor(graphics, address)], _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect316 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute) { ReadGeometrySource = (current, address) => ReadNativeEffect316Geometry(graphics, current, address), ReadBoneMatrix = (current, address, bone) => ReadNativeEffect316BoneMatrix(graphics, current, address, bone) };
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect316 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.ActorModels.Get(NativeEffect316Actor(graphics, address)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect316 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute) { ReadGeometrySource = (current, address) => ReadNativeEffect316Geometry(graphics, current, address), ReadBoneMatrix = (current, address, bone) => ReadNativeEffect316BoneMatrix(graphics, current, address, bone) };
         frame = initialize ? NativeBattleEffect316Controller.Initialize(frame, resources, inputs) : NativeBattleEffect316Controller.Advance(frame, resources, inputs);
         PublishNativeEffect316Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         uint BoneAddress(NativeBattleEffect316Frame current, uint address, int bone)
         {
             int actor = NativeEffect316Actor(graphics, address);
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], Pose(actor));
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), Pose(actor));
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Effect316 bone index leaves its current skeleton.");
@@ -57,20 +57,20 @@ public sealed partial class BattleSession
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect316WriteModel write:
                     int actor = NativeEffect316Actor(graphics, write.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     model = write.Offset == 0x2C && write.Length == 4 ? model with { Color44 = BinaryPrimitives.ReadUInt32LittleEndian(write.Data.Read(0, 4)) } : ApplyNativeEffect301ModelBytes(model, write.Offset, write.Data, write.Length);
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                     return current;
                 case NativeBattleEffect316ModelFlags flags:
                     int physical = NativeEffect316Actor(graphics, flags.ModelAddress);
-                    NativeBattleGraphicsModel selected = graphics.Models[physical];
+                    NativeBattleGraphicsModel selected = graphics.ActorModels.Get(physical);
                     ushort updated = flags.Width switch
                     {
                         1 => unchecked((ushort)((selected.Flags0 & 0xFF00) | (byte)(((byte)selected.Flags0 & (byte)flags.AndMask) | (byte)flags.OrMask))),
                         2 => unchecked((ushort)((selected.Flags0 & flags.AndMask) | flags.OrMask)),
                         _ => throw new InvalidDataException("Effect316 requires its actual model flags store width.")
                     };
-                    graphics = graphics with { Models = graphics.Models.SetItem(physical, selected with { Flags0 = updated }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(physical, selected with { Flags0 = updated }) };
                     return current;
                 case NativeBattleEffect316WriteArena write:
                     return WriteNativeEffect316Arena(current, write.Address, write.Data, write.Length);
@@ -84,14 +84,14 @@ public sealed partial class BattleSession
                     return current with { Memory = current.Memory with { PrimitiveProcess = process with { ByteCursor = offset } }, State = current.State.WriteDword(CursorGlobal, cursors.PrivateCursor) };
                 case NativeBattleEffect316Prepare5095B0 prepare:
                     int preparedActor = NativeEffect316Actor(graphics, prepare.ModelAddress);
-                    NativeBattleGraphicsModel preparedModel = graphics.Models[preparedActor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(preparedActor, NativeBattleBodyBoneMatrices.Compose5095B0(preparedModel, preparedModel.GeometryWorldMatrix ?? throw new NotSupportedException("Effect316 requires its current model world matrix."))) };
+                    NativeBattleGraphicsModel preparedModel = graphics.ActorModels.Get(preparedActor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(preparedActor, NativeBattleBodyBoneMatrices.Compose5095B0(preparedModel, preparedModel.GeometryWorldMatrix ?? throw new NotSupportedException("Effect316 requires its current model world matrix."))) };
                     return current;
                 case NativeBattleEffect316Restore508C90 restore:
                     int restoredActor = NativeEffect316Actor(graphics, restore.ModelAddress);
                     NativeBattleEffect316AddressStep allocation = Allocate(current, 88);
-                    NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[restoredActor], Pose(restoredActor), ReadArena(allocation.Frame, allocation.Address, 88));
-                    graphics = graphics with { Models = graphics.Models.SetItem(restoredActor, restored.Model) };
+                    NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), Pose(restoredActor), ReadArena(allocation.Frame, allocation.Address, 88));
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(restoredActor, restored.Model) };
                     return Release(WriteNativeEffect316Arena(allocation.Frame, allocation.Address, restored.Temporary58, 88), 88);
                 case NativeBattleEffect316ClearGeometryMarkers6612C0 clear:
                     NativeBattleEffect316AddressStep markerAllocation = Allocate(current, 8);
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
                     return Release(WriteNativeEffect316Arena(current, markerAllocation.Address, temporary, 8), 8);
                 case NativeBattleEffect316Shadow5088A0 shadow:
                     int shadowActor = NativeEffect316Actor(graphics, shadow.ModelAddress);
-                    NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect316 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect316 shadow requires its current arithmetic registers.")), graphics.Models[shadowActor], inputs.ReadProjection(current), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect316 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect316 requires its original shadow template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect316 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count), pilotIdentity: NativeBattleActor33Presentation.Resource(current.PilotIdentity, shadow.ModelAddress, NativeModelResourceAddress100(graphics.Models[shadowActor])));
+                    NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect316 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect316 shadow requires its current arithmetic registers.")), graphics.ActorModels.Get(shadowActor), inputs.ReadProjection(current), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect316 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect316 requires its original shadow template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect316 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count), pilotIdentity: NativeBattleActor33Presentation.Resource(current.PilotIdentity, shadow.ModelAddress, NativeModelResourceAddress100(graphics.ActorModels.Get(shadowActor))));
                     current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(drawn.Staging, drawn.TemporaryAddress, drawn.Temporary78, 0x78) };
                     current = DeliverNativeEffect316Batch(ref graphics, current, drawn.Batch, 0x1D8E054);
                     return Release(current, 0x78);

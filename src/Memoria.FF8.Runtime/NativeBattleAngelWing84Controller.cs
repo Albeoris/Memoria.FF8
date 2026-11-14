@@ -29,7 +29,7 @@ public sealed record NativeBattleAngelWing84State([property: JsonRequired] int S
 
 public sealed record NativeBattleAngelWing84Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleAngelWing84State State);
 public sealed record NativeBattleAngelWing84LeafStep(NativeBattleAngelWing84Frame Frame, int Result);
-public sealed record NativeBattleAngelWing84Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84LeafStep> AdvanceLeaf, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> BeginTextureRelease);
+public sealed record NativeBattleAngelWing84Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84LeafStep> AdvanceLeaf, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> BeginTextureRelease);
 public sealed record NativeBattleAngelWing84TargetInputs(NativeBattleAngelWing84Inputs Controller, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> InitializeScene, Func<NativeBattleAngelWing84Frame, ushort> ReadContactReady, Func<NativeBattleAngelWing84Frame, ushort> ReadSceneComplete, Func<NativeBattleAngelWing84Frame, int, NativeBattleAngelWing84Frame> ApplyContact);
 
 /// <summary>78D7B0/78D940's physical pools and eleven-state root. Private scene callbacks have their own required dispatcher.</summary>
@@ -50,7 +50,7 @@ public static class NativeBattleAngelWing84Controller
         NativeBattleEffectHierarchy hierarchy = new(Enumerable.Range(0, Descriptors.Length).Select(index => NativeBattleEffectTaskPool.Initialize(Descriptors[index], Banks[index], Strides[index], Capacities[index])).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x78D940, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native78D7B0 requires its original first contact pointer.");
         byte target = packets.ReadContact(first).Primary.ActorIndex;
         byte targets = header.ReadContactCount();
@@ -219,8 +219,8 @@ public static class NativeBattleAngelWing84Controller
             case 1:
                 if (inputs.ReadContactReady(frame) == 1)
                 {
-                    int header = checked(frame.Effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(42)));
-                    int first = controller.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native797540 requires its selected group's actual contact pointer.");
+                    BattleActionHeaderReference header = frame.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
+                    int first = controller.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native797540 requires its selected group's actual contact pointer.");
                     int contact = checked(first + unchecked((sbyte)task.ReadByte(43)));
                     frame = inputs.ApplyContact(frame, contact);
                     hierarchy = Next(new(frame.Effect.Pools), address);

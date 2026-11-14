@@ -15,8 +15,8 @@ public static partial class NativeBattleEffect209Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect209 requires its current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        int actor = parameters.Actor78;
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
+        int actor = parameters.Source;
         int target = packets.ReadContact(header.FirstContactIndex ?? throw new NotSupportedException("Effect209 requires its actual first contact pointer.")).Primary.ActorIndex;
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(GuardianGlobal, GuardianAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);

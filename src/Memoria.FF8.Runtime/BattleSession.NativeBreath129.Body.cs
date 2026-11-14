@@ -7,13 +7,13 @@ public sealed partial class BattleSession
     private (NativeBattleBreath129Frame Frame, NativeBattleGraphicsState Graphics, NativeBattleBreath129BodySource Source) ReadNativeBreath129Body(NativeBattleBreath129Frame frame, NativeBattleGraphicsState graphics, uint row100, bool publish)
     {
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Breath body access requires its actual current shared staging owner.");
-        int[] actors = Enumerable.Range(0, graphics.Models.Length).Where(index => graphics.ActorIds[index] is not null && RowAddress(graphics.Models[index]) == row100).ToArray();
+        int[] actors = Enumerable.Range(0, graphics.Models.Length).Where(index => graphics.ActorIds[index] is not null && RowAddress(graphics.ActorModels.Get(index)) == row100).ToArray();
         if (actors.Length != 1)
         {
             throw new NotSupportedException("Breath body row requires one actual current physical actor binding.");
         }
         int actor = actors[0];
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeFileStaging = staging;
         NativeEffectMemory = frame.Memory;
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics with { OriginalEffect = frame.Effect }, actor);
@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
             model = prepared.Model;
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             frame = frame with { Staging = staging };
             NativeFileStaging = staging;
         }

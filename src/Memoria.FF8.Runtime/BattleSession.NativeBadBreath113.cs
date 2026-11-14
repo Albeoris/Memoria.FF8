@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Bad Breath requires its physical target records.");
         if (BadWord(root, 12) == 1)
         {
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
             pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25218B8, BadBreath113Arena + 0x10B4, 0x104, 1), NativeBattleEffectTaskPool.Initialize(0x25218A8, BadBreath113Arena + 0x2F4, 0x2C, 80), NativeBattleEffectTaskPool.Initialize(0x2521898, BadBreath113Arena, 0xFC, 3)];
             if (Allocate(1, 0x6CAE10, out int slot))
             {
-                Put(1, slot, Clear(1, slot).WriteByte(14, unchecked((byte)effect.Parameters.TargetMask7A)));
+                Put(1, slot, Clear(1, slot).WriteByte(14, unchecked((byte)effect.Parameters.TargetActors)));
             }
         }
         NativeBattlePilotVisualIdentity? pilotIdentity = null;
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
         int Main(ref NativeBattleModulePoolTask task)
         {
             int frame = BadWord(task, 12);
-            NativeBattleVector mouth = ReadNativeGraphicsBone(graphics, effect.Parameters.Actor78, 9, 0);
+            NativeBattleVector mouth = ReadNativeGraphicsBone(graphics, effect.Parameters.Source, 9, 0);
             if (frame <= 44)
             {
                 if (frame == 0)
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
                     int count = 0;
                     for (int actor = 0; actor < 3; actor++)
                     {
-                        if ((effect.Parameters.TargetMask7A & (1 << actor)) == 0)
+                        if ((effect.Parameters.TargetActors & (1 << actor)) == 0)
                         {
                             continue;
                         }
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
             }
             if (frame == 0)
             {
-                NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, effect.Parameters.Actor78);
+                NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, effect.Parameters.Source);
                 PublishNativeModuleSound(resources.Sound, 0x100, new(anchor.X, anchor.Y, anchor.Z, 0));
             }
             if (frame >= 59)
@@ -224,12 +224,12 @@ public sealed partial class BattleSession
             {
                 int sine = NativeBattleCameraMath.Sine(step * 2048 / 28);
                 DrawOverlay(actor, (short)(sine >> 2), unchecked((short)(step << 8)));
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 | 4) }) };
                 PlayCloud(ref task, actor);
             }
             else
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 & 0xFFFB) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 & 0xFFFB) }) };
             }
             if (frame == 27)
             {
@@ -248,7 +248,7 @@ public sealed partial class BattleSession
         void PlayCloud(ref NativeBattleModulePoolTask task, int actor)
         {
             NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
-            anchor = anchor with { Y = graphics.Models[actor].Transform!.Angle36 };
+            anchor = anchor with { Y = graphics.ActorModels.Get(actor).Transform!.Angle36 };
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (4), 0xEC);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Cloud, 0, (current, node) =>
             {
@@ -293,7 +293,7 @@ public sealed partial class BattleSession
 
         void DrawOverlay(int actorIndex, short amplitude, short phase)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
             NativeBattleActionMatrix main = NativeBattleGfMatrices.Compose56C2F0(view, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Bad Breath requires its retained actor world matrix."));
             NativeBattleModuleProjectedVertex origin = NativeBattleModuleProjection.Project45FE10(main, default, projection);
@@ -324,7 +324,7 @@ public sealed partial class BattleSession
                     Submit(linked[linkedIndex], weaponBones, actor.LinkedTextureSlots!, linkedIndex, true);
                 }
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
 
             void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding binding, int meshIndex, bool linkedSource)
             {

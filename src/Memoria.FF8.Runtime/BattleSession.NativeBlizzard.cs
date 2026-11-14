@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Blizzard requires the prior1D97778 view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Blizzard requires its authenticated depth-cue color tables.");
         NativeBattleBlizzardFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Blizzard requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Blizzard requires its retained55CBD2 CRT state."));
-        frame = NativeBattleBlizzardController.Advance61BF70(frame, new(graphics.Flags, nativeActionPackets, index => ReadNativeGraphicsBone(graphics, index, 240, 4096), index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native Blizzard requires its target WORD36."), Execute));
+        frame = NativeBattleBlizzardController.Advance61BF70(frame, new(graphics.Flags, nativeActionPackets, index => ReadNativeGraphicsBone(graphics, index, 240, 4096), index => graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Blizzard requires its target WORD36."), Execute));
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };

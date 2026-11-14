@@ -24,7 +24,7 @@ public static class NativeBattleShivaEntry
             throw new InvalidDataException("Native Shiva entry requires its selected185 initializer, parameters and seven physical graphics rows.");
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Shiva entry requires its retained571B50 arena.");
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Shiva entry requires its actual first-contact pointer.");
         byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
         if (target >= models.Length)
@@ -57,6 +57,6 @@ public static class NativeBattleShivaEntry
         int childSlot;
         (children, childSlot) = children.Append(0x5C0F30);
         children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(0x0C, 0));
-        return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress }, new(parameters.Actor78, target, center, world, 0));
+        return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress }, new(parameters.Source, target, center, world, 0));
     }
 }

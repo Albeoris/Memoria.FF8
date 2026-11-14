@@ -50,7 +50,7 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
         return Cpu is { IsOwnedResource: true } reference ? this with { CpuPublication = CpuPublication ?? cpu.GetResourceBank(reference) } : this;
     }
 
-    internal bool HasValidOwner() => (!NativeAddressEncoding || Cpu is not null) && (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { IsOwnedResource: true }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= NativeBattleModelResourceRowAddress.MaximumRowCount) && (Cpu is not { } cpu || HasValidCpuOwner(cpu));
+    internal bool HasValidOwner() => (!NativeAddressEncoding || Cpu is not null) && (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { IsOwnedResource: true }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not < 0 && (Cpu is not { } cpu || HasValidCpuOwner(cpu));
 
     private static bool HasValidCpuOwner(NativeBattleModelCpuReference cpu)
     {

@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect65Controller
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect65UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its actual parameters.");
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Actor78)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source)) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
         (root, _) = root.Append(RootCallback);
         frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, State = frame.State with { RootBankStorage = null } };

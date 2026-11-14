@@ -9,12 +9,12 @@ public static partial class NativeBattleGastricJuice128Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleGastricJuice128Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Gastric Juice requires its captured action parameters.");
     private static int FirstContact(NativeBattleGastricJuice128Frame frame, NativeBattleGastricJuice128Inputs inputs)
     {
-        int index = Parameters(frame).HeaderIndex7C;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.Headers[index].ReadByte(16) == 0)
+        BattleActionHeaderReference index = Parameters(frame).Header;
+        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
         {
             throw new InvalidDataException("Gastric Juice requires its first captured target contact.");
         }
-        return inputs.Packets.Headers[index].FirstContactIndex ?? throw new NotSupportedException("Gastric Juice requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Gastric Juice requires its actual captured contact pointer.");
     }
     private static void RequireBinding(NativeBattleGastricJuice128Frame frame)
     {

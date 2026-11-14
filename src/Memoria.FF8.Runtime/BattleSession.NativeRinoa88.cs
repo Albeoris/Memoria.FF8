@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Rinoa88 requires its actual color constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Rinoa88 requires its retained CRT generator.");
         NativeBattleRinoa88Inputs controller = null!;
-        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa88 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
+        controller = new(nativeActionPackets, view, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa88 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         frame = NativeBattleRinoa88Controller.Advance(frame, controller);
         NativeEffectMemory = frame.Memory with { Rinoa88 = frame.State };
         nativeCrtRandom = random;
@@ -64,9 +64,9 @@ public sealed partial class BattleSession
                     }
                     return Finish(current, address, io.ReadyToComplete);
                 case 0x771DB0:
-                    return NativeBattleRinoa88PrimaryBody.Advance(current, address, new(resources.PrimaryModel, (_, actor) => graphics.Models[actor], DrawBody, Execute, controller));
+                    return NativeBattleRinoa88PrimaryBody.Advance(current, address, new(resources.PrimaryModel, (_, actor) => graphics.ActorModels.Get(actor), DrawBody, Execute, controller));
                 case 0x7718D0:
-                    return NativeBattleRinoa88SecondaryBody.Advance(current, address, new(resources.SecondaryModel, (_, actor) => graphics.Models[actor], DrawBody));
+                    return NativeBattleRinoa88SecondaryBody.Advance(current, address, new(resources.SecondaryModel, (_, actor) => graphics.ActorModels.Get(actor), DrawBody));
                 case 0x769060:
                     return NativeBattleRinoa88Camera.Advance(current, address, new(resources.Camera, _ => NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(graphics.Models), next => (next, Roll()), (next, camera) =>
                     {
@@ -156,14 +156,14 @@ public sealed partial class BattleSession
                         return current;
                     }
                     NativeBattleRinoa88VisibilityStep visible = NativeBattleRinoa88ModelOperations.ApplyVisibility(NativeBattleRinoa88Scene.Read(current), graphics.Models, visibility.Callback);
-                    graphics = graphics with { Models = visible.Models };
+                    graphics = graphics with { ActorModels = visible.Models };
                     return current with { State = current.State with { Scene = visible.Scene } };
                 case NativeBattleRinoa88BindActor bind when bind.Resource == 0x15560C0 && bind.SavedOwner == 0x25ACD10:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(bind.Resource, resources.ActorOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Rinoa88 requires its actual CPU resource rows."), actor, bind.SavedOwner, bind.Resource);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleRinoa88ActorSequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, checked((ushort)sequence.Sequence));

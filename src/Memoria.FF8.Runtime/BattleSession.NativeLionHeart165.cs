@@ -11,13 +11,13 @@ public sealed partial class BattleSession
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Lion Heart requires its entered parameters.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationX."), model.Rotation14 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationY."), model.Rotation16 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationZ."));
-        NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
+        NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Source, 241, 0);
         NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Lion Heart requires actual target positions.")).ToArray());
         NativeBattleLionHeart165EntryStep entry = NativeBattleLionHeart165Controller.Enter5E9470(NativeEffectMemory ?? throw new NotSupportedException("Native Lion Heart requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Lion Heart requires its retained CRT random owner."), rotation, bone, center, model.RotationPadding18);
         NativeEffectMemory = entry.Frame.Memory;
         NativeFileStaging = entry.Frame.Staging;
         nativeCrtRandom = entry.Frame.Random;
-        return graphics with { OriginalEffect = entry.Frame.Effect, Models = graphics.Models.SetItem(parameters.Actor78, model with { Rotation14 = entry.Facing14 }) };
+        return graphics with { OriginalEffect = entry.Frame.Effect, Models = graphics.Models.SetItem(parameters.Source, model with { Rotation14 = entry.Facing14 }) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeLionHeart165(NativeBattleGraphicsState graphics)
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                     events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B450 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
                     return current;
                 case NativeBattleLionHeart165BindActor:
-                    byte actor = current.Parameters.Actor78;
+                    BattleModelOwner actor = current.Parameters.Source;
                     NativeBattleGraphicsModel actorModel = graphics.Models[actor];
                     RetainNativeDecodedPoseBeforeResourceChange(actorModel, NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(NativeFileStaging!, NativeModelCpuResources ?? throw new NotSupportedException("Native Lion Heart requires its actual CPU resource rows."), actorModel, 0x23C5688, 0xD780C8);
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(flash.Rise, flash.Hold, flash.Fall, flash.Intensity) };
                     return current;
                 case NativeBattleLionHeart165Contact contact:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.Header];
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Lion Heart receipt requires its selected contact pointer.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(first + contact.RelativeIndex))] });

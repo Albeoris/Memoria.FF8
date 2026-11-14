@@ -245,11 +245,11 @@ public static partial class NativeBattleSigh46Controller
         {
             throw new NotSupportedException("Sigh requires its actual captured parameter pointer.");
         }
-        int index = checked(Parameters(frame).HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+        BattleActionHeaderReference index = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
         if ((uint)index >= packets.Headers.Length)
         {
             throw new NotSupportedException("Sigh signed header offset leaves its physical action arena.");
         }
-        return packets.Headers[index];
+        return packets.ReadHeader(index);
     }
 }

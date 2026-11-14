@@ -24,14 +24,14 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Search requires original graphics rules.");
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Search requires its depth-cue constants.");
         NativeBattleSearchFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Search requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Search requires retained CRT random state."));
-        frame = NativeBattleSearchController.Advance7552B0(frame, new(graphics.Flags, nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Search requires the selected actor pose source."), ReadWorld, ReadBone, DrawModel, AdvanceProgram, Execute), resources);
+        frame = NativeBattleSearchController.Advance7552B0(frame, new(graphics.Flags, nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Search requires the selected actor pose source."), ReadWorld, ReadBone, DrawModel, AdvanceProgram, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
         ImmutableArray<byte> ReadWorld(int actor)
         {
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Search requires the actual target transform.");
+            NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Search requires the actual target transform.");
             byte[] bytes = new byte[8];
             BinaryPrimitives.WriteInt16LittleEndian(bytes, transform.Position28.X);
             BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), transform.Position28.Y);
@@ -98,11 +98,11 @@ public sealed partial class BattleSession
                     (textures, _) = textures.EnqueueTim505E30(resources.ModelProfile.ModelTim);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleSearchBindTargetResource bind:
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(0x16C96E8, resources.TargetOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Search requires current CPU model resources."), model, 0x2598EF8, 0x16C96E8);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleSearchSelectActorSequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);

@@ -35,12 +35,12 @@ public static class NativeBattleDuel216Controller
         NativeBattleEffectResourcePointer tim = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2508870) ?? throw new NotSupportedException("Native Duel216 requires its actual initializer texture pointer.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Duel216 requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Duel216 requires its retained arena."), tim.ArenaOffset);
-        staging = Dword(Dword(Dword(Dword(Dword(staging, 0x2508870, checked(Arena + (uint)tim.ArenaOffset)), 0x250890C, Arena), 0x250887C, 0x1D99A78), 0x2508880, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)), 0x2508884, NativeBattleGraphicsModelAddress.Encode(minimumTargetIndex));
+        staging = Dword(Dword(Dword(Dword(Dword(staging, 0x2508870, checked(Arena + (uint)tim.ArenaOffset)), 0x250890C, Arena), 0x250887C, 0x1D99A78), 0x2508880, NativeBattleGraphicsModelAddress.Encode(parameters.Source)), 0x2508884, NativeBattleGraphicsModelAddress.Encode(minimumTargetIndex));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x25088D8, 16, 1);
         (root, int slot) = root.Append(0x695AB0);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         staging = staging.MarkUnknown(Root, 32);
-        return new(memory with { Duel216 = new(true, parameters, resources), Textures = textures }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random);
+        return new(memory with { Duel216 = new(true, resources), Textures = textures }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random);
     }
 
     public static NativeBattleDuel216Frame Advance695AB0(NativeBattleDuel216Frame frame, NativeBattleDuel216Inputs inputs, Func<NativeBattleDuel216Frame, NativeBattleEffectTaskPool, int, NativeBattleDuel216Step> advanceChild)

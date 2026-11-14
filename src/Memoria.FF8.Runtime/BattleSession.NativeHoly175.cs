@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleHoly175Resources resources = effect.Binding.Holy175Resources ?? throw new NotSupportedException("Native Holy requires its original resources.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Holy requires its authenticated color arithmetic.");
         NativeBattleHoly175Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Holy requires its retained process memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Holy requires its retained CRT state."));
-        NativeBattleHoly175Inputs inputs = new(graphics.Flags, nativeActionPackets, Position, actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Holy requires its actual actor scale."), actor => graphics.Models[actor].Flags0, AdvanceColors, AdvanceWarp, DrawSprite31, Execute);
+        NativeBattleHoly175Inputs inputs = new(graphics.Flags, nativeActionPackets, Position, actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native Holy requires its actual actor scale."), actor => graphics.ActorModels.Get(actor).Flags0, AdvanceColors, AdvanceWarp, DrawSprite31, Execute);
         frame = initialize ? NativeBattleHoly175Controller.Initialize5D1AD0(frame, inputs, resources) : NativeBattleHoly175Controller.Advance5D44C0(frame, inputs, resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         {
             NativeBattleStageColors globals = NativeStage?.ModelColors ?? throw new NotSupportedException("Native Holy requires its actual stage model-color globals.");
             NativeBattleHoly175ModelColorStep step = NativeBattleHoly175ModelColors.Advance(task, graphics.Models, graphics.Flags, globals.Color44, globals.Color40, colors);
-            graphics = graphics with { Models = step.Models };
+            graphics = graphics with { ActorModels = step.Models };
             return new(current, step.Task, step.Result);
         }
 

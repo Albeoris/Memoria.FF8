@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect312Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect312 requires its current CRT stream."), memory.Effect312 ?? throw new NotSupportedException("Effect312 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect312 requires its current addressed memory.") };
         frame = frame with { ReadPhysical = (address, length) => ReadNativeEffect312Physical(graphics, frame, address, length) };
         NativeBattleEffect312Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect312 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (current, address, length) => ReadNativeEffect312Physical(graphics, current, address, length), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeBattleEffect312Controller.Actor(address)]), (_, address) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[NativeBattleEffect312Controller.Actor(address)].GeometryWorldMatrix ?? throw new NotSupportedException("Effect312 requires its current world matrix."), null), (current, address, bone) => ReadNativeEffect312Bone(graphics, current, address, bone), TargetCenter, (current, address, retained) => ReadNativeEffect312Anchor(graphics, current, address, retained), (_, address) => ReadNativeEffect312SequenceByte(graphics, address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect312 requires its current projection."), _ => Camera().Roll, Execute) { CapturePresentation = true, HostedActionPackets = nativeActionPackets.PresentationRoster is not null ? nativeActionPackets : null };
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect312 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (current, address, length) => ReadNativeEffect312Physical(graphics, current, address, length), (_, address) => CaptureNativeEffect301Model(graphics.ActorModels.Get(NativeBattleEffect312Controller.Actor(address))), (_, address) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(NativeBattleEffect312Controller.Actor(address)).GeometryWorldMatrix ?? throw new NotSupportedException("Effect312 requires its current world matrix."), null), (current, address, bone) => ReadNativeEffect312Bone(graphics, current, address, bone), TargetCenter, (current, address, retained) => ReadNativeEffect312Anchor(graphics, current, address, retained), (_, address) => ReadNativeEffect312SequenceByte(graphics, address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect312 requires its current projection."), _ => Camera().Roll, Execute) { CapturePresentation = true, HostedActionPackets = nativeActionPackets.PresentationRoster is not null ? nativeActionPackets : null };
         frame = initialize ? NativeBattleEffect312Controller.Initialize(frame, resources, inputs) : NativeBattleEffect312Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect312PointStep TargetCenter(NativeBattleEffect312Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect312 requires its selected physical target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect312 requires its selected physical target positions.")).ToArray());
             return new(current, retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z)));
         }
 
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect312Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(NativeEffect312ContactIndex(contact.TargetArgumentAddress))] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

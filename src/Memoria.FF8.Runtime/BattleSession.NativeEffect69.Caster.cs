@@ -19,9 +19,9 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Effect69 caster changed its current physical scratch pointer.");
         }
         (frame, uint temporaryAddress) = NativeBattleEffect69Controller.Allocate(frame, 96);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect69 caster requires its current world matrix."));
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         NativeBattleEffectArena temporary = NativeBattleEffect69Controller.ReadBytes(frame, temporaryAddress, 96);
         temporary = Put(temporary, 4, draw.ScratchAddress);
         temporary = temporary.Write(12, BitConverter.GetBytes((short)0)).Write(14, BitConverter.GetBytes((short)0)).Write(16, BitConverter.GetBytes((short)320)).Write(18, BitConverter.GetBytes((short)216));
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         frame = deliver(frame, drawn.Batch);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 88);
         NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(model, source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, restored.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) };
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88), 88) };
         return (graphics, NativeBattleEffect69Controller.Release(frame, 96));
 

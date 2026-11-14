@@ -16,7 +16,7 @@ public static partial class NativeBattleMagmaBreath48Controller
         NativeBattleModulePoolTask root = Read(frame, task.ReadDword(0x10));
         NativeBattleEffectParameters parameters = Parameters(frame);
         NativeBattleActionPacketsState packets = inputs.Packets;
-        Func<int, NativeBattleGraphicsModel> readModel = actor => inputs.ReadModel(frame, actor);
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = actor => inputs.ReadModel(frame, actor);
         const int Context = 0x34;
         WriteWord(0x22, task.ReadWord(0x29A));
         WriteWord(0x24, task.ReadWord(0x29C));
@@ -27,8 +27,8 @@ public static partial class NativeBattleMagmaBreath48Controller
         WriteWord(0x1C, root.ReadWord(0x5A));
         WriteWord(0x1E, task.ReadByte(0x2C));
         int count = unchecked((short)ReadWord(0x1C));
-        int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-        int firstContact = packets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Magma Breath requires the selected group's actual contact pointer.");
+        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+        int firstContact = packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Magma Breath requires the selected group's actual contact pointer.");
         for (int index = 0; index < count; index++)
         {
             WriteContextDword(4 + 4 * index, packets.ReadContact(checked(firstContact + index)).Primary.ActorIndex);

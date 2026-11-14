@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ultra Waves requires its process memory.");
         NativeBattleUltraWaves184Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Ultra Waves requires its CRT stream."), memory.UltraWaves184 ?? throw new NotSupportedException("Ultra Waves requires its retained native banks.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Ultra Waves requires its addressed temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Ultra Waves requires its interpolation constants.");
-        NativeBattleUltraWaves184Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Ultra Waves requires its caster world matrix."), Anchor, InitializeGrid, Emitter, Execute);
+        NativeBattleUltraWaves184Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Ultra Waves requires its caster world matrix."), Anchor, InitializeGrid, Emitter, Execute);
         frame = initialize ? NativeBattleUltraWaves184Controller.Initialize(frame, resources, inputs) : NativeBattleUltraWaves184Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Ultra Waves requires its selected current skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, checked((byte)selector), distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, checked((byte)selector), distance);
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current with { Memory = observed, Staging = NativeFileStaging }, new(unchecked((short)point.X), unchecked((short)point.Y), unchecked((short)point.Z), 0));
@@ -87,10 +87,10 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Ultra Waves caster binding leaves its original resource and saved row.");
                     }
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Ultra Waves requires its CPU resource rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleUltraWaves184ContactAll:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.HeaderIndex7C) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleUltraWaves184StageVisibility visible:

@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Wild Cannon Blow requires its actual process memory.");
         NativeBattleWildCannonBlow156Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Wild Cannon Blow requires its actual CRT stream."), memory.WildCannonBlow156 ?? throw new NotSupportedException("Wild Cannon Blow requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Wild Cannon Blow requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Wild Cannon Blow requires its interpolation constants.");
-        NativeBattleWildCannonBlow156Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Wild Cannon Blow requires its current projection."), (_, actor) => graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Wild Cannon Blow requires its actual retained model world matrix."), Bone, TargetCenter, Execute);
+        NativeBattleWildCannonBlow156Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Wild Cannon Blow requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Wild Cannon Blow requires its actual retained model world matrix."), Bone, TargetCenter, Execute);
         frame = initialize ? NativeBattleWildCannonBlow156Controller.Initialize(frame, resources, inputs) : NativeBattleWildCannonBlow156Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         NativeBattleWildCannonBlow156PointStep Bone(NativeBattleWildCannonBlow156Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Wild Cannon Blow requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Wild Cannon Blow bone query requires its actual temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleWildCannonBlow156PointStep TargetCenter(NativeBattleWildCannonBlow156Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Wild Cannon Blow requires every selected physical target position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Wild Cannon Blow requires every selected physical target position.")).ToArray());
             return new(current, Point(center));
         }
 

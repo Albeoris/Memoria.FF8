@@ -225,7 +225,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted AB requires its bound graphics model row.");
             }
         }
-        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)row), block, options, ui, roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[row].ResourceMagicId };
+        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)row), block, options, ui, roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.ActorModels.Get(row).ResourceMagicId };
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
         return graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActorIndex = null };
     }

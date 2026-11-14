@@ -6,25 +6,25 @@ public sealed partial class BattleSession
 {
     private (NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) PrepareNativeLightningBones(NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, bool compose)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Lightning requires its current caster skeleton.");
         if (compose)
         {
             _ = NativeBattleBodyBoneMatrices.Require(model, source);
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Lightning requires its current caster world matrix."));
-            return (staging, graphics with { Models = graphics.Models.SetItem(actor, model) });
+            return (staging, graphics with { ActorModels = graphics.ActorModels.Set(actor, model) });
         }
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
         NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
         NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(model, source, temporary);
         staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88);
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
-        return (staging, graphics with { Models = graphics.Models.SetItem(actor, restored.Model) });
+        return (staging, graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) });
     }
 
     private NativeBattleEffectMemory ProjectNativeLightningBoneTrail(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, uint head, uint bankAddress, int bankLength, Action<uint, System.Numerics.Vector3>? captureWorld = null)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Lightning bone projection requires its current caster skeleton.");
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Lightning bone projection requires its current CPU resource owner.");

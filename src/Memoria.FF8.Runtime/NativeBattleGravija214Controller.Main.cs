@@ -120,7 +120,7 @@ public static partial class NativeBattleGravija214Controller
             frame = Write(frame, address, Read(frame, address).WriteWord(14, unchecked((ushort)scale)));
             if (time == 49)
             {
-                frame = inputs.Execute(frame, new NativeBattleGravija214ContactsAll506BA0(Parameters(frame).HeaderIndex7C));
+                frame = inputs.Execute(frame, new NativeBattleGravija214ContactsAll506BA0(Parameters(frame).Header));
             }
         }
         task = Read(frame, address);
@@ -196,11 +196,11 @@ public static partial class NativeBattleGravija214Controller
         {
             throw new NotSupportedException("Gravija requires its actual current parameter pointer.");
         }
-        int index = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference index = Parameters(frame).Header;
         if ((uint)index >= packets.Headers.Length)
         {
             throw new NotSupportedException("Gravija parameter header leaves its physical action arena.");
         }
-        return packets.Headers[index];
+        return packets.ReadHeader(index);
     }
 }

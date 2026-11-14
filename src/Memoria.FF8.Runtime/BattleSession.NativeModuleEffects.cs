@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { OriginalEffect = selected with { PresentationPackets = [] } };
         }
-        NativeBattleModuleState restoredModules = graphics.ModuleEffects.RestoreCastingPresentation(actor => graphics.Models[actor].Sequence).RestoreGilgameshPresentation();
+        NativeBattleModuleState restoredModules = graphics.ModuleEffects.RestoreCastingPresentation(actor => graphics.ActorModels.Get(actor).Sequence).RestoreGilgameshPresentation();
         graphics = graphics with { ModuleEffects = restoredModules };
         NativeBattleModuleStep step = graphics.ModuleEffects.Advance(new(graphics.Flags)
         {
@@ -26,9 +26,9 @@ public sealed partial class BattleSession
             ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index),
             ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction),
             ReadModelBoneCount = index => checked((byte)(NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native573560 requires its current model skeleton owner.")).BoneCount),
-            ReadModelRotation14 = index => graphics.Models[index].Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."),
-            TransformModelPosition = (index, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(graphics.Models[index], local),
-            ReadModelTransform = index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native module effect requires its model WORD36/38 transform owner.")
+            ReadModelRotation14 = index => graphics.ActorModels.Get(index).Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."),
+            TransformModelPosition = (index, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(graphics.ActorModels.Get(index), local),
+            ReadModelTransform = index => graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native module effect requires its model WORD36/38 transform owner.")
         }, Dispatch, ObserveNativeModuleStack);
         nativeCrtRandom = step.CrtRandomAfter;
         foreach (NativeBattleModuleDraw draw in step.Draws)
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
     {
         (byte effect, uint flags) = NativeBattleModuleState.SelectModelEffect(operand, graphics.Flags);
         NativeBattleCastingSequenceProvenance? source = null;
-        if (graphics.ModuleEffects.CastingPresentation is { } presentation && presentation.Sequences.TryGetValue(index, out NativeBattleCastingSequenceProvenance? selected) && graphics.Models[index].Sequence == selected.Sequence)
+        if (graphics.ModuleEffects.CastingPresentation is { } presentation && presentation.Sequences.TryGetValue(index, out NativeBattleCastingSequenceProvenance? selected) && graphics.ActorModels.Get(index).Sequence == selected.Sequence)
         {
             source = selected;
         }

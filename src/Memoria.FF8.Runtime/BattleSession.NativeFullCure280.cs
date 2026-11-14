@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             targets = NativeBattleEffectTaskPool.Initialize(0x2507FF8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 320)), 2268, 3);
             sparks = NativeBattleEffectTaskPool.Initialize(0x2507FE8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 20, 16);
             (directors, int slot) = directors.Append(0x67E980);
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
             int count = header.ReadContactCount();
             if (count > 3)
             {
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
                 task = task.WriteWord(22, unchecked((ushort)(age + 1)));
                 if (age + 1 >= 30)
                 {
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
                     int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Full-cure lost its contact owner.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     for (int index = 0; index < header.ReadContactCount(); index++)

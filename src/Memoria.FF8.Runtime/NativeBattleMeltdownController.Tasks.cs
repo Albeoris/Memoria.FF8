@@ -55,16 +55,16 @@ public static partial class NativeBattleMeltdownController
             NativeBattleEffectParameters parameters = current.Effect.Parameters!;
             if (age == 80)
             {
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + action];
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(action));
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its original result target list.");
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     Emit(new NativeBattleMeltdownContact(first + index));
                 }
             }
-            if (age == 85 && action + 1 <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+            if (age == 85 && action + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
             {
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + action + 1];
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(checked(action + 1)));
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its next action's first target.");
                 Add(0x612190, (node, slot) => Set(slot, node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)(action + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteWord(34, header.ReadByte(0))));
             }

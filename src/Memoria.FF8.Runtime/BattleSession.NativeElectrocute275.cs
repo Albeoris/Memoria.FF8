@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Electrocute requires its original interpolation constants.");
         Dictionary<uint, System.Numerics.Vector3> worldPoints = [];
         Dictionary<uint, System.Numerics.Vector3> bonePoints = [];
-        NativeBattleElectrocute275Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => ReadNativeGraphicsBoneCount(graphics, actor), actor => graphics.Models[actor].ActiveStagedResourceRow100 ?? throw new NotSupportedException("Electrocute requires its current addressed caster binding."), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute) { Colors = colors };
+        NativeBattleElectrocute275Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), actor => ReadNativeGraphicsBoneCount(graphics, actor), actor => graphics.ActorModels.Get(actor).ActiveStagedResourceRow100 ?? throw new NotSupportedException("Electrocute requires its current addressed caster binding."), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute) { Colors = colors };
         frame = initialize ? NativeBattleElectrocute275Controller.Initialize(frame, resources, inputs) : NativeBattleElectrocute275Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         NativeBattleElectrocute275AnchorStep Anchor(NativeBattleElectrocute275Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -91,10 +91,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Electrocute caster binding leaves its original directory and arena row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Electrocute requires its CPU resource rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)
@@ -125,9 +125,9 @@ public sealed partial class BattleSession
                     NativeStage = stageState with { Groups = stageState.Groups.Select(group => group with { ColorDepth = stage.Depth, ColorFlags = stage.ColorFlags }).ToImmutableArray() };
                     return current;
                 case NativeBattleElectrocute275BlendActorColor blend:
-                    NativeBattleGraphicsModel tinted = graphics.Models[blend.Actor];
+                    NativeBattleGraphicsModel tinted = graphics.ActorModels.Get(blend.Actor);
                     NativeBattleWeightedColorStep color = NativeBattleWeightedColor56CC00.Blend(current.Memory, blend.FirstColor, blend.SecondColor, blend.FirstFactor, blend.SecondFactor, tinted.Color40 ?? throw new NotSupportedException("Electrocute requires its current actor color DWORD."), colors);
-                    graphics = graphics with { Models = graphics.Models.SetItem(blend.Actor, tinted with { Color40 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(blend.Actor, tinted with { Color40 = color.Color }) };
                     return current with { Memory = color.Memory };
                 case NativeBattleElectrocute275LoadView:
                     NativeBattlePackedMatrix32 view = Camera().CapturePackedView1D97778();
@@ -140,8 +140,8 @@ public sealed partial class BattleSession
                     (current, graphics) = PrepareNativeElectrocute275Bones(current, graphics, restore.Actor, false);
                     return current;
                 case NativeBattleElectrocute275ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleElectrocute275ProjectWorld project:
                     uint working = current.State.ReadDword(NativeBattleElectrocute275Profile.WorkingGlobal);
@@ -151,8 +151,8 @@ public sealed partial class BattleSession
                     var worldDraw = NativeBattleElectrocute275Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")), world.PilotIdentity, worldPoints);
                     return Deliver(worldDraw.Frame, worldDraw.Batch);
                 case NativeBattleElectrocute275DrawBoneTrail boneTrail:
-                    byte caster = current.Effect.Parameters!.Actor78;
-                    if (graphics.Models[caster].ActiveStagedResourceRow100 != boneTrail.BindingAddress)
+                    byte caster = current.Effect.Parameters!.Source;
+                    if (graphics.ActorModels.Get(caster).ActiveStagedResourceRow100 != boneTrail.BindingAddress)
                     {
                         throw new InvalidDataException("Electrocute bone trail leaves its current addressed caster binding.");
                     }
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
                 case NativeBattleElectrocute275ContactAll:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.HeaderIndex7C) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 default:
@@ -176,7 +176,7 @@ public sealed partial class BattleSession
         NativeBattleElectrocute275TaskStep AdvanceAct(NativeBattleElectrocute275Frame current, uint taskAddress)
         {
             NativeBattleModulePoolTask task = NativeBattleElectrocute275Controller.Read(current, taskAddress);
-            byte caster = current.Effect.Parameters!.Actor78;
+            byte caster = current.Effect.Parameters!.Source;
             NativeBattleElectrocute275AnchorStep anchored = Anchor(current, caster);
             current = anchored.Frame;
             NativeBattleModuleAnchor anchor = anchored.Anchor;

@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleKiros262TrailServices services = new((current, pointer, selector) =>
         {
             int actorIndex = ActorIndex(pointer);
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native trail requires the actual body skeleton.");
             sourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(source) * 397 ^ selector);
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native trail requires the current actor world matrix."));
@@ -36,13 +36,13 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix matrix = bones[bone];
             var rotated = NativeBattleGfMatrices.RotateLong56C600(matrix, 0, 0, -4096);
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(rotated.X, rotated.Y, rotated.Z);
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
             return new(current, new(unchecked((short)matrix.X), unchecked((short)matrix.Y), unchecked((short)matrix.Z)), direction.X, direction.Y, direction.Z);
         }, (current, pointer) =>
         {
             int actorIndex = ActorIndex(pointer);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native trail restore requires its actual body rig.");
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actorIndex], source)) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actorIndex), source)) };
             return current;
         }, (current, trail, color) =>
         {

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Boomerang Sword requires its actual process memory.");
         NativeBattleBoomerangSword304Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Boomerang Sword requires its actual CRT stream."), memory.BoomerangSword304 ?? throw new NotSupportedException("Boomerang Sword requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Boomerang Sword requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Boomerang Sword requires its original arithmetic constants.");
-        NativeBattleBoomerangSword304Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute) { CapturePresentation = true };
+        NativeBattleBoomerangSword304Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleBoomerangSword304Controller.Initialize(frame, resources, inputs) : NativeBattleBoomerangSword304Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
         NativeBattleBoomerangSword304PointStep ReadBone502170(NativeBattleBoomerangSword304Frame current, uint pointer, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Boomerang Sword bone query requires its actual transform.")).Position28));
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
 
         NativeBattleBoomerangSword304PointStep Anchor571400(NativeBattleBoomerangSword304Frame current, uint pointer)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Boomerang Sword anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -104,9 +104,9 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleBoomerangSword304ActorMeshMask124 mask:
                     int actor = Actor(mask.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Boomerang Sword requires its current sequence mesh mask.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & ~mask.ClearMask) | mask.SetMask } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & ~mask.ClearMask) | mask.SetMask } }) };
                     return current;
                 case NativeBattleBoomerangSword304DrawStatic88 mesh:
                     return DrawStatic(current, mesh);

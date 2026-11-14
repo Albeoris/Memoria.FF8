@@ -19,7 +19,7 @@ public static class NativeBattleNeedlesFamilyController
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
         (children, int scheduler) = children.Append(profile.SchedulerCallback);
         children = children.WriteSlot(scheduler, children.Slots[scheduler].WriteWord(12, 0));
-        NativeBattleNeedlesFamilyState state = frame.State.WriteDword(profile.BaseAddress, inputs.Packets.ReadContact(contact).Primary.ActorIndex).WriteDword(profile.ParametersGlobal, 0x1D99A78).WriteDword(profile.CasterGlobal, parameters.Actor78).WriteDword(profile.InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)source));
+        NativeBattleNeedlesFamilyState state = frame.State.WriteDword(profile.BaseAddress, inputs.Packets.ReadContact(contact).Primary.ActorIndex).WriteDword(profile.ParametersGlobal, 0x1D99A78).WriteDword(profile.CasterGlobal, parameters.Source).WriteDword(profile.InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)source));
         for (int index = 0; index < NativeBattleNeedlesFamilyProfile.RecordCount; index++)
         {
             state = state.WriteDword(profile.NeedleBank + (uint)(index * 56), 0).WriteDword(profile.SparkBank + (uint)(index * 24), 0);
@@ -301,7 +301,7 @@ public static class NativeBattleNeedlesFamilyController
         return task with { ResourceGeneration = allocated.Generation };
     }
 
-    private static int FirstContact(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyInputs inputs) => inputs.Packets.Headers[(frame.Effect.Parameters ?? throw new NotSupportedException("Needles requires its captured header.")).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Needles requires its actual current first contact.");
+    private static int FirstContact(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyInputs inputs) => inputs.Packets.ReadHeader((frame.Effect.Parameters ?? throw new NotSupportedException("Needles requires its captured header.")).Header).FirstContactIndex ?? throw new NotSupportedException("Needles requires its actual current first contact.");
     private static void Require(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyResources resources)
     {
         NativeBattleNeedlesFamilyProfile profile = frame.State.Profile;

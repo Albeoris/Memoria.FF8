@@ -109,12 +109,12 @@ public static partial class NativeBattleOilShot136Controller
     }
     private static int FirstContact(NativeBattleOilShot136Frame frame, NativeBattleOilShot136Inputs inputs)
     {
-        int index = Parameters(frame).HeaderIndex7C;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.Headers[index].ReadByte(16) == 0)
+        BattleActionHeaderReference index = Parameters(frame).Header;
+        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
         {
             throw new NotSupportedException("Oil Shot requires its actual captured contact header.");
         }
-        return inputs.Packets.Headers[index].FirstContactIndex ?? throw new NotSupportedException("Oil Shot requires its actual contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Oil Shot requires its actual contact pointer.");
     }
     private static void RequireBinding(NativeBattleOilShot136Frame frame)
     {

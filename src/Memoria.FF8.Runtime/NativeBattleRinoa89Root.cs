@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa89RootInputs(Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa89Frame, int, NativeBattleRinoa89Frame> PrepareBody, Func<NativeBattleRinoa89Frame, uint, int, NativeBattleRinoa89TaskStep> AdvanceChild);
+public sealed record NativeBattleRinoa89RootInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa89Frame, int, NativeBattleRinoa89Frame> PrepareBody, Func<NativeBattleRinoa89Frame, uint, int, NativeBattleRinoa89TaskStep> AdvanceChild);
 
 public static partial class NativeBattleRinoa89Controller
 {

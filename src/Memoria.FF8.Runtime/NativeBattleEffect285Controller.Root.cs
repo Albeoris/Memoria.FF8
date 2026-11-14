@@ -114,6 +114,6 @@ public static partial class NativeBattleEffect285Controller
     private static NativeBattleActionHeaderSlot CurrentHeader(NativeBattleEffect285Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect285 requires its current action header.");
-        return packets.Headers[parameters.HeaderIndex7C];
+        return packets.ReadHeader(parameters.Header);
     }
 }

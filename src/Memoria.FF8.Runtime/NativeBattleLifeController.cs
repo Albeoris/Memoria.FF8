@@ -24,7 +24,7 @@ public sealed record NativeBattleLifeProfile(uint Entry, uint CodeDelta, uint Gl
 }
 public sealed record NativeBattleLifeState([property: JsonRequired] int? DrawCursor);
 public sealed record NativeBattleLifeFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleLifeState State);
-public sealed record NativeBattleLifeInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeCrtRandomState Random, Func<NativeBattleLifeFrame, NativeBattleModulePacketBatch, NativeBattleLifeFrame> Execute)
+public sealed record NativeBattleLifeInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeCrtRandomState Random, Func<NativeBattleLifeFrame, NativeBattleModulePacketBatch, NativeBattleLifeFrame> Execute)
 {
     public Func<NativeBattleLifeFrame, int, NativeBattleLifeFrame>? ApplyContact { get; init; }
     public short CameraRoll { get; init; }
@@ -50,7 +50,7 @@ public static partial class NativeBattleLifeController
         ]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Code(0x864AB0), 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native8649C0 requires its physical first-contact pointer.");
         byte target = packets.ReadContact(first).Primary.ActorIndex;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
@@ -200,8 +200,8 @@ public static partial class NativeBattleLifeController
                     {
                         uint rootAddress = task.ReadDword(0x10);
                         state = state.Write(rootAddress, state.Read(rootAddress).WriteByte(0x63, 0));
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native865520 requires its header's first-contact pointer.");
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native865520 requires its header's first-contact pointer.");
                         _ = inputs.Packets.ReadContact(contact);
                         current = current with { Effect = current.Effect with { Pools = state.Write(address, task).Pools } };
                         current = inputs.ApplyContact?.Invoke(current, contact) ?? current;

@@ -44,7 +44,7 @@ public static class NativeBattleChoco99Nodes
         return frame with { State = frame.State with { Work = pass.State } };
     }
 
-    public static NativeBattleChoco99NodeFrame InitializeContext(NativeBattleChoco99NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
+    public static NativeBattleChoco99NodeFrame InitializeContext(NativeBattleChoco99NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
     {
         frame.State.Validate();
         NativeBattleEffectNodeCallerPolicy profile = Policy(frame.Effect, resource.Address);
@@ -57,7 +57,7 @@ public static class NativeBattleChoco99Nodes
         return Store(frame, source, initialized);
     }
 
-    public static NativeBattleChoco99NodeStep AdvanceContext(NativeBattleChoco99NodeFrame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
+    public static NativeBattleChoco99NodeStep AdvanceContext(NativeBattleChoco99NodeFrame frame, uint address, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
     {
         frame.State.Validate();
         uint source = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30);

@@ -13,7 +13,7 @@ public sealed record NativeBattleDuel215DebrisDraw(int Slot) : NativeBattleDuel2
 public sealed record NativeBattleDuel215Sound(uint Identifier) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215Contact : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215Camera(short Tick, short OriginX, short OriginZ, short CenterX, short FarZ) : NativeBattleDuel215SceneOperation;
-public sealed record NativeBattleDuel215SceneServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<int, int, int, NativeBattleVector> ReadBone502170, ImmutableArray<byte> Targets, NativeBattleActionMatrix View, Func<NativeBattleDuel215Frame, NativeBattleDuel215SceneOperation, NativeBattleDuel215Frame> Execute);
+public sealed record NativeBattleDuel215SceneServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone502170, ImmutableArray<byte> Targets, NativeBattleActionMatrix View, Func<NativeBattleDuel215Frame, NativeBattleDuel215SceneOperation, NativeBattleDuel215Frame> Execute);
 
 public static partial class NativeBattleDuel215Controller
 {
@@ -24,7 +24,7 @@ public static partial class NativeBattleDuel215Controller
         {
             throw new InvalidDataException("Native Duel215 scene requires its actual registered callback.");
         }
-        int actor = frame.Memory.Duel215?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel215 scene requires its entered actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel215 scene requires its entered actor.");
         NativeBattleDuel215Resources resources = frame.Memory.Duel215.Resources ?? throw new NotSupportedException("Native Duel215 scene requires its entered resources.");
         short tick = Signed(12);
         int intensity = tick < 12 ? 2300 * tick / 12 : tick < 270 ? 2300 : 2300 * (282 - tick) / 12;

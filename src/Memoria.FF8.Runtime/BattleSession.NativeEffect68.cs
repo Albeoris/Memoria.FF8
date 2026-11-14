@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffect68Resources resources = effect.Binding.Effect68Resources ?? throw new NotSupportedException("Effect68 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect68 requires its current process memory.");
         NativeBattleEffect68Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect68 requires its current CRT stream."), memory.Effect68 ?? throw new NotSupportedException("Effect68 requires its retained storage.")) { Staging = NativeFileStaging };
-        NativeBattleEffect68Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect68 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, _ => NativeBattleScanPhysicalModels.Capture(graphics.Models).Select(Arena).ToImmutableArray(), (_, actor) => Arena(ReadNativeScanDescriptor208(actor)), (_, actor) => graphics.Models[actor].Sequence ?? throw new NotSupportedException("Effect68 requires its current resource sequence."), ReadCamera, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect68 requires its current projection."), ReadBone, current => NativeInputConfiguration.Project((current.Memory.Scan ?? throw new NotSupportedException("Effect68 requires its current input owner.")).Input.Input.Read49ED30(0, 0), definition.NativeSavedOptions ?? throw new NotSupportedException("Effect68 requires its saved input options."), definition.NativeInputButtonMap), BuildResults, NativeBattleEffect68Results.PageB68370, Execute);
+        NativeBattleEffect68Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect68 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, _ => NativeBattleScanPhysicalModels.Capture(graphics.Models).Select(Arena).ToImmutableArray(), (_, actor) => Arena(ReadNativeScanDescriptor208(actor)), (_, actor) => graphics.ActorModels.Get(actor).Sequence ?? throw new NotSupportedException("Effect68 requires its current resource sequence."), ReadCamera, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect68 requires its current projection."), ReadBone, current => NativeInputConfiguration.Project((current.Memory.Scan ?? throw new NotSupportedException("Effect68 requires its current input owner.")).Input.Input.Read49ED30(0, 0), definition.NativeSavedOptions ?? throw new NotSupportedException("Effect68 requires its saved input options."), definition.NativeInputButtonMap), BuildResults, NativeBattleEffect68Results.PageB68370, Execute);
         frame = initialize ? NativeBattleEffect68Controller.Initialize(frame, resources, inputs) : NativeBattleEffect68Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         NativeBattleEffect68PointStep ReadBone(NativeBattleEffect68Frame current, int actor, byte selector, short distance, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], Pose(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), Pose(actor), selector, distance);
             current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer), Staging = NativeFileStaging };
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, retained.Write(0, BitConverter.GetBytes(unchecked((short)point.X))).Write(2, BitConverter.GetBytes(unchecked((short)point.Y))).Write(4, BitConverter.GetBytes(unchecked((short)point.Z))));
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                     ImmutableArray<NativeBattleScanByteOwner> models = NativeBattleScanPhysicalModels.Capture(graphics.Models);
                     NativeBattleEffectArena changed = NativeBattleEffectNodeContextMemory.Copy(model.Data, 0, Arena(models[model.Actor]), model.Offset, model.Length);
                     (byte[] bytes, bool[] known) = changed.ReadSnapshot(0, 156);
-                    graphics = graphics with { Models = NativeBattleScanPhysicalModels.Apply(graphics.Models, models.SetItem(model.Actor, new(bytes.ToImmutableArray(), known.ToImmutableArray()))) };
+                    graphics = graphics with { ActorModels = NativeBattleScanPhysicalModels.Apply(graphics.Models, models.SetItem(model.Actor, new(bytes.ToImmutableArray(), known.ToImmutableArray()))) };
                     return current;
                 case NativeBattleEffect68PublishCamera camera:
                     NativeCamera = Camera().WriteEffectGlobals(new(new(unchecked((short)Word(camera.Eye8, 0)), unchecked((short)Word(camera.Eye8, 2)), unchecked((short)Word(camera.Eye8, 4))), new(unchecked((short)Word(camera.Target8, 0)), unchecked((short)Word(camera.Target8, 2)), unchecked((short)Word(camera.Target8, 4))), unchecked((short)camera.Zoom), Camera().Roll)) with { EyePaddingF6 = unchecked((short)Word(camera.Eye8, 6)), TargetPaddingFE = unchecked((short)Word(camera.Target8, 6)) };
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect68Controller.Read(current, bounds.TaskAddress);
                     int actor = boundsTask.ReadByte(0x2D);
                     NativeBattlePoseSource source = Pose(actor);
-                    return NativeBattleEffect68Controller.Write(current, bounds.TaskAddress, NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Effect68 requires its current target pose."), source)));
+                    return NativeBattleEffect68Controller.Write(current, bounds.TaskAddress, NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Effect68 requires its current target pose."), source)));
                 case NativeBattleEffect68DrawBatch draw:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect68 requires its current ordering table.");
                     if (draw.CursorGlobal == 0x1D8E054)

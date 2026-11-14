@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         if (phase == 0)
         {
-            if (NativeBattleActionGraphics.IsModelBusy(graphics.Models[context.ActorIndex], 0x40) || NativeHeaderTargetsBusy(graphics, context))
+            if (NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.ActorIndex), 0x40) || NativeHeaderTargetsBusy(graphics, context))
             {
                 return (graphics, phase, false);
             }

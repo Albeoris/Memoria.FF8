@@ -20,8 +20,8 @@ public sealed partial class BattleSession
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect321WriteModelBytes write:
                 int actor = NativeEffect321Actor(graphics, write.ModelAddress);
-                NativeBattleGraphicsModel model = ApplyNativeEffect174ModelBytes(graphics.Models[actor], new(actor, write.Offset, write.Data, write.Length));
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                NativeBattleGraphicsModel model = ApplyNativeEffect174ModelBytes(graphics.ActorModels.Get(actor), new(actor, write.Offset, write.Data, write.Length));
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                 return frame;
             case NativeBattleEffect321PcRender47CF50 render:
                 return frame with { Memory = frame.Memory with { PcRenderRequest = (frame.Memory.PcRenderRequest ?? throw new NotSupportedException("Effect321 requires its current PC render request.")).Request47CF50(render.Kind, render.Red, render.Green, render.Blue, render.Duration) } };
@@ -49,8 +49,8 @@ public sealed partial class BattleSession
             case NativeBattleEffect321Contact506690 contact:
                 PublishNativeEffect321Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                int header = frame.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Effect321 requires its current action header.");
-                int first = nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect321 requires its current contact base.");
+                BattleActionHeaderReference header = frame.Effect.Parameters?.Header ?? throw new NotSupportedException("Effect321 requires its current action header.");
+                int first = nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect321 requires its current contact base.");
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(first + contact.ContactIndex))] });
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect321Frame(frame);

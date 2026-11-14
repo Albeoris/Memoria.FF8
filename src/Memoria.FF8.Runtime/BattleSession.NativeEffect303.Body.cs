@@ -24,9 +24,9 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect303 body requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect303 body requires its current projection.");
         NativeBattleTemporaryAllocation allocated = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect303 body requires its current temporary owner."), 188);
-        NativeBattleEffect303BodyFrame body = new(frame.Memory, allocated.Staging, graphics.Models[actor], NativeBattleTemporaryMemory.ReadView(allocated.Staging, allocated.Address, 188), CommonCursor(frame.Memory), frame.State.ReadDword(NativeBattleEffect303Profile.CursorGlobal));
+        NativeBattleEffect303BodyFrame body = new(frame.Memory, allocated.Staging, graphics.ActorModels.Get(actor), NativeBattleTemporaryMemory.ReadView(allocated.Staging, allocated.Address, 188), CommonCursor(frame.Memory), frame.State.ReadDword(NativeBattleEffect303Profile.CursorGlobal));
         body = NativeBattleEffect303BodyDrawing.DrawOuter(body, camera.CapturePackedView1D97778(), operation.TextureRectangle8, operation.Clut, operation.VOffset, operation.UOffset, operation.Color4, scratchAddress, new(Shadow, Compose, DrawSource, Restore));
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, allocated.Address, body.Temporary188, 188);
         frame = frame with { Memory = body.Memory, State = frame.State.WriteDword(NativeBattleEffect303Profile.CursorGlobal, body.FxCursor), Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 188) };
         return (graphics, frame);
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect303BodyFrame DrawSource(NativeBattleEffect303BodyFrame current)
         {
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, current.Model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, current.Model) };
             NativeDeformedBodyBridge bridge = new(current.Memory, frame.Effect, frame.Random, graphics, current.Model, current.Staging, NativeBattleEffectArena.Clear(), 0);
             NativeBattleResourcePointer source = NativeDeformedGeometryPointer(bridge, false);
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), current.Staging, source, (offset, length) => ReadNativeDeformedGeometry(bridge, source, offset, length));

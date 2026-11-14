@@ -29,7 +29,7 @@ public static partial class NativeBattleDuel112Target
         {
             return frame;
         }
-        int actor = frame.Memory.Duel112?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel trajectory requires its actual actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel trajectory requires its actual actor.");
         NativeBattleGraphicsModel model = services.ReadModel(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel trajectory requires its actual actor transform.");
         short yaw = model.Rotation14 ?? throw new NotSupportedException("Native Duel trajectory requires its actual actor yaw.");

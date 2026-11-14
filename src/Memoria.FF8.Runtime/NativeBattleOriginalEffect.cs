@@ -25,6 +25,8 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
     public uint? FireDrawBuffer { get; init; }
     [JsonIgnore]
     public ImmutableDictionary<BattleModelOwner, int>? FireModelCompletion { get; init; }
+    [JsonIgnore]
+    public BattleModelOwner? EntryFirstRecipient { get; init; }
     public int? DrawArenaOffset { get; init; }
     public NativeBattleQuezacotlState? Quezacotl { get; init; }
     public NativeBattleCureState? Cure { get; init; }
@@ -81,6 +83,10 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
         if (Parameters is { } parameters && (!roster.Contains(parameters.Source) || parameters.TargetActors.Enumerate().Any(owner => !roster.Contains(owner))))
         {
             throw new InvalidDataException("Effect parameters require a bound source and bound target owners.");
+        }
+        if (EntryFirstRecipient is { } firstRecipient && !roster.Contains(firstRecipient))
+        {
+            throw new InvalidDataException("Effect entry first recipient requires a bound model owner.");
         }
         if (FireModelCompletion is { } completion && (completion.Count != roster.Count || completion.Keys.Any(owner => !roster.Contains(owner))))
         {

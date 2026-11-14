@@ -4,7 +4,7 @@ public static partial class NativeBattleLionHeart165Controller
 {
     private static NativeBattleLionHeart165ChildStep RunCompoundInitializer(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, uint initializer, NativeBattleLionHeart165Inputs inputs)
     {
-        byte actor = frame.Parameters.Actor78;
+        BattleModelOwner actor = frame.Parameters.Source;
         if (initializer == 0x5EDE90)
         {
             int flash = Append(0x5EE0F0);

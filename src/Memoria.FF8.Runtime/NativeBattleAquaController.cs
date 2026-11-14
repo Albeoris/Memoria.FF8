@@ -20,7 +20,7 @@ public static class NativeBattleAquaController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x808970), 100);
         NativeBattleModulePoolTask task = root.Hierarchy.Read(root.Address);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte contacts = header.ReadByte(0x10);
         byte groups = header.ReadByte(0x11);
         byte maximum = unchecked((byte)(contacts - 1));
@@ -295,7 +295,7 @@ public static class NativeBattleAquaController
             return false;
         }
 
-        NativeBattleActionHeaderSlot Header(NativeBattleModulePoolTask task) => inputs.Packets.Headers[parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A))];
+        NativeBattleActionHeaderSlot Header(NativeBattleModulePoolTask task) => inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
         NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
 
         NativeBattleEffectHierarchyAppend Add(NativeBattleEffectHierarchy state, int pool, uint callback, int size, uint parent)
@@ -328,7 +328,7 @@ public static class NativeBattleAquaController
         short dz = unchecked((short)(centerZ - position.Z));
         int angle = NativePrecision53.RoundInteger(Math.Atan2(dx, dz) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
         state = state.WithWord(0x4A, (angle - 0x800) & 0xFFF);
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A))];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
         int first = header.FirstContactIndex ?? throw new NotSupportedException("The Aqua distance requires its captured contact pointer.");
         int distance = 0;
         for (int index = 0; index < header.ReadByte(0x10); index++)

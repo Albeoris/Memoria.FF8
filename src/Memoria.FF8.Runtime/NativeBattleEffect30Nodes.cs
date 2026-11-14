@@ -4,7 +4,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect30Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect30NodeInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleEffect30MatrixStep> LookBasis8DDA50, Func<NativeBattleEffect30Frame, NativeBattleGfGeometryBatch, NativeBattleEffect30Frame> DeliverPrivate)
+public sealed record NativeBattleEffect30NodeInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleEffect30MatrixStep> LookBasis8DDA50, Func<NativeBattleEffect30Frame, NativeBattleGfGeometryBatch, NativeBattleEffect30Frame> DeliverPrivate)
 {
     public bool CapturePresentation { get; init; }
     public Func<NativeBattleEffect30Frame, int, byte, NativeBattleEffect30Frame>? ObserveBone { get; init; }

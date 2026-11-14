@@ -14,10 +14,10 @@ public static partial class NativeBattleSandStorm155Controller
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23F1AE8, 0x23F1AF8, 36, 100);
         (children, int director) = children.Append(0x606DB0);
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Sand Storm requires its actual first contact.");
         frame = Dword(frame, 0x23F0800, inputs.Packets.ReadContact(contact).Primary.ActorIndex);
-        frame = Dword(frame, 0x23F2950, Parameters(frame).Actor78);
+        frame = Dword(frame, 0x23F2950, Parameters(frame).Source);
         frame = Dword(frame, 0x23F2940, 0x1D99A78);
         foreach (uint bank in new uint[] { 0x23F0828, 0x23F1188 })
         {

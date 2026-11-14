@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Reflect Beam requires its actual process memory.");
         NativeBattleReflectBeam135Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Reflect Beam requires its CRT stream."), memory.ReflectBeam135 ?? throw new NotSupportedException("Reflect Beam requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Reflect Beam requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Reflect Beam requires its original interpolation constants.");
-        NativeBattleReflectBeam135Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), Anchor, Bone, ReadCurrentBone, AdvanceAct, Execute);
+        NativeBattleReflectBeam135Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, ReadCurrentBone, AdvanceAct, Execute);
         frame = initialize ? NativeBattleReflectBeam135Controller.Initialize(frame, resources, inputs) : NativeBattleReflectBeam135Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         NativeBattleReflectBeam135AnchorStep Anchor(NativeBattleReflectBeam135Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Reflect Beam requires its current actor skeleton.");
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
 
         NativeBattleReflectBeam135PointStep Bone(NativeBattleReflectBeam135Frame current, int actor, short selector, int distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), checked((byte)selector), checked((short)distance));
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
 
         NativeBattlePackedMatrix32 ReadCurrentBone(NativeBattleReflectBeam135Frame current, int actor, short selector)
         {
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], PoseSource(actor));
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), PoseSource(actor));
             if (selector < 0 || selector >= bones.Length)
             {
                 throw new InvalidDataException("Reflect Beam requires its actual selected current bone row.");
@@ -123,12 +123,12 @@ public sealed partial class BattleSession
                     NativeStage = stageState with { Groups = stageState.Groups.Select(group => group with { ColorDepth = stage.Depth, ColorFlags = stage.ColorFlags }).ToImmutableArray() };
                     return current;
                 case NativeBattleReflectBeam135ComposeCaster compose:
-                    NativeBattleGraphicsModel caster = graphics.Models[compose.Actor];
+                    NativeBattleGraphicsModel caster = graphics.ActorModels.Get(compose.Actor);
                     NativeBattleActionMatrix world = caster.GeometryWorldMatrix ?? throw new NotSupportedException("Reflect Beam requires its retained caster world matrix.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(compose.Actor, NativeBattleBodyBoneMatrices.Compose5095B0(caster, world)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(compose.Actor, NativeBattleBodyBoneMatrices.Compose5095B0(caster, world)) };
                     return current;
                 case NativeBattleReflectBeam135RestoreCaster restore:
-                    graphics = graphics with { Models = graphics.Models.SetItem(restore.Actor, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[restore.Actor], PoseSource(restore.Actor))) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(restore.Actor, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(restore.Actor), PoseSource(restore.Actor))) };
                     return current;
                 case NativeBattleReflectBeam135DrawStatic88 mesh:
                     if (mesh.SourceAddress != resources.StaticMesh.Address)
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
                 case NativeBattleReflectBeam135Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C].FirstContactIndex ?? throw new InvalidDataException("Reflect Beam requires its current first contact.")) + contact.Index))) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new InvalidDataException("Reflect Beam requires its current first contact.")) + contact.Index))) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Reflect Beam contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleReflectBeam135DrawSprite180 sprite:

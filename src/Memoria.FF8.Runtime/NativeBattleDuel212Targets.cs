@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel212TargetServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90, Func<int, int> ReadBoneCount, Func<int, byte, short, NativeBattleVector> ReadBone502170, Func<NativeBattleDuel212Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleDuel212Frame> DrawBody6A2F60);
+public sealed record NativeBattleDuel212TargetServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90, Func<BattleModelOwner, int> ReadBoneCount, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone502170, Func<NativeBattleDuel212Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleDuel212Frame> DrawBody6A2F60);
 
 public static class NativeBattleDuel212Targets
 {
@@ -38,7 +38,7 @@ public static class NativeBattleDuel212Targets
         {
             vertical = -sine;
         }
-        int actor = frame.Memory.Duel212?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Burning Rave target drawing requires its entered caster.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Burning Rave target drawing requires its entered caster.");
         NativeBattleGraphicsModel caster = services.ReadModel(actor);
         short rx = caster.Rotation12 ?? throw new NotSupportedException("Native Burning Rave target drawing requires its actual caster rotationX.");
         short ry = caster.Rotation14 ?? throw new NotSupportedException("Native Burning Rave target drawing requires its actual caster rotationY.");
@@ -136,7 +136,7 @@ public static class NativeBattleDuel212Targets
         {
             return frame;
         }
-        int actor = frame.Memory.Duel212?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Burning Rave restoration requires its entered caster.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Burning Rave restoration requires its entered caster.");
         NativeBattleGraphicsModel caster = services.ReadModel(actor);
         NativeBattleModelTransform casterTransform = caster.Transform ?? throw new NotSupportedException("Native Burning Rave restoration requires its actual caster transform.");
         bool paddingUnknown = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < 64 && range.Offset + range.Length > 62) == true;

@@ -332,11 +332,11 @@ public static partial class NativeBattleBoomerangSword304Controller
         {
             throw new NotSupportedException("Boomerang Sword requires its actual current parameter pointer.");
         }
-        int index = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference index = Parameters(frame).Header;
         if ((uint)index >= packets.Headers.Length)
         {
             throw new NotSupportedException("Boomerang Sword parameter header leaves its physical action arena.");
         }
-        return packets.Headers[index];
+        return packets.ReadHeader(index);
     }
 }

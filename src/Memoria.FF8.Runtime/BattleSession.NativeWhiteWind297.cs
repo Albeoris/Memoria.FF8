@@ -13,10 +13,10 @@ public sealed partial class BattleSession
         NativeBattleWhiteWind297Resources resources = effect.Binding.WhiteWind297Resources ?? throw new NotSupportedException("Blue Magic White Wind requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Blue Magic White Wind requires its actual process memory.");
         NativeBattleWhiteWind297Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Blue Magic White Wind requires its CRT stream."), memory.WhiteWind297 ?? throw new NotSupportedException("Blue Magic White Wind requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Blue Magic White Wind requires its addressed file and temporary memory.") };
-        NativeBattleWhiteWind297Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleWhiteWind297Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Blue Magic White Wind requires its published projection."), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Blue Magic White Wind requires its original interpolation constants."), Deliver));
+        NativeBattleWhiteWind297Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleWhiteWind297Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Blue Magic White Wind requires its published projection."), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Blue Magic White Wind requires its original interpolation constants."), Deliver));
         inputs = inputs with
         {
-            ReadMinimumY = actor => ReadNativeGraphicsForeignTarget(graphics, actor)?.LocalBounds.Minimum.Y ?? graphics.Models[actor].MinimumY146 ?? throw new NotSupportedException("Blue Magic White Wind requires the actor's actual minimum posed height."),
+            ReadMinimumY = actor => ReadNativeGraphicsForeignTarget(graphics, actor)?.LocalBounds.Minimum.Y ?? graphics.ActorModels.Get(actor).MinimumY146 ?? throw new NotSupportedException("Blue Magic White Wind requires the actor's actual minimum posed height."),
             EmitNodePresentation = (current, source, context, node, identity) => NativeBattleWhiteWind297Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Blue Magic White Wind requires its published projection."), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Blue Magic White Wind requires its original interpolation constants."), Deliver, pilotIdentity: identity)
         };
         frame = initialize ? NativeBattleWhiteWind297Controller.Initialize(frame, resources, inputs) : NativeBattleWhiteWind297Controller.Advance(frame, resources, inputs);
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         NativeBattleWhiteWind297AnchorStep Anchor(NativeBattleWhiteWind297Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -82,10 +82,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Blue Magic White Wind caster binding leaves its original directory and arena row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Blue Magic White Wind requires its CPU resource rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)

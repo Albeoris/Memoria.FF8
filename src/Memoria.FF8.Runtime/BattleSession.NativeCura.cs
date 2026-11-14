@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native889E40 requires its previous projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Cura requires the previously published1D97778 camera matrix.");
         NativeBattleCuraFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native889E40 requires retained effect memory."), effect, effect.Cura ?? throw new NotSupportedException("Native889E40 requires its executed889D60 state."));
-        NativeBattleCuraControllerInputs inputs = new(nativeActionPackets, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Cura anchors require the original body pose source.")) { ApplyContact = ApplyContact, ReadForeignTarget = ReadNativeForeignTarget };
+        NativeBattleCuraControllerInputs inputs = new(nativeActionPackets, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Cura anchors require the original body pose source.")) { ApplyContact = ApplyContact, ReadForeignTarget = ReadNativeForeignTarget };
         NativeBattleCuraControllerStep step = NativeBattleCuraController.Advance889E40(frame, inputs, resources, (current, address) =>
         {
             current = current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Cura lost its canonical process memory.") };
@@ -72,12 +72,12 @@ public sealed partial class BattleSession
                     current = current with { State = current.State with { ActorContext = new(initialize.Target) } };
                     break;
                 case NativeBattleCuraActorVisibilityOperation visibility:
-                    NativeBattleGraphicsModel model = graphics.Models[visibility.Target];
-                    graphics = graphics with { Models = graphics.Models.SetItem(visibility.Target, model with { Flags0 = visibility.Hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & ~4) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(visibility.Target);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(visibility.Target, model with { Flags0 = visibility.Hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & ~4) }) };
                     break;
                 case NativeBattleCuraActorDrawOperation actor:
                     NativeBattleCureActorContext context = current.State.ActorContext ?? throw new NotSupportedException("Native88BDA0 requires its executed88CA90 shared actor context.");
-                    NativeBattleGraphicsModel target = graphics.Models[context.Target];
+                    NativeBattleGraphicsModel target = graphics.ActorModels.Get(context.Target);
                     short? contextF4 = NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect).ReadContextF4(NativeEffectMemory!);
                     NativeBattleCureActorPacketBatch batch;
                     if (ReadNativeForeignModel(context.Target) is { } foreign)

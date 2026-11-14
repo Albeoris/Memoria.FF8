@@ -23,7 +23,7 @@ public sealed record NativeBattleCuragaState([property: JsonRequired] int Source
     public ushort? PassCount26D82DA { get; init; }
 }
 public sealed record NativeBattleCuragaFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCuragaState State);
-public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<NativeBattleCuragaFrame, int, NativeBattleCuragaFrame>? ApplyContact { get; init; }
     public Func<NativeBattleCuragaFrame, int, byte, NativeBattleCuragaFrame>? ObserveBoneAnchor { get; init; }
@@ -56,7 +56,7 @@ public static class NativeBattleCuragaController
         }
         else
         {
-            NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
             byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
             byte targets = header.ReadContactCount();
@@ -250,8 +250,8 @@ public static class NativeBattleCuragaController
                 case 2:
                     if (unchecked((short)task.ReadWord(0x24)) >= 30)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native882F00 requires its selected group's contact pointer.");
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native882F00 requires its selected group's contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                         if (inputs.ApplyContact is { } applyContact)
                         {
@@ -299,7 +299,7 @@ public static class NativeBattleCuragaController
     {
         task = task.WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));

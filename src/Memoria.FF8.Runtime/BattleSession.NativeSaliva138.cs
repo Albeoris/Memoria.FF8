@@ -52,12 +52,12 @@ public sealed partial class BattleSession
             return actorIndex;
         }
 
-        short ModelYaw(uint pointer) => graphics.Models[Actor(pointer)].Rotation14 ?? throw new NotSupportedException("Saliva requires its actual current model rotation WORD14.");
+        short ModelYaw(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Saliva requires its actual current model rotation WORD14.");
 
         NativeBattleSaliva138PointStep Bone(NativeBattleSaliva138Frame current, uint pointer, byte selector, short distance)
         {
             int actor = Actor(pointer);
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
         NativeBattleSaliva138PointStep Mouth(NativeBattleSaliva138Frame current)
         {
             int caster = Actor(current.State.ReadDword(NativeBattleSaliva138Profile.CasterGlobal));
-            var prepared = NativeBattleSaliva138Mouth.Prepare(current.Memory, graphics.Models[caster], PoseSource(caster), resources.BoneAnchor);
+            var prepared = NativeBattleSaliva138Mouth.Prepare(current.Memory, graphics.ActorModels.Get(caster), PoseSource(caster), resources.BoneAnchor);
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }
 
@@ -140,7 +140,7 @@ public sealed partial class BattleSession
                 case NativeBattleSaliva138Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C].FirstContactIndex ?? throw new InvalidDataException("Saliva requires its current first contact.")) + contact.Index))) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new InvalidDataException("Saliva requires its current first contact.")) + contact.Index))) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Saliva contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleSaliva138DrawSprite180 sprite:

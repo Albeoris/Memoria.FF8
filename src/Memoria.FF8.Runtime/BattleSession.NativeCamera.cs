@@ -104,9 +104,9 @@ public sealed partial class BattleSession
             ApplyScreenBlend501E80 = color => graphics = PublishNativeScreenBlend501E80(graphics, color),
             ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction),
             ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point),
-            ReadModel = model => graphics.Models[model],
+            ReadModel = model => graphics.ActorModels.Get(model),
             ApplyModelRing = (kind, model, argument) => graphics = ApplyNativeModelRingCallback(graphics, kind, model, argument),
-            WriteModel = (model, value) => graphics = graphics with { Models = graphics.Models.SetItem(model, value) },
+            WriteModel = (model, value) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(model, value) },
             DrawModelGroup50F190 = (model, group, counter, color) => graphics = SubmitNativeModelGroup50F190(graphics, model, group, counter, color),
             AdvanceModelDeformation50F2E0 = task => AdvanceNativeModelDeformation50F2E0(ref graphics, task),
             WriteStageColorDepth = value =>
@@ -507,7 +507,7 @@ public sealed partial class BattleSession
                 NativeGlobalSoundProcess = loading.Sound;
                 return (loading.Phase, loading.Completed);
             },
-            RestoreTextureBlink = model => graphics = graphics with { Models = graphics.Models.SetItem(model, graphics.Models[model] with { Flags0 = (ushort)(graphics.Models[model].Flags0 | 0x400) }) }
+            RestoreTextureBlink = model => graphics = graphics with { ActorModels = graphics.ActorModels.Set(model, graphics.ActorModels.Get(model) with { Flags0 = (ushort)(graphics.ActorModels.Get(model).Flags0 | 0x400) }) }
         }, task => ObserveNativeAuxiliaryStack(graphics, task));
         if (step.CameraBlend is ushort blend)
         {

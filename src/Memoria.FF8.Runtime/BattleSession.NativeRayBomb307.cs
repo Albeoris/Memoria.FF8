@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ray-Bomb requires its process memory.");
         NativeBattleRayBomb307Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Ray-Bomb requires its CRT stream."), memory.RayBomb307 ?? throw new NotSupportedException("Ray-Bomb requires its retained process banks.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Ray-Bomb requires its addressed temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Ray-Bomb requires its original interpolation constants.");
-        NativeBattleRayBomb307Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.Models[actor], ReadBoneMatrix, TargetCenter, Anchor, actor => ReadModel8(actor, 0x0C), actor => ReadModel8(actor, 0x1C), Execute) { CapturePresentation = true, ReadView = _ => Camera().CapturePackedView1D97778(), ReadCameraEye = _ => Camera().CurrentPose?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : throw new NotSupportedException("Ray-Bomb requires its current camera eye.") };
+        NativeBattleRayBomb307Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.ActorModels.Get(actor), ReadBoneMatrix, TargetCenter, Anchor, actor => ReadModel8(actor, 0x0C), actor => ReadModel8(actor, 0x1C), Execute) { CapturePresentation = true, ReadView = _ => Camera().CapturePackedView1D97778(), ReadCameraEye = _ => Camera().CurrentPose?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : throw new NotSupportedException("Ray-Bomb requires its current camera eye.") };
         frame = initialize ? NativeBattleRayBomb307Controller.Initialize(frame, resources, inputs) : NativeBattleRayBomb307Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.RayBomb307 ?? throw new InvalidDataException("Ray-Bomb lost its process banks."), Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Ray-Bomb lost its current tasks."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Ray-Bomb lost its CRT stream.") };
         }
 
-        NativeBattleEffectArena ReadModel8(int actor, int offset) => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
+        NativeBattleEffectArena ReadModel8(int actor, int offset) => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
 
         NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleRayBomb307Frame current, int actor, int selector)
         {
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
                 }
                 bone = source.Skeleton[alias];
             }
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Ray-Bomb selected a matrix outside its current skeleton.");
@@ -67,14 +67,14 @@ public sealed partial class BattleSession
 
         NativeBattleRayBomb307PointStep TargetCenter(NativeBattleRayBomb307Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Ray-Bomb requires its selected physical target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Ray-Bomb requires its selected physical target positions.")).ToArray());
             return new(current, center);
         }
 
         NativeBattleRayBomb307AnchorStep Anchor(NativeBattleRayBomb307Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -114,10 +114,10 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Ray-Bomb caster binding leaves its original resource directory and saved row.");
                     }
-                    NativeBattleGraphicsModel boundActor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel boundActor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Ray-Bomb requires its current CPU resource rows."), boundActor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address) => address >= SavedBindingAddress && address < SavedBindingAddress + 32 ? current.State.ReadResourcePointer(address) : staging.ReadResourcePointer(address);
@@ -130,11 +130,11 @@ public sealed partial class BattleSession
                     graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return Import(current);
                 case NativeBattleRayBomb307ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleRayBomb307ActorWrite8 write:
-                    NativeBattleGraphicsModel actor = graphics.Models[write.Actor];
+                    NativeBattleGraphicsModel actor = graphics.ActorModels.Get(write.Actor);
                     if (write.Rotation8 is { } rotation)
                     {
                         actor = NativeBattleRaldo19ModelMemory.Apply(actor, 0x0C, rotation, 0, 4);
@@ -145,7 +145,7 @@ public sealed partial class BattleSession
                         actor = NativeBattleRaldo19ModelMemory.Apply(actor, 0x1C, position, 0, 4);
                         actor = NativeBattleRaldo19ModelMemory.Apply(actor, 0x20, position, 4, 4);
                     }
-                    graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, actor) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, actor) };
                     return current;
                 case NativeBattleRayBomb307StageFade fade:
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Ray-Bomb requires its current stage color rows.");
@@ -160,7 +160,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(sound.Value, sound.Flags, new(BinaryPrimitives.ReadInt16LittleEndian(coordinates), BinaryPrimitives.ReadInt16LittleEndian(coordinates.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(coordinates.AsSpan(4)), 0));
                     return Import(current);
                 case NativeBattleRayBomb307Contact contact:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
                     if ((uint)contact.RelativeContactIndex >= header.ReadContactCount())
                     {
                         throw new InvalidDataException("Ray-Bomb selected a contact outside its captured action header.");

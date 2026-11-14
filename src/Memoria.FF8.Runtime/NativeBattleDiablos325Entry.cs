@@ -23,8 +23,8 @@ public static class NativeBattleDiablos325Entry
         }
         if (roster is not null)
         {
-            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.HeaderIndex7C);
-            if (!roster.ContainsRow(parameters.Actor78) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
+            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
             {
                 throw new InvalidDataException("Hosted Diablos entry requires a bound caster and at least one bound recipient model row.");
             }
@@ -36,7 +36,7 @@ public static class NativeBattleDiablos325Entry
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x10, 1);
         (pool, int slot) = pool.Append(MainCallback);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteDword(0xC, 0));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         int sumZ = 0;
         int sumX = 0;
@@ -57,7 +57,7 @@ public static class NativeBattleDiablos325Entry
         }
         int centerZ = sumZ / count;
         int centerX = sumX / count;
-        state = state with { Pause5180 = 0, Action5184 = 0x1D99A78, Caster5188 = NativeBattleGraphicsModelAddress.Encode(parameters.Actor78), CenterZ51D4 = centerZ, CenterX51D8 = centerX, FarZ51DC = unchecked(centerZ + 4000), MidZ51E0 = unchecked(centerZ + 2000), Control51E4 = 0, ModelBuffer5208 = NativeBattleEffectNodeMemory.ArenaAddress };
+        state = state with { Pause5180 = 0, Action5184 = 0x1D99A78, Caster5188 = NativeBattleGraphicsModelAddress.Encode(parameters.Source), CenterZ51D4 = centerZ, CenterX51D8 = centerX, FarZ51DC = unchecked(centerZ + 4000), MidZ51E0 = unchecked(centerZ + 2000), Control51E4 = 0, ModelBuffer5208 = NativeBattleEffectNodeMemory.ArenaAddress };
         return frame with { Memory = frame.Memory with { Textures = textures, Diablos325 = state }, Effect = frame.Effect with { Pools = [pool], ReturnedDescriptor = MainDescriptor } };
     }
 

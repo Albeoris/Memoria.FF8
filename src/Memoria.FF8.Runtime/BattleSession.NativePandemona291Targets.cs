@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             {
                 int row = start + 0x14 + index * 32;
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = RequireTransform(model);
                 NativeBattleVector position = transform.Position28;
                 position = position with { Z = unchecked((short)(position.Z + elapsed)) };
@@ -28,7 +28,7 @@ public sealed partial class BattleSession
                 {
                     position = position with { Z = unchecked((short)(position.Z + (elapsed << 5))), Y = unchecked((short)(position.Y - (elapsed << 3))) };
                 }
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = position } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = position } }) };
             }
         }
         if (!drawOnly && !paused && age is >= 254 and < 284)
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
             {
                 int row = start + 0x14 + index * 32;
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = RequireTransform(model);
                 phase = unchecked(phase - 256);
                 if (phase > 4352)
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
                 Store(row + 0x16, Word(row + 0x16) + ((index & 1) != 0 ? 512 : -512));
                 Store(row + 0x14, Word(row + 0x14) + ((index & 1) != 0 ? elapsed << 3 : -(elapsed << 3)));
                 NativeBattleVector position = NativeBattleQuezacotlRibbonMath.Blend(initial, destination, unchecked(4096 - phase), phase);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = position } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = position } }) };
                 phase >>= 2;
                 phase = unchecked(4096 - NativeBattleCameraMath.Sine(phase));
                 if (phase < 0)
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
             {
                 int row = start + 0x14 + index * 32;
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = RequireTransform(model);
                 phase = unchecked(phase - 256);
                 if (phase < 0)
@@ -85,14 +85,14 @@ public sealed partial class BattleSession
                 if (phase >= 3072)
                 {
                     NativeBattleVector position = transform.Position28 with { Y = unchecked((short)(transform.Position28.Y - 512)) };
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = position } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = position } }) };
                     Store(row + 0xA, 4096);
                     continue;
                 }
                 NativeBattleVector destination = new(unchecked((short)(Word(row + 0xC) >> 1)), Word(row + 0xE), Word(row + 0x10));
                 NativeBattleVector initial = origin with { Y = unchecked((short)(origin.Y - ((Word(row + 4) + Word(row + 6)) / 2))) };
                 NativeBattleVector moved = NativeBattleQuezacotlRibbonMath.Blend(initial, destination, phase, unchecked(4096 - phase));
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = moved } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = moved } }) };
                 phase = NativeBattleCameraMath.Cosine(phase >> 2);
                 int product = unchecked(Word(row + 8) * unchecked(4096 - phase));
                 arena = arena.Write(row + 0x1D, [1]);
@@ -108,10 +108,10 @@ public sealed partial class BattleSession
                 {
                     int row = start + 0x14 + index * 32;
                     int actor = Actor(row);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = RequireTransform(model);
                     NativeBattleVector position = new(Word(row + 0xC), Word(row + 0xE), Word(row + 0x10));
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = position, Vertical34 = Word(row + 0x12) } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = position, Vertical34 = Word(row + 0x12) } }) };
                     Store(row + 0x14, model.Rotation12 ?? throw new NotSupportedException("Native Pandemona restoration requires the current actor rotation X."));
                     Store(row + 0x16, model.Rotation14 ?? throw new NotSupportedException("Native Pandemona restoration requires the current actor rotation Y."));
                     Store(row + 0x18, model.Rotation16 ?? throw new NotSupportedException("Native Pandemona restoration requires the current actor rotation Z."));
@@ -132,7 +132,7 @@ public sealed partial class BattleSession
                 {
                     int row = start + 0x14 + index * 32;
                     int actor = Actor(row);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = RequireTransform(model);
                     Store(row + 0x16, Word(row + 0x16) + ((index & 1) != 0 ? 256 : -256));
                     int multiplier = NativeGraphicsModelIs(graphics, actor, 142) ? 480 : 350;
@@ -142,7 +142,7 @@ public sealed partial class BattleSession
                     int angle = unchecked(doubled + (elapsed << 7)) & 0xFFF;
                     short x = unchecked((short)(unchecked(Trig(angle, false) * radial) >> 12));
                     short z = unchecked((short)(ground + (unchecked(Trig(angle, true) * radial) >> 12)));
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = new(x, y, z) } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = new(x, y, z) } }) };
                 }
             }
         }
@@ -157,7 +157,7 @@ public sealed partial class BattleSession
                     continue;
                 }
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (arena.Read(row + 0x1D, 1)[0] != 0 && (model.Flags0 & 2) != 0)
                 {
                     short center = unchecked((short)((Word(row + 4) + Word(row + 6)) >> 1));
@@ -165,12 +165,12 @@ public sealed partial class BattleSession
                     NativeBattleVector angles = new(Word(row + 0x14), Word(row + 0x16), Word(row + 0x18));
                     NativeBattleVector position = RequireTransform(model).Position28;
                     NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Pandemona target draw requires its current world matrix.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { GeometryWorldMatrix = world with { X = position.X, Y = position.Y, Z = position.Z } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { GeometryWorldMatrix = world with { X = position.X, Y = position.Y, Z = position.Z } }) };
                     IEnumerable<int> rows = arena.Read(row + 0x1E, 1)[0] != 0 ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor };
                     foreach (int selected in rows)
                     {
                         RequireBoundRingRow(selected);
-                        if ((graphics.Models[selected].Flags0 & 2) != 0 || selected == actor)
+                        if ((graphics.ActorModels.Get(selected).Flags0 & 2) != 0 || selected == actor)
                         {
                             var drawn = DrawNativePandemona291Actor(frame, selected, angles, new(0, center, 0), new(factor, factor, factor), graphics);
                             frame = drawn.Frame;
@@ -183,17 +183,17 @@ public sealed partial class BattleSession
                 foreach (int selected in hidden)
                 {
                     RequireBoundRingRow(selected);
-                    NativeBattleGraphicsModel target = graphics.Models[selected];
+                    NativeBattleGraphicsModel target = graphics.ActorModels.Get(selected);
                     if (!ring || (target.Flags0 & 2) != 0)
                     {
-                        graphics = graphics with { Models = graphics.Models.SetItem(selected, target with { Flags0 = (ushort)(target.Flags0 | 4) }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(selected, target with { Flags0 = (ushort)(target.Flags0 | 4) }) };
                     }
                 }
             }
         }
         return (frame, graphics);
 
-        int Count() => nativeActionPackets.Headers[frame.Effect.Parameters!.HeaderIndex7C].ReadByte(0x10);
+        int Count() => nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadByte(0x10);
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
         void Store(int offset, int value) => arena = arena.Write(offset, BitConverter.GetBytes(unchecked((ushort)value)));
         int Actor(int row)

@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState DrawNativeForeignEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift, uint? privateOrderingAddress, short? depthCue, bool drawShadow, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (drawShadow)
         {
             graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, pilotScreenSpace, pilotContinuous, pilotIdentity);

@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Ray-Bomb requires its current projection.");
         NativeBattleCameraPoint eye = camera.CurrentPose?.Eye ?? throw new NotSupportedException("Native Ray-Bomb requires its actual camera eye.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Ray-Bomb requires its original depth-cue colors.");
-        NativeBattleRayBomb10Inputs inputs = new(graphics.Flags, nativeActionPackets, projection, camera.Roll, new(eye.X, eye.Y, eye.Z), actor => graphics.Models[actor], actor => graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Native627F10 requires its caster's actual prior502AB0 matrix."), (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, selector, fraction), ReadCentre, actor => ReadNativeModelAnchor(graphics, actor), Execute);
+        NativeBattleRayBomb10Inputs inputs = new(graphics.Flags, nativeActionPackets, projection, camera.Roll, new(eye.X, eye.Y, eye.Z), actor => graphics.ActorModels.Get(actor), actor => graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native627F10 requires its caster's actual prior502AB0 matrix."), (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, selector, fraction), ReadCentre, actor => ReadNativeModelAnchor(graphics, actor), Execute);
         NativeBattleRayBomb10Frame frame = NativeBattleRayBomb10Controller.Advance629730(new(memory, effect, random), resources, inputs);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -29,7 +29,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector ReadCentre(BattleModelTargets targets)
         {
-            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Ray-Bomb requires actual target positions.")).Position28).ToArray();
+            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Ray-Bomb requires actual target positions.")).Position28).ToArray();
             return NativeBattleActionGeometryRules.TargetCenter(positions);
         }
 
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleRayBomb10Model model:
-                    graphics = graphics with { Models = graphics.Models.SetItem(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
                     return current;
                 case NativeBattleRayBomb10Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);

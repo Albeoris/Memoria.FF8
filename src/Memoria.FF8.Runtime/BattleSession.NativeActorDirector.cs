@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("The actor director requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("The actor director requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("The actor director requires its current view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = index => graphics.Models[index];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = index => graphics.ActorModels.Get(index);
         NativeBattleActorDirectorInputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceGeneric) { PackedCamera = camera.CapturePackedView1D97778(), CopiedCameraPadding = camera.CanonicalViewPadding, AdvanceOverlay = AdvanceOverlay, StartVibration = StartVibration };
         frame = NativeBattleActorDirectorController.Advance(frame, resources, inputs);
         Publish(frame);

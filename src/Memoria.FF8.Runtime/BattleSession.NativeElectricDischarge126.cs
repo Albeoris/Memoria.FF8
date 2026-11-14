@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Electric Discharge requires its original interpolation constants.");
         Dictionary<uint, System.Numerics.Vector3> worldPoints = [];
         Dictionary<uint, System.Numerics.Vector3> bonePoints = [];
-        NativeBattleElectricDischarge126Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its current skeleton.")).BoneCount, CurrentBinding, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
+        NativeBattleElectricDischarge126Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its current skeleton.")).BoneCount, CurrentBinding, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
         frame = initialize ? NativeBattleElectricDischarge126Controller.Initialize(frame, resources, inputs) : NativeBattleElectricDischarge126Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         NativeBattleElectricDischarge126AnchorStep Anchor(NativeBattleElectricDischarge126Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its current actor skeleton.");
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, checked((byte)selector), distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, checked((byte)selector), distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Electric Discharge bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
 
         NativeBattleResourceRowReference CurrentBinding(int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (model.ActiveStagedResourceRow100 is uint staged)
             {
                 return new(null, staged);
@@ -116,9 +116,9 @@ public sealed partial class BattleSession
                     NativeStage = stageState with { Groups = stageState.Groups.Select(group => group with { ColorDepth = stage.Depth, ColorFlags = stage.ColorFlags }).ToImmutableArray() };
                     return current;
                 case NativeBattleElectricDischarge126BlendActorColor blend:
-                    NativeBattleGraphicsModel tinted = graphics.Models[blend.Actor];
+                    NativeBattleGraphicsModel tinted = graphics.ActorModels.Get(blend.Actor);
                     NativeBattleWeightedColorStep color = NativeBattleWeightedColor56CC00.Blend(current.Memory, blend.FirstColor, blend.SecondColor, blend.FirstFactor, blend.SecondFactor, tinted.Color40 ?? throw new NotSupportedException("Electric Discharge requires its current actor color DWORD."), colors);
-                    graphics = graphics with { Models = graphics.Models.SetItem(blend.Actor, tinted with { Color40 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(blend.Actor, tinted with { Color40 = color.Color }) };
                     return current with { Memory = color.Memory };
                 case NativeBattleElectricDischarge126LoadView:
                     NativeBattlePackedMatrix32 view = Camera().CapturePackedView1D97778();
@@ -133,8 +133,8 @@ public sealed partial class BattleSession
                     graphics = restoredGraphics;
                     return current with { Staging = restoredStaging };
                 case NativeBattleElectricDischarge126ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleElectricDischarge126ProjectWorld project:
                     uint working = current.State.ReadDword(NativeBattleElectricDischarge126Profile.WorkingGlobal);
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
                     var worldDraw = NativeBattleElectricDischarge126Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")), world.PilotIdentity, worldPoints);
                     return Deliver(worldDraw.Frame, worldDraw.Batch);
                 case NativeBattleElectricDischarge126DrawBoneTrail boneTrail:
-                    byte caster = current.Effect.Parameters!.Actor78;
+                    byte caster = current.Effect.Parameters!.Source;
                     if (CurrentBinding(caster) != boneTrail.Binding)
                     {
                         throw new InvalidDataException("Electric Discharge bone trail leaves its current addressed caster binding.");

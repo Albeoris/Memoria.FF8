@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect320Controller
             frame = ClearDwords701200(frame, main + 12, 0x1D2);
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect320 requires its current action parameters.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int count = header.ReadContactCount();
             if (count == 0)
             {

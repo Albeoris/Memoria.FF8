@@ -8,7 +8,7 @@ public static partial class NativeBattleChainGun190Controller
         {
             frame = Dword(frame, 0x2282E08u + (uint)(index * 16), 0);
         }
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int count = header.ReadContactCount();
         if (count is < 1 or > 3)
         {

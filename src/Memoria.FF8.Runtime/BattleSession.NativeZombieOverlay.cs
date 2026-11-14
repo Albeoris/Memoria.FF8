@@ -12,7 +12,7 @@ public sealed partial class BattleSession
             return DrawNativeForeignZombieOverlay(graphics, index, age, reach, resources, projection, effect, identity, foreign);
         }
         var parameters = NativeBattleZombieDrawing.OverlayParameters(age, reach);
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Zombie overlay requires its current skeleton.");
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Zombie overlay requires its actual target model matrix.");
@@ -53,24 +53,24 @@ public sealed partial class BattleSession
             uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Zombie overlay requires its actual object mask.");
             Dword(0x40, mask);
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
             NativeFileStaging = staging;
             DrawSource(Pointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, mask, 0);
-            model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
             if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
             {
                 NativeBattlePoseSource linked = resource.LinkedPoseSource ?? throw new NotSupportedException("Native Zombie overlay requires its actual linked skeleton.");
                 NativeBattleBodyBoneMatrices bones = model.CurrentLinkedBoneMatrices ?? throw new NotSupportedException("Native Zombie overlay requires its current linked bone owner.");
                 _ = NativeBattleBodyBoneMatrices.Require(model with { CurrentBodyBoneMatrices = bones }, linked);
                 ImmutableArray<NativeBattleActionMatrix> prepared = NativeBattlePoseMatrices.ComposeStageCamera(bones.Matrices, matrix, 0);
-                graphics = graphics with { Models = graphics.Models.SetItem(index, model with { CurrentLinkedBoneMatrices = bones with { Matrices = prepared } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { CurrentLinkedBoneMatrices = bones with { Matrices = prepared } }) };
                 staging = NativeFileStaging!;
                 Dword(0x40, uint.MaxValue);
                 NativeFileStaging = staging;
                 DrawSource(Pointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow), prepared, linked.BoneCount, uint.MaxValue, 1);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Zombie overlay requires its current linked pose.");
-                graphics = graphics with { Models = graphics.Models.SetItem(index, model with { CurrentLinkedBoneMatrices = bones with { Matrices = NativeBattlePoseMatrices.StageBoneMatrices(linked, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linked)) } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { CurrentLinkedBoneMatrices = bones with { Matrices = NativeBattlePoseMatrices.StageBoneMatrices(linked, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linked)) } }) };
             }
         }
         NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(NativeFileStaging ?? staging, 0x8C);

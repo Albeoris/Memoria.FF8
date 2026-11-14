@@ -28,7 +28,7 @@ public static class NativeBattleCameraGraphics
         return variable switch
         {
             19 => PartyModels().Count(model => (model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) & 2) == 0),
-            21 => graphics.Models[Action().TargetIndex ?? throw new NotSupportedException("Native camera BYTE145 query requires its retained physical recipient.")].SequenceByte145 ?? throw new NotSupportedException("Native camera BYTE145 query requires its observed model byte."),
+            21 => graphics.ActorModels.Get(Action().TargetIndex ?? throw new NotSupportedException("Native camera BYTE145 query requires its retained physical recipient.")).SequenceByte145 ?? throw new NotSupportedException("Native camera BYTE145 query requires its observed model byte."),
             22 => TargetFlags(graphics),
             24 => Action().ActorIndex,
             25 => Action().TargetIndex ?? throw new NotSupportedException("Native camera target variable requires its resolved physical recipient."),
@@ -38,13 +38,13 @@ public static class NativeBattleCameraGraphics
         };
 
         NativeBattleActionGeometry Action() => graphics.ActionContext ?? throw new NotSupportedException("Native509640 requires its current50D300 action context.");
-        IEnumerable<NativeBattleGraphicsModel> PartyModels() => graphics.PresentationRoster is { } roster ? roster.PartyRows.Select(row => graphics.Models[row]) : graphics.Models.Take(NativeBattleSlots.AllyCount);
+        IEnumerable<NativeBattleGraphicsModel> PartyModels() => graphics.PresentationRoster is { } roster ? roster.PartyRows.Select(row => graphics.ActorModels.Get(row)) : graphics.Models.Take(NativeBattleSlots.AllyCount);
     }
 
     private static int TargetFlags(NativeBattleGraphicsState graphics)
     {
         int target = graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native camera status query requires its resolved physical recipient.");
-        NativeBattleGraphicsModel model = graphics.Models[target];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(target);
         byte modelId = model.ModelId4 ?? throw new InvalidDataException("Native camera status query requires the loaded model ID BYTE.");
         uint flags = model.Flags8 ?? throw new InvalidDataException("Native camera status query requires the projected status DWORD.");
         return unchecked((int)(modelId >= 16 ? flags & ~1u : (flags & 0x41021) != 0 ? flags | 1u : flags));

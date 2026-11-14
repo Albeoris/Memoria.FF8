@@ -35,7 +35,7 @@ public static class NativeBattleRush91Controller
         ]);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x759510, 0x64);
         hierarchy = appended.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Rush91 requires an original header/contact owner.");
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
@@ -236,12 +236,12 @@ public static class NativeBattleRush91Controller
                 case 1:
                     if (DogWord(0x48) == 1)
                     {
-                        int headerIndex = parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A));
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         if ((uint)headerIndex >= inputs.Packets.Headers.Length)
                         {
                             throw new NotSupportedException("Native Rush91 contact header leaves its physical arena.");
                         }
-                        int contact = checked((inputs.Packets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Native Rush91 lost its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        int contact = checked((inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native Rush91 lost its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         Emit(new NativeBattleRush91Contact(contact));
                         Store(address, Next(task));
                     }

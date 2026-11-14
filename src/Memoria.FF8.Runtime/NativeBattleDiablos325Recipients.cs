@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDiablos325RecipientServices(Func<int, NativeBattleGraphicsModel> ReadActor, Action<int, NativeBattleGraphicsModel> WriteActor, Func<int, NativeBattlePoseSource> ReadPose, Func<int, ImmutableArray<NativeBattleRawMesh>> ReadGeometry, Func<NativeBattleDiablos325Frame, int, int, NativeBattleDiablos325Frame> DrawScaled)
+public sealed record NativeBattleDiablos325RecipientServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadActor, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteActor, Func<int, NativeBattlePoseSource> ReadPose, Func<int, ImmutableArray<NativeBattleRawMesh>> ReadGeometry, Func<NativeBattleDiablos325Frame, int, int, NativeBattleDiablos325Frame> DrawScaled)
 {
     public Func<int, (short Maximum, short Minimum)?>? ReadForeignBounds { get; init; }
 }
@@ -19,7 +19,7 @@ public static class NativeBattleDiablos325Recipients
         NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
         int height = Height654E7E(counter - 368);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos recipient sink requires its retained action header.");
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         BattleModelRoster? roster = packets.PresentationRoster;
         ValidateHostedRecords(task, count, roster);

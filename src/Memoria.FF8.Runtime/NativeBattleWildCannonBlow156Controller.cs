@@ -14,9 +14,9 @@ public static partial class NativeBattleWildCannonBlow156Controller
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23EF478, 0x23EF488, 36, 100);
         (children, int director) = children.Append(0x605620);
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Wild Cannon Blow requires its actual first contact.");
-        frame = Dword(Dword(Dword(frame, 0x23ECE40, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23F03BC, Parameters(frame).Actor78), 0x23F03B8, 0x1D99A78);
+        frame = Dword(Dword(Dword(frame, 0x23ECE40, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23F03BC, Parameters(frame).Source), 0x23F03B8, 0x1D99A78);
         foreach ((uint bank, int count) in new (uint, int)[] { (0x23ECE78, 150), (0x23EDC88, 150), (0x23EEA98, 100) })
         {
             for (int index = 0; index < count; index++)
@@ -126,7 +126,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
         }
         if (age == 36)
         {
-            frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156ContactsAll(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156ContactsAll(Parameters(frame).Header));
         }
         if (age == 1)
         {

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Resonance49 requires its actual process memory.");
         NativeBattleResonance49Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Resonance49 requires its actual CRT stream."), memory.Resonance49 ?? throw new NotSupportedException("Resonance49 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Resonance49 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Resonance49 requires its original arithmetic constants.");
-        NativeBattleResonance49Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], Bone, Environment, current => current.Memory.PrimitiveProcess?.Buffer80 ?? throw new NotSupportedException("Resonance49 requires its actual primitive buffer selector."), Execute);
+        NativeBattleResonance49Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), Bone, Environment, current => current.Memory.PrimitiveProcess?.Buffer80 ?? throw new NotSupportedException("Resonance49 requires its actual primitive buffer selector."), Execute);
         frame = initialize ? NativeBattleResonance49Controller.Initialize(frame, resources, inputs) : NativeBattleResonance49Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize && ((effect.Parameters ?? throw new NotSupportedException("Resonance49 requires its native parameters.")).Flags79 & 1) == 0)
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleResonance49PointStep Bone(NativeBattleResonance49Frame current, int actor, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Resonance49 disabled bone query requires its actual transform.")).Position28));
@@ -89,10 +89,10 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleResonance49Controller.Read(current, target.TaskAddress), graphics.Models, PoseSource, producer => current = Observe(current, producer));
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Resonance49 target bounds require its actual current pose."), source));
+                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Resonance49 target bounds require its actual current pose."), source));
                     return NativeBattleResonance49Controller.Write(current, target.TaskAddress, task);
                 case NativeBattleResonance49SelectSequence505CE0 selection:
-                    if (((graphics.Models[selection.Actor].ResourceFlags44 ?? throw new NotSupportedException("Resonance49 sequence selection requires its current resource flags.")) & 0x140) != 0)
+                    if (((graphics.ActorModels.Get(selection.Actor).ResourceFlags44 ?? throw new NotSupportedException("Resonance49 sequence selection requires its current resource flags.")) & 0x140) != 0)
                     {
                         graphics = SelectNativeHeaderSequence(graphics, checked((byte)selection.Actor), checked((byte)selection.Sequence));
                     }

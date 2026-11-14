@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Eerie Sound Wave requires its actual process memory.");
         NativeBattleEerieSoundWave130Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Eerie Sound Wave requires its CRT stream."), memory.EerieSoundWave130 ?? throw new NotSupportedException("Eerie Sound Wave requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Eerie Sound Wave requires its current addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Eerie Sound Wave requires its original interpolation constants.");
-        NativeBattleEerieSoundWave130Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], () => Camera().CapturePackedView1D97778(), Bone, Anchor, AdvanceAct, Execute, colors);
+        NativeBattleEerieSoundWave130Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), () => Camera().CapturePackedView1D97778(), Bone, Anchor, AdvanceAct, Execute, colors);
         frame = initialize ? NativeBattleEerieSoundWave130Controller.Initialize(frame, resources, inputs) : NativeBattleEerieSoundWave130Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeBattleEerieSoundWave130PointStep Bone(NativeBattleEerieSoundWave130Frame current, int actor, byte selector, short distance)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Eerie Sound Wave requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, selector, distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Eerie Sound Wave bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
 
         NativeBattleEerieSoundWave130AnchorStep Anchor(NativeBattleEerieSoundWave130Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Eerie Sound Wave requires its current actor skeleton.");

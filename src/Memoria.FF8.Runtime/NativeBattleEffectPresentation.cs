@@ -114,7 +114,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public bool ReachedGuardianFormLanding => owner.ReachedHostedGuardianFormLanding();
     internal bool CanSkipGuardianFormFinisher => owner.CanSkipHostedGuardianFormFinisher;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
-    public bool ReplacesHostModel(int index) => (Graphics.Models[index].Flags0 & 4) != 0;
+    public bool ReplacesHostModel(int index) => (Graphics.ActorModels.Get(index).Flags0 & 4) != 0;
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
     public NativeBattleUiServices Ui => Graphics.UiServices ?? throw new InvalidDataException("Native presentation lost its UI owner.");
     public NativeBattleStageState Stage => owner.NativeStage ?? throw new InvalidDataException("Native presentation lost its arena owner.");

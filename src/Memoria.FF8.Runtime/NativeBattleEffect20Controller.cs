@@ -170,8 +170,8 @@ public static class NativeBattleEffect20Controller
                 case 2:
                     if (Word(task, 0x24) >= 30)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect20 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect20 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect20Contact(contact));
                         hierarchy = new(current.Effect.Pools);
                         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x26, (byte)(hierarchy.Read(address).ReadByte(0x26) | 1)));

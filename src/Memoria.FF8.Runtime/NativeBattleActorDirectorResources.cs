@@ -44,7 +44,7 @@ public sealed record NativeBattleActorDirectorGenericTask(uint Address) : Native
 public sealed record NativeBattleActorDirectorStopVibration(short Handle) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorLeafStep(NativeBattleActorDirectorFrame Frame, int Result);
 public sealed record NativeBattleActorDirectorVibrationStep(NativeBattleActorDirectorFrame Frame, short Handle);
-public sealed record NativeBattleActorDirectorInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleActorDirectorFrame, NativeBattleActorDirectorOperation, NativeBattleActorDirectorFrame> Execute, Func<NativeBattleActorDirectorFrame, uint, NativeBattleActorDirectorLeafStep> AdvanceGeneric)
+public sealed record NativeBattleActorDirectorInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleActorDirectorFrame, NativeBattleActorDirectorOperation, NativeBattleActorDirectorFrame> Execute, Func<NativeBattleActorDirectorFrame, uint, NativeBattleActorDirectorLeafStep> AdvanceGeneric)
 {
     public ushort? CopiedCameraPadding { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }

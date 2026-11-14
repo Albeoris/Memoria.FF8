@@ -16,12 +16,12 @@ public sealed partial class BattleSession
         uint main = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleEffect308Profile.MainDescriptor).BankAddress;
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect308 requires its current projection capacity.")) * 8);
         uint scratch = checked(0x196B018u - (uint)scratchLength);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleEffectArena context = Context(frame, temporary, 172).Write(0x38, BitConverter.GetBytes(0u)).Write(0x48, BitConverter.GetBytes(main)).Write(0x24, BitConverter.GetBytes(scratch)).Write(0x2C, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Effect308 requires its current caster color."))).Write(0x30, BitConverter.GetBytes((model.SequenceState ?? throw new NotSupportedException("Effect308 requires its current object mask.")).MeshMask124));
         context = context.Write(0x34, BitConverter.GetBytes((int)operation.SmokeLimit)).Write(0x3C, BitConverter.GetBytes((int)operation.NormalSpeed)).Write(0x40, BitConverter.GetBytes((int)operation.UnusedParameter)).Write(0x44, BitConverter.GetBytes((int)operation.RandomThreshold));
         frame = PublishContext(frame, temporary, context, 172);
         frame = PrepareNativeEffect308Pose(ref graphics, frame, actor, source, offsets);
-        model = graphics.Models[actor];
+        model = graphics.ActorModels.Get(actor);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect308 requires its current caster world matrix.");
         NativeBattleBodyBoneMatrices publication = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect308 requires its just-published offset pose.");
         var matrices = ImmutableArray.CreateBuilder<NativeBattleActionMatrix>(source.BoneCount);
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             matrices.Add(matrix with { X = unchecked(matrix.X + NativeEffect308BodyWord(offsets, bone * 16)), Y = unchecked(matrix.Y + NativeEffect308BodyWord(offsets, bone * 16 + 2)), Z = unchecked(matrix.Z + NativeEffect308BodyWord(offsets, bone * 16 + 4)) });
             frame = WriteNativeEffect308BonePadding(graphics, frame, actor, bone, 0);
         }
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { CurrentBodyBoneMatrices = publication with { Matrices = matrices.MoveToImmutable() } }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { CurrentBodyBoneMatrices = publication with { Matrices = matrices.MoveToImmutable() } }) };
         foreach (short bone in operation.BoneSelectors)
         {
             if ((uint)bone >= source.BoneCount)

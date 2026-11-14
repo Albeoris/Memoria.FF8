@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Host body waves require their retained effect memory.");
         NativeBattleScriptedGraphicsMemory registers = memory.ScriptedGraphics ?? throw new NotSupportedException("Host body waves require the current depth controls.");
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         uint tint = NativeBattleDuelSharedPackets.InterpolateColor56CC00(resources.Black, model.Color40 ?? throw new NotSupportedException("Host body waves require their actual target tint."), parameters.Weight, 4096 - parameters.Weight, 0);
         NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging ?? throw new NotSupportedException("Host body waves require their temporary workspace."), 24);
         NativeBattleZombieOverlayDraw drawn = NativeBattleZombieOverlay.DrawForeign(geometry, projection, tint, temporary.Staging, temporary.Address, resources.Wave, unchecked((short)origin.Screen), parameters.Phase, unchecked((short)(parameters.Amplitude >> 2)), registers.Dqa, registers.Dqb, identity);

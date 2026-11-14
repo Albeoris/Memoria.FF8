@@ -116,7 +116,7 @@ public sealed partial class BattleSession
             uint? pointer = known ? BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
             byte? sequence = known ? task.Payload[9] : null;
             int? index = pointer is uint actual && NativeBattleGraphicsModelAddress.TryDecode(actual, out int actorIndex) ? actorIndex : null;
-            NativeBattleGraphicsModel? model = index is int selected && !graphics.Models.IsDefault && selected < graphics.Models.Length ? graphics.Models[selected] : null;
+            NativeBattleGraphicsModel? model = index is int selected && !graphics.Models.IsDefault && selected < graphics.Models.Length ? graphics.ActorModels.Get(selected) : null;
             NativeBattleAuxiliaryProgram? program = task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 ? task.Program : null;
             int? length = program is not null && !program.Source.IsDefault ? program.Source.Length : null;
             byte? deadline = program is not null && !program.Source.IsDefault && (uint)program.Offset < program.Source.Length ? program.Source[program.Offset] : null;

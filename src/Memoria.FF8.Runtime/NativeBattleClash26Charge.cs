@@ -81,8 +81,8 @@ public static partial class NativeBattleClash26Controller
                         model = model with { Rotation14 = unchecked((short)(((model.Rotation14 ?? throw new NotSupportedException("Native889B00 requires target facing.")) - 0x800) & 0xFFF)), Transform = transform with { Position28 = moved } };
                         Execute(new NativeBattleClash26Model(model));
                         NativeBattleEffectParameters parameters = Frame.Effect.Parameters!;
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native889B00 requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native889B00 requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         Execute(new NativeBattleClash26Contact(contact));
                         task = Next(task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));
                     }

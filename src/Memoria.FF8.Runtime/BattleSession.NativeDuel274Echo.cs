@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     private (NativeBattleDuel274Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDuel274Echo(NativeBattleDuel274Frame frame, NativeBattleGraphicsState graphics, int actor, uint echo, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
     {
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native Duel echo requires its actual CPU resource owner.");
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleResourcePointer pointer;
         if (model.ActiveStagedResourceRow100 is uint row)
         {

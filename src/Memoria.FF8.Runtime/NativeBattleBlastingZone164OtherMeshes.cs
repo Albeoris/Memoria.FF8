@@ -50,7 +50,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 Emit(early ? 0xD8B610u : 0xD95B7Cu, NativeBattlePoseMatrices.Compose56C2F0(view, ring), fading ? 0xF3u : 0x33u, fading ? fade : null);
                 break;
             case 0x5F4FA0:
-                NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Actor78);
+                NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Source);
                 NativeBattleModuleAxisAngle alignment = NativeBattleModuleAlignment.Between571480(0, -4096, 0, tip.DirectionX, tip.DirectionY, tip.DirectionZ);
                 NativeBattleActionMatrix aligned = new(NativeBattleModuleAlignment.Rotation5714F0(alignment.Angle, alignment.Axis), 0, 0, 0, 4096);
                 aligned = NativeBattleGfMatrices.Multiply56C090(aligned, ReadMatrix(frame.Staging, 0x23C8F20)) with { X = tip.Position.X, Y = tip.Position.Y, Z = tip.Position.Z };

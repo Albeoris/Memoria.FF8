@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleBreath129Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Breath requires its actual CRT stream."), memory.Breath129 ?? throw new NotSupportedException("Breath requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Breath requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Breath requires its interpolation constants.");
         NativeBattleBreath129Inputs? inputs = null;
-        inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, address) => graphics.Models[Actor(address)], (_, address) => (graphics.Models[Actor(address)].Transform ?? throw new NotSupportedException("Breath requires its actor heading.")).Angle36, Bone, Anchor, ReadBody, PublishBody, AdvanceAct, Execute) { CapturePresentation = true, ReadResourceRowCapacity = NativeModelResourceRowCapacity };
+        inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, address) => graphics.ActorModels.Get(Actor(address)), (_, address) => (graphics.ActorModels.Get(Actor(address)).Transform ?? throw new NotSupportedException("Breath requires its actor heading.")).Angle36, Bone, Anchor, ReadBody, PublishBody, AdvanceAct, Execute) { CapturePresentation = true, ReadResourceRowCapacity = NativeModelResourceRowCapacity };
         frame = initialize ? NativeBattleBreath129Controller.Initialize(frame, resources, inputs) : NativeBattleBreath129Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         NativeBattleBreath129PointStep BoneActor(NativeBattleBreath129Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Breath requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Breath bone query requires its actual temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         NativeBattleBreath129PointStep Anchor(NativeBattleBreath129Frame current, uint address)
         {
             int actor = Actor(address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Breath requires its current actor skeleton.");
@@ -92,16 +92,16 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleBreath129ContactIndex contact:
                     Publish(current);
-                    int headerIndex = (current.Effect.Parameters ?? throw new NotSupportedException("Breath requires its captured parameters.")).HeaderIndex7C;
-                    int first = nativeActionPackets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Breath requires its captured contacts.");
+                    BattleActionHeaderReference headerIndex = (current.Effect.Parameters ?? throw new NotSupportedException("Breath requires its captured parameters.")).Header;
+                    int first = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Breath requires its captured contacts.");
                     var pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + contact.Index)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleBreath129ComposeBody5095B0 compose:
                     int actor = Actor(compose.ActorAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Breath requires its current world matrix."))) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Breath requires its current world matrix."))) };
                     return current;
                 case NativeBattleBreath129Stage5713E0 stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Breath requires its retained stage groups.");

@@ -21,7 +21,7 @@ public sealed record NativeBattleDuel216Contact506690 : NativeBattleDuel216Scene
 public sealed record NativeBattleDuel216MainCamera(short Tick) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216MainFile(short File, uint Destination, short Type) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216MainStageReset : NativeBattleDuel216SceneOperation;
-public sealed record NativeBattleDuel216SceneServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<int, int, NativeBattleVector> ReadBone502170, ImmutableArray<byte> TargetRing, NativeBattleActionMatrix View, Func<NativeBattleDuel216Frame, NativeBattleDuel216SceneOperation, NativeBattleDuel216Frame> Execute);
+public sealed record NativeBattleDuel216SceneServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelOwner, int, NativeBattleVector> ReadBone502170, ImmutableArray<byte> TargetRing, NativeBattleActionMatrix View, Func<NativeBattleDuel216Frame, NativeBattleDuel216SceneOperation, NativeBattleDuel216Frame> Execute);
 
 public static class NativeBattleDuel216Scene
 {

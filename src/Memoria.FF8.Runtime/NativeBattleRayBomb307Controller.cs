@@ -17,7 +17,7 @@ public static partial class NativeBattleRayBomb307Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int mainSlot) = children.Append(MainCallback);
         children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(12, 0));
-        NativeBattleRayBomb307State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(0x2242570, 0x1D99A78).WriteDword(0x2242574, Parameters(frame).Actor78);
+        NativeBattleRayBomb307State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(0x2242570, 0x1D99A78).WriteDword(0x2242574, Parameters(frame).Source);
         textures = textures.Register5099A0(resources.Camera);
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
         for (int index = 0; index < 100; index++)

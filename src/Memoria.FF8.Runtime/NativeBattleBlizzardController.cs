@@ -24,7 +24,7 @@ public static class NativeBattleBlizzardController
         main = Put(main, mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x24BD788, 0x24BD798, 36, 150);
         (children, int childSlot) = children.Append(0x61AC70);
-        NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native61ABA0 requires its physical first-contact pointer.");
         children = Put(children, childSlot, children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex));
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress };
@@ -200,7 +200,7 @@ public static class NativeBattleBlizzardController
             frame = frame with { Random = random };
             return value;
         }
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[checked(frame.Effect.Parameters!.HeaderIndex7C + sequence)];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(frame.Effect.Parameters!.Header.Advance(sequence));
         NativeBattleBlizzardResources Resources() => frame.Effect.Binding.BlizzardResources ?? throw new NotSupportedException("Native Blizzard requires its original executable resources.");
     }
 

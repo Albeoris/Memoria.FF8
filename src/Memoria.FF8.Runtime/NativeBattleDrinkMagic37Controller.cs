@@ -193,8 +193,8 @@ public static class NativeBattleDrinkMagic37Controller
                 case 2:
                     if (Word(task, 0x24) >= 15)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Drink Magic requires its selected physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Drink Magic requires its selected physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         state = Execute(state, new NativeBattleDrinkMagic37Contact(contact));
                         task = state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1));
                         state = state.Write(address, task);
@@ -239,7 +239,7 @@ public static class NativeBattleDrinkMagic37Controller
     {
         task = task.WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte targets = header.ReadByte(0x10);
         byte groups = header.ReadByte(0x11);
         byte maximum = unchecked((byte)(targets - 1));

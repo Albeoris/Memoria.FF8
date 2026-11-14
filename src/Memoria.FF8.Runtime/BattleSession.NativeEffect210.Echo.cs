@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsState drawingGraphics = graphics;
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect210 echo requires its current CPU resources.");
-        NativeBattleGraphicsModel model = graphics.Models[operation.Actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(operation.Actor);
         NativeBattleResourcePointer pointer;
         if (model.ActiveStagedResourceRow100 is uint row)
         {

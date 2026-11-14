@@ -16,11 +16,11 @@ public sealed partial class BattleSession
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Morph172 target requires its addressed temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativeMorph172View(staging, 0x1D969A8, 4);
-        bool linked = graphics.Models[actor].LinkedTransform is not null;
-        NativeBattleMorph172ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeMorph172View(staging, temporaryAddress, 220));
+        bool linked = graphics.ActorModels.Get(actor).LinkedTransform is not null;
+        NativeBattleMorph172ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativeMorph172View(staging, temporaryAddress, 220));
         NativeBattleMorph172ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleMorph172ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary220, 220) }, graphics);
 
         NativeBattleMorph172ModelFrame Shadow(NativeBattleMorph172ModelFrame current)

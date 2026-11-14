@@ -93,7 +93,7 @@ public sealed partial class BattleSession
 
     private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, int index, byte selector, int variant)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if ((model.Flags0 & 2) == 0)
         {
             return;

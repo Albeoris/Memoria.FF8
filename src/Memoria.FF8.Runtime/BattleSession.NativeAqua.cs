@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("The Aqua module requires its published projection.");
         Stack<(uint Address, int Size)> temporary = [];
         NativeBattleAquaInputs? renderingInputs = null;
-        NativeBattleAquaInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("The Aqua module requires its current camera matrix."), projection, camera.Roll, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("The Aqua module requires its original geometry constants."), index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("The Aqua module requires the actual posed model source."), ReadAnchor, Execute) { CameraPadding18 = camera.CanonicalViewPadding, PackedCamera = camera.CapturePackedView1D97778(), ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadBoneCount = actor => ReadNativeGraphicsBoneCount(graphics, actor) };
+        NativeBattleAquaInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("The Aqua module requires its current camera matrix."), projection, camera.Roll, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("The Aqua module requires its original geometry constants."), index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("The Aqua module requires the actual posed model source."), ReadAnchor, Execute) { CameraPadding18 = camera.CanonicalViewPadding, PackedCamera = camera.CapturePackedView1D97778(), ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadBoneCount = actor => ReadNativeGraphicsBoneCount(graphics, actor) };
         renderingInputs = inputs;
         frame = NativeBattleAquaController.Advance(frame, resources, inputs);
         if (temporary.Count != 0)
@@ -68,13 +68,13 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleAquaBindCaster bind:
                     ImmutableArray<byte> dat = resources.CasterDat72 ?? throw new NotSupportedException("The Aqua caster binding requires its original Blue Magic DAT.");
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? throw new NotSupportedException("The Aqua caster binding requires its actual staging owner.")).Write(0x158D9AC, dat.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("The Aqua caster binding requires its actual CPU resource rows."), model, 0x25FA3D8, 0x158D9AC);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     graphics = SelectNativeHeaderSequence(graphics, checked((byte)bind.Actor), 1);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, graphics.Models[bind.Actor] with { Rotation14 = current.State.Word(0x4A) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, graphics.ActorModels.Get(bind.Actor) with { Rotation14 = current.State.Word(0x4A) }) };
                     return current;
                 case NativeBattleAquaAnchor anchor:
                     return current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, anchor.Actor, checked((byte)anchor.Selector), checked((short)anchor.Fraction)).Memory };

@@ -14,7 +14,7 @@ public sealed record NativeBattleDoomtrain191KnockbackMemory([property: System.T
     }
 }
 
-public sealed record NativeBattleDoomtrain191KnockbackServices(Func<uint> ReadFlags, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattleVector> ReadAnchor, Func<NativeBattleDoomtrain191Frame, int, NativeBattleGraphicsModel, NativeBattleDoomtrain191Frame> WriteModel);
+public sealed record NativeBattleDoomtrain191KnockbackServices(Func<uint> ReadFlags, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattleVector> ReadAnchor, Func<NativeBattleDoomtrain191Frame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleDoomtrain191Frame> WriteModel);
 
 public static class NativeBattleDoomtrain191Knockback
 {

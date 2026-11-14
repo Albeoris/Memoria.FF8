@@ -21,7 +21,7 @@ public static partial class NativeBattleMeltEye158Controller
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Melt-Eye requires its executed texture allocation.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Melt-Eye requires its executed texture initializer.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        return frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Actor78).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).ClearSlotHeads(), Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        return frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).ClearSlotHeads(), Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
     public static NativeBattleMeltEye158Frame Advance(NativeBattleMeltEye158Frame frame, NativeBattleMeltEye158Resources resources, NativeBattleMeltEye158Inputs inputs)
@@ -122,5 +122,5 @@ public static partial class NativeBattleMeltEye158Controller
         frame.State.Validate();
     }
 
-    private static NativeBattleActionHeaderSlot Header(NativeBattleMeltEye158Frame frame, NativeBattleMeltEye158Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleMeltEye158Frame frame, NativeBattleMeltEye158Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
 }

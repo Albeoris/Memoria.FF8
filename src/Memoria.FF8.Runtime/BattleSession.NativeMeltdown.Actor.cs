@@ -7,9 +7,9 @@ public sealed partial class BattleSession
     private (NativeBattleMeltdownFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeMeltdownActor(NativeBattleMeltdownFrame frame, NativeBattleGraphicsState graphics, NativeBattleMeltdownActor request)
     {
         int index = request.Actor;
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0xC) };
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         if (!request.Draw)
         {
             return (frame, graphics);
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
             primitive = primitive with { Pending = written.Ordering };
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Meltdown requires its actual linked geometry presence.");
         if (!linked.IsEmpty && (actor.Flags0 & 0x200) == 0 && !(resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Meltdown requires its linked model's skeleton ownership.")))
         {

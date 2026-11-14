@@ -19,14 +19,14 @@ public static partial class NativeBattleEffect303Controller
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect303 requires its retained texture process.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int header = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference header = Parameters(frame).Header;
         if ((uint)header >= packets.Headers.Length)
         {
             throw new InvalidDataException("Effect303 requires its actual physical action header.");
         }
-        int first = packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect303 requires its actual first contact pointer.");
+        int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect303 requires its actual first contact pointer.");
         uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
-        uint caster = ModelAddress(Parameters(frame).Actor78);
+        uint caster = ModelAddress(Parameters(frame).Source);
         frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, caster).WriteDword(TargetGlobal, target).WriteDword(ArenaGlobal, ArenaAddress) };
         frame = inputs.Execute(frame, new NativeBattleEffect303CopyPackedPosition(caster, target));
         frame = inputs.Execute(frame, new NativeBattleEffect303SelectSequence505C00(target, 13));

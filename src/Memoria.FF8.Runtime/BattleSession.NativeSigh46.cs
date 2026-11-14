@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Sigh46 requires its actual process memory.");
         NativeBattleSigh46Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Sigh46 requires its actual CRT stream."), (memory.Sigh46 ?? throw new NotSupportedException("Sigh46 requires its retained executable storage.")).EnsureSources(resources)) { Staging = NativeFileStaging ?? throw new NotSupportedException("Sigh46 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Sigh46 requires its original arithmetic constants.");
-        NativeBattleSigh46Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], Bone, _ => Camera().Roll, _ => nativeActionPackets, Execute);
+        NativeBattleSigh46Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), Bone, _ => Camera().Roll, _ => nativeActionPackets, Execute);
         frame = initialize ? NativeBattleSigh46Controller.Initialize(frame, resources, inputs) : NativeBattleSigh46Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize && ((effect.Parameters ?? throw new NotSupportedException("Sigh46 requires its native parameters.")).Flags79 & 1) == 0)
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleSigh46PointStep Bone(NativeBattleSigh46Frame current, int actor, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Sigh46 disabled bone query requires its actual transform.")).Position28));
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleSigh46Controller.Read(current, target.TaskAddress), graphics.Models, PoseSource, producer => current = Observe(current, producer));
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Sigh46 target bounds require its actual current pose."), source));
+                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Sigh46 target bounds require its actual current pose."), source));
                     return NativeBattleSigh46Controller.Write(current, target.TaskAddress, task);
                 case NativeBattleSigh46Sound501330 sound:
                     Publish(current);

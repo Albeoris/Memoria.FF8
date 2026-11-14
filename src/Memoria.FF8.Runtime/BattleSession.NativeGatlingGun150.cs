@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gatling Gun requires its actual process memory.");
         NativeBattleGatlingGun150Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gatling Gun requires its CRT stream."), memory.GatlingGun150 ?? throw new NotSupportedException("Gatling Gun requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gatling Gun requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gatling Gun requires its original interpolation constants.");
-        NativeBattleGatlingGun150Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), (_, actor) => graphics.Models[actor], Bone, Anchor, Execute);
+        NativeBattleGatlingGun150Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), (_, actor) => graphics.ActorModels.Get(actor), Bone, Anchor, Execute);
         frame = initialize ? NativeBattleGatlingGun150Controller.Initialize(frame, resources, inputs) : NativeBattleGatlingGun150Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
         NativeBattleGatlingGun150PointStep Anchor(NativeBattleGatlingGun150Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gatling Gun requires its current actor skeleton.");
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gatling Gun requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Gatling Gun bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;

@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect79 requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect79 requires observed linked geometry presence.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect79 requires its camera.");
-        NativeBattleActionMatrix world = graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect79 requires its current target world matrix.");
+        NativeBattleActionMatrix world = graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect79 requires its current target world matrix.");
         NativeBattlePackedMatrix32 packedWorld = NativeBattlePackedMatrix32.FromMatrix(world, null);
         NativeBattleEffectArena worldBytes = NativeBattleEffectArena.Clear().MarkUnknown(0, 32).Write(0, packedWorld.Bytes.AsSpan());
         worldBytes = worldBytes.MarkUnknown(18, 2);
@@ -45,10 +45,10 @@ public sealed partial class BattleSession
         }
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
         frame = NativeBattleEffect79Controller.WriteBytes(frame, bodyAddress, context, BodyContextLength);
-        Draw(false, NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], pose));
-        if (graphics.Models[actor].LinkedTransform is not null)
+        Draw(false, NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose));
+        if (graphics.ActorModels.Get(actor).LinkedTransform is not null)
         {
-            Draw(true, NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], pose));
+            Draw(true, NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose));
         }
         frame = Restore(frame);
         return (graphics, frame);
@@ -56,8 +56,8 @@ public sealed partial class BattleSession
         NativeBattleEffect79Frame Restore(NativeBattleEffect79Frame current)
         {
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging!, 88);
-            NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actor], pose, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, restored.Model) };
+            NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), pose, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) };
             NativeBattleFileStaging staged = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88);
             return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(staged, 88) };
         }
@@ -65,9 +65,9 @@ public sealed partial class BattleSession
         {
             NativeBattleTemporaryAllocation allocated = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 168);
             NativeBattleEffectArena temporary = NativeDeformedBodyView(allocated.Staging, allocated.Address, 168);
-            uint color = graphics.Models[actor].Color40 ?? throw new NotSupportedException("Effect79 requires its actual caster color.");
-            uint mask = graphics.Models[actor].SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect79 requires its actual caster object mask.");
-            NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], allocated.Staging, temporary, allocated.Address);
+            uint color = graphics.ActorModels.Get(actor).Color40 ?? throw new NotSupportedException("Effect79 requires its actual caster color.");
+            uint mask = graphics.ActorModels.Get(actor).SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect79 requires its actual caster object mask.");
+            NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), allocated.Staging, temporary, allocated.Address);
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, linked);
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), allocated.Staging, pointer, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
             NativeBattleEffect79BodyDrawingStep drawn = NativeBattleEffect79BodyDrawing.Draw(frame.Memory, context, temporary, geometrySource, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), color, mask, camera.Projection ?? throw new NotSupportedException("Effect79 requires its projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect79 requires depth controls."), frame.State.ReadView(TransformedAddress, TransformedLength), TransformedLength, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect79 requires its arithmetic constants."), pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(actor * 2 + (linked ? 1 : 0)), ResourceGeneration = geometrySource.PresentationIdentity } : null);
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect79Frame ObserveNativeEffect79Anchor(NativeBattleGraphicsState graphics, NativeBattleEffect79Frame frame, uint taskAddress, uint contextAddress)
     {
         int actor = NativeBattleEffect79Controller.Read(frame, taskAddress).ReadByte(0x2C);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect79 anchor requires its current caster transform.");
         NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect79 anchor requires its current caster skeleton.");
         NativeBattleGraphicsModel temporary = model with { Transform = transform with { Position28 = new(0, 0, 0) }, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() };

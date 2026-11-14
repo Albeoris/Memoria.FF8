@@ -4,9 +4,9 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState ApplyNativeGraphicsStatus509CD0(NativeBattleGraphicsState graphics, int index, uint flags)
     {
-        if (graphics.Models[index].ReadLinkedModelIndex140() is null)
+        if (graphics.ActorModels.Get(index).ReadLinkedModelIndex140() is null)
         {
-            return graphics with { Models = graphics.Models.SetItem(index, SetNativeGraphicsFlags(graphics.Models[index], flags, graphics)) };
+            return graphics with { ActorModels = graphics.ActorModels.Set(index, SetNativeGraphicsFlags(graphics.ActorModels.Get(index), flags, graphics)) };
         }
         (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, index, flags, roster: graphics.PresentationRoster);
         return allocated ? graphics with { Auxiliary = auxiliary } : throw new InvalidOperationException("Native509CD0 cannot write its required50A000 payload after auxiliary allocation fails.");
@@ -32,7 +32,7 @@ public sealed partial class BattleSession
             }
             throw new NotSupportedException($"Host actor slot {index} requires a host presentation service for native sequence {requested & ~0x1000}.");
         }
-        NativeBattleGraphicsModel source = graphics.Models[index];
+        NativeBattleGraphicsModel source = graphics.ActorModels.Get(index);
         if ((requested & 0x1000) == 0 && ((source.Flags8 ?? throw new InvalidDataException("Native505C00 requires its model DWORD8.")) & 0x18) != 0)
         {
             return graphics;
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
                 return graphics;
             }
             NativeBattleGraphicsModel selectedModel = NativeBattleSequenceSelections.SelectResource505BC0(source, NativeActionResource(graphics, index), selected);
-            return graphics with { Models = graphics.Models.SetItem(index, selectedModel) };
+            return graphics with { ActorModels = graphics.ActorModels.Set(index, selectedModel) };
         }
         (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, index, sequence: unchecked((byte)selected), roster: graphics.PresentationRoster);
         if (!allocated)
@@ -54,11 +54,11 @@ public sealed partial class BattleSession
         }
         foreach (int linked in NativeBattleModelRings.Walk(graphics.Models, index))
         {
-            NativeBattleGraphicsModel model = graphics.Models[linked];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(linked);
             if ((model.Flags0 & 2) != 0)
             {
                 ushort flags = model.ResourceFlags44 ?? throw new NotSupportedException("Native505C00 requires the linked model resource WORD44.");
-                graphics = graphics with { Models = graphics.Models.SetItem(linked, model with { ResourceFlags44 = (ushort)(flags & ~0x40) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, model with { ResourceFlags44 = (ushort)(flags & ~0x40) }) };
             }
         }
         return graphics with { Auxiliary = auxiliary };
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState SelectNativeRingContactSequence(NativeBattleGraphicsState graphics, int index, byte sequence)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         ushort flags = model.ResourceFlags44 ?? throw new NotSupportedException("Native506620 requires its resource WORD44.");
         if (model.ModelId4 >= 16)
         {
@@ -74,13 +74,13 @@ public sealed partial class BattleSession
             {
                 return SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
             }
-            return (flags & 0x40) != 0 ? SelectNativeHeaderSequence(graphics, checked((byte)index), sequence) : graphics with { Models = graphics.Models.SetItem(index, model with { SequenceState = model.SequenceState! with { Pending3 = sequence } }) };
+            return (flags & 0x40) != 0 ? SelectNativeHeaderSequence(graphics, checked((byte)index), sequence) : graphics with { ActorModels = graphics.ActorModels.Set(index, model with { SequenceState = model.SequenceState! with { Pending3 = sequence } }) };
         }
         if (((model.Flags8 ?? throw new InvalidDataException("Native506620 requires its status DWORD8.")) & 0x300000) == 0 || sequence == 3)
         {
             if ((flags & 0x140) == 0 || sequence != 0)
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(index, model with { SequenceState = model.SequenceState! with { Default2 = 1 } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { SequenceState = model.SequenceState! with { Default2 = 1 } }) };
             }
             if ((flags & 0x140) != 0 && sequence != 0)
             {
@@ -96,11 +96,11 @@ public sealed partial class BattleSession
         {
             foreach (int linked in NativeBattleModelRings.Walk(graphics.Models, source))
             {
-                NativeBattleGraphicsModel model = graphics.Models[linked];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(linked);
                 if ((model.Flags0 & 2) != 0)
                 {
                     ushort flags = model.ResourceFlags44 ?? throw new NotSupportedException("Native50B080 requires its loaded resource WORD44.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(linked, model with { ResourceFlags44 = (ushort)(flags | argument) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, model with { ResourceFlags44 = (ushort)(flags | argument) }) };
                 }
             }
             return graphics;
@@ -109,17 +109,17 @@ public sealed partial class BattleSession
         {
             foreach (int linked in NativeBattleModelRings.Walk(graphics.Models, source))
             {
-                NativeBattleGraphicsModel model = graphics.Models[linked];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(linked);
                 if ((model.Flags0 & 2) != 0)
                 {
                     model = NativeBattleSequenceSelections.SelectResource505BC0(model, NativeActionResource(graphics, checked((byte)linked)), unchecked((byte)argument));
-                    graphics = graphics with { Models = graphics.Models.SetItem(linked, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, model) };
                 }
             }
             return graphics;
         }
-        graphics = graphics with { Models = graphics.Models.SetItem(source, SetNativeGraphicsFlags(graphics.Models[source], argument, graphics)) };
-        NativeBattleGraphicsModel root = graphics.Models[source];
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(source, SetNativeGraphicsFlags(graphics.ActorModels.Get(source), argument, graphics)) };
+        NativeBattleGraphicsModel root = graphics.ActorModels.Get(source);
         ushort ownerFlags = root.Flags2 ?? throw new NotSupportedException("Native50A000 requires its source flags WORD2.");
         uint preserved = NativeBattleModelRings.PreservedStatusMask50A000(ownerFlags);
         uint propagated = argument & ~preserved;
@@ -131,13 +131,13 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native50A000 ring does not return to its source.");
             }
-            NativeBattleGraphicsModel model = graphics.Models[current];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(current);
             if ((model.Flags0 & 2) != 0)
             {
                 uint previous = model.Flags8 ?? throw new NotSupportedException("Native50A000 requires its linked model status DWORD8.");
-                graphics = graphics with { Models = graphics.Models.SetItem(current, SetNativeGraphicsFlags(model, propagated | (preserved & previous), graphics)) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(current, SetNativeGraphicsFlags(model, propagated | (preserved & previous), graphics)) };
             }
-            int? next = graphics.Models[current].ReadLinkedModelIndex140();
+            int? next = graphics.ActorModels.Get(current).ReadLinkedModelIndex140();
             if (next is null || next == source)
             {
                 break;

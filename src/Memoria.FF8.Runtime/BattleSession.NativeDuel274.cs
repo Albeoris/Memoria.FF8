@@ -33,11 +33,11 @@ public sealed partial class BattleSession
 
     private NativeBattleDuel274ActorServices NativeDuel274Actors(Func<NativeBattleGraphicsState> read, Action<NativeBattleGraphicsState> write)
     {
-        return new(index => read().Models[index].Flags0, (index, flags) =>
+        return new(index => read().ActorModels.Get(index).Flags0, (index, flags) =>
         {
             NativeBattleGraphicsState graphics = read();
-            write(graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = flags }) });
-        }, index => read().Models[index].ReadLinkedModelIndex140() is int linked ? NativeBattleDuel274Controller.Address(linked) : 0, index => NativeBattleDuel274Controller.Index(NativeBattleScanModelSelection.Minimum501FF0(NativeBattleScanPhysicalModels.Capture(read().Models), NativeBattleDuel274Controller.Address(index))), index =>
+            write(graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = flags }) });
+        }, index => read().ActorModels.Get(index).ReadLinkedModelIndex140() is int linked ? NativeBattleDuel274Controller.Address(linked) : 0, index => NativeBattleDuel274Controller.Index(NativeBattleScanModelSelection.Minimum501FF0(NativeBattleScanPhysicalModels.Capture(read().Models), NativeBattleDuel274Controller.Address(index))), index =>
         {
             NativeBattleGraphicsState graphics = read();
             if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
                 return NativeBattleForeignModelDrawing.VerticalBounds(foreign, point => NativeBattleGfMatrices.Transform460840(foreign.World, point).Y);
             }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-            return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.Models[index], resource.PoseSource ?? throw new NotSupportedException("Native Duel bounds require the actual current skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, graphics.Models[index]));
+            return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.ActorModels.Get(index), resource.PoseSource ?? throw new NotSupportedException("Native Duel bounds require the actual current skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, graphics.ActorModels.Get(index)));
         }) { IsNativeModel = (index, modelId) => NativeGraphicsModelIs(read(), index, modelId) };
     }
 
@@ -79,8 +79,8 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Duel drawing requires its current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel drawing requires its original color arithmetic.");
         NativeBattleDuel274ActorServices actors = NativeDuel274Actors(() => graphics, value => graphics = value);
-        NativeBattleDuel274MoveInputs moves = new(index => graphics.Models[index], WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound);
-        NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.Models[index], WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Presentation.Screen(NativeBattleDuel274Screen.Draw68D4B0(amount), current.PilotIdentity))) { NativeCameraEnabled = presentationHostCamera is null };
+        NativeBattleDuel274MoveInputs moves = new(index => graphics.ActorModels.Get(index), WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound);
+        NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.ActorModels.Get(index), WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Presentation.Screen(NativeBattleDuel274Screen.Draw68D4B0(amount), current.PilotIdentity))) { NativeCameraEnabled = presentationHostCamera is null };
         NativeEffectMemory = memory;
         NativeFileStaging = staging.View;
         try
@@ -139,21 +139,21 @@ public sealed partial class BattleSession
             throw;
         }
 
-        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native Duel anchor requires actual model WORD36.")).Angle36 };
+        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Duel anchor requires actual model WORD36.")).Angle36 };
         NativeBattleActionMatrix ReadBoneMatrix(int index, int bone)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Duel bone matrix requires the current skeleton.");
-            return NativeBattleBodyBoneMatrices.Require(graphics.Models[index], source)[bone];
+            return NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(index), source)[bone];
         }
         int FirstContact(int sequence)
         {
-            int header = checked(parameters.HeaderIndex7C + sequence);
+            BattleActionHeaderReference header = parameters.Header.Advance(sequence);
             if ((uint)header >= NativeBattleActionPacketsState.HeaderCapacity)
             {
                 throw new InvalidDataException("Native Duel sequence leaves the physical action-header arena.");
             }
-            return nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Duel requires the selected header's actual contact pointer.");
+            return nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Duel requires the selected header's actual contact pointer.");
         }
         void Publish(NativeBattleDuel274Frame current, bool final = false)
         {
@@ -273,7 +273,7 @@ public sealed partial class BattleSession
         NativeBattleDuel274Frame Bind(NativeBattleDuel274Frame current, int index, uint row)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[index], NativeGraphicsPoseResource(graphics, index));
+            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(index), NativeGraphicsPoseResource(graphics, index));
             var bound = NativeBattleVictoryResources.Bind5022C0(resources.ReadActorDat(), NativeModelCpuResources ?? throw new NotSupportedException("Native Duel requires its CPU resource rows."), model, row, NativeBattleDuel274Resources.Address, Read, (address, pointer) => current = current with { Effect = current.Effect with { Pools = NativeBattleEffectTaskMemory.WritePointer(current.Effect.Pools, address, pointer) } });
             WriteModel(index, bound.Model);
             return current;
@@ -337,7 +337,7 @@ public sealed partial class BattleSession
                 3 => NativeBattleDuel274BasicMoves.Advance68B2F0(current, slot, resources, view, projection, colors, moves),
                 4 => NativeBattleDuel274BasicMoves.Advance68B700(current, slot, resources, view, projection, colors, moves),
                 5 => NativeBattleDuel274BasicMoves.Advance68B950(current, slot, resources, view, projection, colors, new(moves, DrawMesh)),
-                6 => NativeBattleDuel274Dolphin.Advance68C7B0(current, slot, resources, view, projection, colors, new(index => graphics.Models[index], WriteModel, bone => ReadNativeGraphicsBone(graphics, parameters.Actor78, checked((byte)bone), 0), DrawSprite, SubmitEffect, Contact, next => Flash(next, false), Sound)),
+                6 => NativeBattleDuel274Dolphin.Advance68C7B0(current, slot, resources, view, projection, colors, new(index => graphics.ActorModels.Get(index), WriteModel, bone => ReadNativeGraphicsBone(graphics, parameters.Source, checked((byte)bone), 0), DrawSprite, SubmitEffect, Contact, next => Flash(next, false), Sound)),
                 7 => NativeBattleDuel274BasicMoves.Advance68CA60(current, slot, resources, view, projection, colors, new(moves, actors, Anchor, DrawMesh, DrawBody)),
                 _ => throw new NotSupportedException("Native Duel selected an unsupported move callback.")
             };
@@ -418,7 +418,7 @@ public sealed partial class BattleSession
         NativeBattleDuel274Frame DrawBody(NativeBattleDuel274Frame current, int index, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleVector scale)
         {
             Publish(current);
-            NativeBattleActionMatrix world = graphics.Models[index].GeometryWorldMatrix ?? throw new NotSupportedException("Native Duel body drawing requires its actual model world matrix.");
+            NativeBattleActionMatrix world = graphics.ActorModels.Get(index).GeometryWorldMatrix ?? throw new NotSupportedException("Native Duel body drawing requires its actual model world matrix.");
             NativeBattlePrimitiveReference before = NativeBattleDuel28Presentation.Start(current.Memory.PrimitiveProcess!);
             graphics = DrawNativeEffectModelContext92(graphics, index, NativeBattleDuel274Body.Matrix68D1D0(world, view, angles, pivot, scale), pivot, projection, 4112, 16, pilotIdentity: current.PilotIdentity);
             current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, graphics.PrimitiveFrame!.Pending, before, NativeEffectMemory!.PrimitiveProcess!) } };
@@ -426,14 +426,14 @@ public sealed partial class BattleSession
         }
         NativeBattleDuel274Frame DrawEcho(NativeBattleDuel274Frame current, uint address)
         {
-            var drawn = DrawNativeDuel274Echo(current, graphics, parameters.Actor78, address, view, projection);
+            var drawn = DrawNativeDuel274Echo(current, graphics, parameters.Source, address, view, projection);
             graphics = drawn.Graphics;
             return drawn.Frame;
         }
         NativeBattleDuel274Frame CaptureEcho(NativeBattleDuel274Frame current, uint address)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
-            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, parameters.Actor78).PoseSource ?? throw new NotSupportedException("Native Duel echo capture requires its current body skeleton.");
+            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, parameters.Source).PoseSource ?? throw new NotSupportedException("Native Duel echo capture requires its current body skeleton.");
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
             return NativeBattleDuel274ArenaEcho.Capture68ADF0(current, address, source.BoneCount, bone =>
             {

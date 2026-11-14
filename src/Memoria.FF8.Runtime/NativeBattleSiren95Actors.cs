@@ -80,12 +80,12 @@ public static class NativeBattleSiren95Actors
             {
                 NativeBattleModulePoolTask task = Read(frame, parent);
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Siren contact spawn requires its current action parameters.");
-                int index = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+                BattleActionHeaderReference index = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                 if ((uint)index >= services.Packets.Headers.Length)
                 {
                     throw new NotSupportedException("Native Siren contact spawn leaves its current header owner.");
                 }
-                NativeBattleActionHeaderSlot header = services.Packets.Headers[index];
+                NativeBattleActionHeaderSlot header = services.Packets.ReadHeader(index);
                 if (ordinal >= header.ReadContactCount())
                 {
                     break;

@@ -29,7 +29,7 @@ public static class NativeBattleDuel274Controller
         }
         frame = enqueueTexture505E30(frame);
         frame = frame with { Staging = Dword(frame.Staging, 0x2508430, NativeBattleEffectNodeMemory.ArenaAddress) };
-        frame = frame with { Staging = Dword(frame.Staging, 0x2508470, Address(parameters.Actor78)) };
+        frame = frame with { Staging = Dword(frame.Staging, 0x2508470, Address(parameters.Source)) };
         frame = frame with { Staging = Dword(frame.Staging, 0x2508468, 0) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
         (root, int slot) = root.Append(0x689990);

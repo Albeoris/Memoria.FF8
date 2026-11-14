@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel112DrawingInputs(NativeBattleDuel112ActorServices Actor, Func<int, byte, short, NativeBattleVector> ReadBone502170, NativeBattleActionMatrix View, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Action<int, int, int, int> Flash5712C0)
+public sealed record NativeBattleDuel112DrawingInputs(NativeBattleDuel112ActorServices Actor, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone502170, NativeBattleActionMatrix View, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Action<int, int, int, int> Flash5712C0)
 {
     public bool CapturePresentation { get; init; }
 }
@@ -19,7 +19,7 @@ public static partial class NativeBattleDuel112Target
             throw new InvalidDataException("Native Duel hierarchy requires its actual target task owner.");
         }
         short phase = unchecked((short)task.ReadWord(12));
-        int actor = frame.Memory.Duel112?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel hierarchy requires its actual actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel hierarchy requires its actual actor.");
         int first = phase - 17;
         if ((uint)first <= 35)
         {

@@ -13,7 +13,7 @@ public static partial class NativeBattleBeamLaser134Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Beam Laser requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Beam Laser requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        int caster = Parameters(frame).Actor78;
+        int caster = Parameters(frame).Source;
         ushort saved = inputs.ReadModel(caster).Flags0;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
@@ -106,12 +106,12 @@ public static partial class NativeBattleBeamLaser134Controller
         {
             return frame;
         }
-        int headerIndex = checked(Parameters(frame).HeaderIndex7C + ordinal);
+        BattleActionHeaderReference headerIndex = Parameters(frame).Header.Advance(ordinal);
         if ((uint)headerIndex >= inputs.Packets.Headers.Length)
         {
             throw new NotSupportedException("Beam Laser selected an absent captured action header.");
         }
-        int contact = inputs.Packets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Beam Laser requires its selected physical contact pointer.");
+        int contact = inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Beam Laser requires its selected physical contact pointer.");
         int actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
         uint pointer = ModelAddress(actor);
         NativeBattleModulePoolTask existing = frame.Effect.Pools[1].Slots[0];
@@ -254,7 +254,7 @@ public static partial class NativeBattleBeamLaser134Controller
 
     private static NativeBattleBeamLaser134Frame WithPool(NativeBattleBeamLaser134Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleBeamLaser134Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Beam Laser requires its captured native parameters.");
-    private static NativeBattleActionHeaderSlot Header(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
     private static int FirstContact(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Beam Laser requires its current physical contacts.");
     private static uint Working(NativeBattleBeamLaser134Frame frame) => frame.State.ReadDword(WorkingGlobal);
     private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Beam Laser selected an absent actor.");

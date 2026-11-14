@@ -29,7 +29,7 @@ public static partial class NativeBattleMeltdownController
         (root, _) = root.Append(0x614230);
         NativeBattleEffectTaskPool tasks = NativeBattleEffectTaskPool.Initialize(0x24657E8, 0x24657F8, 0x24, 100);
         (tasks, int slot) = tasks.Append(0x612190);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its original first target.");
         NativeBattleModulePoolTask director = tasks.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex).WriteWord(34, header.ReadByte(0));
         tasks = tasks.WriteSlot(slot, director);

@@ -23,7 +23,7 @@ public static class NativeBattleFiragaController
         {
             throw new InvalidDataException("Native Firaga requires its original61BFE0 entry and actual50AFC0 action parameters.");
         }
-        NativeBattleActionHeaderSlot first = packets.Headers[effect.Parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot first = packets.ReadHeader(effect.Parameters.Header);
         if (first.ReadByte(17) >= 3)
         {
             throw new NotSupportedException("Native Firaga's explicit position/alive cache owns at most three physical headers.");
@@ -230,7 +230,7 @@ public static class NativeBattleFiragaController
         }
 
         NativeBattleFiragaState Cache() => frame.Effect.Firaga ?? throw new NotSupportedException("Native Firaga requires its retained position/alive cache owner.");
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[checked(parameters.HeaderIndex7C + sequence)];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
     }
 
     private static NativeBattleModulePoolTask InitializeController(NativeBattleModulePoolTask task, int sequence, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)

@@ -156,12 +156,12 @@ public static partial class NativeBattleTonberry90Controller
                 case 1:
                     if (State().ReadWord(unchecked(Director() + 0x48)) == 1)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         if ((uint)header >= inputs.Packets.Headers.Length)
                         {
                             throw new NotSupportedException("Native Tonberry contact header leaves its current addressed owner.");
                         }
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Tonberry target contact pointer is unknown.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Tonberry target contact pointer is unknown.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         _ = inputs.Packets.ReadContact(contact);
                         Sync();
                         Accept(inputs.ApplyContact(frame, contact));
@@ -223,7 +223,7 @@ public static partial class NativeBattleTonberry90Controller
 
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
 
-    private sealed class ActorView(Func<int, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
+    private sealed class ActorView(Func<BattleModelOwner, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
     {
         public int Count => 7;
         public NativeBattleGraphicsModel this[int index] => (uint)index < Count ? read(index) : throw new ArgumentOutOfRangeException(nameof(index));

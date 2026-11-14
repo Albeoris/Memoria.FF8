@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         frame = new(memory, effect, random, memory.RequireDrinkMagic37());
         uint? spriteTemporary = null;
         NativeBattleDrinkMagic37Frame? anchorReadFrame = null;
-        Func<int, NativeBattleGraphicsModel> readModel = index => graphics.Models[index];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = index => graphics.ActorModels.Get(index);
         NativeBattleDrinkMagic37Inputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute) { PackedCamera = camera.CapturePackedView1D97778(), CameraPadding18 = camera.CanonicalViewPadding };
         frame = NativeBattleDrinkMagic37Controller.Advance(frame, resources, inputs);
         NativeEffectMemory = frame.Memory.WithDrinkMagic37(frame.State);
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector ReadBone12(byte actor, short distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return model.Transform?.Position28 ?? throw new NotSupportedException("Drink Magic disabled anchor requires its retained position.");
@@ -58,8 +58,8 @@ public sealed partial class BattleSession
                 return unchecked((short)(low | high << 8));
             }
         }
-        short ReadYaw(byte actor) => graphics.Models[actor].Rotation14 ?? throw new NotSupportedException("Drink Magic requires the actor's actual rotation WORD14.");
-        NativeBattleVector ReadPosition(byte actor) => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Drink Magic requires its actor position WORD28/30/32.");
+        short ReadYaw(byte actor) => graphics.ActorModels.Get(actor).Rotation14 ?? throw new NotSupportedException("Drink Magic requires the actor's actual rotation WORD14.");
+        NativeBattleVector ReadPosition(byte actor) => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Drink Magic requires its actor position WORD28/30/32.");
 
         NativeBattleDrinkMagic37Frame Execute(NativeBattleDrinkMagic37Frame current, NativeBattleDrinkMagic37Operation operation)
         {
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
                 case NativeBattleDrinkMagic37ParticleTask particle:
                     anchorReadFrame = current;
                     NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
-                    NativeBattleDrinkMagic37ParticleInputs particleInputs = new(current.Effect.Parameters!.Actor78, (pointer, group, target) => NativeBattleCureController.SelectActors(current.Effect.Parameters!, nativeActionPackets, pointer, group, target), ReadBone12, ReadYaw, task =>
+                    NativeBattleDrinkMagic37ParticleInputs particleInputs = new(current.Effect.Parameters!.Source, (pointer, group, target) => NativeBattleCureController.SelectActors(current.Effect.Parameters!, nativeActionPackets, pointer, group, target), ReadBone12, ReadYaw, task =>
                     {
                         NativeBattleModulePoolTask first = hierarchy.Read(task.ReadDword(0x14));
                         return task.WriteDword(0x1C, first.ReadDword(0x38)).WriteDword(0x20, first.ReadDword(0x3C));
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
                     transformed = NativeBattleGeometry.Transform(transformed, false);
                     return current with { Memory = current.Memory with { GeometryRegisters = transformed.Geometry, ScriptedColorRegisters = transformed.Colors } };
                 case NativeBattleDrinkMagic37Anchor anchor:
-                    NativeBattleGraphicsModel anchorModel = graphics.Models[anchor.Actor];
+                    NativeBattleGraphicsModel anchorModel = graphics.ActorModels.Get(anchor.Actor);
                     NativeBattleBoneAnchorProducer producer = (anchorModel.Flags0 & 2) == 0
                         ? new(null, 0, anchorModel.Transform?.Position28 ?? throw new NotSupportedException("Drink Magic disabled anchor requires its retained position."))
                         : NativeBattlePoseMatrices.ResolveBoneAnchor502170(anchorModel, PoseSource(anchor.Actor), 12, anchor.Distance);

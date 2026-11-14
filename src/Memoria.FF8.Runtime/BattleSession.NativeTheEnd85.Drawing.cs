@@ -124,7 +124,7 @@ public sealed partial class BattleSession
             NativeBattleShadowSource source = definition.Rules.ShadowSource ?? throw new NotSupportedException("Native The End shadows require their original matrix/vector seeds.");
             for (int actor = 3; actor < 7; actor++)
             {
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if ((model.Flags0 & 2) == 0)
                 {
                     continue;

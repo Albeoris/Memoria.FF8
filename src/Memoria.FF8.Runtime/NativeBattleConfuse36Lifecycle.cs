@@ -7,7 +7,7 @@ public sealed record NativeBattleConfuse36PresentationStep(NativeBattleConfuse36
 /// <summary>The Confuse owner over the shared original birth/update/draw lifecycle.</summary>
 public static class NativeBattleConfuse36Lifecycle
 {
-    public static NativeBattleConfuse36PresentationStep AdvanceAndDraw(NativeBattleConfuse36Frame frame, NativeBattleConfuse36Resources resources, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
+    public static NativeBattleConfuse36PresentationStep AdvanceAndDraw(NativeBattleConfuse36Frame frame, NativeBattleConfuse36Resources resources, uint contextTask, NativeCrtRandomState random, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);

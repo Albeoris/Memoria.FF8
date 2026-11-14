@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Zantetsuken body leaves its physical actor rows.");
         }
         int index = selected;
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Zantetsuken body requires its actual current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Zantetsuken body requires its retained camera.");
@@ -61,7 +61,7 @@ public sealed partial class BattleSession
         frame = AppendNativeZantetsukenPackets(ref graphics, frame, drawn.Batch);
         NativeBattleTemporaryAllocation boneTemporary = NativeBattleTemporaryMemory.Allocate5082B0(RequireNativeZantetsukenStaging(frame), 88);
         NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(actor, source, NativeBattleTemporaryMemory.ReadView(boneTemporary.Staging, boneTemporary.Address, 88));
-        graphics = graphics with { Models = graphics.Models.SetItem(index, restored.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, restored.Model) };
         frame = PublishNativeZantetsukenTemporary(frame, boneTemporary.Staging, boneTemporary.Address, restored.Temporary58, 88, true);
         return PublishNativeZantetsukenTemporary(frame, RequireNativeZantetsukenStaging(frame), temporaryAddress, drawn.Temporary1D8, 472, true);
     }

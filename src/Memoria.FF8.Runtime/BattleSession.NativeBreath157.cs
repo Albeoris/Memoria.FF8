@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Breath requires its actual process memory.");
         NativeBattleBreath157Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Breath requires its actual CRT stream."), memory.Breath157 ?? throw new NotSupportedException("Breath requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Breath requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Breath requires its interpolation constants.");
-        NativeBattleBreath157Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, actor) => graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Breath requires its actual retained model world matrix."), Bone, Anchor, Execute);
+        NativeBattleBreath157Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Breath requires its actual retained model world matrix."), Bone, Anchor, Execute);
         frame = initialize ? NativeBattleBreath157Controller.Initialize(frame, resources, inputs) : NativeBattleBreath157Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         NativeBattleBreath157PointStep Bone(NativeBattleBreath157Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Breath requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Breath bone query requires its actual temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleBreath157PointStep Anchor(NativeBattleBreath157Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Breath requires its current actor skeleton.");

@@ -51,12 +51,12 @@ public sealed partial class BattleSession
                 targets = NativeBattleEffectTaskPool.Initialize(0x25215B8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x504, 3);
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Stop lost its target pool.");
                 (pool, int slot) = pool.Append(0x6BF1B0);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x4F8);
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Stop requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 task = WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target));
@@ -112,7 +112,7 @@ public sealed partial class BattleSession
             }
             if (counter >= 0)
             {
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Stop requires its target physical scale WORD26.");
                 short angle = model.Rotation14 ?? throw new NotSupportedException("Native Stop requires its target physical facing WORD0E.");
                 int size = transform.Scale38 + 4096;
@@ -134,7 +134,7 @@ public sealed partial class BattleSession
             }
             if (counter == 53)
             {
-                int contact = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + WindWord(task, 14)].FirstContactIndex ?? throw new InvalidDataException("Native Stop requires its contact at clock break.");
+                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContactIndex ?? throw new InvalidDataException("Native Stop requires its contact at clock break.");
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
             if (counter >= 70)

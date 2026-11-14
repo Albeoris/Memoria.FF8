@@ -22,7 +22,7 @@ public static class NativeBattleCactuar199Controller
         }
         NativeBattleCactuar199State retained = memory.Cactuar199 ?? throw new NotSupportedException("Native Cactuar requires its retained raw model/control owner.");
         retained.Validate();
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[effect.Parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(effect.Parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar requires its first header's physical contacts.");
         int actor = inputs.Packets.ReadContact(first).Primary.ActorIndex;
         NativeBattleGraphicsModel target = inputs.ReadModel(actor);
@@ -669,7 +669,7 @@ public static class NativeBattleCactuar199Controller
             SetShared(Shared() with { LookupCounter = unchecked(counter + 1) });
             return value;
         }
-        NativeBattleActionHeaderSlot Header() => inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot Header() => inputs.Packets.ReadHeader(parameters.Header);
         NativeBattleCactuar199State Shared() => frame.Memory.Cactuar199 ?? throw new NotSupportedException("Native Cactuar retained state is missing.");
         void SetShared(NativeBattleCactuar199State state) => frame = frame with { Memory = frame.Memory with { Cactuar199 = state } };
         void SetRaw(NativeBattleCactuarRawModelState model) => SetShared(Shared() with { RawModel = model });

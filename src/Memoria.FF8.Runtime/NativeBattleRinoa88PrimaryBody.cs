@@ -9,7 +9,7 @@ public sealed record NativeBattleRinoa88BodyEmission(uint Body, uint Callback) :
 public sealed record NativeBattleRinoa88Pause(short Value) : NativeBattleRinoa88Operation;
 public sealed record NativeBattleRinoa88Deform(uint Body, short Argument) : NativeBattleRinoa88Operation;
 public sealed record NativeBattleRinoa88PublishWorld(ImmutableArray<byte> Matrix) : NativeBattleRinoa88Operation;
-public sealed record NativeBattleRinoa88PrimaryBodyInputs(NativeBattleEffectOwnedModelResource Resource, Func<NativeBattleRinoa88Frame, byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> Draw7719A0, Func<NativeBattleRinoa88Frame, NativeBattleRinoa88Operation, NativeBattleRinoa88Frame> Execute, NativeBattleRinoa88Inputs Controller);
+public sealed record NativeBattleRinoa88PrimaryBodyInputs(NativeBattleEffectOwnedModelResource Resource, Func<NativeBattleRinoa88Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> Draw7719A0, Func<NativeBattleRinoa88Frame, NativeBattleRinoa88Operation, NativeBattleRinoa88Frame> Execute, NativeBattleRinoa88Inputs Controller);
 
 /// <summary>771DB0's seventeen phases and original post-draw position/world publication order.</summary>
 public static class NativeBattleRinoa88PrimaryBody

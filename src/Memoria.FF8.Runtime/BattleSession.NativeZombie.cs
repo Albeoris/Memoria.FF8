@@ -56,7 +56,7 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521840, 0x20DFAB8, 0x710, 3)];
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(parameters.Header).ReadByte(17))
             {
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && Word(task, 12) <= 40))
                 {
@@ -64,7 +64,7 @@ public sealed partial class BattleSession
                 }
                 else if (pools[1].Slots.Any(task => (task.Flags & 1) == 0))
                 {
-                    int first = nativeActionPackets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Zombie requires its original first action target.");
+                    int first = nativeActionPackets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Zombie requires its original first action target.");
                     byte model = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                 {
                     Mark(actor, true);
                 }
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
                 task = task.WriteWord(20, unchecked((ushort)anchor.X)).WriteWord(22, unchecked((ushort)anchor.Y)).WriteWord(24, unchecked((ushort)anchor.Z)).WriteWord(26, unchecked((ushort)anchor.W));
                 short size = model.Transform?.Scale38 ?? throw new NotSupportedException("Native Zombie requires its current signed target size WORD.");
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
                 }
                 if (age == 54)
                 {
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C + task.ReadWord(14)];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header.Advance(task.ReadWord(14)));
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Zombie result requires its original target list.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     for (int index = 0; index < header.ReadContactCount(); index++)
@@ -159,8 +159,8 @@ public sealed partial class BattleSession
         {
             foreach (int index in NativeBattleModelRings.Walk(graphics.Models, actor))
             {
-                NativeBattleGraphicsModel model = graphics.Models[index];
-                graphics = graphics with { Models = graphics.Models.SetItem(index, model with { Flags0 = marked ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = marked ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };
             }
         }
         void Append(NativeBattleGfGeometryBatch packets)

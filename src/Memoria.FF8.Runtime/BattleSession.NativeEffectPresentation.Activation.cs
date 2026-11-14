@@ -22,8 +22,8 @@ public sealed partial class BattleSession
                 PumpNativeFileIo482590();
                 PollNativeModelResource507070(ref graphics);
             }
-            NativeBattleGraphicsModel loaded = graphics.Models[model.Index];
-            graphics = graphics with { Models = graphics.Models.SetItem(model.Index, loaded with { Alpha7 = 0 }) };
+            NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(model.Index);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Index, loaded with { Alpha7 = 0 }) };
         }
         NativeBattleEffectMemory memory = NativeEffectMemory!;
         NativeEffectMemory = DrainNativeTextureUploads(memory, memory.Textures!);
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
     {
         foreach (int index in presentationActivationSequences)
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Hosted appearance requires its original color interpolation.");
             NativeBattleStageColors stage = NativeStage?.ModelColors ?? throw new NotSupportedException("Hosted appearance requires its loaded stage colors.");
@@ -61,10 +61,10 @@ public sealed partial class BattleSession
             NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
             {
                 OriginalResource = resource,
-                ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { Models = graphics.Models.SetItem(index, current) }, index, variable),
+                ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = graphics.ActorModels.Set(index, current) }, index, variable),
                 WriteExternal = WriteNativeGraphicsSequenceVariable,
                 PlaySound = (current, cue) => PublishNativeSequenceSound(graphics, current, presentationNativeTargets![index].ActorId, cue),
-                ApplyActionContacts = current => ApplyNativeActiveHeaderContacts(graphics with { Models = graphics.Models.SetItem(index, current) }).Models[index]
+                ApplyActionContacts = current => ApplyNativeActiveHeaderContacts(graphics with { ActorModels = graphics.ActorModels.Set(index, current) }).Models[index]
             });
             if (step.Cues.FirstOrDefault(cue => cue.Kind is not (NativeBattleSequenceCueKind.ActorSound or NativeBattleSequenceCueKind.SystemSound or NativeBattleSequenceCueKind.RestoreStanding)) is { } unsupported)
             {
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
             {
                 posed = posed with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(posed, pose) };
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(index, posed) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, posed) };
         }
         return graphics;
     }

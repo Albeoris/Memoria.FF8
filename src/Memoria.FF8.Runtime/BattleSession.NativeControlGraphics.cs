@@ -9,7 +9,7 @@ public sealed partial class BattleSession
             BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
             NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, context.TargetActors, cover);
             BattleModelTargets selected = new(context.TargetActors.Bits | cover.Bits);
-            return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.Models[row], 0x140));
+            return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(row), 0x140));
         }
         ushort mask = (ushort)(context.TargetMask | context.CoverMask);
         return graphics.Models.Any(model => (mask & 1 << model.Index) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x140));
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         //50BD00 has no contacts: only sequence10 waits for the actor after selection.
         if (phase == 0)
         {
-            if (NativeBattleActionGraphics.IsModelBusy(graphics.Models[context.ActorIndex], 0x40))
+            if (NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.ActorIndex), 0x40))
             {
                 return (graphics, phase, false);
             }
@@ -45,9 +45,9 @@ public sealed partial class BattleSession
         }
         if (phase == 1)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
             actor = actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50BD00 requires its actor DWORD8.")) & ~0x800000u };
-            graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor) };
             byte sequence = nativeActionPackets.Headers[context.HeaderIndex].ReadByte(2);
             graphics = SelectNativeHeaderSequence(graphics, context.ActorIndex, sequence);
             if (sequence != 10)
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
         }
         if (phase == 2)
         {
-            return (graphics, phase, !NativeBattleActionGraphics.IsModelBusy(graphics.Models[context.ActorIndex], 0x40));
+            return (graphics, phase, !NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.ActorIndex), 0x40));
         }
         throw new InvalidDataException("Native50BD00 reached an invalid descriptor phase.");
     }

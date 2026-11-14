@@ -20,14 +20,14 @@ public sealed partial class BattleSession
             NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Tonberry requires its current camera owner.");
             NativeBattleTonberry90DirectorServices directorServices = new(nativeActionPackets, StartVibration, StopVibration, InitializeCreature);
             NativeBattleTonberry90ProgrammeServices programmeServices = new(ReadAddress, PublishCamera, PlaySound);
-            NativeBattleTonberry90Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute) { ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
+            NativeBattleTonberry90Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute) { ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
             frame = NativeBattleTonberry90Controller.Advance7624D0(frame, inputs);
 
             NativeBattlePoseSource ReadPoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Tonberry requires its selected current actor pose source.");
 
             NativeBattleTonberry90Frame InitializeTarget(NativeBattleTonberry90Frame current, uint address)
             {
-                current = NativeBattleTonberry90Director.Initialize762BB0(current, address, actor => graphics.Models[actor], ReadPoseSource, actor => ReadNativeGraphicsForeignTarget(graphics, actor));
+                current = NativeBattleTonberry90Director.Initialize762BB0(current, address, actor => graphics.ActorModels.Get(actor), ReadPoseSource, actor => ReadNativeGraphicsForeignTarget(graphics, actor));
                 return NativeBattleTonberry90Io.Initialize762760(current, resources.ReadStatic(NativeBattleTonberry90Io.ScriptAddress, 0x40).ToArray().ToImmutableArray());
             }
 

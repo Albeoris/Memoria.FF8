@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect314 requires its current process memory.");
         NativeBattleEffect314Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect314 requires its current CRT stream."), memory.Effect314 ?? throw new NotSupportedException("Effect314 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect314 requires its current addressed memory."), CapturePresentation = true };
         Dictionary<uint, long> presentationResources = [];
-        NativeBattleEffect314Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.Models[NativeEffect314Actor(graphics, address)], _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute) { ReadGeometrySource = GeometrySource, ReadBoneMatrix = (current, address, bone) => ReadNativeEffect314BoneMatrix(graphics, current, address, bone), WriteBoneMatrix = (current, address, bone, packed) => WriteNativeEffect314BoneMatrix(ref graphics, current, address, bone, packed), WriteGeometry = (current, address, offset, bytes) => WriteNativeEffect314Geometry(graphics, current, address, offset, bytes), PresentationResourceGeneration = pointer => presentationResources.TryGetValue(pointer, out long generation) ? generation : null, ReadBoneCount = (_, pointer) => Pose(NativeEffect314Actor(graphics, pointer)).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
+        NativeBattleEffect314Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.ActorModels.Get(NativeEffect314Actor(graphics, address)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute) { ReadGeometrySource = GeometrySource, ReadBoneMatrix = (current, address, bone) => ReadNativeEffect314BoneMatrix(graphics, current, address, bone), WriteBoneMatrix = (current, address, bone, packed) => WriteNativeEffect314BoneMatrix(ref graphics, current, address, bone, packed), WriteGeometry = (current, address, offset, bytes) => WriteNativeEffect314Geometry(graphics, current, address, offset, bytes), PresentationResourceGeneration = pointer => presentationResources.TryGetValue(pointer, out long generation) ? generation : null, ReadBoneCount = (_, pointer) => Pose(NativeEffect314Actor(graphics, pointer)).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
         frame = initialize ? NativeBattleEffect314Controller.Initialize(frame, resources, inputs) : NativeBattleEffect314Controller.Advance(frame, resources, inputs);
         PublishNativeEffect314Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         uint BoneAddress(NativeBattleEffect314Frame current, uint address, int bone)
         {
             int actor = NativeEffect314Actor(graphics, address);
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], Pose(actor));
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), Pose(actor));
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Effect314 bone index leaves its current skeleton.");
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
         {
             int actor = NativeEffect314Actor(graphics, pointer);
             NativeBattlePoseSource pose = Pose(actor);
-            NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Effect314 requires its current decoded pose."), pose);
+            NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Effect314 requires its current decoded pose."), pose);
             ImmutableArray<NativeBattlePackedMatrix32>.Builder bones = ImmutableArray.CreateBuilder<NativeBattlePackedMatrix32>(pose.BoneCount);
             for (int bone = 0; bone < pose.BoneCount; bone++)
             {
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
                     throw new InvalidDataException("Effect314 model store crosses its physical row.");
                 }
                 (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (offset >= 0x28 && offset + length <= 0x2C || offset >= 0x2C && offset + length <= 0x30)
                 {
                     bool firstColor = offset < 0x2C;
@@ -106,12 +106,12 @@ public sealed partial class BattleSession
                 {
                     model = ApplyNativeEffect301ModelBytes(model, offset, data, length);
                 }
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                 return current;
             }
             for (int actor = 0; actor < graphics.Models.Length; actor++)
             {
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (model.CurrentBodyBoneMatrices is not { } bones || model.ActiveResourceRow100 is null)
                 {
                     continue;
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                 {
                     (byte[] bytes, bool[] known) = data.ReadSnapshot(0, 32);
                     NativeBattleActionMatrix matrix = new NativeBattlePackedMatrix32(bytes.ToImmutableArray(), known.ToImmutableArray()).ReadMatrix();
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { CurrentBodyBoneMatrices = bones with { Matrices = bones.Matrices.SetItem(checked((int)(relative / 48)), matrix) } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { CurrentBodyBoneMatrices = bones with { Matrices = bones.Matrices.SetItem(checked((int)(relative / 48)), matrix) } }) };
                     return current;
                 }
             }
@@ -149,14 +149,14 @@ public sealed partial class BattleSession
                     return WriteArena(current, checked(write.ModelAddress + (uint)write.Offset), write.Data, write.Length);
                 case NativeBattleEffect314ModelFlags flags:
                     int physical = NativeEffect314Actor(graphics, flags.ModelAddress);
-                    NativeBattleGraphicsModel selected = graphics.Models[physical];
+                    NativeBattleGraphicsModel selected = graphics.ActorModels.Get(physical);
                     ushort updated = flags.Width switch
                     {
                         1 => unchecked((ushort)((selected.Flags0 & 0xFF00) | (byte)(((byte)selected.Flags0 & (byte)flags.AndMask) | (byte)flags.OrMask))),
                         2 => unchecked((ushort)((selected.Flags0 & flags.AndMask) | flags.OrMask)),
                         _ => throw new InvalidDataException("Effect314 requires its actual model flags store width.")
                     };
-                    graphics = graphics with { Models = graphics.Models.SetItem(physical, selected with { Flags0 = updated }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(physical, selected with { Flags0 = updated }) };
                     return current;
                 case NativeBattleEffect314WriteArena write:
                     return WriteArena(current, write.Address, write.Data, write.Length);
@@ -170,14 +170,14 @@ public sealed partial class BattleSession
                     return current with { Memory = current.Memory with { PrimitiveProcess = process with { ByteCursor = offset } }, State = current.State.WriteDword(CursorGlobal, cursors.PrivateCursor) };
                 case NativeBattleEffect314Prepare5095B0 prepare:
                     int preparedActor = NativeEffect314Actor(graphics, prepare.ModelAddress);
-                    NativeBattleGraphicsModel preparedModel = graphics.Models[preparedActor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(preparedActor, NativeBattleBodyBoneMatrices.Compose5095B0(preparedModel, preparedModel.GeometryWorldMatrix ?? throw new NotSupportedException("Effect314 requires its current model world matrix."))) };
+                    NativeBattleGraphicsModel preparedModel = graphics.ActorModels.Get(preparedActor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(preparedActor, NativeBattleBodyBoneMatrices.Compose5095B0(preparedModel, preparedModel.GeometryWorldMatrix ?? throw new NotSupportedException("Effect314 requires its current model world matrix."))) };
                     return current;
                 case NativeBattleEffect314Restore508C90 restore:
                     int restoredActor = NativeEffect314Actor(graphics, restore.ModelAddress);
                     NativeBattleEffect314AddressStep allocation = Allocate(current, 88);
-                    NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[restoredActor], Pose(restoredActor), ReadArena(allocation.Frame, allocation.Address, 88));
-                    graphics = graphics with { Models = graphics.Models.SetItem(restoredActor, restored.Model) };
+                    NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), Pose(restoredActor), ReadArena(allocation.Frame, allocation.Address, 88));
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(restoredActor, restored.Model) };
                     return Release(WriteNativeEffect314Arena(allocation.Frame, allocation.Address, restored.Temporary58, 88), 88);
                 case NativeBattleEffect314ClearGeometryMarkers6E5D20 clear:
                     NativeBattleEffect314AddressStep markerAllocation = Allocate(current, 8);
@@ -188,7 +188,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect314Shadow5088A0 shadow:
                     int shadowActor = NativeEffect314Actor(graphics, shadow.ModelAddress);
                     var shadowSource = definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect314 requires its original shadow template.");
-                    NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current arithmetic registers.")), graphics.Models[shadowActor], Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 shadow requires its current depth controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect314 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count), current.PilotIdentity is { } owner ? owner with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(shadowSource), Primitive = unchecked(owner.Primitive * 397 + 0x5088) } : null);
+                    NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current arithmetic registers.")), graphics.ActorModels.Get(shadowActor), Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 shadow requires its current depth controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect314 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count), current.PilotIdentity is { } owner ? owner with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(shadowSource), Primitive = unchecked(owner.Primitive * 397 + 0x5088) } : null);
                     current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(drawn.Staging, drawn.TemporaryAddress, drawn.Temporary78, 0x78) };
                     current = DeliverNativeEffect314Batch(ref graphics, current, drawn.Batch, 0x1D8E054);
                     return Release(current, 0x78);
@@ -231,13 +231,13 @@ public sealed partial class BattleSession
                     NativeBattlePoseSource poseSource = Pose(poseActor);
                     NativeBattleEffectArena offsets = ReadArena(current, pose.BoneOffsetsAddress, checked(poseSource.BoneCount * 16));
                     NativeBattleEffect314AddressStep poseAllocation = Allocate(current, 96);
-                    NativeBattleEffect298PosePreparation posePrepared = NativeBattleEffect298Pose.Prepare662C00(graphics.Models[poseActor], poseSource, offsets, ReadArena(poseAllocation.Frame, poseAllocation.Address, 96));
-                    graphics = graphics with { Models = graphics.Models.SetItem(poseActor, posePrepared.Model) };
+                    NativeBattleEffect298PosePreparation posePrepared = NativeBattleEffect298Pose.Prepare662C00(graphics.ActorModels.Get(poseActor), poseSource, offsets, ReadArena(poseAllocation.Frame, poseAllocation.Address, 96));
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(poseActor, posePrepared.Model) };
                     return Release(WriteArena(poseAllocation.Frame, poseAllocation.Address, posePrepared.Temporary96, 96), 96);
                 case NativeBattleEffect314BonePoint502170 bone:
                     int boneActor = NativeEffect314Actor(graphics, bone.ModelAddress);
                     NativeFileStaging = current.Staging;
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[boneActor], Pose(boneActor), checked((byte)bone.Bone), checked((short)bone.Angle));
+                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(boneActor), Pose(boneActor), checked((byte)bone.Bone), checked((short)bone.Angle));
                     NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
                     current = current with { Memory = observed, Staging = NativeFileStaging };
                     NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;

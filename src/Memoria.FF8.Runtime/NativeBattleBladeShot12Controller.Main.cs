@@ -36,7 +36,7 @@ public static partial class NativeBattleBladeShot12Controller
             {
                 NativeBattleBladeShot12PointStep point = inputs.ReadBone502170(frame, frame.State.ReadDword(0x25460F8), 0xF1, 0);
                 frame = WriteBytes(point.Frame, address + 0x4C, point.Point8, 6);
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Blade Shot requires its captured first physical contact pointer.");
                 frame = inputs.Execute(frame, new NativeBattleBladeShot12Contact506690(first));
             }

@@ -109,6 +109,6 @@ public static partial class NativeBattleEffect323Controller
     private static NativeBattleActionHeaderSlot CurrentHeader(NativeBattleEffect323Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect323 requires its current action header.");
-        return packets.Headers[parameters.HeaderIndex7C];
+        return packets.ReadHeader(parameters.Header);
     }
 }

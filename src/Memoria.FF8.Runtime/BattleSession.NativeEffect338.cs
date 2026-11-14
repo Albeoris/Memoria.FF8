@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect338 requires its current process memory.");
         NativeBattleEffect338Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect338 requires its current CRT random owner."), memory.Effect338 ?? throw new NotSupportedException("Effect338 requires its retained executable storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect338 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect338 requires its actual arithmetic constants.");
-        NativeBattleEffect338Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Execute, StartVibration, PollIo, (_, pointer) => PoseSource(pointer).BoneCount) { CapturePresentation = true };
+        NativeBattleEffect338Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), _ => nativeActionPackets, Execute, StartVibration, PollIo, (_, pointer) => PoseSource(pointer).BoneCount) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect338Controller.Initialize(frame, resources, inputs) : NativeBattleEffect338Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect338Frame ReadBone(NativeBattleEffect338Frame current, NativeBattleEffect338ReadBone502170 read)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(read.ModelAddress)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(read.ModelAddress));
             NativeBattleVector point;
             if ((model.Flags0 & 2) == 0)
             {
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
         NativeBattleEffect338Frame Bounds(NativeBattleEffect338Frame current, NativeBattleEffect338CaptureBounds6DFD90 capture)
         {
             int actor = Actor(capture.ModelAddress);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = PoseSource(capture.ModelAddress);
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect338 bounds require their current recipient world matrix."));
             (current, uint temporary) = Allocate(current, 24);
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             (current, uint restore) = Allocate(current, 88);
             NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(model, source, Context(current, restore, 88));
             current = Release(PublishContext(current, restore, restored.Temporary58, 88), 88);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, restored.Model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) };
             NativeBattleEffectArena limits = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(captured.Maximum)).Write(2, BitConverter.GetBytes(captured.Minimum));
             return WriteBytes(current, capture.Destination, limits, 4);
         }

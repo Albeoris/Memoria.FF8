@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleSiren95ContactServices(NativeBattleActionPacketsState Packets, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, byte, int, NativeBattleSiren95Frame> SelectSequence);
+public sealed record NativeBattleSiren95ContactServices(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, byte, int, NativeBattleSiren95Frame> SelectSequence);
 
 public static class NativeBattleSiren95Contacts
 {

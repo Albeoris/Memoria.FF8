@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa88BodyInputs(NativeBattleEffectOwnedModelResource Resource, Func<NativeBattleRinoa88Frame, byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> Draw7719A0);
+public sealed record NativeBattleRinoa88BodyInputs(NativeBattleEffectOwnedModelResource Resource, Func<NativeBattleRinoa88Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> Draw7719A0);
 
 /// <summary>7718D0's twelve phases over its own simultaneous352-byte model task.</summary>
 public static class NativeBattleRinoa88SecondaryBody

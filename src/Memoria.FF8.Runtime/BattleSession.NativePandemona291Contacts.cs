@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectArena arena = frame.Memory.Arena!;
         int start = NativeBattleWaterExecutionFields.ArenaOffset(address, 0x1030);
-        int count = nativeActionPackets.Headers[frame.Effect.Parameters!.HeaderIndex7C].ReadByte(0x10);
+        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadByte(0x10);
         bool paused = (frame.Memory.Pandemona291!.Pause2556258 ?? throw new NotSupportedException("Native Pandemona contacts require their actual pause DWORD.")) != 0;
         if (age == 440)
         {
@@ -17,10 +17,10 @@ public sealed partial class BattleSession
             {
                 int row = start + 0x14 + index * 32;
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona contacts require their current actor position.");
                 Store(row + 0x18, Word(row + 0x18) + 2048);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = new(Word(row + 0xC), unchecked((short)(transform.Position28.Y - Word(row + 4))), Word(row + 0x10)) } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = new(Word(row + 0xC), unchecked((short)(transform.Position28.Y - Word(row + 4))), Word(row + 0x10)) } }) };
             }
         }
         if (!paused && age is >= 440 and < 480)
@@ -36,31 +36,31 @@ public sealed partial class BattleSession
                     continue;
                 }
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona contacts require their current actor position.");
                 Store(row + 0x16, Word(row + 0x16) + ((index & 1) != 0 ? 256 : -256));
                 short y = unchecked((short)(transform.Position28.Y + 1024));
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = y } } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = y } } }) };
                 frame = frame with { Memory = frame.Memory with { Arena = arena } };
                 if (y >= -Word(row + 4))
                 {
                     frame = SpawnNativePandemona291Attached(frame, address, index, true);
                     arena = frame.Memory.Arena!;
-                    model = graphics.Models[actor];
+                    model = graphics.ActorModels.Get(actor);
                     transform = model.Transform!;
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = unchecked((short)-Word(row + 4)) } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = unchecked((short)-Word(row + 4)) } } }) };
                     Store(row + 0x18, model.Rotation16 ?? throw new NotSupportedException("Native Pandemona impact requires its current Z rotation."));
                     Store(row + 0x16, (model.Rotation14 ?? throw new NotSupportedException("Native Pandemona impact requires its current Y rotation.")) + 2048);
-                    ImmutableArray<NativeBattleContactPacket> contacts = nativeActionPackets.ReadHeaderContacts506BA0(frame.Effect.Parameters!.HeaderIndex7C).Where(contact => contact.Primary.ActorIndex == actor).ToImmutableArray();
+                    ImmutableArray<NativeBattleContactPacket> contacts = nativeActionPackets.ReadHeaderContacts506BA0(frame.Effect.Parameters!.Header).Where(contact => contact.Primary.ActorIndex == actor).ToImmutableArray();
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = contacts }) with { PendingContacts = pending };
                     bool ring = arena.Read(row + 0x1E, 1)[0] != 0;
                     foreach (int selected in ring ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor })
                     {
-                        NativeBattleGraphicsModel target = graphics.Models[selected];
+                        NativeBattleGraphicsModel target = graphics.ActorModels.Get(selected);
                         if (!ring || (target.Flags0 & 2) != 0)
                         {
-                            graphics = graphics with { Models = graphics.Models.SetItem(selected, target with { Flags0 = (ushort)(target.Flags0 & ~4) }) };
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(selected, target with { Flags0 = (ushort)(target.Flags0 & ~4) }) };
                         }
                     }
                     arena = arena.Write(row + 0x1C, [1]);
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
             {
                 int row = start + 0x14 + index * 32;
                 int actor = Actor(row);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (arena.Read(row + 0x1C, 1)[0] == 0 || NativeGraphicsActorAtStandingPose(graphics, actor) || (model.Flags0 & 2) == 0)
                 {
                     continue;
@@ -96,11 +96,11 @@ public sealed partial class BattleSession
                 arena = frame.Memory.Arena!;
                 Store(row + 4, captured.Bounds.Maximum);
                 Store(row + 6, captured.Bounds.Minimum);
-                model = graphics.Models[actor];
+                model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform!;
                 short y = unchecked((short)-captured.Bounds.Maximum);
                 NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Pandemona target capture requires its current world matrix.");
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = y } }, GeometryWorldMatrix = world with { Y = y } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = y } }, GeometryWorldMatrix = world with { Y = y } }) };
                 frame = frame with { Memory = frame.Memory with { Arena = arena } };
             }
         }

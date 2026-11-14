@@ -4,10 +4,10 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicActorPlacement(NativeBattleWaterExecutionFrame frame, bool radial, NativeBattleGraphicsState graphics)
     {
-        NativeBattleGraphicsModel Read(uint address) => graphics.Models[Index(address)];
+        NativeBattleGraphicsModel Read(uint address) => graphics.ActorModels.Get(Index(address));
         void Write(uint address, NativeBattleGraphicsModel actor)
         {
-            graphics = graphics with { Models = graphics.Models.SetItem(Index(address), actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(Index(address), actor) };
         }
         NativeBattleWaterExecutionFrame result = radial ? NativeBattleCinematicActorPlacement.DrawRadial64(frame, Read, Write) : NativeBattleCinematicActorPlacement.DrawScaled65(frame, Read, Write);
         return (result, graphics);

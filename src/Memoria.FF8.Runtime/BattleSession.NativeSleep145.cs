@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         (root, _) = root.Append(0x61AA80);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x24AAAC0, 0x24AAAD0, 36, 100);
         (children, int slot) = children.Append(0x6186A0);
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its first action contact.");
         children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.ActorIndex));
         return graphics with { OriginalEffect = effect with { Pools = [root, children], ReturnedDescriptor = 0x24AA828, DrawArenaOffset = null } };
@@ -112,11 +112,11 @@ public sealed partial class BattleSession
             {
                 NativeBattleVector point = ReadNativeDefaultPosition571400(graphics, target);
                 NativeBattleVector top = ReadNativeGraphicsBone(graphics, target, 0xF0, 0);
-                task = SleepStore(task, 16, point with { Y = graphics.Models[target].Transform!.Angle36 }).WriteWord(22, unchecked((ushort)top.Y));
+                task = SleepStore(task, 16, point with { Y = graphics.ActorModels.Get(target).Transform!.Angle36 }).WriteWord(22, unchecked((ushort)top.Y));
             }
             if (counter == 1)
             {
-                int spread = unchecked(graphics.Models[target].Transform!.Scale38 * 5000) >> 12;
+                int spread = unchecked(graphics.ActorModels.Get(target).Transform!.Scale38 * 5000) >> 12;
                 spread = Math.Min(spread, 1400);
                 NativeBattleModulePoolTask visual = New(0x619100, out int slot);
                 NativeBattleVector point = SleepVector(task, 16) with { Y = unchecked((short)(SleepWord(task, 18) - 200)) };
@@ -153,15 +153,15 @@ public sealed partial class BattleSession
                     SleepPutWord(zzz, offset + 10, (short)((Roll() % 4) << 8));
                 }
             }
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + action];
+            NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
             if (counter == 30)
             {
                 int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its selected action contact.");
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
-            if (counter == 45 && action + 1 <= nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C].ReadByte(17))
+            if (counter == 45 && action + 1 <= nativeActionPackets.ReadHeader(effect.Parameters.Header).ReadByte(17))
             {
-                NativeBattleActionHeaderSlot nextHeader = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action + 1];
+                NativeBattleActionHeaderSlot nextHeader = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(checked(action + 1)));
                 int contact = nextHeader.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its next action contact.");
                 NativeBattleModulePoolTask next = New(0x6186A0, out int slot);
                 Put(slot, next.WriteWord(12, 0).WriteWord(14, (ushort)(action + 1)).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.ActorIndex));
@@ -189,12 +189,12 @@ public sealed partial class BattleSession
             int flatFade = fade == 0 ? NativeBattleSleep145.GroundFade(origin.Y) : fade;
             DrawBubble(point, SleepWord(task, 24), 864, flatFade, true, true, 1);
             DrawTrails(mainTrails, trailOffset, counter, 864, true, flatFade);
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + action];
+            NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
             int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its selected target contact.");
             int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
             if (counter < 26)
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(target, graphics.Models[target] with { Flags0 = (ushort)(graphics.Models[target].Flags0 | 4) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Flags0 = (ushort)(graphics.ActorModels.Get(target).Flags0 | 4) }) };
                 graphics = DrawNativeSleep145Tint(graphics, target, drawn, fade, visualIdentity with { Primitive = 32 });
             }
             if (paused)
@@ -222,7 +222,7 @@ public sealed partial class BattleSession
             }
             if (action >= 0)
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(target, graphics.Models[target] with { Flags0 = (ushort)(graphics.Models[target].Flags0 & 0xFFFB) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Flags0 = (ushort)(graphics.ActorModels.Get(target).Flags0 & 0xFFFB) }) };
             }
             return 2;
         }

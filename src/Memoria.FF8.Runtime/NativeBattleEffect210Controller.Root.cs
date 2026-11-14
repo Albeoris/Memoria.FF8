@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect210Controller
             frame = ClearDwords701200(frame, main + 12, 0xED);
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect210 requires its current header.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int count = header.ReadContactCount();
             frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
             int[] minimum = [32767, 32767, 32767];

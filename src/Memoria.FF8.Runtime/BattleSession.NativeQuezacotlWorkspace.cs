@@ -470,7 +470,7 @@ public sealed partial class BattleSession
         if (phase == 345)
         {
             NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native6C5172 requires its actual50AFC0 header pointer.");
-            graphics = ApplyNativeHeaderContacts(graphics, parameters.HeaderIndex7C);
+            graphics = ApplyNativeHeaderContacts(graphics, parameters.Header);
         }
         NativeBattleQuezacotlWorkspaceWrite advancedPhase = NativeBattleQuezacotlWorkspace.AdvancePhase6C51F1(memory, effect);
         ApplyRig(new(advancedPhase.Memory, advancedPhase.Effect));

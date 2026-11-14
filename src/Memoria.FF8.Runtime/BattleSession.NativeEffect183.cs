@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect183 requires its current process memory.");
         NativeBattleEffect183Frame frame = new(memory, effect, memory.Effect183 ?? throw new NotSupportedException("Effect183 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect183 requires its temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect183 requires its color arithmetic.");
-        NativeBattleEffect183Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect183 requires its projection."), Bone, actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Effect183 requires its actor heading.")).Angle36, Anchor, Execute) { CapturePresentation = true };
+        NativeBattleEffect183Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect183 requires its projection."), Bone, actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Effect183 requires its actor heading.")).Angle36, Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect183Controller.Initialize(frame, resources, inputs) : NativeBattleEffect183Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         NativeBattleEffect183PointStep Bone(NativeBattleEffect183Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect183 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect183 bone query requires its actual temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -43,7 +43,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect183PointStep Anchor(NativeBattleEffect183Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect183 requires its current actor skeleton.");

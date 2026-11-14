@@ -20,9 +20,9 @@ public sealed partial class BattleSession
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect318MeshMask mask:
                 int actorIndex = NativeEffect318Actor(graphics, mask.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[actorIndex];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actorIndex);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect318 requires its current mesh-mask owner.");
-                graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };
                 return frame;
             case NativeBattleEffect318ScaleBone56BEF0 scale:
                 return ScaleNativeEffect318Bone(ref graphics, frame, scale.BoneRecordAddress, null, scale.XY, scale.Z);
@@ -69,10 +69,10 @@ public sealed partial class BattleSession
     {
         int caster = NativeEffect318Actor(graphics, frame.State.ReadDword(CasterGlobal));
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, caster).PoseSource ?? throw new NotSupportedException("Effect318 requires its current bone-cache source.");
-        _ = NativeBattleBodyBoneMatrices.Require(graphics.Models[caster], source);
+        _ = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(caster), source);
         NativeBattleResourcePointer skeleton = NativeEffect318SkeletonPointer(graphics, frame, caster);
         int bone = record is not null ? NativeBattleEffect319BoneCache.ResolveIndex(skeleton, source.BoneCount, record) : NativeBattleEffect319BoneCache.ResolveIndex(skeleton.Cpu?.TryPhysicalAddress() ?? skeleton.StagingAddress ?? throw new NotSupportedException("An old numeric bone cache requires its actual guest skeleton address."), source.BoneCount, recordAddress ?? throw new NotSupportedException("The bone cache record is unobserved."));
-        graphics = graphics with { Models = graphics.Models.SetItem(caster, NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(graphics.Models[caster], bone, xy, z)) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(graphics.ActorModels.Get(caster), bone, xy, z)) };
         return frame;
     }
 }

@@ -23,12 +23,12 @@ public static partial class NativeBattleNoMercy200Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        int first = packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Native6391D0 requires its actual first contact pointer.");
+        int first = packets.Headers[parameters.Header].FirstContactIndex ?? throw new NotSupportedException("Native6391D0 requires its actual first contact pointer.");
         byte recipient = packets.ReadContact(first).Primary.ActorIndex;
         staging = WriteDword(staging, 0x24FBD60, 0x20DFAB8);
         staging = WriteDword(staging, 0x24FBCC8, 0x1D99A78);
         staging = WriteDword(staging, 0x24F8D58, recipient);
-        staging = WriteDword(staging, 0x24FBCE0, parameters.Actor78);
+        staging = WriteDword(staging, 0x24FBCE0, parameters.Source);
         for (uint address = 0x24F8DB0; address < 0x24F9710; address += 24)
         {
             staging = WriteDword(staging, address, 0);
@@ -49,7 +49,7 @@ public static partial class NativeBattleNoMercy200Controller
         children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native6391D0 requires its actual texture owner.");
         (textures, _) = textures.EnqueueTim505E30(resources.InitialTim);
-        state = state with { GlobalsInitialized = true, Resources = resources, Parameters = parameters, CameraTask = null };
+        state = state with { GlobalsInitialized = true, Resources = resources, CameraTask = null };
         NativeBattleNoMercy200Frame frame = new(memory with { NoMercy200 = state, Textures = textures }, effect with { Pools = [root, children], ReturnedDescriptor = Root, DrawArenaOffset = 0 }, staging, random);
         short facing = unchecked((short)(alignment.Axis.Y < 0 ? -alignment.Angle : alignment.Angle));
         return new(frame, facing);

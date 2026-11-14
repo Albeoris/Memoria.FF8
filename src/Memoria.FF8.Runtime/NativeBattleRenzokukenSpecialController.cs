@@ -12,13 +12,13 @@ public static partial class NativeBattleRenzokukenSpecialController
         {
             throw new InvalidDataException("Native special Renzokuken requires its original binding, action parameters and embedded actor resource.");
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native special Renzokuken entry requires its physical first-contact pointer.");
         byte target = packets.ReadContact(contact).Primary.ActorIndex;
         bool initial = header.Action == 0xFFFE;
         ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState> states = memory.RenzokukenSpecials ?? ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty;
         NativeBattleRenzokukenSpecialState retained = states.GetValueOrDefault(profile.Effect) ?? new(NativeBattleRenzokuken160State.FromColdProcess(), resources);
-        NativeBattleRenzokukenSpecialState state = retained with { Core = retained.Core.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial), Resources = resources };
+        NativeBattleRenzokukenSpecialState state = retained with { Core = retained.Core.Enter(parameters.Source, parameters.Header, target, initial), Resources = resources };
         if (profile.Effect is 334 or 337 or 339 or 341 or 343 && state.ContactOffsets.IsEmpty)
         {
             state = state with { ContactOffsets = new NativeBattleVector[resources.ContactLeadFrames.Length].ToImmutableArray() };

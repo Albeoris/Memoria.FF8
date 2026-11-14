@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Acid170 requires its actual process memory.");
         NativeBattleAcid170Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Acid170 requires its actual CRT stream."), memory.Acid170 ?? throw new NotSupportedException("Acid170 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Acid170 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Acid170 requires its interpolation constants.");
-        NativeBattleAcid170Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Acid170 requires its current projection."), (_, actor) => graphics.Models[actor], Bone, Anchor, Execute);
+        NativeBattleAcid170Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Acid170 requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), Bone, Anchor, Execute);
         frame = initialize ? NativeBattleAcid170Controller.Initialize(frame, resources, inputs) : NativeBattleAcid170Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
 
         NativeBattleAcid170PointStep Anchor(NativeBattleAcid170Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Acid170 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleAcid170ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = unchecked((ushort)((graphics.Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = unchecked((ushort)((graphics.ActorModels.Get(flags.Actor).Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleAcid170DrawBody172 body:
                     Publish(current);

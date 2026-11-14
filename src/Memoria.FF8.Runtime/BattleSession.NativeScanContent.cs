@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native Scan enemy information requires its actual allocated enemy model.");
         }
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         int originalRow = model.OriginalResourceRow104 ?? throw new NotSupportedException("Native Scan enemy information requires its original resource-row identity.");
         if (model.ActiveStagedResourceRow100 is not null || model.ActiveResourceRow100 != originalRow)
         {

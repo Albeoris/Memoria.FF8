@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect320Controller
         uint texture = checked(CommonAddress + (uint)textureOffset);
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect320UploadTim505E30(texture));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Source)) };
         if (frame.State.MutableAnchorSourceBound is null)
         {
             throw new NotSupportedException("Effect320 unknown mutable source requires an explicit original-owner migration.");

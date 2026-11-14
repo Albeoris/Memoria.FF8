@@ -13,7 +13,7 @@ public sealed partial class BattleSession
     {
         roster.Validate();
         int source = inputs.Source.Index;
-        if (!IsBoundPresentationRow(roster, source) || inputs.Parameters.Actor78 != source || (inputs.SourceIsParty is bool side && roster[source].IsParty != side))
+        if (!IsBoundPresentationRow(roster, source) || inputs.Parameters.Source != source || (inputs.SourceIsParty is bool side && roster[source].IsParty != side))
         {
             throw new InvalidDataException("The hosted effect source disagrees with its presentation roster row.");
         }

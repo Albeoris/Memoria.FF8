@@ -52,7 +52,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect9NodeAnchor Anchor(NativeBattleEffect9Frame current, int actor)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], Source(actor), 0xF1, 0);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), Source(actor), 0xF1, 0);
             current = Observe(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -114,10 +114,10 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect9Controller.Read(current, target.Address), graphics.Models, Source, producer => current = Observe(current, producer));
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = Source(actor);
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState!, source));
+                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState!, source));
                     return NativeBattleEffect9Controller.Write(current, target.Address, task);
                 case NativeBattleEffect9InitializeControl control:
-                    NativeBattleGraphicsModel model = graphics.Models[NativeBattleEffect9Controller.Read(current, control.Address).ReadByte(0x2D)];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeBattleEffect9Controller.Read(current, control.Address).ReadByte(0x2D));
                     NativeBattleVector position = (model.Transform ?? throw new NotSupportedException("Effect9 requires its current target position.")).Position28;
                     uint xy = unchecked((ushort)position.X) | unchecked((uint)(ushort)position.Y << 16);
                     uint zw = unchecked((ushort)position.Z) | unchecked((uint)(ushort)model.Transform.Vertical34 << 16);
@@ -125,8 +125,8 @@ public sealed partial class BattleSession
                 case NativeBattleEffect9Contact contact:
                     NativeBattleModulePoolTask contactTask = NativeBattleEffect9Controller.Read(current, contact.Address);
                     NativeBattleEffectParameters parameters = current.Effect.Parameters!;
-                    int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)contactTask.ReadByte(0x2A)));
-                    int contactIndex = checked((nativeActionPackets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Effect9 contact requires its physical header pointer.")) + unchecked((sbyte)contactTask.ReadByte(0x2B)));
+                    BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)contactTask.ReadByte(0x2A)));
+                    int contactIndex = checked((nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Effect9 contact requires its physical header pointer.")) + unchecked((sbyte)contactTask.ReadByte(0x2B)));
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contactIndex)] });
@@ -147,9 +147,9 @@ public sealed partial class BattleSession
                 case NativeBattleEffect9CaptureBody capture:
                     NativeBattleModulePoolTask body = NativeBattleEffect9Controller.Read(current, capture.Address);
                     int targetActor = body.ReadByte(0x2D);
-                    NativeBattleGraphicsModel targetModel = graphics.Models[targetActor];
+                    NativeBattleGraphicsModel targetModel = graphics.ActorModels.Get(targetActor);
                     current = NativeBattleEffect9Controller.Write(current, capture.Address, body.WriteDword(0x74, targetModel.Flags0));
-                    graphics = graphics with { Models = graphics.Models.SetItem(targetActor, targetModel with { Flags0 = (ushort)(targetModel.Flags0 | 8) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(targetActor, targetModel with { Flags0 = (ushort)(targetModel.Flags0 | 8) }) };
                     NativeBattleEffect9NodeAnchor anchor = Anchor(current, targetActor);
                     byte[] vector = new byte[6];
                     BinaryPrimitives.WriteInt16LittleEndian(vector, anchor.Point.X);
@@ -158,13 +158,13 @@ public sealed partial class BattleSession
                     return anchor.Frame with { State = anchor.Frame.State.Write(0x27571B8, vector) };
                 case NativeBattleEffect9SetupBody setup:
                     int setupActor = NativeBattleEffect9Controller.Read(current, setup.Address).ReadByte(0x2D);
-                    NativeBattleGraphicsModel setupModel = graphics.Models[setupActor];
+                    NativeBattleGraphicsModel setupModel = graphics.ActorModels.Get(setupActor);
                     NativeBattleEffectLocalBounds bounds = setupModel.GeometryBounds52 ?? throw new NotSupportedException("Effect9 requires its actual model bounds.");
                     short currentY = (setupModel.Transform ?? throw new NotSupportedException("Effect9 requires its actual model position.")).Position28.Y;
                     return current with { State = NativeBattleEffect9Scene.InitializeBody(current.State, NativeBattleGraphicsModelAddress.Encode(setupActor), bounds.Minimum.Y, bounds.Maximum.Y, currentY) };
                 case NativeBattleEffect9RestoreBody restore:
-                    NativeBattleGraphicsModel restored = graphics.Models[restore.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(restore.Actor, restored with { Flags0 = (ushort)(restored.Flags0 ^ ((restored.Flags0 ^ restore.SavedFlags) & 8)) }) };
+                    NativeBattleGraphicsModel restored = graphics.ActorModels.Get(restore.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(restore.Actor, restored with { Flags0 = (ushort)(restored.Flags0 ^ ((restored.Flags0 ^ restore.SavedFlags) & 8)) }) };
                     return current;
                 case NativeBattleEffect9DrawBody draw:
                     return DrawBody(current, draw.Address);
@@ -179,8 +179,8 @@ public sealed partial class BattleSession
             int actor = bodyTask.ReadByte(0x2D);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect9 body requires its current rig.");
-            NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actor], source);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actor), source);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(9, bodyTask) with { ResourceGeneration = model.ModelId4 ?? throw new NotSupportedException("Effect9 body requires its selected resource identity.") };
             NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect9 body requires its retained world matrix.");
             world = world with { Y = unchecked(world.Y + (short)current.State.ReadWord(0x274F044)) };
@@ -199,7 +199,7 @@ public sealed partial class BattleSession
             NativeBattleEffect9BodyDraw body = NativeBattleEffect9Body.Draw(current, NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, mask), NativeBattleBodyBoneMatrices.Require(model, source), composed, Projection(), unchecked((short)current.State.ReadWord(0x274F048)), unchecked((short)current.State.ReadWord(0x274F04A)), unchecked((short)current.State.ReadWord(0x274F046)), mask, visualIdentity);
             current = Append(body.Frame, body.Batch, false);
             model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             return current;
         }
     }

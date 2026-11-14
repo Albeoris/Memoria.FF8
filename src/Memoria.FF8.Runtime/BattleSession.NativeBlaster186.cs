@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Blaster requires its actual process memory.");
         NativeBattleBlaster186Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Blaster requires its actual CRT stream."), memory.Blaster186 ?? throw new NotSupportedException("Blaster requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Blaster requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Blaster requires its interpolation constants.");
-        NativeBattleBlaster186Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Blaster requires its current projection."), (_, actor) => graphics.Models[actor], Bone, Anchor, Execute);
+        NativeBattleBlaster186Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Blaster requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), Bone, Anchor, Execute);
         frame = initialize ? NativeBattleBlaster186Controller.Initialize(frame, resources, inputs) : NativeBattleBlaster186Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         NativeBattleBlaster186PointStep Bone(NativeBattleBlaster186Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Blaster requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Blaster bone query requires its actual temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -75,9 +75,9 @@ public sealed partial class BattleSession
                     graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
                     return Import(current);
                 case NativeBattleBlaster186SetActorZWord position:
-                    NativeBattleGraphicsModel model = graphics.Models[position.Actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(position.Actor);
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Blaster requires its actual actor transform.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, model with { Transform = transform with { Position28 = transform.Position28 with { Z = position.Value } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, model with { Transform = transform with { Position28 = transform.Position28 with { Z = position.Value } } }) };
                     return current;
                 case NativeBattleBlaster186Stage5713E0 stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Blaster requires its retained stage groups.");

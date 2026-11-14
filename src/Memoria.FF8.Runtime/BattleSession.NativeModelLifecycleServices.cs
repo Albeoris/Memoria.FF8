@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             case NativeBattleSequenceCueKind.ActionCallback:
                 throw new InvalidDataException("Native AA must publish its active header contacts inline.");
             case NativeBattleSequenceCueKind.TriggerWindow:
-                graphics = PrepareNativeTriggerWidget(graphics with { Models = graphics.Models.SetItem(row, model) }, row, cue);
+                graphics = PrepareNativeTriggerWidget(graphics with { ActorModels = graphics.ActorModels.Set(row, model) }, row, cue);
                 services.Emit(new NativeBattleModelTriggerRegistered(row, actor.ActorId, graphics.TriggerWidget!));
                 break;
         }

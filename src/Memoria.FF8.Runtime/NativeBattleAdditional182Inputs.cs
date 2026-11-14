@@ -6,7 +6,7 @@ public sealed record NativeBattleAdditional182Frame(NativeBattleEffectMemory Mem
 }
 
 public sealed record NativeBattleAdditional182PointStep(NativeBattleAdditional182Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleAdditional182Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleAdditional182Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleAdditional182Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleAdditional182Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleAdditional182Frame, int, NativeBattleAdditional182PointStep> ReadAnchor571400, Func<NativeBattleAdditional182Frame, NativeBattleAdditional182Operation, NativeBattleAdditional182Frame> Execute)
+public sealed record NativeBattleAdditional182Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleAdditional182Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleAdditional182Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleAdditional182Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleAdditional182Frame, BattleModelOwner, NativeBattleAdditional182PointStep> ReadAnchor571400, Func<NativeBattleAdditional182Frame, NativeBattleAdditional182Operation, NativeBattleAdditional182Frame> Execute)
 {
     public bool CapturePresentation { get; init; }
 }

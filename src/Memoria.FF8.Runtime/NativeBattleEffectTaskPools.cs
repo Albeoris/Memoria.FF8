@@ -130,11 +130,11 @@ public sealed partial record NativeBattleModulePoolTask : INativeBattleStorageNo
     {
         if (frozen.Kernel is { } kernel)
         {
-            NativeBattleWorkingMemory restored = context.GetOrAddOwner(kernel, () => NativeBattleWorkingMemory.Restore(kernel));
-            NativeBattleWorkingMemory? descriptor = frozen.DescriptorKernel is { } descriptorKernel ? context.GetOrAddOwner(descriptorKernel, () => NativeBattleWorkingMemory.Restore(descriptorKernel)) : null;
+            NativeBattleWorkingMemory restored = context.GetOrAddOwner(kernel, () => context.RestoreWorkingMemory(kernel));
+            NativeBattleWorkingMemory? descriptor = frozen.DescriptorKernel is { } descriptorKernel ? context.GetOrAddOwner(descriptorKernel, () => context.RestoreWorkingMemory(descriptorKernel)) : null;
             return new(frozen, restored, descriptor);
         }
-        ImmutableArray<NativeBattleTaskSnapshotData> data = [.. frozen.Data.Select(task => task with { Pointers = context.Map(task.Pointers) })];
+        ImmutableArray<NativeBattleTaskSnapshotData> data = [.. frozen.Data.Select(task => task with { Pointers = context.Map(task.Pointers), ExecutionReferences = context.RetainExecutionReferences(task.ExecutionReferences) })];
         return new(frozen.Descriptor, frozen.Address, frozen.Stride, data, frozen.Head, frozen.Tail, frozen.IsPool, frozen.ArenaBindingReceipt);
     }
 }

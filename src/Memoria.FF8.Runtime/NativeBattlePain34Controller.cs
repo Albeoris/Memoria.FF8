@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePain34LeafStep(NativeBattlePain34Frame Frame, bool Complete);
-public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
+public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
@@ -35,7 +35,7 @@ public static class NativeBattlePain34Controller
         hierarchy = appended.Hierarchy;
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)root.ReadByte(42)), unchecked((sbyte)root.ReadByte(43)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         root = root.WriteByte(44, actors.Actor).WriteByte(45, actors.Target).WriteByte(41, 0).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(90) - 1));
         root = root.WriteByte(47, last < unchecked((short)root.ReadWord(88)) ? root.ReadByte(88) : last);
@@ -180,8 +180,8 @@ public static class NativeBattlePain34Controller
                 case 2:
                     if (unchecked((short)task.ReadWord(36)) >= 20)
                     {
-                        int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(42)));
-                        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
+                        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                         int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Native Pain requires its current contact pointer.")) + unchecked((sbyte)task.ReadByte(43)));
                         Sync();
                         Accept(inputs.Contact(frame, contact));
@@ -252,7 +252,7 @@ public static class NativeBattlePain34Controller
         }
         return checked((int)(address - 0x20DFAB8));
     }
-    private sealed class ActorView(Func<int, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
+    private sealed class ActorView(Func<BattleModelOwner, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
     {
         public int Count => 7;
         public NativeBattleGraphicsModel this[int index] => read(index);

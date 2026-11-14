@@ -17,8 +17,8 @@ public static partial class NativeBattleFireEffect
         {
             return NativeChildCapacity;
         }
-        int first = effect.Parameters?.HeaderIndex7C ?? throw new InvalidDataException("Hosted Fire requires its selected action header.");
-        int last = first + packets.Headers[first].ReadByte(17);
+        BattleActionHeaderReference first = effect.Parameters?.Header ?? throw new InvalidDataException("Hosted Fire requires its selected action header.");
+        int last = first + packets.ReadHeader(first).ReadByte(17);
         if (last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new InvalidDataException("Hosted Fire action groups leave the retained header bank.");
@@ -50,7 +50,7 @@ public static partial class NativeBattleFireEffect
             throw new ArgumentException("Native Fire pools require the actual6298A0 module entry.", nameof(effect));
         }
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Fire requires the50AFC0 parameter block.");
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         uint childBank = 0x24CA848;
         if (effect.PresentationRoster is not null)
         {

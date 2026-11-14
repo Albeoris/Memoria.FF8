@@ -15,7 +15,7 @@ public static partial class NativeBattleElectricDischarge126Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleElectricDischarge126State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleElectricDischarge126State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         for (int actor = 0; actor < 3; actor++)
         {
             state = state.WriteDword(SavedColorsGlobal + (uint)(actor * 4), inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Electric Discharge requires all three actual retained party colors."));
@@ -139,5 +139,5 @@ public static partial class NativeBattleElectricDischarge126Controller
         frame.State.Validate();
     }
 
-    private static NativeBattleActionHeaderSlot Header(NativeBattleElectricDischarge126Frame frame, NativeBattleElectricDischarge126Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleElectricDischarge126Frame frame, NativeBattleElectricDischarge126Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
 }

@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Typed Curaga entry points for the shared original emitter initialization and parent-follow kernels.</summary>
 public static partial class NativeBattleCuragaNodeKinematics
 {
-    public static NativeBattleCuragaFrame InitializeEmitter882990(NativeBattleCuragaFrame frame, uint contextTask, int node, Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleCuragaFrame InitializeEmitter882990(NativeBattleCuragaFrame frame, uint contextTask, int node, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);

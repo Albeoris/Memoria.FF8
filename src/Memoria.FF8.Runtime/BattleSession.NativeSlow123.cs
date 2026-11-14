@@ -51,12 +51,12 @@ public sealed partial class BattleSession
                 targets = NativeBattleEffectTaskPool.Initialize(0x2521490, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x764, 3);
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Slow lost its target pool.");
                 (pool, int slot) = pool.Append(0x6BD3E0);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x758);
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Slow requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target)), 28, ReadNativeGraphicsBone(graphics, target, 0xF0, 0));
@@ -109,14 +109,14 @@ public sealed partial class BattleSession
             {
                 PublishNativeModuleSound(resources.Sound, 1, new(anchor.X, anchor.Y, anchor.Z, 0));
             }
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             int scale = (model.Transform!.Scale38 >> 1) + 2048;
             NativeBattleActionMatrix world = NativeBattlePandemona291Restoration.Rotation701270(-model.Rotation14!.Value) with { X = anchor.X, Y = model.Transform.Angle36, Z = anchor.Z };
             int remaining = Play(ref task, 0x24, 0x1D8, resources.Clock, NativeBattleGfMatrices.Compose56C2F0(view, world), scale);
             world = world with { Y = WindWord(task, 30) - (scale >> 4) - (scale >> 2) };
             remaining |= Play(ref task, 0x1FC, 0x568, resources.Lower, NativeBattleGfMatrices.Compose56C2F0(view, world), scale);
             ushort flags = NativeBattleSlow123Geometry.BlinkFlags(model.Flags0, counter, remaining == 0);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = flags }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = flags }) };
             if (counter == 48)
             {
                 graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 1, 96) };
@@ -124,7 +124,7 @@ public sealed partial class BattleSession
             if (remaining == 0)
             {
                 int action = WindWord(task, 14);
-                int contact = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + action].FirstContactIndex ?? throw new InvalidDataException("Native Slow requires its completing contact.");
+                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContactIndex ?? throw new InvalidDataException("Native Slow requires its completing contact.");
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                 return 2;
             }

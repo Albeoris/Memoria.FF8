@@ -14,7 +14,7 @@ public static partial class NativeBattleLionHeart165Controller
                 }
                 break;
             case 0x5EA850:
-                NativeBattleVector actorBone = inputs.ReadBone(frame.Parameters.Actor78, 241, 0);
+                NativeBattleVector actorBone = inputs.ReadBone(frame.Parameters.Source, 241, 0);
                 frame = frame with { Staging = Point(frame.Staging, 0x23C6918, actorBone) };
                 int opening = Append(0x5EA8E0);
                 Set(opening, 16, actorBone.X);
@@ -36,7 +36,7 @@ public static partial class NativeBattleLionHeart165Controller
                 break;
             case 0x5ED440:
                 int weaponColumn = Append(0x5ED300);
-                NativeBattleVector weaponBone = inputs.ReadBone(frame.Parameters.Actor78, 240, 0);
+                NativeBattleVector weaponBone = inputs.ReadBone(frame.Parameters.Source, 240, 0);
                 Set(weaponColumn, 16, weaponBone.X);
                 Set(weaponColumn, 18, weaponBone.Y);
                 Set(weaponColumn, 20, weaponBone.Z);
@@ -140,7 +140,7 @@ public static partial class NativeBattleLionHeart165Controller
         }
         void CaptureTip()
         {
-            NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Actor78);
+            NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Source);
             NativeBattleVector point = new(unchecked((short)(tip.Position.X + ((380 * tip.DirectionX) >> 12))), unchecked((short)(tip.Position.Y + ((380 * tip.DirectionY) >> 12))), unchecked((short)(tip.Position.Z + ((380 * tip.DirectionZ) >> 12))));
             frame = frame with { Staging = Point(frame.Staging, 0x23C6930, point) };
         }

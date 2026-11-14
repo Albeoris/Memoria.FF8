@@ -21,12 +21,12 @@ public static partial class NativeBattleFatedCircle162Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5F90F0 requires its physical first-contact pointer.");
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23D0CE0) ?? throw new NotSupportedException("Native5F90F0 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23D0CE0, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
         staging = WriteDword(staging, 0x23CE608, packets.ReadContact(first).Primary.ActorIndex);
-        staging = WriteDword(staging, 0x23D0798, parameters.Actor78);
+        staging = WriteDword(staging, 0x23D0798, parameters.Source);
         staging = WriteDword(staging, 0x23D0D74, 170);
         staging = WriteDword(staging, 0x23D0D7C, 0);
         staging = WriteDword(staging, 0x23CE61C, 0);
@@ -49,7 +49,7 @@ public static partial class NativeBattleFatedCircle162Controller
         textures = textures.Register5099A0(resources.StaticData, 0x1688);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5F90F0 requires its actual initializer texture.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));
-        return new(memory with { FatedCircle162 = new(true, parameters, resources), Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = 0x23CE640, DrawArenaOffset = 0 }, staging, random);
+        return new(memory with { FatedCircle162 = new(true, resources), Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = 0x23CE640, DrawArenaOffset = 0 }, staging, random);
     }
 
     public static NativeBattleFatedCircle162Frame Advance5FD090(NativeBattleFatedCircle162Frame frame, Func<NativeBattleFatedCircle162Frame, NativeBattleEffectTaskPool, int, NativeBattleFatedCircle162ChildStep> advanceChild, Func<NativeBattleFatedCircle162Frame, uint, NativeBattleFatedCircle162Frame> beginTextureLoad)

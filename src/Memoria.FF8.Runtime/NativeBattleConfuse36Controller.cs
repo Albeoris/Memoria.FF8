@@ -15,7 +15,7 @@ public static class NativeBattleConfuse36Controller
         NativeBattleEffectHierarchy hierarchy = new(Enumerable.Range(0, 5).Select(index => NativeBattleEffectTaskPool.Initialize(profile.Descriptors[index], profile.Banks[index], new ushort[] { 100, 88, 676, 60, 64 }[index], new ushort[] { 2, 4, 3, 3, 10 }[index])).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.MainCallback, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native88CF70/883110 requires its header's actual contact pointer.");
         byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
         byte targets = header.ReadContactCount();
@@ -187,8 +187,8 @@ public static class NativeBattleConfuse36Controller
                 case 2:
                     if (unchecked((short)task.ReadWord(0x24)) >= 30)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native892E10/8883C0 requires its selected group's contact pointer.");
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native892E10/8883C0 requires its selected group's contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                         if (inputs.ApplyContact is { } applyContact)
                         {

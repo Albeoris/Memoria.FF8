@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect209 requires its current process memory.");
         NativeBattleEffect209Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect209 requires its CRT stream."), memory.Effect209 ?? throw new NotSupportedException("Effect209 requires its retained storage.")) { CapturePresentation = true, Staging = NativeFileStaging };
         NativeBattleEffect209Inputs? inputs = null;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect209 requires its arithmetic constants."), _ => graphics.Flags, current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect209 requires its current I/O result.")) < 0 ? -1 : NativeEffectIoResult.Value), _ => nativeActionPackets, (_, actor) => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect209 requires its current projection."), _ => Camera().Roll, _ => unchecked((short)(Camera().FocalLength ?? throw new NotSupportedException("Effect209 requires its scalar focal WORD."))), current => current.Memory.PrimitiveProcess?.Buffer80 ?? throw new NotSupportedException("Effect209 requires its current display side."), (_, address) => ReadColor(address), Anchor, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect209 requires its vibration process.")).IsPlaying(handle), (current, operation) => ExecuteNativeEffect209Operation(ref graphics, current, operation, resources, inputs!));
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect209 requires its arithmetic constants."), _ => graphics.Flags, current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect209 requires its current I/O result.")) < 0 ? -1 : NativeEffectIoResult.Value), _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect209 requires its current projection."), _ => Camera().Roll, _ => unchecked((short)(Camera().FocalLength ?? throw new NotSupportedException("Effect209 requires its scalar focal WORD."))), current => current.Memory.PrimitiveProcess?.Buffer80 ?? throw new NotSupportedException("Effect209 requires its current display side."), (_, address) => ReadColor(address), Anchor, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect209 requires its vibration process.")).IsPlaying(handle), (current, operation) => ExecuteNativeEffect209Operation(ref graphics, current, operation, resources, inputs!));
         frame = initialize ? NativeBattleEffect209Controller.Initialize(frame, resources, inputs) : NativeBattleEffect209Controller.Advance(frame, resources, inputs);
         PublishNativeEffect209Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -32,7 +32,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect209PointStep Point(NativeBattleEffect209Frame current, int actor, byte selector, short offset, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, retained);
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect209PointStep Anchor(NativeBattleEffect209Frame current, int actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect209 requires its current actor transform.");
             if ((model.Flags0 & 2) == 0)
             {

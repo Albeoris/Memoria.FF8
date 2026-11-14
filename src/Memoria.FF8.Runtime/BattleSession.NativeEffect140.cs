@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect140 requires its current process memory.");
         NativeBattleEffect140Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect140 requires its current CRT stream."), memory.Effect140 ?? throw new NotSupportedException("Effect140 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect140 requires its current addressed memory.") };
         NativeBattleEffect140Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect140 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect140 requires its current projection."), _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect140 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, Execute)
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect140 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect140 requires its current projection."), _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect140 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, Execute)
         {
             ReadCommonSize = _ => NativeBattleEffectArena.Length,
             CapturePresentation = true,
@@ -101,15 +101,15 @@ public sealed partial class BattleSession
                 case NativeBattleEffect140ContactAll506BA0:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.HeaderIndex7C) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect140ModelColor40 color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(color.Actor, graphics.Models[color.Actor] with { Color40 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(color.Actor, graphics.ActorModels.Get(color.Actor) with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleEffect140ModelFlags flags:
-                    NativeBattleGraphicsModel model = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & flags.AndMask) | flags.OrMask) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect140PublishCamera camera:
                     NativeCamera = Camera().WriteEffectGlobals(camera.Pose) with { EyePaddingF6 = camera.EyePadding, TargetPaddingFE = camera.TargetPadding };

@@ -36,11 +36,11 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Effect314 model read crosses a physical model row.");
             }
             (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         for (int actor = 0; actor < graphics.Models.Length; actor++)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (model.ActiveResourceRow100 is not int rowIndex || model.CurrentBodyBoneMatrices is not { } bones)
             {
                 continue;

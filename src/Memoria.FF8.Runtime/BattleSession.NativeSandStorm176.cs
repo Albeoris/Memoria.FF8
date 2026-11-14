@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeBattleSandStorm176Resources resources = effect.Binding.SandStorm176Resources ?? throw new NotSupportedException("Native Sand Storm requires its original resources.");
         NativeBattleSandStorm176Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Sand Storm requires its process memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Sand Storm requires its shared CRT stream."));
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Sand Storm requires its camera owner.");
-        NativeBattleSandStorm176Inputs inputs = new(nativeActionPackets, camera.Projection ?? throw new NotSupportedException("Native Sand Storm requires its published projection."), camera.Roll, (graphics.Flags & 0x201) != 0, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Sand Storm requires its selected original skeleton."), Execute) { CapturePresentation = true };
+        NativeBattleSandStorm176Inputs inputs = new(nativeActionPackets, camera.Projection ?? throw new NotSupportedException("Native Sand Storm requires its published projection."), camera.Roll, (graphics.Flags & 0x201) != 0, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Sand Storm requires its selected original skeleton."), Execute) { CapturePresentation = true };
         frame = NativeBattleSandStorm176Controller.Advance(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Sound, 0, null) { Pan = 128 });
                     return current;
                 case NativeBattleSandStorm176Actor actor:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor.Index, actor.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Index, actor.Model) };
                     return current;
                 case NativeBattleSandStorm176Contact contact:
                     NativeEffectMemory = current.Memory;

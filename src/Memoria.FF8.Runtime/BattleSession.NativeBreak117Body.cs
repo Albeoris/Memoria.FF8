@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, int index, int level, ImmutableArray<byte> dither, NativeBattlePilotVisualIdentity identity)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Break requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Break requires its retained view matrix.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4112, false);
@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Break requires its actual body skeleton.");
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native Break requires its actual body geometry.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Break requires its observed extra geometry presence.");
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                 Submit(linked[meshIndex], linkedMatrices, binding, 0x10000 + meshIndex);
             }
         }
-        graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source)) };
         return graphics;
 
         void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int visualMesh)

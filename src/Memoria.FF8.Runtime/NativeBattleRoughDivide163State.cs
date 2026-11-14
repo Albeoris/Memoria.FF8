@@ -26,21 +26,21 @@ public sealed record NativeBattleRoughDivide163Resources(NativeBattleEffectHeapA
     }
 }
 
-public sealed record NativeBattleRoughDivide163State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] byte? FirstRecipient, [property: JsonRequired] NativeBattleRoughDivide163Resources? RetainedResources)
+public sealed record NativeBattleRoughDivide163State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleRoughDivide163Resources? RetainedResources)
 {
-    public static NativeBattleRoughDivide163State FromColdProcess() => new(false, null, null, null);
+    public static NativeBattleRoughDivide163State FromColdProcess() => new(false, null);
 
     public void Validate()
     {
         if (GlobalsInitialized)
         {
-            if (Parameters is null || Parameters.Actor78 >= 7 || Parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || FirstRecipient is null or >= 7 || RetainedResources is null)
+            if (RetainedResources is null)
             {
-                throw new InvalidDataException("Native Rough Divide requires its actual entered action and immutable resources.");
+                throw new InvalidDataException("Native Rough Divide requires its immutable resources retained by actual entry.");
             }
             RetainedResources.Validate();
         }
-        else if (Parameters is not null || FirstRecipient is not null || RetainedResources is not null)
+        else if (RetainedResources is not null)
         {
             throw new InvalidDataException("Native Rough Divide cannot retain entered owners before entry.");
         }

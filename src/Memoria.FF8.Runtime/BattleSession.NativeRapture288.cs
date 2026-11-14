@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         NativeBattleModulePoolTask root = pools[0].Slots[0];
         effect = effect with { DrawArenaOffset = root.ReadDword(20) != 0 ? 9312 : 107616 };
         root = root.WriteDword(20, root.ReadDword(20) != 0 ? 0u : 1u);
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Rapture requires its original target contact list.");
         if (root.ReadWord(12) == 1)
         {
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
                 {
                     NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + ordinal);
                     int actor = contact.Primary.ActorIndex;
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(1044);
                     target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags3 & 4)).WriteDword(20, NativeBattleGraphicsModelAddress.Encode(actor));
                     target = Init(target, 24, 252, resources.First);
@@ -124,7 +124,7 @@ public sealed partial class BattleSession
         {
             int age = WindWord(task, 12);
             int actor = NativeBattleStatusMagicController.ModelIndex(task.ReadDword(20));
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Rapture requires its target transform.");
             NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
             int scale = ((transform.Scale38 >> 1) + 2048) >> 2;
@@ -172,12 +172,12 @@ public sealed partial class BattleSession
             {
                 short y = NativeBattleRapture288Geometry.TargetY(age, WindWord(task, 14), scale, task.ReadByte(16) != 0);
                 model = model with { Transform = transform with { Position28 = transform.Position28 with { Y = y } }, Flags0 = (ushort)(model.Flags0 | 0x1000) };
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             }
             else if (age == 63)
             {
                 model = model with { Transform = transform with { Position28 = transform.Position28 with { Y = WindWord(task, 14) } }, Flags0 = (ushort)(model.Flags0 & 0xEFFF) };
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
@@ -190,7 +190,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { PendingContacts = pending };
                 if (task.ReadByte(16) == 0)
                 {
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 | 4) }) };
                 }
             }
             if (age >= 74)

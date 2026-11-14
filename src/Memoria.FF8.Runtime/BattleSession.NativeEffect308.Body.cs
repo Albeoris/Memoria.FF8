@@ -16,9 +16,9 @@ public sealed partial class BattleSession
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect308 requires its current projection capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 152);
-        NativeBattleEffect298BodyFrame body = new(frame.Memory, allocation.Staging, graphics.Models[actor], NativeBattleOffsetBodyContextMemory.Read(allocation.Staging, allocation.Address, 152));
+        NativeBattleEffect298BodyFrame body = new(frame.Memory, allocation.Staging, graphics.ActorModels.Get(actor), NativeBattleOffsetBodyContextMemory.Read(allocation.Staging, allocation.Address, 152));
         body = NativeBattleEffect298BodyDrawing.DrawOuter(body, inputs.ReadView(frame), operation.OffsetRowsAddress, offsets, scratchAddress, new(Shadow, Prepare, DrawSource, Restore));
-        graphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, body.Model) };
+        graphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, body.Model) };
         NativeBattleFileStaging staging = NativeBattleOffsetBodyContextMemory.Publish(body.Staging, allocation.Address, body.Temporary152, 152);
         return frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 152) };
 
@@ -32,14 +32,14 @@ public sealed partial class BattleSession
 
         NativeBattleEffect298BodyFrame Prepare(NativeBattleEffect298BodyFrame selected)
         {
-            currentGraphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, selected.Model) };
+            currentGraphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, selected.Model) };
             NativeBattleEffect308Frame prepared = PrepareNativeEffect308Pose(ref currentGraphics, frame with { Memory = selected.Memory, Staging = selected.Staging }, actor, source, offsets);
-            return selected with { Memory = prepared.Memory, Staging = prepared.Staging!, Model = currentGraphics.Models[actor] };
+            return selected with { Memory = prepared.Memory, Staging = prepared.Staging!, Model = currentGraphics.ActorModels.Get(actor) };
         }
 
         NativeBattleEffect298BodyFrame DrawSource(NativeBattleEffect298BodyFrame selected)
         {
-            currentGraphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, selected.Model) };
+            currentGraphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, selected.Model) };
             NativeBattleEffect308Frame current = frame with { Memory = selected.Memory, Staging = selected.Staging };
             NativeBattleModelGeometrySource geometry = ReadNativeEffect308Geometry(currentGraphics, current, actor);
             ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect308PackedBones(currentGraphics, current, actor, source);
@@ -54,9 +54,9 @@ public sealed partial class BattleSession
 
         NativeBattleEffect298BodyFrame Restore(NativeBattleEffect298BodyFrame selected)
         {
-            currentGraphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, selected.Model) };
+            currentGraphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, selected.Model) };
             NativeBattleEffect308Frame restored = RestoreNativeEffect308Pose(ref currentGraphics, frame with { Memory = selected.Memory, Staging = selected.Staging }, actor, source);
-            return selected with { Memory = restored.Memory, Staging = restored.Staging!, Model = currentGraphics.Models[actor] };
+            return selected with { Memory = restored.Memory, Staging = restored.Staging!, Model = currentGraphics.ActorModels.Get(actor) };
         }
     }
 

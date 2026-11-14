@@ -53,7 +53,7 @@ public sealed partial class BattleSession
 
         NativeBattleGraphicsModel ReadModel(int index)
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             return ReadForeignGeometry(index) is { } geometry ? model with { GeometryBounds52 = geometry.LocalBounds } : model;
         }
 

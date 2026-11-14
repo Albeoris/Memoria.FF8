@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel216PreparationBounds(NativeBattleDuel216Frame Frame, short Maximum, short Minimum);
-public sealed record NativeBattleDuel216PreparationServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel216Frame, NativeBattleModuleAnchor, NativeBattleDuel216Extents, NativeBattleDuel216Frame> PrepareCamera69A790, Func<NativeBattleDuel216Frame, int, uint, NativeBattleDuel216Frame> BindActor5022C0, Func<NativeBattleDuel216Frame, int, byte, NativeBattleDuel216Frame> SelectSequence505C00, Func<NativeBattleDuel216Frame, int, NativeBattleDuel216PreparationBounds> Bounds695F60, Func<NativeBattleDuel216Frame, NativeBattleDuel216Frame> RestoreFocal1D8E038);
+public sealed record NativeBattleDuel216PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel216Frame, NativeBattleModuleAnchor, NativeBattleDuel216Extents, NativeBattleDuel216Frame> PrepareCamera69A790, Func<NativeBattleDuel216Frame, int, uint, NativeBattleDuel216Frame> BindActor5022C0, Func<NativeBattleDuel216Frame, int, byte, NativeBattleDuel216Frame> SelectSequence505C00, Func<NativeBattleDuel216Frame, int, NativeBattleDuel216PreparationBounds> Bounds695F60, Func<NativeBattleDuel216Frame, NativeBattleDuel216Frame> RestoreFocal1D8E038);
 
 public static class NativeBattleDuel216Preparation
 {
@@ -14,7 +14,7 @@ public static class NativeBattleDuel216Preparation
         NativeBattleDuel216Resources resources = state.Resources ?? throw new NotSupportedException("Native Duel216 preparation requires its original resources.");
         int actor = ModelIndex(frame.Staging, 0x2508880);
         int target = ModelIndex(frame.Staging, 0x2508884);
-        if (state.Parameters?.Actor78 != actor)
+        if (frame.Effect.Parameters?.Source != actor)
         {
             throw new InvalidDataException("Native Duel216 actor pointer differs from its entered actor.");
         }

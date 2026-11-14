@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             }
             EncounterArrivalTrack track = supplied with { StartedAtCallback = graphics.Callback };
             NativeBattleGraphicsModel model = models[index];
-            NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics with { Models = models }, index);
+            NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics with { ActorModels = models }, index);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Arrival requires the selected model's native skeletal pose source.");
             ImmutableArray<byte> counts = NativeBattlePoseDecoder.ReadFrameCounts(source.Animations.AsSpan());
             if (track.Animation >= counts.Length || track.LastFrame >= counts[track.Animation])
@@ -88,12 +88,12 @@ public sealed partial class BattleSession
                 }
             }
             EncounterArrivalState state = new(track, model.SequenceState ?? throw new InvalidDataException("Arrival requires an initialized native standing sequence."));
-            model = PublishEncounterArrivalPose(graphics with { Models = models }, model, state.Sample);
+            model = PublishEncounterArrivalPose(graphics with { ActorModels = models }, model, state.Sample);
             models = models.SetItem(index, model);
             pending.Add(state);
         }
         encounterArrivals = encounterArrivals.AddRange(pending);
-        NativeGraphics = graphics with { Models = models };
+        NativeGraphics = graphics with { ActorModels = models };
         RefreshPreparedPresentation();
     }
 

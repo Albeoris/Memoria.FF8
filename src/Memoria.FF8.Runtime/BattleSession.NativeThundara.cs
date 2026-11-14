@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Thundara requires its retained view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Thundara requires its depth-cue tables.");
         NativeBattleThundaraFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Thundara requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Thundara requires its retained CRT random state."));
-        frame = NativeBattleThundaraController.Advance6DC390(frame, new(graphics.Flags, nativeActionPackets, model => ReadNativeGraphicsBone(graphics, model, 241, 0), model => graphics.Models[model].Transform ?? throw new NotSupportedException("Native Thundara requires its actual model transform."), Execute));
+        frame = NativeBattleThundaraController.Advance6DC390(frame, new(graphics.Flags, nativeActionPackets, model => ReadNativeGraphicsBone(graphics, model, 241, 0), model => graphics.ActorModels.Get(model).Transform ?? throw new NotSupportedException("Native Thundara requires its actual model transform."), Execute));
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };

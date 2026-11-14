@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect287Controller
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress) };
         frame = frame with { Random = frame.Random.Draw(out ushort initialRandom), State = frame.State.WriteDword(RandomGlobal, initialRandom) };
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect287 requires its actual parameters.");
-        frame = frame with { State = frame.State.WriteDword(CasterGlobal, ModelAddress(parameters.Actor78)).WriteDword(ParametersGlobal, 0x1D99A78) };
+        frame = frame with { State = frame.State.WriteDword(CasterGlobal, ModelAddress(parameters.Source)).WriteDword(ParametersGlobal, 0x1D99A78) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State.DetachBank(0), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor } };

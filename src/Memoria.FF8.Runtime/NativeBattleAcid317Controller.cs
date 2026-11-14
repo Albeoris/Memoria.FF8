@@ -16,7 +16,7 @@ public static partial class NativeBattleAcid317Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleAcid317State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleAcid317State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -68,7 +68,7 @@ public static partial class NativeBattleAcid317Controller
                 }
             }
             int ordinal = Task(frame, 0, slot).ReadByte(14);
-            if (ordinal <= inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(17))
+            if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(17))
             {
                 int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.ActorIndex;
                 (frame, uint address) = Append(frame, 1, TargetCallback);

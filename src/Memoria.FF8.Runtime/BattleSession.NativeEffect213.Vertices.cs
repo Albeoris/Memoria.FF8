@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     {
         int actor = NativeEffect213Actor(graphics, modelAddress);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect213 vertex counting requires its current addressed memory.");
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect213 vertex counting requires its current primary mask.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 56);

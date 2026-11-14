@@ -39,7 +39,7 @@ public static partial class NativeBattleWendigoController
         }
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, shoot ? 0x83EE00u : 0x8466F0u, 0x64);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wendigo requires its actual first contact.");
         byte maximum = unchecked((byte)(header.ReadContactCount() - 1));
         if (maximum < header.ReadRepeatModeMinusOne())
@@ -79,7 +79,7 @@ public static partial class NativeBattleWendigoController
         private uint Ball => BallAddress(shoot);
         private uint Base => ModuleBase(shoot);
         private int TaskSize => shoot ? 0x1FC : 0xDC;
-        private int Caster => current.Effect.Parameters!.Actor78;
+        private int Caster => current.Effect.Parameters!.Source;
         private NativeBattleWendigoState State => (shoot ? current.Memory.Shoot42 : current.Memory.Dribble41) ?? throw new NotSupportedException("Native Wendigo lost its executable owner.");
 
         internal Execution(NativeBattleWendigoFrame frame, NativeBattleWendigoResources resources, NativeBattleWendigoInputs inputs)

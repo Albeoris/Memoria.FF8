@@ -172,12 +172,12 @@ public static partial class NativeBattleSiren95Controller
                         while (true)
                         {
                             task = hierarchy.Read(address);
-                            int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+                            BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                             if ((uint)headerIndex >= inputs.Packets.Headers.Length)
                             {
                                 throw new NotSupportedException("Native Siren contact header leaves its current addressed owner.");
                             }
-                            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
+                            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                             if (contactOrdinal >= header.ReadContactCount())
                             {
                                 break;
@@ -246,7 +246,7 @@ public static partial class NativeBattleSiren95Controller
 
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
 
-    private sealed class ActorView(Func<int, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
+    private sealed class ActorView(Func<BattleModelOwner, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
     {
         public int Count => 7;
         public NativeBattleGraphicsModel this[int index] => (uint)index < Count ? read(index) : throw new ArgumentOutOfRangeException(nameof(index));

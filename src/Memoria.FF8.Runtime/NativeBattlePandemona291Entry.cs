@@ -44,7 +44,7 @@ public static class NativeBattlePandemona291Entry
     public const uint MainBank = 0x25562C8;
     public const uint MainCallback = 0x6ED350;
 
-    public static NativeBattlePandemona291Frame Initialize6ED250(NativeBattlePandemona291Frame frame, NativeBattlePandemona291Resources resources, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattlePandemona291Frame Initialize6ED250(NativeBattlePandemona291Frame frame, NativeBattlePandemona291Resources resources, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         if (frame.Effect.Binding is not { Effect: 291, Entry: 0x6ED250 })
         {
@@ -60,12 +60,12 @@ public static class NativeBattlePandemona291Entry
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona requires its current action parameters.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona requires its current model buffer.");
         arena.Validate();
-        state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78, Caster2556260 = NativeBattleGraphicsModelAddress.Encode(parameters.Actor78) };
+        state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78, Caster2556260 = NativeBattleGraphicsModelAddress.Encode(parameters.Source) };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x14, 1);
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask root = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
         pool = pool.WriteSlot(slot, root);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         int sum = 0;
         if (count > 0)

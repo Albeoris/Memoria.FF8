@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect173 requires its current process memory.");
         NativeBattleEffect173Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect173 requires its current CRT stream."), memory.Effect173 ?? throw new NotSupportedException("Effect173 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect173 requires its current addressed memory.") };
         NativeBattleEffect173Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect173 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect173 requires its current world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect173 requires its current projection."), _ => Camera().Roll, Point502170, Execute);
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect173 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect173 requires its current world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect173 requires its current projection."), _ => Camera().Roll, Point502170, Execute);
         frame = initialize ? NativeBattleEffect173Controller.Initialize(frame, resources, inputs) : NativeBattleEffect173Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         NativeBattleEffect173PointStep Point502170(NativeBattleEffect173Frame current, int actor, byte selector, short fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect173 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, fraction);
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect173TargetCenter5020A0 target:
-                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect173 target center requires its actual selected physical positions.")).ToArray());
+                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect173 target center requires its actual selected physical positions.")).ToArray());
                     NativeBattleEffectArena vector = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
                     return NativeBattleEffect173Controller.WriteBytes(current, target.Destination, vector, 6);
                 case NativeBattleEffect173Stage5713E0 intensity:

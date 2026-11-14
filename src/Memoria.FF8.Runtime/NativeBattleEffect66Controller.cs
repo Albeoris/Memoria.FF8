@@ -15,8 +15,8 @@ public static partial class NativeBattleEffect66Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect66 requires its current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        int actor = parameters.Actor78;
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
+        int actor = parameters.Source;
         int target = packets.ReadContact(header.FirstContactIndex ?? throw new NotSupportedException("Effect66 requires its actual first contact pointer.")).Primary.ActorIndex;
         int textureOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect66 requires its actual executed initializer pointer.");
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)textureOffset)).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Thundaga requires its authenticated interpolation constants.");
         NativeBattleThundaga105Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Thundaga requires its retained process memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Thundaga requires its retained CRT state."));
         NativeBattleActionMatrix? billboard = initialize ? null : NativeBattleGfMatrices.Normalize67AAE0(View());
-        NativeBattleThundaga105Inputs inputs = new(nativeActionPackets, actor => ReadNativeThundaga105Anchor(graphics, actor), actor => ReadNativeModelAnchor(graphics, actor), actor => graphics.Models[actor].Color40 ?? throw new NotSupportedException("Native Thundaga requires its actor color DWORD."), actor => Transform(actor).Scale38, DrawPrimary, Execute);
+        NativeBattleThundaga105Inputs inputs = new(nativeActionPackets, actor => ReadNativeThundaga105Anchor(graphics, actor), actor => ReadNativeModelAnchor(graphics, actor), actor => graphics.ActorModels.Get(actor).Color40 ?? throw new NotSupportedException("Native Thundaga requires its actor color DWORD."), actor => Transform(actor).Scale38, DrawPrimary, Execute);
         frame = initialize ? NativeBattleThundaga105Controller.Initialize6D3DE0(frame, inputs, resources) : NativeBattleThundaga105Controller.Advance6D3E50(frame, inputs, resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -20,7 +20,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraProjection Projection() => NativeCamera?.Projection ?? throw new NotSupportedException("Native Thundaga requires its published projection.");
         NativeBattleActionMatrix View() => Projection().View ?? throw new NotSupportedException("Native Thundaga requires its published camera view.");
-        NativeBattleModelTransform Transform(int actor) => graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
+        NativeBattleModelTransform Transform(int actor) => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
 
         NativeBattleThundaga105TaskStep DrawPrimary(NativeBattleThundaga105Frame current, NativeBattleModulePoolTask task, int actor, ImmutableArray<byte> anchor)
         {
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
                 case NativeBattleThundaga105ActorColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(color.Actor, graphics.Models[color.Actor] with { Color40 = color.Color40 }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(color.Actor, graphics.ActorModels.Get(color.Actor) with { Color40 = color.Color40 }) };
                     return current;
                 case NativeBattleThundaga105StageFlash flash:
                     StageFlash(flash.Amount);
@@ -140,7 +140,7 @@ public sealed partial class BattleSession
     private ImmutableArray<byte> ReadNativeThundaga105Anchor(NativeBattleGraphicsState graphics, int actor)
     {
         NativeBattleVector xyz = ReadNativeGraphicsBone(graphics, actor, 241, 0);
-        NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
+        NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
         byte[] raw = new byte[8];
         BinaryPrimitives.WriteInt16LittleEndian(raw, xyz.X);
         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), transform.Angle36);

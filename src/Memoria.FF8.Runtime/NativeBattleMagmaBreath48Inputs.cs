@@ -6,7 +6,7 @@ public sealed record NativeBattleMagmaBreath48Frame(NativeBattleEffectMemory Mem
 }
 
 public sealed record NativeBattleMagmaBreath48PointStep(NativeBattleMagmaBreath48Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleMagmaBreath48Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMagmaBreath48Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMagmaBreath48Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMagmaBreath48Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMagmaBreath48Frame, int, int, int, NativeBattleMagmaBreath48PointStep> ReadBone502170, Func<NativeBattleMagmaBreath48Frame, short> ReadCameraRoll, Func<NativeBattleMagmaBreath48Frame, NativeBattleMagmaBreath48Operation, NativeBattleMagmaBreath48Frame> Execute);
+public sealed record NativeBattleMagmaBreath48Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMagmaBreath48Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMagmaBreath48Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMagmaBreath48Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMagmaBreath48Frame, BattleModelOwner, int, int, NativeBattleMagmaBreath48PointStep> ReadBone502170, Func<NativeBattleMagmaBreath48Frame, short> ReadCameraRoll, Func<NativeBattleMagmaBreath48Frame, NativeBattleMagmaBreath48Operation, NativeBattleMagmaBreath48Frame> Execute);
 
 public abstract record NativeBattleMagmaBreath48Operation
 {

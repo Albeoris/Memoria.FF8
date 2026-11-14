@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect31Resources resources = effect.Binding.Effect31Resources ?? throw new NotSupportedException("Effect31 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect31 requires its current process memory.");
         NativeBattleEffect31Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect31 requires its current CRT stream."), memory.Effect31 ?? throw new NotSupportedException("Effect31 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect31 requires its current addressed memory.") };
-        NativeBattleEffect31Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect31 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (current, actor) => ReadNativeEffect31Pose(graphics, current, actor), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect31 requires its current projection."), _ => Camera().Roll, (current, address, length) => ReadNativeEffect31Physical(graphics, current, address, length), (current, address, selector, fraction, retained) => ReadNativeEffect31Point(graphics, current, address, selector, fraction, retained), Execute)
+        NativeBattleEffect31Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect31 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (current, actor) => ReadNativeEffect31Pose(graphics, current, actor), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect31 requires its current projection."), _ => Camera().Roll, (current, address, length) => ReadNativeEffect31Physical(graphics, current, address, length), (current, address, selector, fraction, retained) => ReadNativeEffect31Point(graphics, current, address, selector, fraction, retained), Execute)
         {
             ReadActorStack = (current, _, stateBody) => new(current, NativeBattleEffect31Stack.ReadMatrix(current.State.ReadCallbackStack(), stateBody)),
             ObserveActorStack = (current, task, stateBody, instruction, matrix) => current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveActor(current.State.ReadCallbackStack(), task, NativeBattleEffect31Controller.Read(current, task), stateBody, instruction, matrix) } }
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
                         NativeBattleResourcePointer? boneMatrix = null;
                         if (anchors == 2)
                         {
-                            NativeBattleGraphicsModel model = graphics.Models[targetActor];
+                            NativeBattleGraphicsModel model = graphics.ActorModels.Get(targetActor);
                             NativeBattlePoseSource source = ReadNativeEffect31Pose(graphics, current, targetActor);
                             int bone = (model.SequenceState?.Geometry5 ?? source.Skeleton[5]) & 0x7F;
                             if (bone >= source.BoneCount)

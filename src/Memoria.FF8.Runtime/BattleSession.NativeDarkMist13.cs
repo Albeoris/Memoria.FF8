@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x2747720, 0x2747658, 100, 2), NativeBattleEffectTaskPool.Initialize(0x274E960, 0x274E970, 88, 4), NativeBattleEffectTaskPool.Initialize(0x274EAD8, 0x274EAE8, 48, 20), NativeBattleEffectTaskPool.Initialize(0x274C3C0, 0x27486D0, 104, 150), NativeBattleEffectTaskPool.Initialize(0x27437B0, 0x27428B0, 96, 40)]);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x8BE2D0, 100);
         hierarchy = appended.Hierarchy;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Dark Mist requires its actual contact pointer.");
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2D, nativeActionPackets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(appended.Address, root);
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, graphics.Models, ReadSource);
             int target = task.ReadByte(0x2D);
             NativeBattlePoseSource source = ReadSource(target);
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[target].SequenceState!, source));
+            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(target).SequenceState!, source));
             hierarchy = hierarchy.Write(address, task);
             switch (task.ReadByte(0x29))
             {
@@ -135,8 +135,8 @@ public sealed partial class BattleSession
                 case 2:
                     if (Word(task, 0x24) >= 70)
                     {
-                        int group = effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A));
-                        int contact = nativeActionPackets.Headers[group].FirstContactIndex ?? throw new NotSupportedException("Native Dark Mist requires its selected action contact.");
+                        BattleActionHeaderReference group = effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = nativeActionPackets.ReadHeader(group).FirstContactIndex ?? throw new NotSupportedException("Native Dark Mist requires its selected action contact.");
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                         task = Done(task);
                     }
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask Control(uint address, NativeBattleModulePoolTask task)
         {
-            task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters!.Actor78, 0xF0, 1024));
+            task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters!.Source, 0xF0, 1024));
             hierarchy = hierarchy.Write(address, task);
             int counter = Word(task, 0x24);
             if (task.ReadByte(0x29) == 0)
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
             bool first = task.Callback == 0x8BF260;
             if (stream)
             {
-                task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters!.Actor78, 0xF0, 1024));
+                task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters!.Source, 0xF0, 1024));
                 hierarchy = hierarchy.Write(address, task);
             }
             int counter = Word(task, 0x24);
@@ -261,7 +261,7 @@ public sealed partial class BattleSession
             int phase = task.ReadByte(0x29);
             if (swirl)
             {
-                task = Store(task.WriteWord(0x44, 256).WriteWord(0x46, unchecked((ushort)yaw)), 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters.Actor78, 0xF0, 1024));
+                task = Store(task.WriteWord(0x44, 256).WriteWord(0x46, unchecked((ushort)yaw)), 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters.Source, 0xF0, 1024));
                 switch (phase)
                 {
                     case 0:
@@ -313,7 +313,7 @@ public sealed partial class BattleSession
                 int growth = Word(task, 0x5C);
                 short nextGrowth = unchecked((short)(growth - 128));
                 task = task.WriteDword(0x30, unchecked(task.ReadDword(0x30) + (uint)growth)).WriteDword(0x34, unchecked(task.ReadDword(0x34) + (uint)growth)).WriteDword(0x38, unchecked(task.ReadDword(0x38) + (uint)growth)).WriteWord(0x5C, nextGrowth < 0 ? (ushort)0 : unchecked((ushort)nextGrowth)).WriteWord(0x5A, unchecked((ushort)(Word(task, 0x5A) + 1024)));
-                task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters.Actor78, 0xF0, Word(task, 0x5A)));
+                task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters.Source, 0xF0, Word(task, 0x5A)));
                 DrawModel(task, resources.Cloud, 0);
             }
             return task;
@@ -348,7 +348,7 @@ public sealed partial class BattleSession
                 case 0:
                     process = process with { OverlayAmplitude = 0 };
                     task = Phase(task.WriteWord(0x26, (ushort)(task.ReadWord(0x26) | 8)));
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 | 4) }) };
                     break;
                 case 1:
                     process = process with { OverlayAmplitude = unchecked((short)(process.OverlayAmplitude + 512)) };
@@ -368,7 +368,7 @@ public sealed partial class BattleSession
                     process = process with { OverlayAmplitude = unchecked((short)(process.OverlayAmplitude - 256)) };
                     if (process.OverlayAmplitude <= 0)
                     {
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 & 0xFFFB) }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 & 0xFFFB) }) };
                         NativeBattleModulePoolTask owner = hierarchy.Read(task.ReadDword(0x10));
                         hierarchy = hierarchy.Write(task.ReadDword(0x10), owner.WriteByte(0x63, 0));
                         task = Done(task.WriteWord(0x26, (ushort)(task.ReadWord(0x26) & ~8)));
@@ -385,7 +385,7 @@ public sealed partial class BattleSession
 
         void DrawOverlay(int index, NativeBattlePilotVisualIdentity identity)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[index];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattlePoseSource source = resource.PoseSource!;
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
@@ -410,7 +410,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         }
 
         uint Append(int bank, uint callback, int size, uint parent)

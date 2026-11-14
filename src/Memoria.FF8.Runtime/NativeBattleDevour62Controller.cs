@@ -377,21 +377,21 @@ public static class NativeBattleDevour62Controller
         }
         NativeBattleActionHeaderSlot Header(NativeBattleModulePoolTask task)
         {
-            int index = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+            BattleActionHeaderReference index = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
             if ((uint)index >= inputs.Packets.Headers.Length)
             {
                 throw new InvalidDataException("Devour header selector exceeds its physical arena.");
             }
-            return inputs.Packets.Headers[index];
+            return inputs.Packets.ReadHeader(index);
         }
         short FirstOutcome(NativeBattleModulePoolTask task)
         {
-            int header = parameters.HeaderIndex7C;
+            BattleActionHeaderReference header = parameters.Header;
             if ((uint)header >= inputs.Packets.Headers.Length)
             {
                 throw new InvalidDataException("Devour first captured header exceeds its physical arena.");
             }
-            int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Devour requires its first physical contact.");
+            int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Devour requires its first physical contact.");
             return unchecked((short)inputs.Packets.ReadContact(first).Primary.Amount6);
         }
         ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToImmutableArray();

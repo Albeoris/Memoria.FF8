@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect64 requires its current process memory.");
         NativeBattleEffect64Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect64 requires its current CRT stream."), memory.Effect64 ?? throw new NotSupportedException("Effect64 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect64 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect64 requires its arithmetic constants.");
-        NativeBattleEffect64Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, (_, pointer) => graphics.Models[ActorNativeEffect64(pointer, graphics)], ReadBone, Execute);
+        NativeBattleEffect64Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, (_, pointer) => graphics.ActorModels.Get(ActorNativeEffect64(pointer, graphics)), ReadBone, Execute);
         frame = initialize ? NativeBattleEffect64Controller.Initialize(frame, resources, inputs) : NativeBattleEffect64Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect64PointStep ReadBone(NativeBattleEffect64Frame current, uint pointer, int selector, int distance, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[ActorNativeEffect64(pointer, graphics)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(ActorNativeEffect64(pointer, graphics));
             NativeBattlePoseSource pose = PoseNativeEffect64(graphics, current, pointer);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, pose, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging!;
@@ -87,13 +87,13 @@ public sealed partial class BattleSession
                     return current with { Memory = current.Memory with { Textures = registered } };
                 case NativeBattleEffect64ModelFlags flags:
                     int flagActor = ActorNativeEffect64(flags.ModelAddress, graphics);
-                    NativeBattleGraphicsModel flagged = graphics.Models[flagActor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flagActor, flagged with { Flags0 = (ushort)((flagged.Flags0 & flags.AndMask) | flags.OrMask) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flagActor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flagActor, flagged with { Flags0 = (ushort)((flagged.Flags0 & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect64ModelMeshMask mask:
                     int maskActor = ActorNativeEffect64(mask.ModelAddress, graphics);
-                    NativeBattleGraphicsModel masked = graphics.Models[maskActor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(maskActor, masked with { SequenceState = (masked.SequenceState ?? throw new NotSupportedException("Effect64 requires its current model mask.")) with { MeshMask124 = mask.Mask } }) };
+                    NativeBattleGraphicsModel masked = graphics.ActorModels.Get(maskActor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(maskActor, masked with { SequenceState = (masked.SequenceState ?? throw new NotSupportedException("Effect64 requires its current model mask.")) with { MeshMask124 = mask.Mask } }) };
                     return current;
                 case NativeBattleEffect64Sound501330 sound:
                     Publish(current);
@@ -114,17 +114,17 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect64ApplyOffsetPose662C00 pose:
                     (NativeBattleGraphicsState poseGraphics, NativeBattleEffect64Frame poseFrame) = ApplyNativeEffect64Pose(graphics, current, pose.ModelAddress, pose.OffsetRowsAddress);
-                    graphics = graphics with { Models = poseGraphics.Models };
+                    graphics = graphics with { ActorModels = poseGraphics.Models };
                     return poseFrame;
                 case NativeBattleEffect64RestorePose508C90 restore:
                     (NativeBattleGraphicsState restoredGraphics, NativeBattleEffect64Frame restoredFrame) = RestoreNativeEffect64Pose(graphics, current, restore.ModelAddress);
-                    graphics = graphics with { Models = restoredGraphics.Models };
+                    graphics = graphics with { ActorModels = restoredGraphics.Models };
                     return restoredFrame;
                 case NativeBattleEffect64ClearGeometryBit15_6E5C90 cleanup:
                     return ClearNativeEffect64Geometry(graphics, current, cleanup.ModelAddress);
                 case NativeBattleEffect64DrawBody6E56A0 body:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect64Frame bodyFrame) = DrawNativeEffect64Body(graphics, current, body.ModelAddress, body.OffsetRowsAddress, Deliver);
-                    graphics = graphics with { Models = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.Models };
                     return bodyFrame;
                 case NativeBattleEffect64DeliverBatch packets:
                     return Deliver(current, packets.Batch, packets.CursorGlobal, packets.Flags);

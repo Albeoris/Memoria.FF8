@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect65 requires its current process memory.");
         NativeBattleEffect65Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect65 requires its current CRT stream."), memory.Effect65 ?? throw new NotSupportedException("Effect65 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect65 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect65 requires its arithmetic constants.");
-        NativeBattleEffect65Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect65 requires its current projection."), _ => Camera().Roll, (_, pointer) => graphics.Models[ActorNativeEffect65(pointer, graphics)], (_, pointer) => Position8(pointer), Anchor, WidePoint, WordPoint, PollIo, SelectIo, Execute) { CapturePresentation = true };
+        NativeBattleEffect65Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect65 requires its current projection."), _ => Camera().Roll, (_, pointer) => graphics.ActorModels.Get(ActorNativeEffect65(pointer, graphics)), (_, pointer) => Position8(pointer), Anchor, WidePoint, WordPoint, PollIo, SelectIo, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect65Controller.Initialize(frame, resources, inputs) : NativeBattleEffect65Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena Position8(uint pointer)
         {
-            return NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[ActorNativeEffect65(pointer, graphics)]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
+            return NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(ActorNativeEffect65(pointer, graphics))), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
         }
 
         void Publish(NativeBattleEffect65Frame current)
@@ -44,14 +44,14 @@ public sealed partial class BattleSession
         NativeBattleEffect65PointOutputStep Point(NativeBattleEffect65Frame current, NativeBattleEffectArena source, NativeBattleEffectArena output, bool wide)
         {
             (NativeBattleGraphicsState pointGraphics, NativeBattleEffect65PointOutputStep step) = ReadNativeEffect65CasterPoint(graphics, current, source, output, wide);
-            graphics = graphics with { Models = pointGraphics.Models };
+            graphics = graphics with { ActorModels = pointGraphics.Models };
             return step;
         }
 
         NativeBattleEffect65PointStep Anchor(NativeBattleEffect65Frame current, uint pointer)
         {
             int actor = ActorNativeEffect65(pointer, graphics);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource pose = PoseNativeEffect65(graphics, current, pointer);
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
         NativeBattleEffect65Frame StorePosition(NativeBattleEffect65Frame current, uint pointer, NativeBattleEffectArena point, int length, bool world)
         {
             int actor = ActorNativeEffect65(pointer, graphics);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect65 requires its current actor transform.");
             NativeBattleVector position = new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2)));
             short padding = transform.Vertical34;
@@ -134,7 +134,7 @@ public sealed partial class BattleSession
                 NativeBattleActionMatrix matrix = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect65 requires its current actor world matrix.");
                 model = model with { GeometryWorldMatrix = matrix with { X = position.X, Y = position.Y, Z = position.Z } };
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             return current;
         }
 
@@ -166,8 +166,8 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleEffect65ModelFlags flags:
                     int flagActor = ActorNativeEffect65(flags.ModelAddress, graphics);
-                    NativeBattleGraphicsModel flagged = graphics.Models[flagActor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flagActor, flagged with { Flags0 = (ushort)((flagged.Flags0 & flags.AndMask) | flags.OrMask) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flagActor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flagActor, flagged with { Flags0 = (ushort)((flagged.Flags0 & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect65WriteActorPoint8 packed:
                     return StorePosition(current, packed.ModelAddress, packed.Point8, 8, packed.PublishWorldXYZ);
@@ -176,7 +176,7 @@ public sealed partial class BattleSession
                     return StorePosition(current, position.ModelAddress, xyz, 6, position.PublishWorldXYZ);
                 case NativeBattleEffect65SetActorScalePointer30 scale:
                     int scaleActor = ActorNativeEffect65(scale.ModelAddress, graphics);
-                    graphics = graphics with { Models = graphics.Models.SetItem(scaleActor, graphics.Models[scaleActor] with { ScaleVectorAddress48 = scale.Address }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(scaleActor, graphics.ActorModels.Get(scaleActor) with { ScaleVectorAddress48 = scale.Address }) };
                     return current;
                 case NativeBattleEffect65SetSequence505C00 sequence:
                     graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)ActorNativeEffect65(sequence.ModelAddress, graphics)), sequence.Sequence);

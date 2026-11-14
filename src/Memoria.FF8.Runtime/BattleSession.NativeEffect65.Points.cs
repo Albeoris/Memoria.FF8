@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         int actor = ActorNativeEffect65(pointer, graphics);
         NativeBattlePoseSource source = PoseNativeEffect65(graphics, frame, pointer);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 88);
-        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actor], source, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
+        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), source, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
         NativeBattleGraphicsModel model = prepared.Model;
@@ -38,6 +38,6 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect65CasterPointStep transformed = NativeBattleEffect65CasterPoint.Transform(frame.Memory, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect65 caster points require their current world matrix."), matrices[selector], source8, output, wide);
         frame = frame with { Memory = transformed.Memory };
-        return (graphics with { Models = graphics.Models.SetItem(actor, model) }, new(frame, transformed.Output));
+        return (graphics with { ActorModels = graphics.ActorModels.Set(actor, model) }, new(frame, transformed.Output));
     }
 }

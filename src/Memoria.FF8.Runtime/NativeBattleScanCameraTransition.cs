@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanCameraFrame(NativeBattleScanFrame Scan, NativeBattleScanByteOwner Eye, NativeBattleScanByteOwner Target, ushort Zoom);
-public sealed record NativeBattleScanCameraInputs(ImmutableArray<NativeBattleScanByteOwner> Models, NativeBattleScanByteOwner Profile, ushort Category, short Direction1D9777C, short Direction1D97788, Func<int, byte, int, NativeBattleVector> ReadBone502170);
+public sealed record NativeBattleScanCameraInputs(ImmutableArray<NativeBattleScanByteOwner> Models, NativeBattleScanByteOwner Profile, ushort Category, short Direction1D9777C, short Direction1D97788, Func<BattleModelOwner, byte, int, NativeBattleVector> ReadBone502170);
 public sealed record NativeBattleScanCameraStep(NativeBattleScanCameraFrame Frame, int Result);
 public sealed record NativeBattleScanCameraInterpolation(NativeBattleScanByteOwner Camera, bool Complete);
 

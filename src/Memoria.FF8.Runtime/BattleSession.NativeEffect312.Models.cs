@@ -18,12 +18,12 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Effect312 physical read crosses a current model row.");
             }
             (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         if (address >= 0x1D99A78 && (ulong)address + (uint)length <= 0x1D99A80)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect312 requires its current physical action parameters.");
-            NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [parameters.Actor78, parameters.Flags79]).Write(2, BitConverter.GetBytes(parameters.TargetMask7A)).Write(4, BitConverter.GetBytes(checked(0x1D280C4u + (uint)parameters.HeaderIndex7C * 20)));
+            NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [parameters.Source, parameters.Flags79]).Write(2, BitConverter.GetBytes(parameters.TargetActors)).Write(4, BitConverter.GetBytes(checked(0x1D280C4u + (uint)parameters.Header * 20)));
             return NativeBattleEffectNodeContextMemory.Copy(bytes, checked((int)(address - 0x1D99A78)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         if (address >= 0x1D280C4 && address < NativeBattleContactAddress.Encode(0))
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         int actor = NativeEffect301Actor(graphics, modelAddress);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect312 requires its current addressed skeleton memory.");
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect312 requires its current physical skeleton.");
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         int bone = selector;
         if (selector >= 240)
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
 
     private NativeBattleResourcePointer ReadNativeEffect312SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect312Frame frame, int actor)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
         {
             NativeBattleResourcePointer? pointer;
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
 
     private static byte ReadNativeEffect312SequenceByte(NativeBattleGraphicsState graphics, uint modelAddress)
     {
-        NativeBattleGraphicsModel model = graphics.Models[NativeEffect301Actor(graphics, modelAddress)];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect301Actor(graphics, modelAddress));
         _ = model.SequenceState ?? throw new NotSupportedException("Effect312 requires its current resource-header owner.");
         // NativeBattleSequenceSelections and SequenceMachine publish model.Sequence as resource-header BYTE0, addressed by model+74.
         return model.Sequence ?? throw new NotSupportedException("Effect312 requires its actual resource-header sequence BYTE0.");
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect312PointStep ReadNativeEffect312Anchor(NativeBattleGraphicsState graphics, NativeBattleEffect312Frame frame, uint modelAddress, NativeBattleEffectArena retained)
     {
         int actor = NativeEffect301Actor(graphics, modelAddress);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect312 requires its current anchor transform.");
         if ((model.Flags0 & 2) == 0)
         {
@@ -176,7 +176,7 @@ public sealed partial class BattleSession
     private static NativeBattleGraphicsState ApplyNativeEffect312ModelBytes(NativeBattleGraphicsState graphics, uint modelAddress, int offset, NativeBattleEffectArena data, int length)
     {
         int actor = NativeEffect301Actor(graphics, modelAddress);
-        NativeBattleGraphicsModel updated = ApplyNativeEffect301ModelBytes(graphics.Models[actor], offset, data, length);
-        return graphics with { Models = graphics.Models.SetItem(actor, updated) };
+        NativeBattleGraphicsModel updated = ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(actor), offset, data, length);
+        return graphics with { ActorModels = graphics.ActorModels.Set(actor, updated) };
     }
 }

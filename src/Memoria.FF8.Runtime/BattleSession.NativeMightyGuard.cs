@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Mighty Guard requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Mighty Guard requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Mighty Guard requires its actual view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = index => graphics.Models[index];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = index => graphics.ActorModels.Get(index);
         NativeBattleMightyGuardInputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceNodes) { PackedCamera = camera.CapturePackedView1D97778(), CopiedCameraPadding = camera.CanonicalViewPadding, ReadForeignTarget = actor => ReadNativeForeignTarget(graphics, actor) };
         frame = NativeBattleMightyGuardController.Advance(frame, resources, inputs);
         Publish(frame);
@@ -69,11 +69,11 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleMightyGuardBindCaster bind:
                     ImmutableArray<byte> dat = resources.CasterDat ?? throw new NotSupportedException("Blue Magic Mighty Guard requires its original caster resource.");
-                    NativeBattleGraphicsModel model = graphics.Models[bind.Actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(bind.Actor);
                     NativeBattleFileStaging staging = (NativeFileStaging ?? throw new NotSupportedException("Mighty Guard requires its actual staging owner.")).Write(bind.Resource, dat.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Mighty Guard requires its actual CPU resource rows."), model, bind.SavedBank, bind.Resource);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     graphics = SelectNativeHeaderSequence(graphics, checked((byte)bind.Actor), bind.Sequence);
                     return current;
                 default:

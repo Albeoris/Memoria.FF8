@@ -3,14 +3,14 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa89PreparationServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, uint FirstContact, NativeBattleEffectOwnedModelResource Body, Func<NativeBattleRinoa89Frame, int, uint, NativeBattleRinoa89Frame> BindActor5022C0, Func<NativeBattleRinoa89Frame, int, byte, NativeBattleRinoa89Frame> SelectSequence505C00, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Frame> InitializeShards6FA3E0)
+public sealed record NativeBattleRinoa89PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, uint FirstContact, NativeBattleEffectOwnedModelResource Body, Func<NativeBattleRinoa89Frame, int, uint, NativeBattleRinoa89Frame> BindActor5022C0, Func<NativeBattleRinoa89Frame, int, byte, NativeBattleRinoa89Frame> SelectSequence505C00, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Frame> InitializeShards6FA3E0)
 {
     public ImmutableArray<int>? PartyActors { get; init; }
 }
 
 public static partial class NativeBattleRinoa89Controller
 {
-    public static NativeBattleRinoa89Frame SnapshotModels6FA270(NativeBattleRinoa89Frame frame, Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleRinoa89Frame SnapshotModels6FA270(NativeBattleRinoa89Frame frame, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         NativeBattleFileStaging staging = frame.Staging;
         for (int index = 0; index < 7; index++)
@@ -59,7 +59,7 @@ public static partial class NativeBattleRinoa89Controller
         short centerX = unchecked((short)((minX + maxX) / 2));
         short centerY = unchecked((short)((minY + maxY) / 2));
         task = task.WriteWord(216, unchecked((ushort)centerX)).WriteWord(218, unchecked((ushort)centerY)).WriteWord(220, unchecked((ushort)maxZ));
-        int actor = parameters.Actor78;
+        int actor = parameters.Source;
         NativeBattleGraphicsModel caster = services.ReadModel(actor);
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Native6F9D80 requires its actual caster transform.");
         task = task.WriteWord(208, unchecked((ushort)transform.Position28.X)).WriteWord(210, unchecked((ushort)transform.Position28.Y)).WriteWord(212, unchecked((ushort)transform.Position28.Z)).WriteWord(214, unchecked((ushort)transform.Vertical34));

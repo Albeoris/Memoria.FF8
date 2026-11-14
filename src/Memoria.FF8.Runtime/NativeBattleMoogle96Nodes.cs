@@ -63,7 +63,7 @@ public static class NativeBattleMoogle96Nodes
         NativeBattleRecover93NodeFrame pass = NativeBattleEffectNodeCaller.BeginPass(Policy(frame.Effect, 0x169227C), new(frame.Memory, frame.Effect, frame.State.Work, frame.Random), view, privateCursor);
         return frame with { State = frame.State with { Work = pass.State } };
     }
-    public static NativeBattleMoogle96NodeFrame InitializeContext(NativeBattleMoogle96NodeFrame frame, uint address, NativeBattleMoogle96NodeResource resource, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins dogOrigins)
+    public static NativeBattleMoogle96NodeFrame InitializeContext(NativeBattleMoogle96NodeFrame frame, uint address, NativeBattleMoogle96NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins dogOrigins)
     {
         frame.State.Validate();
         NativeBattleEffectNodeCallerPolicy profile = Policy(frame.Effect, resource.Address);
@@ -76,7 +76,7 @@ public static class NativeBattleMoogle96Nodes
         NativeBattleRecover93NodeFrame initialized = NativeBattleEffectNodeCaller.Initialize74EC00(profile, Assemble(frame, selected), address, new(resource.Data), packets, readModel, readPoseSource, dogOrigins);
         return Store(frame, selected, initialized);
     }
-    public static NativeBattleMoogle96NodeStep AdvanceContext(NativeBattleMoogle96NodeFrame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, bool capturePresentation = false)
+    public static NativeBattleMoogle96NodeStep AdvanceContext(NativeBattleMoogle96NodeFrame frame, uint address, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, bool capturePresentation = false)
     {
         frame.State.Validate();
         uint source = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30);

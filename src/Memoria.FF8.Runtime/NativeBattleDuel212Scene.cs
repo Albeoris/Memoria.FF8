@@ -18,7 +18,7 @@ public sealed record NativeBattleDuel212CaptureEcho : NativeBattleDuel212Operati
 public sealed record NativeBattleDuel212Sound(uint Descriptor) : NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212LateBirths(NativeBattleVector Origin) : NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212Camera(short Tick) : NativeBattleDuel212Operation;
-public sealed record NativeBattleDuel212SceneInputs(NativeBattleDuel212Inputs Drawing, Func<int, byte, short, NativeBattleVector> ReadBone502170, Func<int, NativeBattleModuleAnchor> ReadAnchor571400);
+public sealed record NativeBattleDuel212SceneInputs(NativeBattleDuel212Inputs Drawing, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone502170, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400);
 
 public static partial class NativeBattleDuel212Controller
 {
@@ -47,7 +47,7 @@ public static partial class NativeBattleDuel212Controller
             return Finish();
         }
         Execute(new NativeBattleDuel212Stage(tick < 12 ? 2300 * tick / 12 : tick < 170 ? 2300 : 2300 * (182 - tick) / 12));
-        int actor = frame.Memory.Duel212?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Burning Rave requires its entered actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Burning Rave requires its entered actor.");
         if ((uint)(tick - 2) < 56)
         {
             if (tick == 2)

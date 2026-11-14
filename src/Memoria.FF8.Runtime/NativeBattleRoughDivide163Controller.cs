@@ -12,11 +12,11 @@ public sealed record NativeBattleRoughDivide163Stage(int Intensity) : NativeBatt
 public sealed record NativeBattleRoughDivide163Contacts : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
 {
-    public NativeBattleEffectParameters Parameters => Memory.RoughDivide163?.Parameters ?? throw new InvalidDataException("Native Rough Divide requires its actual entered parameter owner.");
-    public byte FirstRecipient => Memory.RoughDivide163?.FirstRecipient ?? throw new InvalidDataException("Native Rough Divide requires its actual first recipient.");
+    public NativeBattleEffectParameters Parameters => Effect.Parameters ?? throw new InvalidDataException("Native Rough Divide requires its actual entered parameter owner.");
+    public BattleModelOwner FirstRecipient => Effect.EntryFirstRecipient ?? throw new InvalidDataException("Native Rough Divide requires its actual first recipient.");
 }
 public sealed record NativeBattleRoughDivide163ChildStep(NativeBattleRoughDivide163Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
-public sealed record NativeBattleRoughDivide163Inputs(uint GraphicsFlags, Func<byte, NativeBattleModuleAnchor> ReadActorPosition, Func<byte, byte, short, NativeBattleModuleAnchor> ReadBone, Func<NativeBattleRoughDivide163Frame, NativeBattleRoughDivide163Operation, NativeBattleRoughDivide163Frame> Execute)
+public sealed record NativeBattleRoughDivide163Inputs(uint GraphicsFlags, Func<byte, NativeBattleModuleAnchor> ReadActorPosition, Func<BattleModelOwner, byte, short, NativeBattleModuleAnchor> ReadBone, Func<NativeBattleRoughDivide163Frame, NativeBattleRoughDivide163Operation, NativeBattleRoughDivide163Frame> Execute)
 {
     public NativeBattleModuleAnchor ReadBone241(byte actor) => ReadBone(actor, 241, 0);
 }
@@ -30,7 +30,7 @@ public static partial class NativeBattleRoughDivide163Controller
         {
             return new(frame, pool, 0);
         }
-        byte actor = frame.Parameters.Actor78;
+        BattleModelOwner actor = frame.Parameters.Source;
         NativeBattleModulePoolTask task = pool.Slots[slot];
         short counter = Word(task, 12);
         switch (counter)

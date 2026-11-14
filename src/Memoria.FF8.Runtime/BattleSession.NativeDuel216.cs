@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Different Beat requires its entered module.");
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Different Beat requires its entered parameters.");
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Different Beat requires its actual first contact pointer.");
         byte recipient = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
         uint minimum = NativeBattleScanModelSelection.Minimum501FF0(NativeBattleScanPhysicalModels.Capture(graphics.Models), NativeBattleDuel274Controller.Address(recipient));
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Different Beat requires retained effect memory.");
         NativeBattleDuel216Resources resources = memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat requires its original entered resources.");
-        NativeBattleEffectParameters parameters = memory.Duel216?.Parameters ?? throw new NotSupportedException("Native Different Beat requires its entered parameters.");
+        NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new NotSupportedException("Native Different Beat requires its entered parameters.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Different Beat requires its actual camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Different Beat requires its actual projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Different Beat requires its actual view matrix.");
@@ -210,12 +210,12 @@ public sealed partial class BattleSession
                     StoreOrdering(advanced.Ordering);
                     return advanced.Frame;
                 case NativeBattleDuel216MorphDraw morph:
-                    NativeBattleDuel216DrawingStep drawn = NativeBattleDuel216Drawing.DrawMorph6960E0(current, morph.Phase, morph.Divisor, morph.Fade, ReadNativeGraphicsBone(graphics, parameters.Actor78, 20, 0), view, projection, colors, NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0x113C3CC));
+                    NativeBattleDuel216DrawingStep drawn = NativeBattleDuel216Drawing.DrawMorph6960E0(current, morph.Phase, morph.Divisor, morph.Fade, ReadNativeGraphicsBone(graphics, parameters.Source, 20, 0), view, projection, colors, NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0x113C3CC));
                     return Append(drawn.Frame, drawn.Batch);
                 case NativeBattleDuel216Spawn69A550 birth:
-                    return NativeBattleDuel216Workspaces.Spawn69A550(current, Position(parameters.Actor78), birth.X, birth.Y, birth.Z, birth.Scale);
+                    return NativeBattleDuel216Workspaces.Spawn69A550(current, Position(parameters.Source), birth.X, birth.Y, birth.Z, birth.Scale);
                 case NativeBattleDuel216Spawn69A110 birth:
-                    return StoreBirth(NativeBattleDuel216Particles.Spawn69A110(current, Bank(current, NativeBattleDuel216Controller.Small), birth.Count, new(birth.X, birth.Y, birth.Z), _ => Position(parameters.Actor78)));
+                    return StoreBirth(NativeBattleDuel216Particles.Spawn69A110(current, Bank(current, NativeBattleDuel216Controller.Small), birth.Count, new(birth.X, birth.Y, birth.Z), _ => Position(parameters.Source)));
                 case NativeBattleDuel216Spawn69A2D0 birth:
                     return StoreBirth(NativeBattleDuel216Particles.Spawn69A2D0(current, Bank(current, NativeBattleDuel216Controller.Particles), birth.Count, new(birth.X, birth.Y, birth.Z), birth.MinimumDuration, unchecked((sbyte)birth.MaximumDuration), birth.MinimumX, birth.MaximumX, birth.MinimumZ, unchecked((short)birth.MaximumZ)));
                 case NativeBattleDuel216Spawn699F80 birth:
@@ -240,7 +240,7 @@ public sealed partial class BattleSession
                     graphics = DrawNativeEffectModelContext92(graphics, body.Model, matrix, body.Pivot, projection, 4112, 16, pilotIdentity: NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0, body.Model));
                     return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleDuel216EchoDraw:
-                    var echo = DrawNativeDuel216Echo(current, graphics, parameters.Actor78, view, projection);
+                    var echo = DrawNativeDuel216Echo(current, graphics, parameters.Source, view, projection);
                     graphics = echo.Graphics;
                     return echo.Frame;
                 case NativeBattleDuel216EchoCapture capture:
@@ -253,7 +253,7 @@ public sealed partial class BattleSession
                 case NativeBattleDuel216Contact506690:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [NativeBattleDuel216Contacts.Read506690(nativeActionPackets, parameters.HeaderIndex7C)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [NativeBattleDuel216Contacts.Read506690(nativeActionPackets, parameters.Header)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleDuel216MainCamera update:
@@ -301,7 +301,7 @@ public sealed partial class BattleSession
         }
         NativeBattleDuel216Frame CaptureEcho(NativeBattleDuel216Frame current, int slot)
         {
-            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, parameters.Actor78).PoseSource ?? throw new NotSupportedException("Native Different Beat echo requires its current skeleton.");
+            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, parameters.Source).PoseSource ?? throw new NotSupportedException("Native Different Beat echo requires its current skeleton.");
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(parameters.Source), pose);
             NativeBattleEffectTaskPool main = Bank(current, NativeBattleDuel216Controller.Main);
             NativeBattleModulePoolTask captured = NativeBattleDuelEcho.Capture697850(main.Slots[slot], 3668, pose.BoneCount, index =>

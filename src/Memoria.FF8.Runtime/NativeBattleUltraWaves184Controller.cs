@@ -9,9 +9,9 @@ public static class NativeBattleUltraWaves184Controller
     {
         Require(frame);
         resources.Validate();
-        int header = Parameters(frame).HeaderIndex7C;
-        int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Ultra Waves requires its captured first contact pointer.");
-        if (inputs.Packets.Headers[header].ReadByte(16) == 0)
+        BattleActionHeaderReference header = Parameters(frame).Header;
+        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Ultra Waves requires its captured first contact pointer.");
+        if (inputs.Packets.ReadHeader(header).ReadByte(16) == 0)
         {
             throw new InvalidDataException("Ultra Waves requires its captured first target.");
         }
@@ -25,7 +25,7 @@ public static class NativeBattleUltraWaves184Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int main) = children.Append(MainCallback);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
-        NativeBattleUltraWaves184State state = frame.State.SeedColdSources(resources).WriteDword(0x22BD108, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(0x22BE8E0, 0x1D99A78).WriteDword(0x22BE8E4, Parameters(frame).Actor78).WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)tim));
+        NativeBattleUltraWaves184State state = frame.State.SeedColdSources(resources).WriteDword(0x22BD108, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(0x22BE8E0, 0x1D99A78).WriteDword(0x22BE8E4, Parameters(frame).Source).WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)tim));
         for (int index = 0; index < 100; index++)
         {
             state = state with { Particles = state.Particles.Write(index * 24, new byte[2]) };

@@ -16,7 +16,7 @@ public static class NativeBattleHypnotize133Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleHypnotize133State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleHypnotize133State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -299,7 +299,7 @@ public static class NativeBattleHypnotize133Controller
 
     private static NativeBattleHypnotize133Frame WithPool(NativeBattleHypnotize133Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleHypnotize133Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Hypnotize requires its captured native parameters.");
-    private static NativeBattleActionHeaderSlot Header(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
     private static int FirstContact(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Hypnotize requires its current physical contacts.");
     private static uint Working(NativeBattleHypnotize133Frame frame) => frame.State.ReadDword(WorkingGlobal);
     private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Hypnotize selected an absent actor.");

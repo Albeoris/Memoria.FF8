@@ -12,7 +12,7 @@ public static partial class NativeBattleRoughDivide163Controller
         {
             throw new NotSupportedException("Native5F5FE0 requires a nonnegative original history index.");
         }
-        byte actor = frame.Parameters.Actor78;
+        BattleModelOwner actor = frame.Parameters.Source;
         NativeBattleRenzokuken160WeaponTip tip = readWeaponTip(actor);
         NativeBattleVector endpoint = new(unchecked((short)(tip.Position.X + (unchecked(666 * tip.DirectionX) >> 12))), unchecked((short)(tip.Position.Y + (unchecked(666 * tip.DirectionY) >> 12))), unchecked((short)(tip.Position.Z + (unchecked(666 * tip.DirectionZ) >> 12))));
         int ring = counter % 7;

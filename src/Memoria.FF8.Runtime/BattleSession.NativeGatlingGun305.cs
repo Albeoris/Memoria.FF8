@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gatling Gun requires its actual process memory.");
         NativeBattleGatlingGun305Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gatling Gun requires its CRT stream."), memory.GatlingGun305 ?? throw new NotSupportedException("Gatling Gun requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gatling Gun requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gatling Gun requires its original interpolation constants.");
-        NativeBattleGatlingGun305Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), Bone, Anchor, Execute) { CapturePresentation = true };
+        NativeBattleGatlingGun305Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), Bone, Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleGatlingGun305Controller.Initialize(frame, resources, inputs) : NativeBattleGatlingGun305Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         NativeBattleGatlingGun305AnchorStep Anchor(NativeBattleGatlingGun305Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -87,10 +87,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Gatling Gun caster binding leaves its original resource and saved row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Gatling Gun requires its current CPU rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)

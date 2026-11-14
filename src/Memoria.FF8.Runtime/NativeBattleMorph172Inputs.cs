@@ -6,7 +6,7 @@ public sealed record NativeBattleMorph172Frame(NativeBattleEffectMemory Memory, 
 }
 
 public sealed record NativeBattleMorph172PointStep(NativeBattleMorph172Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleMorph172Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMorph172Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMorph172Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMorph172Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMorph172Frame, int, NativeBattleMorph172PointStep> ReadAnchor571400, Func<NativeBattleMorph172Frame, int, int> ReadBoneCount, Func<NativeBattleMorph172Frame, int, int, int, NativeBattleMorph172PointStep> ReadBone502170, Func<NativeBattleMorph172Frame, NativeBattleMorph172Operation, NativeBattleMorph172Frame> Execute)
+public sealed record NativeBattleMorph172Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMorph172Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMorph172Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMorph172Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMorph172Frame, BattleModelOwner, NativeBattleMorph172PointStep> ReadAnchor571400, Func<NativeBattleMorph172Frame, BattleModelOwner, int> ReadBoneCount, Func<NativeBattleMorph172Frame, BattleModelOwner, int, int, NativeBattleMorph172PointStep> ReadBone502170, Func<NativeBattleMorph172Frame, NativeBattleMorph172Operation, NativeBattleMorph172Frame> Execute)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }

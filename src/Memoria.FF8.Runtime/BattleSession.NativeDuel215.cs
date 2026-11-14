@@ -17,14 +17,14 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Duel215 requires retained effect memory.");
         NativeBattleDuel215Resources resources = memory.Duel215?.Resources ?? throw new NotSupportedException("Native Duel215 requires its actual entered resources.");
-        NativeBattleEffectParameters parameters = memory.Duel215?.Parameters ?? throw new NotSupportedException("Native Duel215 requires its actual entered parameters.");
+        NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new NotSupportedException("Native Duel215 requires its actual entered parameters.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Duel215 requires its actual camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Duel215 requires its actual projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Duel215 requires its actual view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel215 requires its authenticated color arithmetic.");
         NativeBattleDuel215Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel215 requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel215 requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel215 requires retained CRT state."));
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Duel215 requires its actual action contact pointer.");
         int count = header.ReadContactCount();
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();

@@ -183,8 +183,8 @@ public static class NativeBattleRaldo19Controller
                 case 1:
                     if (current.State.Word(0x48) == 1)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Raldo requires its actual selected contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Raldo requires its actual selected contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         state = Execute(state, new NativeBattleRaldo19Contact(contact));
                         state = Next(state, address);
                     }

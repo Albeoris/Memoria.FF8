@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect301Frame DrawNativeEffect301Body(ref NativeBattleGraphicsState graphics, NativeBattleEffect301Frame frame, NativeBattleEffect301DrawBody66E300 operation, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs)
     {
         int actor = NativeEffect301Actor(graphics, operation.ModelAddress);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         var resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect301 requires its current caster skeleton.");
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect301 requires its current caster world matrix.");
@@ -43,7 +43,7 @@ public sealed partial class BattleSession
         NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(model, source, NativeBattleTemporaryMemory.ReadView(restore.Staging, restore.Address, 88));
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(restore.Staging, restore.Address, prepared.Temporary58, 88);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(NativeBattleTemporaryMemory.Release5082D0(staging, 88), 136) };
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
         return frame;
     }
 }

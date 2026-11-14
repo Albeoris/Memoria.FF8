@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         NativeBattleDispel109Resources resources = effect.Binding.Dispel109Resources ?? throw new NotSupportedException("Native Dispel requires its original resources.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Dispel requires its actual camera projection.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Dispel requires its original color conversion operands.");
-        NativeBattleDispel109Inputs inputs = new(nativeActionPackets, Anchor, actor => unchecked((ushort)(graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Dispel requires its target WORD38.")).Scale38), Execute, DrawModel, DrawSprite)
+        NativeBattleDispel109Inputs inputs = new(nativeActionPackets, Anchor, actor => unchecked((ushort)(graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Dispel requires its target WORD38.")).Scale38), Execute, DrawModel, DrawSprite)
         {
             ObserveTargetInitialize6CF687 = () =>
             {
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         NativeBattleModuleAnchor Anchor(byte actor)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            return anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires the actual actor WORD36.")).Angle36 };
+            return anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native571400 requires the actual actor WORD36.")).Angle36 };
         }
 
         NativeBattleDispel109Frame Execute(NativeBattleDispel109Frame current, NativeBattleDispel109Operation operation)
@@ -65,8 +65,8 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(resources.Sound, unchecked((uint)operation.Value), operation.Anchor ?? throw new InvalidDataException("Native Dispel sound lost its freshly read target anchor.")));
                     break;
                 case NativeBattleDispel109OperationKind.Contact:
-                    int headerIndex = checked(current.Effect.Parameters!.HeaderIndex7C + operation.Value);
-                    int contact = nativeActionPackets.Headers[headerIndex].FirstContactIndex ?? throw new InvalidDataException("Native Dispel requires its actual group contact pointer.");
+                    BattleActionHeaderReference headerIndex = current.Effect.Parameters!.Header.Advance(operation.Value);
+                    int contact = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new InvalidDataException("Native Dispel requires its actual group contact pointer.");
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });

@@ -169,8 +169,8 @@ public static class NativeBattleEffect60Controller
                 case 1:
                     if (current.State.Word(0x48) == 1)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect60 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect60 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect60Contact(contact));
                         hierarchy = Next(new(current.Effect.Pools), address);
                     }

@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel215TargetBoundsResult(NativeBattleDuel215Frame Frame, short Maximum, short Minimum);
-public sealed record NativeBattleDuel215TargetServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, ImmutableArray<byte> Targets, Func<NativeBattleDuel215Frame, int, NativeBattleDuel215TargetBoundsResult> ReadBounds69D360, Func<NativeBattleDuel215Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleDuel215Frame> Draw69D200);
+public sealed record NativeBattleDuel215TargetServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, ImmutableArray<byte> Targets, Func<NativeBattleDuel215Frame, int, NativeBattleDuel215TargetBoundsResult> ReadBounds69D360, Func<NativeBattleDuel215Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleDuel215Frame> Draw69D200);
 
 public static class NativeBattleDuel215Targets
 {

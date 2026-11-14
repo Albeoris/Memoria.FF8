@@ -33,8 +33,8 @@ public sealed partial class BattleSession
         frame = frame.WriteTemporaryDword(0x60, unchecked((uint)(int)origin.X)).WriteTemporaryDword(0x64, unchecked((uint)(int)origin.Y)).WriteTemporaryDword(0x68, unchecked((uint)(int)origin.Z));
         if (clone == 0)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) }) };
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) }) };
             (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
             StoreDword(clone + 0xC, actorAddress);
             RefreshDescriptors();
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             frame = frame with { Arena = frame.Arena.Write(ArenaOffset(clone + 0x21, 1), [0]) };
             SlotStore(0xBC, clone);
             RestoreLocal();
-            Compose(graphics.Models[actorIndex].GeometryWorldMatrix ?? throw new NotSupportedException("Native actor glow requires its current world matrix."));
+            Compose(graphics.ActorModels.Get(actorIndex).GeometryWorldMatrix ?? throw new NotSupportedException("Native actor glow requires its current world matrix."));
             InitializeDistances();
         }
         uint state = SlotDword(0xC0);
@@ -63,14 +63,14 @@ public sealed partial class BattleSession
         NativeBattleVector referenceVector = NativeBattleScriptedMeshPreparation.Vector(frame.Arena.Read(ArenaOffset(referenceAddress + 0x94, 6), 6));
         uint colorBase = CoreDword(frame, manager + 0x74);
         frame = frame.WriteTemporaryDword(0x70, colorBase);
-        frame = NativeBattleCinematicActorVertexColor20.UpdateColors(frame, state, colorBase, unchecked((short)SlotWord(frame, 0x8C)), unchecked((short)SlotWord(frame, 0x8E)), unchecked((short)SlotWord(frame, 0x90)), graphics.Models[actorIndex].Color40 ?? throw new NotSupportedException("Native actor glow requires its actual base color."), referenceVector);
+        frame = NativeBattleCinematicActorVertexColor20.UpdateColors(frame, state, colorBase, unchecked((short)SlotWord(frame, 0x8C)), unchecked((short)SlotWord(frame, 0x8E)), unchecked((short)SlotWord(frame, 0x90)), graphics.ActorModels.Get(actorIndex).Color40 ?? throw new NotSupportedException("Native actor glow requires its actual base color."), referenceVector);
         int colorCount = unchecked((short)Word(state));
         uint projectedWork = unchecked(colorBase + (uint)(colorCount * 4));
         StoreDword(clone + 0x44, projectedWork);
         RefreshDescriptors();
         RestoreLocal();
-        NativeBattleGraphicsModel bounded = NativeBattlePoseMatrices.PublishShadowBounds5086F0(graphics.Models[actorIndex], pose);
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, bounded) };
+        NativeBattleGraphicsModel bounded = NativeBattlePoseMatrices.PublishShadowBounds5086F0(graphics.ActorModels.Get(actorIndex), pose);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, bounded) };
         NativeBattleActionMatrix world = bounded.GeometryWorldMatrix ?? throw new NotSupportedException("Native actor glow requires its actual world matrix.");
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Compose56C2F0(MonsterNodeMatrix(frame), world);
         frame = WriteTemporaryMatrix(frame, 0xE0, basis);
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
 
         void RefreshDescriptors()
         {
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             NativeBattleEffectArena captured = CaptureNativeEffect301Model(actor).Write(0x64, BitConverter.GetBytes(NativeModelResourceAddress100(actor)));
             (byte[] bytes, bool[] known) = captured.ReadSnapshot(0x60, 12);
             int target = ArenaOffset(clone + 0x10, 12);
@@ -167,10 +167,10 @@ public sealed partial class BattleSession
         void RestoreLocal()
         {
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
-            NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actorIndex], pose, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+            NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actorIndex), pose, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
             staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, prepared.Model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, prepared.Model) };
             NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(prepared.Model.SequenceState ?? throw new NotSupportedException("Native actor glow requires its current decoded pose."), pose);
             if (!decoded.HasScale)
             {
@@ -186,13 +186,13 @@ public sealed partial class BattleSession
 
         void Compose(NativeBattleActionMatrix matrix)
         {
-            NativeBattleGraphicsModel composed = NativeBattleBodyBoneMatrices.Compose5095B0(graphics.Models[actorIndex], matrix);
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, composed) };
+            NativeBattleGraphicsModel composed = NativeBattleBodyBoneMatrices.Compose5095B0(graphics.ActorModels.Get(actorIndex), matrix);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, composed) };
         }
 
         void LoadBone(ushort bone)
         {
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actorIndex], pose);
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actorIndex), pose);
             if (bone >= bones.Length)
             {
                 throw new InvalidDataException("Native actor glow selected an absent current bone.");
@@ -254,7 +254,7 @@ public sealed partial class BattleSession
 
         void Shadow()
         {
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             if ((actor.Flags0 & 0x20) != 0)
             {
                 return;
@@ -278,7 +278,7 @@ public sealed partial class BattleSession
 
         NativeBattleResourcePointer ReadResource(int index)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             if (actor.ActiveStagedResourceRow100 is uint row)
             {
                 uint address = row + 4u * (uint)index;

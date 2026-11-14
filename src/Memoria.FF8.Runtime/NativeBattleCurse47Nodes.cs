@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCurse47NodePackets(bool Common, NativeBattleGfGeometryBatch Batch) : NativeBattleCurse47Operation;
 public sealed record NativeBattleCurse47NodeAppend(NativeBattleCurse47Frame Frame, uint Address);
-public sealed record NativeBattleCurse47NodeInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, Func<NativeBattleCurse47Frame, NativeBattleCurse47Operation, NativeBattleCurse47Frame> Execute)
+public sealed record NativeBattleCurse47NodeInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, Func<NativeBattleCurse47Frame, NativeBattleCurse47Operation, NativeBattleCurse47Frame> Execute)
 {
     public Func<uint, int, byte[]>? ReadExternal { get; init; }
     public Func<NativeBattleCurse47Frame, int, byte, NativeBattleCurse47Frame>? ObserveBone { get; init; }

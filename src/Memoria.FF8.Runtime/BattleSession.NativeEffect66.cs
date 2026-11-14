@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect66 requires its current process memory.");
         NativeBattleEffect66Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect66 requires its current CRT stream."), memory.Effect66 ?? throw new NotSupportedException("Effect66 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect66 requires its current temporary memory.") };
         NativeBattleEffect66Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect66 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect66 requires its signed current IO result.")) < 0 ? -1 : unchecked((int)graphics.Flags)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect66 requires its current projection."), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect66 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, (_, actor) => graphics.Models[actor], PoseSource, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect66 requires its current world matrix."), null), ReadBone, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect66 requires its vibration process.")).IsPlaying(handle), Execute);
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect66 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect66 requires its signed current IO result.")) < 0 ? -1 : unchecked((int)graphics.Flags)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect66 requires its current projection."), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect66 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, (_, actor) => graphics.ActorModels.Get(actor), PoseSource, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect66 requires its current world matrix."), null), ReadBone, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect66 requires its vibration process.")).IsPlaying(handle), Execute);
         frame = initialize ? NativeBattleEffect66Controller.Initialize(frame, resources, inputs) : NativeBattleEffect66Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect66PointStep ReadBone(NativeBattleEffect66Frame current, int actor, int bone, int distance, NativeBattleEffectArena retained)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(current, actor), checked((byte)bone), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(current, actor), checked((byte)bone), checked((short)distance));
             NativeFileStaging = current.Staging;
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             current = current with { Memory = observed, Staging = NativeFileStaging };
@@ -53,12 +53,12 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().Apply50A730();
                     return current;
                 case NativeBattleEffect66ModelMask7C mask:
-                    NativeBattleGraphicsModel model = graphics.Models[mask.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(mask.Actor, model with { SequenceState = (model.SequenceState ?? throw new NotSupportedException("Effect66 requires its current object mask.")) with { MeshMask124 = mask.Mask } }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(mask.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(mask.Actor, model with { SequenceState = (model.SequenceState ?? throw new NotSupportedException("Effect66 requires its current object mask.")) with { MeshMask124 = mask.Mask } }) };
                     return current;
                 case NativeBattleEffect66ModelFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = (ushort)((flagged.Flags0 & flags.AndMask) | flags.OrMask) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = (ushort)((flagged.Flags0 & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect66StageGroupFlags flags:
                     NativeBattleStageState stageOwner = NativeStage ?? throw new NotSupportedException("Effect66 requires its current stage groups.");
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect66DrawBody176 body:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect66Frame bodyFrame) = DrawNativeEffect66Body(graphics, current, body.TemporaryAddress, resources, inputs, body.PilotIdentity);
-                    graphics = graphics with { Models = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.Models };
                     return bodyFrame;
                 case NativeBattleEffect66DrawStageBody44 stage:
                     (NativeBattleGraphicsState stageGraphics, NativeBattleEffect66Frame stageFrame) = DrawNativeEffect66Stage(graphics, current, stage.TemporaryAddress, stage.PilotIdentity);

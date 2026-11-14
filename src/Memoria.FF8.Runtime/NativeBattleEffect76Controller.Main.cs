@@ -105,7 +105,7 @@ public static partial class NativeBattleEffect76Controller
         if (age == 605)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect76 requires its current parameters.");
-            int contact = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect76 requires its current first contact pointer.");
+            int contact = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect76 requires its current first contact pointer.");
             frame = inputs.Execute(frame, new NativeBattleEffect76Contact506690(contact));
         }
         if (age == 662)

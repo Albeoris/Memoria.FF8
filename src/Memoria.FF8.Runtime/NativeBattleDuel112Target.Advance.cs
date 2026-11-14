@@ -21,7 +21,7 @@ public static partial class NativeBattleDuel112Target
             inputs.Sound501330(BinaryPrimitives.ReadUInt32LittleEndian(resources.Read(phase == 2 ? 0x12DB654u : 0x12DB658u, 4).AsSpan()));
         }
         inputs.Stage5713E0(StageIntensity6CBF90(phase));
-        int actor = frame.Memory.Duel112?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel target requires its actual actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel target requires its actual actor.");
         NativeBattleDuel112DrawingInputs drawing = inputs.Drawing.Drawing;
         if (phase == 7)
         {

@@ -11,13 +11,13 @@ public sealed partial class BattleSession
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native No Mercy requires its actual parameters.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native No Mercy requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Z."));
-        NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
+        NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Source, 241, 0);
         NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native No Mercy requires actual target positions.")).ToArray());
         NativeBattleNoMercy200EntryStep entered = NativeBattleNoMercy200Controller.Enter6391D0(NativeEffectMemory ?? throw new NotSupportedException("Native No Mercy requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native No Mercy requires its retained CRT random owner."), rotation, model.RotationPadding18, bone, center);
         NativeEffectMemory = entered.Frame.Memory;
         NativeFileStaging = entered.Frame.Staging;
         nativeCrtRandom = entered.Frame.Random;
-        return graphics with { OriginalEffect = entered.Frame.Effect, Models = graphics.Models.SetItem(parameters.Actor78, model with { Rotation14 = entered.Facing14 }) };
+        return graphics with { OriginalEffect = entered.Frame.Effect, Models = graphics.Models.SetItem(parameters.Source, model with { Rotation14 = entered.Facing14 }) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeNoMercy200(NativeBattleGraphicsState graphics)
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
                 0x63E9C0 => NativeBattleNoMercy200Controller.AdvanceCamera63E9C0(current, pool, slot, graphics.Flags, (NativeCamera ?? throw new NotSupportedException("Native No Mercy requires its current camera owner.")).CurrentPose ?? throw new NotSupportedException("Native No Mercy requires its current camera pose."), PublishCamera),
                 0x639800 or 0x639FD0 => NativeBattleNoMercy200Controller.AdvanceTarget(current, pool, slot, graphics.Flags, targets),
                 0x639A60 or 0x639DE0 or 0x639EF0 => NativeBattleNoMercy200Controller.AdvanceTargetParticle(current, pool, slot, inputs, definition.NativeModuleResources.Single(resource => resource.Id == 5)),
-                0x63A250 => NativeBattleNoMercy200Controller.Advance63A250(current, pool, slot, inputs, ReadNativeRenzokuken160WeaponTip(graphics, current.Parameters.Actor78), projection, current.Memory.ScriptedGraphics, colors),
+                0x63A250 => NativeBattleNoMercy200Controller.Advance63A250(current, pool, slot, inputs, ReadNativeRenzokuken160WeaponTip(graphics, current.Parameters.Source), projection, current.Memory.ScriptedGraphics, colors),
                 0x63AD20 or 0x63AF40 or 0x63CD00 or 0x63D230 or 0x63DBD0 or 0x63E4E0 => NativeBattleNoMercy200Controller.AdvanceSimpleMesh(current, pool, slot, inputs),
                 0x63B080 => NativeBattleNoMercy200Controller.Advance63B080(current, pool, slot, inputs),
                 0x63CEF0 or 0x63DE90 or 0x63E170 => NativeBattleNoMercy200Controller.AdvanceSharedSparks(current, pool, slot, inputs, bones),
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
                     born = NativeBattleNoMercy200Controller.Begin63A220(current, pool);
                     break;
                 case 0x63ACB0:
-                    born = NativeBattleNoMercy200Controller.Begin63ACB0(current, pool, targets.ReadAnchor(current.Parameters.Actor78));
+                    born = NativeBattleNoMercy200Controller.Begin63ACB0(current, pool, targets.ReadAnchor(current.Parameters.Source));
                     break;
                 case 0x63AE80:
                     born = NativeBattleNoMercy200Controller.Begin63AE80(current, pool);
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native No Mercy requires its actual camera owner.")).Apply50A730();
                     return current;
                 case NativeBattleNoMercy200Bind:
-                    byte actor = current.Parameters.Actor78;
+                    BattleModelOwner actor = current.Parameters.Source;
                     NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native No Mercy requires its actual CPU resource rows."), model, 0x24F9710, 0xE2B518);
                     NativeFileStaging = bound.Staging;
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleNoMercy200TargetSequence sequence:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.Header];
                     int count = header.ReadContactCount();
                     if (count > 0)
                     {
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 6, 255) };
                     return current;
                 case NativeBattleNoMercy200Contacts:
-                    graphics = ApplyNativeHeaderContacts(graphics, current.Parameters.HeaderIndex7C);
+                    graphics = ApplyNativeHeaderContacts(graphics, current.Parameters.Header);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleNoMercy200Reload reload:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(0x20DFAB8 + 114688, reload.CompletionAddress, (address, value) => current = current with { Effect = NativeBattleNoMercy200Controller.WriteCompletionByte(current.Effect, address, value) });

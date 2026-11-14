@@ -165,8 +165,8 @@ public sealed partial class BattleSession
 
         private NativeBattleActionHeaderSlot Header(NativeBattleModulePoolTask task)
         {
-            int index = checked(effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(42)));
-            return session.nativeActionPackets.Headers[index];
+            BattleActionHeaderReference index = effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
+            return session.nativeActionPackets.ReadHeader(index);
         }
 
         private void ShakeY(short value)

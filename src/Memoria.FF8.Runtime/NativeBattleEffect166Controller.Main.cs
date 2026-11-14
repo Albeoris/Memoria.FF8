@@ -174,7 +174,7 @@ public static partial class NativeBattleEffect166Controller
     private static int ContactIndex(NativeBattleEffect166Frame frame, int actor, NativeBattleEffect166Inputs inputs)
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[frame.Effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(frame.Effect.Parameters!.Header);
         int count = header.ReadByte(0x10);
         if (count == 0)
         {

@@ -31,12 +31,12 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Effect31 physical read crosses a current model row.");
             }
             (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.Models[actor]), offset, result, 0, length);
+            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), offset, result, 0, length);
         }
         if (address >= 0x1D99A78 && (ulong)address + (uint)length <= 0x1D99A80)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect31 requires its current action parameters.");
-            NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [parameters.Actor78, parameters.Flags79]).Write(2, BitConverter.GetBytes(parameters.TargetMask7A)).Write(4, BitConverter.GetBytes(checked(0x1D280C4u + (uint)parameters.HeaderIndex7C * 20)));
+            NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [parameters.Source, parameters.Flags79]).Write(2, BitConverter.GetBytes(parameters.TargetActors)).Write(4, BitConverter.GetBytes(checked(0x1D280C4u + (uint)parameters.Header * 20)));
             return NativeBattleEffectNodeContextMemory.Copy(bytes, checked((int)(address - 0x1D99A78)), result, 0, length);
         }
         if (address >= 0x1D280C4 && address < NativeBattleContactAddress.Encode(0))
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
 
     private NativeBattleResourcePointer ReadNativeEffect31SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
         {
             NativeBattleResourcePointer? pointer;
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect31BodyBones(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, NativeBattlePoseSource source)
     {
-        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         ImmutableArray<NativeBattlePackedMatrix32>.Builder result = ImmutableArray.CreateBuilder<NativeBattlePackedMatrix32>(matrices.Length);
         for (int bone = 0; bone < matrices.Length; bone++)
         {
@@ -131,7 +131,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect31PointStep ReadNativeEffect31Point(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, uint modelAddress, int selector, int fraction, NativeBattleEffectArena retained)
     {
         int actor = NativeEffect31Actor(graphics, modelAddress);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : ReadNativeEffect31Pose(graphics, frame, actor);
         NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
         frame = ObserveNativeEffect31Point(frame, producer);

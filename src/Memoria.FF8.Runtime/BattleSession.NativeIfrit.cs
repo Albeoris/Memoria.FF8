@@ -24,13 +24,13 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native cinematic requires both complete executed initializer resources.");
         }
-        NativeBattleActionHeaderSlot? header = entryCaster is null ? nativeActionPackets.Headers[parameters.HeaderIndex7C] : null;
+        NativeBattleActionHeaderSlot? header = entryCaster is null ? nativeActionPackets.ReadHeader(parameters.Header) : null;
         ImmutableArray<byte> contacts = entryCaster is byte entry ? [entry] : WaterContacts(header!);
         if (contacts.IsEmpty)
         {
             throw new NotSupportedException("Native cinematic entry requires its first actual contact actor.");
         }
-        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), profile.InitializationAddress, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header?.ReadContactCount() ?? 1, header?.ReadByte(0x11) ?? 1, graphics.Models);
+        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.Header)), profile.InitializationAddress, parameters.Source, parameters.Header, contacts[0], contacts, header?.ReadContactCount() ?? 1, header?.ReadByte(0x11) ?? 1, graphics.Models);
         NativeBattleCinematicEntryStep initialized = entryCaster is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
         if (effect.Binding.Effect == 18)
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
         NativeBattleScriptedCallbackInput input = new(effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native cinematic requires its original directories."), assets[1].Data.Length, checked((ushort)graphics.Flags), MatrixBytes(projection.View ?? throw new NotSupportedException("Native cinematic requires its current view matrix.")), 0, checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native cinematic COMMON cursor is unknown."))), camera.FocalLength ?? throw new NotSupportedException("Native cinematic requires its retained focal WORD."));
         NativeBattleWaterContextServices context = new((_, pointer) =>
         {
-            int? linked = graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].ReadLinkedModelIndex140();
+            int? linked = graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).ReadLinkedModelIndex140();
             return linked is int row ? ActorPointer(row) : 0;
         }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer, graphics.Models.Length)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
         {
@@ -273,7 +273,7 @@ public sealed partial class BattleSession
                 case 0xB9 when selectedHandler == 0xB2CA80:
                     return NativeBattleCinematicNegateB9.Execute(current, program, bank, index, UpdateSlot);
                 case 0xBE when selectedHandler == 0xB3A9B0:
-                    return NativeBattleCinematicActorCommands77.BranchBE(current, program, pointer => unchecked((byte)graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].Flags0));
+                    return NativeBattleCinematicActorCommands77.BranchBE(current, program, pointer => unchecked((byte)graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).Flags0));
                 case 0xC1 when selectedHandler == 0xB3AA00:
                     return NativeBattleCinematicActorCommands77.ExecuteC1(current, new(frame =>
                     {
@@ -324,13 +324,13 @@ public sealed partial class BattleSession
                         {
                             throw new NotSupportedException("Native cinematic actor resource requires its original static DAT; migrate the selected older snapshot explicitly.");
                         }
-                        NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actorIndex], NativeGraphicsPoseResource(graphics, actorIndex));
+                        NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actorIndex), NativeGraphicsPoseResource(graphics, actorIndex));
                         NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(directory, bytes.AsSpan());
                         NativeFileStaging = staging;
                         NativeBattleEffectArena arena = resourceFrame.Arena;
                         var binding = NativeBattleVictoryResources.Bind5022C0(bytes, NativeModelCpuResources ?? throw new NotSupportedException("Native cinematic actor binding requires actual CPU resources."), actor, row, directory, ReadPointer, (address, pointer) => arena = arena.WriteResourcePointer(ArenaOffset(address, 4), pointer));
                         NativeEffectMemory = RequireWaterMemory() with { Arena = arena };
-                        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, binding.Model) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, binding.Model) };
                         return resourceFrame with { Arena = arena };
 
                         NativeBattleResourcePointer? ReadPointer(uint address) => IsNativeEffectArenaAddress(address) ? arena.ReadResourcePointer(ArenaOffset(address, 4)) : staging.ReadResourcePointer(address);
@@ -353,11 +353,11 @@ public sealed partial class BattleSession
                 case 0x46:
                     return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.EncodeNativeSlot() == actor)), context.ActionPackets);
                 case 0x49:
-                    return NativeBattleCinematicActorStore48.BranchScale49(current, program, address => graphics.Models[PhysicalActorIndex(address)]);
+                    return NativeBattleCinematicActorStore48.BranchScale49(current, program, address => graphics.ActorModels.Get(PhysicalActorIndex(address)));
                 case 0x5F:
-                    return NativeBattleCinematicEntityPosition.FromEntityOffset5F(current, program, actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native cinematic entity offset requires its actual position WORDs."), UpdateSlot);
+                    return NativeBattleCinematicEntityPosition.FromEntityOffset5F(current, program, actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native cinematic entity offset requires its actual position WORDs."), UpdateSlot);
                 case 0x60:
-                    return NativeBattleCinematicEntityPosition.FromEntityJoint60(current, program, ReadEntityAnchor, actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native cinematic entity orbit requires its actual scale WORD."), UpdateSlot);
+                    return NativeBattleCinematicEntityPosition.FromEntityJoint60(current, program, ReadEntityAnchor, actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native cinematic entity orbit requires its actual scale WORD."), UpdateSlot);
                 case 0x6E:
                     return NativeBattleCinematicEntityPosition.FromTargetJointAverage6E(current, program, ReadEntityAnchor, UpdateSlot);
                 case 0x140:
@@ -370,9 +370,9 @@ public sealed partial class BattleSession
                     NativeEffectMemory = cameraMemory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, CoreDword(current, 0x27973E8) + 0x94, cameraRegisters) };
                     return NativeBattleWaterMatrixCommands.Execute(current, program, bank, CreateNativeActorAnchorServices());
                 case 0x38:
-                    return NativeBattleCinematicActorStore48.StoreColor38(current, definition.NativeGraphics?.Rules.SummonColors?.Transition ?? throw new NotSupportedException("Native actor color store requires the original background color."), address => graphics.Models[PhysicalActorIndex(address)], (address, actor) => graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) });
+                    return NativeBattleCinematicActorStore48.StoreColor38(current, definition.NativeGraphics?.Rules.SummonColors?.Transition ?? throw new NotSupportedException("Native actor color store requires the original background color."), address => graphics.ActorModels.Get(PhysicalActorIndex(address)), (address, actor) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(PhysicalActorIndex(address), actor) });
                 case 0x48:
-                    return NativeBattleCinematicActorStore48.Execute(current, address => graphics.Models[PhysicalActorIndex(address)], (address, actor) => graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) });
+                    return NativeBattleCinematicActorStore48.Execute(current, address => graphics.ActorModels.Get(PhysicalActorIndex(address)), (address, actor) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(PhysicalActorIndex(address), actor) });
                 case 0xCB:
                     return NativeBattleCinematicMatrixAimCB.Execute(current, program, ResolveCurrentNode);
                 case 0x4E:
@@ -438,7 +438,7 @@ public sealed partial class BattleSession
                             throw new NotSupportedException("Native cinematic actor rotation requires its exact current model WORD.");
                         }
                         (int row, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-                        NativeBattleGraphicsModel actor = graphics.Models[row];
+                        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(row);
                         short value = (offset switch
                         {
                             12 => actor.Rotation12,
@@ -501,14 +501,14 @@ public sealed partial class BattleSession
                     }, (_, _, address) =>
                     {
                         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native cinematic reset requires its current action parameters.");
-                        return address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C) : throw new NotSupportedException("Native cinematic reset requires its selected parameter base.");
+                        return address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.Header) : throw new NotSupportedException("Native cinematic reset requires its selected parameter base.");
                     }, (_, _, address, _) =>
                     {
                         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native cinematic reset requires its current action parameters.");
                         int headerIndex = HeaderIndex(address);
                         NativeBattleActionHeaderSlot selected = nativeActionPackets.Headers[headerIndex];
-                        NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-                        return new(parameters.Actor78, headerIndex, WaterContacts(first)[0], WaterContacts(selected), selected.ReadContactCount(), graphics.Models);
+                        NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(parameters.Header);
+                        return new(parameters.Source, headerIndex, WaterContacts(first)[0], WaterContacts(selected), selected.ReadContactCount(), graphics.Models);
                     });
                     return next.Frame;
                 case 0x1D:
@@ -596,12 +596,12 @@ public sealed partial class BattleSession
                     NativeStage = flags.State;
                     return flags.Frame;
                 case 0x8D:
-                    return NativeBattleCinematicActorMeshMask8D.Execute(current, program, address => graphics.Models[PhysicalActorIndex(address)].SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor mesh mask requires its current physical sequence owner."), (address, value) =>
+                    return NativeBattleCinematicActorMeshMask8D.Execute(current, program, address => graphics.ActorModels.Get(PhysicalActorIndex(address)).SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor mesh mask requires its current physical sequence owner."), (address, value) =>
                     {
                         int actorIndex = PhysicalActorIndex(address);
-                        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+                        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
                         NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Native actor mesh mask requires its current physical sequence owner.");
-                        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { SequenceState = sequence with { MeshMask124 = value } }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { SequenceState = sequence with { MeshMask124 = value } }) };
                     });
                 case 0x2B:
                 case 0x4D:
@@ -611,10 +611,10 @@ public sealed partial class BattleSession
                 case 0x5A:
                 case 0x5E:
                 case 0xD0:
-                    return NativeBattleWaterPresentationCommands.Execute(current, program, bank, index, new((_, pointer) => graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].Flags0, (frame, pointer, value) =>
+                    return NativeBattleWaterPresentationCommands.Execute(current, program, bank, index, new((_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).Flags0, (frame, pointer, value) =>
                     {
                         int row = PhysicalActor(pointer, graphics.Models.Length);
-                        graphics = graphics with { Models = graphics.Models.SetItem(row, graphics.Models[row] with { Flags0 = value }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(row, graphics.ActorModels.Get(row) with { Flags0 = value }) };
                         return frame;
                     }, (frame, address, argument, pan) =>
                     {
@@ -625,9 +625,9 @@ public sealed partial class BattleSession
                 case 0x52:
                     return NativeBattleWaterTextureMetadata.Execute52AA3A60(current, resources);
                 case 0x13D:
-                    return NativeBattleScriptedVisibility.Execute(current, program, new((_, row) => graphics.Models[row].Flags0, (frame, row, value) =>
+                    return NativeBattleScriptedVisibility.Execute(current, program, new((_, row) => graphics.ActorModels.Get(row).Flags0, (frame, row, value) =>
                     {
-                        graphics = graphics with { Models = graphics.Models.SetItem(row, graphics.Models[row] with { Flags0 = value }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(row, graphics.ActorModels.Get(row) with { Flags0 = value }) };
                         return frame;
                     }));
                 case 0x31:
@@ -794,7 +794,7 @@ public sealed partial class BattleSession
                         graphics = SelectNativeHeaderSequence(graphics, physical, sequence, source);
                     }, actor =>
                     {
-                        NativeBattleSequenceState state = graphics.Models[PhysicalActor42(actor)].SequenceState ?? throw new NotSupportedException("Native sequence branch requires its current pose state.");
+                        NativeBattleSequenceState state = graphics.ActorModels.Get(PhysicalActor42(actor)).SequenceState ?? throw new NotSupportedException("Native sequence branch requires its current pose state.");
                         return (state.PoseFrame114 ?? throw new NotSupportedException("Native sequence branch requires its pose frame.")) == (state.PoseLimit115 ?? throw new NotSupportedException("Native sequence branch requires its pose limit."));
                     }));
                     byte PhysicalActor42(byte actor)
@@ -820,7 +820,7 @@ public sealed partial class BattleSession
                         return current;
                     }
                     ushort? encounter = definition.EncounterId is int sourceEncounter ? checked((ushort)sourceEncounter) : presentationSourceResource is not null ? null : throw new NotSupportedException("Native encounter correction requires its current source encounter.");
-                    return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, _ => graphics.Models[3]));
+                    return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, _ => graphics.ActorModels.Get(3)));
                 default:
                     throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
             }
@@ -863,7 +863,7 @@ public sealed partial class BattleSession
                 return NativeBattleCinematicPosePosition9.Update(current, pointer =>
                 {
                     int actorIndex = PhysicalActorIndex(pointer);
-                    NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+                    NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
                     NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native pose position requires its current actor rig.");
                     NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadDecodedPose(actor.SequenceState ?? throw new NotSupportedException("Native pose position requires its retained current decoded pose."), source);
                     return new(BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(2, 2)), pose.Translation);
@@ -943,9 +943,9 @@ public sealed partial class BattleSession
                 }
                 if (selectedDrawHandler == 0xAA6770)
                 {
-                    return NativeBattleApocalypse221ActorTint69.Execute(frame, new((_, address) => graphics.Models[PhysicalActorIndex(address)], (current, address, actor) =>
+                    return NativeBattleApocalypse221ActorTint69.Execute(frame, new((_, address) => graphics.ActorModels.Get(PhysicalActorIndex(address)), (current, address, actor) =>
                     {
-                        graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(PhysicalActorIndex(address), actor) };
                         return current;
                     }));
                 }
@@ -999,10 +999,10 @@ public sealed partial class BattleSession
                 }
                 if (selectedDrawHandler == 0x9469E0)
                 {
-                    return NativeBattleCinematicLinkedPosition70.Draw(frame, pointer => graphics.Models[PhysicalActorIndex(pointer)].LinkedTransform ?? throw new NotSupportedException("Native linked draw requires its actual linked model."), (pointer, linked) =>
+                    return NativeBattleCinematicLinkedPosition70.Draw(frame, pointer => graphics.ActorModels.Get(PhysicalActorIndex(pointer)).LinkedTransform ?? throw new NotSupportedException("Native linked draw requires its actual linked model."), (pointer, linked) =>
                     {
                         int actor = PhysicalActorIndex(pointer);
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { LinkedTransform = linked }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { LinkedTransform = linked }) };
                     });
                 }
                 if (selectedDrawHandler == 0x950B50)

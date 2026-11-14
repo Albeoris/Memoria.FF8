@@ -16,7 +16,7 @@ public static class NativeBattlePetrifyStare127Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattlePetrifyStare127State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattlePetrifyStare127State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -62,7 +62,7 @@ public static class NativeBattlePetrifyStare127Controller
             }
             int ordinal = frame.Effect.Pools[0].Slots[slot].ReadByte(14);
             NativeBattleEffectTaskPool targetPool = frame.Effect.Pools[1];
-            if (ordinal <= inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(17) && targetPool.Slots.Any(task => (task.Flags & 1) == 0))
+            if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(17) && targetPool.Slots.Any(task => (task.Flags & 1) == 0))
             {
                 int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.ActorIndex;
                 (targetPool, int targetSlot) = targetPool.Append(TargetCallback);
@@ -194,7 +194,7 @@ public static class NativeBattlePetrifyStare127Controller
     }
 
     private static NativeBattleEffectParameters Parameters(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Petrify Stare requires its captured native parameters.");
-    private static int FirstContact(NativeBattlePetrifyStare127Frame frame, NativeBattlePetrifyStare127Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Petrify Stare requires its captured physical contact pointer.");
+    private static int FirstContact(NativeBattlePetrifyStare127Frame frame, NativeBattlePetrifyStare127Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Petrify Stare requires its captured physical contact pointer.");
     private static NativeBattleEffectArena Arena(NativeBattlePetrifyStare127Frame frame) => frame.Memory.Arena ?? throw new NotSupportedException("Petrify Stare requires its current working arena.");
     private static uint Working(NativeBattlePetrifyStare127Frame frame) => frame.State.ReadDword(WorkingGlobal);
     private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Petrify Stare selected an absent physical actor.");

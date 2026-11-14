@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect54Controller
         NativeBattleModulePoolTask task = Read(frame, address).WriteDword(12, 0x1D99A78);
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(Parameters(frame), packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[Parameters(frame).HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(Parameters(frame).Header);
         byte count = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(count - 1));

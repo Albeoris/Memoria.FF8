@@ -20,18 +20,18 @@ public sealed partial class BattleSession
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect308ModelFlags flags:
                 int actor = NativeEffect308Actor(graphics, flags.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
                     1 => unchecked((ushort)((model.Flags0 & 0xFF00) | (((model.Flags0 & flags.AndMask) | flags.OrMask) & 0xFF))),
                     2 => unchecked((ushort)((model.Flags0 & flags.AndMask) | flags.OrMask)),
                     _ => throw new InvalidDataException("Effect308 requires its exact model flags store width.")
                 };
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = updated }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect308WriteModelBytes write:
                 int target = NativeEffect308Actor(graphics, write.ModelAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(target, ApplyNativeEffect301ModelBytes(graphics.Models[target], write.Offset, write.Data, write.Length)) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(target), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect308Music47E3C0 music:
                 if ((ResolvedNativeFlags & 2) == 0)

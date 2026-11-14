@@ -92,7 +92,7 @@ internal sealed partial class NativeBattleStorageRestoreContext
             {
                 ExecutionReferences = capturedOwner?.ExecutionReferences ?? ImmutableDictionary<int, BattleExecutionReferenceEntry>.Empty
             };
-            NativeBattleWorkingMemory owner = NativeBattleWorkingMemory.Restore(frozen);
+            NativeBattleWorkingMemory owner = RestoreWorkingMemory(frozen);
             graphOwners.Add(id, owner);
             foreach (NativeBattleEffectArena view in views)
             {

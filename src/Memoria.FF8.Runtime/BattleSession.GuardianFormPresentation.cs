@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsBinding? GuardianFormGraphicsBinding(string actorId, NativeBattleGraphicsBinding? normal)
     {
-        return NativeGraphics is { GuardianFormPresentation: { } presentation } graphics && presentation.ActorId == actorId && graphics.Models[presentation.ActorIndex].ModelId4 == 77 ? new(actorId, 77, GuardianFormResources(2).VisualResource) { InitialPosition = normal?.InitialPosition } : null;
+        return NativeGraphics is { GuardianFormPresentation: { } presentation } graphics && presentation.ActorId == actorId && graphics.ActorModels.Get(presentation.ActorIndex).ModelId4 == 77 ? new(actorId, 77, GuardianFormResources(2).VisualResource) { InitialPosition = normal?.InitialPosition } : null;
     }
 
     private ImmutableArray<NativeBattleModelDatSource> NativeModelResourceSources()
@@ -94,16 +94,16 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Another GF presentation owns the battle scene.");
         }
         byte caster = checked((byte)graphics.ActorIds.IndexOf(actor.Id));
-        NativeBattleGuardianFormPresentation presentation = new(actor.Id, invocationId, GuardianFormInvocationMode.EntryOnly, caster, 0, graphics.Models[caster], NativeCamera ?? throw new NotSupportedException("GF entry requires the native camera owner."), NativeStage ?? throw new NotSupportedException("GF entry requires the native stage owner."), graphics.Models.Select(model => model.Flags0).ToImmutableArray(), graphics.Flags) { ModelVisibilityFlags2 = graphics.Models.Select(model => model.Flags2).ToImmutableArray(), HumanFocalLength = NativeCamera.FocalLength ?? throw new NotSupportedException("GF entry requires the current human camera focal length.") };
+        NativeBattleGuardianFormPresentation presentation = new(actor.Id, invocationId, GuardianFormInvocationMode.EntryOnly, caster, 0, graphics.ActorModels.Get(caster), NativeCamera ?? throw new NotSupportedException("GF entry requires the native camera owner."), NativeStage ?? throw new NotSupportedException("GF entry requires the native stage owner."), graphics.Models.Select(model => model.Flags0).ToImmutableArray(), graphics.Flags) { ModelVisibilityFlags2 = graphics.Models.Select(model => model.Flags2).ToImmutableArray(), HumanFocalLength = NativeCamera.FocalLength ?? throw new NotSupportedException("GF entry requires the current human camera focal length.") };
         presentation.Validate();
         graphics = BeginNativeOriginalEffect(graphics, 201);
         for (int index = 0; index < 3; index++)
         {
-            if ((graphics.Models[index].Flags0 & 2) == 0)
+            if ((graphics.ActorModels.Get(index).Flags0 & 2) == 0)
             {
                 continue;
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = (ushort)(graphics.Models[index].Flags0 | 8), Flags2 = (ushort)((graphics.Models[index].Flags2 ?? 0) | 4) }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 | 8), Flags2 = (ushort)((graphics.ActorModels.Get(index).Flags2 ?? 0) | 4) }) };
         }
         NativeGraphics = graphics with { GuardianFormPresentation = presentation, Flags = graphics.Flags | 0x10 };
         QueueNativeModelResource507080(NativeGraphics, 77, caster);
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
             NativeModelTextureCache = cache.Release5080D0(row);
         }
         models = models.SetItem(presentation.ActorIndex, presentation.HumanModel with { Flags8 = models[presentation.ActorIndex].Flags8, StatusTimers = models[presentation.ActorIndex].StatusTimers });
-        graphics = graphics with { Models = models, Flags = ownsCinematic ? presentation.GraphicsFlags : graphics.Flags, GuardianFormPresentation = null, GuardianFormHumanFocalToRestore = ownsCinematic ? null : presentation.HumanFocalLength };
+        graphics = graphics with { ActorModels = models, Flags = ownsCinematic ? presentation.GraphicsFlags : graphics.Flags, GuardianFormPresentation = null, GuardianFormHumanFocalToRestore = ownsCinematic ? null : presentation.HumanFocalLength };
         graphics = FrameGuardianFormIdleCamera(graphics);
         NativeGraphics = ownsCinematic ? StopGuardianFormCinematic(graphics) : graphics;
         if (ownsCinematic)
@@ -253,11 +253,11 @@ public sealed partial class BattleSession
             }
             for (int index = 0; index < 3; index++)
             {
-                if ((graphics.Models[index].Flags0 & 2) == 0)
+                if ((graphics.ActorModels.Get(index).Flags0 & 2) == 0)
                 {
                     continue;
                 }
-                graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = (ushort)(graphics.Models[index].Flags0 | 8), Flags2 = (ushort)((graphics.Models[index].Flags2 ?? 0) | 4) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 | 8), Flags2 = (ushort)((graphics.ActorModels.Get(index).Flags2 ?? 0) | 4) }) };
             }
             NativeCamera = NativeCamera! with { ForceCamera = true };
             graphics = EnterNativeCinematic(graphics);
@@ -315,7 +315,7 @@ public sealed partial class BattleSession
         NativeGraphics = CancelGuardianFormPresentationDescriptor(NativeGraphics);
         if (NativeModelLoader?.Task is { Callback: 0x507120, ModelId: 77 } loader && loader.PhysicalIndex == presentation.ActorIndex)
         {
-            if (loader.EnemyResourceIndex is int reserved && NativeModelTextureCache is { } cache && NativeGraphics.Models[presentation.ActorIndex].TextureResourceIndex != reserved)
+            if (loader.EnemyResourceIndex is int reserved && NativeModelTextureCache is { } cache && NativeGraphics.ActorModels.Get(presentation.ActorIndex).TextureResourceIndex != reserved)
             {
                 // Reservation precedes heap construction and binding; only its texture row and linked slot exist here.
                 NativeBattleModelCpuResources cpu = NativeModelCpuResources!;
@@ -352,9 +352,9 @@ public sealed partial class BattleSession
             }
             NativeBattleGraphicsResource resource = GuardianFormResources(2).VisualResource;
             NativeBattlePoseSource source = resource.PoseSource!;
-            NativeBattleGraphicsModel loaded = graphics.Models[presentation.ActorIndex] with { ModelId4 = 77, SequenceState = new() { Pose = 0, PoseFrame114 = 1, PoseLimit115 = resource.AnimationFrames[0], DecodedPose = source.Sample(0, 1, 0) }, CurrentBodyBoneMatrices = null };
+            NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(presentation.ActorIndex) with { ModelId4 = 77, SequenceState = new() { Pose = 0, PoseFrame114 = 1, PoseLimit115 = resource.AnimationFrames[0], DecodedPose = source.Sample(0, 1, 0) }, CurrentBodyBoneMatrices = null };
             loaded = NativeBattleBodyBoneMatrices.Publish508C90(loaded, source);
-            graphics = graphics with { Models = graphics.Models.SetItem(presentation.ActorIndex, loaded) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentation.ActorIndex, loaded) };
             NativeGraphics = graphics;
             if (NativeEffectIoResult < 0 || graphics.ModuleEffects.PublishedCount != 0)
             {
@@ -380,7 +380,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsResource resource = GuardianFormResources(2).VisualResource;
             NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("GF form visual requires its original pose source.");
             short scale = unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(2)) * 4));
-            NativeBattleGraphicsModel model = graphics.Models[loading.ActorIndex];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(loading.ActorIndex);
             model = model with { ModelId4 = 77, Flags0 = (ushort)(model.Flags0 & ~0xC), Flags2 = (ushort)(model.Flags2!.Value & ~4), CurrentBodyBoneMatrices = null, LinkedModelIndex140 = null, LinkedTransform = null, HasLinkedModelRing140 = false, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale), SequenceState = new(), SequenceByte145 = 0, Sequence = 1, ResourceFlags44 = 1 };
             NativeBattleSequenceStep initializedPose = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, 0) { OriginalResource = resource });
             if (initializedPose.Cues.Any(cue => cue.Kind != NativeBattleSequenceCueKind.RestoreStanding))
@@ -389,8 +389,8 @@ public sealed partial class BattleSession
             }
             model = initializedPose.Model;
             model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, pose, ReadNativeModelScaleVector502AB0(graphics, model)) };
-            graphics = graphics with { Models = graphics.Models.SetItem(loading.ActorIndex, model), GuardianFormPresentation = loading with { Phase = 3 }, Flags = loading.GraphicsFlags };
-            graphics = graphics with { Models = RestoreGuardianFormVisibility(graphics.Models, loading) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(loading.ActorIndex, model), GuardianFormPresentation = loading with { Phase = 3 }, Flags = loading.GraphicsFlags };
+            graphics = graphics with { ActorModels = RestoreGuardianFormVisibility(graphics.Models, loading) };
             NativeGraphics = graphics;
             CompleteGuardianFormEntry(loading.ActorId, loading.InvocationId);
             graphics = NativeGraphics!;

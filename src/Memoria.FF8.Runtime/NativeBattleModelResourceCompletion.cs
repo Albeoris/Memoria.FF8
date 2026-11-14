@@ -144,8 +144,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     internal static bool HasResourceRowExtent(NativeBattleModelCpuBanks cpu, ImmutableArray<NativeBattleModelCpuResourceRow> rows)
     {
-        int maximum = cpu.PresentationRoster is null ? NativeBattleModelResourceRowAddress.NativeRowCount : NativeBattleModelResourceRowAddress.MaximumRowCount;
-        return !rows.IsDefault && rows.Length >= NativeBattleModelResourceRowAddress.NativeRowCount && rows.Length <= maximum;
+        return !rows.IsDefault && (cpu.PresentationRoster is null ? rows.Length == NativeBattleModelResourceRowAddress.NativeRowCount : rows.Length >= NativeBattleModelResourceRowAddress.NativeRowCount);
     }
 
     /// <summary>Invalidated resource rows retain physical bytes, but no derived extent belongs to the next load.</summary>

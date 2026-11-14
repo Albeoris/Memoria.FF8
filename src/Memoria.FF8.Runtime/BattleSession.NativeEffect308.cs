@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleEffect308Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect308 requires its current CRT stream."), state) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.") };
         Dictionary<int, NativeBattlePoseSource> poseSources = [];
         NativeBattleEffect308Inputs? inputs = null;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect308 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeEffect308Actor(graphics, address)]), (_, address) => graphics.Models[NativeEffect308Actor(graphics, address)], ReadBody, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect308 requires its current projection."), _ => Camera().Roll, Point, _ => nativeActionPackets, SelectIo, Random, (current, operation) => ExecuteNativeEffect308Operation(ref graphics, current, operation, resources, inputs!)) { CapturePresentation = true, ReadPoseSource = address => Pose(NativeEffect308Actor(graphics, address)) };
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect308 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.ActorModels.Get(NativeEffect308Actor(graphics, address))), (_, address) => graphics.ActorModels.Get(NativeEffect308Actor(graphics, address)), ReadBody, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect308 requires its current projection."), _ => Camera().Roll, Point, _ => nativeActionPackets, SelectIo, Random, (current, operation) => ExecuteNativeEffect308Operation(ref graphics, current, operation, resources, inputs!)) { CapturePresentation = true, ReadPoseSource = address => Pose(NativeEffect308Actor(graphics, address)) };
         frame = initialize ? NativeBattleEffect308Controller.Initialize(frame, resources, inputs) : NativeBattleEffect308Controller.Advance(frame, resources, inputs);
         PublishNativeEffect308Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         NativeBattleEffect308BodySource ReadBody(NativeBattleEffect308Frame current, uint address)
         {
             int actor = NativeEffect308Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource pose = Pose(actor);
             NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(model.SequenceState ?? throw new NotSupportedException("Effect308 requires its current decoded pose."), pose);
             System.Collections.Immutable.ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect308PackedBones(graphics, current, actor, pose);
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         NativeBattleEffect308PointStep Point(NativeBattleEffect308Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect308Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect308 point queries require their current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : Pose(actor);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));

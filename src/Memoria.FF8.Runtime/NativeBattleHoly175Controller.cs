@@ -36,14 +36,14 @@ public static class NativeBattleHoly175Controller
             throw new InvalidDataException("Native Holy requires its actual entry, action parameters and arena owner.");
         }
         NativeBattleHoly175State state = (frame.Memory.Holy175 ?? throw new NotSupportedException("Native Holy requires its retained process owners.")).Materialize(resources);
-        int actor = inputs.Packets.ReadContact(inputs.Packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Native Holy requires its actual first header contact.")).Primary.ActorIndex;
+        int actor = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Native Holy requires its actual first header contact.")).Primary.ActorIndex;
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x10, 2);
         (main, int root) = main.Append(0x5D44C0);
         main = Put(main, root, main.Slots[root].WriteWord(0xC, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 0x24, 100);
         (children, int primary) = children.Append(0x5D1BD0);
         children = Put(children, primary, children.Slots[primary].WriteWord(0xC, 0).WriteWord(0xE, 0).WriteWord(0x20, (ushort)actor));
-        state = state with { CasterActor = parameters.Actor78, SelectedActor = actor, Sprite31Rows = ClearActive(state.Sprite31Rows, 100), Sprite4Rows = ClearActive(state.Sprite4Rows, 80) };
+        state = state with { CasterActor = parameters.Source, SelectedActor = actor, Sprite31Rows = ClearActive(state.Sprite31Rows, 100), Sprite4Rows = ClearActive(state.Sprite4Rows, 80) };
         frame = frame with { Memory = frame.Memory with { Holy175 = state }, Effect = frame.Effect with { Pools = [main, children], ReturnedDescriptor = MainDescriptor } };
         frame = inputs.Execute(frame, new NativeBattleHoly175CameraControl50A730());
         if ((parameters.Flags79 & 1) == 0)
@@ -614,7 +614,7 @@ public static class NativeBattleHoly175Controller
             frame = frame with { Random = frame.Random.Draw(out ushort value) };
             return value;
         }
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[parameters.HeaderIndex7C + sequence];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
         NativeBattleHoly175State State() => frame.Memory.Holy175 ?? throw new NotSupportedException("Native Holy lost its retained process owners.");
         void SetState(NativeBattleHoly175State state) => frame = frame with { Memory = frame.Memory with { Holy175 = state } };
         NativeBattleHoly175Frame Publish() => frame with { Effect = frame.Effect with { Pools = [main, children] } };

@@ -60,7 +60,7 @@ public static class NativeBattleScanTarget
                     selected = selected.WriteDword(index * 4, selection.SelectionFlags[index]);
                 }
                 frame = frame with { Scan = frame.Scan with { Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Selection269A1BC = selected, PrimaryModel269CE30 = selection.SelectedPhysicalModel } } } } };
-                int groupContact = checked(FirstContact(parameters.HeaderIndex7C) + unchecked((sbyte)task.ReadByte(0x2A)));
+                int groupContact = checked(FirstContact(parameters.Header) + unchecked((sbyte)task.ReadByte(0x2A)));
                 uint callback = (inputs.Packets.ReadContact(groupContact).Primary.Flags2 & 2) == 0 ? 0x84D4B0u : 0x850B40u;
                 hierarchy = hierarchy.Append8DC540(2, callback, 0x78, address, (pointer, group, actor) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, actor)).Hierarchy;
                 task = hierarchy.Read(address).WriteByte(0x29, 1);
@@ -71,7 +71,7 @@ public static class NativeBattleScanTarget
                     uint rootAddress = task.ReadDword(0x10);
                     hierarchy = hierarchy.Write(rootAddress, hierarchy.Read(rootAddress).WriteByte(0x63, 0));
                     PublishHierarchy();
-                    int contact = FirstContact(checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A))));
+                    int contact = FirstContact(checked(parameters.Header + unchecked((sbyte)task.ReadByte(0x2A))));
                     frame = inputs.ApplyContact506690(frame, contact);
                     hierarchy = new(frame.Scan.Effect.Pools);
                     task = hierarchy.Read(address).WriteByte(0x26, (byte)(hierarchy.Read(address).ReadByte(0x26) | 1)).WriteByte(0x29, 2);

@@ -25,12 +25,12 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect60 requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect60 requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Effect60 requires its actual current view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = actor => graphics.Models[actor];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = actor => graphics.ActorModels.Get(actor);
         NativeBattleEffect60Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), readModel, PoseSource, Execute, AdvanceGeneric)
         {
             ReadRotation8 = actor => PackedModel(actor, 0x0C),
             ReadPackedPosition8 = actor => PackedModel(actor, 0x1C),
-            ReadWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect60 requires its physical model matrix."), null)
+            ReadWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect60 requires its physical model matrix."), null)
         };
         frame = NativeBattleEffect60Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                     NativeBattleGeometryRegisterStep rotated = ObserveNativeGeometryRotation(new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect60 rotation requires its geometry controls."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect60 rotation requires its data registers.")), rotate.Matrix, rotate.Axis, rotate.Angle, rotate.Padding18 is short padding ? unchecked((ushort)padding) : null);
                     return current with { Memory = current.Memory with { GeometryRegisters = rotated.Geometry, ScriptedColorRegisters = rotated.Colors } };
                 case NativeBattleEffect60TargetAnchor anchor:
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[anchor.Actor], PoseSource(anchor.Actor), anchor.Selector, anchor.Distance);
+                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(anchor.Actor), PoseSource(anchor.Actor), anchor.Selector, anchor.Distance);
                     return current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
                 case NativeBattleEffect60SetYaw yaw:
                     byte[] word = new byte[2];
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             if (task.ReadByte(0x29) == 0 && unchecked((short)task.ReadWord(0x24)) >= unchecked((short)task.ReadWord(0x298)))
             {
                 int actor = task.ReadByte(0x2C);
-                NativeBattleBoneAnchorProducer anchor = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), 0x19, 0x400);
+                NativeBattleBoneAnchorProducer anchor = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), 0x19, 0x400);
                 current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, anchor) };
                 NativeBattleScriptedColorRegisters registers = current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect60 requires its actual anchor outputs.");
                 NativeBattleVector vector = anchor.Enabled ? new(unchecked((short)registers.Mac[0]!.Value), unchecked((short)registers.Mac[1]!.Value), unchecked((short)registers.Mac[2]!.Value)) : anchor.DisabledPosition;
@@ -123,7 +123,7 @@ public sealed partial class BattleSession
             NativeCrtRandomState genericRandom = current.Random;
             NativeBattleCuragaControllerInputs genericInputs = new(nativeActionPackets, view, readModel, PoseSource)
             {
-                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0)) }
+                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0)) }
             };
             NativeBattleCuragaLeafStep advanced = NativeBattleCuragaNodeEngine.AdvanceGeneric87E1A0(current.ToGeneric(), address, resources.GenericNodes(task.ReadDword(0x30)), genericInputs, new(AdvanceNodes));
             return new(current.WithGeneric(advanced.Frame) with { Random = genericRandom }, advanced.Result);
@@ -140,13 +140,13 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena PackedModel(int actor, int offset)
         {
-            return NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
+            return NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
         }
 
         void WriteActor(int actor, int offset, NativeBattleEffectArena bytes, int sourceOffset, int length)
         {
-            NativeBattleGraphicsModel updated = NativeBattleRaldo19ModelMemory.Apply(graphics.Models[actor], offset, bytes, sourceOffset, length);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, updated) };
+            NativeBattleGraphicsModel updated = NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(actor), offset, bytes, sourceOffset, length);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, updated) };
         }
 
         NativeBattleStageState RequireStage()

@@ -50,17 +50,17 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattlePreparedActor>.Builder actors = ImmutableArray.CreateBuilder<NativeBattlePreparedActor>();
         for (int index = 0; index < graphics.ActorIds.Length; index++)
         {
-            if (graphics.ActorIds[index] is string actorId && graphics.Models[index].BodyTextureSlots is { } body)
+            if (graphics.ActorIds[index] is string actorId && graphics.ActorModels.Get(index).BodyTextureSlots is { } body)
             {
                 if (hostedServices is not null)
                 {
                     BattleCombatant actor = actorOwner.GetActor(actorId);
-                    actors.Add(new(actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.Costume, actor.WeaponId, actor.SceneSlot, actorOwner.GetGuardianFormVisual(actorId), body, graphics.Models[index].LinkedTextureSlots));
+                    actors.Add(new(actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.Costume, actor.WeaponId, actor.SceneSlot, actorOwner.GetGuardianFormVisual(actorId), body, graphics.ActorModels.Get(index).LinkedTextureSlots));
                 }
                 else
                 {
                     BattleCombatantDefinition actor = GetCombatantDefinition(actorId);
-                    actors.Add(new(actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.Costume, actor.WeaponId, actor.SceneSlot, GetGuardianFormVisual(actorId), body, graphics.Models[index].LinkedTextureSlots));
+                    actors.Add(new(actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.Costume, actor.WeaponId, actor.SceneSlot, GetGuardianFormVisual(actorId), body, graphics.ActorModels.Get(index).LinkedTextureSlots));
                 }
             }
         }

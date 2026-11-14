@@ -17,11 +17,11 @@ public sealed partial class BattleSession
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Additional effect181 target requires its addressed temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativeAdditional181View(staging, 0x1D969A8, 4);
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Additional effect181 target requires its observed linked geometry presence.");
-        bool linked = graphics.Models[actor].LinkedTransform is not null;
-        NativeBattleAdditional181ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeAdditional181View(staging, temporaryAddress, 128));
+        bool linked = graphics.ActorModels.Get(actor).LinkedTransform is not null;
+        NativeBattleAdditional181ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativeAdditional181View(staging, temporaryAddress, 128));
         NativeBattleAdditional181ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleAdditional181ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary128, 128) }, graphics);
 
         NativeBattleAdditional181ModelFrame Shadow(NativeBattleAdditional181ModelFrame current)

@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect289Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect289 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect289 requires its current texture process.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)).WriteDword(ArenaGlobal, ArenaAddress) };
+        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)).WriteDword(ArenaGlobal, ArenaAddress) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
@@ -94,8 +94,8 @@ public static partial class NativeBattleEffect289Controller
             (frame, uint main) = MandatoryAppend(frame, MainDescriptor, MainCallback);
             frame = ClearDwords701200(frame, main + 0xC, 0x65);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int header = Parameters(frame).HeaderIndex7C;
-            int first = packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect289 requires its current first contact pointer.");
+            BattleActionHeaderReference header = Parameters(frame).Header;
+            int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect289 requires its current first contact pointer.");
             uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);

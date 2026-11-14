@@ -17,7 +17,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with
         {
-            State = frame.State.WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)),
+            State = frame.State.WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
             Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -74,7 +74,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
                 }
             }
             byte contact = Read(frame, address).ReadBytes(14, 1)[0];
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             if (contact <= header.ReadRepeatModeMinusOne())
             {
                 int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Disolving Acid requires its captured contact pointer.");

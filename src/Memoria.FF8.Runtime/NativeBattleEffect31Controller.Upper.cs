@@ -150,8 +150,8 @@ public static partial class NativeBattleEffect31Controller
             case 2:
                 if (unchecked((short)task.ReadWord(0x24)) >= 30)
                 {
-                    int group = checked(Parameters(frame).HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                    int first = inputs.ReadPackets(frame).Headers[group].FirstContactIndex ?? throw new NotSupportedException("Effect31 requires the selected group's current contact pointer.");
+                    BattleActionHeaderReference group = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                    int first = inputs.ReadPackets(frame).ReadHeader(group).FirstContactIndex ?? throw new NotSupportedException("Effect31 requires the selected group's current contact pointer.");
                     int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                     frame = inputs.Execute(frame, new NativeBattleEffect31Contact506690(contact));
                     frame = IncrementPhase(MarkComplete(frame, address), address);

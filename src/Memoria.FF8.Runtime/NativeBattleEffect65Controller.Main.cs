@@ -145,7 +145,7 @@ public static partial class NativeBattleEffect65Controller
         frame = AdvanceCamera(frame, age, inputs);
         if (age == 548)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect65Contacts506BA0((frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its current contact header.")).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleEffect65Contacts506BA0((frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its current contact header.")).Header));
         }
         ushort next = unchecked((ushort)(Read(frame, address).ReadWord(12) + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, next));

@@ -3,10 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleTheEnd85NodeServices(NativeBattleTheEnd85Resources Resources, NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleActionMatrix CopiedCamera, Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattleTheEnd85Frame> DrawNode)
+public sealed record NativeBattleTheEnd85NodeServices(NativeBattleTheEnd85Resources Resources, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleActionMatrix CopiedCamera, Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattleTheEnd85Frame> DrawNode)
 {
     public NativeBattleEffectNodeDogOrigins? Mode2Origins { get; init; }
-    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
+    public Func<BattleModelOwner, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattlePilotVisualIdentity, NativeBattleTheEnd85Frame>? DrawCapturedNode { get; init; }
 }

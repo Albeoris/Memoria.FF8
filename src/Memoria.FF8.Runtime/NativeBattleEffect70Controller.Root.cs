@@ -99,12 +99,12 @@ public static partial class NativeBattleEffect70Controller
     private static NativeBattleEffect70Frame CaptureTargets(NativeBattleEffect70Frame frame, uint main, NativeBattleEffect70Inputs inputs)
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int headerIndex = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference headerIndex = Parameters(frame).Header;
         if ((uint)headerIndex >= packets.Headers.Length)
         {
             throw new InvalidDataException("Effect70 selected an absent physical action header.");
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(headerIndex);
         int count = header.ReadContactCount();
         frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
         short[] minimum = [32767, 32767, 32767];

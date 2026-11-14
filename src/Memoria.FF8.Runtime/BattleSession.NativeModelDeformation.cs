@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native50F2E0 model pointer does not identify a bound row in its graphics bank.");
         }
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native50F2E0 requires its original decoded body skeleton.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50F2E0 requires its shared process matrix owner.");
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
         {
             NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native50F2E0 requires its model mesh mask.");
             model = model with { SequenceState = state with { MeshMask124 = state.MeshMask124 & ~(1u << payload[4]) } };
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
             memory = memory with { SequenceDeformationMatrix1D99BF8 = NativeBattlePoseMatrices.ReadDeformationBone50F2E0(model, source, payload[5]) };
             payload[6] = 1;
             payload[7] = 0;

@@ -16,7 +16,7 @@ public static partial class NativeBattleEffect210Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect210 requires its current parameters.");
         frame = inputs.Execute(frame, new NativeBattleEffect210UploadTim505E30(TimAddress));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Source)) };
         NativeBattleEffectTaskPool root = InitializePayload(Pools[0], frame.State.ReadBank(0));
         (root, int slot) = root.Append(RootCallback);
         root = NativeBattleEffectTaskMemory.WriteBankSpan(root, slot * root.Stride + 12, NativeBattleEffectArena.Clear(), 4);

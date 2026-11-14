@@ -11,13 +11,13 @@ public sealed partial class BattleSession
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Blasting Zone requires its entered parameters.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation Z."));
-        NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
+        NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Source, 241, 0);
         NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Blasting Zone requires actual target positions.")).ToArray());
         NativeBattleBlastingZone164EntryStep entry = NativeBattleBlastingZone164Controller.Enter5F0260(NativeEffectMemory ?? throw new NotSupportedException("Native Blasting Zone requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Blasting Zone requires its retained CRT random owner."), rotation, bone, center, model.RotationPadding18);
         NativeEffectMemory = entry.Frame.Memory;
         NativeFileStaging = entry.Frame.Staging;
         nativeCrtRandom = entry.Frame.Random;
-        return graphics with { OriginalEffect = entry.Frame.Effect, Models = graphics.Models.SetItem(parameters.Actor78, model with { Rotation14 = entry.Facing14 }) };
+        return graphics with { OriginalEffect = entry.Frame.Effect, Models = graphics.Models.SetItem(parameters.Source, model with { Rotation14 = entry.Facing14 }) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeBlastingZone164(NativeBattleGraphicsState graphics)
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleBlastingZone164BindActor:
-                    byte actor = current.Parameters.Actor78;
+                    BattleModelOwner actor = current.Parameters.Source;
                     NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Blasting Zone requires its actual CPU resource rows."), model, 0x23C8EF8, 0xD88AA0);
                     NativeFileStaging = bound.Staging;
@@ -112,7 +112,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(unchecked((short)flash.Mode), unchecked((short)flash.First), unchecked((short)flash.Last), unchecked((short)flash.Intensity)) };
                     return current;
                 case NativeBattleBlastingZone164Contacts:
-                    graphics = ApplyNativeHeaderContacts(graphics, current.Parameters.HeaderIndex7C);
+                    graphics = ApplyNativeHeaderContacts(graphics, current.Parameters.Header);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleBlastingZone164Stage stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Native Blasting Zone requires its actual stage rows.");

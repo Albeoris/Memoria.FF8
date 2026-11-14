@@ -115,7 +115,7 @@ public static partial class NativeBattleEvilEye282Controller
         frame = Write(frame, address, task.WriteWord(12, unchecked((ushort)next)));
         if (next >= 49)
         {
-            frame = inputs.Execute(frame, new NativeBattleEvilEye282ContactsAll506BA0(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleEvilEye282ContactsAll506BA0(Parameters(frame).Header));
             frame = Dword(frame, 0x2507EFC, 0);
             return (frame, 2);
         }
@@ -128,11 +128,11 @@ public static partial class NativeBattleEvilEye282Controller
         {
             throw new NotSupportedException("Evil-Eye requires its actual current parameter pointer.");
         }
-        int index = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference index = Parameters(frame).Header;
         if ((uint)index >= packets.Headers.Length)
         {
             throw new NotSupportedException("Evil-Eye parameter header leaves its physical action arena.");
         }
-        return packets.Headers[index];
+        return packets.ReadHeader(index);
     }
 }

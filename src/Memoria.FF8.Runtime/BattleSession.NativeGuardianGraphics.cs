@@ -27,18 +27,18 @@ public sealed partial class BattleSession
         {
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native50B2A0 requires its actual camera owner.")) with { ForceCamera = true };
             graphics = PrepareNativeHeaderGeometry(graphics with { Flags = graphics.Flags | 0x10 }, context);
-            NativeBattleGraphicsModel actor = graphics.Models[caster];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
             actor = NativeBattleGuardianInvocation.EnterSource(actor);
-            graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(caster, actor) }, caster, header.Sequence);
+            graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) }, caster, header.Sequence);
             byte selector = (byte)(NextNativeGlobalRandom() % 3 | 0x10);
             StartNativeGuardianCamera(graphics, caster, selector);
             byte hidden = 0;
             for (int index = 0; index < 3; index++)
             {
-                NativeBattleGraphicsModel model = graphics.Models[index];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 if (index != caster && (model.Flags0 & 2) != 0)
                 {
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleGraphicsModels.StartService(model, 11)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, NativeBattleGraphicsModels.StartService(model, 11)) };
                     hidden |= (byte)(1 << index);
                 }
             }
@@ -59,19 +59,19 @@ public sealed partial class BattleSession
         }
         if (phase == 3)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[caster];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
             if (graphics.ModuleEffects.PublishedCount != 0 || (actor.Flags0 & 4) == 0)
             {
                 return (graphics, phase, false);
             }
             events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B440 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
             actor = NativeBattleGuardianInvocation.HideSource(actor);
-            graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
             if (caster != 2 && (guardian.HiddenPartyMask47 & 4) != 0)
             {
                 CopyNativeGuardianCpuBank(2, caster);
-                NativeBattleGraphicsModel row2 = graphics.Models[2];
-                graphics = graphics with { Models = graphics.Models.SetItem(2, row2 with { Flags0 = (ushort)(row2.Flags0 & ~2) }) };
+                NativeBattleGraphicsModel row2 = graphics.ActorModels.Get(2);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(2, row2 with { Flags0 = (ushort)(row2.Flags0 & ~2) }) };
             }
             AdmitDiagnosticVisualEntry(header);
             graphics = InvokeNativeOriginalEffect(graphics);
@@ -90,10 +90,10 @@ public sealed partial class BattleSession
             if (caster != 2 && (guardian.HiddenPartyMask47 & 4) != 0)
             {
                 CopyNativeGuardianCpuBank(caster, 2);
-                NativeBattleGraphicsModel row2 = graphics.Models[2];
-                graphics = graphics with { Models = graphics.Models.SetItem(2, row2 with { Flags0 = (ushort)(row2.Flags0 | 2) }) };
+                NativeBattleGraphicsModel row2 = graphics.ActorModels.Get(2);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(2, row2 with { Flags0 = (ushort)(row2.Flags0 | 2) }) };
             }
-            byte model = graphics.Models[caster].ModelId4 ?? throw new InvalidDataException("Native50B2A0 lost the caster model BYTE4.");
+            byte model = graphics.ActorModels.Get(caster).ModelId4 ?? throw new InvalidDataException("Native50B2A0 lost the caster model BYTE4.");
             QueueNativeModelResource507080(graphics, model, caster);
             phase = 5;
         }
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
             {
                 return (graphics, phase, false);
             }
-            byte model = graphics.Models[caster].ModelId4 ?? throw new InvalidDataException("Native50B2A0 lost the caster model BYTE4.");
+            byte model = graphics.ActorModels.Get(caster).ModelId4 ?? throw new InvalidDataException("Native50B2A0 lost the caster model BYTE4.");
             QueueNativeModelResource507080(graphics, (ushort)(model | 0x1000), caster);
             phase = 6;
         }
@@ -118,7 +118,7 @@ public sealed partial class BattleSession
             context = context with { Guardian = guardian with { Neighbor70 = neighbor } };
             guardian = context.Guardian!;
             graphics = graphics with { ActionGraphics = context };
-            NativeBattleGraphicsModel model = graphics.Models[neighbor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(neighbor);
             if ((model.Flags0 & 2) != 0)
             {
                 QueueNativeModelResource507080(graphics, (ushort)((model.ModelId4 ?? throw new InvalidDataException("Native50B2A0 lost its neighbor model BYTE4.")) | 0x1000), neighbor);
@@ -132,35 +132,35 @@ public sealed partial class BattleSession
                 return (graphics, phase, false);
             }
             byte neighbor = guardian.Neighbor70 ?? throw new InvalidDataException("Native50B2A0 lost its selected neighboring row.");
-            NativeBattleGraphicsModel adjacent = graphics.Models[neighbor];
+            NativeBattleGraphicsModel adjacent = graphics.ActorModels.Get(neighbor);
             if ((adjacent.Flags0 & 2) != 0)
             {
                 adjacent = adjacent with { Flags2 = (ushort)((adjacent.Flags2 ?? throw new InvalidDataException("Native50B2A0 requires the neighbor WORD2.")) | 4) };
-                graphics = graphics with { Models = graphics.Models.SetItem(neighbor, adjacent) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(neighbor, adjacent) };
                 graphics = SelectNativeHeaderSequence(graphics, neighbor, (ushort)(NativeStandingSequence(adjacent.Flags8 ?? throw new InvalidDataException("Native509C10 requires the neighbor DWORD8.")) | 0x1000));
             }
             byte parameter81 = graphics.OriginalEffect?.Parameters?.Parameter81 ?? throw new InvalidDataException("Native50B2A0 lost its module parameter BYTE81.");
             for (int index = 0; index < 3; index++)
             {
-                NativeBattleGraphicsModel model = graphics.Models[index];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 if (index != caster && (model.Flags0 & 2) != 0)
                 {
                     model = model with { Flags0 = (ushort)(model.Flags0 & ~4) };
                     model = parameter81 == 2 ? model with { Color44 = NativeStage?.ModelColors?.Color44 ?? throw new NotSupportedException("Native50B2A0 requires the actual stage normal color DWORDB8B9A8.") } : NativeBattleGraphicsModels.StartService(model, 12);
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
                 }
             }
-            NativeBattleGraphicsModel actor = graphics.Models[caster];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
             actor = NativeBattleGuardianInvocation.RestoreSource(actor);
             if (parameter81 == 2)
             {
                 actor = actor with { SequenceState = (actor.SequenceState ?? throw new InvalidDataException("Native50B2A0 requires the caster resource WORD40.")) with { Header40 = 0 } };
-                graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(caster, actor) }, caster, 1);
+                graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) }, caster, 1);
                 graphics = RefreshNativeGuardianStandingSequence(graphics, caster);
             }
             else
             {
-                graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(caster, actor) }, caster, 20);
+                graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) }, caster, 20);
                 StartNativeGuardianCamera(graphics, caster, unchecked((byte)(guardian.CameraSelector4E + 3)));
             }
             return (graphics, 8, false);
@@ -208,15 +208,15 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ReapplyNativeGuardianStatus(NativeBattleGraphicsState graphics, byte caster)
     {
-        NativeBattleGraphicsModel model = graphics.Models[caster];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(caster);
         uint flags = model.Flags8 ?? throw new InvalidDataException("Native50B810 requires the caster DWORD8.");
-        graphics = graphics with { Models = graphics.Models.SetItem(caster, model with { Flags8 = flags & ~0x410u }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, model with { Flags8 = flags & ~0x410u }) };
         return ApplyNativeGraphicsStatus509CD0(graphics, caster, flags);
     }
 
     private NativeBattleGraphicsState RefreshNativeGuardianStandingSequence(NativeBattleGraphicsState graphics, byte caster)
     {
-        (NativeBattleGraphicsModel model, byte? immediate) = NativeBattleGraphicsModels.PlanPlayerStanding509C80(graphics.Models[caster]);
-        return immediate is byte standing ? SelectNativeHeaderSequence(graphics, caster, standing) : graphics with { Models = graphics.Models.SetItem(caster, model) };
+        (NativeBattleGraphicsModel model, byte? immediate) = NativeBattleGraphicsModels.PlanPlayerStanding509C80(graphics.ActorModels.Get(caster));
+        return immediate is byte standing ? SelectNativeHeaderSequence(graphics, caster, standing) : graphics with { ActorModels = graphics.ActorModels.Set(caster, model) };
     }
 }

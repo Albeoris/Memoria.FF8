@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         effect = effect with { PresentationPackets = [] };
         NativeBattleEffect303Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect303 requires its current CRT random owner."), memory.Effect303 ?? throw new NotSupportedException("Effect303 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect303 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect303 requires its original arithmetic constants.");
-        NativeBattleEffect303Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadModelWorld, ReadCurrentBone, _ => nativeActionPackets, Execute, StartVibration, PollIo);
+        NativeBattleEffect303Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), ReadModelWorld, ReadCurrentBone, _ => nativeActionPackets, Execute, StartVibration, PollIo);
         frame = initialize ? NativeBattleEffect303Controller.Initialize(frame, resources, inputs) : NativeBattleEffect303Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -37,13 +37,13 @@ public sealed partial class BattleSession
 
         NativeBattlePackedMatrix32 ReadModelWorld(NativeBattleEffect303Frame current, uint pointer)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             return NativeBattlePackedMatrix32.FromMatrix(model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect303 requires its current model world matrix."), null);
         }
 
         NativeBattlePackedMatrix32 ReadCurrentBone(NativeBattleEffect303Frame current, uint pointer, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
             if ((uint)bone >= (uint)bones.Length)
             {
@@ -124,9 +124,9 @@ public sealed partial class BattleSession
         {
             int actor = Actor(pointer);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Effect303 pose restoration requires its temporary memory."), 88);
-            NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actor], PoseSource(pointer), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+            NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), PoseSource(pointer), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
             return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
         }
 
@@ -200,19 +200,19 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect303CopyPackedPosition copy:
-                    NativeBattleModelTransform source = graphics.Models[Actor(copy.SourceModel)].Transform ?? throw new NotSupportedException("Effect303 requires the source packed position owner.");
+                    NativeBattleModelTransform source = graphics.ActorModels.Get(Actor(copy.SourceModel)).Transform ?? throw new NotSupportedException("Effect303 requires the source packed position owner.");
                     int targetIndex = Actor(copy.TargetModel);
-                    NativeBattleGraphicsModel target = graphics.Models[targetIndex];
+                    NativeBattleGraphicsModel target = graphics.ActorModels.Get(targetIndex);
                     NativeBattleModelTransform destination = target.Transform ?? throw new NotSupportedException("Effect303 requires the target packed position owner.");
                     target = target with { Transform = destination with { Position28 = source.Position28, Vertical34 = source.Vertical34 } };
-                    graphics = graphics with { Models = graphics.Models.SetItem(targetIndex, target) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(targetIndex, target) };
                     return current;
                 case NativeBattleEffect303SelectSequence505C00 sequence:
                     graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)Actor(sequence.ModelAddress)), sequence.Sequence);
                     return current;
                 case NativeBattleEffect303EnterSequence508F90 enter:
                     int enteringActor = Actor(enter.ModelAddress);
-                    NativeBattleGraphicsModel entering = graphics.Models[enteringActor];
+                    NativeBattleGraphicsModel entering = graphics.ActorModels.Get(enteringActor);
                     NativeBattleSequenceState control = entering.SequenceState ?? throw new NotSupportedException("Effect303 requires the recipient's actual animation control.");
                     byte counter = control.PoseFrame114 ?? throw new NotSupportedException("Effect303 requires the actual decoded-frame counter.");
                     byte limit = control.PoseLimit115 ?? throw new NotSupportedException("Effect303 requires the actual animation limit.");
@@ -220,7 +220,7 @@ public sealed partial class BattleSession
                     {
                         NativeBattlePoseProgress progress = new NativeBattlePoseProgress(control.Pose ?? throw new NotSupportedException("Effect303 requires the current animation selector."), counter, limit, control.PoseFlags109).Advance();
                         control = control with { PoseFrame114 = progress.Frame, PoseFlags109 = progress.Flags, DecodedPose = PoseSource(enter.ModelAddress).Sample(progress.Pose, progress.Frame, progress.Flags) };
-                        graphics = graphics with { Models = graphics.Models.SetItem(enteringActor, entering with { SequenceState = control }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(enteringActor, entering with { SequenceState = control }) };
                     }
                     return current;
                 case NativeBattleEffect303Activate487670 activation:
@@ -228,8 +228,8 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect303ModelFields fields:
                     int actor = Actor(fields.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
                     return current;
                 case NativeBattleEffect303RestorePose508C90 restore:
                     return RestorePose(current, restore.ModelAddress);

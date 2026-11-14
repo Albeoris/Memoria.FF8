@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleAngelWing84GlowResources(ImmutableArray<NativeBattleStaticMeshResource> Meshes);
-public sealed record NativeBattleAngelWing84GlowInputs(Func<byte, byte, short, NativeBattleVector> ReadBone, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, NativeBattleLogicalOrdering Ordering, NativeBattleSummonColors Colors, NativeBattleAngelWing84GlowResources Resources)
+public sealed record NativeBattleAngelWing84GlowInputs(Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, NativeBattleLogicalOrdering Ordering, NativeBattleSummonColors Colors, NativeBattleAngelWing84GlowResources Resources)
 {
     public bool CapturePresentation { get; init; }
 }

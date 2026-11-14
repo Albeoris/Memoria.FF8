@@ -40,7 +40,7 @@ public static partial class NativeBattleFireEffect
                     return new(pool, 0);
                 }
                 int sequence = delay;
-                if (Word(task, 34) == 12 && sequence + 1 <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+                if (Word(task, 34) == 12 && sequence + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
                 {
                     NativeBattleActionHeaderSlot following = Header(sequence + 1);
                     bool multiple = following.ReadContactCount() > 1;
@@ -218,12 +218,12 @@ public static partial class NativeBattleFireEffect
 
         NativeBattleActionHeaderSlot Header(int sequence)
         {
-            int index = parameters.HeaderIndex7C + sequence;
+            BattleActionHeaderReference index = parameters.Header.Advance(sequence);
             if ((uint)index >= NativeBattleActionPacketsState.HeaderCapacity)
             {
                 throw new InvalidDataException("Native Fire continuation leaves its physical action header bank.");
             }
-            return inputs.Packets.Headers[index];
+            return inputs.Packets.ReadHeader(index);
         }
 
         void Draw(uint address, int phase, NativeBattleModuleAnchor anchor, int scale, int depthOffset, ushort flags, uint color = 0x808080, ImmutableArray<short> rotation = default, ImmutableArray<byte> paletteOffsets = default)

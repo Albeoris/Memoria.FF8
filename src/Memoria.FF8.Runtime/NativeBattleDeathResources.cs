@@ -39,10 +39,10 @@ public sealed record NativeBattleDeathRingSequence(byte Actor, ushort Sequence) 
 public sealed record NativeBattleDeathStage(short Fade, bool ClearRgb) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathTextureLoad(int Source, uint Completion) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathModelStep(NativeBattleDeathFrame Frame, NativeBattleModulePoolTask Task);
-public sealed record NativeBattleDeathInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, uint DefaultColor, uint TransitionColor, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDeathFrame, NativeBattleModulePoolTask, NativeBattleEffectOwnedModelState, NativeBattleDeathModelStep> DrawModel, Func<NativeBattleDeathFrame, NativeBattleDeathOperation, NativeBattleDeathFrame> Execute)
+public sealed record NativeBattleDeathInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, uint DefaultColor, uint TransitionColor, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDeathFrame, NativeBattleModulePoolTask, NativeBattleEffectOwnedModelState, NativeBattleDeathModelStep> DrawModel, Func<NativeBattleDeathFrame, NativeBattleDeathOperation, NativeBattleDeathFrame> Execute)
 {
     public Func<NativeBattlePackedMatrix32>? ReadPackedCamera { get; init; }
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
-    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
+    public Func<BattleModelOwner, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
     public Func<NativeBattleDeathFrame, int, byte, NativeBattleDeathFrame>? ObserveForeignBone { get; init; }
 }

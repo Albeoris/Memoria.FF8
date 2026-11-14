@@ -10,10 +10,10 @@ public sealed record NativeBattleBlindSound(NativeBattleModuleSound Sound) : Nat
 public sealed record NativeBattleBlindContact(int Index) : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindFade : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindFlash(int Strength) : NativeBattleBlindOperation;
-public sealed record NativeBattleBlindInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBlindFrame, NativeBattleBlindOperation, NativeBattleBlindFrame> Execute)
+public sealed record NativeBattleBlindInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBlindFrame, NativeBattleBlindOperation, NativeBattleBlindFrame> Execute)
 {
-    public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
-    public Func<int, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
+    public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
 }
 
 public static class NativeBattleBlindController
@@ -61,9 +61,9 @@ public static class NativeBattleBlindController
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521520, 0x20DFAB8, 0x83C, 3)];
             }
             int action = root.ReadByte(14);
-            if (action <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17) && pools[1].Slots.Any(task => (task.Flags & 1) == 0))
+            if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17) && pools[1].Slots.Any(task => (task.Flags & 1) == 0))
             {
-                int contact = inputs.Packets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Blind requires its actual first action target.");
+                int contact = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Blind requires its actual first action target.");
                 byte model = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
                 (pools[1], int slot) = pools[1].Append(0x6BE080);
                 NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x830);
@@ -110,7 +110,7 @@ public static class NativeBattleBlindController
                 }
                 if (age == 32)
                 {
-                    NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + target.ReadWord(14)];
+                    NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(target.ReadWord(14)));
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Blind result requires its original target list.");
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {

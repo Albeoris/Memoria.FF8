@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         {
             _ = RequireHostedModelLoadOwner(graphics, roster, physicalIndex);
         }
-        NativeBattleGraphicsModel model = graphics.Models[physicalIndex];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(physicalIndex);
         bool linked = request >= 0x1000;
         byte body = linked || request >= 16 ? (byte)0 : model.FileSelector129 ?? throw new NotSupportedException("Native5077B0 requires the observed model BYTE129 costume selector.");
         byte weapon = !linked || request == 0x1007 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Native507BF0/507E20 requires the observed model BYTE128 kernel weapon selector.");
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         {
             NativeBattlePartyLoadPlan.RequireMatchingRoster(roster, loader.PresentationRoster);
             material = RequireHostedModelLoadOwner(graphics, roster, task.PhysicalIndex);
-            NativeBattleGraphicsModel actor = graphics.Models[task.PhysicalIndex];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(task.PhysicalIndex);
             if (task.Callback is 0x507BF0 or 0x507E20)
             {
                 int bodyAlias = actor.TextureResourceIndex ?? throw new InvalidDataException("Hosted linked loading requires its bound body alias.");
@@ -156,7 +156,7 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattleModelLoadTask task = bind.Task;
-        NativeBattleGraphicsModel model = graphics.Models[task.PhysicalIndex];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(task.PhysicalIndex);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native resource completion requires its retained CPU bank/row aliases.");
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native resource completion requires its eleven physical texture rows.");
         NativeBattleEffectHeapAllocation pack = bind.OriginalTexturePack ?? throw new InvalidDataException("Native resource completion has no pre-relocation TIM pack.");
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
         }
         NativeModelCpuResources = cpu;
         NativeModelTextureCache = cache;
-        graphics = graphics with { Models = graphics.Models.SetItem(task.PhysicalIndex, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(task.PhysicalIndex, model) };
     }
 
     private static void RequireHostedModelLoadBinding(NativeBattleModelTextureCache cache, NativeBattleModelResourceBind bind, NativeBattleModelTextureBinding binding)

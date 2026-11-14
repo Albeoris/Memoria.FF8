@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleEffect283Frame frame = new(memory, effect, memory.Effect283 ?? throw new NotSupportedException("Effect283 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect283 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect283 requires its original arithmetic constants.");
         NativeBattleEffect283Inputs? inputs = null;
-        inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Anchor, Execute, DrawBody, (current, source, node, caller) => NativeBattleEffect283Controller.DrawProgrammeNode67C8A0(current, source, node, caller, resources, inputs!));
+        inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), _ => nativeActionPackets, Anchor, Execute, DrawBody, (current, source, node, caller) => NativeBattleEffect283Controller.DrawProgrammeNode67C8A0(current, source, node, caller, resources, inputs!));
         frame = initialize ? NativeBattleEffect283Controller.Initialize(frame, resources, inputs) : NativeBattleEffect283Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeBattleEffect283PointStep Bone(NativeBattleEffect283Frame current, int actor, byte selector)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect283 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, selector, 0);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, selector, 0);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect283 bone query requires its current temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
         NativeBattleEffect283PointStep Anchor(NativeBattleEffect283Frame current, uint pointer)
         {
             int actor = Actor(pointer);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect283 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -151,12 +151,12 @@ public sealed partial class BattleSession
             {
                 case NativeBattleEffect283ModelFlags fields:
                     int actor = Actor(fields.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
                     return current;
                 case NativeBattleEffect283ModelColor44 recolor:
                     int target = Actor(recolor.ModelAddress);
-                    graphics = graphics with { Models = graphics.Models.SetItem(target, graphics.Models[target] with { Color44 = recolor.Value }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Color44 = recolor.Value }) };
                     return current;
                 case NativeBattleEffect283Stage5713E0 stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Effect283 requires its retained stage groups.");

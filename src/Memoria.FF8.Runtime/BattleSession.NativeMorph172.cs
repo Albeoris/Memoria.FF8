@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Morph172 requires its actual process memory.");
         NativeBattleMorph172Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Morph172 requires its actual CRT stream."), memory.Morph172 ?? throw new NotSupportedException("Morph172 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Morph172 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 requires its interpolation constants.");
-        NativeBattleMorph172Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Morph172 requires its current projection."), (_, actor) => graphics.Models[actor], Anchor, (_, actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Morph172 requires its actual current skeleton byte owner.")).BoneCount, Bone, Execute) { CapturePresentation = true };
+        NativeBattleMorph172Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Morph172 requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), Anchor, (_, actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Morph172 requires its actual current skeleton byte owner.")).BoneCount, Bone, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleMorph172Controller.Initialize(frame, resources, inputs) : NativeBattleMorph172Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         NativeBattleMorph172PointStep Bone(NativeBattleMorph172Frame current, int actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Morph172 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Morph172 bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleMorph172PointStep Anchor(NativeBattleMorph172Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Morph172 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(sound.Packed, sound.Flags, new(BinaryPrimitives.ReadInt16LittleEndian(sound.Point8.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(sound.Point8.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(sound.Point8.Read(4, 2)), 0));
                     return Import(current);
                 case NativeBattleMorph172ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = unchecked((ushort)((graphics.Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = unchecked((ushort)((graphics.ActorModels.Get(flags.Actor).Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleMorph172DrawBody220 body:
                     Publish(current);

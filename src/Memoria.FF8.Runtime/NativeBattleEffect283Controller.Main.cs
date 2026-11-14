@@ -20,12 +20,12 @@ public static partial class NativeBattleEffect283Controller
             (frame, uint main) = Append(frame, MainDescriptor, MainCallback);
             frame = ClearDwords701200(frame, main + 0xC, 0x18F);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int header = Parameters(frame).HeaderIndex7C;
+            BattleActionHeaderReference header = Parameters(frame).Header;
             if ((uint)header >= packets.Headers.Length)
             {
                 throw new InvalidDataException("Effect283 requires its actual current action header.");
             }
-            int first = packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect283 requires its current first contact pointer.");
+            int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect283 requires its current first contact pointer.");
             uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x28, target));
             frame = inputs.Execute(frame, new NativeBattleEffect283ModelFlags(target, 0, 4));

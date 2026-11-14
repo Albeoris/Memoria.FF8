@@ -7,7 +7,7 @@ public sealed record NativeBattleRestorationPresentationStep(NativeBattleRestora
 /// <summary>The typed Esuna/Full-life owner over the single normalized birth/update/draw lifecycle.</summary>
 public static class NativeBattleRestorationLifecycle
 {
-    public static NativeBattleRestorationPresentationStep AdvanceAndDraw(NativeBattleRestorationFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
+    public static NativeBattleRestorationPresentationStep AdvanceAndDraw(NativeBattleRestorationFrame frame, uint contextTask, NativeCrtRandomState random, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);

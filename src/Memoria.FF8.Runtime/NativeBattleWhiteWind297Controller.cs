@@ -12,7 +12,7 @@ public static class NativeBattleWhiteWind297Controller
         resources.Validate();
         inputs.Packets.Validate();
         NativeBattleEffectParameters parameters = Parameters(frame);
-        if (parameters.Actor78 >= 7)
+        if (parameters.Source >= 7)
         {
             throw new InvalidDataException("Blue Magic White Wind caster leaves the original seven-model bank.");
         }
@@ -22,10 +22,10 @@ public static class NativeBattleWhiteWind297Controller
         frame = frame with
         {
             Memory = frame.Memory with { Textures = textures },
-            State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Actor78))
+            State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source))
         };
-        frame = inputs.Execute(frame, new NativeBattleWhiteWind297BindCaster(parameters.Actor78, ArenaAddress + BindingOffset, 0x1056888));
-        frame = inputs.Execute(frame, new NativeBattleWhiteWind297RingSequence(parameters.Actor78, 1));
+        frame = inputs.Execute(frame, new NativeBattleWhiteWind297BindCaster(parameters.Source, ArenaAddress + BindingOffset, 0x1056888));
+        frame = inputs.Execute(frame, new NativeBattleWhiteWind297RingSequence(parameters.Source, 1));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
@@ -260,12 +260,12 @@ public static class NativeBattleWhiteWind297Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleWhiteWind297Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Blue Magic White Wind requires its captured action parameters.");
     private static NativeBattleActionHeaderSlot Header(NativeBattleWhiteWind297Frame frame, NativeBattleWhiteWind297Inputs inputs)
     {
-        int index = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference index = Parameters(frame).Header;
         if ((uint)index >= inputs.Packets.Headers.Length)
         {
             throw new InvalidDataException("Blue Magic White Wind captured header leaves its actual arena.");
         }
-        return inputs.Packets.Headers[index];
+        return inputs.Packets.ReadHeader(index);
     }
     private static int FirstContact(NativeBattleActionHeaderSlot header) => header.FirstContactIndex ?? throw new NotSupportedException("Blue Magic White Wind requires its original captured contact pointer.");
     private static uint ModelAddress(int actor)

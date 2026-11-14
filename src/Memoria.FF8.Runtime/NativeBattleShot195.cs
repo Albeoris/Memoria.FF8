@@ -17,7 +17,7 @@ public sealed record NativeBattleShot195Sound(uint Descriptor, int Channel, int 
 public sealed record NativeBattleShot195Echo(byte Actor, NativeBattleBodyBoneMatrices Bones, int Geometry) : NativeBattleShot195Operation;
 public sealed record NativeBattleShot195Sprite(uint Address, ushort Phase, NativeBattleVector Position, short Scale, int Depth, ushort Flags, NativeBattleActionMatrix? World = null) : NativeBattleShot195Operation;
 public sealed record NativeBattleShot195Mesh(uint Address, NativeBattleActionMatrix World, uint Flags, int? Fade, NativeBattleVector? CameraAnchor = null, int Depth = 0) : NativeBattleShot195Operation;
-public sealed record NativeBattleShot195Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleShot195Anchor> ReadMuzzle, Func<int, int> BoneCount, Func<int, int, int, NativeBattleVector> ReadBone, Func<int, short> ModelScale, Func<int, NativeBattleVector> ReadCenter, Func<int, NativeBattleBodyBoneMatrices> ReadBones, Func<NativeBattleShot195Frame, NativeBattleShot195Operation, NativeBattleShot195Frame> Execute);
+public sealed record NativeBattleShot195Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleShot195Anchor> ReadMuzzle, Func<BattleModelOwner, int> BoneCount, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone, Func<int, short> ModelScale, Func<BattleModelOwner, NativeBattleVector> ReadCenter, Func<BattleModelOwner, NativeBattleBodyBoneMatrices> ReadBones, Func<NativeBattleShot195Frame, NativeBattleShot195Operation, NativeBattleShot195Frame> Execute);
 
 /// <summary>5B2A40/5B2A70/5B4BC0 and Canister Shot's original three physical callback pools.</summary>
 public static class NativeBattleShot195
@@ -37,7 +37,7 @@ public static class NativeBattleShot195
             Put(0, root, pools[0].Slots[root].WriteWord(12, 0));
             (pools[1], int opening) = pools[1].Append(0x5B4790);
             Put(1, opening, pools[1].Slots[opening].WriteWord(12, 0));
-            state = (frame.Memory.Shot195 ?? throw new NotSupportedException("Native Canister Shot requires its retained original module globals; explicitly migrate the standalone snapshot.")).Enter(parameters.Actor78);
+            state = (frame.Memory.Shot195 ?? throw new NotSupportedException("Native Canister Shot requires its retained original module globals; explicitly migrate the standalone snapshot.")).Enter(parameters.Source);
         }
         else
         {
@@ -55,7 +55,7 @@ public static class NativeBattleShot195
                 if (pools[1].Slots.Any(task => (task.Flags & 1) == 0))
                 {
                     (pools[1], int shot) = pools[1].Append(0x5B2BF0);
-                    NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
                     int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Shot requires its physical header contact pointer.");
                     Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.ActorIndex));
                     state = state with { ShotSerial = unchecked(state.ShotSerial + 1), SequenceCursor = state.SequenceCursor < 2 ? state.SequenceCursor + 1 : 0 };

@@ -8,7 +8,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Zantetsuken anchor leaves its actual physical models.");
         }
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Zantetsuken requires the retained model angle WORD.");
         NativeBattlePoseSource? source = (model.Flags0 & 2) != 0 ? NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Zantetsuken requires the current body's actual skeleton.") : null;
         NativeBattleVector first = ReadBone(0xF0);

@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect3Resources(NativeBattleEffectHeapAllocation Texture, NativeBattleEffectHeapAllocation Animation, ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound, uint FlashColor);
-public sealed record NativeBattleEffect3Inputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform)
+public sealed record NativeBattleEffect3Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform)
 {
     public Action<int>? ApplyContact { get; init; }
 }
@@ -73,7 +73,7 @@ public static class NativeBattleEffect3
             {
                 task.WriteByte(15, 1);
                 byte sequence = task.ReadByte(14);
-                if (sequence <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+                if (sequence <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
                 {
                     int first = FirstContact(Header(sequence));
                     int model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
@@ -178,12 +178,12 @@ public static class NativeBattleEffect3
 
         NativeBattleActionHeaderSlot Header(int sequence)
         {
-            int index = parameters.HeaderIndex7C + sequence;
+            BattleActionHeaderReference index = parameters.Header.Advance(sequence);
             if ((uint)index >= NativeBattleActionPacketsState.HeaderCapacity)
             {
                 throw new InvalidDataException("Native effect3 continuation leaves its physical action header bank.");
             }
-            return inputs.Packets.Headers[index];
+            return inputs.Packets.ReadHeader(index);
         }
     }
 

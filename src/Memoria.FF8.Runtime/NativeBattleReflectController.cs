@@ -51,9 +51,9 @@ public static class NativeBattleReflectController
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         int action = root.ReadByte(14);
-        if (root.ReadWord(12) == 0 && action <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+        if (root.ReadWord(12) == 0 && action <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
         {
-            int first = inputs.Packets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Reflect spawn requires its actual first target.");
+            int first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Reflect spawn requires its actual first target.");
             byte actor = inputs.Packets.ReadContact(first).Primary.ActorIndex;
             uint pointer = NativeBattleGraphicsModelAddress.Encode(actor);
             bool busy = pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 35);
@@ -143,8 +143,8 @@ public static class NativeBattleReflectController
                     }
                     if (age == 35)
                     {
-                        int header = checked(parameters.HeaderIndex7C + task.ReadWord(14));
-                        NativeBattleActionHeaderSlot packet = inputs.Packets.Headers[header];
+                        BattleActionHeaderReference header = parameters.Header.Advance(task.ReadWord(14));
+                        NativeBattleActionHeaderSlot packet = inputs.Packets.ReadHeader(header);
                         int first = packet.FirstContactIndex ?? throw new NotSupportedException("Native Reflect contact requires its actual action target list.");
                         for (int index = 0; index < packet.ReadContactCount(); index++)
                         {

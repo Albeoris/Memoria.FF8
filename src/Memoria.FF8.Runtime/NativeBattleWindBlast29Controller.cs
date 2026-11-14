@@ -163,8 +163,8 @@ public static class NativeBattleWindBlast29Controller
                 case 2:
                     if (Word(task, 0x24) >= 41)
                     {
-                        int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                         int count = header.ReadContactCount();
                         if (count != 0)
                         {

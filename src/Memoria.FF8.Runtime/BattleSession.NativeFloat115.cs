@@ -50,12 +50,12 @@ public sealed partial class BattleSession
                 targets = NativeBattleEffectTaskPool.Initialize(0x25217F8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x568, 3);
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(17) && targets!.Slots.Any(task => (task.Flags & 1) == 0))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17) && targets!.Slots.Any(task => (task.Flags & 1) == 0))
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Float lost its target pool.");
                 (pool, int slot) = pool.Append(0x6C9580);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x55C);
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Float requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 task = task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target));
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native Float target leaves its physical model bank.");
             }
             int counter = unchecked((short)task.ReadWord(12));
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (counter == 0)
             {
                 NativeBattleVector soundAnchor = ReadNativeDefaultPosition571400(graphics, actor);
@@ -124,7 +124,7 @@ public sealed partial class BattleSession
             if (counter == 64)
             {
                 int action = WindWord(task, 14);
-                int contact = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + action].FirstContactIndex ?? throw new InvalidDataException("Native Float requires its completing contact.");
+                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContactIndex ?? throw new InvalidDataException("Native Float requires its completing contact.");
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
             if (counter >= 70)

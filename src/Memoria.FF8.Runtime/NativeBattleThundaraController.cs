@@ -16,7 +16,7 @@ public sealed record NativeBattleThundaraGeometry(uint Helper, NativeBattleModul
 public sealed record NativeBattleThundaraFlash : NativeBattleThundaraOperation;
 public sealed record NativeBattleThundaraContact(int Contact) : NativeBattleThundaraOperation;
 public sealed record NativeBattleThundaraSound(NativeBattleModuleAnchor Position) : NativeBattleThundaraOperation;
-public sealed record NativeBattleThundaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleThundaraFrame, NativeBattleThundaraOperation, NativeBattleThundaraFrame> Execute);
+public sealed record NativeBattleThundaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleThundaraFrame, NativeBattleThundaraOperation, NativeBattleThundaraFrame> Execute);
 
 /// <summary>6DC2E0/6DC390's four retained banks and ordered primary, secondary and tertiary task contracts.</summary>
 public static class NativeBattleThundaraController
@@ -36,8 +36,8 @@ public static class NativeBattleThundaraController
         {
             throw new InvalidDataException("Native Thundara requires its original6DC2D0 entry and actual50AFC0 action parameters.");
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
-        if (effect.Parameters.HeaderIndex7C + header.ReadRepeatModeMinusOne() >= NativeBattleActionPacketsState.HeaderCapacity)
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
+        if (effect.Parameters.Header + header.ReadRepeatModeMinusOne() >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Thundara's explicit header list exceeds its physical action-header arena.");
         }
@@ -299,7 +299,7 @@ public static class NativeBattleThundaraController
         void Emit(NativeBattleThundaraOperation operation) => frame = inputs.Execute(frame, operation);
         void Sprite(NativeBattleModulePoolTask task, uint resource, int phase, NativeBattleModuleAnchor position, ushort flags = 0, uint color = 0) => Emit(new NativeBattleThundaraSprite(resource, phase, position, 4096, -1024, flags, color) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task, SpritePrimitive(resource)) });
         NativeBattleEffectTaskPool Pool(uint descriptor) => frame.Effect.Pools.Single(pool => pool.DescriptorAddress == descriptor);
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[checked(parameters.HeaderIndex7C + sequence)];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
     }
 
     private static int SpritePrimitive(uint resource) => resource switch

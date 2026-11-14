@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             actorAddress = Dword(frame, existing + 0xC);
         }
         int actorIndex = NativeEffect301Actor(graphics, actorAddress);
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleResourcePointer[]? fields = null;
         NativeBattleCinematicModelServices modelServices = new((_, _) => throw new NotSupportedException("Native actor animation uses its copied physical resource row, not an embedded shape."), (_, address) =>
         {

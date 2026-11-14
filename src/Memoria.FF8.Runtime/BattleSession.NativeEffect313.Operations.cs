@@ -23,7 +23,7 @@ public sealed partial class BattleSession
                 return ImportNativeEffect313Frame(frame);
             case NativeBattleEffect313Contact506690 contact:
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect313 requires its current action header.");
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect313 requires its current contact cursor.");
                 if ((uint)contact.HeaderRelativeIndex >= header.ReadContactCount())
                 {
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
                 return ImportNativeEffect313Frame(frame);
             case NativeBattleEffect313WriteModelBytes write:
                 int actor = NativeEffect313Actor(graphics, write.ModelAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, ApplyNativeEffect174ModelBytes(graphics.Models[actor], new(actor, write.Offset, write.Data, write.Length))) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect174ModelBytes(graphics.ActorModels.Get(actor), new(actor, write.Offset, write.Data, write.Length))) };
                 return frame;
             case NativeBattleEffect313SelectSequence505C00 sequence:
                 graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)NativeEffect313Actor(graphics, sequence.ModelAddress)), sequence.Sequence);

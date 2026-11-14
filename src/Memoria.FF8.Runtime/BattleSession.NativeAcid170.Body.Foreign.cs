@@ -8,7 +8,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Host body deformation requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Host body deformation requires its published projection.");
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Host body deformation requires its addressed temporary owner.");
-        NativeBattleAcid170ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeAcid170View(staging, temporaryAddress, 172));
+        NativeBattleAcid170ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativeAcid170View(staging, temporaryAddress, 172));
         if ((body.Model.Flags0 & 0x20) == 0)
         {
             body = Shadow(body);
@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         temporary = NativeBattleEffectNodeContextMemory.Copy(NativeAcid170View(body.Staging, 0x1D969A8, 4), 0, temporary, 0x10, 4);
         temporary = temporary.Write(0x18, BitConverter.GetBytes((ushort)320)).Write(0x1A, BitConverter.GetBytes((ushort)216)).Write(0x8A, BitConverter.GetBytes((ushort)1));
         body = DrawBody(body with { Temporary172 = temporary });
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishView(body.Staging, temporaryAddress, body.Temporary172, 172) }, graphics);
 
         NativeBattleAcid170ModelFrame Shadow(NativeBattleAcid170ModelFrame current)

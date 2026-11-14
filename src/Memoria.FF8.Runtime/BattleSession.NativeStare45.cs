@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Stare45 requires its actual process memory.");
         NativeBattleStare45Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Stare45 requires its actual CRT stream."), (memory.Stare45 ?? throw new NotSupportedException("Stare45 requires its retained executable storage."))) { Staging = NativeFileStaging ?? throw new NotSupportedException("Stare45 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Stare45 requires its original arithmetic constants.");
-        NativeBattleStare45Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], Bone, _ => nativeActionPackets, Execute);
+        NativeBattleStare45Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), Bone, _ => nativeActionPackets, Execute);
         frame = initialize ? NativeBattleStare45Controller.Initialize(frame, resources, inputs) : NativeBattleStare45Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize && ((effect.Parameters ?? throw new NotSupportedException("Stare45 requires its native parameters.")).Flags79 & 1) == 0)
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleStare45PointStep Bone(NativeBattleStare45Frame current, int actor, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Stare45 disabled bone query requires its actual transform.")).Position28));
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleStare45Controller.Read(current, target.TaskAddress), graphics.Models, PoseSource, producer => current = Observe(current, producer));
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Stare45 target bounds require its actual current pose."), source));
+                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Stare45 target bounds require its actual current pose."), source));
                     return NativeBattleStare45Controller.Write(current, target.TaskAddress, task);
                 case NativeBattleStare45Sound501330 sound:
                     Publish(current);

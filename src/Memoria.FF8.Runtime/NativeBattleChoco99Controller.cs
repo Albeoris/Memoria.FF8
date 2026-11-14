@@ -36,7 +36,7 @@ public static class NativeBattleChoco99Controller
         ]);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x717ED0, 0x64);
         hierarchy = appended.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco99 initial contact pointer is unknown.");
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(0x5A) - 1));
@@ -283,12 +283,12 @@ public static class NativeBattleChoco99Controller
                 case 1:
                     if (Context().Word(0x48) == 1)
                     {
-                        int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         if ((uint)headerIndex >= inputs.Packets.Headers.Length)
                         {
                             throw new NotSupportedException("Native Choco99 contact header leaves its actual arena.");
                         }
-                        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
+                        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco99 contact pointer is unknown.");
                         for (int contact = 0; contact < header.ReadContactCount(); contact++)
                         {

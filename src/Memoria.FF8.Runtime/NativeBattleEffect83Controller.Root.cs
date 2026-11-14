@@ -105,12 +105,12 @@ public static partial class NativeBattleEffect83Controller
                 if (frame.State.ReadWord(TargetAddress + 0x48) == 1)
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                    int header = checked(Parameters(frame).HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+                    BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     if ((uint)header >= packets.Headers.Length)
                     {
                         throw new InvalidDataException("Effect83 contact header leaves its actual physical rows.");
                     }
-                    int first = packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect83 requires its actual first contact pointer.");
+                    int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect83 requires its actual first contact pointer.");
                     int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                     if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)
                     {

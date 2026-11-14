@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel112LateInputs(NativeBattleDuel112DrawingInputs Drawing, Func<int, NativeBattleModuleAnchor> ReadAnchor571400);
+public sealed record NativeBattleDuel112LateInputs(NativeBattleDuel112DrawingInputs Drawing, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400);
 
 public static partial class NativeBattleDuel112Target
 {
@@ -19,7 +19,7 @@ public static partial class NativeBattleDuel112Target
             return new(frame, ordering);
         }
         NativeBattleDuel112DrawingInputs drawing = inputs.Drawing;
-        int actor = frame.Memory.Duel112?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel final hierarchy requires its actual actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel final hierarchy requires its actual actor.");
         if (elapsed == 38)
         {
             Append(NativeBattleDuelSharedPackets.Flash6CBF90());

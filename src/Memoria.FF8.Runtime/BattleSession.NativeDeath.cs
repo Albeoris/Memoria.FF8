@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native Death requires its original graphics rules.");
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Death requires its original interpolation constants.");
         NativeBattleDeathFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Native Death requires its addressed model memory.") };
-        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, colors.Normal, colors.Transition, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778, ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector), ObserveForeignBone = (current, actor, selector) => current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory } };
+        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, colors.Normal, colors.Transition, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778, ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector), ObserveForeignBone = (current, actor, selector) => current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory } };
         NativeBattleDeathFrame advanced = NativeBattleDeathController.Advance(frame, resources, inputs);
         NativeEffectMemory = advanced.Memory;
         NativeFileStaging = advanced.Staging ?? throw new NotSupportedException("Native Death lost its addressed model memory.");
@@ -87,11 +87,11 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Native Death family caster binding disagrees with its original resource directory.");
                     }
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (current.Staging ?? throw new NotSupportedException("Native Death family caster binding requires its addressed source memory.")).Write(caster.Address, caster.Bytes.AsSpan());
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Death family caster binding requires its CPU resource rows."), actor, bind.SavedRow, bind.Directory);
                     NativeFileStaging = bound.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = bound.Staging };
                 case NativeBattleDeathRingSequence sequence:
                     PublishExternal(current);

@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleHypnotize133PointStep Bone(NativeBattleHypnotize133Frame current, int actor, byte selector, short distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -62,25 +62,25 @@ public sealed partial class BattleSession
             {
                 case NativeBattleHypnotize133ContextKind.Main:
                     int caster = Caster(current);
-                    if ((graphics.Models[caster].Flags0 & 2) != 0)
+                    if ((graphics.ActorModels.Get(caster).Flags0 & 2) != 0)
                     {
                         foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                         {
-                            current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[caster], PoseSource(caster), selector, 0));
+                            current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(caster), PoseSource(caster), selector, 0));
                         }
                     }
-                    NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, caster) with { W = (graphics.Models[caster].Transform ?? throw new NotSupportedException("Hypnotize requires the actual caster heading.")).Angle36 };
+                    NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, caster) with { W = (graphics.ActorModels.Get(caster).Transform ?? throw new NotSupportedException("Hypnotize requires the actual caster heading.")).Angle36 };
                     prepared = NativeBattleHypnotize133Contexts.Screen(current.Memory, camera, new(anchor.X, anchor.Y, anchor.Z), anchor.W, Camera().FocalLength ?? throw new NotSupportedException("Hypnotize requires its actual signed focal shadow."), morph, Projection());
                     break;
                 case NativeBattleHypnotize133ContextKind.Anchored:
                     int actor = Caster(current);
                     NativeBattleModuleAnchor local = new(unchecked((short)task.ReadWord(12)), unchecked((short)task.ReadWord(14)), unchecked((short)task.ReadWord(16)), unchecked((short)task.ReadWord(18)));
-                    ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], PoseSource(actor));
+                    ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), PoseSource(actor));
                     if ((uint)local.W >= bones.Length)
                     {
                         throw new InvalidDataException("Hypnotize anchor leaves its actual current body bone publication.");
                     }
-                    NativeBattleHypnotize133BonePointStep point = NativeBattleHypnotize133Contexts.BonePoint(current.Memory, graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Hypnotize requires its retained actor world matrix."), bones[local.W], local);
+                    NativeBattleHypnotize133BonePointStep point = NativeBattleHypnotize133Contexts.BonePoint(current.Memory, graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Hypnotize requires its retained actor world matrix."), bones[local.W], local);
                     prepared = NativeBattleHypnotize133Contexts.Anchored(point.Memory, camera, point.Position, null, morph);
                     break;
                 case NativeBattleHypnotize133ContextKind.Fading:

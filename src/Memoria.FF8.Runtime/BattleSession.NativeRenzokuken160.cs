@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleRenzokuken160Inputs Inputs(NativeBattleRenzokuken160Frame current) => new(graphics.Flags, current.Memory.Renzokuken160!.AbSegments.IsEmpty ? graphics.TriggerWidget?.Block.Segments ?? [] : current.Memory.Renzokuken160.AbSegments, actor => graphics.Models[actor], Execute)
+        NativeBattleRenzokuken160Inputs Inputs(NativeBattleRenzokuken160Frame current) => new(graphics.Flags, current.Memory.Renzokuken160!.AbSegments.IsEmpty ? graphics.TriggerWidget?.Block.Segments ?? [] : current.Memory.Renzokuken160.AbSegments, actor => graphics.ActorModels.Get(actor), Execute)
         {
             ReadBoneCount = actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native160 requires its actual body skeleton.")).BoneCount,
             ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction),
@@ -74,15 +74,15 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleRenzokuken160ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = flags.Flags }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleRenzokuken160ActorColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color40 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleRenzokuken160ActorResource binding:
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor));
                     model = model with { ResourceMagicId = binding.Resource.MagicId, Flags2 = (ushort)((model.Flags2 ?? throw new NotSupportedException("Native5022C0 requires the actual model WORD2.")) | 8) };
-                    graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(actor, model) }, actor, binding.Sequence);
+                    graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(actor, model) }, actor, binding.Sequence);
                     return current;
                 case NativeBattleRenzokuken160Stage stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");
@@ -123,14 +123,14 @@ public sealed partial class BattleSession
         }
     }
 
-    private static NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, byte actor, NativeBattleGraphicsResource resource) => NativeBattleRenzokuken160Controller.ReadWeaponTip5FFEE0(graphics.Models[actor], resource);
+    private static NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, byte actor, NativeBattleGraphicsResource resource) => NativeBattleRenzokuken160Controller.ReadWeaponTip5FFEE0(graphics.ActorModels.Get(actor), resource);
 
     private NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, byte actor) => ReadNativeRenzokuken160WeaponTip(graphics, actor, NativeGraphicsPoseResource(graphics, actor));
 
     private (NativeBattleGraphicsState Graphics, NativeBattleModuleCallback Callback) AdvanceNativeRenzokuken160Shared(NativeBattleGraphicsState graphics, NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs)
     {
         modules = NativeBattleRenzokukenVisualLifetimes.EnsureShared(modules, slot, 160);
-        inputs = inputs with { ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires its actual angleWORD36.")).Angle36 } };
+        inputs = inputs with { ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native571400 requires its actual angleWORD36.")).Angle36 } };
         if (modules.Slots[slot].Callback == 0x5FF4E0)
         {
             return (graphics, NativeBattleRenzokuken160Controller.AdvanceShared5FF4E0(modules, slot, inputs));

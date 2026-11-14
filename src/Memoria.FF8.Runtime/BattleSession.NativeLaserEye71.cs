@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Laser Eye requires its current projection.");
         NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Laser Eye requires its current actor skeleton.");
         NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
-        NativeBattleLaserEye71LowerInputs LowerInputs() => new(Bone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Laser Eye requires its retained actor world matrix."), null), Look, _ => Camera().CapturePackedView1D97778(), SelectActors, Deliver, Projection(), colors);
+        NativeBattleLaserEye71LowerInputs LowerInputs() => new(Bone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Laser Eye requires its retained actor world matrix."), null), Look, _ => Camera().CapturePackedView1D97778(), SelectActors, Deliver, Projection(), colors);
 
         void Publish(NativeBattleLaserEye71Frame current)
         {
@@ -90,14 +90,14 @@ public sealed partial class BattleSession
             else
             {
                 NativeBattlePoseSource source = PoseSource(actor);
-                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Laser Eye requires its target pose."), source));
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Laser Eye requires its target pose."), source));
             }
             return NativeBattleLaserEye71Controller.Write(current, address, task);
         }
 
         NativeBattleLaserEye71TaskStep AdvanceNodes(NativeBattleLaserEye71Frame current, uint address)
         {
-            NativeBattleLaserEye71NodeInputs nodeInputs = new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, colors, Look, Deliver)
+            NativeBattleLaserEye71NodeInputs nodeInputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), PoseSource, Projection(), Camera().Roll, colors, Look, Deliver)
             {
                 ObserveBone = (value, actor, selector) => Bone(value, checked((byte)actor), selector, 0).Frame,
                 ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector)
@@ -133,10 +133,10 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = depth.Depth, ColorFlags = depth.ClearRgb ? group.ColorFlags & 0xFF000000u : group.ColorFlags }).ToImmutableArray() };
                     return current;
                 case NativeBattleLaserEye71BindCaster bind:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(0x1590024, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Laser Eye requires its CPU resource rows."), actor, bind.SaveAddress, 0x1590024, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address) => address >= NativeBattleLaserEye71Profile.SavedBindingAddress && address < NativeBattleLaserEye71Profile.SavedBindingAddress + 32 ? current.State.ReadResourcePointer(address) : staging.ReadResourcePointer(address);
@@ -159,8 +159,8 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleLaserEye71Contact contact:
                     NativeBattleModulePoolTask task = NativeBattleLaserEye71Controller.Read(current, contact.TaskAddress);
-                    int header = checked(current.Effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                    int index = checked((nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Laser Eye requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                    BattleActionHeaderReference header = current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                    int index = checked((nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Laser Eye requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });

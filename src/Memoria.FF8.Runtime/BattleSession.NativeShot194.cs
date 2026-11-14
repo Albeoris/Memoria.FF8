@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Flame Shot requires its actual view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Flame Shot requires its original interpolation tables.");
         NativeBattleShot194Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Flame Shot requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Flame Shot requires its CRT random state."));
-        frame = NativeBattleShot194.Advance(frame, new(graphics.Flags, nativeActionPackets, Muzzle, BoneCount, (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), unchecked((short)fraction)), actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Flame Shot requires its target scale WORD38."), Center, LinkedBones, Execute), resources);
+        frame = NativeBattleShot194.Advance(frame, new(graphics.Flags, nativeActionPackets, Muzzle, BoneCount, (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), unchecked((short)fraction)), actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native Flame Shot requires its target scale WORD38."), Center, LinkedBones, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleShot194Anchor Muzzle(int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             ImmutableArray<NativeBattleActionMatrix> bones = LinkedBones(actor).Matrices;
             if (bones.Length <= 2)
             {
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
 
         NativeBattleBodyBoneMatrices LinkedBones(int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).LinkedPoseSource ?? throw new NotSupportedException("Native Flame Shot requires its actual linked weapon skeleton.");
             if (source.BoneCount > 4)
             {
@@ -92,11 +92,11 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleShot194Bind bind:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(0xD0BD78, resources.ActorOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Flame Shot requires its actual CPU resource rows."), actor, 0x2273848, 0xD0BD78);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleShot194Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
@@ -106,7 +106,7 @@ public sealed partial class BattleSession
                     NativeStage = actual with { Groups = actual.Groups.Select(group => group with { ColorDepth = unchecked((short)stage.Intensity), ColorFlags = 0x808080 }).ToImmutableArray() };
                     return current;
                 case NativeBattleShot194Contact:
-                    graphics = ApplyNativeHeaderContacts(graphics, current.Effect.Parameters!.HeaderIndex7C);
+                    graphics = ApplyNativeHeaderContacts(graphics, current.Effect.Parameters!.Header);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleShot194Sound sound:
                     PublishNativeModuleSound(new(sound.Descriptor, unchecked((uint)sound.Channel), null) { RawPan = unchecked((uint)sound.Volume) });
@@ -158,7 +158,7 @@ public sealed partial class BattleSession
 
         NativeBattleShot194Frame DrawEcho(NativeBattleShot194Frame current, NativeBattleShot194Echo echo)
         {
-            NativeBattleGraphicsModel model = graphics.Models[echo.Actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(echo.Actor);
             if ((model.Flags0 & 0x200) != 0)
             {
                 return current;

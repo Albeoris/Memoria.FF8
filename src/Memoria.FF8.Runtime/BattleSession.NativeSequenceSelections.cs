@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             }
         }
         int target = (graphics.ActionContext ?? throw new NotSupportedException("Native target sequence requires its50D300 current target owner.")).TargetIndex ?? throw new NotSupportedException("Native target sequence requires its retained physical target identity.");
-        if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.Models[target], graphics.PresentationRoster))
+        if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.ActorModels.Get(target), graphics.PresentationRoster))
         {
             return graphics;
         }

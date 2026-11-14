@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanViewerFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleScanByteOwner> Models, NativeBattleScanByteOwner CameraTarget8, NativeBattleScanTextFrame Text);
 public sealed record NativeBattleScanViewerProfile(ushort Category, NativeBattleScanByteOwner Bytes16);
-public sealed record NativeBattleScanViewerInputs(NativeBattleActionPacketsState Packets, NativeBattleScanInputBank Input, uint Options, IReadOnlyList<byte> ButtonMap, Func<int, NativeBattleScanByteOwner> ReadName24, Func<int, uint> ReadDescriptionPointer, Func<int, NativeBattleScanViewerProfile> ReadProfile, Func<NativeBattleScanViewerFrame, int, byte, int, NativeBattleVector> ReadBone502170)
+public sealed record NativeBattleScanViewerInputs(NativeBattleActionPacketsState Packets, NativeBattleScanInputBank Input, uint Options, IReadOnlyList<byte> ButtonMap, Func<int, NativeBattleScanByteOwner> ReadName24, Func<int, uint> ReadDescriptionPointer, Func<int, NativeBattleScanViewerProfile> ReadProfile, Func<NativeBattleScanViewerFrame, BattleModelOwner, byte, int, NativeBattleVector> ReadBone502170)
 {
     public bool UnrestrictedRotation { get; init; }
 }

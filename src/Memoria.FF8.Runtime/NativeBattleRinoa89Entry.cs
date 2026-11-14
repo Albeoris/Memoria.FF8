@@ -29,7 +29,7 @@ public static partial class NativeBattleRinoa89Controller
         }
         frame = frame with { Staging = Dword(frame.Staging, 0x2556600, ArenaAddress) };
         frame = frame with { Staging = Dword(frame.Staging, 0x2556584, 0x1D99A78) };
-        frame = frame with { Staging = Dword(frame.Staging, 0x2556588, ModelAddress(parameters.Actor78)) };
+        frame = frame with { Staging = Dword(frame.Staging, 0x2556588, ModelAddress(parameters.Source)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x25565D8, 20, 1);
         (root, int slot) = root.Append(0x6F9D80);
         root = root.WriteSlot(slot, root.Slots[slot].WriteWord(12, 0));

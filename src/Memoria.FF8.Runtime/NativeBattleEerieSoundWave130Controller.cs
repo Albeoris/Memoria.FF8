@@ -15,7 +15,7 @@ public static class NativeBattleEerieSoundWave130Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleEerieSoundWave130State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleEerieSoundWave130State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -277,7 +277,7 @@ public static class NativeBattleEerieSoundWave130Controller
     }
 
     private static NativeBattleEffectParameters Parameters(NativeBattleEerieSoundWave130Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Eerie Sound Wave requires its captured native parameters.");
-    private static NativeBattleActionHeaderSlot Header(NativeBattleEerieSoundWave130Frame frame, NativeBattleEerieSoundWave130Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleEerieSoundWave130Frame frame, NativeBattleEerieSoundWave130Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
     private static int FirstContact(NativeBattleEerieSoundWave130Frame frame, NativeBattleEerieSoundWave130Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Eerie Sound Wave requires its captured physical contacts.");
     private static uint Working(NativeBattleEerieSoundWave130Frame frame) => frame.State.ReadDword(WorkingGlobal);
     private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Eerie Sound Wave selected an absent physical actor.");

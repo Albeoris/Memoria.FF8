@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native level effect lost its actual root callback.");
         }
         NativeBattleEffectTaskPool? targets = effect.Pools.Length > 1 ? effect.Pools[1] : null;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native level effect requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native level effect requires its current camera matrix.");
         NativeBattleActionMatrix billboard = NativeBattleGfMatrices.Normalize67AAE0(view);
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             NativeBattleLevelBoundsStep bounds = MeasureLevelBounds(actor);
             NativeBattleGraphicsResource targetResource = NativeGraphicsPoseResource(graphics, actor);
             NativeBattlePoseSource pose = targetResource.PoseSource ?? throw new NotSupportedException("Native level effect requires its actual target rig.");
-            NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.Models[actor], pose);
+            NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.ActorModels.Get(actor), pose);
             short middle = unchecked((short)((bounds.Minimum.Y + bounds.Maximum.Y) >> 1));
             task = WindStore(task, 20, new(anchor.X, middle, anchor.Z)).WriteWord(26, unchecked((ushort)anchor.W));
             NativeBattleLevelScale scale = NativeBattleLevelNodeMatrix.BoundsScale(bounds.Minimum, bounds.Maximum);
@@ -96,7 +96,7 @@ public sealed partial class BattleSession
                 }
                 short age = unchecked((short)task.ReadWord(12));
                 short scroll = profile.Effect == 272 ? unchecked((short)-age) : age;
-                short scale38 = graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native level effect requires its target's current scale WORD38.");
+                short scale38 = graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native level effect requires its target's current scale WORD38.");
                 int depthBias = -(int)scale38 >> 4;
                 NativeBattleVector anchor = WindVector(task, 20);
                 NativeBattleLevelScale scale = new(unchecked((int)task.ReadDword(28)), unchecked((int)task.ReadDword(32)), unchecked((int)task.ReadDword(36)));
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
         {
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
             NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native level bounds require the actual body rig.");
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native level bounds require the target's physical world matrix.");
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, world);
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, pose);
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = measured.Memory;
             NativeFileStaging = NativeBattleTemporaryMemory.PublishView(NativeFileStaging, allocation.Address, measured.Temporary32, 32);
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(NativeFileStaging, 32);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, NativeBattleBodyBoneMatrices.Publish508C90(model, pose)) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, NativeBattleBodyBoneMatrices.Publish508C90(model, pose)) };
             return measured;
         }
 

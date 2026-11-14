@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Canister Shot requires its actual view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Canister Shot requires its original interpolation tables.");
         NativeBattleShot195Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Canister Shot requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Canister Shot requires its CRT random state."));
-        frame = NativeBattleShot195.Advance(frame, new(graphics.Flags, nativeActionPackets, Muzzle, BoneCount, (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), unchecked((short)fraction)), actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Canister Shot requires its target scale WORD38."), Center, LinkedBones, Execute), resources);
+        frame = NativeBattleShot195.Advance(frame, new(graphics.Flags, nativeActionPackets, Muzzle, BoneCount, (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), unchecked((short)fraction)), actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native Canister Shot requires its target scale WORD38."), Center, LinkedBones, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleShot195Anchor Muzzle(int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             ImmutableArray<NativeBattleActionMatrix> bones = LinkedBones(actor).Matrices;
             if (bones.Length <= 2)
             {
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
 
         NativeBattleBodyBoneMatrices LinkedBones(int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).LinkedPoseSource ?? throw new NotSupportedException("Native Canister Shot requires its actual linked weapon skeleton.");
             if (source.BoneCount > 4)
             {
@@ -92,11 +92,11 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleShot195Bind bind:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(0xD07400, resources.ActorOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Canister Shot requires its actual CPU resource rows."), actor, 0x226DF00, 0xD07400);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleShot195Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
@@ -108,11 +108,11 @@ public sealed partial class BattleSession
                 case NativeBattleShot195Contact contact:
                     if (contact.All)
                     {
-                        graphics = ApplyNativeHeaderContacts(graphics, current.Effect.Parameters!.HeaderIndex7C);
+                        graphics = ApplyNativeHeaderContacts(graphics, current.Effect.Parameters!.Header);
                     }
                     else
                     {
-                        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+                        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
                         NativeBattleContactPacket first = nativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("Native Canister Shot requires its physical first contact pointer."));
                         NativeBattleGraphicsState applied = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [first] });
                         graphics = applied with { PendingContacts = graphics.PendingContacts };
@@ -157,7 +157,7 @@ public sealed partial class BattleSession
 
         NativeBattleShot195Frame DrawEcho(NativeBattleShot195Frame current, NativeBattleShot195Echo echo)
         {
-            NativeBattleGraphicsModel model = graphics.Models[echo.Actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(echo.Actor);
             if ((model.Flags0 & 0x200) != 0)
             {
                 return current;

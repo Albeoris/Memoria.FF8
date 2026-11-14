@@ -163,8 +163,8 @@ public static class NativeBattleMeltingBubble43Controller
                 case 2:
                     if (Word(task, 0x24) >= 60)
                     {
-                        int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Melting Bubble requires its selected header's actual contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                         if (contact is < 0 or >= NativeBattleActionPacketsState.ContactCapacity)

@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Melting Bubble requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Melting Bubble requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Melting Bubble requires its actual current view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = actor => graphics.Models[actor];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = actor => graphics.ActorModels.Get(actor);
         NativeBattleMeltingBubble43Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), readModel, PoseSource, Execute, AdvanceGeneric);
         frame = NativeBattleMeltingBubble43Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             NativeCrtRandomState genericRandom = current.Random;
             NativeBattleCuragaControllerInputs genericInputs = new(nativeActionPackets, view, readModel, PoseSource)
             {
-                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0)) }
+                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0)) }
             };
             NativeBattleCuragaLeafStep advanced = NativeBattleCuragaNodeEngine.AdvanceGeneric87E1A0(current.ToGeneric(), address, resources.GenericNodes(), genericInputs, new(AdvanceNodes) { BeforeAdvanceContext = UpdateCasterAnchor });
             return new(current.WithGeneric(advanced.Frame) with { Random = genericRandom }, advanced.Result);
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
                     return nodes;
                 }
                 int actor = task.ReadByte(0x2C);
-                NativeBattleBoneAnchorProducer anchor = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), 0xF0, 0);
+                NativeBattleBoneAnchorProducer anchor = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), 0xF0, 0);
                 NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(nodes.Memory, anchor);
                 NativeBattleScriptedColorRegisters registers = observed.ScriptedColorRegisters ?? throw new NotSupportedException("Melting Bubble requires its current anchor outputs.");
                 NativeBattleVector vector = anchor.Enabled ? new(unchecked((short)registers.Mac[0]!.Value), unchecked((short)registers.Mac[1]!.Value), unchecked((short)registers.Mac[2]!.Value)) : anchor.DisabledPosition;

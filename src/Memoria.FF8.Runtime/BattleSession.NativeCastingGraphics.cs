@@ -30,8 +30,8 @@ public sealed partial class BattleSession
                 NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native50A9A0 requires its retained parameterBYTE80 owner.")) with { Parameter80 = 0 };
             }
             NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(context);
-            NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
-            graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50A9A0 requires its loaded model DWORD8.")) & ~0x800000u }) };
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50A9A0 requires its loaded model DWORD8.")) & ~0x800000u }) };
             graphics = SelectNativeHeaderSequence(graphics, context.ActorIndex, header.Sequence);
             graphics = StartNativeHeaderCamera(graphics, context);
             graphics = BeginNativeOriginalEffect(graphics, header.Effect);
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             }
             if (context.CoverMask != 0)
             {
-                graphics = graphics with { Models = NativeBattleCastingCover.Enter(graphics.Models, context) };
+                graphics = graphics with { ActorModels = NativeBattleCastingCover.Enter(graphics.Models, context) };
                 graphics = SelectNativeHeaderSequence(graphics, NativeBattleCastingCover.Recipient(context.TargetMask), 27);
                 return (graphics, 5, false);
             }
@@ -64,8 +64,8 @@ public sealed partial class BattleSession
         if (phase == 5)
         {
             AdmitDiagnosticVisualEntry(header);
-            NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
-            graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, context.ActorIndex) & ~0x20) }) };
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, context.ActorIndex) & ~0x20) }) };
             if ((graphics.Flags & 0x20000000) != 0)
             {
                 graphics = graphics with { Flags = graphics.Flags & ~0x20000000u };
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             }
             if (context.CoverMask != 0)
             {
-                graphics = graphics with { Models = NativeBattleCastingCover.Complete(graphics.Models, context) };
+                graphics = graphics with { ActorModels = NativeBattleCastingCover.Complete(graphics.Models, context) };
             }
             return (graphics, 7, false);
         }
@@ -138,16 +138,16 @@ public sealed partial class BattleSession
         return next;
     }
 
-    private static ushort NativeCastingResourceFlags(NativeBattleGraphicsState graphics, byte actor) => graphics.Models[actor].ResourceFlags44 ?? throw new NotSupportedException("Native50A9A0 requires the actual casting resource WORD44.");
+    private static ushort NativeCastingResourceFlags(NativeBattleGraphicsState graphics, byte actor) => graphics.ActorModels.Get(actor).ResourceFlags44 ?? throw new NotSupportedException("Native50A9A0 requires the actual casting resource WORD44.");
 
     private static NativeBattleGraphicsState SetNativeCastingResourceFlags(NativeBattleGraphicsState graphics, byte index, ushort flags)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (model.ReadLinkedModelIndex140() is not null)
         {
             (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, index, flags, roster: graphics.PresentationRoster);
             return allocated ? graphics with { Auxiliary = auxiliary } : throw new InvalidOperationException("Native50A9A0 cannot write its50B080 payload after auxiliary allocation fails.");
         }
-        return graphics with { Models = graphics.Models.SetItem(index, model with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, index) | flags) }) };
+        return graphics with { ActorModels = graphics.ActorModels.Set(index, model with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, index) | flags) }) };
     }
 }

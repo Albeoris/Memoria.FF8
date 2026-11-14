@@ -35,28 +35,28 @@ public sealed partial class BattleSession
                 return ImportNativeEffect287Frame(frame);
             case NativeBattleEffect287ModelFlags flags:
                 int actor = NativeEffect287Actor(graphics, flags.ModelAddress);
-                NativeBattleGraphicsModel current = graphics.Models[actor];
+                NativeBattleGraphicsModel current = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
                     1 => unchecked((ushort)((current.Flags0 & 0xFF00) | (((current.Flags0 & flags.AndMask) | flags.OrMask) & 0xFF))),
                     2 => unchecked((ushort)((current.Flags0 & flags.AndMask) | flags.OrMask)),
                     _ => throw new InvalidDataException("Effect287 requires its exact model flags store width.")
                 };
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, current with { Flags0 = updated }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, current with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect287Compose5095B0 compose:
                 int composedActor = NativeEffect287Actor(graphics, compose.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[composedActor];
-                graphics = graphics with { Models = graphics.Models.SetItem(composedActor, NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect287 requires its current model world matrix."))) };
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(composedActor);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(composedActor, NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect287 requires its current model world matrix."))) };
                 return frame;
             case NativeBattleEffect287Restore508C90 restore:
                 int restoredActor = NativeEffect287Actor(graphics, restore.ModelAddress);
-                NativeBattleGraphicsModel composed = graphics.Models[restoredActor];
+                NativeBattleGraphicsModel composed = graphics.ActorModels.Get(restoredActor);
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, restoredActor).PoseSource ?? throw new NotSupportedException("Effect287 requires its current physical skeleton.");
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect287 requires its current temporary owner."), 88);
                 NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(composed, source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
                 NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
-                graphics = graphics with { Models = graphics.Models.SetItem(restoredActor, prepared.Model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(restoredActor, prepared.Model) };
                 return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
             case NativeBattleEffect287Stage5713E0 color:
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect287 requires its current stage.");

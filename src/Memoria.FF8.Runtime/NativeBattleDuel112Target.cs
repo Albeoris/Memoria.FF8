@@ -1,13 +1,13 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel112ActorServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, byte> ReadTargetActor, Func<NativeBattleDuel112Frame, int, uint, NativeBattleDuel112Frame> BindActor5022C0, Func<NativeBattleDuel112Frame, int, byte, NativeBattleDuel112Frame> SelectSequence505C00);
+public sealed record NativeBattleDuel112ActorServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<int, byte> ReadTargetActor, Func<NativeBattleDuel112Frame, int, uint, NativeBattleDuel112Frame> BindActor5022C0, Func<NativeBattleDuel112Frame, int, byte, NativeBattleDuel112Frame> SelectSequence505C00);
 
 public static partial class NativeBattleDuel112Target
 {
     public static NativeBattleDuel112Frame Initialize6CBF90(NativeBattleDuel112Frame frame, int slot, int sequence, NativeBattleDuel112ActorServices services)
     {
-        NativeBattleEffectParameters parameters = frame.Memory.Duel112?.Parameters ?? throw new NotSupportedException("Native Duel target requires its actual action parameters.");
-        int actor = parameters.Actor78;
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel target requires its actual action parameters.");
+        BattleModelOwner actor = parameters.Source;
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         NativeBattleModulePoolTask task = pool.Slots[slot];
         if (pool.DescriptorAddress != 0x2521950 || task.Callback != 0x6CBF90 || (uint)sequence > byte.MaxValue)

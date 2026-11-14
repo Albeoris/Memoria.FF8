@@ -17,7 +17,7 @@ public static partial class NativeBattleBadBreath131Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with
         {
-            State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)),
+            State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
             Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -70,7 +70,7 @@ public static partial class NativeBattleBadBreath131Controller
             }
             NativeBattleModulePoolTask task = Read(frame, childAddress).WriteBytes(12, new byte[40]);
             int firstContact = FirstContact(frame, inputs);
-            int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
             if (count is < 1 or > 3)
             {
                 throw new NotSupportedException("Bad Breath requires one to three actual captured targets.");
@@ -134,12 +134,12 @@ public static partial class NativeBattleBadBreath131Controller
     private static NativeBattleModelTransform Transform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Bad Breath requires its actual model transform.");
     private static int FirstContact(NativeBattleBadBreath131Frame frame, NativeBattleBadBreath131Inputs inputs)
     {
-        int index = Parameters(frame).HeaderIndex7C;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.Headers[index].ReadByte(16) == 0)
+        BattleActionHeaderReference index = Parameters(frame).Header;
+        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
         {
             throw new NotSupportedException("Bad Breath requires its actual captured contact header.");
         }
-        return inputs.Packets.Headers[index].FirstContactIndex ?? throw new NotSupportedException("Bad Breath requires its actual contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Bad Breath requires its actual contact pointer.");
     }
     private static void RequireBinding(NativeBattleBadBreath131Frame frame)
     {

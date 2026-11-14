@@ -114,7 +114,7 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Native graphics row does not identify its actual allocation and immutable resource.");
                 }
-                NativeBattleGraphicsModel model = state.Models[index];
+                NativeBattleGraphicsModel model = state.ActorModels.Get(index);
                 if ((model.Flags0 & 2) != 0 && model.TextureResourceIndex is int resourceIndex)
                 {
                     NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Saved native graphics resource index has no retained texture cache owner.");

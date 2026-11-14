@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Life requires its current camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Life requires its prior published projection.");
         NativeBattleLifeFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Life requires its retained effect memory."), effect, effect.Life ?? throw new NotSupportedException("Native Life requires its executed entry state."));
-        NativeBattleLifeInputs inputs = new(nativeActionPackets, projection, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Life requires the target's actual pose source."), nativeCrtRandom ?? throw new NotSupportedException("Native Life requires its55CBD2 random owner."), Execute)
+        NativeBattleLifeInputs inputs = new(nativeActionPackets, projection, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Life requires the target's actual pose source."), nativeCrtRandom ?? throw new NotSupportedException("Native Life requires its55CBD2 random owner."), Execute)
         {
             CameraRoll = camera.Roll,
             ApplyContact = ApplyContact,

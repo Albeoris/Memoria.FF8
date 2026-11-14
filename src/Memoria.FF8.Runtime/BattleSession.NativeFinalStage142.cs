@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattleFinalStage142Actor>.Builder actors = ImmutableArray.CreateBuilder<NativeBattleFinalStage142Actor>();
         foreach (int index in ReadStageContactEnemyRows(graphics, services))
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             byte identity = (model.Flags0 & 2) == 0 ? (byte)0 : model.ModelId4 ?? throw new NotSupportedException("Native512500 requires each enabled actor identity byte.");
             bool selected = (model.Flags0 & 2) != 0 && identity == 0x8C;
             (int currentHp, int maximumHp) = selected ? ReadStageContactHp(graphics, index, services) : (0, 0);

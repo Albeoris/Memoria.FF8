@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, draw.Actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect70 body requires its current skeleton.");
-        NativeBattleGraphicsModel model = graphics.Models[draw.Actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(draw.Actor);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect70 body requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect70 body requires its current projection.");
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect70 body requires its loaded projected capacity.")) * 8);
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         }
         frame = frame with { Staging = NativeBattleModelContext44.PublishTemporary(frame.Staging!, temporaryAddress, temporary) };
         frame = NativeBattleEffect70Controller.Release(frame, 92);
-        return (graphics with { Models = graphics.Models.SetItem(draw.Actor, model) }, frame);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(draw.Actor, model) }, frame);
 
         NativeBattleEffectArena View(uint address, int length) => NativeBattleEffect70Controller.ReadBytes(frame, address, length);
 
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
 
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect70Frame Frame) CaptureNativeEffect70Bounds(NativeBattleGraphicsState graphics, NativeBattleEffect70Frame frame, NativeBattleEffect70CaptureBounds6DFD90 capture)
     {
-        NativeBattleGraphicsModel model = graphics.Models[capture.Actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(capture.Actor);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, capture.Actor).PoseSource ?? throw new NotSupportedException("Effect70 bounds require their current skeleton.");
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect70 bounds require their current world matrix."));
         (frame, uint temporaryAddress) = NativeBattleEffect70Controller.Allocate(frame, 24);
@@ -93,6 +93,6 @@ public sealed partial class BattleSession
         frame = NativeBattleEffect70Controller.Release(frame, 88);
         NativeBattleEffectArena limits = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(captured.Maximum)).Write(2, BitConverter.GetBytes(captured.Minimum));
         frame = NativeBattleEffect70Controller.WriteBytes(frame, capture.Destination, limits, 4);
-        return (graphics with { Models = graphics.Models.SetItem(capture.Actor, restored.Model) }, frame);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(capture.Actor, restored.Model) }, frame);
     }
 }

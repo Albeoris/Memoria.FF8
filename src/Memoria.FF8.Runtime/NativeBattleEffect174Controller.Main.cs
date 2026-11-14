@@ -173,7 +173,7 @@ public static partial class NativeBattleEffect174Controller
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect174 requires its current header.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int index = packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect174 requires the actual first contact pointer.");
+        int index = packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect174 requires the actual first contact pointer.");
         return (index, packets.ReadContact(index));
     }
 }

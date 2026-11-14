@@ -19,7 +19,7 @@ public sealed record NativeBattleShot193Sprite(uint Address, ushort Phase, Nativ
 public sealed record NativeBattleShot193ReloadCommon(uint CompletionAddress) : NativeBattleShot193Operation;
 public sealed record NativeBattleShot193BillboardMesh(uint Address, NativeBattleVector Position, short Scale, int Depth, uint Flags, int? Fade) : NativeBattleShot193Operation;
 public sealed record NativeBattleShot193Mesh(uint Address, NativeBattleActionMatrix World, uint Flags, int? Fade) : NativeBattleShot193Operation;
-public sealed record NativeBattleShot193Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleShot193Anchor> ReadMuzzle, Func<int, int> BoneCount, Func<int, int, int, NativeBattleVector> ReadBone, Func<int, short> ModelScale, Func<int, NativeBattleVector> ReadCenter, Func<int, NativeBattleBodyBoneMatrices> ReadBones, Func<NativeBattleShot193Frame, NativeBattleShot193Operation, NativeBattleShot193Frame> Execute);
+public sealed record NativeBattleShot193Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleShot193Anchor> ReadMuzzle, Func<BattleModelOwner, int> BoneCount, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone, Func<int, short> ModelScale, Func<BattleModelOwner, NativeBattleVector> ReadCenter, Func<BattleModelOwner, NativeBattleBodyBoneMatrices> ReadBones, Func<NativeBattleShot193Frame, NativeBattleShot193Operation, NativeBattleShot193Frame> Execute);
 
 /// <summary>5B7190/5B71C0/5B95E0 and Dark Shot's original three physical callback pools.</summary>
 public static class NativeBattleShot193
@@ -52,7 +52,7 @@ public static class NativeBattleShot193
             Put(0, root, pools[0].Slots[root].WriteWord(12, 0));
             (pools[1], int opening) = pools[1].Append(0x5B91A0);
             Put(1, opening, pools[1].Slots[opening].WriteWord(12, 0));
-            state = (frame.Memory.Shot193 ?? throw new NotSupportedException("Native Dark Shot requires its retained original module globals; explicitly migrate the standalone snapshot.")).Enter(parameters.Actor78);
+            state = (frame.Memory.Shot193 ?? throw new NotSupportedException("Native Dark Shot requires its retained original module globals; explicitly migrate the standalone snapshot.")).Enter(parameters.Source);
         }
         else
         {
@@ -70,7 +70,7 @@ public static class NativeBattleShot193
                 if (pools[1].Slots.Any(task => (task.Flags & 1) == 0))
                 {
                     (pools[1], int shot) = pools[1].Append(0x5B7320);
-                    NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
                     int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Shot requires its physical header contact pointer.");
                     Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.ActorIndex));
                     state = state with { ShotSerial = unchecked(state.ShotSerial + 1), SequenceCursor = state.SequenceCursor < 2 ? state.SequenceCursor + 1 : 0 };

@@ -59,7 +59,7 @@ public static partial class NativeBattleNoMercy200Controller
 
     private static IEnumerable<int> SelectedTargets(NativeBattleNoMercy200Frame frame, NativeBattleActionPacketsState packets)
     {
-        NativeBattleActionHeaderSlot header = packets.Headers[frame.Parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.Headers[frame.Parameters.Header];
         int count = header.ReadContactCount();
         if (count == 0)
         {

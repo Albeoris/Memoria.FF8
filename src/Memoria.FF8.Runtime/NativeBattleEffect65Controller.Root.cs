@@ -153,5 +153,5 @@ public static partial class NativeBattleEffect65Controller
         return new(unchecked((short)(NativeBattleCameraMath.Sine(angle) * cosine >> 12)), unchecked((short)-NativeBattleCameraMath.Sine(polar)), unchecked((short)(unchecked(-NativeBattleCameraMath.Cosine(angle) * cosine) >> 12)));
     }
 
-    private static NativeBattleActionHeaderSlot Header(NativeBattleEffect65Frame frame, NativeBattleActionPacketsState packets) => packets.Headers[(frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its actual header pointer.")).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleEffect65Frame frame, NativeBattleActionPacketsState packets) => packets.ReadHeader((frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its actual header pointer.")).Header);
 }

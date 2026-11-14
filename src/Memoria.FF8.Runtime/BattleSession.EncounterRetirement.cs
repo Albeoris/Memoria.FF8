@@ -10,7 +10,7 @@ public sealed record EncounterAllocationRetirement(int PhysicalIndex, bool Remov
         }
         bool IsEffectOwner(NativeBattleOriginalEffectState? effect)
         {
-            return effect is { ReturnedDescriptor: > 0 } && (effect.Parameters is not { } parameters || parameters.Actor78 == PhysicalIndex || (parameters.TargetMask7A & (1 << PhysicalIndex)) != 0);
+            return effect is { ReturnedDescriptor: > 0 } && (effect.Parameters is not { } parameters || parameters.Source == PhysicalIndex || (parameters.TargetActors & (1 << PhysicalIndex)) != 0);
         }
         for (int header = 0; header < packets.ActionCount; header++)
         {
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
             return;
         }
         int physical = actor.EncodeNativeSlot() is >= 3 and <= 6 ? actor.EncodeNativeSlot() : NativeGraphics?.ActorIds.IndexOf(actor.Id) ?? -1;
-        if (physical is < 3 or > 6 || NativeGraphics is { } graphics && (graphics.Models[physical].Flags0 & 3) == 0)
+        if (physical is < 3 or > 6 || NativeGraphics is { } graphics && (graphics.ActorModels.Get(physical).Flags0 & 3) == 0)
         {
             return;
         }
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
                 continue;
             }
             int physical = retirement.PhysicalIndex;
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(physical);
             bool pendingRemoval = graphics.Descriptors.Queue.Any(slot => graphics.Descriptors.Packets[slot].Command == 105 && graphics.Descriptors.Packets[slot].Index == physical) || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Remove502ED0 && graphics.Descriptors.Packets[task.PacketSlot].Index == physical);
             if (graphics.ActorIds[physical] != allocation.Id)
             {
@@ -148,7 +148,7 @@ public sealed partial class BattleSession
         {
             EncounterAllocationRetirement retirement = allocation.Retirement!;
             BattleCombatant actor = GetActor(allocation.Id);
-            if (actor.IsActive || retirement.PhysicalIndex is < 3 or > 6 || !retirement.ResourcesReleased && (NativeGraphics is null || NativeGraphics.ActorIds[retirement.PhysicalIndex] != allocation.Id && !retirement.RemovalQueued) || retirement.ResourcesReleased && NativeGraphics is { } graphics && graphics.ActorIds[retirement.PhysicalIndex] == allocation.Id && (graphics.Models[retirement.PhysicalIndex].Flags0 & 3) != 0)
+            if (actor.IsActive || retirement.PhysicalIndex is < 3 or > 6 || !retirement.ResourcesReleased && (NativeGraphics is null || NativeGraphics.ActorIds[retirement.PhysicalIndex] != allocation.Id && !retirement.RemovalQueued) || retirement.ResourcesReleased && NativeGraphics is { } graphics && graphics.ActorIds[retirement.PhysicalIndex] == allocation.Id && (graphics.ActorModels.Get(retirement.PhysicalIndex).Flags0 & 3) != 0)
             {
                 throw new InvalidDataException("Encounter retirement snapshot disagrees with its inactive allocation and resource generation.");
             }

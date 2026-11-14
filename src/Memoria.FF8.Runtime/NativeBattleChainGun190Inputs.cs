@@ -6,7 +6,7 @@ public sealed record NativeBattleChainGun190Frame(NativeBattleEffectMemory Memor
 }
 
 public sealed record NativeBattleChainGun190PointStep(NativeBattleChainGun190Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleChainGun190Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleChainGun190Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleChainGun190Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleChainGun190Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleChainGun190Frame, int, NativeBattlePackedMatrix32> ReadModelWorld, Func<NativeBattleChainGun190Frame, int, int> ReadBoneCount, Func<NativeBattleChainGun190Frame, int, int, int, NativeBattleChainGun190PointStep> ReadBone502170, Func<NativeBattleChainGun190Frame, NativeBattleChainGun190Operation, NativeBattleChainGun190Frame> Execute);
+public sealed record NativeBattleChainGun190Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleChainGun190Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleChainGun190Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleChainGun190Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleChainGun190Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadModelWorld, Func<NativeBattleChainGun190Frame, BattleModelOwner, int> ReadBoneCount, Func<NativeBattleChainGun190Frame, BattleModelOwner, int, int, NativeBattleChainGun190PointStep> ReadBone502170, Func<NativeBattleChainGun190Frame, NativeBattleChainGun190Operation, NativeBattleChainGun190Frame> Execute);
 
 public abstract record NativeBattleChainGun190Operation
 {

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Bad Breath requires its actual process memory.");
         NativeBattleBadBreath131Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Bad Breath requires its CRT stream."), memory.BadBreath131 ?? throw new NotSupportedException("Bad Breath requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Bad Breath requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Bad Breath requires its original interpolation constants.");
-        NativeBattleBadBreath131Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], actor => PoseSource(actor).BoneCount, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
+        NativeBattleBadBreath131Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), actor => PoseSource(actor).BoneCount, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
         frame = initialize ? NativeBattleBadBreath131Controller.Initialize(frame, resources, inputs) : NativeBattleBadBreath131Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         NativeBattleBadBreath131AnchorStep Anchor(NativeBattleBadBreath131Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath requires its current actor skeleton.");
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
 
         NativeBattleBadBreath131PointStep Bone(NativeBattleBadBreath131Frame current, int actor, short selector, int distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), checked((byte)selector), checked((short)distance));
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -110,11 +110,11 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleBadBreath131ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleBadBreath131ActorColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(color.Actor, graphics.Models[color.Actor] with { Color40 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(color.Actor, graphics.ActorModels.Get(color.Actor) with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleBadBreath131FlashEnvelope flash:
                     return Deliver(current, NativeBattleModuleRenderCommands.Emit700150(flash.Age, 64, 64, 0, 14, 22, 14, flash.PilotIdentity));
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
                 case NativeBattleBadBreath131Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C].FirstContactIndex ?? throw new InvalidDataException("Bad Breath requires its current first contact.")) + contact.Index))) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new InvalidDataException("Bad Breath requires its current first contact.")) + contact.Index))) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Bad Breath contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleBadBreath131DrawSprite180 sprite:

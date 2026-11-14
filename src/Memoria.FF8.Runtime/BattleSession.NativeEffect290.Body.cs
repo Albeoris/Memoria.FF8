@@ -16,9 +16,9 @@ public sealed partial class BattleSession
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect290 requires its current projection capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 152);
-        NativeBattleEffect298BodyFrame body = new(frame.Memory, allocation.Staging, graphics.Models[actor], NativeBattleOffsetBodyContextMemory.Read(allocation.Staging, allocation.Address, 152));
+        NativeBattleEffect298BodyFrame body = new(frame.Memory, allocation.Staging, graphics.ActorModels.Get(actor), NativeBattleOffsetBodyContextMemory.Read(allocation.Staging, allocation.Address, 152));
         body = NativeBattleEffect298BodyDrawing.DrawOuter(body, inputs.ReadView(frame), operation.OffsetRowsAddress, offsets, scratchAddress, new(Shadow, Prepare, DrawSource, Restore));
-        graphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, body.Model) };
+        graphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, body.Model) };
         NativeBattleFileStaging staging = NativeBattleOffsetBodyContextMemory.Publish(body.Staging, allocation.Address, body.Temporary152, 152);
         return frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 152) };
 
@@ -32,14 +32,14 @@ public sealed partial class BattleSession
 
         NativeBattleEffect298BodyFrame Prepare(NativeBattleEffect298BodyFrame selected)
         {
-            currentGraphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, selected.Model) };
+            currentGraphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, selected.Model) };
             NativeBattleEffect290Frame prepared = PrepareNativeEffect290Pose(ref currentGraphics, frame with { Memory = selected.Memory, Staging = selected.Staging }, actor, source, offsets);
-            return selected with { Memory = prepared.Memory, Staging = prepared.Staging!, Model = currentGraphics.Models[actor] };
+            return selected with { Memory = prepared.Memory, Staging = prepared.Staging!, Model = currentGraphics.ActorModels.Get(actor) };
         }
 
         NativeBattleEffect298BodyFrame DrawSource(NativeBattleEffect298BodyFrame selected)
         {
-            currentGraphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, selected.Model) };
+            currentGraphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, selected.Model) };
             NativeBattleEffect290Frame current = frame with { Memory = selected.Memory, Staging = selected.Staging };
             NativeBattleModelGeometrySource geometry = ReadNativeEffect290Geometry(currentGraphics, current, actor);
             ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect290PackedBones(currentGraphics, current, actor, source);
@@ -54,9 +54,9 @@ public sealed partial class BattleSession
 
         NativeBattleEffect298BodyFrame Restore(NativeBattleEffect298BodyFrame selected)
         {
-            currentGraphics = currentGraphics with { Models = currentGraphics.Models.SetItem(actor, selected.Model) };
+            currentGraphics = currentGraphics with { ActorModels = currentGraphics.ActorModels.Set(actor, selected.Model) };
             NativeBattleEffect290Frame restored = RestoreNativeEffect290Pose(ref currentGraphics, frame with { Memory = selected.Memory, Staging = selected.Staging }, actor, source);
-            return selected with { Memory = restored.Memory, Staging = restored.Staging!, Model = currentGraphics.Models[actor] };
+            return selected with { Memory = restored.Memory, Staging = restored.Staging!, Model = currentGraphics.ActorModels.Get(actor) };
         }
     }
 
@@ -70,12 +70,12 @@ public sealed partial class BattleSession
         uint main = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleEffect290Profile.MainDescriptor).BankAddress;
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect290 requires its current projection capacity.")) * 8);
         uint scratch = checked(0x196B018u - (uint)scratchLength);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0x38, BitConverter.GetBytes(0u)).Write(0x50, BitConverter.GetBytes(main)).Write(0x24, BitConverter.GetBytes(scratch)).Write(0x2C, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Effect290 requires its current caster color."))).Write(0x30, BitConverter.GetBytes((model.SequenceState ?? throw new NotSupportedException("Effect290 requires its current object mask.")).MeshMask124));
         context = context.Write(0x34, BitConverter.GetBytes((int)operation.ChunkLimit)).Write(0x3C, BitConverter.GetBytes((int)operation.NormalSpeed)).Write(0x40, BitConverter.GetBytes((int)operation.ScaleBase)).Write(0x44, BitConverter.GetBytes((int)operation.RandomThreshold));
         frame = PublishContext(frame, temporary, context, 180);
         frame = PrepareNativeEffect290Pose(ref graphics, frame, actor, source, offsets);
-        model = graphics.Models[actor];
+        model = graphics.ActorModels.Get(actor);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect290 requires its current caster world matrix.");
         NativeBattleBodyBoneMatrices publication = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect290 requires its just-published offset pose.");
         var matrices = ImmutableArray.CreateBuilder<NativeBattleActionMatrix>(source.BoneCount);
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
             matrices.Add(matrix with { X = unchecked(matrix.X + NativeEffect290BodyWord(offsets, bone * 16)), Y = unchecked(matrix.Y + NativeEffect290BodyWord(offsets, bone * 16 + 2)), Z = unchecked(matrix.Z + NativeEffect290BodyWord(offsets, bone * 16 + 4)) });
             frame = WriteNativeEffect290BonePadding(graphics, frame, actor, bone, 0);
         }
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { CurrentBodyBoneMatrices = publication with { Matrices = matrices.MoveToImmutable() } }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { CurrentBodyBoneMatrices = publication with { Matrices = matrices.MoveToImmutable() } }) };
         foreach (short bone in operation.BoneSelectors)
         {
             if ((uint)bone >= source.BoneCount)

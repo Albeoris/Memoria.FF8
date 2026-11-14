@@ -3,11 +3,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRenzokuken160Inputs(uint GraphicsFlags, ImmutableArray<byte> AbSegments, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Operation, NativeBattleRenzokuken160Frame> Execute)
+public sealed record NativeBattleRenzokuken160Inputs(uint GraphicsFlags, ImmutableArray<byte> AbSegments, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Operation, NativeBattleRenzokuken160Frame> Execute)
 {
     public bool CapturePresentation { get; init; }
-    public Func<byte, int>? ReadBoneCount { get; init; }
-    public Func<byte, int, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<BattleModelOwner, int>? ReadBoneCount { get; init; }
+    public Func<BattleModelOwner, int, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<byte, NativeBattleRenzokuken160WeaponTip>? ReadWeaponTip { get; init; }
 }
 public abstract record NativeBattleRenzokuken160Operation;
@@ -30,11 +30,11 @@ public static partial class NativeBattleRenzokuken160Controller
             throw new InvalidDataException("Native5FF080 requires its original160 binding, action parameters and embedded actor resource.");
         }
         NativeBattleRenzokuken160State retained = memory.Renzokuken160 ?? throw new NotSupportedException("Native160 requires its explicitly retained local storage; migrate the standalone snapshot.");
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native5FF080 requires the physical first-contact pointer.");
         byte target = packets.ReadContact(contact).Primary.ActorIndex;
         bool initial = header.Action == 0xFFFE;
-        NativeBattleRenzokuken160State state = retained.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial) with { RetainedResources = resources };
+        NativeBattleRenzokuken160State state = retained.Enter(parameters.Source, parameters.Header, target, initial) with { RetainedResources = resources };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23D4230, 0x23D4220, 16, 1);
         (main, int mainSlot) = main.Append(0x600930);
         main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));

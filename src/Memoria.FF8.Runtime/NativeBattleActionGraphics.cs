@@ -86,6 +86,25 @@ public static class NativeBattleActionGraphics
         return 0;
     }
 
+    public static bool AreActionModelsBusy(BattleActorModels models, NativeBattleActionGraphicsState context)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.Actor is null || !models.Contains(context.Actor) || context.TargetActors is null || context.CoverActors is null || context.TargetActors.Enumerate().Any(owner => !models.Contains(owner)) || context.CoverActors.Enumerate().Any(owner => !models.Contains(owner)))
+        {
+            throw new InvalidDataException("Native action wait requires its bound source, target and cover model owners.");
+        }
+        if (context.UseActionCamera ?? throw new InvalidDataException("Native action service lost its505F00 result."))
+        {
+            return models.Entries.Any(entry => (entry.State.Flags0 & 2) != 0 && IsModelBusy(entry.State, 0x40));
+        }
+        if (IsModelBusy(models.Get(context.Actor), 0x40))
+        {
+            return true;
+        }
+        return models.Owners.Any(owner => (context.TargetActors.Contains(owner) || context.CoverActors.Contains(owner)) && IsModelBusy(models.Get(owner), 0x140));
+    }
+
     public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask) => IsModelBusy(model, resourceMask, 26);
 
     public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask, uint statusMask)

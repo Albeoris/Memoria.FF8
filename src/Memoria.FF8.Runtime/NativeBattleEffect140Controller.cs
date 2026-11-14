@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect140Controller
         frame = frame with { State = bound.State, Staging = bound.Staging };
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect140 requires its current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         if (count == 0)
         {
@@ -36,7 +36,7 @@ public static partial class NativeBattleEffect140Controller
         NativeCrtRandomState random = frame.Random.Draw(out ushort randomValue);
         int texture = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2517AA8)?.ArenaOffset ?? throw new NotSupportedException("Effect140 requires its executed texture initializer.");
         uint commonSize = NativeBattleEffectArena.Length;
-        frame = frame with { Random = random, State = frame.State.WriteDword(0x2517B1C, (uint)randomValue).WriteDword(0x2517AA8, CommonAddress + (uint)texture).WriteDword(0x2517B28, CommonAddress).WriteDword(0x2517AA4, checked(CommonAddress + commonSize - 0x20000)).WriteDword(0x2517AA0, checked(CommonAddress + commonSize - 0x10000)).WriteDword(0x2517AB0, 0x1D99A78).WriteDword(0x2517AB4, ModelAddress(parameters.Actor78)).WriteDword(0x2517B10, unchecked((uint)(total / count))).WriteDword(0x2517B18, unchecked((uint)(total / count + 3690))) };
+        frame = frame with { Random = random, State = frame.State.WriteDword(0x2517B1C, (uint)randomValue).WriteDword(0x2517AA8, CommonAddress + (uint)texture).WriteDword(0x2517B28, CommonAddress).WriteDword(0x2517AA4, checked(CommonAddress + commonSize - 0x20000)).WriteDword(0x2517AA0, checked(CommonAddress + commonSize - 0x10000)).WriteDword(0x2517AB0, 0x1D99A78).WriteDword(0x2517AB4, ModelAddress(parameters.Source)).WriteDword(0x2517B10, unchecked((uint)(total / count))).WriteDword(0x2517B18, unchecked((uint)(total / count + 3690))) };
         frame = inputs.Execute(frame, new NativeBattleEffect140UploadTim505E30(CommonAddress + (uint)texture));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2517AE8, 0x2517AF8, 20, 1);
         root = NativeBattleEffectTaskMemory.WriteBankSpan(root, 12, CopyBytes(frame.State.RootBankStorage!, 12, NativeBattleEffectArena.Clear(), 0, 8), 8);

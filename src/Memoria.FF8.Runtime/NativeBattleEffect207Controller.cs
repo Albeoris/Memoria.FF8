@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect207Controller
         uint texture = checked(CommonAddress + (uint)textureOffset);
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect207UploadTim505E30(texture));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Source)) };
         frame = WriteBytes(frame, MutableMeshAddress, NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(OriginalMeshAddress, MutableMeshLength)), MutableMeshLength);
         NativeBattleCureFamilyPool shape = Pools[0];
         NativeBattleEffectTaskPool root = InitializePayload(shape, frame.State.ReadBank(0));

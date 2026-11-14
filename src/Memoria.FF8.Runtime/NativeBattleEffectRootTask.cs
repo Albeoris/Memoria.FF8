@@ -6,7 +6,7 @@ public static class NativeBattleEffectRootTask
     {
         task = task.WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte targets = header.ReadByte(0x10);
         byte groups = header.ReadByte(0x11);
         byte maximum = unchecked((byte)(targets - 1));

@@ -53,12 +53,12 @@ public sealed partial class BattleSession
             return actorIndex;
         }
 
-        short ModelYaw(uint pointer) => graphics.Models[Actor(pointer)].Rotation14 ?? throw new NotSupportedException("Oil Blast requires its current model rotation WORD14.");
+        short ModelYaw(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Oil Blast requires its current model rotation WORD14.");
 
         NativeBattleOilBlast137PointStep Bone(NativeBattleOilBlast137Frame current, uint pointer, byte selector, short distance)
         {
             int actor = Actor(pointer);
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);

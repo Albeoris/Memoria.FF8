@@ -16,11 +16,11 @@ public sealed partial class BattleSession
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Poison Gas171 target requires its addressed temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativePoisonGas171View(staging, 0x1D969A8, 4);
-        bool linked = graphics.Models[actor].LinkedTransform is not null;
-        NativeBattlePoisonGas171ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativePoisonGas171View(staging, temporaryAddress, 176));
+        bool linked = graphics.ActorModels.Get(actor).LinkedTransform is not null;
+        NativeBattlePoisonGas171ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativePoisonGas171View(staging, temporaryAddress, 176));
         NativeBattlePoisonGas171ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattlePoisonGas171ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary176, 176) }, graphics);
 
         NativeBattlePoisonGas171ModelFrame Shadow(NativeBattlePoisonGas171ModelFrame current)

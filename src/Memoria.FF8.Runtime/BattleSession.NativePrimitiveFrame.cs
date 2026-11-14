@@ -117,7 +117,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native502D40 requires its actual previously published camera matrix.");
         NativeBattleVector? actualCameraEye = EncounterPresentationCamera?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : null;
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(model, source, view, actualCameraEye);
-        graphics = graphics with { Models = graphics.Models.SetItem(model.Index, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native502D40 requires its observed linked geometry presence.");
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();

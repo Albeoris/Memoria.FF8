@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         }
         for (byte index = 0; index < 3; index++)
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
                 continue;
             }
             graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, status & 0x400);
-            model = graphics.Models[index];
+            model = graphics.ActorModels.Get(index);
             ImmutableArray<NativeBattleVictoryModelSection> mappings = definition.NativeGraphics!.Rules.VictoryModelSections ?? throw new NotSupportedException("Native503040 requires its six original B8B7E0 model/section pairs.");
             NativeBattleVictoryModelSection? selected = mappings.FirstOrDefault(candidate => candidate.Model == model.ModelId4);
             if (selected is null)
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native503040 requires its current physical CPU resource owners."), model, row, directory);
             NativeFileStaging = binding.Staging;
             row = binding.NextRow;
-            graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(index, binding.Model with { ActiveAnimationBank = "victory-" + selected.Section }) }, index, 1);
+            graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, binding.Model with { ActiveAnimationBank = "victory-" + selected.Section }) }, index, 1);
         }
         graphics = StartNativeVictoryCamera5064F0(graphics);
         return (graphics, step.Phase, true);

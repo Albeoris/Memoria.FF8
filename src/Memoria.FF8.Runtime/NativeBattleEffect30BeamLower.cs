@@ -9,7 +9,7 @@ public static class NativeBattleEffect30BeamLower
 {
     public static NativeBattleEffect30Frame Prepare(NativeBattleEffect30Frame frame, uint address, NativeBattleEffect30Resources resources, NativeBattleEffect30LowerInputs inputs)
     {
-        byte caster = (frame.Effect.Parameters ?? throw new NotSupportedException("Effect30 beam requires its captured caster.")).Actor78;
+        byte caster = (frame.Effect.Parameters ?? throw new NotSupportedException("Effect30 beam requires its captured caster.")).Source;
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.ReadWord(0x24) == 0)
         {

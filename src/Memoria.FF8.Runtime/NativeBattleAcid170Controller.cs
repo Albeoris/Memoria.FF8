@@ -14,9 +14,9 @@ public static partial class NativeBattleAcid170Controller
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23B01A8, 0x23B01B8, 36, 100);
         (children, int main) = children.Append(0x5DC9F0);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0).WriteWord(14, 0));
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Acid requires its actual first physical contact pointer.");
-        frame = Dword(Dword(Dword(frame, 0x23AF820, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23B10E8, Parameters(frame).Actor78), 0x23B0FD0, 0x1D99A78);
+        frame = Dword(Dword(Dword(frame, 0x23AF820, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23B10E8, Parameters(frame).Source), 0x23B0FD0, 0x1D99A78);
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x23AF848 + (uint)(index * 24), 0);

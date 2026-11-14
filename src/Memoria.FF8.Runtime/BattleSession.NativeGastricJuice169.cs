@@ -50,7 +50,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Gastric Juice requires its actual first target contact.");
         int target = nativeActionPackets.ReadContact(firstContact).Primary.ActorIndex;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
@@ -131,7 +131,7 @@ public sealed partial class BattleSession
             int start = index * 0x110;
             if (JuiceWord(task, 24) == 0)
             {
-                NativeBattleVector source = ReadNativeGraphicsBone(graphics, effect.Parameters!.Actor78, 0xF0, 0);
+                NativeBattleVector source = ReadNativeGraphicsBone(graphics, effect.Parameters!.Source, 0xF0, 0);
                 NativeBattleModuleAnchor destination = ReadNativeModelAnchor(graphics, target);
                 JuiceWriteVector(streams, start, source);
                 JuiceWriteVector(streams, start + 8, new(unchecked((short)(destination.X + Roll() % 1400 - 700)), 0, unchecked((short)(destination.Z + Roll() % 1400 - 700))));
@@ -350,7 +350,7 @@ public sealed partial class BattleSession
             int counter = JuiceWord(task, 12);
             if (counter < 22)
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(target, graphics.Models[target] with { Flags0 = (ushort)(graphics.Models[target].Flags0 | 4) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Flags0 = (ushort)(graphics.ActorModels.Get(target).Flags0 | 4) }) };
                 DrawTint(task, counter);
             }
             if (paused)
@@ -362,13 +362,13 @@ public sealed partial class BattleSession
             {
                 return 0;
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(target, graphics.Models[target] with { Flags0 = (ushort)(graphics.Models[target].Flags0 & 0xFFFB) }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Flags0 = (ushort)(graphics.ActorModels.Get(target).Flags0 & 0xFFFB) }) };
             return 2;
         }
 
         void DrawTint(NativeBattleModulePoolTask task, int frame)
         {
-            NativeBattleGraphicsModel actor = graphics.Models[target];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(target);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, target);
             graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false, callerPilotIdentity: NativeBattlePilotVisualLifetimes.Identity(169, task, 0x5088A0));
             NativeBattlePoseSource source = resource.PoseSource!;

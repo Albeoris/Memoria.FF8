@@ -15,7 +15,7 @@ public static class NativeBattleRecoveryController
         NativeBattleEffectHierarchy hierarchy = new(Enumerable.Range(0, 4).Select(index => NativeBattleEffectTaskPool.Initialize(profile.Descriptors[index], profile.Banks[index], new ushort[] { 100, 88, 676, 64 }[index], new ushort[] { 2, 4, 4, 10 }[index])).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.MainCallback, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native recovery entry requires its header's actual contact pointer.");
         byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
         byte targets = header.ReadContactCount();
@@ -208,8 +208,8 @@ public static class NativeBattleRecoveryController
                 case 2:
                     if (unchecked((short)task.ReadWord(0x24)) >= profile.ContactCounter)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native recovery contact requires its selected group's contact pointer.");
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native recovery contact requires its selected group's contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                         if (inputs.ApplyContact is { } applyContact)
                         {

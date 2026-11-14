@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleScanState([property: JsonRequired] int? CurrentDrawOffset);
 public sealed record NativeBattleScanFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleScanState State);
 public sealed record NativeBattleScanChildStep(NativeBattleScanFrame Frame, int Result);
-public sealed record NativeBattleScanControllerInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleScanFrame, NativeBattleScanFrame> Begin50A730, Func<NativeBattleScanFrame, int, NativeBattleScanFrame> SetMode4A8480);
+public sealed record NativeBattleScanControllerInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleScanFrame, NativeBattleScanFrame> Begin50A730, Func<NativeBattleScanFrame, int, NativeBattleScanFrame> SetMode4A8480);
 
 /// <summary>84D030/84D110's Scan entry and root scheduling; child callbacks and their completion remain caller-owned.</summary>
 public static class NativeBattleScanController
@@ -29,7 +29,7 @@ public static class NativeBattleScanController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x84D110, 0x64);
         hierarchy = root.Hierarchy;
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadByte(0x10)).WriteWord(0x58, header.ReadByte(0x11));
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)

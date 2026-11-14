@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274MeteorInputs(NativeBattleDuel274MoveInputs Moves, NativeBattleDuel274ActorServices Actors, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, uint, NativeBattleActionMatrix, uint, int?, uint?, NativeBattleDuel274Frame> Draw572200, Func<NativeBattleDuel274Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleVector, NativeBattleDuel274Frame> DrawBody68D1D0);
+public sealed record NativeBattleDuel274MeteorInputs(NativeBattleDuel274MoveInputs Moves, NativeBattleDuel274ActorServices Actors, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, uint, NativeBattleActionMatrix, uint, int?, uint?, NativeBattleDuel274Frame> Draw572200, Func<NativeBattleDuel274Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleVector, NativeBattleDuel274Frame> DrawBody68D1D0);
 
 public static partial class NativeBattleDuel274BasicMoves
 {

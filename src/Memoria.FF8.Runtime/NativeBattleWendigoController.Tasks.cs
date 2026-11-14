@@ -100,7 +100,7 @@ public static partial class NativeBattleWendigoController
                 case 2:
                     if (Signed(task, 0x24) >= (shoot ? 125 : 116))
                     {
-                        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[current.Effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A))];
+                        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wendigo requires its actual action contact pointer.");
                         for (int index = 0; index < header.ReadContactCount(); index++)
                         {

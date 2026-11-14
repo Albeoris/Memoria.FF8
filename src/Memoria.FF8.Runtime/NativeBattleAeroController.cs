@@ -13,7 +13,7 @@ public sealed record NativeBattleAeroNode(NativeBattleGfAnimationSource Source, 
 public sealed record NativeBattleAeroParticle(NativeBattleModulePoolTask Task) : NativeBattleAeroOperation;
 public sealed record NativeBattleAeroSound(NativeBattleModuleAnchor Position) : NativeBattleAeroOperation;
 public sealed record NativeBattleAeroContact(int Contact) : NativeBattleAeroOperation;
-public sealed record NativeBattleAeroInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleModelTransform> ReadTransform, Func<int, NativeBattleModuleAnchor> ReadPosition, Func<NativeBattleAeroFrame, NativeBattleAeroOperation, NativeBattleAeroFrame> Execute);
+public sealed record NativeBattleAeroInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleModelTransform> ReadTransform, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadPosition, Func<NativeBattleAeroFrame, NativeBattleAeroOperation, NativeBattleAeroFrame> Execute);
 
 /// <summary>Aero's two retained animation workspaces and physical particles with parent-owned timing.</summary>
 public static class NativeBattleAeroController
@@ -37,8 +37,8 @@ public static class NativeBattleAeroController
         {
             throw new InvalidDataException("Native Aero requires its original6C0C80 entry, action parameters and resources.");
         }
-        int first = effect.Parameters.HeaderIndex7C;
-        int last = packets.Headers[first].ReadByte(17);
+        BattleActionHeaderReference first = effect.Parameters.Header;
+        int last = packets.ReadHeader(first).ReadByte(17);
         if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Aero owns exactly three primary task slots.");
@@ -223,7 +223,7 @@ public static class NativeBattleAeroController
             return new(Put(pool, slot, task), 0x58);
         }
 
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[parameters.HeaderIndex7C + sequence];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
         int Rand()
         {
             NativeCrtRandomState random = frame.Random.Draw(out ushort value);

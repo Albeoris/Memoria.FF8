@@ -15,7 +15,7 @@ public sealed record NativeBattleCuraState([property: JsonRequired] int? Primary
     public NativeBattleCureActorContext? ActorContext { get; init; }
 }
 public sealed record NativeBattleCuraFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCuraState State);
-public sealed record NativeBattleCuraControllerInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleCuraControllerInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Action<int>? ApplyContact { get; init; }
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
@@ -43,7 +43,7 @@ public static class NativeBattleCuraController
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x889E40), 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native889D60 requires its header's original contact pointer.");
         byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
@@ -187,8 +187,8 @@ public static class NativeBattleCuraController
                     if (unchecked((short)task.ReadWord(0x24)) > 30)
                     {
                         sbyte group = unchecked((sbyte)task.ReadByte(0x2A));
-                        int headerIndex = checked(parameters.HeaderIndex7C + group);
-                        int contact = inputs.Packets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Native88CEA0 requires the selected header's actual first contact pointer.");
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(group);
+                        int contact = inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native88CEA0 requires the selected header's actual first contact pointer.");
                         inputs.ApplyContact?.Invoke(contact);
                         contacts.Add(contact);
                         task = state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1));

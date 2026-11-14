@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -11,7 +11,7 @@ public enum NativeBattleDispel109OperationKind
 }
 
 public sealed record NativeBattleDispel109Operation(NativeBattleDispel109OperationKind Kind, int Value, NativeBattleModuleAnchor? Anchor = null);
-public sealed record NativeBattleDispel109Inputs(NativeBattleActionPacketsState Packets, Func<byte, NativeBattleModuleAnchor> ReadAnchor, Func<byte, ushort> ReadHeight, Func<NativeBattleDispel109Frame, NativeBattleDispel109Operation, NativeBattleDispel109Frame> Execute, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleGfAnimationNode, NativeBattleDispel109Frame> DrawModel, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleDispel109Frame> DrawSprite)
+public sealed record NativeBattleDispel109Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor, Func<byte, ushort> ReadHeight, Func<NativeBattleDispel109Frame, NativeBattleDispel109Operation, NativeBattleDispel109Frame> Execute, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleGfAnimationNode, NativeBattleDispel109Frame> DrawModel, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleDispel109Frame> DrawSprite)
 {
     public Action? ObserveTargetInitialize6CF687 { get; init; }
 }
@@ -47,11 +47,11 @@ public static class NativeBattleDispel109Controller
                 frame = frame with { Effect = frame.Effect with { Pools = [roots, NativeBattleEffectTaskPool.Initialize(0x2521AA0, checked(0x20DFAB8u + (uint)buffer + 1792), 840, 3), NativeBattleEffectTaskPool.Initialize(0x2521A90, checked(0x20DFAB8u + (uint)buffer), 28, 64)] } };
                 frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
             }
-            int headerIndex = frame.Effect.Parameters?.HeaderIndex7C ?? throw new InvalidDataException("Native Dispel requires its current action header.");
+            BattleActionHeaderReference headerIndex = frame.Effect.Parameters?.Header ?? throw new InvalidDataException("Native Dispel requires its current action header.");
             byte group = root.ReadByte(14);
-            if (group <= inputs.Packets.Headers[headerIndex].ReadByte(17))
+            if (group <= inputs.Packets.ReadHeader(headerIndex).ReadByte(17))
             {
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[checked(headerIndex + group)];
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex.Advance(group));
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Dispel requires the actual group contact pointer.");
                 byte actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
                 uint actorPointer = NativeBattleGraphicsModelAddress.Encode(actor);

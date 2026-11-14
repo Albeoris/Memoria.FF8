@@ -53,10 +53,10 @@ public sealed partial class BattleSession
             case 0:
                 foreach (int index in new[] { 0, 2 })
                 {
-                    NativeBattleGraphicsModel model = graphics.Models[index];
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
                 }
-                if ((graphics.Models[0].Flags0 & 2) != 0)
+                if ((graphics.ActorModels.Get(0).Flags0 & 2) != 0)
                 {
                     owner = owner with { Subphase = 1 };
                 }
@@ -71,18 +71,18 @@ public sealed partial class BattleSession
             case 2:
                 foreach (byte index in new byte[] { 0, 2 })
                 {
-                    NativeBattleGraphicsModel model = graphics.Models[index];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                     NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Native511EF0 requires the party actor transform.");
                     model = model with { Transform = transform with { Position28 = transform.Position28 with { Z = unchecked((short)(transform.Position28.Z + 6000)) } }, Rotation14 = 2048 };
-                    graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, index, 26);
+                    graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, index, 26);
                 }
                 owner = owner with { Subphase = 3, Counter = 0 };
                 break;
             case 3:
                 foreach (int index in new[] { 0, 2 })
                 {
-                    NativeBattleGraphicsModel model = graphics.Models[index];
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, model with { Flags0 = (ushort)(model.Flags0 & ~4) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = (ushort)(model.Flags0 & ~4) }) };
                 }
                 owner = owner with { Counter = 0, Subphase = 4 };
                 break;
@@ -90,9 +90,9 @@ public sealed partial class BattleSession
                 owner = owner with { Counter = unchecked((short)(owner.Counter + 1)) };
                 foreach (int index in new[] { 0, 2 })
                 {
-                    NativeBattleGraphicsModel model = graphics.Models[index];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                     NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Native511EF0 requires the party actor transform.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, model with { Transform = transform with { Position28 = transform.Position28 with { Z = NativeBattleStage147.Descent511EF0(transform.Initial20.Z, owner.Counter) } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Transform = transform with { Position28 = transform.Position28 with { Z = NativeBattleStage147.Descent511EF0(transform.Initial20.Z, owner.Counter) } } }) };
                 }
                 int sound = (owner.Counter & 7) == 3 ? 2 : (owner.Counter & 7) == 7 ? 3 : -1;
                 if (sound >= 0)
@@ -107,11 +107,11 @@ public sealed partial class BattleSession
                     owner = owner with { Subphase = 5, Counter = 0 };
                     foreach (byte index in new byte[] { 0, 2 })
                     {
-                        NativeBattleGraphicsModel model = graphics.Models[index];
+                        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                         byte sequence = NativeStandingSequence(model.Flags8 ?? throw new InvalidDataException("Native511EF0 requires the party status DWORD."));
                         graphics = SelectNativeHeaderSequence(graphics, index, sequence);
-                        model = graphics.Models[index];
-                        graphics = graphics with { Models = graphics.Models.SetItem(index, model with { Rotation14 = 0 }) };
+                        model = graphics.ActorModels.Get(index);
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Rotation14 = 0 }) };
                     }
                 }
                 break;

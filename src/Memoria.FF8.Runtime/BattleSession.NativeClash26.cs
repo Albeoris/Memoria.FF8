@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeBattleClash26State state = effect.Clash26 ?? throw new NotSupportedException("Native8886C0 requires its executed8885D0 state.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native8886C0 requires its actual projection owner.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native888A50 requires its original GTE color constants.");
-        NativeBattleClash26Inputs inputs = new(nativeActionPackets, projection, NativeCamera!.Roll, colors, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Clash anchors require the actual body rig."), Execute);
+        NativeBattleClash26Inputs inputs = new(nativeActionPackets, projection, NativeCamera!.Roll, colors, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Clash anchors require the actual body rig."), Execute);
         NativeBattleClash26Step step = NativeBattleClash26Controller.Advance8886C0(new(NativeEffectMemory ?? throw new NotSupportedException("Native8886C0 requires its process memory."), effect, state), resources, inputs, nativeCrtRandom ?? throw new NotSupportedException("Native Clash requires its actual CRT random owner."));
         nativeCrtRandom = step.Random;
         NativeEffectMemory = step.Frame.Memory;
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleClash26Model model:
-                    graphics = graphics with { Models = graphics.Models.SetItem(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
                     break;
                 case NativeBattleClash26Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);

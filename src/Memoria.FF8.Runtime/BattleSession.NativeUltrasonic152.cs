@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         bool paused = (graphics.Flags & 0x201) != 0;
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Ultrasonic Waves requires its first physical contact.");
         int target = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
         NativeBattleEffectTaskStep rootStep = roots.Advance((pool, slot) =>
@@ -123,7 +123,7 @@ public sealed partial class BattleSession
             if (counter == 0)
             {
                 NativeBattleModuleAnchor selected = ReadNativeModelAnchor(graphics, target);
-                process = process with { Anchor = ReadNativeGraphicsBone(graphics, effect.Parameters.Actor78, 0xF0, 4096), Target = new(selected.X, selected.Y, selected.Z) };
+                process = process with { Anchor = ReadNativeGraphicsBone(graphics, effect.Parameters.Source, 0xF0, 4096), Target = new(selected.X, selected.Y, selected.Z) };
             }
             if (counter is >= 1 and <= 14 && counter % 5 == 1)
             {

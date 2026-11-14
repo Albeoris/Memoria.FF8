@@ -71,8 +71,8 @@ public static partial class NativeBattleDoubleController
         public void SpawnOverlay8D6710()
         {
             NativeBattleEffectParameters parameters = Frame.Effect.Parameters ?? throw new InvalidDataException("Native8D6710 requires50AFC0 parameters.");
-            int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-            int contact = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native8D6710 requires its original first-contact pointer.");
+            BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+            int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8D6710 requires its original first-contact pointer.");
             if ((inputs.Packets.ReadContact(contact).Primary.HitFlags3 & 4) != 0)
             {
                 return;

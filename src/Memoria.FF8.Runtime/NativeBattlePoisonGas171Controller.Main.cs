@@ -37,7 +37,7 @@ public static partial class NativeBattlePoisonGas171Controller
         }
         if (age == 27)
         {
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             int count = header.ReadContactCount();
             if (count != 0)
             {
@@ -55,7 +55,7 @@ public static partial class NativeBattlePoisonGas171Controller
         }
         if (age == 30)
         {
-            frame = inputs.Execute(frame, new NativeBattlePoisonGas171Contacts506BA0(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattlePoisonGas171Contacts506BA0(Parameters(frame).Header));
         }
         if (age <= 16)
         {

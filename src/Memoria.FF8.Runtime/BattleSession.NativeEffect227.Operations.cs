@@ -21,9 +21,9 @@ public sealed partial class BattleSession
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect227ModelFlags flags when flags.Width is 1 or 2:
                 int actorIndex = NativeEffect227Actor(graphics, flags.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[actorIndex];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actorIndex);
                 int value = flags.Width == 1 ? (model.Flags0 & 0xFF00) | (((byte)model.Flags0 & (byte)flags.AndMask) | (byte)flags.OrMask) : (model.Flags0 & flags.AndMask) | flags.OrMask;
-                graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, model with { Flags0 = unchecked((ushort)value) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, model with { Flags0 = unchecked((ushort)value) }) };
                 return frame;
             case NativeBattleEffect227Sound501330 sound:
                 PublishNativeEffect227Frame(frame);

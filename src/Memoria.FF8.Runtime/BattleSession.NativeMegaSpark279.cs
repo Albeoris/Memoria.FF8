@@ -17,7 +17,7 @@ public sealed partial class BattleSession
             StackBytes = NativeBattleStackBytes.Unknown("mega-spark-current-root", -0x7C, 0x3C)
         };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Mega Spark requires its original arithmetic constants.");
-        NativeBattleMegaSpark279Inputs inputs = new(nativeActionPackets, colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadCurrentBoneMatrix, ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute)
+        NativeBattleMegaSpark279Inputs inputs = new(nativeActionPackets, colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), (_, pointer) => PoseSource(pointer).BoneCount, ReadCurrentBoneMatrix, ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute)
         {
             CapturePresentation = true,
             ReadResourceRowCapacity = NativeModelResourceRowCapacity,
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Mega Spark requires its actual current skeleton.");
 
 
-        NativeBattleActionMatrix World(uint pointer) => graphics.Models[Actor(pointer)].GeometryWorldMatrix ?? throw new NotSupportedException("Mega Spark requires its actual current model world.");
+        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Mega Spark requires its actual current model world.");
 
         NativeBattlePackedMatrix32 ReadCurrentBoneMatrix(NativeBattleMegaSpark279Frame current, uint row100, int bone)
         {
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
 
         NativeBattleMegaSpark279PointStep ReadBone502170(NativeBattleMegaSpark279Frame current, uint pointer, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Mega Spark bone query requires its actual transform.")).Position28));
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
 
         NativeBattleMegaSpark279PointStep Anchor571400(NativeBattleMegaSpark279Frame current, uint pointer)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Mega Spark anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -138,21 +138,21 @@ public sealed partial class BattleSession
             {
                 case NativeBattleMegaSpark279ComposeCaster5095B0 compose:
                     int composedActor = Actor(compose.ModelAddress);
-                    NativeBattleGraphicsModel composed = graphics.Models[composedActor];
+                    NativeBattleGraphicsModel composed = graphics.ActorModels.Get(composedActor);
                     ImmutableArray<NativeBattleActionMatrix> localBones = NativeBattleBodyBoneMatrices.Require(composed, PoseSource(compose.ModelAddress));
                     NativeBattleActionMatrix lastInput = localBones[^1];
                     NativeBattleActionMatrix world = World(compose.ModelAddress);
                     ulong storedZ = NativeBattleGfMatrices.StoredZ56C600(world, lastInput.X, lastInput.Y, lastInput.Z);
                     NativeBattleStackBytes stack = (current.StackBytes ?? throw new NotSupportedException("Mega Spark composition requires its current execution stack.")).StoreUInt64(-0x7C, storedZ, 0x56C6E5, "compose-last-bone-z");
                     composed = NativeBattleBodyBoneMatrices.Compose5095B0(composed, World(compose.ModelAddress));
-                    graphics = graphics with { Models = graphics.Models.SetItem(composedActor, composed) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(composedActor, composed) };
                     return current with { StackBytes = stack };
                 case NativeBattleMegaSpark279RestoreCaster508C90 restore:
                     int restoredActor = Actor(restore.ModelAddress);
                     NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Mega Spark body restoration requires its actual temporary memory."), 88);
-                    NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[restoredActor], PoseSource(restore.ModelAddress), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+                    NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), PoseSource(restore.ModelAddress), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
                     NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
-                    graphics = graphics with { Models = graphics.Models.SetItem(restoredActor, prepared.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(restoredActor, prepared.Model) };
                     return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
                 case NativeBattleMegaSpark279Contact506BA0 contact:
                     Publish(current);
@@ -166,14 +166,14 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleMegaSpark279ModelFields fields:
                     int actor = Actor(fields.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     model = model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)), Rotation12 = fields.Rotation12 ?? model.Rotation12 };
                     if (fields.PositionZ is short z)
                     {
                         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Mega Spark requires its current position owner.");
                         model = model with { Transform = transform with { Position28 = transform.Position28 with { Z = z } } };
                     }
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                     return current;
                 case NativeBattleMegaSpark279Flash5712C0 flash:
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(checked((short)flash.Arg0), checked((short)flash.Arg1), checked((short)flash.Arg2), checked((short)flash.Arg3)) };

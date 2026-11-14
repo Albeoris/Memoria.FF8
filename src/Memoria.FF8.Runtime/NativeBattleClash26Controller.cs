@@ -14,7 +14,7 @@ public sealed record NativeBattleClash26Sound(uint Sound) : NativeBattleClash26O
 public sealed record NativeBattleClash26Contact(int Index) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Sequence(byte Actor, int Sequence) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Model(NativeBattleGraphicsModel Model) : NativeBattleClash26Operation;
-public sealed record NativeBattleClash26Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleClash26Frame, NativeBattleClash26Operation, NativeBattleClash26Frame> Execute);
+public sealed record NativeBattleClash26Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleClash26Frame, NativeBattleClash26Operation, NativeBattleClash26Frame> Execute);
 
 public static partial class NativeBattleClash26Controller
 {
@@ -36,7 +36,7 @@ public static partial class NativeBattleClash26Controller
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8886C0, 0x64);
         hierarchy = root.Hierarchy;
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         int offset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x26D90D8)?.ArenaOffset ?? throw new NotSupportedException("Native8885D0 requires its executed26D90D8 resource pointer.");

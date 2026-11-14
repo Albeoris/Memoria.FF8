@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Bad Breath requires its actual process memory.");
         NativeBattleBadBreath300Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Bad Breath requires its CRT stream."), memory.BadBreath300 ?? throw new NotSupportedException("Bad Breath requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Bad Breath requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Bad Breath requires its original interpolation constants.");
-        NativeBattleBadBreath300Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Mouth, Bone, Execute, (current, source, context, node) => NativeBattleBadBreath300Drawing.EmitNode(current, source, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Bad Breath requires its published projection."), colors, Deliver), NativeHostCallbacks ?? graphics.Callback);
+        NativeBattleBadBreath300Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Mouth, Bone, Execute, (current, source, context, node) => NativeBattleBadBreath300Drawing.EmitNode(current, source, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Bad Breath requires its published projection."), colors, Deliver), NativeHostCallbacks ?? graphics.Callback);
         inputs = inputs with { ReadBoneCount = actor => ReadNativeGraphicsBoneCount(graphics, actor), ReadTargetCenterY = actor => NativeBattleEffectModelHelpers.ReadVerticalCenter(ReadNativeGraphicsForeignModel(graphics, actor)), EmitNodePresentation = (current, source, context, node, identity) => NativeBattleBadBreath300Drawing.EmitNode(current, source, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Bad Breath requires its published projection."), colors, Deliver, pilotIdentity: identity) };
         frame = initialize ? NativeBattleBadBreath300Controller.Initialize(frame, resources, inputs) : NativeBattleBadBreath300Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         NativeBattleBadBreath300AnchorStep Anchor(NativeBattleBadBreath300Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -72,10 +72,10 @@ public sealed partial class BattleSession
 
         NativeBattleBadBreath300PointStep Mouth(NativeBattleBadBreath300Frame current)
         {
-            byte actor = current.Effect.Parameters!.Actor78;
+            byte actor = current.Effect.Parameters!.Source;
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath mouth requires its current actor skeleton.");
-            NativeBattleBadBreath300MouthStep prepared = NativeBattleBadBreath300Mouth.Prepare(current.Memory, graphics.Models[actor], pose, resources.MouthAnchor);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+            NativeBattleBadBreath300MouthStep prepared = NativeBattleBadBreath300Mouth.Prepare(current.Memory, graphics.ActorModels.Get(actor), pose, resources.MouthAnchor);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }
 
@@ -125,10 +125,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Bad Breath caster binding leaves its original directory and arena row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Bad Breath requires its CPU resource rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEnhancementFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, int? DrawCursor);
 public sealed record NativeBattleEnhancementChildStep(NativeBattleEnhancementFrame Frame, NativeCrtRandomState Random, int Result);
-public sealed record NativeBattleEnhancementRootInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEnhancementFrame, uint, NativeCrtRandomState, NativeBattleEnhancementChildStep> AdvanceChild)
+public sealed record NativeBattleEnhancementRootInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEnhancementFrame, uint, NativeCrtRandomState, NativeBattleEnhancementChildStep> AdvanceChild)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }

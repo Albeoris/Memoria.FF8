@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Beam Laser requires its actual process memory.");
         NativeBattleBeamLaser134Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Beam Laser requires its CRT stream."), memory.BeamLaser134 ?? throw new NotSupportedException("Beam Laser requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Beam Laser requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Beam Laser requires its original interpolation constants.");
-        NativeBattleBeamLaser134Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], Bone, Anchor, RotatePoint, ChildContext, WorldContext, AdvanceAct, Execute);
+        NativeBattleBeamLaser134Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), Bone, Anchor, RotatePoint, ChildContext, WorldContext, AdvanceAct, Execute);
         frame = initialize ? NativeBattleBeamLaser134Controller.Initialize(frame, resources, inputs) : NativeBattleBeamLaser134Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleBeamLaser134PointStep Bone(NativeBattleBeamLaser134Frame current, int actor, byte selector, short distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -56,15 +56,15 @@ public sealed partial class BattleSession
 
         NativeBattleBeamLaser134AnchorStep Anchor(NativeBattleBeamLaser134Frame current, int actor)
         {
-            if ((graphics.Models[actor].Flags0 & 2) != 0)
+            if ((graphics.ActorModels.Get(actor).Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
-                    current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0));
+                    current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0));
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            return new(current, anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Beam Laser requires its actual anchor WORD owner.")).Angle36 });
+            return new(current, anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Beam Laser requires its actual anchor WORD owner.")).Angle36 });
         }
 
         NativeBattleBeamLaser134RotateStep RotatePoint(NativeBattleBeamLaser134Frame current, NativeBattlePackedMatrix32 rotation, NativeBattleVector local, short? localW, NativeBattleVector anchor)
@@ -124,8 +124,8 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleBeamLaser134ActorFlags flags:
-                    NativeBattleGraphicsModel model = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~flags.Mask) | (flags.Bits & flags.Mask))) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~flags.Mask) | (flags.Bits & flags.Mask))) }) };
                     return current;
                 case NativeBattleBeamLaser134DrawStatic88 mesh:
                     NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Beam Laser requires its physical mesh temporary."), 88);

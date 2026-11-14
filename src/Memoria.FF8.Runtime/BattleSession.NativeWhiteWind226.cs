@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleActionMatrix moduleCamera = NativeBattleGfMatrices.Normalize67AAE0(view);
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native White Wind requires its original target contacts.");
         int survivors = 1;
         if (root.ReadByte(15) != 0)
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         int Scene(ref NativeBattleModulePoolTask task)
         {
             int frame = WindWord(task, 12);
-            int caster = effect.Parameters.Actor78;
+            int caster = effect.Parameters.Source;
             if (frame < 22)
             {
                 if (frame == 0)
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
                     task = WindStore(task, 16, Anchor(caster));
                 }
                 NativeBattleActionMatrix matrix = Billboard673810(view, WindVector(task, 16));
-                int scale = SizeScale(graphics.Models[caster].Transform!.Scale38);
+                int scale = SizeScale(graphics.ActorModels.Get(caster).Transform!.Scale38);
                 matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scale, scale, scale);
                 Play(ref task, 0x18, 0x188, resources.Caster, matrix, frame == 0);
             }
@@ -107,7 +107,7 @@ public sealed partial class BattleSession
                     for (int index = 0; index < count; index++)
                     {
                         int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex;
-                        z = unchecked((short)(z + graphics.Models[actor].Transform!.Position28.Z));
+                        z = unchecked((short)(z + graphics.ActorModels.Get(actor).Transform!.Position28.Z));
                     }
                     if (count == 0)
                     {
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native White Wind target pointer leaves its physical model bank.");
             }
-            int scale = SizeScale(graphics.Models[actor].Transform!.Scale38);
+            int scale = SizeScale(graphics.ActorModels.Get(actor).Transform!.Scale38);
             NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(Billboard673810(view, WindVector(task, 16)), scale, scale, scale);
             int remaining = Play(ref task, 0x18, 0x278, resources.Target, matrix, false);
             if (remaining != 0)
@@ -207,7 +207,7 @@ public sealed partial class BattleSession
             return advance.Remaining;
         }
 
-        short Height(int actor) => AnchorY(graphics.Models[actor].MinimumY146 ?? throw new NotSupportedException("Native White Wind requires actual model WORD146."), graphics.Models[actor].Transform!.Angle36);
+        short Height(int actor) => AnchorY(graphics.ActorModels.Get(actor).MinimumY146 ?? throw new NotSupportedException("Native White Wind requires actual model WORD146."), graphics.ActorModels.Get(actor).Transform!.Angle36);
         NativeBattleVector Anchor(int actor)
         {
             NativeBattleVector point = ReadNativeDefaultPosition571400(graphics, actor);

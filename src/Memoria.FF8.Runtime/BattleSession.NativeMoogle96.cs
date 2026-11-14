@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Moogle requires its depth-cue constants.");
         uint transition = NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Native Moogle requires its retained process transition color.");
         NativeBattleMoogle96Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Moogle requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Moogle requires retained CRT random state."));
-        frame = NativeBattleMoogle96Controller.Advance731F70(frame, new(nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Moogle requires the selected actor pose source."), transition, DrawModel, AdvanceProgram, AdvanceNodes, StartVibration, Execute), resources);
+        frame = NativeBattleMoogle96Controller.Advance731F70(frame, new(nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Moogle requires the selected actor pose source."), transition, DrawModel, AdvanceProgram, AdvanceNodes, StartVibration, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             NativeBattleMoogle96NodeState nodes = shared.Nodes with { Work = shared.Nodes.Work with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Moogle requires its current private cursor.") } };
             NativeBattleMoogle96NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Moogle requires its initialized ordering table.");
-            NativeBattleMoogle96NodeStep advanced = NativeBattleMoogle96Nodes.AdvanceContext(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
+            NativeBattleMoogle96NodeStep advanced = NativeBattleMoogle96Nodes.AdvanceContext(nodeFrame, address, actor => graphics.ActorModels.Get(actor), projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = advanced.Frame.Memory with { Moogle96 = advanced.Frame.Memory.Moogle96! with { Nodes = advanced.Frame.State } };
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.Work.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
@@ -105,10 +105,10 @@ public sealed partial class BattleSession
                     }).ToImmutableArray() };
                     return current;
                 case NativeBattleMoogle96EnemyFlags enemy:
-                    graphics = graphics with { Models = graphics.Models.SetItem(enemy.Actor, graphics.Models[enemy.Actor] with { Flags0 = enemy.Flags0 }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(enemy.Actor, graphics.ActorModels.Get(enemy.Actor) with { Flags0 = enemy.Flags0 }) };
                     return current;
                 case NativeBattleMoogle96EnemyFade enemy:
-                    graphics = graphics with { Models = graphics.Models.SetItem(enemy.Actor, graphics.Models[enemy.Actor] with { Flags0 = enemy.Flags0, Color40 = enemy.Color40, Alpha7 = enemy.Alpha7 }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(enemy.Actor, graphics.ActorModels.Get(enemy.Actor) with { Flags0 = enemy.Flags0, Color40 = enemy.Color40, Alpha7 = enemy.Alpha7 }) };
                     return current;
                 case NativeBattleMoogle96MusicGain music:
                     NativeGlobalSoundProcess soundProcess = NativeGlobalSoundProcess ?? throw new NotSupportedException("Native Moogle requires its retained global sound process.");

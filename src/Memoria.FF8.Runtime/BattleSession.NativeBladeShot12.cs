@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("BladeShot12 requires its actual process memory.");
         NativeBattleBladeShot12Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("BladeShot12 requires its actual CRT stream."), (memory.BladeShot12 ?? throw new NotSupportedException("BladeShot12 requires its retained executable storage.")).EnsureVertexSources(resources)) { Staging = NativeFileStaging ?? throw new NotSupportedException("BladeShot12 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("BladeShot12 requires its interpolation constants.");
-        NativeBattleBladeShot12Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("BladeShot12 requires its current projection."), (_, pointer) => graphics.Models[Actor(pointer)], Bone, Anchor, Execute);
+        NativeBattleBladeShot12Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("BladeShot12 requires its current projection."), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), Bone, Anchor, Execute);
         frame = initialize ? NativeBattleBladeShot12Controller.Initialize(frame, resources, inputs) : NativeBattleBladeShot12Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -38,14 +38,14 @@ public sealed partial class BattleSession
         NativeBattleBladeShot12PointStep Bone(NativeBattleBladeShot12Frame current, uint pointer, int selector, int distance)
         {
             int actor = Actor(pointer);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Blade Shot12 bone query requires its actual model transform.");
                 return new(current, Point(transform.Position28));
             }
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("BladeShot12 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("BladeShot12 bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
         NativeBattleBladeShot12PointStep Anchor(NativeBattleBladeShot12Frame current, uint pointer)
         {
             int actor = Actor(pointer);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("BladeShot12 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -93,9 +93,9 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleBladeShot12ActorMeshMask124 mask:
                     int actor = Actor(mask.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Blade Shot12 requires its current sequence mesh mask.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & ~mask.ClearMask) | mask.SetMask } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & ~mask.ClearMask) | mask.SetMask } }) };
                     return current;
                 case NativeBattleBladeShot12DrawSprite180 sprite:
                     return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), sprite.PilotIdentity);

@@ -86,6 +86,6 @@ public static partial class NativeBattleEffect287Controller
     private static NativeBattleActionHeaderSlot CurrentHeader(NativeBattleEffect287Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect287 requires its current action header.");
-        return packets.Headers[parameters.HeaderIndex7C];
+        return packets.ReadHeader(parameters.Header);
     }
 }

@@ -27,7 +27,7 @@ public static partial class NativeBattleAcid170Controller
         }
         if (age == 46)
         {
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Acid requires its captured first physical contact pointer.");
             frame = inputs.Execute(frame, new NativeBattleAcid170Contact506690(first));
         }

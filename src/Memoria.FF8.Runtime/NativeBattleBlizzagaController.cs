@@ -15,7 +15,7 @@ public sealed record NativeBattleBlizzagaStage(short Value) : NativeBattleBlizza
 public sealed record NativeBattleBlizzagaModelBandRequest(int Actor, int Phase, short LowY, short HighY, bool Enabled, bool BandEnabled);
 public sealed record NativeBattleBlizzagaModelBandStep(NativeBattleBlizzagaFrame Frame, short Minimum, short Maximum);
 public sealed record NativeBattleBlizzagaRibbonStep(NativeBattleBlizzagaFrame Frame, NativeBattleModulePoolTask Task);
-public sealed record NativeBattleBlizzagaInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, int SourceActor, NativeBattleActionMatrix View, Func<int, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<int, NativeBattleModuleAnchor> ReadSoundPosition, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaModelBandRequest, NativeBattleBlizzagaModelBandStep> ModelBand, Func<NativeBattleBlizzagaFrame, NativeBattleModulePoolTask, bool, sbyte, NativeBattleActionMatrix, NativeBattleBlizzagaRibbonStep> ProcessRibbon, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame> Execute);
+public sealed record NativeBattleBlizzagaInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, int SourceActor, NativeBattleActionMatrix View, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<int, NativeBattleModuleAnchor> ReadSoundPosition, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaModelBandRequest, NativeBattleBlizzagaModelBandStep> ModelBand, Func<NativeBattleBlizzagaFrame, NativeBattleModulePoolTask, bool, sbyte, NativeBattleActionMatrix, NativeBattleBlizzagaRibbonStep> ProcessRibbon, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame> Execute);
 
 /// <summary>Blizzaga's six ordered task banks, capacity-sensitive particle births and retained ribbons.</summary>
 public static class NativeBattleBlizzagaController
@@ -37,8 +37,8 @@ public static class NativeBattleBlizzagaController
         {
             throw new InvalidDataException("Native Blizzaga requires its original6D6310 entry, action parameters and resources.");
         }
-        int first = effect.Parameters.HeaderIndex7C;
-        int last = packets.Headers[first].ReadByte(17);
+        BattleActionHeaderReference first = effect.Parameters.Header;
+        int last = packets.ReadHeader(first).ReadByte(17);
         if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Blizzaga owns three header-indexed geometry clones.");
@@ -436,7 +436,7 @@ public static class NativeBattleBlizzagaController
         }
 
         NativeBattleEffectTaskPool? Pool(uint descriptor) => frame.Effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == descriptor);
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[parameters.HeaderIndex7C + sequence];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
         int Rand()
         {
             NativeCrtRandomState random = frame.Random.Draw(out ushort value);

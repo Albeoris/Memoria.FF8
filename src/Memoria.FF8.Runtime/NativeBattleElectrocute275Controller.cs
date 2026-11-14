@@ -16,7 +16,7 @@ public static partial class NativeBattleElectrocute275Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleElectrocute275State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
+        NativeBattleElectrocute275State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
         return frame with { State = state, Random = random, Memory = (frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }).SeedSharedEffectRandom7059D0(seed), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -52,8 +52,8 @@ public static partial class NativeBattleElectrocute275Controller
         bool first = root.ReadDword(16) != 0;
         frame = frame with { State = frame.State.WriteDword(CursorGlobal, checked(Working(frame) + (uint)(first ? FirstPacketOffset : SecondPacketOffset))).WriteDword(FadeGlobal, 0) };
         frame = Put(frame, 0, slot, root.WriteDword(16, first ? 0u : 1u));
-        int header = Parameters(frame).HeaderIndex7C;
-        int count = inputs.Packets.Headers[header].ReadByte(16);
+        BattleActionHeaderReference header = Parameters(frame).Header;
+        int count = inputs.Packets.ReadHeader(header).ReadByte(16);
         int firstContact = FirstContact(frame, inputs);
         for (int index = 0; index < count; index++)
         {

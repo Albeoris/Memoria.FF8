@@ -95,8 +95,8 @@ public static partial class NativeBattleSandStorm176Controller
         }
 
         private NativeBattleSandStorm176State State => current.Memory.SandStorm176 ?? throw new NotSupportedException("Native Sand Storm lost its executable owner.");
-        private int Caster => current.Effect.Parameters!.Actor78;
-        private NativeBattleActionHeaderSlot Header => inputs.Packets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+        private int Caster => current.Effect.Parameters!.Source;
+        private NativeBattleActionHeaderSlot Header => inputs.Packets.ReadHeader(current.Effect.Parameters!.Header);
         private int FirstContact => Header.FirstContactIndex ?? throw new NotSupportedException("Native Sand Storm requires its actual contact list.");
         private NativeBattleVector Bone(int index, byte bone, short fraction) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(index), inputs.ReadPoseSource(index), bone, fraction);
         private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

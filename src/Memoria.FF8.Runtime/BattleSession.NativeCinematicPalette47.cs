@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         foreach (NativeBattleCinematicPalette47ColorWrite write in NativeBattleCinematicPalette47.ActorColorWrites(result.Palette.AsSpan(), columns))
         {
             overrides = overrides with { Slots = overrides.Slots.SetItem(write.ActorIndex - 3, new(checked((byte)write.ActorIndex), write.GlobalColor & 0xFFFFFF)) };
-            graphics = graphics with { Models = graphics.Models.SetItem(write.ActorIndex, graphics.Models[write.ActorIndex] with { Color40 = write.ActorColor }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.ActorIndex, graphics.ActorModels.Get(write.ActorIndex) with { Color40 = write.ActorColor }) };
         }
         NativeEffectMemory = memory with { ModelColorOverrides = overrides };
         return (frame, graphics);

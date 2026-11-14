@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Raldo requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Raldo requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Raldo requires its actual view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = actor => graphics.Models[actor];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = actor => graphics.ActorModels.Get(actor);
         NativeBattleRaldo19Inputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceLeaf) { PackedCamera = camera.CapturePackedView1D97778(), CameraPadding18 = camera.CanonicalViewPadding };
         frame = NativeBattleRaldo19Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                     NativeCrtRandomState genericRandom = current.Random;
                     NativeBattleCuragaControllerInputs genericInputs = new(nativeActionPackets, view, readModel, PoseSource)
                     {
-                        ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0)) }
+                        ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0)) }
                     };
                     NativeBattleCuragaLeafStep advanced = NativeBattleCuragaNodeEngine.AdvanceGeneric87E1A0(current.ToGeneric(), generic.Address, resources.GenericNodes(), genericInputs, new(AdvanceNodes));
                     return new(current.WithGeneric(advanced.Frame) with { Random = genericRandom }, advanced.Result);
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
                         return drawn.Frame;
                     }
                 case NativeBattleRaldo19BallTask ball:
-                    return NativeBattleRaldo19BallController.Advance(current, ball.Address, resources, new(actor => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), (drawing, emittedOperation) => ExecuteBall(drawing, emittedOperation, NativeBattlePilotVisualLifetimes.Identity(19, new NativeBattleEffectHierarchy(drawing.Effect.Pools).Read(ball.Address))), SelectActors));
+                    return NativeBattleRaldo19BallController.Advance(current, ball.Address, resources, new(actor => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), (drawing, emittedOperation) => ExecuteBall(drawing, emittedOperation, NativeBattlePilotVisualLifetimes.Identity(19, new NativeBattleEffectHierarchy(drawing.Effect.Pools).Read(ball.Address))), SelectActors));
                 case NativeBattleRaldo19DebrisTask debris:
                     return NativeBattleRaldo19Debris.Advance(current, debris.Address, nativeActionPackets, DrawDebris);
                 case NativeBattleRaldo19OverlayTask overlay:
@@ -120,20 +120,20 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleRaldo19BallActorWrite write:
-                    NativeBattleGraphicsModel actor = NativeBattleRaldo19ModelMemory.Apply(graphics.Models[write.Actor], write.Offset, write.Source, write.SourceOffset, write.Length);
-                    graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, actor) };
+                    NativeBattleGraphicsModel actor = NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(write.Actor), write.Offset, write.Source, write.SourceOffset, write.Length);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, actor) };
                     return current;
                 case NativeBattleRaldo19BallSound sound:
                     NativeEffectMemory = current.Memory;
                     PublishNativeModuleSound(sound.Sound);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleRaldo19BallPivot pivot:
-                    NativeBattleGraphicsModel model = graphics.Models[pivot.Actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(pivot.Actor);
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Raldo pivot requires the actor's actual packed position.");
                     NativeBattleGraphicsModel local = model with { Transform = transform with { Position28 = new(0, 0, 0) }, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() };
                     return CaptureAnchor(current, local, pivot.Actor, 0x74);
                 case NativeBattleRaldo19BallTargetAnchor target:
-                    return CaptureAnchor(current, graphics.Models[target.Actor], target.Actor, 0x84);
+                    return CaptureAnchor(current, graphics.ActorModels.Get(target.Actor), target.Actor, 0x84);
                 case NativeBattleRaldo19BallRender render:
                     (graphics, current) = DrawNativeRaldo19Ball(graphics, current, render.Actor, identity);
                     return current;

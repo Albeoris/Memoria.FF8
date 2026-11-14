@@ -45,21 +45,21 @@ public sealed record NativeBattleDuel215Resources(ImmutableArray<byte> StaticDat
     }
 }
 
-public sealed record NativeBattleDuel215State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] NativeBattleDuel215Resources? Resources)
+public sealed record NativeBattleDuel215State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleDuel215Resources? Resources)
 {
-    public static NativeBattleDuel215State FromColdProcess() => new(false, null, null);
+    public static NativeBattleDuel215State FromColdProcess() => new(false, null);
 
     public void Validate()
     {
         if (GlobalsInitialized)
         {
-            if (Parameters is null || Parameters.Actor78 >= 7 || Resources is null)
+            if (Resources is null)
             {
-                throw new InvalidDataException("Native Duel215 requires its actual entered parameters and immutable resources.");
+                throw new InvalidDataException("Native Duel215 requires its immutable resources retained by its actual entry.");
             }
             Resources.Validate();
         }
-        else if (Parameters is not null || Resources is not null)
+        else if (Resources is not null)
         {
             throw new InvalidDataException("Native Duel215 cannot retain entered owners before entry.");
         }

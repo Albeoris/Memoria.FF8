@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274SelectedServices(NativeBattleDuel274ActorServices Actors, Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, int, uint, NativeBattleDuel274Frame> Bind5022C0, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> Select505C00, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Camera503520, Func<NativeBattleDuel274Frame, NativeBattleEffectFileRequest, NativeBattleDuel274Frame> QueueFile, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, uint, uint, NativeBattleDuel274Frame> Texture508630, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> DrawVariant, Action<int> Stage5713E0, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Draw68D4B0)
+public sealed record NativeBattleDuel274SelectedServices(NativeBattleDuel274ActorServices Actors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, int, uint, NativeBattleDuel274Frame> Bind5022C0, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> Select505C00, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Camera503520, Func<NativeBattleDuel274Frame, NativeBattleEffectFileRequest, NativeBattleDuel274Frame> QueueFile, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, uint, uint, NativeBattleDuel274Frame> Texture508630, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> DrawVariant, Action<int> Stage5713E0, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Draw68D4B0)
 {
     public bool NativeCameraEnabled { get; init; } = true;
 }
@@ -19,7 +19,7 @@ public static class NativeBattleDuel274Target
         }
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[slot];
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel target requires its actual parameter owner.");
-        int actor = parameters.Actor78;
+        int actor = parameters.Source;
         int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
         if (frame.Staging.Read(0x25084D8, 1)[0] != 0)
         {

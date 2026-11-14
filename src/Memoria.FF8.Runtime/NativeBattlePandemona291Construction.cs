@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePandemona291Vibration(NativeBattlePandemona291Frame Frame, int Handle);
 public sealed record NativeBattlePandemona291BoundStep(NativeBattlePandemona291Frame Frame, NativeBattlePandemona291Bounds Bounds);
-public sealed record NativeBattlePandemona291ConstructionInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattlePandemona291Frame, int, NativeBattlePandemona291BoundStep> Bounds, Func<NativeBattlePandemona291Frame, NativeBattlePandemona291Vibration> StartVibration);
+public sealed record NativeBattlePandemona291ConstructionInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattlePandemona291Frame, int, NativeBattlePandemona291BoundStep> Bounds, Func<NativeBattlePandemona291Frame, NativeBattlePandemona291Vibration> StartVibration);
 
 public static class NativeBattlePandemona291Construction
 {
@@ -19,8 +19,8 @@ public static class NativeBattlePandemona291Construction
         {
             throw new NotSupportedException("Native Pandemona requires its current action parameters.");
         }
-        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.HeaderIndex7C);
-        if (!roster.ContainsRow(parameters.Actor78) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
+        if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
         {
             throw new InvalidDataException("Hosted Pandemona requires a bound caster and at least one bound recipient model row.");
         }
@@ -55,7 +55,7 @@ public static class NativeBattlePandemona291Construction
         WriteDword(child + 0x10, unchecked((uint)vibration.Handle));
         WriteDword(child + 0x102C, unchecked(buffer + (uint)child + 0x42C));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona construction requires its action header.");
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Pandemona construction requires its actual contact array.");
         for (int index = 0; index < count; index++)

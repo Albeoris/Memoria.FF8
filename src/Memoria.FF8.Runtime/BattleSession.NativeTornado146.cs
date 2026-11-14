@@ -55,9 +55,9 @@ public sealed partial class BattleSession
             pools = [roots, tasks];
             using NativeBattleTornado146Work work = new(state);
             NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native Tornado requires its current cast parameters.");
-            int first = owner.nativeActionPackets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires the actual first contact pointer.");
+            int first = owner.nativeActionPackets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires the actual first contact pointer.");
             work.WriteDword(0x2491E3C, owner.nativeActionPackets.ReadContact(first).Primary.ActorIndex);
-            work.WriteDword(0x2494AA0, parameters.Actor78);
+            work.WriteDword(0x2494AA0, parameters.Source);
             state = work.Freeze();
             effect = effect with { ReturnedDescriptor = 0x24936E8, DrawArenaOffset = null };
             return Publish();
@@ -207,7 +207,7 @@ public sealed partial class BattleSession
                 Put(1, lift, CopyPosition(pools[1].Slots[lift].WriteWord(12, 0).WriteWord(14, (ushort)action).WriteWord(24, 0), task));
             }
             NativeBattleEffectParameters parameters = effect.Parameters!;
-            NativeBattleActionHeaderSlot first = owner.nativeActionPackets.Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot first = owner.nativeActionPackets.ReadHeader(parameters.Header);
             if (action == first.ReadRepeatModeMinusOne() && age == 78)
             {
                 int wait = Allocate(0, 0x618480);
@@ -215,7 +215,7 @@ public sealed partial class BattleSession
             }
             if (age == 82)
             {
-                NativeBattleActionHeaderSlot selected = owner.nativeActionPackets.Headers[checked(parameters.HeaderIndex7C + action)];
+                NativeBattleActionHeaderSlot selected = owner.nativeActionPackets.ReadHeader(parameters.Header.Advance(action));
                 int start = selected.FirstContactIndex ?? throw new NotSupportedException("Native Tornado contact group has no original contact pointer.");
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = owner.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, selected.ReadContactCount()).Select(index => owner.nativeActionPackets.ReadContact(start + index)).ToImmutableArray() });
@@ -237,7 +237,7 @@ public sealed partial class BattleSession
 
         private NativeBattleModuleAnchor TargetAnchor(int action)
         {
-            NativeBattleActionHeaderSlot header = owner.nativeActionPackets.Headers[checked(effect.Parameters!.HeaderIndex7C + action)];
+            NativeBattleActionHeaderSlot header = owner.nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
             int count = header.ReadContactCount();
             int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires its selected contact group.");
             if (count == 0)

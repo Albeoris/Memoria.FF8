@@ -15,13 +15,13 @@ public sealed partial class BattleSession
         textures = textures.Register5099A0(resources.Camera);
         NativeCamera = NativeCamera!.RegisterControlResource(textures.Animation);
         NativeEffectMemory = memory with { Textures = textures };
-        int caster = effect.Parameters!.Actor78;
-        NativeBattleGraphicsModel actor = graphics.Models[caster];
+        int caster = effect.Parameters!.Source;
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000), Transform = actor.Transform! with { Position28 = actor.Transform!.Position28 with { Y = -5440 } } };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2556FE8, 0x2556FB0, 20, 1);
         (root, int slot) = root.Append(0x700460);
         root = root.WriteSlot(slot, root.Slots[slot].ClearPayload(8));
-        return graphics with { Models = graphics.Models.SetItem(caster, actor), OriginalEffect = effect with { Pools = [root], Landing17 = new(buffer), ReturnedDescriptor = 0x2556FE8 } };
+        return graphics with { ActorModels = graphics.ActorModels.Set(caster, actor), OriginalEffect = effect with { Pools = [root], Landing17 = new(buffer), ReturnedDescriptor = 0x2556FE8 } };
     }
 
     private NativeBattleGraphicsState AdvanceNativeLanding17(NativeBattleGraphicsState graphics)
@@ -37,8 +37,8 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool? particles = started ? effect.Pools[2] : null;
         int cursor = checked(state.BufferOffset + (root.ReadDword(16) != 0 ? 0x1BA4 : 0x11BA4));
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
-        int caster = effect.Parameters!.Actor78;
-        UpdateActor(graphics.Models[caster] with { Flags0 = (ushort)(graphics.Models[caster].Flags0 | 0x1000) });
+        int caster = effect.Parameters!.Source;
+        UpdateActor(graphics.ActorModels.Get(caster) with { Flags0 = (ushort)(graphics.ActorModels.Get(caster).Flags0 | 0x1000) });
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native landing requires its shared CRT stream.");
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         {
             if (!started)
             {
-                UpdateActor(graphics.Models[caster] with { Flags0 = (ushort)(graphics.Models[caster].Flags0 & 0xFFFB) });
+                UpdateActor(graphics.ActorModels.Get(caster) with { Flags0 = (ushort)(graphics.ActorModels.Get(caster).Flags0 & 0xFFFB) });
                 root = root.WriteByte(15, 1);
                 started = true;
                 directors = NativeBattleEffectTaskPool.Initialize(0x2556FD8, checked(0x20DFAB8u + (uint)state.BufferOffset + 0x1000), 0x1FC, 1);
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
         bool complete = started && remainingDirectors == 0 && remainingParticles == 0;
         if (complete)
         {
-            UpdateActor(graphics.Models[caster] with { Flags0 = (ushort)(graphics.Models[caster].Flags0 & 0xEFFF) });
+            UpdateActor(graphics.ActorModels.Get(caster) with { Flags0 = (ushort)(graphics.ActorModels.Get(caster).Flags0 & 0xEFFF) });
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
         }
         else
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         int Director(ref NativeBattleModulePoolTask task)
         {
             int frame = task.ReadWord(12);
-            NativeBattleGraphicsModel actor = graphics.Models[caster];
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
             if ((frame is 20 or 40) && actor.ModelId4 is < 160)
             {
                 uint sound = definition.NativeGraphics!.Rules.ActorSounds1120!.Value[actor.ModelId4.Value * 7];
@@ -301,7 +301,7 @@ public sealed partial class BattleSession
             return value;
         }
 
-        void UpdateActor(NativeBattleGraphicsModel actor) => graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
+        void UpdateActor(NativeBattleGraphicsModel actor) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
         static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)));
         static NativeBattleModulePoolTask PutVector(NativeBattleModulePoolTask task, int offset, NativeBattleVector value) => task.WriteWord(offset, unchecked((ushort)value.X)).WriteWord(offset + 2, unchecked((ushort)value.Y)).WriteWord(offset + 4, unchecked((ushort)value.Z));
     }

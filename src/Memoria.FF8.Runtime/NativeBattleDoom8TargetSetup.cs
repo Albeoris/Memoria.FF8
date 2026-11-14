@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDoom8TargetSetup
 {
-    public static NativeBattleDoom8Frame Initialize8C52C0(NativeBattleDoom8Frame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleDoom8Frame Initialize8C52C0(NativeBattleDoom8Frame frame, uint address, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(frame, address);
         if (frame.Effect.Binding.Effect != 8 || frame.Effect.Binding.Entry != NativeBattleDoom8Controller.Entry || task.Callback != 0x8C4D90)

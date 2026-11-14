@@ -12,7 +12,7 @@ public sealed record NativeBattleBio22Sprite(NativeBattleModulePacketBatch Batch
 public sealed record NativeBattleBio22Stage(NativeBattleStageState Stage) : NativeBattleBio22Operation;
 public sealed record NativeBattleBio22Sound(uint Sound) : NativeBattleBio22Operation;
 public sealed record NativeBattleBio22Contact(int Index) : NativeBattleBio22Operation;
-public sealed record NativeBattleBio22Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, short Zsf3, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBio22Frame, NativeBattleStageState> ReadStage, Func<NativeBattleBio22Frame, int, ImmutableArray<int>> ReadOverlayProxyDepth, Func<NativeBattleBio22Frame, NativeBattleBio22Operation, NativeBattleBio22Frame> Execute, Func<NativeBattleBio22Frame, uint, NativeCrtRandomState, NativeBattleBio22ChildStep> AdvanceFinalActor)
+public sealed record NativeBattleBio22Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, short Zsf3, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBio22Frame, NativeBattleStageState> ReadStage, Func<NativeBattleBio22Frame, int, ImmutableArray<int>> ReadOverlayProxyDepth, Func<NativeBattleBio22Frame, NativeBattleBio22Operation, NativeBattleBio22Frame> Execute, Func<NativeBattleBio22Frame, uint, NativeCrtRandomState, NativeBattleBio22ChildStep> AdvanceFinalActor)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
@@ -164,8 +164,8 @@ public static partial class NativeBattleBio22Controller
             NativeBattleModulePoolTask Contact(NativeBattleModulePoolTask task)
             {
                 Write(address, task);
-                int header = checked((Frame.Effect.Parameters ?? throw new InvalidDataException("Native Bio contact requires its action parameters.")).HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                int contact = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Bio contact requires its actual header pointer.");
+                BattleActionHeaderReference header = (Frame.Effect.Parameters ?? throw new InvalidDataException("Native Bio contact requires its action parameters.")).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Bio contact requires its actual header pointer.");
                 Execute(new NativeBattleBio22Contact(contact));
                 return Read(address);
             }

@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffect174Resources resources = effect.Binding.Effect174Resources ?? throw new NotSupportedException("Effect174 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect174 requires its current process memory.");
         NativeBattleEffect174Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect174 requires its current CRT stream."), memory.Effect174 ?? throw new NotSupportedException("Effect174 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect174 requires its current addressed memory.") };
-        NativeBattleEffect174Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect174 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => CaptureNativeEffect174Model(graphics.Models[actor]), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect174 requires its current world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect174 requires its current projection."), _ => Camera().Roll, _ => Camera().FocalLength ?? throw new NotSupportedException("Effect174 requires its current scalar focal WORD."), ReadColor, Point502170, Anchor571400, ReadBones, WriteBones, Execute) { CapturePresentation = true };
+        NativeBattleEffect174Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect174 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => CaptureNativeEffect174Model(graphics.ActorModels.Get(actor)), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect174 requires its current world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect174 requires its current projection."), _ => Camera().Roll, _ => Camera().FocalLength ?? throw new NotSupportedException("Effect174 requires its current scalar focal WORD."), ReadColor, Point502170, Anchor571400, ReadBones, WriteBones, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect174Controller.Initialize(frame, resources, inputs) : NativeBattleEffect174Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         NativeBattleEffect174PointStep Point502170(NativeBattleEffect174Frame current, int actor, byte selector, short fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect174 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, fraction);
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect174PointStep Anchor571400(NativeBattleEffect174Frame current, int actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect174 requires its current actor transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -64,20 +64,20 @@ public sealed partial class BattleSession
 
         ImmutableArray<NativeBattlePackedMatrix32> ReadBones(NativeBattleEffect174Frame current, int actor)
         {
-            NativeBattleBodyBoneMatrices bones = graphics.Models[actor].CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect174 requires its current primary bone publication.");
+            NativeBattleBodyBoneMatrices bones = graphics.ActorModels.Get(actor).CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect174 requires its current primary bone publication.");
             bones.Validate();
             return bones.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         }
 
         NativeBattleEffect174Frame WriteBones(NativeBattleEffect174Frame current, int actor, ImmutableArray<NativeBattlePackedMatrix32> packed)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleBodyBoneMatrices bones = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect174 requires its current primary bone publication.");
             if (packed.IsDefault || packed.Length != bones.Matrices.Length)
             {
                 throw new InvalidDataException("Effect174 matrix copy leaves its current primary bone publication.");
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { CurrentBodyBoneMatrices = bones with { Matrices = packed.Select(matrix => matrix.ReadMatrix()).ToImmutableArray() } }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { CurrentBodyBoneMatrices = bones with { Matrices = packed.Select(matrix => matrix.ReadMatrix()).ToImmutableArray() } }) };
             return current;
         }
 
@@ -97,10 +97,10 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect174SetResourceFlags44 flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { ResourceFlags44 = flags.Value }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { ResourceFlags44 = flags.Value }) };
                     return current;
                 case NativeBattleEffect174WriteModelBytes write:
-                    graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, ApplyNativeEffect174ModelBytes(graphics.Models[write.Actor], write)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, ApplyNativeEffect174ModelBytes(graphics.ActorModels.Get(write.Actor), write)) };
                     return current;
                 case NativeBattleEffect174StageGroupFlags group:
                     NativeBattleStageState currentStage = NativeStage ?? throw new NotSupportedException("Effect174 requires its current stage.");

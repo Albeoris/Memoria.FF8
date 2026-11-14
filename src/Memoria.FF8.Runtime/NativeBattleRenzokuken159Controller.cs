@@ -3,12 +3,12 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRenzokuken159Inputs(uint GraphicsFlags, ImmutableArray<byte> AbSegments, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRenzokuken159Frame, NativeBattleRenzokuken159Operation, NativeBattleRenzokuken159Frame> Execute)
+public sealed record NativeBattleRenzokuken159Inputs(uint GraphicsFlags, ImmutableArray<byte> AbSegments, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRenzokuken159Frame, NativeBattleRenzokuken159Operation, NativeBattleRenzokuken159Frame> Execute)
 {
-    public Func<byte, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
+    public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
     public bool CapturePresentation { get; init; }
-    public Func<byte, int>? ReadBoneCount { get; init; }
-    public Func<byte, int, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<BattleModelOwner, int>? ReadBoneCount { get; init; }
+    public Func<BattleModelOwner, int, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<byte, NativeBattleRenzokuken159WeaponTip>? ReadWeaponTip { get; init; }
 }
 public abstract record NativeBattleRenzokuken159Operation;
@@ -32,11 +32,11 @@ public static partial class NativeBattleRenzokuken159Controller
             throw new InvalidDataException("Native600BC0 requires its original159 binding, action parameters and embedded actor resource.");
         }
         NativeBattleRenzokuken159State retained = memory.Renzokuken159 ?? throw new NotSupportedException("Native159 requires its explicitly retained local storage; migrate the standalone snapshot.");
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native600BC0 requires the physical first-contact pointer.");
         byte target = packets.ReadContact(contact).Primary.ActorIndex;
         bool initial = header.Action == 0xFFFE;
-        NativeBattleRenzokuken159State state = retained.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial) with { RetainedResources = resources };
+        NativeBattleRenzokuken159State state = retained.Enter(parameters.Source, parameters.Header, target, initial) with { RetainedResources = resources };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23D63D0, 0x23D63C0, 16, 1);
         (main, int mainSlot) = main.Append(0x602C40);
         main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));

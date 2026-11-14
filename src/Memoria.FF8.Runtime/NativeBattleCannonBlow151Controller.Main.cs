@@ -63,7 +63,7 @@ public static partial class NativeBattleCannonBlow151Controller
         }
         if (age == 14)
         {
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             int count = header.ReadContactCount();
             int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Cannon Blow requires its physical contact rows.");
             for (int contact = 0; contact < count; contact++)
@@ -93,7 +93,7 @@ public static partial class NativeBattleCannonBlow151Controller
         }
         if (age == 30)
         {
-            frame = inputs.Execute(frame, new NativeBattleCannonBlow151ContactsAll(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleCannonBlow151ContactsAll(Parameters(frame).Header));
         }
         if (age == 1)
         {

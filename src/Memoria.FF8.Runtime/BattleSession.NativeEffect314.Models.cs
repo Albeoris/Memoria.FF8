@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleResourcePointer NativeEffect314SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, int actor)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
         {
             NativeBattleResourcePointer? pointer;
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
     {
         int actor = NativeEffect314Actor(graphics, model);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect314 requires its current rig.");
-        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         if ((uint)bone >= (uint)matrices.Length)
         {
             throw new InvalidDataException("Effect314 matrix selector leaves its current rig.");
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
     {
         int actor = NativeEffect314Actor(graphics, model);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its current CPU owner.");
-        NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging!, NativeBattleEffectArena.Clear(), 0);
+        NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
         if (mutable && pointer.Cpu is { IsOwnedResource: true })
         {
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect314Frame WriteNativeEffect314Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, uint model, int offset, byte[] bytes)
     {
         int actor = NativeEffect314Actor(graphics, model);
-        NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging!, NativeBattleEffectArena.Clear(), 0);
+        NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
         if (offset < 0 || pointer.Length is int length && offset > length - bytes.Length)
         {
@@ -70,9 +70,9 @@ public sealed partial class BattleSession
     {
         int actor = NativeEffect314Actor(graphics, model);
         _ = ReadNativeEffect314BoneMatrix(graphics, frame, model, bone);
-        NativeBattleGraphicsModel current = graphics.Models[actor];
+        NativeBattleGraphicsModel current = graphics.ActorModels.Get(actor);
         NativeBattleBodyBoneMatrices bones = current.CurrentBodyBoneMatrices!;
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, current with { CurrentBodyBoneMatrices = bones with { Matrices = bones.Matrices.SetItem(bone, packed.ReadMatrix()) } }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, current with { CurrentBodyBoneMatrices = bones with { Matrices = bones.Matrices.SetItem(bone, packed.ReadMatrix()) } }) };
         return frame;
     }
 }

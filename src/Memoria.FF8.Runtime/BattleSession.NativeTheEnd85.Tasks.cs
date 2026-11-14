@@ -38,7 +38,7 @@ public sealed partial class BattleSession
                     }
                     NativeBattleTheEnd85EnvironmentStep environment = NativeBattleTheEnd85Environment.Advance(environmentInput, resources.DefaultColor);
                     owner.NativeStage = environment.Input.Stage;
-                    graphics = graphics with { Models = environment.Input.Models };
+                    graphics = graphics with { ActorModels = environment.Input.Models };
                     PutContext(environment.Input.Context);
                     Put(address, environment.Input.Task);
                     if (environment.MusicGain is short gain)

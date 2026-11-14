@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleEnergyBomber217PointStep Bone(NativeBattleEnergyBomber217Frame current, int actor, byte selector, short distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -55,15 +55,15 @@ public sealed partial class BattleSession
 
         NativeBattleEnergyBomber217AnchorStep Anchor(NativeBattleEnergyBomber217Frame current, int actor)
         {
-            if ((graphics.Models[actor].Flags0 & 2) != 0)
+            if ((graphics.ActorModels.Get(actor).Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
-                    current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0));
+                    current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0));
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            return new(current, anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Energy Bomber requires its actual anchor WORD owner.")).Angle36 });
+            return new(current, anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Energy Bomber requires its actual anchor WORD owner.")).Angle36 });
         }
 
         NativeBattleEnergyBomber217PointStep Blend(NativeBattleEnergyBomber217Frame current, NativeBattleVector first, NativeBattleVector second, short firstFactor, short secondFactor)

@@ -24,7 +24,7 @@ public static partial class NativeBattleEffect31Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleEffectParameters parameters = Parameters(frame);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(12), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         byte count = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(count - 1));

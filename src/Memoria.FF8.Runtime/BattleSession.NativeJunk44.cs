@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Junk44 requires its actual process memory.");
         NativeBattleJunk44Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Junk44 requires its actual CRT stream."), (memory.Junk44 ?? throw new NotSupportedException("Junk44 requires its retained executable storage."))) { Staging = NativeFileStaging ?? throw new NotSupportedException("Junk44 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Junk44 requires its original arithmetic constants.");
-        NativeBattleJunk44Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], Anchor, Bone, _ => nativeActionPackets, ReloadComplete, Execute) { CapturePresentation = true };
+        NativeBattleJunk44Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), Anchor, Bone, _ => nativeActionPackets, ReloadComplete, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleJunk44Controller.Initialize(frame, resources, inputs) : NativeBattleJunk44Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         NativeBattleJunk44PointStep Bone(NativeBattleJunk44Frame current, uint pointer, int selector, int distance)
         {
             int actor = Actor(pointer);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Junk44 disabled bone query requires its actual transform.")).Position28));
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
 
         NativeBattleJunk44PointStep Anchor(NativeBattleJunk44Frame current, uint pointer)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Junk anchor requires its actual transform.")).Position28));
@@ -133,17 +133,17 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleJunk44ModelPositionY position:
                     int yActor = Actor(position.ModelAddress);
-                    NativeBattleGraphicsModel moved = graphics.Models[yActor];
+                    NativeBattleGraphicsModel moved = graphics.ActorModels.Get(yActor);
                     NativeBattleModelTransform yTransform = moved.Transform ?? throw new NotSupportedException("Junk requires its current recipient transform.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(yActor, moved with { Transform = yTransform with { Position28 = yTransform.Position28 with { Y = position.Y } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(yActor, moved with { Transform = yTransform with { Position28 = yTransform.Position28 with { Y = position.Y } } }) };
                     return current;
                 case NativeBattleJunk44RestoreModelPosition restore:
                     int actor = Actor(restore.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Junk requires its saved recipient transform owner.");
                     byte[] packed = restore.Point8.Read(0, 8);
                     NativeBattleVector xyz = new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(4)));
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Transform = transform with { Position28 = xyz, Vertical34 = BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(6)) } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = xyz, Vertical34 = BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(6)) } }) };
                     return current;
                 case NativeBattleJunk44CameraWord1D97712 cameraWord:
                     NativeBattleCameraState camera = Camera();

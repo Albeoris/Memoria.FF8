@@ -19,7 +19,7 @@ public static class NativeBattleGilgameshEntry
             throw new InvalidDataException("Native Excalipoor entry requires its selected330 initializer, parameters and seven physical graphics rows.");
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Gilgamesh entry requires its current571B50 arena.");
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Gilgamesh entry requires its actual first-contact pointer.");
         byte actor = packets.ReadContact(firstContact).Primary.ActorIndex;
         if (actor >= models.Length)
@@ -42,6 +42,6 @@ public static class NativeBattleGilgameshEntry
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Gilgamesh requires its current texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, timOffset);
         NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();
-        return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [pools.Main, pools.Children, pools.Particles!], ReturnedDescriptor = pools.Main.DescriptorAddress }, new(parameters.Actor78, actor, world));
+        return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [pools.Main, pools.Children, pools.Particles!], ReturnedDescriptor = pools.Main.DescriptorAddress }, new(parameters.Source, actor, world));
     }
 }

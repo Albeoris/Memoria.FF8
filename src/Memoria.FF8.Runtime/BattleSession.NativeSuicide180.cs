@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Suicide requires its interpolation constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Suicide requires its shared CRT stream.");
         bool paused = (graphics.Flags & 0x201) != 0;
-        int actor = effect.Parameters!.Actor78;
+        int actor = effect.Parameters!.Source;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
             }
             if (age == 38)
             {
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header);
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Suicide requires its original first contact.");
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             if (age < 24)
             {
                 uint color = colors.Interpolate(0, NativeBattleSuicide180.GlowLevel(age), 0xC0C0C0);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 | 4) }) };
                 graphics = DrawNativeBombActor(graphics, actor, color, 0, false, NativeBattlePilotVisualLifetimes.Identity(180, task), references => effect = effect with { PresentationPackets = effect.PresentationPackets.AddRange(references) });
             }
             if (paused)
@@ -159,7 +159,7 @@ public sealed partial class BattleSession
             {
                 return 0;
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 0x10) }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 | 0x10) }) };
             return 2;
         }
 

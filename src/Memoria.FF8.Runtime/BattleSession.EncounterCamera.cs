@@ -27,17 +27,17 @@ public sealed partial class BattleSession
         {
             return pose;
         }
-        BattleModelTargets actors = parameters.TargetActors.Add(parameters.Actor78);
+        BattleModelTargets actors = parameters.TargetActors.Add(parameters.Source);
         actors.ValidateCapacity(graphics.Models.Length);
         if (graphics.PresentationRoster is { } roster)
         {
             RequireHostedActionModelBank(graphics, roster);
-            NativeBattleActionGeometry.ValidatePresentationRows(roster, parameters.Actor78, default, actors);
+            NativeBattleActionGeometry.ValidatePresentationRows(roster, parameters.Source, default, actors);
         }
         List<NativeBattleVector> points = [];
         foreach (int index in actors.EnumerateRows())
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;

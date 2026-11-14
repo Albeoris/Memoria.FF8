@@ -49,9 +49,9 @@ public static class NativeBattleAuraController
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25219A8, 0x20DFAB8, 0x360, 3), NativeBattleEffectTaskPool.Initialize(0x2521998, 0x20DFAB8 + 0xA20, 0x20, 32)];
             }
             int action = root.ReadByte(14);
-            if (action <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
+            if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
             {
-                int first = inputs.Packets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Aura requires its action's actual first target.");
+                int first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Aura requires its action's actual first target.");
                 byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
                 uint pointer = NativeBattleGraphicsModelAddress.Encode(model);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 28))
@@ -136,7 +136,7 @@ public static class NativeBattleAuraController
                 }
                 if (age == 29)
                 {
-                    NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + task.ReadWord(14)];
+                    NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(task.ReadWord(14)));
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Aura result requires its actual action target list.");
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {

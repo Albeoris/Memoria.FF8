@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Draw Stock requires its current view matrix.");
         frame = new(memory, effect, random, effect.DrawStock15 ?? throw new NotSupportedException("Draw Stock requires its executed entry state."));
         uint? spriteTemporary = null;
-        Func<int, NativeBattleGraphicsModel> readModel = index => graphics.Models[index];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = index => graphics.ActorModels.Get(index);
         NativeBattleDrawStock15Inputs inputs = new(nativeActionPackets, view, readModel, PoseSource, ReadBone241, Execute) { PackedCamera = camera.CapturePackedView1D97778(), CameraPadding18 = camera.CanonicalViewPadding };
         frame = NativeBattleDrawStock15Controller.Advance(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
 
         NativeBattleModuleAnchor ReadBone241(byte actor)
         {
-            NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(graphics.Models[actor], PoseSource(actor), 241, 0);
+            NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(graphics.ActorModels.Get(actor), PoseSource(actor), 241, 0);
             return new(point.X, point.Y, point.Z, 0);
         }
 
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                 case NativeBattleDrawStock15Transform:
                     return current;
                 case NativeBattleDrawStock15Anchor anchor:
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[anchor.Actor], PoseSource(anchor.Actor), 241, 0);
+                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(anchor.Actor), PoseSource(anchor.Actor), 241, 0);
                     return current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
                 case NativeBattleDrawStock15Rotate rotate:
                     NativeBattleGeometryRegisterStep step = ObserveNativeGeometryRotation(new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Draw Stock rotation requires its retained geometry controls."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Draw Stock rotation requires its retained data registers.")), rotate.Matrix, rotate.Axis, rotate.Angle, rotate.Padding18);

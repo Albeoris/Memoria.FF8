@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gravija214 requires its actual process memory.");
         NativeBattleGravija214Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gravija214 requires its actual CRT stream."), (memory.Gravija214 ?? throw new NotSupportedException("Gravija214 requires its retained executable storage."))) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gravija214 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gravija214 requires its original arithmetic constants.");
-        NativeBattleGravija214Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], Anchor, _ => nativeActionPackets, Execute) { ReadOrderingTable = _ => OrderingTable(), CapturePresentation = true };
+        NativeBattleGravija214Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), Anchor, _ => nativeActionPackets, Execute) { ReadOrderingTable = _ => OrderingTable(), CapturePresentation = true };
         frame = initialize ? NativeBattleGravija214Controller.Initialize(frame, resources, inputs) : NativeBattleGravija214Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         NativeBattleGravija214PointStep Bone(NativeBattleGravija214Frame current, uint pointer, int selector, int distance)
         {
             int actor = Actor(pointer);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Gravija214 disabled bone query requires its actual transform.")).Position28));
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
 
         NativeBattleGravija214PointStep Anchor(NativeBattleGravija214Frame current, uint pointer)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Gravija anchor requires its actual transform.")).Position28));

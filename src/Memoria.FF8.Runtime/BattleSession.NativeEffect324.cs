@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffect324Resources resources = effect.Binding.Effect324Resources ?? throw new NotSupportedException("Effect324 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect324 requires current process memory.");
         NativeBattleEffect324Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect324 requires its current CRT stream."), memory.Effect324 ?? throw new NotSupportedException("Effect324 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
-        NativeBattleEffect324Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect324 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect324Model(graphics.Models[NativeEffect324Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect324 requires its current projection."), _ => Camera().Roll, Point, ReadBones, ReadColor, (current, handle) => new(current, (NativeVibrationProcess ?? throw new NotSupportedException("Effect324 requires its current vibration process.")).IsPlaying(handle)), (current, operation) => ExecuteNativeEffect324Operation(ref graphics, current, operation, resources));
+        NativeBattleEffect324Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect324 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect324Model(graphics.ActorModels.Get(NativeEffect324Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect324 requires its current projection."), _ => Camera().Roll, Point, ReadBones, ReadColor, (current, handle) => new(current, (NativeVibrationProcess ?? throw new NotSupportedException("Effect324 requires its current vibration process.")).IsPlaying(handle)), (current, operation) => ExecuteNativeEffect324Operation(ref graphics, current, operation, resources));
         frame = initialize ? NativeBattleEffect324Controller.Initialize(frame, resources, inputs) : NativeBattleEffect324Controller.Advance(frame, resources, inputs);
         PublishNativeEffect324Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleEffect324PointStep Point(NativeBattleEffect324Frame current, uint address, short selector, short fraction, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect324Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect324 requires its current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect324 requires its current skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), fraction);
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         {
             int actor = NativeEffect324Actor(graphics, address);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect324 requires its current primary skeleton.");
-            return NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
+            return NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         }
 
         uint ReadColor(NativeBattleEffect324Frame current, uint address)

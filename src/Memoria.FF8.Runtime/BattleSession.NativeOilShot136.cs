@@ -41,20 +41,20 @@ public sealed partial class BattleSession
             return actorIndex;
         }
 
-        short ModelYaw(uint pointer) => graphics.Models[Actor(pointer)].Rotation14 ?? throw new NotSupportedException("Oil Shot requires its actual current model rotation WORD14.");
+        short ModelYaw(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Oil Shot requires its actual current model rotation WORD14.");
 
         NativeBattleOilShot136AnchorStep Anchor(NativeBattleOilShot136Frame current, uint pointer)
         {
             int actor = Actor(pointer);
-            NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor) with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Oil Shot requires its actual model WORD36.")).Angle36 };
+            NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor) with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Oil Shot requires its actual model WORD36.")).Angle36 };
             return new(current, anchor);
         }
 
         NativeBattleOilShot136PointStep Mouth(NativeBattleOilShot136Frame current)
         {
             int caster = Actor(current.State.ReadDword(NativeBattleOilShot136Profile.CasterGlobal));
-            var prepared = NativeBattleOilShot136Mouth.Prepare(current.Memory, graphics.Models[caster], PoseSource(caster), resources.BoneAnchor);
-            graphics = graphics with { Models = graphics.Models.SetItem(caster, prepared.Model) };
+            var prepared = NativeBattleOilShot136Mouth.Prepare(current.Memory, graphics.ActorModels.Get(caster), PoseSource(caster), resources.BoneAnchor);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, prepared.Model) };
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }
 
@@ -114,7 +114,7 @@ public sealed partial class BattleSession
                 case NativeBattleOilShot136Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C].FirstContactIndex ?? throw new InvalidDataException("Oil Shot requires its current first contact.")) + contact.Index))) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new InvalidDataException("Oil Shot requires its current first contact.")) + contact.Index))) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Oil Shot contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleOilShot136DrawSprite180 sprite:

@@ -70,7 +70,7 @@ public static partial class NativeBattleEffect320Controller
         if (phase == 83)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect320 requires its current contact parameters.");
-            NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).ReadHeader(parameters.Header);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect320 requires its current contact pointer.");
             frame = inputs.Execute(frame, new NativeBattleEffect320AllContacts506BA0(first, header.ReadContactCount()));
         }

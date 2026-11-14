@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private sealed partial class NativeUltima149Runner
     {
-        private NativeBattleActionHeaderSlot Header(int action) => owner.nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + action];
+        private NativeBattleActionHeaderSlot Header(int action) => owner.nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
         private ImmutableArray<NativeBattleContactPacket> Contacts(int action)
         {
             NativeBattleActionHeaderSlot header = Header(action);
@@ -163,7 +163,7 @@ public sealed partial class BattleSession
             int end = target >= 3 ? 3 : 7;
             for (int actor = first; actor < end; actor++)
             {
-                ushort flags = graphics.Models[actor].Flags0;
+                ushort flags = graphics.ActorModels.Get(actor).Flags0;
                 bool selected = incoming ? state.SideFlags[actor] != 0 : (flags & 2) != 0 && (flags & 4) == 0;
                 if (!incoming)
                 {
@@ -195,7 +195,7 @@ public sealed partial class BattleSession
             uint half = (transition & 0xFEFEFE) >> 1;
             uint color44 = Colors.Interpolate(0x32000000, level, Colors.Normal);
             uint color40 = (Colors.Interpolate(0, level, incoming ? transition : half) & 0xFFFFFF) | 0x02000000;
-            NativeBattleGraphicsModel model = graphics.Models[actor] with { Color44 = color44, Color40 = color40 };
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor) with { Color44 = color44, Color40 = color40 };
             if (!incoming)
             {
                 model = model with { Alpha7 = 0 };
@@ -214,11 +214,11 @@ public sealed partial class BattleSession
                     {
                         model = model with { Color40 = Colors.Transition };
                     }
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                     return 2;
                 }
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             return 0;
         }
     }

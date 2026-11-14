@@ -17,7 +17,7 @@ public static partial class NativeBattleLaserEye71Controller
         NativeBattleCureFamilyPool rootPool = Pools[0];
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(rootPool.Descriptor, rootPool.Bank, rootPool.Stride, rootPool.Capacity)]);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, RootCallback, 100);
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Laser Eye requires the selected header's contact pointer.");
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();

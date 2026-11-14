@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffect320Resources resources = effect.Binding.Effect320Resources ?? throw new NotSupportedException("Effect320 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect320 requires its current process memory.");
         NativeBattleEffect320Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect320 requires its current CRT stream."), memory.Effect320 ?? throw new NotSupportedException("Effect320 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect320 requires its current addressed memory.") };
-        NativeBattleEffect320Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect320 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => CaptureNativeEffect320Model(graphics.Models[actor]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect320 requires its current projection."), _ => Camera().Roll, Anchor571400, Origin65DA30, Execute) { CapturePresentation = true };
+        NativeBattleEffect320Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect320 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => CaptureNativeEffect320Model(graphics.ActorModels.Get(actor)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect320 requires its current projection."), _ => Camera().Roll, Anchor571400, Origin65DA30, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect320Controller.Initialize(frame, resources, inputs) : NativeBattleEffect320Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect320PointStep Anchor571400(NativeBattleEffect320Frame current, int actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect320 requires its current actor transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect320 bone origin requires its current physical caster row.");
             }
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect320 requires its current caster skeleton.");
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
             short bone = BinaryPrimitives.ReadInt16LittleEndian(input8.Read(6, 2));

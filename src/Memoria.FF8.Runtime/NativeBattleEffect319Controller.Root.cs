@@ -72,6 +72,6 @@ public static partial class NativeBattleEffect319Controller
     private static int FirstContact(NativeBattleEffect319Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect319 requires its current action header.");
-        return packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect319 requires its actual first contact pointer.");
+        return packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect319 requires its actual first contact pointer.");
     }
 }

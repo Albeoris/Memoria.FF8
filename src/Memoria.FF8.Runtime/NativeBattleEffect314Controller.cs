@@ -19,8 +19,8 @@ public static partial class NativeBattleEffect314Controller
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect314UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect314 requires its actual current parameters.");
-        uint model = ModelAddress(parameters.Actor78);
-        _ = ModelAddress(parameters.Actor78 + 1);
+        uint model = ModelAddress(parameters.Source);
+        _ = ModelAddress(parameters.Source + 1);
         frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model).WriteDword(WorkGlobal, CommonAddress) };
         frame = inputs.Execute(frame, new NativeBattleEffect314ModelFlags(model, 2, 0xFFF3, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect314ModelFlags(model + 156, 2, 0xFFF3, 0));

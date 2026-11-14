@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattlePandemona291Frame Frame, NativeBattleGraphicsState Graphics) DrawNativePandemona291Actor(NativeBattlePandemona291Frame frame, int index, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleVector scale, NativeBattleGraphicsState graphics)
     {
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleModelTextureOwner? material = presentationForeignActors?.ContainsKey(index) == true
             ? null
             : SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Pandemona target draw requires its actual world matrix.");
         NativeBattleActionMatrix basis = NativeBattlePandemona291ActorDrawing.Prepare68D1D0(world, view, angles, pivot, scale);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(actor, source);
         uint color = actor.Color40 ?? throw new NotSupportedException("Native Pandemona target draw requires its actual color DWORD.");
         uint mask = actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Pandemona target draw requires its actual object mask.");
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             graphics = AppendNativeModelRendererPackets(graphics, BindNativeModelMaterial(primitives.ToImmutable(), material), Enumerable.Range(0, body.Length).Any(mesh => (mask & (1u << (mesh & 31))) != 0));
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         if (!shared && !linked.IsEmpty)
         {
             NativeBattlePoseSource linkedSource = resource.LinkedPoseSource ?? throw new NotSupportedException("Native Pandemona target draw requires its actual independent linked rig.");

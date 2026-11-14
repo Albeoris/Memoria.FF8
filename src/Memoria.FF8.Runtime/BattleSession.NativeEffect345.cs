@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffect345Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect345 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => ReadModel(address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect345 requires its current projection."), _ => Camera().Roll, _ => NativeStage?.ModelColors ?? throw new NotSupportedException("Effect345 requires its current stage model colors."), ReadPhysical, Point, InitializeModel, SelectModel, AdvanceModel, _ => new(Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Effect345 requires its current projection."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect345 requires its original shadow source."), definition.NativeGraphics?.PrimitiveCapabilities ?? throw new NotSupportedException("Effect345 requires its primitive capabilities."), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect345 requires its arithmetic constants.")), Execute)
         {
             CapturePresentation = true,
-            ReadModel = (_, actor) => graphics.Models[actor],
+            ReadModel = (_, actor) => graphics.ActorModels.Get(actor),
             ReadPoseSource = (_, actor) => Pose(actor)
         };
         frame = initialize ? NativeBattleEffect345Controller.Initialize(frame, resources, inputs) : NativeBattleEffect345Controller.Advance(frame, resources, inputs);
@@ -27,7 +27,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena ReadModel(uint address)
         {
-            NativeBattleGraphicsModel model = graphics.Models[NativeEffect345Actor(graphics, address)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect345Actor(graphics, address));
             NativeBattleEffectArena bytes = CaptureNativeEffect301Model(model);
             if (model.GeometryBounds52 is { } bounds)
             {
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         NativeBattleEffect345PointStep Point(NativeBattleEffect345Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect345Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : Pose(actor);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
             current = Observe(current, producer);
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect345Controller.Read(current, bounds.TaskAddress);
                     int boundsActor = boundsTask.ReadByte(0x2D);
                     NativeBattlePoseSource poseSource = Pose(boundsActor);
-                    NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[boundsActor].SequenceState ?? throw new NotSupportedException("Effect345 requires its current target pose."), poseSource);
+                    NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(boundsActor).SequenceState ?? throw new NotSupportedException("Effect345 requires its current target pose."), poseSource);
                     return NativeBattleEffect345Controller.Write(current, bounds.TaskAddress, NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, poseSource, decoded));
                 case NativeBattleEffect345UploadTim505E30 upload:
                     NativeBattleEffectHeapAllocation tim = upload.Source switch

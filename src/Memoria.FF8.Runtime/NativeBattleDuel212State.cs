@@ -45,21 +45,21 @@ public sealed record NativeBattleDuel212Resources(ImmutableArray<byte> StaticDat
     }
 }
 
-public sealed record NativeBattleDuel212State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] NativeBattleDuel212Resources? Resources)
+public sealed record NativeBattleDuel212State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleDuel212Resources? Resources)
 {
-    public static NativeBattleDuel212State FromColdProcess() => new(false, null, null);
+    public static NativeBattleDuel212State FromColdProcess() => new(false, null);
 
     public void Validate()
     {
         if (!GlobalsInitialized)
         {
-            if (Parameters is not null || Resources is not null)
+            if (Resources is not null)
             {
                 throw new InvalidDataException("Native Burning Rave cannot retain entered owners before entry.");
             }
             return;
         }
-        if (Parameters is null || Parameters.Actor78 >= 7 || Resources is null)
+        if (Resources is null)
         {
             throw new InvalidDataException("Native Burning Rave requires its actual entered owners.");
         }

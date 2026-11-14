@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Additional effect182 requires its actual process memory.");
         NativeBattleAdditional182Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Additional effect182 requires its actual CRT stream."), memory.Additional182 ?? throw new NotSupportedException("Additional effect182 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Additional effect182 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Additional effect182 requires its interpolation constants.");
-        NativeBattleAdditional182Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Additional effect182 requires its current projection."), (_, actor) => graphics.Models[actor], Anchor, Execute) { CapturePresentation = true };
+        NativeBattleAdditional182Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Additional effect182 requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleAdditional182Controller.Initialize(frame, resources, inputs) : NativeBattleAdditional182Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -65,10 +65,10 @@ public sealed partial class BattleSession
                     graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
                     return Import(current);
                 case NativeBattleAdditional182ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = unchecked((ushort)((graphics.Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = unchecked((ushort)((graphics.ActorModels.Get(flags.Actor).Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleAdditional182ActorAlpha alpha:
-                    graphics = graphics with { Models = graphics.Models.SetItem(alpha.Actor, graphics.Models[alpha.Actor] with { Alpha7 = alpha.Alpha }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(alpha.Actor, graphics.ActorModels.Get(alpha.Actor) with { Alpha7 = alpha.Alpha }) };
                     return current;
                 case NativeBattleAdditional182ActorRecolor recolor:
                     NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Additional effect182 requires its current color control owner.");
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
                     NativeBattleScriptedDpcsResult normal = NativeBattleScriptedDpcs.Transform45F270(colorRegisters, 0x32000000, unchecked((uint)recolor.Cue), far, colors);
                     far = LoadFar(colors.Transition, far);
                     NativeBattleScriptedDpcsResult shadow = NativeBattleScriptedDpcs.Transform45F270(normal.Registers, 0, normal.Registers.Ir0!.Value, far, colors);
-                    graphics = graphics with { Models = graphics.Models.SetItem(recolor.Actor, graphics.Models[recolor.Actor] with { Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000 }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(recolor.Actor, graphics.ActorModels.Get(recolor.Actor) with { Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000 }) };
                     return current with { Memory = current.Memory with { ScriptedColorRegisters = shadow.Registers, PrimitiveProcess = process with { ModelRendererRegisters = far } } };
                 case NativeBattleAdditional182Stage5713E0 stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Additional effect182 requires its retained stage groups.");

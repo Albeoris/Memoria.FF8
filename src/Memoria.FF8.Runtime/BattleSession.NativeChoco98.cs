@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Choco requires original graphics rules.");
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Choco requires its depth-cue constants.");
         NativeBattleChoco98Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Choco requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Choco requires retained CRT random state."));
-        frame = NativeBattleChoco98Controller.Advance7219D0(frame, new(nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Choco requires the selected actor pose source."), DrawModel, AdvanceProgram, AdvanceNodes, AdvanceSprite, StartVibration, Execute), resources);
+        frame = NativeBattleChoco98Controller.Advance7219D0(frame, new(nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Choco requires the selected actor pose source."), DrawModel, AdvanceProgram, AdvanceNodes, AdvanceSprite, StartVibration, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
             NativeBattleChoco98State shared = Shared(current);
             NativeBattleChoco97NodeState nodes = shared.Nodes with { Work = shared.Nodes.Work with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Choco requires its current private cursor.") } };
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Choco requires its initialized ordering table.");
-            NativeBattleChoco98NodeStep advanced = NativeBattleChoco98Nodes.AdvanceContext(new(current.Memory, current.Effect, nodes, current.Random), address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors);
+            NativeBattleChoco98NodeStep advanced = NativeBattleChoco98Nodes.AdvanceContext(new(current.Memory, current.Effect, nodes, current.Random), address, actor => graphics.ActorModels.Get(actor), projection, NativeCamera!.Roll, primitive.Pending, colors);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = advanced.Frame.Memory with { Choco98 = advanced.Frame.Memory.Choco98! with { Nodes = advanced.Frame.State } };
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.Work.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);

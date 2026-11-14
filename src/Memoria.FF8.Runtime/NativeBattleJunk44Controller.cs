@@ -21,7 +21,7 @@ public static partial class NativeBattleJunk44Controller
         textures = textures.Register5099A0(resources.Camera);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2545150, 0x2545160, 20, 1);
         (root, _) = root.Append(0x6E7B90);
-        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(0x2545100, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(0x2545104, 0x1D99A78).WriteDword(0x2545108, ModelAddress(Parameters(frame).Actor78)).WriteDword(0x2545180, NativeBattleEffectNodeMemory.ArenaAddress) with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = 0x2545150, DrawArenaOffset = null } };
+        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(0x2545100, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(0x2545104, 0x1D99A78).WriteDword(0x2545108, ModelAddress(Parameters(frame).Source)).WriteDword(0x2545180, NativeBattleEffectNodeMemory.ArenaAddress) with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = 0x2545150, DrawArenaOffset = null } };
         return ClearDwords701200(frame, 0x254516C, 2);
     }
 

@@ -16,7 +16,7 @@ public sealed partial class BattleSession
                 {
                     work.WriteDword(0x2494570u + (uint)actor * 52, 1);
                 }
-                NativeBattleActionHeaderSlot header = owner.nativeActionPackets.Headers[checked(effect.Parameters!.HeaderIndex7C + Word(task, 14))];
+                NativeBattleActionHeaderSlot header = owner.nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(Word(task, 14)));
                 int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Tornado lift requires the actual target contacts.");
                 int count = header.ReadContactCount();
                 work.WriteDword(0x249A604, (uint)count);
@@ -25,7 +25,7 @@ public sealed partial class BattleSession
                     int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.ActorIndex;
                     work.WriteDword(0x249A608u + (uint)index * 4, (uint)actor);
                     uint row = 0x2494570u + (uint)actor * 52;
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Tornado lift requires its actual target transform.");
                     work.WriteDword(row, 0);
                     work.WriteWord(row + 4, (ushort)(model.Flags0 & 0x1020));
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
                     work.WriteDword(row + 40, 0);
                     work.WriteDword(row + 44, (uint)(Random() % 60 + 20));
                     work.WriteDword(row + 48, unchecked((uint)owner.ReadNativeGraphicsBone(graphics, actor, 240, 4096).Y));
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1000) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1000) }) };
                 }
             }
             for (int actor = 0; actor < 7; actor++)
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                NativeBattleGraphicsModel model = graphics.Models[actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Tornado target lost its position owner.");
                 if (age < 72)
                 {
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                     ushort? padding = known.All(value => value) ? System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(bytes) : null;
                     model = model with { Transform = transform with { Position28 = point, Vertical34 = work.SignedWord(row + 14) }, Rotation12 = rotation.X, Rotation14 = rotation.Y, Rotation16 = rotation.Z, RotationPadding18 = padding };
                 }
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             }
             if (DrawOnly)
             {
@@ -114,8 +114,8 @@ public sealed partial class BattleSession
                     work.WriteDword(row + 44, unchecked((uint)(turn + (turn >> 5))));
                     if (work.SignedWord(row + 26) < -200)
                     {
-                        NativeBattleGraphicsModel model = graphics.Models[actor];
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x20) }) };
+                        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x20) }) };
                     }
                 }
                 else if (age == 72)
@@ -155,8 +155,8 @@ public sealed partial class BattleSession
                     uint row = 0x2494570u + (uint)actor * 52;
                     if (work.Dword(row) == 0)
                     {
-                        NativeBattleGraphicsModel model = graphics.Models[actor];
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)((model.Flags0 & 0xEFDF) | work.Word(row + 4)) }) };
+                        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)((model.Flags0 & 0xEFDF) | work.Word(row + 4)) }) };
                     }
                 }
             }

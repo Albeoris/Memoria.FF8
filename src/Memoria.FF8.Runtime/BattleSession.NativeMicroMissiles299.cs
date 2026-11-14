@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Micro Missiles requires its actual process memory.");
         NativeBattleMicroMissiles299Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Micro Missiles requires its CRT stream."), memory.MicroMissiles299 ?? throw new NotSupportedException("Micro Missiles requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Micro Missiles requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Micro Missiles requires its original interpolation constants.");
-        NativeBattleMicroMissiles299Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Micro Missiles requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver), colors);
+        NativeBattleMicroMissiles299Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Micro Missiles requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver), colors);
         inputs = inputs with
         {
             EmitNodePresentation = (current, source, context, node, identity) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver, pilotIdentity: identity),
@@ -61,7 +61,7 @@ public sealed partial class BattleSession
         NativeBattleMicroMissiles299AnchorStep Anchor(NativeBattleMicroMissiles299Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -84,10 +84,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Micro Missiles caster binding leaves its original directory and arena row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Micro Missiles requires its CPU resource rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)

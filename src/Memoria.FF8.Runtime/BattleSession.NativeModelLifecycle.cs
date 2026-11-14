@@ -97,15 +97,15 @@ public sealed partial class BattleSession
                     }
                 }
             }
-            bool encounterArrivalActive = ApplyEncounterArrivalBeforeDraw(graphics with { Models = models.SetItem(index, model) }, ref model);
+            bool encounterArrivalActive = ApplyEncounterArrivalBeforeDraw(graphics with { ActorModels = models.SetItem(index, model) }, ref model);
             if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
             {
-                NativeBattleGraphicsResource drawResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                NativeBattleGraphicsResource drawResource = NativeGraphicsPoseResource(graphics with { ActorModels = models.SetItem(index, model) }, index);
                 if ((model.Flags0 & 6) == 2 && (model.Flags2!.Value & 0x84) == 0)
                 {
                     model = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, drawResource.PoseSource ?? throw new NotSupportedException("Native5086F0 requires its actual posed body skeleton."));
                 }
-                graphics = SubmitNativeModelPackets502D40(graphics with { Models = models.SetItem(index, model) }, model, drawResource);
+                graphics = SubmitNativeModelPackets502D40(graphics with { ActorModels = models.SetItem(index, model) }, model, drawResource);
                 models = graphics.Models;
                 model = models[index];
             }
@@ -122,21 +122,21 @@ public sealed partial class BattleSession
                     BindModelRing90 = (current, selector) =>
                     {
                         models = NativeBattleModelRings.Bind90(models.SetItem(index, current), index, selector);
-                        graphics = graphics with { Models = models };
+                        graphics = graphics with { ActorModels = models };
                         return models[index];
                     },
-                    ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { Models = models.SetItem(index, current) }, index, variable),
+                    ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = models.SetItem(index, current) }, index, variable),
                     WriteExternal = WriteNativeGraphicsSequenceVariable,
                     ScheduleContactEffect = (current, program) =>
                     {
-                        graphics = graphics with { Models = models.SetItem(index, current) };
+                        graphics = graphics with { ActorModels = models.SetItem(index, current) };
                         (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, index, program, true);
                         models = graphics.Models;
                         return (models[index], offset);
                     },
                     ScheduleModelParticle = (current, program) =>
                     {
-                        graphics = graphics with { Models = models.SetItem(index, current) };
+                        graphics = graphics with { ActorModels = models.SetItem(index, current) };
                         (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, index, program, false);
                         models = graphics.Models;
                         return (models[index], offset);
@@ -146,7 +146,7 @@ public sealed partial class BattleSession
                         int target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).TargetIndex ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
                         models = models.SetItem(index, current);
                         models = models.SetItem(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(models[target], variable, value));
-                        graphics = graphics with { Models = models };
+                        graphics = graphics with { ActorModels = models };
                         return models[index];
                     },
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
@@ -154,7 +154,7 @@ public sealed partial class BattleSession
                     ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(index, group, graphics.PresentationRoster) },
                     ScheduleModelDeformation = (current, group, velocity, angle) =>
                     {
-                        graphics = ScheduleNativeModelDeformation50F250(graphics with { Models = models.SetItem(index, current) }, index, group, velocity, angle);
+                        graphics = ScheduleNativeModelDeformation50F250(graphics with { ActorModels = models.SetItem(index, current) }, index, group, velocity, angle);
                         models = graphics.Models;
                         return models[index];
                     },
@@ -166,12 +166,12 @@ public sealed partial class BattleSession
                     },
                     StageControl = command =>
                     {
-                        graphics = DispatchNativeStageControl(graphics with { Models = models }, command);
+                        graphics = DispatchNativeStageControl(graphics with { ActorModels = models }, command);
                         models = graphics.Models;
                     },
                     PlaySound = (current, cue) =>
                     {
-                        NativeBattleGraphicsState sounding = graphics with { Models = models.SetItem(index, current) };
+                        NativeBattleGraphicsState sounding = graphics with { ActorModels = models.SetItem(index, current) };
                         if (actorFacts is null)
                         {
                             PublishNativeSequenceSound(sounding, current, GraphicsActor(graphics, index), cue);
@@ -187,34 +187,34 @@ public sealed partial class BattleSession
                     AdvanceTexture = AdvanceNativeTextureMotion,
                     RebindActionGeometry = (current, selector) =>
                     {
-                        graphics = RebindNativeSequenceGeometry92(graphics with { Models = models.SetItem(index, current) }, index, selector);
+                        graphics = RebindNativeSequenceGeometry92(graphics with { ActorModels = models.SetItem(index, current) }, index, selector);
                         models = graphics.Models;
                         return models[index];
                     },
                     ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
                     {
-                        graphics = graphics with { Models = models.SetItem(index, current) };
+                        graphics = graphics with { ActorModels = models.SetItem(index, current) };
                         int target = opcode == 0x9E ? first : (graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
                         (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, index, target, first, second, fraction, duration, graphics.PresentationRoster);
                         graphics = graphics with { Auxiliary = auxiliary };
                         if (allocated && opcode != 0x9E)
                         {
-                            NativeBattleGraphicsModel targetModel = graphics.Models[target];
+                            NativeBattleGraphicsModel targetModel = graphics.ActorModels.Get(target);
                             ushort targetFlags = targetModel.Flags2 ?? throw new NotSupportedException("Native AD/AE requires its target flagsWORD2.");
-                            graphics = graphics with { Models = graphics.Models.SetItem(target, targetModel with { Flags2 = (ushort)(targetFlags | 0x20) }) };
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, targetModel with { Flags2 = (ushort)(targetFlags | 0x20) }) };
                         }
                         models = graphics.Models;
                         return models[index];
                     },
                     ApplyCurrentContact = current =>
                     {
-                        graphics = ApplyNativeCurrentSequenceContact(graphics with { Models = models.SetItem(index, current) });
+                        graphics = ApplyNativeCurrentSequenceContact(graphics with { ActorModels = models.SetItem(index, current) });
                         models = graphics.Models;
                         return models[index];
                     },
                     SelectModelSequence = (current, opcode, selector, selected) =>
                     {
-                        graphics = SelectNativeSequenceModels(graphics with { Models = models.SetItem(index, current) }, index, opcode, selector, selected);
+                        graphics = SelectNativeSequenceModels(graphics with { ActorModels = models.SetItem(index, current) }, index, opcode, selector, selected);
                         models = graphics.Models;
                         return models[index];
                     },
@@ -226,14 +226,14 @@ public sealed partial class BattleSession
                     },
                     ApplyNextContact = current =>
                     {
-                        graphics = ApplyNativeNextSequenceContact(graphics with { Models = models.SetItem(index, current) });
+                        graphics = ApplyNativeNextSequenceContact(graphics with { ActorModels = models.SetItem(index, current) });
                         models = graphics.Models;
                         return models[index];
                     },
                     ApplyActionContacts = current =>
                     {
                         models = models.SetItem(index, current);
-                        graphics = ApplyNativeActiveHeaderContacts(graphics with { Models = models });
+                        graphics = ApplyNativeActiveHeaderContacts(graphics with { ActorModels = models });
                         models = graphics.Models;
                         //TODO(TD-009): the component presentation phase observes the original AA publication while104 owns native completion.
                         graphics = graphics with { ActionCallbackReady = true };
@@ -270,28 +270,28 @@ public sealed partial class BattleSession
                     }
                     else if (cue.Kind == NativeBattleSequenceCueKind.TriggerWindow)
                     {
-                        NativeGraphics = graphics with { Models = models.SetItem(index, model) };
+                        NativeGraphics = graphics with { ActorModels = models.SetItem(index, model) };
                         RegisterNativeTriggerWidget(NativeGraphics, actor, cue);
                         graphics = NativeGraphics;
                     }
                 }
-                graphics = PublishNativeTriggerSound(graphics with { Models = models.SetItem(index, model) });
+                graphics = PublishNativeTriggerSound(graphics with { ActorModels = models.SetItem(index, model) });
             }
             else if ((model.Flags0 & 2) != 0 && model.ModelId4 != 0x8F)
             {
-                NativeBattleGraphicsResource refreshResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                NativeBattleGraphicsResource refreshResource = NativeGraphicsPoseResource(graphics with { ActorModels = models.SetItem(index, model) }, index);
                 model = refreshResource.PoseSource is { } bodySource
                     ? NativeBattleBodyBoneMatrices.Publish508F60(model, bodySource, refreshResource.LinkedPoseSource)
                     : model with { CurrentBodyBoneMatrices = null };
             }
             if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
             {
-                NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { ActorModels = models.SetItem(index, model) }, index);
                 model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source."), ReadNativeModelScaleVector502AB0(graphics, model)) };
                 model = NativeBattleModelRings.BindWorldMatrix502AB0(models, model);
             }
             models = models.SetItem(index, model);
         }
-        return graphics with { Models = models };
+        return graphics with { ActorModels = models };
     }
 }

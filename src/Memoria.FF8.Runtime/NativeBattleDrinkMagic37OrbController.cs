@@ -102,8 +102,8 @@ public static class NativeBattleDrinkMagic37OrbController
 
     public static int MaximumDistance(NativeBattleModulePoolTask task, NativeBattleDrinkMagic37OrbInputs inputs)
     {
-        int headerIndex = checked(inputs.Parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
+        BattleActionHeaderReference headerIndex = inputs.Parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Drink Magic orb distance requires its actual selected contact pointer.");
         NativeBattleVector caster = inputs.ReadPosition1C(task.ReadByte(0x2C));
         int maximum = 0;

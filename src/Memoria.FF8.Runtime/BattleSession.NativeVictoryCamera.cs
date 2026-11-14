@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         bool resourceCamera = actor >= 3;
         if (!resourceCamera)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             resourceCamera = (model.Flags0 & 2) == 0 || ((model.Flags8 ?? throw new NotSupportedException("Native5064F0 requires its selected actor DWORD8.")) & 0x1A) != 0 || NextNativeGlobalRandom() >= 0x2000;
         }
         if (resourceCamera)

@@ -66,7 +66,7 @@ public static partial class NativeBattleGatlingGun150Controller
         }
         if (age == 30)
         {
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun150ContactsAll(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun150ContactsAll(Parameters(frame).Header));
         }
         if (age == 1)
         {

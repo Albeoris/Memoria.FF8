@@ -63,7 +63,7 @@ public static partial class NativeBattleAdditional182Controller
         if (age == (set ? 35 : 64))
         {
             frame = inputs.Execute(frame, new NativeBattleAdditional182ActorFlags(actor, 0, Read(frame, address).ReadWord(14)));
-            frame = inputs.Execute(frame, new NativeBattleAdditional182ContactsAll(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleAdditional182ContactsAll(Parameters(frame).Header));
         }
         int terminal = set ? 40 : 65;
         if (age <= 8)

@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Rinoa87 requires its actual color constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Rinoa87 requires its retained CRT generator.");
         NativeBattleRinoa87Inputs controller = null!;
-        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa87 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
+        controller = new(nativeActionPackets, view, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa87 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         frame = NativeBattleRinoa87Controller.Advance(frame, controller);
         NativeEffectMemory = frame.Memory with { Rinoa87 = frame.State };
         nativeCrtRandom = random;
@@ -61,13 +61,13 @@ public sealed partial class BattleSession
                     }
                     return new(current, io.ReadyToComplete ? 2 : 0);
                 case 0x7751A0:
-                    return NativeBattleRinoa87Body.Advance(current, address, new(controller, resources.Model, resources.TargetCurve, (_, actor) => graphics.Models[actor], (next, actor, model) =>
+                    return NativeBattleRinoa87Body.Advance(current, address, new(controller, resources.Model, resources.TargetCurve, (_, actor) => graphics.ActorModels.Get(actor), (next, actor, model) =>
                     {
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                         return next;
                     }, (_, actor) => Minimum(actor), (_, actor, selector) => ReadNativeGraphicsBone(graphics, actor, selector, 0), Execute, DrawBody));
                 case 0x7743A0:
-                    return NativeBattleRinoa87Camera.Advance(current, address, new(resources.Camera, actor => graphics.Models[actor].Rotation14 ?? throw new NotSupportedException("Native774450 requires its caster yaw."), next =>
+                    return NativeBattleRinoa87Camera.Advance(current, address, new(resources.Camera, actor => graphics.ActorModels.Get(actor).Rotation14 ?? throw new NotSupportedException("Native774450 requires its caster yaw."), next =>
                     {
                         NativeBattleRinoa87SceneMemory scene = NativeBattleRinoa87Scene.Read(next);
                         uint body = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(scene.Settings.Read(24, 4));
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
                     return new(impacted, impact.Completed ? 2 : 0);
                 case 0x7764B0:
                 case 0x77E6C0:
-                    return NativeBattleRinoa87Program.Advance(current, address, new(pointer => pointer == resources.Program.Address ? resources.Program : pointer == 0x19CF018 ? new(pointer, (NativeFileStaging ?? throw new NotSupportedException("Native77E600 requires its completed external file407 owner.")).Read(pointer, resources.Io.Files[0].Data.Length).ToImmutableArray()) : throw new NotSupportedException("Native776580 programme source has no original addressed owner."), (next, model, selector) => ReadBone(next, checked(model - 48), selector), (_, actor) => graphics.Models[Minimum(actor)].Transform?.Scale38 ?? throw new NotSupportedException("Native77E780 requires its target scaleWORD38."), (next, source, node) =>
+                    return NativeBattleRinoa87Program.Advance(current, address, new(pointer => pointer == resources.Program.Address ? resources.Program : pointer == 0x19CF018 ? new(pointer, (NativeFileStaging ?? throw new NotSupportedException("Native77E600 requires its completed external file407 owner.")).Read(pointer, resources.Io.Files[0].Data.Length).ToImmutableArray()) : throw new NotSupportedException("Native776580 programme source has no original addressed owner."), (next, model, selector) => ReadBone(next, checked(model - 48), selector), (_, actor) => graphics.ActorModels.Get(Minimum(actor)).Transform?.Scale38 ?? throw new NotSupportedException("Native77E780 requires its target scaleWORD38."), (next, source, node) =>
                     {
                         NativeBattleRinoa87NodeDraw draw = NativeBattleRinoa87ProgramDrawing.Draw7766B0(source, node, next.State.MorphScratch, projection, colors, NativeBattlePilotVisualLifetimes.Identity(87, task, unchecked((int)source.Address * 397 + node.Node.ResourceOffset)));
                         return Append(next with { State = next.State with { MorphScratch = draw.MorphScratch } }, draw.Packets, false);
@@ -117,11 +117,11 @@ public sealed partial class BattleSession
                     (textures, _) = textures.EnqueueTim505E30(resources.SceneTim);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleRinoa87BindActor bind when bind.Resource == 0x1560550 && bind.SavedModel == 0x25B4B28:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(bind.Resource, resources.ActorOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Rinoa87 requires its actual CPU resource rows."), actor, bind.SavedModel, bind.Resource);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleRinoa87ActorSequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, checked((ushort)sequence.Sequence));
@@ -275,7 +275,7 @@ public sealed partial class BattleSession
         int Minimum(int source)
         {
             int[] ring = NativeBattleModelRings.Walk(graphics.Models, source).ToArray();
-            return graphics.Models[ring[^1]].ReadLinkedModelIndex140() is null ? source : ring.Min();
+            return graphics.ActorModels.Get(ring[^1]).ReadLinkedModelIndex140() is null ? source : ring.Min();
         }
 
         int Roll()

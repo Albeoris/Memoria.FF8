@@ -20,13 +20,13 @@ public static partial class NativeBattleLionHeart165Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5E9470 requires its physical first-contact pointer.");
-        byte recipient = packets.ReadContact(first).Primary.ActorIndex;
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23C6874) ?? throw new NotSupportedException("Native5E9470 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23C6874, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
         staging = WriteDword(staging, 0x23C32EC, recipient);
-        staging = WriteDword(staging, 0x23C6870, parameters.Actor78);
+        staging = WriteDword(staging, 0x23C6870, parameters.Source);
         staging = WriteDword(staging, 0x23C6944, 0x20DFAB8);
         staging = WriteDword(staging, 0x23C694C, 0x209FAB8);
         staging = WriteDword(staging, 0x23C5680, 0x20DFAB8);
@@ -58,7 +58,7 @@ public static partial class NativeBattleLionHeart165Controller
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5E9470 requires its actual texture owner.");
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5E9470 requires its actual initializer texture.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));
-        NativeBattleLionHeart165Frame frame = new(memory with { LionHeart165 = new(true, parameters, recipient, resources, null), Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = 0x23C34B0, DrawArenaOffset = 0 }, staging, random);
+        NativeBattleLionHeart165Frame frame = new(memory with { LionHeart165 = new(true, resources, null), Textures = textures }, effect with { EntryFirstRecipient = recipient, Pools = [main, children], ReturnedDescriptor = 0x23C34B0, DrawArenaOffset = 0 }, staging, random);
         return new(frame, facing);
     }
 

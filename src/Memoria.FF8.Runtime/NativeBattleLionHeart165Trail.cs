@@ -13,7 +13,7 @@ public static partial class NativeBattleLionHeart165Controller
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 64);
         uint temporary = allocation.Address;
         frame = frame with { Staging = allocation.Staging };
-        NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Actor78);
+        NativeBattleRenzokuken160WeaponTip tip = inputs.ReadWeaponTip(frame.Parameters.Source);
         NativeBattleVector endpoint = new(unchecked((short)(tip.Position.X + ((666 * tip.DirectionX) >> 12))), unchecked((short)(tip.Position.Y + ((666 * tip.DirectionY) >> 12))), unchecked((short)(tip.Position.Z + ((666 * tip.DirectionZ) >> 12))));
         NativeBattleFileStaging staging = Point(Point(frame.Staging, temporary + 32, tip.Position), temporary + 40, endpoint);
         staging = WriteDword(WriteDword(WriteDword(staging, temporary + 48, unchecked((uint)tip.DirectionX)), temporary + 52, unchecked((uint)tip.DirectionY)), temporary + 56, unchecked((uint)tip.DirectionZ));

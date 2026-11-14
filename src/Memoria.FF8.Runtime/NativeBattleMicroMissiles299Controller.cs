@@ -14,7 +14,7 @@ public static partial class NativeBattleMicroMissiles299Controller
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Micro Missiles requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Micro Missiles requires its working arena."), tim);
         NativeBattleEffectParameters parameters = Parameters(frame);
-        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Actor78)) };
+        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int index) = root.Append(RootCallback);
         root = root.WriteSlot(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0));
@@ -174,12 +174,12 @@ public static partial class NativeBattleMicroMissiles299Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleMicroMissiles299Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Micro Missiles requires its captured action parameters.");
     private static int FirstContact(NativeBattleMicroMissiles299Frame frame, NativeBattleMicroMissiles299Inputs inputs)
     {
-        int index = Parameters(frame).HeaderIndex7C;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.Headers[index].ReadByte(16) == 0)
+        BattleActionHeaderReference index = Parameters(frame).Header;
+        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
         {
             throw new InvalidDataException("Micro Missiles requires its first captured target contact.");
         }
-        return inputs.Packets.Headers[index].FirstContactIndex ?? throw new NotSupportedException("Micro Missiles requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Micro Missiles requires its actual captured contact pointer.");
     }
     private static void RequireBinding(NativeBattleMicroMissiles299Frame frame)
     {

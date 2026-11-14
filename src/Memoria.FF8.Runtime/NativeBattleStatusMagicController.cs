@@ -52,7 +52,7 @@ public static class NativeBattleStatusMagicController
                 targets = NativeBattleEffectTaskPool.Initialize(resources.TargetDescriptor, 0x20DFAB8, resources.TargetStride, resources.TargetCapacity);
             }
             int action = root.ReadByte(14);
-            int last = inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17);
+            int last = inputs.Packets.ReadHeader(parameters.Header).ReadByte(17);
             if (action <= last)
             {
                 if (targets is null)
@@ -68,7 +68,7 @@ public static class NativeBattleStatusMagicController
                 {
                     (targets, int slot) = targets.Append(resources.TargetCallback);
                     NativeBattleModulePoolTask target = targets.Slots[slot].ClearPayload(resources.TargetStride - 12);
-                    int first = inputs.Packets.Headers[checked(parameters.HeaderIndex7C + action)].FirstContactIndex ?? throw new NotSupportedException("Native status spawn requires its action's first target.");
+                    int first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native status spawn requires its action's first target.");
                     byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
                     target = target.WriteWord(14, checked((ushort)action)).WriteDword(resources.Effect == 120 ? 32 : 16, NativeBattleGraphicsModelAddress.Encode(model));
                     if (resources.Effect == 120)
@@ -121,7 +121,7 @@ public static class NativeBattleStatusMagicController
                 }
                 else
                 {
-                    int caster = parameters.Actor78;
+                    int caster = parameters.Source;
                     if (counter < 10)
                     {
                         task = WriteVector(task, 16, Bone(caster));
@@ -196,8 +196,8 @@ public static class NativeBattleStatusMagicController
 
         void Contact(NativeBattleModulePoolTask task)
         {
-            int action = checked(parameters.HeaderIndex7C + task.ReadWord(14));
-            NativeBattleActionHeaderSlot header = inputs.Packets.Headers[action];
+            BattleActionHeaderReference action = parameters.Header.Advance(task.ReadWord(14));
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(action);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native status result requires its action target list.");
             for (int index = 0; index < header.ReadContactCount(); index++)
             {

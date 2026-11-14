@@ -14,12 +14,14 @@ public sealed class ExpandedPresentationRosterTests
     public void Presentation_owners_preserve_original_slot_order_then_extended_side_order(int allies, int enemies, bool expanded)
     {
         BattleSession battle = Create(allies, enemies, expanded: expanded);
-        string before = Snapshot(battle);
+        BattleSnapshot captured = battle.Capture();
+        string before = JsonSerializer.Serialize(captured);
         BattleModelRoster roster = battle.ReadBattlePresentationRoster();
         BattlePartyActorModel[] party = Enumerable.Range(0, allies).Select(position => new BattlePartyActorModel(new($"ally-{position}"))).ToArray();
         BattleEnemyActorModel[] opponents = Enumerable.Range(0, enemies).Select(position => new BattleEnemyActorModel(new($"enemy-{position}"))).ToArray();
         BattleModelOwner[] expected = [.. party.Take(3), .. opponents.Take(4), .. party.Skip(3), .. opponents.Skip(4)];
         Assert.Equal(expected, roster.Owners);
+        Assert.Equal(expected, battle.NativeActionPackets.Roster.Owners);
         Assert.Equal(allies + enemies, roster.Count);
         Assert.Equal(party.Cast<BattlePartyModelOwner>(), roster.Party);
         Assert.Equal(opponents.Cast<BattleEnemyModelOwner>(), roster.Enemies);
@@ -40,8 +42,71 @@ public sealed class ExpandedPresentationRosterTests
             }
         }
         Assert.Equal(before, Snapshot(battle));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!);
+        BattleSession restored = BattleSession.Restore(captured);
         Assert.Equal(expected, restored.ReadBattlePresentationRoster().Owners);
+        Assert.Equal(expected, restored.NativeActionPackets.Roster.Owners);
+    }
+
+    [Fact]
+    public void Constructor_without_retained_memory_starts_with_unknown_rows_and_known_zero_counts()
+    {
+        BattleSession battle = Create(3, 4, expanded: false);
+        NativeBattleRetainedActionPackets raw = battle.NativeActionPackets.ExportRetained();
+
+        Assert.Equal((byte)0, raw.ActionCount);
+        Assert.Equal(0, raw.ContactCount);
+        Assert.Equal((byte)0, raw.UnknownCountMask);
+        Assert.Null(raw.ActiveHeaderIndex);
+        Assert.Null(raw.ActiveContactIndex);
+        Assert.All(raw.Headers, header => Assert.Equal(NativeBattleRetainedActionHeaderSlot.AllUnknown, header.UnknownByteMask));
+        Assert.All(raw.Contacts, Assert.Null);
+
+        BattleModelOwner first = battle.ReadPresentationModelOwner("ally-0");
+        NativeBattleActionPacketsState prepared = battle.NativeActionPackets.Prepare(new(first, 1, 7, -1, 0, 0, null)).State;
+        Assert.Equal((byte)0, prepared.ExportRetained().Headers[0].ReadKnownByte(0));
+    }
+
+    [Fact]
+    public void Constructor_keeps_imported_raw_facts_and_only_original_graphics_aliases_encode()
+    {
+        NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.FromColdProcess();
+        NativeBattleRetainedActionPackets cold = memory.ActionPackets;
+        NativeBattleRetainedActionHeaderSlot header = cold.Headers[0] with { Payload = cold.Headers[0].Payload.SetItem(0, 2).SetItem(16, 6).SetItem(19, 0xB4) };
+        byte[] contact = [3, 7, 0, 2, 0, 0, 37, 0, 0, 0, 0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        NativeBattleRetainedActionPackets retained = cold with
+        {
+            ActionCount = 1,
+            ContactCount = 1,
+            ActiveHeaderIndex = 0,
+            ActiveContactIndex = 0,
+            Headers = cold.Headers.SetItem(0, header),
+            Contacts = cold.Contacts.SetItem(0, NativeBattleContactPacketCodec.Decode(contact))
+        };
+        BattleSession battle = Create(4, 5, retained: memory with { ActionPackets = retained });
+        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleRetainedActionPackets raw = packets.ExportRetained();
+
+        Assert.Null(battle.NativeGraphics);
+        Assert.Equal((byte)0, raw.ActionCount);
+        Assert.Equal(0, raw.ContactCount);
+        Assert.Equal((byte)0, raw.UnknownCountMask);
+        Assert.Equal(0, raw.ActiveHeaderIndex);
+        Assert.Equal(0, raw.ActiveContactIndex);
+        Assert.Null(packets.ActiveHeader);
+        Assert.Null(packets.ActiveContact);
+        Assert.Equal(header.Payload.ToArray(), raw.Headers[0].Payload.ToArray());
+        Assert.Equal(contact, NativeBattleContactPacketCodec.Encode(raw.Contacts[0]!));
+
+        BattleModelOwner first = battle.ReadPresentationModelOwner("ally-0");
+        BattleModelOwner fourth = battle.ReadPresentationModelOwner("ally-3");
+        NativeBattleActionHeaderPreparation preparation = new(first, 1, 7, -1, 0, 0, null);
+        NativeBattleRetainedActionHeaderSlot original = packets.Prepare(preparation).State.ExportRetained().Headers[0];
+        NativeBattleRetainedActionHeaderSlot extra = packets.Prepare(preparation with { Source = fourth }).State.ExportRetained().Headers[0];
+        Assert.Equal((byte)0, original.ReadKnownByte(0));
+        Assert.Equal((byte)2, extra.Payload[0]);
+        Assert.Null(extra.ReadKnownByte(0));
+        Assert.Equal((byte)6, extra.ReadKnownByte(16));
+        Assert.Equal((byte)0xB4, extra.ReadKnownByte(19));
     }
 
     [Fact]
@@ -174,7 +239,7 @@ public sealed class ExpandedPresentationRosterTests
         Assert.Null(live.ExpandedEffect);
     }
 
-    private static BattleSession Create(int allies, int enemies, BattleNativeAction? native = null, bool expanded = true)
+    private static BattleSession Create(int allies, int enemies, BattleNativeAction? native = null, bool expanded = true, NativeBattleRetainedMemory? retained = null)
     {
         BattleCombatantDefinition[] party = Enumerable.Range(0, allies).Select(position => new BattleCombatantDefinition
         {
@@ -191,6 +256,7 @@ public sealed class ExpandedPresentationRosterTests
         return new(new()
         {
             UsesExpandedRoster = expanded,
+            NativeRetainedMemory = retained,
             Combatants = [.. party, .. opponents],
             NativeActions = native is null ? [] : [native],
             ActionDefinitions = native is null ? [] : [new(BattleAbility.Magic, 1, "Synthetic Drain", BattleActionEffect.Native, native.Power, false, true) { NativeAction = native }]

@@ -249,7 +249,7 @@ public static partial class NativeBattleEffect31Actors
         return (frame with { Random = random }, value);
     }
 
-    private static int Caster(NativeBattleEffect31Frame frame) => Parameters(frame).Actor78;
+    private static int Caster(NativeBattleEffect31Frame frame) => Parameters(frame).Source;
     private static uint ModelAddress(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
     private static NativeBattleVector Point(NativeBattleEffectArena point) => new(Word31(point, 0), Word31(point, 2), Word31(point, 4));
     private static NativeBattleEffectArena Word(NativeBattleEffectArena arena, int at, short value) => arena.Write(at, BitConverter.GetBytes(value));

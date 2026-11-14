@@ -20,13 +20,13 @@ public static partial class NativeBattleRoughDivide163Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5F5B80 requires its physical first-contact pointer.");
-        byte recipient = packets.ReadContact(first).Primary.ActorIndex;
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23CE278) ?? throw new NotSupportedException("Native5F5B80 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23CE278, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
         staging = WriteDword(staging, 0x23CA1A0, recipient);
-        staging = WriteDword(staging, 0x23CE274, parameters.Actor78);
+        staging = WriteDword(staging, 0x23CE274, parameters.Source);
         staging = WriteDword(staging, 0x23CE580, 0x20DFAB8);
         for (uint address = 0x23CA1D8; address < 0x23CAB38; address += 24)
         {
@@ -47,7 +47,7 @@ public static partial class NativeBattleRoughDivide163Controller
         textures = textures.Register5099A0(resources.StaticData, 0xE3C);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5F5B80 requires its actual initializer texture.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));
-        return new(memory with { RoughDivide163 = new(true, parameters, recipient, resources), Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = 0x23CA1C8, DrawArenaOffset = 0 }, staging, random);
+        return new(memory with { RoughDivide163 = new(true, resources), Textures = textures }, effect with { EntryFirstRecipient = recipient, Pools = [main, children], ReturnedDescriptor = 0x23CA1C8, DrawArenaOffset = 0 }, staging, random);
     }
 
     public static NativeBattleRoughDivide163Frame Advance5F9020(NativeBattleRoughDivide163Frame frame, Func<NativeBattleRoughDivide163Frame, NativeBattleEffectTaskPool, int, NativeBattleRoughDivide163ChildStep> advanceChild, Func<NativeBattleRoughDivide163Frame, uint, NativeBattleRoughDivide163Frame> beginTextureLoad)

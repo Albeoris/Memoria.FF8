@@ -70,13 +70,13 @@ public sealed partial class BattleSession
         NativeStage = stage;
         foreach (int index in ReadPresentationSideActors(false))
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;
             }
             model = model with { Flags0 = (ushort)(model.Flags0 | 4) };
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, model.GeometryWorldMatrix ?? throw new NotSupportedException("Native6FC0A0 requires its actual retained enemy world matrix."));
             frame = frame with { Staging = NativeBattleRinoa89Capture.PublishMatrix56C2F0(frame.Staging, context, matrix) };
             uint mask = NativeGraphicsUsesForeignPose(graphics, index) ? uint.MaxValue : model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native6FC0A0 requires its actual enemy object mask.");

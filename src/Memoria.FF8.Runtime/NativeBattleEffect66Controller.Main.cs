@@ -135,8 +135,8 @@ public static partial class NativeBattleEffect66Controller
         if (age == 25)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int header = (frame.Effect.Parameters ?? throw new NotSupportedException("Effect66 requires its current contact header.")).HeaderIndex7C;
-            frame = inputs.Execute(frame, new NativeBattleEffect66Contact506690(packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect66 requires its current contact pointer.")));
+            BattleActionHeaderReference header = (frame.Effect.Parameters ?? throw new NotSupportedException("Effect66 requires its current contact header.")).Header;
+            frame = inputs.Execute(frame, new NativeBattleEffect66Contact506690(packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect66 requires its current contact pointer.")));
         }
         if (age == 829)
         {

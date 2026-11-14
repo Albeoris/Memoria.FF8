@@ -16,9 +16,9 @@ public static partial class NativeBattleEffect187Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect187 requires its actual current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int target = packets.ReadContact(header.FirstContactIndex ?? throw new NotSupportedException("Effect187 requires its actual first contact.")).Primary.ActorIndex;
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(0xE41E50, CommonAddress + 0x30000).WriteDword(0xE41E54, CommonAddress + 0x31000).WriteDword(0xE41E58, CommonAddress + 0x32000).WriteDword(0xE41E98, CommonAddress + 0x38000).WriteDword(0x24FE8E8, 0xFA54A8).WriteDword(0x24FE7B0, 0x1D99A78).WriteDword(0x24FE7B4, parameters.Actor78).WriteDword(0x24FD508, unchecked((uint)target)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(0xE41E50, CommonAddress + 0x30000).WriteDword(0xE41E54, CommonAddress + 0x31000).WriteDword(0xE41E58, CommonAddress + 0x32000).WriteDword(0xE41E98, CommonAddress + 0x38000).WriteDword(0x24FE8E8, 0xFA54A8).WriteDword(0x24FE7B0, 0x1D99A78).WriteDword(0x24FE7B4, parameters.Source).WriteDword(0x24FD508, unchecked((uint)target)) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool children = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);

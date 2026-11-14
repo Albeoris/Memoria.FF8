@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         if (NativeBattleGraphicsModelAddress.TryResolveField(address, out int actor, out int modelOffset, graphics.Models.Length) && (graphics.PresentationRoster is not { } roster || roster.Rows[actor] is not null))
         {
             int offset = modelOffset;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (offset == 4)
             {
                 return model.ModelId4 ?? throw new NotSupportedException("Native descriptor memory requires its retained model identity byte.");
@@ -142,10 +142,10 @@ public sealed partial class BattleSession
             int offset = checked((int)(address - 0x1D99A78));
             return offset switch
             {
-                0 => parameters.Actor78,
+                0 => parameters.Source,
                 1 => parameters.Flags79,
-                2 or 3 => ByteOf(parameters.TargetMask7A, offset - 2),
-                _ => ByteOf(checked(0x1D280C4u + (uint)parameters.HeaderIndex7C * 20), offset - 4)
+                2 or 3 => ByteOf(parameters.TargetActors, offset - 2),
+                _ => ByteOf(checked(0x1D280C4u + (uint)parameters.Header * 20), offset - 4)
             };
         }
         return (NativeFileStaging ?? throw new NotSupportedException("Native descriptor memory requires its addressed retained backing.")).ReadByte(address);

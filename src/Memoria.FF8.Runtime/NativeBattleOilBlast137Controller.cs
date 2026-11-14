@@ -19,7 +19,7 @@ public static partial class NativeBattleOilBlast137Controller
         textures = textures.Register5099A0(resources.Camera);
         return frame with
         {
-            State = frame.State.SeedColdSource(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)),
+            State = frame.State.SeedColdSource(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
             Memory = frame.Memory with { Textures = textures },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -115,6 +115,6 @@ public static partial class NativeBattleOilBlast137Controller
         frame.State.Validate();
     }
 
-    private static NativeBattleActionHeaderSlot Header(NativeBattleOilBlast137Frame frame, NativeBattleOilBlast137Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+    private static NativeBattleActionHeaderSlot Header(NativeBattleOilBlast137Frame frame, NativeBattleOilBlast137Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
 
 }

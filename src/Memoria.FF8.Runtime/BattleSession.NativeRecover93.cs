@@ -26,14 +26,14 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Angelo restoration requires original graphics rules.");
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Angelo restoration requires its depth-cue constants.");
         NativeBattleRecover93Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Angelo restoration requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Angelo restoration requires retained CRT random state."));
-        frame = NativeBattleRecover93Controller.Advance74E520(frame, new(nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Angelo restoration requires the selected actor pose source."), ReadWorld, ReadBone, DrawModel, AdvanceProgram, AdvanceNodes, Execute), resources);
+        frame = NativeBattleRecover93Controller.Advance74E520(frame, new(nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Angelo restoration requires the selected actor pose source."), ReadWorld, ReadBone, DrawModel, AdvanceProgram, AdvanceNodes, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
         ImmutableArray<byte> ReadWorld(int actor)
         {
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Angelo restoration requires the actual target transform.");
+            NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Angelo restoration requires the actual target transform.");
             byte[] bytes = new byte[8];
             BinaryPrimitives.WriteInt16LittleEndian(bytes, transform.Position28.X);
             BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), transform.Position28.Y);
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
             NativeBattleRecover93NodeState nodes = shared.Nodes with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Angelo restoration requires its current private cursor.") };
             NativeBattleRecover93NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Angelo restoration requires its initialized ordering table.");
-            NativeBattleRecover93NodeStep advanced = NativeBattleRecover93Nodes.Advance74F6E0(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
+            NativeBattleRecover93NodeStep advanced = NativeBattleRecover93Nodes.Advance74F6E0(nodeFrame, address, actor => graphics.ActorModels.Get(actor), projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = profile.Write(advanced.Frame.Memory, profile.Read(advanced.Frame.Memory)! with { Nodes = advanced.Frame.State });
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);

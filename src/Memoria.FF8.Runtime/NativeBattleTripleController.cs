@@ -10,7 +10,7 @@ public abstract record NativeBattleTripleOperation;
 public sealed record NativeBattleTripleFlash : NativeBattleTripleOperation;
 public sealed record NativeBattleTriplePackets(NativeBattleGfGeometryBatch Batch, ushort Flags20 = 0) : NativeBattleTripleOperation;
 public sealed record NativeBattleTripleSprite(NativeBattleModuleDraw Draw) : NativeBattleTripleOperation;
-public sealed record NativeBattleTripleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTripleFrame, NativeBattleTripleOperation, NativeBattleTripleFrame> Execute)
+public sealed record NativeBattleTripleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTripleFrame, NativeBattleTripleOperation, NativeBattleTripleFrame> Execute)
 {
     public Func<NativeBattleTripleFrame, int, NativeBattleTripleFrame>? ApplyContact { get; init; }
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
@@ -84,8 +84,8 @@ public static partial class NativeBattleTripleController
                     }
                     break;
                 case 2:
-                    int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                    int contact = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native8D6940 requires its physical header contact pointer.");
+                    BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                    int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8D6940 requires its physical header contact pointer.");
                     _ = inputs.Packets.ReadContact(contact);
                     current = current with { Effect = current.Effect with { Pools = state.Write(address, task).Pools } };
                     current = inputs.ApplyContact?.Invoke(current, contact) ?? current;

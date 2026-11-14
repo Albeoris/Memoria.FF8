@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, short Minimum, short Maximum) DrawNativeBlizzagaModelBand(NativeBattleGraphicsState graphics, int index, short low, short high)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (ReadNativeForeignModel(index) is { } foreign)
         {
             graphics = SubmitNativeShadowPackets5088A0(graphics, model, NativeCamera!.Projection!, 4112, false);
@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4112, false);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Blizzaga requires its actual body skeleton.");
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native Blizzaga requires its actual body geometry.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Blizzaga requires its observed extra geometry presence.");
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
                 Submit(linked[linkedIndex], linkedMatrices, binding, geometry.Length + linkedIndex);
             }
         }
-        graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source)) };
         return (graphics, minimum, maximum);
 
         void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int meshIdentity)
@@ -66,13 +66,13 @@ public sealed partial class BattleSession
 
     private static NativeBattleGraphicsState SetNativeBlizzagaModelFlags(NativeBattleGraphicsState graphics, int index, bool enabled, bool band)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
-        ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models.SetItem(index, model with { Flags0 = (ushort)((model.Flags0 & ~4) | (enabled ? 4 : 0)) });
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+        ImmutableArray<NativeBattleGraphicsModel> models = graphics.ActorModels.Set(index, model with { Flags0 = (ushort)((model.Flags0 & ~4) | (enabled ? 4 : 0)) });
         foreach (int linked in NativeBattleModelRings.Walk(models, index))
         {
             NativeBattleGraphicsModel current = models[linked];
             models = models.SetItem(linked, current with { Flags0 = (ushort)((current.Flags0 & ~8) | (band ? 8 : 0)) });
         }
-        return graphics with { Models = models };
+        return graphics with { ActorModels = models };
     }
 }

@@ -76,7 +76,7 @@ public sealed partial class BattleSession
 
         NativeBattleCurse47AnchorStep Anchor(NativeBattleCurse47Frame current, int actor, short selector, int distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), checked((byte)selector), checked((short)distance));
             NativeFileStaging = RequireCurse47Staging(current);
             current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
             current = current with { Staging = NativeFileStaging };
@@ -90,11 +90,11 @@ public sealed partial class BattleSession
             switch (callback)
             {
                 case NativeBattleCurse47Nodes.Callback:
-                    return NativeBattleCurse47Nodes.Advance82DF60(current, address, resources.NodeSource, new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, Execute) { ObserveBone = (value, actor, selector) => Anchor(value, actor, selector, 0).Frame });
+                    return NativeBattleCurse47Nodes.Advance82DF60(current, address, resources.NodeSource, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), PoseSource, Projection(), Camera().Roll, Execute) { ObserveBone = (value, actor, selector) => Anchor(value, actor, selector, 0).Frame });
                 case NativeBattleCurse47Act.FirstCallback:
                 case NativeBattleCurse47Act.SecondCallback:
                 case NativeBattleCurse47Act.MidpointCallback:
-                    return NativeBattleCurse47Act.Advance(current, address, new((_, pointer) => resources.Act(pointer), (_, actor) => new(unchecked((byte)graphics.Models[actor].Flags0), graphics.Models[actor].ModelId4), Anchor, (value, task) => NativeBattleCurse47ActRendering.PrepareDraw(value, task, Camera().CapturePackedView1D97778(), NativeBattleEffectArena.Clear().MarkUnknown(0, 92), NativeBattleEffectArena.Clear().MarkUnknown(0, 32)), (value, task, context, node) => NativeBattleCurse47ActRendering.EmitNode(value, resources.Act(NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94)), context, node, Projection(), Colors(), (output, batch) => Deliver(output, batch, true), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(47, NativeBattleCurse47Controller.Read(value, task), node.ResourceOffset) with { ResourceGeneration = NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94) })));
+                    return NativeBattleCurse47Act.Advance(current, address, new((_, pointer) => resources.Act(pointer), (_, actor) => new(unchecked((byte)graphics.ActorModels.Get(actor).Flags0), graphics.ActorModels.Get(actor).ModelId4), Anchor, (value, task) => NativeBattleCurse47ActRendering.PrepareDraw(value, task, Camera().CapturePackedView1D97778(), NativeBattleEffectArena.Clear().MarkUnknown(0, 92), NativeBattleEffectArena.Clear().MarkUnknown(0, 32)), (value, task, context, node) => NativeBattleCurse47ActRendering.EmitNode(value, resources.Act(NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94)), context, node, Projection(), Colors(), (output, batch) => Deliver(output, batch, true), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(47, NativeBattleCurse47Controller.Read(value, task), node.ResourceOffset) with { ResourceGeneration = NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94) })));
                 case NativeBattleCurse47ParticleStage.Callback:
                     return NativeBattleCurse47ParticleStage.Advance(current, address, Execute);
                 default:
@@ -136,10 +136,10 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleCurse47Controller.Read(current, target.Address), graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Curse requires its actual target pose."), source));
+                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Curse requires its actual target pose."), source));
                     return NativeBattleCurse47Controller.Write(current, target.Address, task);
                 case NativeBattleCurse47InitializeTarget target:
-                    return NativeBattleCurse47TargetSetup.Initialize82B0F0(current, target.Address, actor => graphics.Models[actor]);
+                    return NativeBattleCurse47TargetSetup.Initialize82B0F0(current, target.Address, actor => graphics.ActorModels.Get(actor));
                 case NativeBattleCurse47StageDepthWrite depth:
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Curse requires its stage depth owners.");
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = depth.Write.Fade, ColorFlags = depth.Write.ClearRgb ? group.ColorFlags & 0xFF000000u : group.ColorFlags }).ToImmutableArray() };

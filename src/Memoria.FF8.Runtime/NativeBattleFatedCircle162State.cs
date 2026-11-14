@@ -39,21 +39,21 @@ public sealed record NativeBattleFatedCircle162Resources(NativeBattleEffectHeapA
     }
 }
 
-public sealed record NativeBattleFatedCircle162State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] NativeBattleFatedCircle162Resources? RetainedResources)
+public sealed record NativeBattleFatedCircle162State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleFatedCircle162Resources? RetainedResources)
 {
-    public static NativeBattleFatedCircle162State FromColdProcess() => new(false, null, null);
+    public static NativeBattleFatedCircle162State FromColdProcess() => new(false, null);
 
     public void Validate()
     {
         if (GlobalsInitialized)
         {
-            if (Parameters is null || Parameters.Actor78 >= 7 || Parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || RetainedResources is null)
+            if (RetainedResources is null)
             {
                 throw new InvalidDataException("Native Fated Circle requires its actual entered action parameters and resource bundle.");
             }
             RetainedResources.Validate();
         }
-        else if (Parameters is not null || RetainedResources is not null)
+        else if (RetainedResources is not null)
         {
             throw new InvalidDataException("Native Fated Circle cannot retain entered data before actual native entry.");
         }

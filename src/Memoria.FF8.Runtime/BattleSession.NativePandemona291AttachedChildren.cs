@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native Pandemona attached programme requires its actual physical actor pointer.");
         }
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Pandemona attached programme requires its current actor position and scale.");
         short height = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(row + 4, 2));
         NativeBattlePandemona291Resources resources = frame.Effect.Binding.Pandemona291Resources ?? throw new NotSupportedException("Native Pandemona attached programme requires its current resources.");

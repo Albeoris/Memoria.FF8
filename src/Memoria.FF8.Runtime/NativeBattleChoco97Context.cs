@@ -8,7 +8,7 @@ public sealed record NativeBattleChoco97Context([property: JsonRequired] Immutab
 {
     public static NativeBattleChoco97Context Clear72A350() => new(new byte[0x54].ToImmutableArray());
 
-    public static NativeBattleChoco97Context Initialize72A350(Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleChoco97Context Initialize72A350(Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         byte[] context = new byte[0x54];
         BinaryPrimitives.WriteInt16LittleEndian(context.AsSpan(4), 2048);

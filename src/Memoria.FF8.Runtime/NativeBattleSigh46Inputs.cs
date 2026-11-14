@@ -6,7 +6,7 @@ public sealed record NativeBattleSigh46Frame(NativeBattleEffectMemory Memory, Na
 }
 
 public sealed record NativeBattleSigh46PointStep(NativeBattleSigh46Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleSigh46Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleSigh46Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleSigh46Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleSigh46Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSigh46Frame, int, int, int, NativeBattleSigh46PointStep> ReadBone502170, Func<NativeBattleSigh46Frame, short> ReadCameraRoll, Func<NativeBattleSigh46Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleSigh46Frame, NativeBattleSigh46Operation, NativeBattleSigh46Frame> Execute);
+public sealed record NativeBattleSigh46Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleSigh46Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleSigh46Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleSigh46Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSigh46Frame, BattleModelOwner, int, int, NativeBattleSigh46PointStep> ReadBone502170, Func<NativeBattleSigh46Frame, short> ReadCameraRoll, Func<NativeBattleSigh46Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleSigh46Frame, NativeBattleSigh46Operation, NativeBattleSigh46Frame> Execute);
 
 public abstract record NativeBattleSigh46Operation
 {

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect321Resources resources = effect.Binding.Effect321Resources ?? throw new NotSupportedException("Effect321 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect321 requires its current process memory.");
         NativeBattleEffect321Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect321 requires its current CRT stream."), memory.Effect321 ?? throw new NotSupportedException("Effect321 requires its retained state.")) { Staging = NativeFileStaging };
-        NativeBattleEffect321Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect321 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect321Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect321 requires its current projection."), _ => Camera().Roll, Anchor, Center, (current, handle) => new(current, (NativeVibrationProcess ?? throw new NotSupportedException("Effect321 requires its current vibration process.")).IsPlaying(handle)), (current, operation) => ExecuteNativeEffect321Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
+        NativeBattleEffect321Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect321 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect321Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect321 requires its current projection."), _ => Camera().Roll, Anchor, Center, (current, handle) => new(current, (NativeVibrationProcess ?? throw new NotSupportedException("Effect321 requires its current vibration process.")).IsPlaying(handle)), (current, operation) => ExecuteNativeEffect321Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect321Controller.Initialize(frame, resources, inputs) : NativeBattleEffect321Controller.Advance(frame, resources, inputs);
         PublishNativeEffect321Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleEffect321PointStep Point(NativeBattleEffect321Frame current, uint address, byte selector, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect321Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect321 point queries require their current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect321 requires its current skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, 0);
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect321PointStep Anchor(NativeBattleEffect321Frame current, uint address, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[NativeEffect321Actor(graphics, address)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect321Actor(graphics, address));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect321 requires its current anchor transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect321PointStep Center(NativeBattleEffect321Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
-            NativeBattleVector point = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect321 requires actual current target positions.")).ToArray());
+            NativeBattleVector point = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect321 requires actual current target positions.")).ToArray());
             return new(current, retained.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z)));
         }
     }

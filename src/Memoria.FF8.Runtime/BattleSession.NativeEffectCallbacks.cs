@@ -1090,7 +1090,7 @@ public sealed partial class BattleSession
         }
         if (effect.Binding.Entry == 0x700C10)
         {
-            NativeBattleEffect3Step module = NativeBattleEffect3.Step(effect, new(nativeActionPackets, index => ReadNativeGraphicsBone(graphics, index, 241, 0), index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native effect3 requires its original model transform.")) { ApplyContact = ApplyContact });
+            NativeBattleEffect3Step module = NativeBattleEffect3.Step(effect, new(nativeActionPackets, index => ReadNativeGraphicsBone(graphics, index, 241, 0), index => graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native effect3 requires its original model transform.")) { ApplyContact = ApplyContact });
             foreach (NativeBattleEffect3Sound sound in module.Sounds)
             {
                 PublishNativeModuleSound(sound.Sound, sound.Flags, sound.Position);
@@ -1102,7 +1102,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException($"Native effect{effect.Binding.Effect} requires its original callback scheduler.");
         }
         NativeBattleEffectProgramResources resources = effect.Binding.ProgramResources ?? throw new NotSupportedException("Native Fire callbacks require their original executable resource bank.");
-        NativeBattleFireStep step = NativeBattleFireEffect.Step(effect, new(graphics.Flags, nativeActionPackets, nativeCrtRandom ?? throw new NotSupportedException("Native Fire requires the retained55CBD2 CRT random owner."), index => ReadNativeModelAnchor(graphics, index), index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native Fire requires its original model transform."), resources.Sprites.AddRange(definition.NativeModuleResources)) { ApplyContact = ApplyContact });
+        NativeBattleFireStep step = NativeBattleFireEffect.Step(effect, new(graphics.Flags, nativeActionPackets, nativeCrtRandom ?? throw new NotSupportedException("Native Fire requires the retained55CBD2 CRT random owner."), index => ReadNativeModelAnchor(graphics, index), index => graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Fire requires its original model transform."), resources.Sprites.AddRange(definition.NativeModuleResources)) { ApplyContact = ApplyContact });
         nativeCrtRandom = step.CrtRandomAfter;
         foreach (NativeBattleFireSound sound in step.Sounds)
         {

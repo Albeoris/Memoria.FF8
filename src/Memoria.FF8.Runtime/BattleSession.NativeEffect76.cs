@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect76Resources resources = effect.Binding.Effect76Resources ?? throw new NotSupportedException("Effect76 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect76 requires its current process memory.");
         NativeBattleEffect76Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect76 requires its current CRT stream."), memory.Effect76 ?? throw new NotSupportedException("Effect76 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect76 requires its current addressed memory.") };
-        NativeBattleEffect76Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect76 requires its arithmetic constants."), _ => graphics.Flags, current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect76 requires its current signed IO result.")) < 0 ? -1 : unchecked((int)graphics.Flags)), _ => nativeActionPackets, (_, actor) => graphics.Models[actor], PoseSource, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect76 requires its current projection."), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect76 requires its current world matrix."), null), Position, ReadBone, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect76 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect76 requires its current vibration process.")).IsPlaying(handle), (_, address) => address switch
+        NativeBattleEffect76Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect76 requires its arithmetic constants."), _ => graphics.Flags, current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect76 requires its current signed IO result.")) < 0 ? -1 : unchecked((int)graphics.Flags)), _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), PoseSource, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect76 requires its current projection."), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect76 requires its current world matrix."), null), Position, ReadBone, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect76 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect76 requires its current vibration process.")).IsPlaying(handle), (_, address) => address switch
         {
             0xB8B7D8 => Stage().ModelColors?.Color40 ?? throw new NotSupportedException("Effect76 requires its current model color."),
             0xB8B9A8 => Stage().ModelColors?.Color44 ?? throw new NotSupportedException("Effect76 requires its current model color."),
@@ -42,12 +42,12 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectArena Position(NativeBattleEffect76Frame current, int actor)
         {
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Effect76 requires its current physical model point.");
+            NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Effect76 requires its current physical model point.");
             return NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(transform.Position28.X)).Write(2, BitConverter.GetBytes(transform.Position28.Y)).Write(4, BitConverter.GetBytes(transform.Position28.Z)).Write(6, BitConverter.GetBytes(transform.Vertical34));
         }
         NativeBattleEffect76PointStep ReadBone(NativeBattleEffect76Frame current, int actor, byte selector, short distance, NativeBattleEffectArena retained)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(current, actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(current, actor), selector, distance);
             NativeFileStaging = current.Staging;
             current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer), Staging = NativeFileStaging };
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -65,15 +65,15 @@ public sealed partial class BattleSession
                     graphics = graphics with { UiServices = mode.Mode == 0 ? ui.SetFlags(0x200, 0x100) : ui.SetFlags(0x100, 0x200) };
                     return current;
                 case NativeBattleEffect76ModelFlags flags:
-                    NativeBattleGraphicsModel model = graphics.Models[flags.Actor];
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
                     ushort mask = flags.WordWidth ? flags.AndMask : (ushort)(0xFF00 | (byte)flags.AndMask);
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect76ModelPointY pointY:
-                    NativeBattleGraphicsModel positioned = graphics.Models[pointY.Actor];
+                    NativeBattleGraphicsModel positioned = graphics.ActorModels.Get(pointY.Actor);
                     NativeBattleModelTransform transform = positioned.Transform ?? throw new NotSupportedException("Effect76 requires its current model point.");
                     short y = pointY.Add ? unchecked((short)(transform.Position28.Y + pointY.Value)) : pointY.Value;
-                    graphics = graphics with { Models = graphics.Models.SetItem(pointY.Actor, positioned with { Transform = transform with { Position28 = transform.Position28 with { Y = y } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(pointY.Actor, positioned with { Transform = transform with { Position28 = transform.Position28 with { Y = y } } }) };
                     return current;
                 case NativeBattleEffect76Stage5713E0 intensity:
                     NativeBattleStageState stage = Stage();
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect76SyncModelColors61FC60 color:
                     NativeBattleStageState colorStage = Stage();
                     NativeStage = colorStage with { ModelColors = (colorStage.ModelColors ?? throw new NotSupportedException("Effect76 requires its current model color owner.")) with { Color44 = color.Color } };
-                    graphics = graphics with { Models = graphics.Models.Select(item => (item.Flags0 & 2) != 0 ? item with { Color44 = color.Color } : item).ToImmutableArray() };
+                    graphics = graphics with { ActorModels = graphics.Models.Select(item => (item.Flags0 & 2) != 0 ? item with { Color44 = color.Color } : item).ToImmutableArray() };
                     return current;
                 case NativeBattleEffect76WaveRequest46CBB0 wave:
                     NativeBattleFileAudioRequest request = NativeBattleFileAudioRequest.Create46CBB0(NativeGlobalSoundProcess ?? throw new NotSupportedException("Effect76 requires its current sound process."), wave.Channel, wave.ResourceName, wave.Gain);

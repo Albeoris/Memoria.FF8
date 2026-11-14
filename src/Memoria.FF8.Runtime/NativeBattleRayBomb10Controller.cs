@@ -25,7 +25,7 @@ public static partial class NativeBattleRayBomb10Controller
         {
             particles.AsSpan(index * 24, 4).Clear();
         }
-        retained = retained with { Particles = particles.ToImmutableArray(), Context = 0x1D99A78, Caster = parameters.Actor78, ArenaBase = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)memory.Cursor) };
+        retained = retained with { Particles = particles.ToImmutableArray(), Context = 0x1D99A78, Caster = parameters.Source, ArenaBase = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)memory.Cursor) };
         int texture = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x24CA7F8)?.ArenaOffset ?? throw new NotSupportedException("Native627E60 requires its loaded24CA7F8 TIM pointer.");
         NativeBattleEffectTextureState textures = (memory.Textures ?? throw new NotSupportedException("Native627E60 requires its actual texture registration owner.")).Register5099A0(resources.Camera);
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native627E60 requires its loaded magic arena."), texture);

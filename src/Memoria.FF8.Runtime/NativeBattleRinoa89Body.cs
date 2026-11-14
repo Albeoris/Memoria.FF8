@@ -27,7 +27,7 @@ public sealed record NativeBattleRinoa89PollIo : NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89AdvanceIo : NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89Sound(uint Source) : NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89CameraUpdate(short Age, NativeBattleVector Center, NativeBattleVector Caster) : NativeBattleRinoa89Operation;
-public sealed record NativeBattleRinoa89BodyInputs(NativeBattleRinoa89Resources Resources, Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Operation, NativeBattleRinoa89Frame> Execute, Func<NativeBattleRinoa89Frame, NativeBattleModulePoolTask, NativeBattleRinoa89BoneStep> ReadBone19, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Frame> ApplyContacts6FC410, Func<NativeBattleRinoa89Frame, (NativeBattleRinoa89Frame Frame, bool Busy)> Poll534270, Func<NativeBattleRinoa89Frame, (NativeBattleRinoa89Frame Frame, bool Complete)> Reload534300);
+public sealed record NativeBattleRinoa89BodyInputs(NativeBattleRinoa89Resources Resources, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Operation, NativeBattleRinoa89Frame> Execute, Func<NativeBattleRinoa89Frame, NativeBattleModulePoolTask, NativeBattleRinoa89BoneStep> ReadBone19, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Frame> ApplyContacts6FC410, Func<NativeBattleRinoa89Frame, (NativeBattleRinoa89Frame Frame, bool Busy)> Poll534270, Func<NativeBattleRinoa89Frame, (NativeBattleRinoa89Frame Frame, bool Complete)> Reload534300);
 
 public static partial class NativeBattleRinoa89Controller
 {
@@ -40,7 +40,7 @@ public static partial class NativeBattleRinoa89Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native6FA780 requires its actual selected caster.");
         NativeBattleEffectOwnedModelResource body = inputs.Resources.Body ?? throw new NotSupportedException("Native6FA780 requires its original embedded model.");
-        int actor = parameters.Actor78;
+        int actor = parameters.Source;
         short age = Signed(12);
         NativeBattleVector center = new(Signed(216), Signed(218), Signed(220));
         switch (task.ReadWord(12))
@@ -78,7 +78,7 @@ public static partial class NativeBattleRinoa89Controller
                 }
                 if (age % 7 == 0)
                 {
-                    Execute(new NativeBattleRinoa89BoneEmission(ModelAddress(parameters.Actor78), checked(21689472u + 8u * (uint)((age / 7) & 1)), 0));
+                    Execute(new NativeBattleRinoa89BoneEmission(ModelAddress(parameters.Source), checked(21689472u + 8u * (uint)((age / 7) & 1)), 0));
                 }
             }
         }

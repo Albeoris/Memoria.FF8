@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -85,7 +85,7 @@ public sealed record NativeBattleMightyGuardContact(int Index) : NativeBattleMig
 public sealed record NativeBattleMightyGuardSound(NativeBattleModuleSound Sound) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardStage(short Depth, bool ClearRgb) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardBindCaster(int Actor, uint SavedBank, uint Resource, byte Sequence) : NativeBattleMightyGuardOperation;
-public sealed record NativeBattleMightyGuardInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMightyGuardFrame, NativeBattleMightyGuardOperation, NativeBattleMightyGuardFrame> Execute, Func<NativeBattleMightyGuardFrame, uint, NativeBattleMightyGuardFrame> AdvanceNodes)
+public sealed record NativeBattleMightyGuardInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMightyGuardFrame, NativeBattleMightyGuardOperation, NativeBattleMightyGuardFrame> Execute, Func<NativeBattleMightyGuardFrame, uint, NativeBattleMightyGuardFrame> AdvanceNodes)
 {
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
     public ushort? CopiedCameraPadding { get; init; }

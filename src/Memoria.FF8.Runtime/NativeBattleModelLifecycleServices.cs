@@ -53,7 +53,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBa
         {
             BattleModelOwner? actor = roster.Rows[row];
             NativeBattleModelActorFacts? fact = Facts[row];
-            if (graphics.Models[row] is not { } model || model.Index != row ||
+            if (graphics.ActorModels.Get(row) is not { } model || model.Index != row ||
                 !StringComparer.Ordinal.Equals(graphics.ActorIds[row], actor?.ActorId) ||
                 !StringComparer.Ordinal.Equals(fact?.ActorId, actor?.ActorId) ||
                 fact?.IsParty != actor?.IsParty)

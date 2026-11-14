@@ -18,7 +18,7 @@ public static partial class NativeBattleEffect283Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect283 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect283 requires its retained texture process.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        uint caster = ModelAddress(Parameters(frame).Actor78);
+        uint caster = ModelAddress(Parameters(frame).Source);
         frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, caster).WriteDword(ArenaGlobal, ArenaAddress) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);

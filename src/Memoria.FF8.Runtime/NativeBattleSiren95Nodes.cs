@@ -3,9 +3,9 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleSiren95NodeServices(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, NativeBattleEffectHeapAllocation? StaticSource)
+public sealed record NativeBattleSiren95NodeServices(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, NativeBattleEffectHeapAllocation? StaticSource)
 {
-    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
+    public Func<BattleModelOwner, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
 }
 public sealed record NativeBattleSiren95NodeStep(NativeBattleSiren95Frame Frame, bool Complete, NativeBattleLogicalOrdering Ordering);
 

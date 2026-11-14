@@ -134,11 +134,11 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         {
             throw new NotSupportedException("Enemy Micro Missiles requires its actual current parameter pointer.");
         }
-        int index = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference index = Parameters(frame).Header;
         if ((uint)index >= packets.Headers.Length)
         {
             throw new NotSupportedException("Enemy Micro Missiles parameter header leaves its physical action arena.");
         }
-        return packets.Headers[index];
+        return packets.ReadHeader(index);
     }
 }

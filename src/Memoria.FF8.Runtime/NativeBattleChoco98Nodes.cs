@@ -35,7 +35,7 @@ public static class NativeBattleChoco98Nodes
         return frame with { State = frame.State with { Work = result.State } };
     }
 
-    public static NativeBattleChoco98NodeFrame InitializeContext(NativeBattleChoco98NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
+    public static NativeBattleChoco98NodeFrame InitializeContext(NativeBattleChoco98NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
     {
         if (resource.Address != StaticAddress || new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30) != StaticAddress)
         {
@@ -45,7 +45,7 @@ public static class NativeBattleChoco98Nodes
         return Store(frame, result);
     }
 
-    public static NativeBattleChoco98NodeStep AdvanceContext(NativeBattleChoco98NodeFrame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
+    public static NativeBattleChoco98NodeStep AdvanceContext(NativeBattleChoco98NodeFrame frame, uint address, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
     {
         NativeBattleRecover93NodeFrame current = Assemble(frame);
         if (current.State.InitializationFlag == 0 || new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30) != StaticAddress)

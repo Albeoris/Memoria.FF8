@@ -73,7 +73,7 @@ public static partial class NativeBattleEffect318Controller
     private static NativeBattleActionHeaderSlot CurrentHeader(NativeBattleEffect318Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect318 requires its current action header.");
-        return packets.Headers[parameters.HeaderIndex7C];
+        return packets.ReadHeader(parameters.Header);
     }
 
     private static int FirstContact(NativeBattleEffect318Frame frame, NativeBattleEffect318Inputs inputs) => CurrentHeader(frame, inputs.ReadPackets(frame)).FirstContactIndex ?? throw new NotSupportedException("Effect318 requires its current native contact pointer.");

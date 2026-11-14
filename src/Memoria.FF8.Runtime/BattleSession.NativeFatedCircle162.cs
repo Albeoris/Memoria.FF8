@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             {
                 0x5F91D0 => NativeBattleFatedCircle162Controller.Advance5F91D0(current, pool, slot, inputs),
                 0x5F99C0 => NativeBattleFatedCircle162Controller.Advance5F99C0(current, pool, slot, inputs, actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), view, projection, current.Memory.ScriptedGraphics, colors),
-                0x5F9F70 => NativeBattleFatedCircle162Controller.Advance5F9F70(current, pool, slot, inputs, (graphics.ActorModels.Get(current.Memory.FatedCircle162!.Parameters!.Source).GeometryBounds52 ?? throw new NotSupportedException("Native5F9F70 requires actual actor boundsWORD3C.")).Maximum.Y, view, projection, colors),
+                0x5F9F70 => NativeBattleFatedCircle162Controller.Advance5F9F70(current, pool, slot, inputs, (graphics.ActorModels.Get((current.Effect.Parameters ?? throw new InvalidDataException("Native Fated Circle requires its entered parameters.")).Source).GeometryBounds52 ?? throw new NotSupportedException("Native5F9F70 requires actual actor boundsWORD3C.")).Maximum.Y, view, projection, colors),
                 0x5FA0E0 => NativeBattleFatedCircle162Controller.Advance5FA0E0(current, pool, slot, inputs, view, projection, camera.Roll),
                 0x5FA340 => NativeBattleFatedCircle162Controller.Advance5FA340(current, pool, slot, inputs, view, projection, colors),
                 0x5FA480 => NativeBattleFatedCircle162Controller.Advance5FA480(current, pool, slot, inputs, view, projection, colors),
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleFatedCircle162BindActor:
-                    byte actor = current.Memory.FatedCircle162!.Parameters!.Actor78;
+                    BattleModelOwner actor = (current.Effect.Parameters ?? throw new InvalidDataException("Native Fated Circle requires its entered parameters.")).Source;
                     NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Fated Circle requires actual CPU resource rows."), model, 0x23CEA20, 0xDA0100);
                     NativeFileStaging = binding.Staging;
@@ -102,7 +102,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 10, 255) };
                     return current;
                 case NativeBattleFatedCircle162Contacts:
-                    graphics = ApplyNativeHeaderContacts(graphics, current.Memory.FatedCircle162!.Parameters!.HeaderIndex7C);
+                    graphics = ApplyNativeHeaderContacts(graphics, (current.Effect.Parameters ?? throw new InvalidDataException("Native Fated Circle requires its entered parameters.")).Header);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleFatedCircle162ReadTexture:
                     NativeEffectIoResult = -1;

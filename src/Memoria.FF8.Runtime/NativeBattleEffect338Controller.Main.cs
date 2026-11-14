@@ -45,7 +45,7 @@ public static partial class NativeBattleEffect338Controller
                     hit = false;
                     break;
                 case 42:
-                    int contact = inputs.ReadPackets(frame).Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect338 contact requires its actual physical header.");
+                    int contact = inputs.ReadPackets(frame).ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Effect338 contact requires its actual physical header.");
                     frame = inputs.Execute(frame, new NativeBattleEffect338Contact506690(contact));
                     frame = SpawnFinalProgramme(frame, address, 0x1376658, resources);
                     hit = false;

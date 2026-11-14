@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         caller.EnlistArena(frame.State.ParticleStorage);
         BeginAuxiliaryCheckpoint();
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect315 requires its arithmetic constants.");
-        NativeBattleEffect315Inputs inputs = new(colors, _ => graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Anchor, _ => (NativeStage?.ModelColors ?? throw new NotSupportedException("Effect315 requires its current stage colors.")).Color40, Execute, StartVibration, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect315 requires its vibration process.")).IsPlaying(handle));
+        NativeBattleEffect315Inputs inputs = new(colors, _ => graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), _ => nativeActionPackets, Anchor, _ => (NativeStage?.ModelColors ?? throw new NotSupportedException("Effect315 requires its current stage colors.")).Color40, Execute, StartVibration, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect315 requires its vibration process.")).IsPlaying(handle));
         try
         {
             frame = initialize ? NativeBattleEffect315Controller.Initialize(frame, resources, inputs) : NativeBattleEffect315Controller.Advance(frame, resources, inputs);
@@ -225,7 +225,7 @@ public sealed partial class BattleSession
         {
             int actor = Actor(pointer);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect315 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, selector, fraction);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, selector, fraction);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect315 bone query requires its temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -300,36 +300,36 @@ public sealed partial class BattleSession
             {
                 case NativeBattleEffect315ModelFlags flags:
                     int actor = Actor(flags.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~flags.ClearFlags0) | flags.SetFlags0)) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~flags.ClearFlags0) | flags.SetFlags0)) }) };
                     return current;
                 case NativeBattleEffect315ModelFlags8 flags:
                     int statusActor = Actor(flags.ModelAddress);
-                    NativeBattleGraphicsModel statusModel = graphics.Models[statusActor];
+                    NativeBattleGraphicsModel statusModel = graphics.ActorModels.Get(statusActor);
                     uint status = statusModel.Flags8 ?? throw new NotSupportedException("Effect315 requires its current status DWORD.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(statusActor, statusModel with { Flags8 = (status & ~flags.ClearFlags8) | flags.SetFlags8 }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(statusActor, statusModel with { Flags8 = (status & ~flags.ClearFlags8) | flags.SetFlags8 }) };
                     return current;
                 case NativeBattleEffect315ModelInitial20XZ position:
                     int initialActor = Actor(position.ModelAddress);
-                    NativeBattleGraphicsModel initialModel = graphics.Models[initialActor];
+                    NativeBattleGraphicsModel initialModel = graphics.ActorModels.Get(initialActor);
                     NativeBattleModelTransform initial = initialModel.Transform ?? throw new NotSupportedException("Effect315 requires its initial position owner.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(initialActor, initialModel with { Transform = initial with { Initial20 = initial.Initial20 with { X = position.X, Z = position.Z } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(initialActor, initialModel with { Transform = initial with { Initial20 = initial.Initial20 with { X = position.X, Z = position.Z } } }) };
                     return current;
                 case NativeBattleEffect315ModelPosition28XZ position:
                     int positionActor = Actor(position.ModelAddress);
-                    NativeBattleGraphicsModel positionModel = graphics.Models[positionActor];
+                    NativeBattleGraphicsModel positionModel = graphics.ActorModels.Get(positionActor);
                     NativeBattleModelTransform transform = positionModel.Transform ?? throw new NotSupportedException("Effect315 requires its current position owner.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(positionActor, positionModel with { Transform = transform with { Position28 = transform.Position28 with { X = position.X, Z = position.Z } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(positionActor, positionModel with { Transform = transform with { Position28 = transform.Position28 with { X = position.X, Z = position.Z } } }) };
                     return current;
                 case NativeBattleEffect315ModelDefaultSequence2 sequence:
                     int sequenceActor = Actor(sequence.ModelAddress);
-                    NativeBattleGraphicsModel sequenceModel = graphics.Models[sequenceActor];
+                    NativeBattleGraphicsModel sequenceModel = graphics.ActorModels.Get(sequenceActor);
                     NativeBattleSequenceState sequenceState = sequenceModel.SequenceState ?? throw new NotSupportedException("Effect315 requires its current sequence control.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(sequenceActor, sequenceModel with { SequenceState = sequenceState with { Default2 = sequence.Value } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(sequenceActor, sequenceModel with { SequenceState = sequenceState with { Default2 = sequence.Value } }) };
                     return current;
                 case NativeBattleEffect315ModelColor40 color:
                     int colorActor = Actor(color.ModelAddress);
-                    graphics = graphics with { Models = graphics.Models.SetItem(colorActor, graphics.Models[colorActor] with { Color40 = color.Value }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(colorActor, graphics.ActorModels.Get(colorActor) with { Color40 = color.Value }) };
                     return current;
                 case NativeBattleEffect315Activate487670 activation:
                     graphics = QueueNativeDescriptor(graphics, 113, 0x487670, checked((ushort)activation.ActorIndex));
@@ -337,8 +337,8 @@ public sealed partial class BattleSession
                 case NativeBattleEffect315Contact506690:
                     Publish(current);
                     var pending = graphics.PendingContacts;
-                    int header = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Effect315 requires its current action header.");
-                    int contact = nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect315 requires its current first contact.");
+                    BattleActionHeaderReference header = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Effect315 requires its current action header.");
+                    int contact = nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect315 requires its current first contact.");
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

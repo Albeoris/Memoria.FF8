@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeBattleEffect326Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect326 requires its current CRT stream."), memory.Effect326 ?? throw new NotSupportedException("Effect326 requires its retained storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect326 requires its addressed memory.") };
         int commonStart = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect326 requires its actual callback COMMON cursor.");
         frame = SynchronizeCursor(frame);
-        NativeBattleEffect326Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect326 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, NativeEffectIoResult ?? throw new NotSupportedException("Effect326 requires its current signed I/O result.")), _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect326 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect326 requires its current actor world matrix."), null), Center, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect326 requires its current vibration process.")).IsPlaying(handle), Execute)
+        NativeBattleEffect326Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect326 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, NativeEffectIoResult ?? throw new NotSupportedException("Effect326 requires its current signed I/O result.")), _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect326 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect326 requires its current actor world matrix."), null), Center, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect326 requires its current vibration process.")).IsPlaying(handle), Execute)
         {
             CapturePresentation = true,
             EntryLifecycle = graphics.EntryLifecycle,
@@ -57,14 +57,14 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena Center(NativeBattleEffect326Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect326 requires its actual selected target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect326 requires its actual selected target positions.")).ToArray());
             return retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
         }
 
         NativeBattleEffect326PointStep Point(NativeBattleEffect326Frame current, int actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect326 requires its actual actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
@@ -74,7 +74,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect326PointStep Anchor(NativeBattleEffect326Frame current, int actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect326 requires its current actor transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -148,11 +148,11 @@ public sealed partial class BattleSession
                     NativeStage = flagStage with { Groups = flagStage.Groups.Select(group => group with { Flags = (byte)((group.Flags & flags.AndMask) | flags.OrMask) }).ToImmutableArray() };
                     return current;
                 case NativeBattleEffect326ModelFlags flags:
-                    NativeBattleGraphicsModel model = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & flags.AndMask) | flags.OrMask) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect326ModelColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(color.Actor, graphics.Models[color.Actor] with { Color40 = color.Value }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(color.Actor, graphics.ActorModels.Get(color.Actor) with { Color40 = color.Value }) };
                     return current;
                 case NativeBattleEffect326PublishCameraPose camera:
                     NativeCamera = Camera().WriteEffectGlobals(camera.Pose) with { EyePaddingF6 = camera.EyePadding, TargetPaddingFE = camera.TargetPadding };
@@ -160,7 +160,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect326Contacts506BA0:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.HeaderIndex7C) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect326Flash5712C0 flash:
@@ -171,7 +171,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleEffect326WriteModelBytes write:
-                    graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, ApplyNativeEffect326ModelBytes(graphics.Models[write.Actor], write)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, ApplyNativeEffect326ModelBytes(graphics.ActorModels.Get(write.Actor), write)) };
                     return current;
                 case NativeBattleEffect326ActorAnimation505C00 animation:
                     graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)animation.Actor), animation.Animation);

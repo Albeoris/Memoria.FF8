@@ -10,4 +10,4 @@ public sealed record NativeBattleDevour62StageFade(short Value, bool ClearRgb) :
 public sealed record NativeBattleDevour62WriteActorFlags(int Actor, ushort Flags) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62FadeActors(short Value) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62DrawQuads(uint Address) : NativeBattleDevour62Operation;
-public sealed record NativeBattleDevour62Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDevour62Frame, NativeBattleDevour62Operation, NativeBattleDevour62Frame> Execute);
+public sealed record NativeBattleDevour62Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDevour62Frame, NativeBattleDevour62Operation, NativeBattleDevour62Frame> Execute);

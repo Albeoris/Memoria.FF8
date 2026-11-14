@@ -2,21 +2,21 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel112State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] NativeBattleDuel112Resources? Resources)
+public sealed record NativeBattleDuel112State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleDuel112Resources? Resources)
 {
-    public static NativeBattleDuel112State FromColdProcess() => new(false, null, null);
+    public static NativeBattleDuel112State FromColdProcess() => new(false, null);
 
     public void Validate()
     {
         if (GlobalsInitialized)
         {
-            if (Parameters is null || Parameters.Actor78 >= 7 || Resources is null)
+            if (Resources is null)
             {
-                throw new InvalidDataException("Native Duel requires its actual entered parameters and original resources.");
+                throw new InvalidDataException("Native Duel requires its original resources retained by its actual entry.");
             }
             Resources.Validate();
         }
-        else if (Parameters is not null || Resources is not null)
+        else if (Resources is not null)
         {
             throw new InvalidDataException("Native Duel cannot retain entered data before its actual native entry.");
         }

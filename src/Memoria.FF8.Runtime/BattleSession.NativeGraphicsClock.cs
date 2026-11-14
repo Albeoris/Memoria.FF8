@@ -149,10 +149,10 @@ public sealed partial class BattleSession
         NativeBattleEffectsStep effects = graphics.Effects.Advance(models, index => ProjectNativeDamageText(graphics, index), graphics.PresentationRoster);
         foreach (byte index in effects.ResetModelStatuses)
         {
-            graphics = ApplyNativeGraphicsStatus509CD0(graphics with { Models = models }, index, 16);
+            graphics = ApplyNativeGraphicsStatus509CD0(graphics with { ActorModels = models }, index, 16);
             models = graphics.Models;
         }
-        graphics = graphics with { Models = models, Effects = effects.State };
+        graphics = graphics with { ActorModels = models, Effects = effects.State };
         if (services is null)
         {
             graphics = FrameGuardianFormIdleCamera(graphics);
@@ -303,7 +303,7 @@ public sealed partial class BattleSession
             {
                 graphics = PublishNativeReadyContact(graphics, packet.Secondary);
             }
-            NativeBattleGraphicsModel primary = graphics.Models[packet.Primary.ActorIndex];
+            NativeBattleGraphicsModel primary = graphics.ActorModels.Get(packet.Primary.ActorIndex);
             BattleCombatant actor = GraphicsActor(graphics, packet.Primary.ActorIndex);
             NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(packet.Primary, primary, definition.NativeGraphics!.Rules, NativeBattleStatusBits(actor));
             graphics = ApplyNativeGraphicsContact(graphics, packet.Primary, plan);
@@ -311,7 +311,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleContactHalf half = packet.Secondary;
                 BattleCombatant secondaryActor = GraphicsActor(graphics, half.ActorIndex);
-                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.Models[half.ActorIndex], definition.NativeGraphics.Rules, NativeBattleStatusBits(secondaryActor), secondary: true);
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.ActorIndex), definition.NativeGraphics.Rules, NativeBattleStatusBits(secondaryActor), secondary: true);
                 graphics = ApplyNativeGraphicsContact(graphics, half, secondary);
             }
         }
@@ -353,13 +353,13 @@ public sealed partial class BattleSession
         {
             NativeBattleContactHalf primary = packet.Primary;
             uint rawStatus = services.Facts[primary.ActorIndex]!.RawBattleStatuses!.Value;
-            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.Models[primary.ActorIndex], rules, rawStatus);
+            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels.Get(primary.ActorIndex), rules, rawStatus);
             services.EmitContact(packet);
             graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
             if (plan.Loaded && packet.Secondary.ActorIndex != 255)
             {
                 NativeBattleContactHalf half = packet.Secondary;
-                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.Models[half.ActorIndex], rules, half.BattleStatuses8, secondary: true);
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.ActorIndex), rules, half.BattleStatuses8, secondary: true);
                 graphics = ApplyNativeGraphicsContact(graphics, half, secondary, services);
             }
             presentationContacts.Add(packet);
@@ -370,7 +370,7 @@ public sealed partial class BattleSession
     private static NativeBattleModelActorFacts RequireHostedContactActorFacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, int row)
     {
         if (graphics.PresentationRoster is not { } roster || !roster.ContainsRow(row) ||
-            (uint)row >= (uint)graphics.Models.Length || graphics.Models[row]?.Index != row ||
+            (uint)row >= (uint)graphics.Models.Length || graphics.ActorModels.Get(row)?.Index != row ||
             (uint)row >= (uint)graphics.ActorIds.Length || (uint)row >= (uint)services.Facts.Length ||
             services.Facts[row] is not { } facts || facts.ActorId != roster[row].ActorId || facts.ActorId != graphics.ActorIds[row] || facts.IsParty != roster[row].IsParty)
         {
@@ -406,7 +406,7 @@ public sealed partial class BattleSession
         }
         int index = half.ActorIndex;
         graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, plan.ImmediateStatusFlags!.Value);
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (plan.EjectionService7)
         {
             NativeBattleModuleResource resource = RequireNativeModuleResource(21);
@@ -419,12 +419,12 @@ public sealed partial class BattleSession
         }
         if (plan.SelectSequence)
         {
-            graphics = SelectNativeRingContactSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, index, plan.Sequence);
-            model = graphics.Models[index];
+            graphics = SelectNativeRingContactSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, index, plan.Sequence);
+            model = graphics.ActorModels.Get(index);
             if (model.ModelId4 < 16)
             {
-                graphics = RefreshNativeGuardianStandingSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, checked((byte)index));
-                model = graphics.Models[index];
+                graphics = RefreshNativeGuardianStandingSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, checked((byte)index));
+                model = graphics.ActorModels.Get(index);
             }
         }
         if (!plan.Secondary && (half.Flags2 & 0x30) != 0)
@@ -434,11 +434,11 @@ public sealed partial class BattleSession
         }
         if (!plan.Secondary && (graphics.Flags & 0x10) == 0 && (half.HitFlags3 & 8) != 0)
         {
-            graphics = ApplyNativeSequenceCover5065B0(graphics with { Models = graphics.Models.SetItem(index, model) }, half);
-            model = graphics.Models[index];
+            graphics = ApplyNativeSequenceCover5065B0(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, half);
+            model = graphics.ActorModels.Get(index);
         }
         NativeBattleEffectsState effects = NativeBattleContactEffects.ProduceTasks(graphics.Effects, half, plan, services is null ? null : graphics.PresentationRoster);
-        return graphics with { Models = graphics.Models.SetItem(index, model), Effects = effects };
+        return graphics with { ActorModels = graphics.ActorModels.Set(index, model), Effects = effects };
     }
 
     private NativeBattleModuleResource RequireNativeModuleResource(byte id)
@@ -483,16 +483,16 @@ public sealed partial class BattleSession
             }
             if ((removed & 2) != 0)
             {
-                ApplyNativeTextureMotion(graphics with { Models = graphics.Models.SetItem(model.Index, model) }, model.Index, 0, 0);
+                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) }, model.Index, 0, 0);
                 model = model with { Flags0 = (ushort)(model.Flags0 | 0x400) };
             }
             if ((added & 0x1000) != 0)
             {
-                ApplyNativeTextureMotion(graphics with { Models = graphics.Models.SetItem(model.Index, model) }, model.Index, 0, 1);
+                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) }, model.Index, 0, 1);
             }
             else if ((removed & 0x1000) != 0)
             {
-                ApplyNativeTextureMotion(graphics with { Models = graphics.Models.SetItem(model.Index, model) }, model.Index, 0, 0);
+                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) }, model.Index, 0, 0);
             }
         }
         return model with { Flags8 = flags, StatusTimers = timers };

@@ -8,11 +8,11 @@ public sealed partial class BattleSession
         {
             for (int index = 0; index < 3; index++)
             {
-                NativeBattleGraphicsModel model = graphics.Models[index];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 if ((model.Flags0 & 2) == 0)
                 {
                     model = model.WriteRetainedStatusMask(0x1000000, packet.Command == 108 ? 0x1000000u : 0);
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
                 }
                 else
                 {
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
             return graphics;
         }
         int target = RequireDescriptorModel(packet.Index);
-        NativeBattleGraphicsModel selected = graphics.Models[target];
+        NativeBattleGraphicsModel selected = graphics.ActorModels.Get(target);
         if (packet.Command == 111)
         {
             return SelectNativeHeaderSequence(graphics, checked((byte)target), packet.Value);
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState SetNativeDescriptorStatusAndStanding(NativeBattleGraphicsState graphics, int index, uint flags)
     {
         graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, flags);
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         byte identity = model.ModelId4 ?? throw new NotSupportedException("Native509C80 requires its retained model identity BYTE4.");
         return identity < 16 ? RefreshNativeGuardianStandingSequence(graphics, checked((byte)index)) : graphics;
     }

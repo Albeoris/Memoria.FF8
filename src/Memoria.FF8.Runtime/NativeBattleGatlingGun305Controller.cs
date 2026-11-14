@@ -17,7 +17,7 @@ public static partial class NativeBattleGatlingGun305Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int mainSlot) = children.Append(MainCallback);
         children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(12, 0));
-        NativeBattleGatlingGun305State state = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(CasterGlobal, Parameters(frame).Actor78).ClearSlotHeads();
+        NativeBattleGatlingGun305State state = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(CasterGlobal, Parameters(frame).Source).ClearSlotHeads();
         textures = textures.Register5099A0(resources.Camera);
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Gatling Gun requires its current resource arena."), tim);
         return frame with { State = state, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures } };

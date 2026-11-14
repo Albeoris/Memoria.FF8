@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         }
         effect = effect with { DrawArenaOffset = root.ReadDword(16) != 0 ? 0x26B8 : 0x126B8 };
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Storm Breath requires its actual first contact.");
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
@@ -82,8 +82,8 @@ public sealed partial class BattleSession
                     {
                         int ia = nativeActionPackets.ReadContact(firstContact + ordered[a]).Primary.ActorIndex;
                         int ib = nativeActionPackets.ReadContact(firstContact + ordered[b]).Primary.ActorIndex;
-                        short za = graphics.Models[ia].Transform!.Position28.X;
-                        short zb = graphics.Models[ib].Transform!.Position28.X;
+                        short za = graphics.ActorModels.Get(ia).Transform!.Position28.X;
+                        short zb = graphics.ActorModels.Get(ib).Transform!.Position28.X;
                         if (za < zb)
                         {
                             (ordered[a], ordered[b]) = (ordered[b], ordered[a]);
@@ -129,7 +129,7 @@ public sealed partial class BattleSession
         int Target(ref NativeBattleModulePoolTask task)
         {
             int frame = Word(task, 12);
-            int caster = effect.Parameters!.Actor78;
+            int caster = effect.Parameters!.Source;
             NativeBattleVector mouth = ReadNativeGraphicsBone(graphics, caster, 0x1D, 0x400);
             task = Store(task, 0x34, mouth);
             if (frame == 8)
@@ -188,7 +188,7 @@ public sealed partial class BattleSession
             }
             if ((uint)frame < 24)
             {
-                NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(-128, unchecked((short)(graphics.Models[caster].Rotation14!.Value + 2048)), 0)) with { X = mouth.X, Y = mouth.Y, Z = mouth.Z };
+                NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(-128, unchecked((short)(graphics.ActorModels.Get(caster).Rotation14!.Value + 2048)), 0)) with { X = mouth.X, Y = mouth.Y, Z = mouth.Z };
                 Play(ref task, resources.Mouth, 0x4A0, resources.MouthFlags, NativeBattleGfMatrices.Compose56C2F0(view, world), frame == 0);
                 Roll();
                 int angle = Roll();
@@ -262,7 +262,7 @@ public sealed partial class BattleSession
             }
             if ((uint)(frame - 20) < 45)
             {
-                NativeBattleActionMatrix yaw = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), graphics.Models[caster].Rotation14!.Value) with { X = mouth.X, Y = mouth.Y, Z = mouth.Z };
+                NativeBattleActionMatrix yaw = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), graphics.ActorModels.Get(caster).Rotation14!.Value) with { X = mouth.X, Y = mouth.Y, Z = mouth.Z };
                 int angle = Roll();
                 for (int birth = 0; birth < 2; birth++)
                 {
@@ -421,7 +421,7 @@ public sealed partial class BattleSession
         {
             var data = VertexInputs(actor);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-            ImmutableArray<NativeBattleActionMatrix> body = NativeBattlePoseMatrices.ModelGroupMatrices50F190(graphics.Models[actor], data.Source, identity);
+            ImmutableArray<NativeBattleActionMatrix> body = NativeBattlePoseMatrices.ModelGroupMatrices50F190(graphics.ActorModels.Get(actor), data.Source, identity);
             if (NativeBattleStorm11Vertices.Find6CE880(data.Body, data.Mask, body, ref vertex, out NativeBattleVector point))
             {
                 return point;
@@ -430,7 +430,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native Storm Breath vertex selection exhausted its actual model groups.");
             }
-            ImmutableArray<NativeBattleActionMatrix> linked = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(graphics.Models[actor], data.LinkedSource!, identity);
+            ImmutableArray<NativeBattleActionMatrix> linked = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(graphics.ActorModels.Get(actor), data.LinkedSource!, identity);
             if (!NativeBattleStorm11Vertices.Find6CE880(data.Linked, uint.MaxValue, linked, ref vertex, out point))
             {
                 throw new InvalidDataException("Native Storm Breath vertex selection exhausted its actual linked model groups.");
@@ -449,7 +449,7 @@ public sealed partial class BattleSession
                 body = body.SetItem(1, linked.Single());
                 linked = [];
             }
-            return (body, linked, graphics.Models[actor].SequenceState!.MeshMask124, source, resource.LinkedPoseSource);
+            return (body, linked, graphics.ActorModels.Get(actor).SequenceState!.MeshMask124, source, resource.LinkedPoseSource);
         }
         bool Allocate(int bank, uint callback, out int slot)
         {

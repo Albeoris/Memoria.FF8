@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         }
         NativeBattleCameraPose pose = camera.CurrentPose!;
         NativeBattleCameraProjection projection = camera.Projection!;
-        NativeBattleGraphicsModel model = graphics.Models[presentation.ActorIndex];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(presentation.ActorIndex);
         if ((model.Flags0 & 6) != 2 || (model.Flags2!.Value & 0x84) != 0)
         {
             return graphics;

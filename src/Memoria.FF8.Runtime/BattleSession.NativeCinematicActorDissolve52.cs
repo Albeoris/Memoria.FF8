@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native actor dissolve requires its actual physical actor directory.");
         }
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native actor dissolve requires its current body rig.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native actor dissolve requires its physical CPU resources.");
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
             }
             Put32(allocatedState + 4, unchecked(payload + (uint)(int)SignedWord(payload)));
             actor = actor with { Flags0 = (ushort)(actor.Flags0 | 4) };
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
         }
         else if (Dword(clone + 0xC) != actorAddress)
         {
@@ -104,7 +104,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix basis = world with { X = 0, Y = translationY, Z = 0 };
         StoreTemporaryMatrix(0xE0, basis);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, pose);
         Put32(clone + 0x44, projectedWork);
         NativeBattleActionMatrix view = MonsterNodeMatrix(frame);
@@ -195,11 +195,11 @@ public sealed partial class BattleSession
             frame = WriteCoreDword(frame, manager + 0x7C, output);
         }
         // B67040 uses the shared current rig and restores that same skeleton through its descriptor.
-        actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actorIndex], pose);
+        actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actorIndex), pose);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
         frame = DrawDissolveRing(frame);
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actorIndex], pose)) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actorIndex), pose)) };
         return (frame, graphics);
 
         NativeBattleWaterExecutionFrame DrawDissolveRing(NativeBattleWaterExecutionFrame current)
@@ -227,8 +227,8 @@ public sealed partial class BattleSession
                 return appended.Frame;
             });
             services = services with { PilotIdentity = visualIdentity };
-            ImmutableArray<NativeBattleActionMatrix> currentBones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actorIndex], pose);
-            return NativeBattleCinematicBrothersModel3.DrawPreparedRing(current, currentBones.Length, currentBones[0].X, currentBones[0].Z, (_, bone) => NativeBattleBodyBoneMatrices.Require(graphics.Models[actorIndex], pose)[bone], (_, bone) => BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(0x12 + bone * 48, 2)), new(0, 0, 0), -1, 0, unchecked((short)SlotWord(current, 0x8C)), NativeBattleCameraMath.Sine(512), null, services);
+            ImmutableArray<NativeBattleActionMatrix> currentBones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actorIndex), pose);
+            return NativeBattleCinematicBrothersModel3.DrawPreparedRing(current, currentBones.Length, currentBones[0].X, currentBones[0].Z, (_, bone) => NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actorIndex), pose)[bone], (_, bone) => BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(0x12 + bone * 48, 2)), new(0, 0, 0), -1, 0, unchecked((short)SlotWord(current, 0x8C)), NativeBattleCameraMath.Sine(512), null, services);
         }
 
         void RefreshClone()

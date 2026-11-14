@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDrain39ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleDrain39ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
@@ -27,7 +27,7 @@ public static class NativeBattleDrain39Controller
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.RootCallback, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native8513D0 requires its header's actual contact pointer.");
         byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
         byte targets = header.ReadContactCount();
@@ -208,8 +208,8 @@ public static class NativeBattleDrain39Controller
                 case 2:
                     if (unchecked((short)task.ReadWord(0x24)) >= 30)
                     {
-                        int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native8567E0 requires its selected group's contact pointer.");
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8567E0 requires its selected group's contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                         if (inputs.ApplyContact is { } applyContact)
                         {

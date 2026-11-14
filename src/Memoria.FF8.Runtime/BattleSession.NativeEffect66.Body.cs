@@ -10,9 +10,9 @@ public sealed partial class BattleSession
         int actor = checked((int)frame.State.ReadDword(CasterGlobal));
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect66 body requires its current temporary memory.");
         NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect66 body requires its current physical skeleton.");
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect66 body requires its current world matrix."));
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect66 body requires its actual ordinary vertex capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleEffectArena temporary = NativeDeformedBodyView(frame.Staging, temporaryAddress, 176);
@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(model, pose, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
         NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
-        return (graphics with { Models = graphics.Models.SetItem(actor, restored.Model) }, frame);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) }, frame);
 
     }
 }

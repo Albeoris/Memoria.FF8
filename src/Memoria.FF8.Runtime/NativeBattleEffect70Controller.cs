@@ -15,7 +15,7 @@ public static partial class NativeBattleEffect70Controller
             throw new InvalidDataException("Effect70 requires its previous physical task banks to be released.");
         }
         int offset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect70 requires its executed current TIM initializer.");
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)offset)).WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, PhysicalModelAddress(Parameters(frame).Actor78)) };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)offset)).WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, PhysicalModelAddress(Parameters(frame).Source)) };
         frame = inputs.Execute(frame, new NativeBattleEffect70UploadTim(frame.State.ReadDword(InitializerGlobal)));
         NativeBattleCureFamilyPool shape = Pools[0];
         NativeBattleEffectTaskPool root = PreparePool(shape, frame.State.ReadRootBank());

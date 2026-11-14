@@ -64,7 +64,7 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattleDoomtrain191Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public sealed record NativeBattleDoomtrain191LeafStep(NativeBattleDoomtrain191Frame Frame, int Result);
-public sealed record NativeBattleDoomtrain191Inputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<BattleModelTargets, NativeBattleVector> ReadCentroid, Func<NativeBattlePackedMatrix32> ReadCameraMatrix, Func<NativeBattleCameraPose> ReadCameraPose, Func<uint> ReadGraphicsFlags, Func<int> PollFile, Func<NativeBattleDoomtrain191Frame, NativeBattleDoomtrain191Operation, NativeBattleDoomtrain191Frame> Execute, Func<NativeBattleDoomtrain191Frame, int, NativeBattleDoomtrain191LeafStep> AdvanceLeaf);
+public sealed record NativeBattleDoomtrain191Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelTargets, NativeBattleVector> ReadCentroid, Func<NativeBattlePackedMatrix32> ReadCameraMatrix, Func<NativeBattleCameraPose> ReadCameraPose, Func<uint> ReadGraphicsFlags, Func<int> PollFile, Func<NativeBattleDoomtrain191Frame, NativeBattleDoomtrain191Operation, NativeBattleDoomtrain191Frame> Execute, Func<NativeBattleDoomtrain191Frame, int, NativeBattleDoomtrain191LeafStep> AdvanceLeaf);
 
 public abstract record NativeBattleDoomtrain191Operation;
 public sealed record NativeBattleDoomtrain191Invoke(uint Address) : NativeBattleDoomtrain191Operation;

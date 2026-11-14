@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual process memory.");
         NativeBattleEnemyMicroMissiles284Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual CRT stream."), memory.EnemyMicroMissiles284 ?? throw new NotSupportedException("Enemy Micro Missiles requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Enemy Micro Missiles requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Enemy Micro Missiles requires its original arithmetic constants.");
-        NativeBattleEnemyMicroMissiles284Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
+        NativeBattleEnemyMicroMissiles284Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEnemyMicroMissiles284Controller.Initialize(frame, resources, inputs) : NativeBattleEnemyMicroMissiles284Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Enemy Micro Missiles requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Enemy Micro Missiles requires its current projection.");
         NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual current skeleton.");
-        NativeBattleActionMatrix World(uint pointer) => graphics.Models[Actor(pointer)].GeometryWorldMatrix ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual published model world matrix.");
+        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual published model world matrix.");
 
         int Actor(uint pointer)
         {
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
 
         NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEnemyMicroMissiles284Frame current, uint pointer, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
             if ((uint)bone >= matrices.Length)
             {

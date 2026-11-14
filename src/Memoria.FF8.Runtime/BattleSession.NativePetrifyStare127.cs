@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattlePetrifyStare127Resources resources = effect.Binding.PetrifyStare127Resources ?? throw new NotSupportedException("Petrify Stare requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Petrify Stare requires its actual process memory.");
         NativeBattlePetrifyStare127Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Petrify Stare requires its CRT stream."), memory.PetrifyStare127 ?? throw new NotSupportedException("Petrify Stare requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Petrify Stare requires its current addressed memory.") };
-        NativeBattlePetrifyStare127Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], Bone, Anchor, Execute);
+        NativeBattlePetrifyStare127Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), Bone, Anchor, Execute);
         frame = initialize ? NativeBattlePetrifyStare127Controller.Initialize(frame, resources, inputs) : NativeBattlePetrifyStare127Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         NativeBattlePetrifyStare127PointStep Bone(NativeBattlePetrifyStare127Frame current, int actor)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Petrify Stare requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, 0xF0, 0);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, 0xF0, 0);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Petrify Stare bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
 
         NativeBattlePetrifyStare127AnchorStep Anchor(NativeBattlePetrifyStare127Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Petrify Stare requires its current actor skeleton.");

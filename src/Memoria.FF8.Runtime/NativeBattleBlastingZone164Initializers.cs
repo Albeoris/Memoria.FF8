@@ -37,7 +37,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 break;
             case 0x5F1E00:
                 int glow = AtRetained(0x5F1E70);
-                Set(glow, 22, (2000 * inputs.ReadScale38(frame.Parameters.Actor78)) >> 12);
+                Set(glow, 22, (2000 * inputs.ReadScale38(frame.Parameters.Source)) >> 12);
                 Set(glow, 30, 128);
                 Set(glow, 28, 128);
                 break;

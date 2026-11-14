@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             return graphics with { OriginalEffect = frame.Effect };
         }
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect20 requires its current camera.");
-        NativeBattleEffect20Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], PoseSource, Execute, AdvanceOverlay);
+        NativeBattleEffect20Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), PoseSource, Execute, AdvanceOverlay);
         frame = NativeBattleEffect20Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
         {
@@ -63,9 +63,9 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = fade.Value }).ToImmutableArray() };
                     return current;
                 case NativeBattleEffect20ClearActorFlags124Bit2 clear:
-                    NativeBattleGraphicsModel actor = graphics.Models[clear.Actor];
+                    NativeBattleGraphicsModel actor = graphics.ActorModels.Get(clear.Actor);
                     NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Effect20 requires its current actor flags.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(clear.Actor, actor with { SequenceState = sequence with { MeshMask124 = sequence.MeshMask124 & ~2u } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(clear.Actor, actor with { SequenceState = sequence with { MeshMask124 = sequence.MeshMask124 & ~2u } }) };
                     return current;
                 case NativeBattleEffect20VibrationEnqueue vibration:
                     NativeVibrationEnqueue queued = (NativeVibrationProcess ?? throw new NotSupportedException("Effect20 requires its retained vibration process.")).Enqueue(resources.Vibration.Bank, 1, 128);

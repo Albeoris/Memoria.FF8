@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleStageExtendedState extended = stage.Extended ?? throw new NotSupportedException("Native518A80 requires its retained process state.");
         foreach (int index in ReadStageContactEnemyRows(graphics, services))
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;

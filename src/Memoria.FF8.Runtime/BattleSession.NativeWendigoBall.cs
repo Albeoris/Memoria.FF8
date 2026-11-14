@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native ball renderer disagrees with its physical actor slot.");
         }
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native ball renderer requires its original body rig.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native ball renderer requires its published camera.");
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             Draw(linked, NativeBattlePoseMatrices.StageBoneMatrices(linkedPose, decoded), true, resource.GeometryRelocated507550);
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, pose);
-        return (graphics with { Models = graphics.Models.SetItem(index, actor), PrimitiveFrame = frame }, module);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(index, actor), PrimitiveFrame = frame }, module);
 
         void Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> matrices, bool linkedGeometry, bool alreadyRelocated)
         {

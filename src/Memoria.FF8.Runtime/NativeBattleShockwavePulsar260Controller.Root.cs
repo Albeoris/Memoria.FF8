@@ -10,14 +10,14 @@ public static partial class NativeBattleShockwavePulsar260Controller
         RootRequireBinding(frame);
         resources.Validate();
         NativeBattleEffectParameters parameters = RootParameters(frame);
-        _ = RootModelAddress(parameters.Actor78);
+        _ = RootModelAddress(parameters.Source);
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Shockwave Pulsar requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Shockwave Pulsar requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(Arena(frame), tim);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (roots, int slot) = roots.Append(RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(0xC, 0));
-        NativeBattleShockwavePulsar260State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, RootModelAddress(parameters.Actor78));
+        NativeBattleShockwavePulsar260State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, RootModelAddress(parameters.Source));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -134,11 +134,11 @@ public static partial class NativeBattleShockwavePulsar260Controller
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260BindCaster(caster, mainAddress + 0x178, 0x111B3CC));
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260RingSequence(caster, 1));
         NativeBattleEffectParameters parameters = RootParameters(frame);
-        if ((uint)parameters.HeaderIndex7C >= inputs.Packets.Headers.Length)
+        if ((uint)parameters.Header >= inputs.Packets.Headers.Length)
         {
             throw new InvalidDataException("Shockwave Pulsar requires its selected physical action header.");
         }
-        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         inputs.SceneContext.Validate();
         int count = inputs.SceneContext.TargetBoundsMode == NativeBattleTargetBoundsMode.FirstContact ? 1 : header.ReadContactCount();
         frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteWord(0xE, (ushort)count));

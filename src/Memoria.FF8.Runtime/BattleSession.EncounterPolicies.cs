@@ -309,7 +309,7 @@ public sealed partial class BattleSession
         {
             NativeGraphics = graphics;
             List<EncounterArrivalTrack> tracks = [];
-            NativeBattleModelTransform original = graphics.Models[GetActor(batch.SourceActorId).EncodeNativeSlot()].Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
+            NativeBattleModelTransform original = graphics.ActorModels.Get(GetActor(batch.SourceActorId).EncodeNativeSlot()).Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
             for (int index = 0; index < batch.ActorIds.Length; index++)
             {
                 EncounterCompiledSpawn spawn = summon.Spawns[index];
@@ -321,9 +321,9 @@ public sealed partial class BattleSession
                 {
                     return new(checked((short)(value.X + (int)MathF.Round(placement.X))), checked((short)(value.Y + (int)MathF.Round(placement.Y))), checked((short)(value.Z + (int)MathF.Round(placement.Z))));
                 }
-                NativeBattleGraphicsModel model = graphics.Models[physical];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(physical);
                 NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Encounter arrival requires the copy's initialized native transform.");
-                graphics = graphics with { Models = graphics.Models.SetItem(physical, model with { Transform = transform with { Initial20 = Offset(original.Initial20), Position28 = Offset(original.Position28) } }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(physical, model with { Transform = transform with { Initial20 = Offset(original.Initial20), Position28 = Offset(original.Position28) } }) };
                 tracks.Add(new(batch.ActorIds[index], byte.Parse(presentation.Clip, System.Globalization.CultureInfo.InvariantCulture), checked((byte)presentation.StartFrame), checked((byte)presentation.EndFrame), graphics.Callback, OpacityFrom: (float)presentation.OpacityFrom, OpacityTo: (float)presentation.OpacityTo));
             }
             NativeGraphics = graphics;
@@ -371,8 +371,8 @@ public sealed partial class BattleSession
             actor.Atb = 0;
             if (NativeGraphics is { } graphics && actor.EncodeNativeSlot() is >= 0 and < 7)
             {
-                NativeBattleGraphicsModel model = graphics.Models[actor.EncodeNativeSlot()];
-                NativeGraphics = graphics with { Models = graphics.Models.SetItem(actor.EncodeNativeSlot(), model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor.EncodeNativeSlot());
+                NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.EncodeNativeSlot(), model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
             }
         }
         RemoveEncounterQueuedActions(retiring);

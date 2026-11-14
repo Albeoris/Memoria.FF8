@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274MoveInputs(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, short, NativeBattleVector> ReadBone502170, Func<int, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
+public sealed record NativeBattleDuel274MoveInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, short, NativeBattleVector> ReadBone502170, Func<int, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
 
 public static partial class NativeBattleDuel274BasicMoves
 {
@@ -323,7 +323,7 @@ public static partial class NativeBattleDuel274BasicMoves
     }
 
     private static NativeBattleActionMatrix Yaw(short angle, int x, int y, int z) => NativeBattleGfMatrices.Euler701310(new(0, angle, 0)) with { X = x, Y = y, Z = z };
-    private static int Actor(NativeBattleDuel274Frame frame) => (frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel move requires actual actor parameters.")).Actor78;
+    private static int Actor(NativeBattleDuel274Frame frame) => (frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel move requires actual actor parameters.")).Source;
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static uint Cursor(NativeBattleDuel274Frame frame) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x2508434, 4));
     private static NativeBattleDuel274Frame SetCursor(NativeBattleDuel274Frame frame, uint cursor) => frame with { Staging = frame.Staging.Write(0x2508434, BitConverter.GetBytes(cursor)) };

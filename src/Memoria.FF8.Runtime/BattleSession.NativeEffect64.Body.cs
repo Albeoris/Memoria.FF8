@@ -25,9 +25,9 @@ public sealed partial class BattleSession
         NativeBattlePoseSource pose = PoseNativeEffect64(graphics, frame, pointer);
         NativeBattleEffectArena offsets = NativeBattleEffect64Controller.ReadBytes(frame, offsetAddress, checked(pose.BoneCount * 16));
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 96);
-        NativeBattleEffect298PosePreparation prepared = NativeBattleEffect298Pose.Prepare662C00(graphics.Models[actor], pose, offsets, NativeDeformedBodyView(allocation.Staging, allocation.Address, 96));
+        NativeBattleEffect298PosePreparation prepared = NativeBattleEffect298Pose.Prepare662C00(graphics.ActorModels.Get(actor), pose, offsets, NativeDeformedBodyView(allocation.Staging, allocation.Address, 96));
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary96, 96);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
         return (graphics, frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 96) });
     }
 
@@ -36,9 +36,9 @@ public sealed partial class BattleSession
         int actor = ActorNativeEffect64(pointer, graphics);
         NativeBattlePoseSource pose = PoseNativeEffect64(graphics, frame, pointer);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 88);
-        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actor], pose, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
+        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), pose, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
         return (graphics, frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) });
     }
 
@@ -53,12 +53,12 @@ public sealed partial class BattleSession
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 152);
         NativeBattleEffectArena temporary = NativeDeformedBodyView(allocation.Staging, allocation.Address, 152);
         frame = frame with { Staging = allocation.Staging };
-        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(frame.Staging!, new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect64 shadow requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect64 shadow requires its current arithmetic registers.")), graphics.Models[actor], projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect64 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect64 requires its original shadow template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect64 requires its primitive capabilities."), 4112, 16, identity with { Primitive = -1, ResourceGeneration = graphics.Models[actor].ModelId4 ?? throw new NotSupportedException("Effect64 shadow requires its selected resource.") });
+        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(frame.Staging!, new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect64 shadow requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect64 shadow requires its current arithmetic registers.")), graphics.ActorModels.Get(actor), projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect64 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect64 requires its original shadow template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect64 requires its primitive capabilities."), 4112, 16, identity with { Primitive = -1, ResourceGeneration = graphics.ActorModels.Get(actor).ModelId4 ?? throw new NotSupportedException("Effect64 shadow requires its selected resource.") });
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
         frame = deliver(frame, shadow.Batch, 0x1D8E054, 0);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 0x78) };
         (graphics, frame) = ApplyNativeEffect64Pose(graphics, frame, pointer, offsetAddress);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleBodyBoneMatrices bones = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect64 requires its just-published current offset pose.");
         bones.Validate();
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect64 requires its actual current world matrix.");
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
             composed.Add(NativeBattleGfMatrices.Compose56C2F0(view, matrix));
         }
         model = model with { CurrentBodyBoneMatrices = bones with { Matrices = composed.MoveToImmutable() } };
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect64 requires its loaded projection capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         temporary = temporary.Write(4, BitConverter.GetBytes(scratchAddress)).Write(0x4C, BitConverter.GetBytes(offsetAddress)).Write(0xC, new byte[4]).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216));
@@ -95,7 +95,7 @@ public sealed partial class BattleSession
         int actor = ActorNativeEffect64(pointer, graphics);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect64 geometry cleanup requires its temporary memory."), 8);
         frame = frame with { Staging = allocation.Staging };
-        NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging!, NativeBattleEffectArena.Clear(), allocation.Address);
+        NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), allocation.Address);
         NativeBattleResourcePointer source = NativeDeformedGeometryPointer(bridge, false);
         NativeBattleModelResourceEditor? editor = source.Cpu is { IsOwnedResource: true } ? new(NativeModelCpuResources ?? throw new NotSupportedException("Effect64 cleanup lost its CPU owner."), frame.Staging!, source) : null;
         NativeBattleModelGeometrySource geometrySource = editor?.Geometry ?? NativeBattleModelGeometrySource.OpenShared(source, (offset, length) => ReadNativeDeformedGeometry(bridge with { Memory = frame.Memory, Staging = frame.Staging! }, source, offset, length));

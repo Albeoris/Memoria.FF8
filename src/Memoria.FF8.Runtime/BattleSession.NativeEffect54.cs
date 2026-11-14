@@ -21,7 +21,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena ReadModel(uint address)
         {
-            NativeBattleGraphicsModel model = graphics.Models[NativeEffect54Actor(graphics, address)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect54Actor(graphics, address));
             NativeBattleEffectArena bytes = CaptureNativeEffect210Model(model);
             if (model.GeometryBounds52 is { } bounds)
             {
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         NativeBattleEffect54PointStep Point(NativeBattleEffect54Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect54Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : Pose(actor);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
             current = Observe(current, producer);
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect54Controller.Read(current, bounds.TaskAddress);
                     int boundsActor = boundsTask.ReadByte(0x2D);
                     NativeBattlePoseSource poseSource = Pose(boundsActor);
-                    NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[boundsActor].SequenceState ?? throw new NotSupportedException("Effect54 requires its current target pose."), poseSource);
+                    NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(boundsActor).SequenceState ?? throw new NotSupportedException("Effect54 requires its current target pose."), poseSource);
                     return NativeBattleEffect54Controller.Write(current, bounds.TaskAddress, NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, poseSource, decoded));
                 case NativeBattleEffect54UploadTim505E30 upload:
                     NativeBattleEffectHeapAllocation tim = new(resources.MainTim.Name, NativeBattleEffect54Controller.ReadBytes(current, upload.Source, resources.MainTim.Data.Length).Read(0, resources.MainTim.Data.Length).ToImmutableArray());

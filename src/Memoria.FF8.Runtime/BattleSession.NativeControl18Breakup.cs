@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native breakup drawing requires its actual physical actor directory.");
         }
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native breakup drawing requires its current body rig.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native breakup drawing requires its physical CPU resources.");
@@ -220,7 +220,7 @@ public sealed partial class BattleSession
         byte[] rawBasis = frame.ReadTemporary(0xE0, 32);
         NativeBattleActionMatrix bodyBasis = new(Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(rawBasis.AsSpan(index * 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(rawBasis.AsSpan(20)), BinaryPrimitives.ReadInt32LittleEndian(rawBasis.AsSpan(24)), BinaryPrimitives.ReadInt32LittleEndian(rawBasis.AsSpan(28)), 4096);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, bodyBasis);
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
         Put32(clone + 0x44, CoreDword(frame, manager + 0x74));
         int highestLife = Enumerable.Range(0, recordBytes.Length / 68).Where(index => NativeBattleControl18ResourceRecords.Active(recordBytes, index * 68, recordPointers)).Select(index => (int)unchecked((sbyte)recordBytes[index * 68 + 0x2E])).DefaultIfEmpty(0).Max();
         DrawBody();

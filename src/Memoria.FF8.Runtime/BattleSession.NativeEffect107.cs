@@ -53,7 +53,7 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521B98, Effect107Arena, 664, 3), NativeBattleEffectTaskPool.Initialize(0x2521B78, Effect107Arena + 0x7C8, 28, 64), NativeBattleEffectTaskPool.Initialize(0x2521B88, Effect107Arena + 0xEC8, 32, 64), NativeBattleEffectTaskPool.Initialize(0x2521B68, Effect107Arena + 0x16C8, 28, 64)];
             }
             int sequence = root.ReadByte(14);
-            if (sequence <= nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(17))
+            if (sequence <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
             {
                 NativeBattleActionHeaderSlot header = Effect107Header(sequence);
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native6D13B0 requires its physical contact pointer.");
@@ -120,12 +120,12 @@ public sealed partial class BattleSession
 
         NativeBattleActionHeaderSlot Effect107Header(int sequence)
         {
-            int index = effect.Parameters!.HeaderIndex7C + sequence;
+            BattleActionHeaderReference index = effect.Parameters!.Header.Advance(sequence);
             if ((uint)index >= NativeBattleActionPacketsState.HeaderCapacity)
             {
                 throw new InvalidDataException("Native6D13B0 sequence leaves its physical header bank.");
             }
-            return nativeActionPackets.Headers[index];
+            return nativeActionPackets.ReadHeader(index);
         }
 
         int AdvanceTarget(int targetIndex, ref NativeBattleModulePoolTask task)
@@ -219,13 +219,13 @@ public sealed partial class BattleSession
             void Visibility(bool hidden)
             {
                 int linked = model;
-                NativeBattleGraphicsModel first = graphics.Models[linked];
-                graphics = graphics with { Models = graphics.Models.SetItem(linked, first with { Flags0 = hidden ? (ushort)(first.Flags0 | 4) : (ushort)(first.Flags0 & ~4) }) };
+                NativeBattleGraphicsModel first = graphics.ActorModels.Get(linked);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, first with { Flags0 = hidden ? (ushort)(first.Flags0 | 4) : (ushort)(first.Flags0 & ~4) }) };
                 HashSet<int> seen = [];
                 while (seen.Add(linked))
                 {
-                    NativeBattleGraphicsModel current = graphics.Models[linked];
-                    graphics = graphics with { Models = graphics.Models.SetItem(linked, current with { Flags0 = hidden ? (ushort)(current.Flags0 | 8) : (ushort)(current.Flags0 & ~8) }) };
+                    NativeBattleGraphicsModel current = graphics.ActorModels.Get(linked);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, current with { Flags0 = hidden ? (ushort)(current.Flags0 | 8) : (ushort)(current.Flags0 & ~8) }) };
                     int? next = current.ReadLinkedModelIndex140();
                     if (next is not int child)
                     {

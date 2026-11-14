@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleMeltEye158PointStep Bone(NativeBattleMeltEye158Frame current, int actor, byte selector, short distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current, point);
@@ -54,13 +54,13 @@ public sealed partial class BattleSession
 
         NativeBattleMeltEye158PointStep TargetCenter(NativeBattleMeltEye158Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Melt-Eye requires each selected physical target position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Melt-Eye requires each selected physical target position.")).ToArray());
             return new(current, center);
         }
 
         NativeBattlePackedMatrix32 World(NativeBattleMeltEye158Frame current, int actor)
         {
-            return NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Melt-Eye requires its actual retained caster world matrix."), null);
+            return NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Melt-Eye requires its actual retained caster world matrix."), null);
         }
 
         NativeBattleMeltEye158Frame Deliver(NativeBattleMeltEye158Frame current, NativeBattleGfGeometryBatch batch)

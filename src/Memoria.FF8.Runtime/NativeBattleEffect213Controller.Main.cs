@@ -159,7 +159,7 @@ public static partial class NativeBattleEffect213Controller
             if (fraction >= 4096)
             {
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect213 requires its actual contact header.");
-                int first = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect213 requires its actual contact pointer.");
+                int first = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect213 requires its actual contact pointer.");
                 frame = inputs.Execute(frame, new NativeBattleEffect213Contact506690(first + task.ReadByte(0x1C + current)));
                 if (current != next)
                 {

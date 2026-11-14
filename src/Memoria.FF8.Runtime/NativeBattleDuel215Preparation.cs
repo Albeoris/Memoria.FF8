@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel215PreparationServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, Func<NativeBattleDuel215Frame, int, uint, NativeBattleDuel215Frame> BindActor5022C0, Func<NativeBattleDuel215Frame, int, byte, NativeBattleDuel215Frame> SelectSequence505C00);
+public sealed record NativeBattleDuel215PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, Func<NativeBattleDuel215Frame, int, uint, NativeBattleDuel215Frame> BindActor5022C0, Func<NativeBattleDuel215Frame, int, byte, NativeBattleDuel215Frame> SelectSequence505C00);
 
 public static class NativeBattleDuel215Preparation
 {
@@ -20,7 +20,7 @@ public static class NativeBattleDuel215Preparation
             }
             Restore(target, offset + 4, offset + 12, false);
         }
-        int actor = frame.Memory.Duel215?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Duel215 restoration requires its entered actor.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel215 restoration requires its entered actor.");
         frame = services.SelectSequence505C00(frame, actor, 2);
         pool = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleDuel215Controller.Scene);
         task = pool.Slots[0];
@@ -48,7 +48,7 @@ public static class NativeBattleDuel215Preparation
 
     public static NativeBattleDuel215Frame Initialize69AC00(NativeBattleDuel215Frame frame, int slot, NativeBattleDuel215PreparationServices services)
     {
-        NativeBattleEffectParameters parameters = frame.Memory.Duel215?.Parameters ?? throw new NotSupportedException("Native Duel215 preparation requires its entered parameters.");
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel215 preparation requires its entered parameters.");
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleDuel215Controller.Scene);
         NativeBattleModulePoolTask task = pool.Slots[slot];
         if (task.Callback != 0x69B070 || services.Targets.IsDefault || services.Targets.Length > 10 || services.Targets.Any(index => index >= 7))
@@ -76,7 +76,7 @@ public static class NativeBattleDuel215Preparation
             maxZ = Math.Max(maxZ, anchor.Z);
             bounds[index] = new(transform.Position28.X, localBounds.Minimum.X, localBounds.Maximum.X, localBounds.Maximum.Y);
         }
-        int actor = parameters.Actor78;
+        BattleModelOwner actor = parameters.Source;
         NativeBattleGraphicsModel caster = services.ReadModel(actor);
         NativeBattleModelTransform casterTransform = caster.Transform ?? throw new NotSupportedException("Native Duel215 preparation requires the caster's raw position WORDs.");
         short center = unchecked((short)((minX + maxX) / 2));

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Snipe Laser requires its actual process memory.");
         NativeBattleSnipeLaser302Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Snipe Laser requires its actual CRT stream."), memory.SnipeLaser302 ?? throw new NotSupportedException("Snipe Laser requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Snipe Laser requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Snipe Laser requires its original arithmetic constants.");
-        NativeBattleSnipeLaser302Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute) { CapturePresentation = true };
+        NativeBattleSnipeLaser302Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleSnipeLaser302Controller.Initialize(frame, resources, inputs) : NativeBattleSnipeLaser302Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Snipe Laser requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Snipe Laser requires its current projection.");
         NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Snipe Laser requires its actual current skeleton.");
-        NativeBattleActionMatrix World(uint pointer) => graphics.Models[Actor(pointer)].GeometryWorldMatrix ?? throw new NotSupportedException("Snipe Laser requires its actual published model world matrix.");
+        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Snipe Laser requires its actual published model world matrix.");
 
         int Actor(uint pointer)
         {
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
         NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleSnipeLaser302Frame current, uint pointer, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
             if ((uint)bone >= matrices.Length)
             {
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
 
         NativeBattleSnipeLaser302PointStep ReadBone502170(NativeBattleSnipeLaser302Frame current, uint pointer, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Snipe Laser bone query requires its actual transform.")).Position28));
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
 
         NativeBattleSnipeLaser302PointStep Anchor571400(NativeBattleSnipeLaser302Frame current, uint pointer)
         {
-            NativeBattleGraphicsModel model = graphics.Models[Actor(pointer)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Snipe Laser anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {

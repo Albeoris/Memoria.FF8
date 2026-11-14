@@ -9,7 +9,7 @@ public sealed record NativeBattleBlizzaraMainDraw(NativeBattleModulePoolTask Tas
 public sealed record NativeBattleBlizzaraDraw(NativeBattleModulePoolTask Task) : NativeBattleBlizzaraOperation;
 public sealed record NativeBattleBlizzaraContact(int Contact) : NativeBattleBlizzaraOperation;
 public sealed record NativeBattleBlizzaraSound(NativeBattleModuleAnchor Position) : NativeBattleBlizzaraOperation;
-public sealed record NativeBattleBlizzaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleBlizzaraFrame, NativeBattleBlizzaraOperation, NativeBattleBlizzaraFrame> Execute);
+public sealed record NativeBattleBlizzaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleBlizzaraFrame, NativeBattleBlizzaraOperation, NativeBattleBlizzaraFrame> Execute);
 
 /// <summary>Blizzara's retained root, five ordered arena banks and task-owned child lifecycles.</summary>
 public static class NativeBattleBlizzaraController
@@ -29,8 +29,8 @@ public static class NativeBattleBlizzaraController
         {
             throw new InvalidDataException("Native Blizzara requires its original6DA300 entry and actual action parameters.");
         }
-        int first = effect.Parameters.HeaderIndex7C;
-        int last = packets.Headers[first].ReadByte(17);
+        BattleActionHeaderReference first = effect.Parameters.Header;
+        int last = packets.ReadHeader(first).ReadByte(17);
         if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Blizzara owns exactly three header-indexed mesh pairs.");
@@ -347,7 +347,7 @@ public static class NativeBattleBlizzaraController
         }
 
         NativeBattleEffectTaskPool? Pool(uint descriptor) => frame.Effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == descriptor);
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[parameters.HeaderIndex7C + sequence];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
         int Rand()
         {
             NativeCrtRandomState random = frame.Random.Draw(out ushort value);

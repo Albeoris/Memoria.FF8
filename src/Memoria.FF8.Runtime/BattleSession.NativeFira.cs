@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleFiraPosition ReadPosition(int model)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, model);
-            NativeBattleModelTransform transform = graphics.Models[model].Transform ?? throw new NotSupportedException("Native571400 requires its actual graphics transform row.");
+            NativeBattleModelTransform transform = graphics.ActorModels.Get(model).Transform ?? throw new NotSupportedException("Native571400 requires its actual graphics transform row.");
             return new(anchor.X, anchor.Y, anchor.Z, transform.Angle36);
         }
 

@@ -40,9 +40,9 @@ public sealed partial class BattleSession
 
     private static NativeBattleGraphicsState PrepareNativeOriginalEffectActor(NativeBattleGraphicsState graphics, byte actorIndex)
     {
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         bool isParty = graphics.PresentationRoster is null ? actorIndex < 3 : graphics.IsPartyActor(actorIndex);
-        return graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { Rotation12 = 0, Rotation14 = isParty ? (short)0 : (short)2048, Rotation16 = 0 }) };
+        return graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { Rotation12 = 0, Rotation14 = isParty ? (short)0 : (short)2048, Rotation16 = 0 }) };
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, bool assignReturnedTask = true)
@@ -1090,7 +1090,7 @@ public sealed partial class BattleSession
         }
         if (effect.Binding.Entry == 0x6C3550)
         {
-            NativeBattleQuezacotlEntry entered = NativeBattleQuezacotl.Enter6C3640(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl requires its retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Quezacotl requires its retained55CBD2 random owner."), nativeActionPackets, index => (graphics.Models[index].Transform ?? throw new NotSupportedException("Native6C3640 requires the actual graphical model WORD32 position.")).Position28.Z);
+            NativeBattleQuezacotlEntry entered = NativeBattleQuezacotl.Enter6C3640(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl requires its retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Quezacotl requires its retained55CBD2 random owner."), nativeActionPackets, index => (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native6C3640 requires the actual graphical model WORD32 position.")).Position28.Z);
             NativeEffectMemory = entered.Memory;
             nativeCrtRandom = entered.Random;
             return graphics with { OriginalEffect = entered.Effect };

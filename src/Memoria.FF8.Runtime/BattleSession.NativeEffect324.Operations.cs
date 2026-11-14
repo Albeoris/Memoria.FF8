@@ -38,11 +38,11 @@ public sealed partial class BattleSession
                 return frame;
             case NativeBattleEffect324WriteModelBytes write:
                 int actor = NativeEffect324Actor(graphics, write.ModelAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, ApplyNativeEffect324ModelBytes(graphics.Models[actor], write)) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect324ModelBytes(graphics.ActorModels.Get(actor), write)) };
                 return frame;
             case NativeBattleEffect324WriteCurrentBoneMatrices32 write:
                 int boneActor = NativeEffect324Actor(graphics, write.ModelAddress);
-                NativeBattleGraphicsModel model = graphics.Models[boneActor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(boneActor);
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, boneActor).PoseSource ?? throw new NotSupportedException("Effect324 requires its current primary skeleton.");
                 _ = NativeBattleBodyBoneMatrices.Require(model, source);
                 if (write.Matrices.IsDefault || write.Matrices.Length != source.BoneCount)
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleBodyBoneMatrices bones = model.CurrentBodyBoneMatrices! with { Matrices = write.Matrices.Select(matrix => matrix.ReadMatrix()).ToImmutableArray() };
                 bones.Validate();
-                graphics = graphics with { Models = graphics.Models.SetItem(boneActor, model with { CurrentBodyBoneMatrices = bones }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(boneActor, model with { CurrentBodyBoneMatrices = bones }) };
                 return frame;
             case NativeBattleEffect324DrawModel5977D0 body:
                 graphics = graphics with { OriginalEffect = frame.Effect };

@@ -62,14 +62,14 @@ public sealed partial class BattleSession
         }
         int target = half.ActorIndex;
         int sourceIndex = half.HitFlags3 >> 6;
-        NativeBattleGraphicsModel source = graphics.Models[sourceIndex];
-        NativeBattleGraphicsModel recipient = graphics.Models[target];
+        NativeBattleGraphicsModel source = graphics.ActorModels.Get(sourceIndex);
+        NativeBattleGraphicsModel recipient = graphics.ActorModels.Get(target);
         NativeBattleVector position = source.Transform?.Initial20 ?? throw new NotSupportedException("Native Cover source requires its initial position WORD20/24.");
         NativeBattleModelTransform transform = recipient.Transform ?? throw new NotSupportedException("Native Cover recipient requires its current position WORD28/32.");
         recipient = recipient with { Transform = transform with { Position28 = transform.Position28 with { X = position.X, Z = position.Z } } };
-        graphics = graphics with { Models = graphics.Models.SetItem(target, recipient) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, recipient) };
         graphics = SelectNativeHeaderSequence(graphics, checked((byte)target), 22);
-        source = graphics.Models[sourceIndex];
-        return graphics with { Models = graphics.Models.SetItem(sourceIndex, NativeBattleGraphicsModels.StartService(source, 9)) };
+        source = graphics.ActorModels.Get(sourceIndex);
+        return graphics with { ActorModels = graphics.ActorModels.Set(sourceIndex, NativeBattleGraphicsModels.StartService(source, 9)) };
     }
 }

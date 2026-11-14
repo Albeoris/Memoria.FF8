@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Acid snapshot requires its current skeleton.");
-        NativeBattleActionMatrix world = graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Acid snapshot requires its current world matrix.");
+        NativeBattleActionMatrix world = graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Acid snapshot requires its current world matrix.");
         NativeDeformedBodyBridge current = AllocateNativeDeformedBody(memory, effect, random, staging, graphics, actor, 12);
         current = current with { Temporary = current.Temporary.Write(8, BitConverter.GetBytes(cacheAddress)), Model = NativeBattleBodyBoneMatrices.Compose5095B0(current.Model, world) };
         current = Capture(current, false, NativeBattleBodyBoneMatrices.Require(current.Model, source));
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Acid target requires its current CPU resource owner.");
         int scratchLength = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Acid target requires its loaded vertex capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleResourcePointer? bodyGeometry = null;
         NativeBattleResourcePointer? linkedGeometry = null;
         NativeBattleModelTextureOwner? bodyMaterial = null;
@@ -113,13 +113,13 @@ public sealed partial class BattleSession
     private static NativeDeformedBodyBridge AllocateNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, int length)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, length);
-        return new(memory, effect, random, graphics, graphics.Models[actor], allocation.Staging, NativeDeformedBodyView(allocation.Staging, allocation.Address, length), allocation.Address);
+        return new(memory, effect, random, graphics, graphics.ActorModels.Get(actor), allocation.Staging, NativeDeformedBodyView(allocation.Staging, allocation.Address, length), allocation.Address);
     }
 
     private static NativeDeformedBodyBridge FinishNativeDeformedBody(NativeDeformedBodyBridge current, byte actor, int length, bool resourcePointers = false)
     {
         NativeBattleFileStaging published = resourcePointers ? NativeBattleTemporaryMemory.PublishResourceView(current.Staging, current.TemporaryAddress, current.Temporary, length) : NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, length);
-        return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(published, length), Graphics = current.Graphics with { Models = current.Graphics.Models.SetItem(actor, current.Model) } };
+        return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(published, length), Graphics = current.Graphics with { ActorModels = current.Graphics.ActorModels.Set(actor, current.Model) } };
     }
 
     private static (NativeDeformedBodyBridge Bridge, ImmutableArray<NativeBattleActionMatrix> Matrices) ComposeNativeDeformedLinked(NativeDeformedBodyBridge current, NativeBattlePoseSource source, NativeBattleActionMatrix world)

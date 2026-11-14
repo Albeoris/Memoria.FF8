@@ -55,7 +55,7 @@ public sealed partial class BattleSession
         }
         for (int row = 0; row < roster.ActorCount; row++)
         {
-            if (graphics.Models[row]?.Index != row || !string.Equals(graphics.ActorIds[row], roster.Rows[row]?.ActorId, StringComparison.Ordinal))
+            if (graphics.ActorModels.Get(row)?.Index != row || !string.Equals(graphics.ActorIds[row], roster.Rows[row]?.ActorId, StringComparison.Ordinal))
             {
                 throw new InvalidDataException($"Hosted action model or actor identity differs from its presentation binding at row {row}.");
             }

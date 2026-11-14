@@ -12,7 +12,7 @@ public static partial class NativeBattleFatedCircle162Controller
         {
             throw new NotSupportedException("Native5F99C0 requires a nonnegative original history index.");
         }
-        byte actor = frame.Memory.FatedCircle162?.Parameters?.Actor78 ?? throw new InvalidDataException("Native5F99C0 requires its actual caster owner.");
+        BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new InvalidDataException("Native5F99C0 requires its actual caster owner.");
         NativeBattleRenzokuken160WeaponTip tip = readWeaponTip(actor);
         NativeBattleVector endpoint = new(unchecked((short)(tip.Position.X + (unchecked(666 * tip.DirectionX) >> 12))), unchecked((short)(tip.Position.Y + (unchecked(666 * tip.DirectionY) >> 12))), unchecked((short)(tip.Position.Z + (unchecked(666 * tip.DirectionZ) >> 12))));
         int ring = counter % 7;

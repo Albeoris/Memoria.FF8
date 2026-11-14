@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect324Controller
         int target = (packets.Contacts[first] ?? throw new NotSupportedException("Effect324 requires its current first contact.")).Primary.ActorIndex;
         int initializerOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect324 requires its executed initializer.");
         uint initializer = checked(CommonAddress + (uint)initializerOffset);
-        frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Actor78).WriteDword(TargetGlobal, (uint)target).WriteDword(InitializerGlobal, initializer) };
+        frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, (uint)target).WriteDword(InitializerGlobal, initializer) };
         ImmutableArray<NativeBattleEffectTaskPool> pools = [];
         foreach (NativeBattleCureFamilyPool shape in Pools)
         {
@@ -116,7 +116,7 @@ public static partial class NativeBattleEffect324Controller
     private static int FirstContact(NativeBattleEffect324Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect324 requires its current header.");
-        return packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect324 requires its first contact pointer.");
+        return packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect324 requires its first contact pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect324Frame frame)

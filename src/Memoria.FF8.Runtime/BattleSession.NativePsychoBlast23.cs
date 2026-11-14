@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Psycho Blast requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Psycho Blast requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Psycho Blast requires its actual current view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = actor => graphics.Models[actor];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = actor => graphics.ActorModels.Get(actor);
         NativeBattlePsychoBlast23Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), readModel, PoseSource, Execute, AdvanceGeneric, AdvanceOverlay);
         frame = NativeBattlePsychoBlast23Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                     NativeBattleGeometryRegisterStep rotated = ObserveNativeGeometryRotation(new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Psycho Blast rotation requires its geometry controls."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Psycho Blast rotation requires its data registers.")), rotate.Matrix, rotate.Axis, rotate.Angle, rotate.Padding18 is short padding ? unchecked((ushort)padding) : null);
                     return current with { Memory = current.Memory with { GeometryRegisters = rotated.Geometry, ScriptedColorRegisters = rotated.Colors } };
                 case NativeBattlePsychoBlast23TargetAnchor anchor:
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[anchor.Actor], PoseSource(anchor.Actor), anchor.Selector, anchor.Distance);
+                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(anchor.Actor), PoseSource(anchor.Actor), anchor.Selector, anchor.Distance);
                     return current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
                 case NativeBattlePsychoBlast23LookBasis basis:
                     return ObserveBasis(current, basis.Direction, basis.Up);
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
             NativeCrtRandomState genericRandom = current.Random;
             NativeBattleCuragaControllerInputs genericInputs = new(nativeActionPackets, view, readModel, PoseSource)
             {
-                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0)) }
+                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0)) }
             };
             NativeBattleCuragaLeafStep advanced = NativeBattleCuragaNodeEngine.AdvanceGeneric87E1A0(current.ToGeneric(), address, resources.GenericNodes(), genericInputs, new(AdvanceNodes));
             return new(current.WithGeneric(advanced.Frame) with { Random = genericRandom }, advanced.Result);

@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         foreach (BattleDiagnosticTextureTask row in textures.Tasks)
         {
             NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[row.Slot];
-            NativeBattleGraphicsModel model = graphics.Models[row.ModelIndex!.Value];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(row.ModelIndex!.Value);
             HashValue(hash, row.Slot);
             HashValue(hash, task.Flags);
             HashValue(hash, task.State);

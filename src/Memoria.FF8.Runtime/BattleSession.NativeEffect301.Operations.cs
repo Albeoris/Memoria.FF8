@@ -23,18 +23,18 @@ public sealed partial class BattleSession
                 return frame;
             case NativeBattleEffect301ModelFlags flags:
                 int target = NativeEffect301Actor(graphics, flags.ModelAddress);
-                NativeBattleGraphicsModel current = graphics.Models[target];
+                NativeBattleGraphicsModel current = graphics.ActorModels.Get(target);
                 ushort updated = flags.Width switch
                 {
                     1 => unchecked((ushort)((current.Flags0 & 0xFF00) | (((current.Flags0 & flags.AndMask) | flags.OrMask) & 0xFF))),
                     2 => unchecked((ushort)((current.Flags0 & flags.AndMask) | flags.OrMask)),
                     _ => throw new InvalidDataException("Effect301 requires its exact model flags store width.")
                 };
-                graphics = graphics with { Models = graphics.Models.SetItem(target, current with { Flags0 = updated }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, current with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect301WriteModelBytes write:
                 int actor = NativeEffect301Actor(graphics, write.ModelAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, ApplyNativeEffect301ModelBytes(graphics.Models[actor], write.Offset, write.Data, write.Length)) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(actor), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect301VibrationStart4A29A0 vibration when vibration.SourceAddress == VibrationAddress:
                 NativeVibrationEnqueue queued = (NativeVibrationProcess ?? throw new NotSupportedException("Effect301 requires its vibration process.")).Enqueue(resources.VibrationBank, vibration.Kind, vibration.Strength);

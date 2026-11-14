@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Bomb glow requires its CRT random stream.");
         bool paused = (graphics.Flags & 0x201) != 0;
-        int actor = effect.Parameters!.Actor78;
+        int actor = effect.Parameters!.Source;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;
@@ -77,14 +77,14 @@ public sealed partial class BattleSession
             if (frame == 1)
             {
                 int glow = Add(0x5CE0F0);
-                children = children.WriteSlot(glow, children.Slots[glow].WriteWord(26, (ushort)(graphics.Models[actor].Flags0 & 4)));
+                children = children.WriteSlot(glow, children.Slots[glow].WriteWord(26, (ushort)(graphics.ActorModels.Get(actor).Flags0 & 4)));
                 Add(0x5CEB10);
-                NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor).PoseSource!);
+                NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor).PoseSource!);
                 PublishNativeModuleSound(resources.Sound, 0, anchor);
             }
             if (frame == 35)
             {
-                int first = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C].FirstContactIndex ?? throw new InvalidDataException("Native Bomb glow requires its actual first contact.");
+                int first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContactIndex ?? throw new InvalidDataException("Native Bomb glow requires its actual first contact.");
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                 graphics = graphics with { PendingContacts = pending };
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
             {
                 int fade = frame < 4 ? (4 - frame) << 10 : frame >= 22 ? (frame - 22) << 9 : 0;
                 uint color = definition.NativeGraphics!.Rules.SummonColors!.Interpolate(resources.Colors[frame % 8], fade, 0);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 | 4) }) };
                 graphics = DrawNativeBombActor(graphics, actor, color, frame * 72, true, NativeBattlePilotVisualLifetimes.Identity(179, task), references => effect = effect with { PresentationPackets = effect.PresentationPackets.AddRange(references) });
             }
             if (paused)
@@ -111,7 +111,7 @@ public sealed partial class BattleSession
             {
                 return 0;
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)((graphics.Models[actor].Flags0 & 0xFFFB) | task.ReadWord(26)) }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)((graphics.ActorModels.Get(actor).Flags0 & 0xFFFB) | task.ReadWord(26)) }) };
             return 2;
         }
         int Sparks(ref NativeBattleModulePoolTask task)

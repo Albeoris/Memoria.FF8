@@ -34,7 +34,7 @@ public static partial class NativeBattleEffect140Controller
             frame = NativeBattleEffect140OwnedModel.Select6574D0(frame, main + 0x64, 0, resources);
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect140 requires its current recipient header.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int count = header.ReadByte(0x10);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect140 requires its current recipient pointer.");
             frame = Write(frame, main, Read(frame, main).WriteWord(0xE, (ushort)count));

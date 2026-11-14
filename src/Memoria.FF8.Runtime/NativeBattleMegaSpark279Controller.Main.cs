@@ -240,11 +240,11 @@ public static partial class NativeBattleMegaSpark279Controller
         {
             throw new NotSupportedException("Mega Spark requires its actual current parameter pointer.");
         }
-        int index = Parameters(frame).HeaderIndex7C;
+        BattleActionHeaderReference index = Parameters(frame).Header;
         if ((uint)index >= packets.Headers.Length)
         {
             throw new NotSupportedException("Mega Spark parameter header leaves its actual arena.");
         }
-        return packets.Headers[index];
+        return packets.ReadHeader(index);
     }
 }

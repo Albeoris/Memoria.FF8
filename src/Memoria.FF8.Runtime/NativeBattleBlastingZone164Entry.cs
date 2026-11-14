@@ -20,13 +20,13 @@ public static partial class NativeBattleBlastingZone164Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5F0260 requires its physical first-contact pointer.");
-        byte recipient = packets.ReadContact(first).Primary.ActorIndex;
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23C9D8C) ?? throw new NotSupportedException("Native5F0260 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23C9D8C, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
         staging = WriteDword(staging, 0x23C6950, recipient);
-        staging = WriteDword(staging, 0x23C9D88, parameters.Actor78);
+        staging = WriteDword(staging, 0x23C9D88, parameters.Source);
         staging = WriteDword(staging, 0x23CA114, 0x20DFAB8);
         for (uint address = 0x23C6978; address < 0x23C8EF8; address += 24)
         {
@@ -50,7 +50,7 @@ public static partial class NativeBattleBlastingZone164Controller
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5F0260 requires its actual texture owner.");
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5F0260 requires its actual initializer texture.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));
-        NativeBattleBlastingZone164Frame frame = new(memory with { BlastingZone164 = new(true, parameters, recipient, resources, null), Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = 0x23C6968, DrawArenaOffset = 0 }, staging, random);
+        NativeBattleBlastingZone164Frame frame = new(memory with { BlastingZone164 = new(true, resources, null), Textures = textures }, effect with { EntryFirstRecipient = recipient, Pools = [main, children], ReturnedDescriptor = 0x23C6968, DrawArenaOffset = 0 }, staging, random);
         return new(frame, facing);
     }
 

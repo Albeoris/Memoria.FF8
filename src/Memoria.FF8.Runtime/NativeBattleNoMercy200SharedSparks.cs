@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleNoMercy200BoneInputs(Func<int, int> ReadBoneCount, Func<int, int, short, NativeBattleVector> ReadBone);
+public sealed record NativeBattleNoMercy200BoneInputs(Func<BattleModelOwner, int> ReadBoneCount, Func<BattleModelOwner, int, short, NativeBattleVector> ReadBone);
 
 public static partial class NativeBattleNoMercy200Controller
 {

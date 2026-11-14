@@ -46,7 +46,7 @@ public static partial class NativeBattleBlaster186Controller
         }
         if (age == 60)
         {
-            frame = inputs.Execute(frame, new NativeBattleBlaster186ContactsAll(Parameters(frame).HeaderIndex7C));
+            frame = inputs.Execute(frame, new NativeBattleBlaster186ContactsAll(Parameters(frame).Header));
         }
         if (age <= 16)
         {

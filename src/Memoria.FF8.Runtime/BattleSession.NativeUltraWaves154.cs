@@ -113,8 +113,8 @@ public sealed partial class BattleSession
             }
             if (frame == 1)
             {
-                int actor = effect.Parameters!.Actor78;
-                NativeBattleActionMatrix world = graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Native Ultra Waves requires its caster world matrix.");
+                int actor = effect.Parameters!.Source;
+                NativeBattleActionMatrix world = graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Ultra Waves requires its caster world matrix.");
                 for (int emitter = 0; emitter < 4; emitter++)
                 {
                     int slot = Add(0x608530);
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
             if (frame == 36)
             {
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(effect.Parameters!.HeaderIndex7C) });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(effect.Parameters!.Header) });
                 graphics = graphics with { PendingContacts = pending };
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));

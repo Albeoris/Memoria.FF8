@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Sonic Wave requires its current process memory.");
         NativeBattleSonic139Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Sonic Wave requires its current CRT stream."), memory.Sonic139 ?? throw new NotSupportedException("Sonic Wave requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Sonic Wave requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Sonic Wave requires its color arithmetic.");
-        NativeBattleSonic139Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, address) => graphics.Models[Actor(address)], (_, address) => (graphics.Models[Actor(address)].Transform ?? throw new NotSupportedException("Sonic Wave requires its actual actor heading.")).Angle36, Emitter, Anchor, AdvanceAct, Execute)
+        NativeBattleSonic139Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, address) => graphics.ActorModels.Get(Actor(address)), (_, address) => (graphics.ActorModels.Get(Actor(address)).Transform ?? throw new NotSupportedException("Sonic Wave requires its actual actor heading.")).Angle36, Emitter, Anchor, AdvanceAct, Execute)
         {
             AllowFourthTarget = presentationNativeTargets is not null && effect.Parameters?.TargetActors.Count == NativeBattleSonic139Profile.HostedTargetCapacity
         };
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             int caster = Actor(current.State.ReadDword(0x2517B50));
             byte[] point = local.Read(0, 8);
             int bone = BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(6));
-            NativeBattleGraphicsModel model = graphics.Models[caster];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(caster);
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, Pose(caster));
             if ((uint)bone >= bones.Length)
             {
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         NativeBattleSonic139PointStep Anchor(NativeBattleSonic139Frame current, uint address)
         {
             int actor = Actor(address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -149,16 +149,16 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleSonic139WriteActorColor color:
                     int actor = Actor(color.ActorAddress);
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color44 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Color44 = color.Color }) };
                     return current;
                 case NativeBattleSonic139SetActorFlags flags:
                     int selected = Actor(flags.ActorAddress);
-                    NativeBattleGraphicsModel model = graphics.Models[selected];
-                    graphics = graphics with { Models = graphics.Models.SetItem(selected, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~flags.Clear) | flags.Set)) }) };
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(selected);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(selected, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~flags.Clear) | flags.Set)) }) };
                     return current;
                 case NativeBattleSonic139ContactForActor contact:
                     Publish(current);
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[(current.Effect.Parameters ?? throw new NotSupportedException("Sonic Wave requires its captured parameters.")).HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader((current.Effect.Parameters ?? throw new NotSupportedException("Sonic Wave requires its captured parameters.")).Header);
                     int count = header.ReadContactCount();
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its actual contacts.");
                     var pending = graphics.PendingContacts;

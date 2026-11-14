@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCurse47TargetSetup
 {
-    public static NativeBattleCurse47Frame Initialize82B0F0(NativeBattleCurse47Frame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleCurse47Frame Initialize82B0F0(NativeBattleCurse47Frame frame, uint address, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         NativeBattleModulePoolTask task = NativeBattleCurse47Controller.Read(frame, address);
         if (frame.Effect.Binding.Effect != 47 || frame.Effect.Binding.Entry != NativeBattleCurse47Controller.Entry || task.Callback != NativeBattleCurse47Controller.TargetCallback)

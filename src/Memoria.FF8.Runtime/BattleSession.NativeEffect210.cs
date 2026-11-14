@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect210 requires its current process memory.");
         NativeBattleEffect210Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect210 requires its CRT stream."), memory.Effect210 ?? throw new NotSupportedException("Effect210 requires its retained storage.")) { Staging = NativeFileStaging };
         NativeBattleEffect210Inputs? inputs = null;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect210 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => CaptureNativeEffect210Model(graphics.Models[actor]), ReadBones, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect210 requires its current projection."), _ => Camera().Roll, Point, Anchor, PollIo, SelectIo, (current, operation) => ExecuteNativeEffect210Operation(ref graphics, current, operation, resources, inputs!))
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect210 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => CaptureNativeEffect210Model(graphics.ActorModels.Get(actor)), ReadBones, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect210 requires its current projection."), _ => Camera().Roll, Point, Anchor, PollIo, SelectIo, (current, operation) => ExecuteNativeEffect210Operation(ref graphics, current, operation, resources, inputs!))
         {
             ReadCommonSprite5710B0 = (_, id) => definition.NativeModuleResources.Single(resource => resource.Id == id)
         };
@@ -26,7 +26,7 @@ public sealed partial class BattleSession
 
         ImmutableArray<NativeBattlePackedMatrix32> ReadBones(NativeBattleEffect210Frame current, int actor)
         {
-            NativeBattleBodyBoneMatrices bones = graphics.Models[actor].CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect210 requires its current primary bone publication.");
+            NativeBattleBodyBoneMatrices bones = graphics.ActorModels.Get(actor).CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect210 requires its current primary bone publication.");
             return bones.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         }
 
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect210PointStep Point(NativeBattleEffect210Frame current, int actor, byte selector, short offset, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, retained);
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect210PointStep Anchor(NativeBattleEffect210Frame current, int actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect210 requires its current actor transform.");
             if ((model.Flags0 & 2) == 0)
             {

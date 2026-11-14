@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleSiren95TargetMeshServices(NativeBattleActionPacketsState Packets, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95Frame> Draw);
+public sealed record NativeBattleSiren95TargetMeshServices(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95Frame> Draw);
 
 public static class NativeBattleSiren95TargetMeshes
 {

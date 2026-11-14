@@ -49,7 +49,7 @@ public sealed partial class BattleSession
                 },
                 PresentRecipients = (current, task) =>
                 {
-                    NativeBattleDiablos325RecipientServices services = new(actor => graphics.Models[actor], (actor, model) => graphics = graphics with { Models = graphics.Models.SetItem(actor, model) }, actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Diablos recipient requires its current original rig."), actor =>
+                    NativeBattleDiablos325RecipientServices services = new(actor => graphics.ActorModels.Get(actor), (actor, model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) }, actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Diablos recipient requires its current original rig."), actor =>
                     {
                         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
                         ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native Diablos recipient requires its current original body geometry.");
@@ -78,21 +78,21 @@ public sealed partial class BattleSession
                 },
                 RestoreRecipients = (current, task) =>
                 {
-                    int headerIndex = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Diablos actor restoration requires its retained action header.");
-                    int count = nativeActionPackets.Headers[headerIndex].ReadByte(0x10);
+                    BattleActionHeaderReference headerIndex = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Native Diablos actor restoration requires its retained action header.");
+                    int count = nativeActionPackets.ReadHeader(headerIndex).ReadByte(0x10);
                     BattleModelRoster? roster = nativeActionPackets.PresentationRoster;
                     NativeBattleDiablos325Recipients.ValidateHostedRecords(task, count, roster);
                     for (int index = 0; index < count; index++)
                     {
                         int actor = NativeBattleDiablos325Recipients.ActorIndex(task.ReadDword(0x94 + index * 12), roster);
-                        graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 & 0xFFF3) }) };
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 & 0xFFF3) }) };
                     }
                     return current;
                 },
                 PresentFlash = (current, counter) => SubmitPrivate(current, new(current.Memory, NativeBattleDiablos325Flash.Emit659A10(counter)), 1),
                 ApplyContact = current =>
                 {
-                    int headerIndex = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Diablos contact requires its retained action header.");
+                    BattleActionHeaderReference headerIndex = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Native Diablos contact requires its retained action header.");
                     NativeEffectMemory = current.Memory;
                     var pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(headerIndex) });

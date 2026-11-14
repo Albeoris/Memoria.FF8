@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Angel Wing requires its original color constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Angel Wing requires its retained CRT random state.");
         NativeBattleAngelWing84Inputs controller = null!;
-        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Angel Wing requires the actual actor skeleton."), AdvanceLeaf, ReloadCommon);
+        controller = new(nativeActionPackets, view, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Angel Wing requires the actual actor skeleton."), AdvanceLeaf, ReloadCommon);
         frame = NativeBattleAngelWing84Controller.Advance(frame, controller);
         NativeEffectMemory = frame.Memory with { AngelWing84 = frame.State };
         nativeCrtRandom = random;
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Angel Wing requires its current camera process.")).Apply50A730();
                     return current;
                 case NativeBattleAngelWing84ModelFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = flags.Flags }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleAngelWing84PhaseBirth birth:
                     return NativeBattleAngelWing84SceneBirth.Apply(current, birth, controller, (next, body) => NativeBattleAngelWing84Body.Initialize(next, body, CurrentBodyResources()));
@@ -139,11 +139,11 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Sound, 0, null) { Pan = 128 });
                     return current;
                 case NativeBattleAngelWing84BindCaster bind:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(0x1576020, resources.Body.CasterOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Angel Wing requires its actual CPU resource rows."), actor, 0x25C9F10, 0x1576020);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     graphics = SelectNativeHeaderSequence(graphics, bind.Actor, 1);
                     return current;
                 case NativeBattleAngelWing84DrawBody body:

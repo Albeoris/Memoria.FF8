@@ -125,7 +125,7 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)operation.First), ColorFlags = unchecked((uint)operation.Second) }).ToImmutableArray() };
                     return current;
                 case NativeBattleShivaDirectorService.Contacts:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Shiva requires its actual contact pointer.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(first, header.ReadByte(0x10)).Select(nativeActionPackets.ReadContact).ToImmutableArray() });

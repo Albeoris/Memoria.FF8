@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Blizzara requires its retained view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Blizzara requires its depth-cue tables.");
         NativeBattleBlizzaraFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Blizzara requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Blizzara requires its retained CRT random state."));
-        frame = NativeBattleBlizzaraController.Advance6DA3A0(frame, new(graphics.Flags, nativeActionPackets, model => ReadNativeGraphicsBone(graphics, model, 241, 0), model => graphics.Models[model].Transform ?? throw new NotSupportedException("Native Blizzara requires its actual model transform."), Execute));
+        frame = NativeBattleBlizzaraController.Advance6DA3A0(frame, new(graphics.Flags, nativeActionPackets, model => ReadNativeGraphicsBone(graphics, model, 241, 0), model => graphics.ActorModels.Get(model).Transform ?? throw new NotSupportedException("Native Blizzara requires its actual model transform."), Execute));
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };

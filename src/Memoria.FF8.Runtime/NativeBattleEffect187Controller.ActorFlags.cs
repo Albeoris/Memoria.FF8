@@ -6,7 +6,7 @@ public static partial class NativeBattleEffect187Controller
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect187 actor flag restoration requires its actual parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect187 actor flag restoration requires its current contacts.");
         for (int index = 0; index < header.ReadByte(0x10); index++)
         {

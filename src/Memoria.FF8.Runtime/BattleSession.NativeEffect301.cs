@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect301 requires its current process memory.");
         NativeBattleEffect301Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect301 requires its current CRT stream."), memory.Effect301 ?? throw new NotSupportedException("Effect301 requires its retained state.")) { Staging = NativeFileStaging, CapturePresentation = true };
         NativeBattleEffect301Inputs? inputs = null;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect301 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeEffect301Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect301 requires its current projection."), _ => Camera().Roll, Anchor, (current, operation) => ExecuteNativeEffect301Operation(ref graphics, current, operation, resources, inputs!));
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect301 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.ActorModels.Get(NativeEffect301Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect301 requires its current projection."), _ => Camera().Roll, Anchor, (current, operation) => ExecuteNativeEffect301Operation(ref graphics, current, operation, resources, inputs!));
         frame = initialize ? NativeBattleEffect301Controller.Initialize(frame, resources, inputs) : NativeBattleEffect301Controller.Advance(frame, resources, inputs);
         PublishNativeEffect301Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleEffect301PointStep Point(NativeBattleEffect301Frame current, uint address, byte selector, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect301Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect301 point queries require their current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect301 requires its current skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, 0);
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect301PointStep Anchor(NativeBattleEffect301Frame current, uint address, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[NativeEffect301Actor(graphics, address)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect301Actor(graphics, address));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect301 requires its current anchor transform.");
             if ((model.Flags0 & 2) == 0)
             {

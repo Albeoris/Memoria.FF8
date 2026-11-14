@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState EnterNativeRoughDivide163(NativeBattleGraphicsState graphics, NativeBattleRoughDivide163Resources resources)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Rough Divide requires its selected original module.");
-        byte actor = effect.Parameters?.Actor78 ?? throw new InvalidDataException("Native Rough Divide requires its actual caster.");
+        BattleModelOwner actor = effect.Parameters?.Source ?? throw new InvalidDataException("Native Rough Divide requires its actual caster.");
         NativeBattleActionMatrix matrix = graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Native5F5B80 requires its actual actor matrix64.");
         NativeBattleRoughDivide163Frame frame = NativeBattleRoughDivide163Controller.Enter5F5B80(NativeEffectMemory ?? throw new NotSupportedException("Native Rough Divide requires its retained effect memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Rough Divide requires its retained CRT random owner."), matrix);
         NativeEffectMemory = frame.Memory;
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
                 case NativeBattleRoughDivide163ComposeActor:
                     return NativeBattleRoughDivide163Controller.ComposeCapturedActor(current, view);
                 case NativeBattleRoughDivide163BindActor:
-                    byte actor = current.Parameters.Actor78;
+                    BattleModelOwner actor = current.Parameters.Source;
                     NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Rough Divide requires actual CPU resource rows."), model, 0x23CD0B8, 0xD99DC8);
                     NativeFileStaging = binding.Staging;
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
                     NativeStage = retained with { Groups = retained.Groups.Select(group => group with { ColorDepth = unchecked((short)stage.Intensity), ColorFlags = 0 }).ToImmutableArray() };
                     return current;
                 case NativeBattleRoughDivide163Contacts:
-                    graphics = ApplyNativeHeaderContacts(graphics, current.Parameters.HeaderIndex7C);
+                    graphics = ApplyNativeHeaderContacts(graphics, current.Parameters.Header);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleRoughDivide163Geometry geometry:
                     return AppendGeometry(current, geometry.Batch, null);

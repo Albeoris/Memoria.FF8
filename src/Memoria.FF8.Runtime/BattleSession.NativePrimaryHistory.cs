@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleEffectMemory Memory, NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) DrawNativePrimaryHistory76(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging? currentStaging, NativeBattleGraphicsState graphics, int actor, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Primary body history requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Primary body history requires its current camera.");
@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Primary body history requires its current world matrix.");
         NativeBattlePackedMatrix32 composed = NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(camera.CapturePackedView1D97778().ReadMatrix(), world), null);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, composed.ReadMatrix());
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         uint color = model.Color40 ?? throw new NotSupportedException("Primary body history requires its current packed model color.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Primary body history requires its current object mask.");
         NativeBattleEffectArena temporary = NativeDeformedBodyView(allocation.Staging, allocation.Address, 76);

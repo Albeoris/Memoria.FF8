@@ -39,7 +39,7 @@ public static class NativeBattleShellController
         ]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x866150, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Shell requires its actual first contact.");
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
@@ -173,8 +173,8 @@ public static class NativeBattleShellController
                     }
                     else if (phase == 2 && age >= 30)
                     {
-                        int header = parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Shell result lost its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Shell result lost its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         Emit(ref state, new NativeBattleShellContact(contact));
                         state = Done(state, address);
                     }

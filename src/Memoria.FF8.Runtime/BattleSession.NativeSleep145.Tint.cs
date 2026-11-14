@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
-        NativeBattleGraphicsModel actor = graphics.Models[target];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(target);
         if (ReadNativeForeignModel(target) is { } foreign)
         {
             graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false);
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             Common(NativeBattleActorTintPackets.Emit(polygons, output.ToImmutableArray(), view, projection, actor.Color40!.Value, tint, colors, (positions, factors) => NativeBattleSleep145.WriteTintFactors619B70(positions, factors, center), zsf3, zsf4, identity with { Primitive = unchecked(identity.Primitive * 397 + index) }));
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-        graphics = graphics with { Models = graphics.Models.SetItem(target, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, actor) };
         if (!shared && !linked.IsEmpty && (actor.Flags0 & 0x200) == 0 && ResetAndEnterNativeModelRenderer5099D0(actor.Color40!.Value))
         {
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(actor, resource.LinkedPoseSource!, view);

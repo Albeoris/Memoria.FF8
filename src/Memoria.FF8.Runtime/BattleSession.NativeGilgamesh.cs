@@ -23,8 +23,8 @@ public sealed partial class BattleSession
             CapturePresentation = true,
             ReadProjection = () => NativeCamera?.Projection ?? throw new NotSupportedException("Gilgamesh requires its current native projection."),
             ReadFocalShadow = () => NativeCamera?.FocalLength ?? throw new NotSupportedException("Gilgamesh requires its retained signed focal shadow."),
-            ReadModelWord26 = actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."),
-            ReadModelWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), null)
+            ReadModelWord26 = actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."),
+            ReadModelWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), null)
         };
         frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.Models) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
         if (initialize)
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         NativeBattleModuleAnchor ReadAnchor571400(byte actor)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires its actual actor transform WORD.");
+            NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native571400 requires its actual actor transform WORD.");
             return anchor with { W = transform.Angle36 };
         }
 
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                 case NativeBattleGilgameshZantetsukenAnchor anchor327:
                     return ReadNativeZantetsukenAnchor(graphics, current, anchor327.Address, anchor327.Actor);
                 case NativeBattleGilgameshZantetsukenContact contact327:
-                    NativeBattleActionHeaderSlot captured327 = nativeActionPackets.Headers[(current.Effect.Parameters ?? throw new NotSupportedException("Zantetsuken requires its captured action parameters.")).HeaderIndex7C];
+                    NativeBattleActionHeaderSlot captured327 = nativeActionPackets.ReadHeader((current.Effect.Parameters ?? throw new NotSupportedException("Zantetsuken requires its captured action parameters.")).Header);
                     int first327 = captured327.FirstContactIndex ?? throw new NotSupportedException("Zantetsuken requires its captured first contact pointer.");
                     if ((uint)contact327.Ordinal >= captured327.ReadContactCount())
                     {
@@ -78,12 +78,12 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending327 };
                     return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Zantetsuken contact lost its current effect memory.") };
                 case NativeBattleGilgameshZantetsukenActorFlags flags327:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags327.Actor, graphics.Models[flags327.Actor] with { Flags0 = (ushort)(graphics.Models[flags327.Actor].Flags0 | flags327.OrMask) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags327.Actor, graphics.ActorModels.Get(flags327.Actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(flags327.Actor).Flags0 | flags327.OrMask) }) };
                     return current;
                 case NativeBattleGilgameshZantetsukenFadeActor fade327:
                     NativeBattleStageColors actualColors327 = NativeStage?.ModelColors ?? throw new NotSupportedException("Zantetsuken fade requires its current process model colors.");
-                    NativeBattleZantetsukenActorFadeStep faded327 = NativeBattleZantetsukenActorFade.Apply(graphics.Models[fade327.Actor], current.Memory, fade327.Cue, colors with { Transition = actualColors327.Color40, Normal = actualColors327.Color44 });
-                    graphics = graphics with { Models = graphics.Models.SetItem(fade327.Actor, faded327.Model) };
+                    NativeBattleZantetsukenActorFadeStep faded327 = NativeBattleZantetsukenActorFade.Apply(graphics.ActorModels.Get(fade327.Actor), current.Memory, fade327.Cue, colors with { Transition = actualColors327.Color40, Normal = actualColors327.Color44 });
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(fade327.Actor, faded327.Model) };
                     return current with { Memory = faded327.Memory };
                 case NativeBattleGilgameshZantetsukenBeginDrawActor begin327:
                     return PublishZantetsukenStaging(BeginNativeZantetsukenActorDraw(current, begin327.Address));

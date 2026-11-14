@@ -5,7 +5,7 @@ public sealed record NativeBattleTonberry90DirectorServices(NativeBattleActionPa
 
 public static class NativeBattleTonberry90Director
 {
-    public static NativeBattleTonberry90Frame Initialize762BB0(NativeBattleTonberry90Frame frame, uint childAddress, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null)
+    public static NativeBattleTonberry90Frame Initialize762BB0(NativeBattleTonberry90Frame frame, uint childAddress, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null)
     {
         uint director = Director(frame);
         frame = Put(frame, director, new byte[0x54]);

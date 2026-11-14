@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState DrawNativeFlare124Actor(NativeBattleGraphicsState graphics, int index, short centerX, short centerY, short radius, int step, int amplitude, int phase, NativeBattleFlare124Resources resources, out short maximum)
     {
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4112, false);
         short zsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Flare requires its retained ZSF3.");
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             }
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         ImmutableArray<NativeBattleRawMesh> linked = NativeBattleActorMaterialGeometry.PrepareSeparateLinked(resource, actor);
         if (!linked.IsEmpty)
         {

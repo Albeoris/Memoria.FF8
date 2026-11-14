@@ -23,13 +23,13 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect315 body requires its current projection.");
         NativeBattleFileStaging initialStaging = frame.Staging ?? throw new NotSupportedException("Effect315 body requires its current temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativeDeformedBodyView(initialStaging, 0x1D969A8, 4);
-        NativeBattleEffect315BodyFrame body = new(frame.Memory, initialStaging, graphics.Models[actor], NativeDeformedBodyView(initialStaging, temporaryAddress, 156), CommonCursor(frame.Memory));
+        NativeBattleEffect315BodyFrame body = new(frame.Memory, initialStaging, graphics.ActorModels.Get(actor), NativeDeformedBodyView(initialStaging, temporaryAddress, 156), CommonCursor(frame.Memory));
         NativeBattleEffect315BodyServices services = new(Shadow, Compose, DrawSource, Restore)
         {
             DrawLinkedAndDeliver = body.Model.LinkedTransform is null ? null : DrawLinked
         };
         body = NativeBattleEffect315BodyDrawing.DrawOuter(body, camera.CapturePackedView1D97778(), scratchAddress, primitiveFlags, services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         frame = frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary156, 156) };
         return (graphics, frame);
 

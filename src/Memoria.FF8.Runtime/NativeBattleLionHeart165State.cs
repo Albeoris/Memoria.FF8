@@ -38,21 +38,21 @@ public sealed record NativeBattleLionHeart165Resources(NativeBattleEffectHeapAll
     }
 }
 
-public sealed record NativeBattleLionHeart165State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] byte? FirstRecipient, [property: JsonRequired] NativeBattleLionHeart165Resources? RetainedResources, [property: JsonRequired] NativeBattleGuardianCameraTask? CameraTask)
+public sealed record NativeBattleLionHeart165State([property: JsonRequired] bool GlobalsInitialized, [property: JsonRequired] NativeBattleLionHeart165Resources? RetainedResources, [property: JsonRequired] NativeBattleGuardianCameraTask? CameraTask)
 {
-    public static NativeBattleLionHeart165State FromColdProcess() => new(false, null, null, null, null);
+    public static NativeBattleLionHeart165State FromColdProcess() => new(false, null, null);
 
     public void Validate()
     {
         if (GlobalsInitialized)
         {
-            if (Parameters is null || Parameters.Actor78 >= 7 || Parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || FirstRecipient is null or >= 7 || RetainedResources is null)
+            if (RetainedResources is null)
             {
-                throw new InvalidDataException("Native Lion Heart requires its actual entered action and immutable resources.");
+                throw new InvalidDataException("Native Lion Heart requires its immutable resources retained by actual entry.");
             }
             RetainedResources.Validate();
         }
-        else if (Parameters is not null || FirstRecipient is not null || RetainedResources is not null || CameraTask is not null)
+        else if (RetainedResources is not null || CameraTask is not null)
         {
             throw new InvalidDataException("Native Lion Heart cannot retain entered owners before entry.");
         }
@@ -71,8 +71,8 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattleLionHeart165Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
 {
-    public NativeBattleEffectParameters Parameters => Memory.LionHeart165?.Parameters ?? throw new InvalidDataException("Native Lion Heart requires its actual entered parameter owner.");
-    public byte FirstRecipient => Memory.LionHeart165?.FirstRecipient ?? throw new InvalidDataException("Native Lion Heart requires its actual first recipient.");
+    public NativeBattleEffectParameters Parameters => Effect.Parameters ?? throw new InvalidDataException("Native Lion Heart requires its actual entered parameter owner.");
+    public BattleModelOwner FirstRecipient => Effect.EntryFirstRecipient ?? throw new InvalidDataException("Native Lion Heart requires its actual first recipient.");
 }
 
 public sealed record NativeBattleLionHeart165ChildStep(NativeBattleLionHeart165Frame Frame, NativeBattleEffectTaskPool Pool, int Result);

@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Rinoa86 requires its actual color constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Rinoa86 requires its retained CRT generator.");
         NativeBattleRinoa86Inputs controller = null!;
-        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa86 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
+        controller = new(nativeActionPackets, view, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa86 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         frame = NativeBattleRinoa86Controller.Advance(frame, controller);
         NativeEffectMemory = frame.Memory with { Rinoa86 = frame.State };
         nativeCrtRandom = random;
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
                     }
                     return new(current, io.ReadyToComplete ? 2 : 0);
                 case 0x77FF90:
-                    return NativeBattleRinoa86Body.Advance(current, address, new(controller, resources, (_, actor) => graphics.Models[actor].Flags0, Execute, DrawBody, ReadBone));
+                    return NativeBattleRinoa86Body.Advance(current, address, new(controller, resources, (_, actor) => graphics.ActorModels.Get(actor).Flags0, Execute, DrawBody, ReadBone));
                 case 0x783350:
                 case 0x783DC0:
                 case 0x782930:
@@ -97,17 +97,17 @@ public sealed partial class BattleSession
                     (textures, _) = textures.EnqueueTim505E30(resources.SceneTim);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleRinoa86BindActor bind when bind.Resource == 0x156AA60 && bind.SavedModel == 0x25BC1F8:
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(bind.Resource, resources.ActorOverride.Data.AsSpan());
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Rinoa86 requires its actual CPU resource rows."), actor, bind.SavedModel, bind.Resource);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleRinoa86ActorSequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, checked((ushort)sequence.Sequence));
                     return current;
                 case NativeBattleRinoa86ActorFlags flags:
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { Flags0 = flags.Flags }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleRinoa86Sound sound:
                     PublishNativeModuleSound(new(resources.Sounds[sound.Descriptor], unchecked((uint)sound.Argument), null) { RawPan = unchecked((uint)sound.Volume) });

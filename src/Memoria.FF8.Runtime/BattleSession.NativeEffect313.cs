@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect313Resources resources = effect.Binding.Effect313Resources ?? throw new NotSupportedException("Effect313 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect313 requires current process memory.");
         NativeBattleEffect313Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect313 requires its current CRT stream."), memory.Effect313 ?? throw new NotSupportedException("Effect313 requires its retained state.")) { Staging = NativeFileStaging };
-        NativeBattleEffect313Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect313 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect313Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect313 requires its current projection."), _ => Camera().Roll, _ => CameraEye(), Point, Anchor, TargetCenter, (_, address) => graphics.Models[NativeEffect313Actor(graphics, address)].Sequence ?? throw new NotSupportedException("Effect313 requires its current sequence header BYTE0."), (current, operation) => ExecuteNativeEffect313Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
+        NativeBattleEffect313Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect313 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect313Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect313 requires its current projection."), _ => Camera().Roll, _ => CameraEye(), Point, Anchor, TargetCenter, (_, address) => graphics.ActorModels.Get(NativeEffect313Actor(graphics, address)).Sequence ?? throw new NotSupportedException("Effect313 requires its current sequence header BYTE0."), (current, operation) => ExecuteNativeEffect313Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect313Controller.Initialize(frame, resources, inputs) : NativeBattleEffect313Controller.Advance(frame, resources, inputs);
         PublishNativeEffect313Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleEffect313PointStep Point(NativeBattleEffect313Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
         {
             int actor = NativeEffect313Actor(graphics, address);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect313 requires its current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect313 requires its current skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect313PointStep Anchor(NativeBattleEffect313Frame current, uint address, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.Models[NativeEffect313Actor(graphics, address)];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect313Actor(graphics, address));
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect313 requires its current target transform.");
             if ((model.Flags0 & 2) == 0)
             {
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect313PointStep TargetCenter(NativeBattleEffect313Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect313 requires its current selected physical target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect313 requires its current selected physical target positions.")).ToArray());
             return new(current, retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z)));
         }
 

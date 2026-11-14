@@ -40,7 +40,7 @@ public sealed partial class BattleSession
                 return frame;
             case NativeBattleEffect285ModelFlags flags:
                 int actor = NativeEffect285Actor(graphics, flags.ModelAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, ApplyNativeEffect285ModelFlags(graphics.Models[actor], flags)) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect285ModelFlags(graphics.ActorModels.Get(actor), flags)) };
                 return frame;
             case NativeBattleEffect285StageFlags flags:
                 NativeBattleStageState visible = NativeStage ?? throw new NotSupportedException("Effect285 requires its current stage.");

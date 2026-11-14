@@ -97,7 +97,7 @@ public sealed partial class BattleSession
             switch (callback)
             {
                 case NativeBattleDoom8Nodes.Callback:
-                    return NativeBattleDoom8Nodes.Advance8C88D0(current, address, resources.NodeSource, new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, Colors(), Execute) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(current, address)) });
+                    return NativeBattleDoom8Nodes.Advance8C88D0(current, address, resources.NodeSource, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), PoseSource, Projection(), Camera().Roll, Colors(), Execute) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(current, address)) });
                 case NativeBattleDoom8Reaper.Callback:
                     NativeBattleSummonColors sourceColors = Colors();
                     return NativeBattleDoom8Reaper.Advance(current, address, new(sourceColors.Transition, sourceColors.Normal, (value, model) => NativeBattleDoom8Models.Advance(value, model, resources.ReaperModel, false), Execute));
@@ -182,10 +182,10 @@ public sealed partial class BattleSession
                     targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
                     int actor = targetTask.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
-                    targetTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(targetTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Doom requires its target pose."), source));
+                    targetTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(targetTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Doom requires its target pose."), source));
                     return NativeBattleDoom8Controller.Write(current, target.Address, targetTask);
                 case NativeBattleDoom8InitializeTarget target:
-                    return NativeBattleDoom8TargetSetup.Initialize8C52C0(current, target.Address, actor => graphics.Models[actor]);
+                    return NativeBattleDoom8TargetSetup.Initialize8C52C0(current, target.Address, actor => graphics.ActorModels.Get(actor));
                 case NativeBattleDoom8StageDepthWrite depth:
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Doom requires its stage depth owners.");
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = depth.Write.Fade, ColorFlags = depth.Write.ClearRgb ? group.ColorFlags & 0xFF000000u : group.ColorFlags }).ToImmutableArray() };
@@ -205,7 +205,7 @@ public sealed partial class BattleSession
                 case NativeBattleDoom8StripLookBasis basis:
                     return ObserveDoom8Basis(current, basis.Direction, basis.Up);
                 case NativeBattleDoom8StripAnchor anchor:
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[anchor.Actor], PoseSource(anchor.Actor), 0xF1, 0);
+                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(anchor.Actor), PoseSource(anchor.Actor), 0xF1, 0);
                     current = ObserveDoom8Anchor(current, producer);
                     NativeBattleVector position = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
                     byte[] xyz = new byte[6];

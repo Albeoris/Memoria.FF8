@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Choco requires original graphics rules.");
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Choco requires its depth-cue constants.");
         NativeBattleChoco100Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Choco requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Choco requires retained CRT random state."));
-        frame = NativeBattleChoco100Controller.Advance70EB00(frame, new(nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Choco requires the selected actor pose source."), DrawModel, AdvanceProgram, AdvanceNodes, AdvanceAux, AdvanceSecondary, AdvanceSmall, StartVibration, Execute), resources);
+        frame = NativeBattleChoco100Controller.Advance70EB00(frame, new(nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Choco requires the selected actor pose source."), DrawModel, AdvanceProgram, AdvanceNodes, AdvanceAux, AdvanceSecondary, AdvanceSmall, StartVibration, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
             NativeBattleChoco100State shared = Shared(current);
             NativeBattleChoco97NodeState nodes = shared.Nodes with { Work = shared.Nodes.Work with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Choco requires its current private cursor.") } };
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Choco requires its initialized ordering table.");
-            NativeBattleChoco100NodeStep advanced = NativeBattleChoco100Nodes.AdvanceContext(new(current.Memory, current.Effect, nodes, shared.Io, current.Random), address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors);
+            NativeBattleChoco100NodeStep advanced = NativeBattleChoco100Nodes.AdvanceContext(new(current.Memory, current.Effect, nodes, shared.Io, current.Random), address, actor => graphics.ActorModels.Get(actor), projection, NativeCamera!.Roll, primitive.Pending, colors);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = advanced.Frame.Memory with { Choco100 = advanced.Frame.Memory.Choco100! with { Nodes = advanced.Frame.State, Io = advanced.Frame.Io } };
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.Work.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
@@ -135,15 +135,15 @@ public sealed partial class BattleSession
             NativeBattleChoco100State shared = Shared(current);
             NativeBattleChoco100IoState io = shared.Io ?? throw new NotSupportedException("Native Choco secondary requires its actual TIM work allocation.");
             uint work = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(io.Control.AsSpan().Slice(0x100));
-            NativeBattleChoco100SecondaryStep changed = NativeBattleChoco100Secondary.Advance716C20(new(task, graphics.Models[actorIndex], shared.SecondarySettings), work, DrawActor);
-            graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, changed.Frame.Actor) };
+            NativeBattleChoco100SecondaryStep changed = NativeBattleChoco100Secondary.Advance716C20(new(task, graphics.ActorModels.Get(actorIndex), shared.SecondarySettings), work, DrawActor);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, changed.Frame.Actor) };
             current = current with { Memory = current.Memory with { Choco100 = Shared(current) with { SecondarySettings = changed.Frame.Settings } } };
             return new(current, changed.Frame.Task, changed.ReadyToComplete);
 
             NativeBattleChoco100SecondaryFrame DrawActor(NativeBattleChoco100SecondaryFrame secondary)
             {
                 NativeBattleGraphicsModel actor = secondary.Actor;
-                graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
                 NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Choco actor drawing requires its actual skeleton.");
                 NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Native Choco actor drawing requires its current body pose.");

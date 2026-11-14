@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleAcid317Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Acid requires its CRT stream."), memory.Acid317 ?? throw new NotSupportedException("Acid requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Acid requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Acid requires its original interpolation constants.");
         Dictionary<uint, System.Numerics.Vector3> pilotTrailWorld = [];
-        NativeBattleAcid317Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => ReadNativeGraphicsBoneCount(graphics, actor), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, Mouth, Execute) { Colors = colors, CapturePresentation = true };
+        NativeBattleAcid317Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), actor => ReadNativeGraphicsBoneCount(graphics, actor), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, Mouth, Execute) { Colors = colors, CapturePresentation = true };
         frame = initialize ? NativeBattleAcid317Controller.Initialize(frame, resources, inputs) : NativeBattleAcid317Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         NativeBattleAcid317AnchorStep Anchor(NativeBattleAcid317Frame current, int actor)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -73,10 +73,10 @@ public sealed partial class BattleSession
 
         NativeBattleAcid317PointStep Mouth(NativeBattleAcid317Frame current)
         {
-            byte actor = current.Effect.Parameters!.Actor78;
+            byte actor = current.Effect.Parameters!.Source;
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid mouth requires its current actor skeleton.");
-            NativeBattleBadBreath300MouthStep prepared = NativeBattleBadBreath300Mouth.Prepare(current.Memory, graphics.Models[actor], pose, resources.MouthAnchor8);
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+            NativeBattleBadBreath300MouthStep prepared = NativeBattleBadBreath300Mouth.Prepare(current.Memory, graphics.ActorModels.Get(actor), pose, resources.MouthAnchor8);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }
 
@@ -97,10 +97,10 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Acid caster binding leaves its original directory and arena row.");
                     }
                     Publish(current);
-                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = current.Staging!.Write(bind.ResourceAddress, resources.CasterDat.Data.AsSpan());
                     var bound = NativeBattleVictoryResources.Bind5022C0(resources.CasterDat.Data, NativeModelCpuResources ?? throw new NotSupportedException("Acid requires its CPU resource rows."), actor, bind.SaveAddress, bind.ResourceAddress, ReadPointer, WritePointer);
-                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, bound.Model) };
                     return current with { Staging = staging };
 
                     NativeBattleResourcePointer? ReadPointer(uint address)
@@ -126,8 +126,8 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Value, 0, null) { Pan = checked((byte)sound.Pan) });
                     return Import(current);
                 case NativeBattleAcid317ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;
                 case NativeBattleAcid317SnapshotBody snapshot:
                     (current, graphics) = SnapshotNativeAcid317Body(current, graphics, snapshot.Actor, snapshot.CacheAddress);

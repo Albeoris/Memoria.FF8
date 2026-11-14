@@ -8,14 +8,14 @@ public sealed record NativeBattleEffect70Frame(NativeBattleEffectMemory Memory, 
 public sealed record NativeBattleEffect70Step(NativeBattleEffect70Frame Frame, int Result);
 public sealed record NativeBattleEffect70PointStep(NativeBattleEffect70Frame Frame, NativeBattleEffectArena Point8);
 
-public sealed partial record NativeBattleEffect70Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect70Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect70Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect70Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect70Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect70Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect70Frame, short> ReadCameraRoll, Func<NativeBattleEffect70Frame, uint, uint> ReadColor, Func<NativeBattleEffect70Frame, NativeBattleEffect70Operation, NativeBattleEffect70Frame> Execute)
+public sealed partial record NativeBattleEffect70Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect70Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect70Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect70Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect70Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect70Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect70Frame, short> ReadCameraRoll, Func<NativeBattleEffect70Frame, uint, uint> ReadColor, Func<NativeBattleEffect70Frame, NativeBattleEffect70Operation, NativeBattleEffect70Frame> Execute)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
     public Func<NativeBattleEffect70Frame, int, NativeBattleEffectArena>? ReadPosition8 { get; init; }
-    public Func<NativeBattleEffect70Frame, int, NativeBattleEffect70PointStep>? ReadAnchor571400 { get; init; }
+    public Func<NativeBattleEffect70Frame, BattleModelOwner, NativeBattleEffect70PointStep>? ReadAnchor571400 { get; init; }
     public Func<NativeBattleEffect70Frame, int, NativeBattleEffect70Step>? SelectIo5342C0 { get; init; }
     public Func<NativeBattleEffect70Frame, ushort>? ReadSavedFocal { get; init; }
 }

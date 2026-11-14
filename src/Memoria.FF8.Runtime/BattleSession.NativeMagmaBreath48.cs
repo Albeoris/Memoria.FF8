@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("MagmaBreath48 requires its actual process memory.");
         NativeBattleMagmaBreath48Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("MagmaBreath48 requires its actual CRT stream."), (memory.MagmaBreath48 ?? throw new NotSupportedException("MagmaBreath48 requires its retained executable storage.")).EnsureSources(resources)) { Staging = NativeFileStaging ?? throw new NotSupportedException("MagmaBreath48 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("MagmaBreath48 requires its original arithmetic constants.");
-        NativeBattleMagmaBreath48Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], Bone, _ => Camera().Roll, Execute);
+        NativeBattleMagmaBreath48Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), Bone, _ => Camera().Roll, Execute);
         frame = initialize ? NativeBattleMagmaBreath48Controller.Initialize(frame, resources, inputs) : NativeBattleMagmaBreath48Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize && ((effect.Parameters ?? throw new NotSupportedException("MagmaBreath48 requires its native parameters.")).Flags79 & 1) == 0)
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleMagmaBreath48PointStep Bone(NativeBattleMagmaBreath48Frame current, int actor, int selector, int distance)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("MagmaBreath48 disabled bone query requires its actual transform.")).Position28));
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleMagmaBreath48Controller.Read(current, target.TaskAddress), graphics.Models, PoseSource, producer => current = Observe(current, producer));
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("MagmaBreath48 target bounds require its actual current pose."), source));
+                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("MagmaBreath48 target bounds require its actual current pose."), source));
                     return NativeBattleMagmaBreath48Controller.Write(current, target.TaskAddress, task);
                 case NativeBattleMagmaBreath48Sound501330 sound:
                     Publish(current);

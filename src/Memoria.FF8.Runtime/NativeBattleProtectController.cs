@@ -29,7 +29,7 @@ public static class NativeBattleProtectController
         ]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x86BB00, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Protect requires its actual first contact.");
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
@@ -157,8 +157,8 @@ public static class NativeBattleProtectController
                     }
                     else if (phase == 2 && age >= 18)
                     {
-                        int header = parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A));
-                        int contact = checked((inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Protect result lost its contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Protect result lost its contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         Emit(ref state, new NativeBattleProtectContact(contact));
                         state = Done(state, address);
                     }

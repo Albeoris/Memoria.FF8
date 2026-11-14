@@ -279,11 +279,11 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
         {
             throw new InvalidOperationException("Native staging restore requires detached snapshot storage.");
         }
-        ValidateData(ImportData());
+        NativeBattleFileStagingData data = ImportData();
+        ValidateData(data);
         NativeBattleFileStagingWorkingOwner restored = context.GetOrAddOwner(this, () =>
         {
-            NativeBattleFileStagingData data = ImportData();
-            return new NativeBattleFileStagingWorkingOwner(data with { ResourcePointers = context.Map(data.ResourcePointers) });
+            return new NativeBattleFileStagingWorkingOwner(data with { ResourcePointers = context.Map(data.ResourcePointers), ExecutionReferences = context.RetainExecutionReferences(data.ExecutionReferences) });
         });
         return new NativeBattleFileStaging(restored);
     }

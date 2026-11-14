@@ -110,7 +110,7 @@ public sealed partial class BattleSession
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
             if (NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex))
             {
-                nativePreRootStack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, graphics.Models[actorIndex], "texture-animation callback");
+                nativePreRootStack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, graphics.ActorModels.Get(actorIndex), "texture-animation callback");
                 return;
             }
         }

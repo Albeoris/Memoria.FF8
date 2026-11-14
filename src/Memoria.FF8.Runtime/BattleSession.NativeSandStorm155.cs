@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Sand Storm requires its actual process memory.");
         NativeBattleSandStorm155Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Sand Storm requires its actual CRT stream."), memory.SandStorm155 ?? throw new NotSupportedException("Sand Storm requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Sand Storm requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Sand Storm requires its interpolation constants.");
-        NativeBattleSandStorm155Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Sand Storm requires its current projection."), (_, actor) => graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Sand Storm requires its actual retained model world matrix."), Anchor, TargetCenter, Execute);
+        NativeBattleSandStorm155Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Sand Storm requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Sand Storm requires its actual retained model world matrix."), Anchor, TargetCenter, Execute);
         frame = initialize ? NativeBattleSandStorm155Controller.Initialize(frame, resources, inputs) : NativeBattleSandStorm155Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
         NativeBattleSandStorm155AnchorStep Anchor(NativeBattleSandStorm155Frame current, int actor)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Sand Storm requires its current actor skeleton.");
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
 
         NativeBattleSandStorm155PointStep TargetCenter(NativeBattleSandStorm155Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Sand Storm requires every selected physical target position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Sand Storm requires every selected physical target position.")).ToArray());
             return new(current, center);
         }
 

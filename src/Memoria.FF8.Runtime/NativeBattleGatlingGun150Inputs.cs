@@ -6,7 +6,7 @@ public sealed record NativeBattleGatlingGun150Frame(NativeBattleEffectMemory Mem
 }
 
 public sealed record NativeBattleGatlingGun150PointStep(NativeBattleGatlingGun150Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleGatlingGun150Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleGatlingGun150Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleGatlingGun150Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleGatlingGun150Frame, int, int, int, NativeBattleGatlingGun150PointStep> ReadBone502170, Func<NativeBattleGatlingGun150Frame, int, NativeBattleGatlingGun150PointStep> ReadAnchor571400, Func<NativeBattleGatlingGun150Frame, NativeBattleGatlingGun150Operation, NativeBattleGatlingGun150Frame> Execute);
+public sealed record NativeBattleGatlingGun150Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleGatlingGun150Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleGatlingGun150Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleGatlingGun150Frame, BattleModelOwner, int, int, NativeBattleGatlingGun150PointStep> ReadBone502170, Func<NativeBattleGatlingGun150Frame, BattleModelOwner, NativeBattleGatlingGun150PointStep> ReadAnchor571400, Func<NativeBattleGatlingGun150Frame, NativeBattleGatlingGun150Operation, NativeBattleGatlingGun150Frame> Execute);
 
 public abstract record NativeBattleGatlingGun150Operation
 {

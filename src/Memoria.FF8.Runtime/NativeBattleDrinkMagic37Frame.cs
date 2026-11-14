@@ -35,7 +35,7 @@ public sealed record NativeBattleDrinkMagic37GenericTask(uint Address) : NativeB
 public sealed record NativeBattleDrinkMagic37ParticleTask(uint Address) : NativeBattleDrinkMagic37Operation;
 public sealed record NativeBattleDrinkMagic37OrbTask(uint Address) : NativeBattleDrinkMagic37Operation;
 
-public sealed record NativeBattleDrinkMagic37Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDrinkMagic37Frame, NativeBattleDrinkMagic37Operation, NativeBattleDrinkMagic37Frame> Execute)
+public sealed record NativeBattleDrinkMagic37Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDrinkMagic37Frame, NativeBattleDrinkMagic37Operation, NativeBattleDrinkMagic37Frame> Execute)
 {
     public ushort? CameraPadding18 { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }

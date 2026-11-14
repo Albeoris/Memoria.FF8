@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory, NativeBattlePandemona291Bounds Bounds) CaptureNativePandemona291Bounds(NativeBattleGraphicsState graphics, NativeBattleEffectMemory memory, int actorIndex)
     {
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         if (ReadNativeForeignModel(graphics, actorIndex) is { } foreign)
         {
             NativeBattleCameraProjection hostProjection = NativeCamera?.Projection ?? throw new NotSupportedException("Native actor bounds require their live projection registers.");
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         actor = actor with { GeometryWorldMatrix = ground };
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, ground);
         actor = actor with { GeometryWorldMatrix = world with { Y = transform.Position28.Y } };
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(actor, pose);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native Pandemona bounds require the actual body geometry directory.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Pandemona bounds require the actual linked geometry presence.");
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             registers = registers with { NormalInput = input.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray(), Mac = [null, null, null], Ir = [null, projected.Ir2, null], Flags = projected.Projected.Flags };
             return projected.Ir2;
         });
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actorIndex], pose)) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actorIndex), pose)) };
         return (graphics, memory with { ScriptedColorRegisters = registers }, bounds);
     }
 }

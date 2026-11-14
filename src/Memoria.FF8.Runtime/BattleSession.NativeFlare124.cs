@@ -47,12 +47,12 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521428, Address(0), 0xB44, 3), NativeBattleEffectTaskPool.Initialize(0x2521418, Address(0x21CC), 44, 64)];
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
             {
-                int first = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new InvalidDataException("Native Flare requires its action contact pointer.");
+                int first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContactIndex ?? throw new InvalidDataException("Native Flare requires its action contact pointer.");
                 int actor = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
-                uint color = graphics.Models[actor].Color40 ?? throw new NotSupportedException("Native Flare requires its target color.");
+                uint color = graphics.ActorModels.Get(actor).Color40 ?? throw new NotSupportedException("Native Flare requires its target color.");
                 bool busy = false;
                 foreach (NativeBattleModulePoolTask previous in pools[1].Slots)
                 {
@@ -136,9 +136,9 @@ public sealed partial class BattleSession
                     flash = 1024;
                 }
             }
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             model = model with { Flags0 = (ushort)(model.Flags0 | 0x800), Color40 = NativeBattleFlare124Geometry.Color((short)age, task.ReadDword(36), resources.Red, model.Color40!.Value) };
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             int size = model.Transform!.Scale38;
             int scale = (size >> 1) + 2048;
             task = Play(task, 44, 0xA70, resources.Burst, anchor, scale, (-2048 - size) >> 3, out int burst);
@@ -166,7 +166,7 @@ public sealed partial class BattleSession
             }
             if (age == 80)
             {
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + task.ReadWord(14)];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(task.ReadWord(14)));
                 int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Flare lost its action contacts.");
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first + index)).ToImmutableArray() });
@@ -193,8 +193,8 @@ public sealed partial class BattleSession
             }
             if ((burst | ring) == 0)
             {
-                model = graphics.Models[actor];
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 & 0xF7FF) }) };
+                model = graphics.ActorModels.Get(actor);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 & 0xF7FF) }) };
                 return 2;
             }
             task = task.WriteWord(12, unchecked((ushort)(age + 1)));
@@ -274,13 +274,13 @@ public sealed partial class BattleSession
 
         void Visibility(int actor, bool hidden)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             model = model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & 0xFFFB) };
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             foreach (int linked in NativeBattleModelRings.Walk(graphics.Models, actor))
             {
-                model = graphics.Models[linked];
-                graphics = graphics with { Models = graphics.Models.SetItem(linked, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };
+                model = graphics.ActorModels.Get(linked);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };
             }
         }
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + offset));

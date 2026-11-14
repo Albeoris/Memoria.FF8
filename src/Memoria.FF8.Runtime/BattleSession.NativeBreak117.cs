@@ -57,9 +57,9 @@ public sealed partial class BattleSession
                 NativeEffectMemory = NativeEffectMemory! with { Arena = NativeEffectMemory.Arena!.Write(buffer + 0x5CF0, words) };
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
             {
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Break requires its original selected contact.");
                 int actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
                 else if (Allocate(1, 0x6C1950, out int slot))
                 {
                     NativeBattleVector position = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
-                    NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Break requires its actor heightWORD24.");
+                    NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Break requires its actor heightWORD24.");
                     position = position with { Y = transform.Angle36 };
                     NativeBattleModulePoolTask task = WindStore(pools[1].Slots[slot].ClearPayload(0x1564), 16, position).WriteWord(14, (ushort)action).WriteDword(24, entity);
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x1554);
@@ -123,24 +123,24 @@ public sealed partial class BattleSession
             int actor = Actor(task.ReadDword(24));
             int age = WindWord(task, 12);
             NativeBattleVector position = WindVector(task, 16);
-            int scale = ((graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Break requires its actor reachWORD26.")).Scale38 >> 2) + 1024;
+            int scale = ((graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Break requires its actor reachWORD26.")).Scale38 >> 2) + 1024;
             Play(ref task, position, scale);
             bool hidden = (uint)(age - 20) < 64;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (!hidden)
             {
                 model = model with { Flags0 = (ushort)(model.Flags0 & 0xFFFB) };
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             }
             foreach (int index in NativeBattleModelRings.Walk(graphics.Models, actor))
             {
-                model = graphics.Models[index];
-                graphics = graphics with { Models = graphics.Models.SetItem(index, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };
+                model = graphics.ActorModels.Get(index);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };
             }
             if ((uint)(age - 24) < 60)
             {
-                model = graphics.Models[actor];
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                model = graphics.ActorModels.Get(actor);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
                 graphics = DrawNativeBreak117Body(graphics, actor, NativeBattleBreak117Body.StoneLevel(age - 24), NativeEffectMemory!.Arena!.Read(buffer + 0x5CF0, 512).ToImmutableArray(), NativeBattlePilotVisualLifetimes.Identity(117, task));
             }
             if (age == 0)
@@ -180,7 +180,7 @@ public sealed partial class BattleSession
             }
             if (age == 78)
             {
-                int contact = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + WindWord(task, 14)].FirstContactIndex ?? throw new InvalidDataException("Native Break requires its completing contact.");
+                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContactIndex ?? throw new InvalidDataException("Native Break requires its completing contact.");
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
             if (age >= 84)

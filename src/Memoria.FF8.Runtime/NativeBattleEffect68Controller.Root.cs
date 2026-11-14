@@ -82,9 +82,9 @@ public static partial class NativeBattleEffect68Controller
                 {
                     uint root = task.ReadDword(0x10);
                     frame = Write(frame, root, Read(frame, root).WriteByte(0x63, 0));
-                    int group = checked(Parameters(frame).HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
+                    BattleActionHeaderReference group = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                    int contact = packets.Headers[group].FirstContactIndex ?? throw new NotSupportedException("Effect68 requires its current header contact pointer.");
+                    int contact = packets.ReadHeader(group).FirstContactIndex ?? throw new NotSupportedException("Effect68 requires its current header contact pointer.");
                     frame = inputs.Execute(frame, new NativeBattleEffect68Contact506690(contact));
                     frame = NextPhase(MarkComplete(frame, address), address);
                 }

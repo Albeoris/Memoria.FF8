@@ -51,8 +51,8 @@ public sealed partial record NativeBattleAuxiliaryState
         {
             throw new InvalidDataException("Native model motion lacks its written physical task operands.");
         }
-        Func<int, NativeBattleGraphicsModel> read = inputs?.ReadModel ?? throw new NotSupportedException("Native model motion requires its current model bank.");
-        Action<int, NativeBattleGraphicsModel> write = inputs?.WriteModel ?? throw new NotSupportedException("Native model motion requires its model publication owner.");
+        Func<BattleModelOwner, NativeBattleGraphicsModel> read = inputs?.ReadModel ?? throw new NotSupportedException("Native model motion requires its current model bank.");
+        Action<BattleModelOwner, NativeBattleGraphicsModel> write = inputs?.WriteModel ?? throw new NotSupportedException("Native model motion requires its model publication owner.");
         byte[] payload = task.Payload.ToArray();
         int sourceIndex = MotionModel(payload, 0, inputs?.PresentationRoster);
         int targetIndex = MotionModel(payload, 4, inputs?.PresentationRoster);

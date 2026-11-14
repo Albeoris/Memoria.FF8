@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Rush requires original graphics rules.");
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Rush requires its depth-cue constants.");
         NativeBattleRush91Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Rush requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Rush requires retained CRT random state."));
-        frame = NativeBattleRush91Controller.Advance759510(frame, new(frame.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Native Rush requires its retained fullscreen pause DWORD."), nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Rush requires the selected actor pose source."), ReadBone, DrawModel, AdvanceProgram, AdvanceNodes, AdvanceOverlay, Execute), resources);
+        frame = NativeBattleRush91Controller.Advance759510(frame, new(frame.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Native Rush requires its retained fullscreen pause DWORD."), nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Rush requires the selected actor pose source."), ReadBone, DrawModel, AdvanceProgram, AdvanceNodes, AdvanceOverlay, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             NativeBattleRecover93NodeState nodes = shared.Nodes with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Rush requires its current private cursor.") };
             NativeBattleRecover93NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Rush requires its initialized ordering table.");
-            NativeBattleRecover93NodeStep advanced = NativeBattleRush91Nodes.AdvanceContext(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
+            NativeBattleRecover93NodeStep advanced = NativeBattleRush91Nodes.AdvanceContext(nodeFrame, address, actor => graphics.ActorModels.Get(actor), projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = advanced.Frame.Memory with { Rush91 = advanced.Frame.Memory.Rush91! with { Nodes = advanced.Frame.State } };
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);

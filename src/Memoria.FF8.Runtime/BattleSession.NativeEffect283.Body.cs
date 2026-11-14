@@ -25,13 +25,13 @@ public sealed partial class BattleSession
         ImmutableArray<ushort> factors = Enumerable.Range(0, 128).Select(index => resources.ReadWarpFactor(bankIndex, index)).ToImmutableArray();
         uint bankAddress = checked(NativeBattleEffect283Profile.WarpTablesAddress + (uint)((bankIndex - 1) * 256));
         NativeBattleTemporaryAllocation allocated = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect283 body requires its current temporary owner."), 124);
-        NativeBattleEffect283BodyFrame body = new(frame.Memory, allocated.Staging, graphics.Models[actor], NativeDeformedBodyView(allocated.Staging, allocated.Address, 124), CommonCursor(frame.Memory));
+        NativeBattleEffect283BodyFrame body = new(frame.Memory, allocated.Staging, graphics.ActorModels.Get(actor), NativeDeformedBodyView(allocated.Staging, allocated.Address, 124), CommonCursor(frame.Memory));
         NativeBattleEffect283BodyServices services = new(Shadow, Compose, DrawSource, Restore)
         {
             DrawLinkedAndDeliver = body.Model.LinkedTransform is null ? null : DrawLinked
         };
         body = NativeBattleEffect283BodyDrawing.DrawOuter(body, camera.CapturePackedView1D97778(), centerX, centerY, threshold, bankAddress, fade, scratchAddress, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect283 body requires its current color constants."), services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, allocated.Address, body.Temporary124, 124);
         short maximum = BinaryPrimitives.ReadInt16LittleEndian(body.Temporary124.Read(0x76, 2));
         frame = frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 124) };

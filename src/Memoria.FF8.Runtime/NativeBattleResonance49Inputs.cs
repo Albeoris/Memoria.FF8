@@ -6,7 +6,7 @@ public sealed record NativeBattleResonance49Frame(NativeBattleEffectMemory Memor
 }
 
 public sealed record NativeBattleResonance49PointStep(NativeBattleResonance49Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleResonance49Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleResonance49Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleResonance49Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleResonance49Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleResonance49Frame, int, int, int, NativeBattleResonance49PointStep> ReadBone502170, Func<NativeBattleResonance49Frame, int, NativeBattleEffectArena> ReadEnvironment92, Func<NativeBattleResonance49Frame, byte> CurrentPrimitiveBufferByte, Func<NativeBattleResonance49Frame, NativeBattleResonance49Operation, NativeBattleResonance49Frame> Execute);
+public sealed record NativeBattleResonance49Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleResonance49Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleResonance49Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleResonance49Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleResonance49Frame, BattleModelOwner, int, int, NativeBattleResonance49PointStep> ReadBone502170, Func<NativeBattleResonance49Frame, int, NativeBattleEffectArena> ReadEnvironment92, Func<NativeBattleResonance49Frame, byte> CurrentPrimitiveBufferByte, Func<NativeBattleResonance49Frame, NativeBattleResonance49Operation, NativeBattleResonance49Frame> Execute);
 
 public abstract record NativeBattleResonance49Operation
 {

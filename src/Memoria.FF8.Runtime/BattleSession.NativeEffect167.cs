@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect167 requires its current process memory.");
         NativeBattleEffect167Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect167 requires its current CRT stream."), memory.Effect167 ?? throw new NotSupportedException("Effect167 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect167 requires its current addressed memory.") };
         NativeBattleEffect167Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect167 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), ReadBoneMatrix, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect167 requires its current model world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect167 requires its current projection."), _ => Camera().FocalLength ?? throw new NotSupportedException("Effect167 requires its current scalar focal WORD."), _ => Camera().Roll, Point502170, LocalPoint, Execute);
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect167 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), ReadBoneMatrix, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect167 requires its current model world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect167 requires its current projection."), _ => Camera().FocalLength ?? throw new NotSupportedException("Effect167 requires its current scalar focal WORD."), _ => Camera().Roll, Point502170, LocalPoint, Execute);
         inputs = inputs with
         {
             CapturePresentation = true,
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         {
             NativeFileStaging = current.Staging;
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect167 requires its current skeleton.");
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
             if ((uint)selector >= (uint)bones.Length)
             {
                 throw new InvalidDataException("Effect167 selected a bone outside its current physical skeleton.");
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
         NativeBattleEffect167PointStep Point502170(NativeBattleEffect167Frame current, int actor, byte selector, short fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect167 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, fraction);
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
         NativeBattleEffect167PointStep LocalPoint(NativeBattleEffect167Frame current, int actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect167 requires its current local skeleton.");
             NativeBattleEffect167LocalBonePointStep step = NativeBattleEffect167LocalBonePoint.Query(current.Memory, current.Staging!, model, source!, selector, fraction, retained);
             return new(current with { Memory = step.Memory, Staging = step.Staging }, step.Output8);
@@ -107,11 +107,11 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.SetItem(flags.Group, group with { Flags = (byte)((group.Flags & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect167WriteModelBytes write:
-                    graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, ApplyNativeEffect167ModelBytes(graphics.Models[write.Actor], write)) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, ApplyNativeEffect167ModelBytes(graphics.ActorModels.Get(write.Actor), write)) };
                     return current;
                 case NativeBattleEffect167ResourceFlags44 flags:
                     ushort retainedFlags = NativeCastingResourceFlags(graphics, checked((byte)flags.Actor));
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, graphics.Models[flags.Actor] with { ResourceFlags44 = (ushort)((retainedFlags & flags.AndMask) | flags.OrMask) }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { ResourceFlags44 = (ushort)((retainedFlags & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect167AllContacts506BA0 contacts:
                     Publish(current);

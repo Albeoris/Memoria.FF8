@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleShockwavePulsar260Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeShockwavePulsar260ForeignBody(NativeBattleShockwavePulsar260Frame frame, NativeBattleGraphicsState graphics, NativeBattleShockwavePulsar260DrawBody draw, NativeBattleSummonColors colors, NativeBattleForeignModelGeometry geometry)
     {
-        NativeBattleGraphicsModel model = graphics.Models[draw.Actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(draw.Actor);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Host body context requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Host body context requires its current projection.");
         NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Host body context requires its physical temporary memory."), 92);

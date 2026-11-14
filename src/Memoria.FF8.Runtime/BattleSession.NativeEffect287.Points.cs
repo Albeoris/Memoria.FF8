@@ -17,7 +17,7 @@ public sealed partial class BattleSession
 
     private NativeBattleResourcePointer NativeEffect287SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, int actor)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
         {
             NativeBattleResourcePointer? pointer;
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectArena CaptureNativeEffect287Model(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, uint address)
     {
-        NativeBattleGraphicsModel model = graphics.Models[NativeEffect287Actor(graphics, address)];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect287Actor(graphics, address));
         _ = ReadNativeEffect287SkeletonSnapshot(graphics, frame, model.Index, 0, 0);
         return CaptureNativeEffect210Model(model).Write(0x64, BitConverter.GetBytes(NativeModelResourceAddress100(model)));
     }
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect287MacStep NativeEffect287PointMac(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, NativeBattleEffectArena point8, NativeBattleEffectArena retained16)
     {
         uint model = frame.State.ReadDword(NativeBattleEffect287Profile.CasterGlobal);
-        NativeBattleGraphicsModel owner = graphics.Models[NativeEffect287Actor(graphics, model)];
+        NativeBattleGraphicsModel owner = graphics.ActorModels.Get(NativeEffect287Actor(graphics, model));
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point8.Read(6, 2));
         frame = LoadMatrix(frame, ReadNativeEffect287BoneMatrix(graphics, frame, NativeModelResourceAddress100(owner), bone));
         NativeBattleGeometryRegisterStep step = NativeBattleGeometry.LoadVector(Registers(frame), 0, new(BinaryPrimitives.ReadInt16LittleEndian(point8.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point8.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point8.Read(4, 2))), unchecked((short)bone));
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect287PointStep NativeEffect287LocalPoint(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, uint address, int selector, NativeBattleEffectArena retained8)
     {
         int actor = NativeEffect287Actor(graphics, address);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeFileStaging = RequireStaging(frame);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect287 local point requires its current skeleton.");
         _ = NativeBattleBodyBoneMatrices.Require(model, source);
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect287PointStep NativeEffect287Anchor(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, uint address, NativeBattleEffectArena retained8)
     {
         int actor = NativeEffect287Actor(graphics, address);
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect287 anchor requires its current model transform.");
         if ((model.Flags0 & 2) == 0)
         {

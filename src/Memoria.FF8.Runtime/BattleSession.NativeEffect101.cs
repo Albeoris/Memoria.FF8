@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect101 requires its actual process memory.");
         NativeBattleEffect101Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect101 requires its CRT stream."), memory.Effect101 ?? throw new NotSupportedException("Effect101 requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect101 requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect101 requires its original interpolation constants.");
-        NativeBattleEffect101Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], Position8, Bone0X, AdvanceAct, Blend, Execute, colors);
+        NativeBattleEffect101Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), Position8, Bone0X, AdvanceAct, Blend, Execute, colors);
         frame = initialize ? NativeBattleEffect101Controller.Initialize(frame, resources, inputs) : NativeBattleEffect101Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect101 requires its current camera.");
-        NativeBattleModelTransform Transform(int actor) => graphics.Models[actor].Transform ?? throw new NotSupportedException("Effect101 requires its actual actor position WORDs.");
+        NativeBattleModelTransform Transform(int actor) => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Effect101 requires its actual actor position WORDs.");
 
         void Publish(NativeBattleEffect101Frame current)
         {
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         NativeBattleEffect101WordStep Bone0X(NativeBattleEffect101Frame current, int actor)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect101 requires its target skeleton.");
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], pose);
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose);
             return new(current, unchecked((short)bones[0].X));
         }
 
@@ -93,31 +93,31 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect101ActorFlags flags:
-                    NativeBattleGraphicsModel flagged = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.Mask) | (flags.Bits & flags.Mask))) }) };
+                    NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.Mask) | (flags.Bits & flags.Mask))) }) };
                     return current;
                 case NativeBattleEffect101PositionXYZ position:
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, graphics.Models[position.Actor] with { Transform = Transform(position.Actor) with { Position28 = position.Position } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, graphics.ActorModels.Get(position.Actor) with { Transform = Transform(position.Actor) with { Position28 = position.Position } }) };
                     return current;
                 case NativeBattleEffect101PositionY position:
                     NativeBattleModelTransform yTransform = Transform(position.Actor);
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, graphics.Models[position.Actor] with { Transform = yTransform with { Position28 = yTransform.Position28 with { Y = position.Y } } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, graphics.ActorModels.Get(position.Actor) with { Transform = yTransform with { Position28 = yTransform.Position28 with { Y = position.Y } } }) };
                     return current;
                 case NativeBattleEffect101Position8 position:
                     NativeBattleVector xyz = new(BinaryPrimitives.ReadInt16LittleEndian(position.Data.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(position.Data.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(position.Data.Read(4, 2)));
                     short w = BinaryPrimitives.ReadInt16LittleEndian(position.Data.Read(6, 2));
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, graphics.Models[position.Actor] with { Transform = Transform(position.Actor) with { Position28 = xyz, Vertical34 = w } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, graphics.ActorModels.Get(position.Actor) with { Transform = Transform(position.Actor) with { Position28 = xyz, Vertical34 = w } }) };
                     return current;
                 case NativeBattleEffect101Color44 color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(color.Actor, graphics.Models[color.Actor] with { Color44 = color.Value }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(color.Actor, graphics.ActorModels.Get(color.Actor) with { Color44 = color.Value }) };
                     return current;
                 case NativeBattleEffect101ScalePointer scale:
-                    graphics = graphics with { Models = graphics.Models.SetItem(scale.Actor, graphics.Models[scale.Actor] with { ScaleVectorAddress48 = scale.Address }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(scale.Actor, graphics.ActorModels.Get(scale.Actor) with { ScaleVectorAddress48 = scale.Address }) };
                     return current;
                 case NativeBattleEffect101WorldR9TXYZ world:
-                    NativeBattleGraphicsModel worldModel = graphics.Models[world.Actor];
+                    NativeBattleGraphicsModel worldModel = graphics.ActorModels.Get(world.Actor);
                     NativeBattleActionMatrix prior = worldModel.GeometryWorldMatrix ?? throw new NotSupportedException("Effect101 requires its retained target matrix.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(world.Actor, worldModel with { GeometryWorldMatrix = prior with { Rotation = world.Matrix.Rotation, X = world.Matrix.X, Y = world.Matrix.Y, Z = world.Matrix.Z } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(world.Actor, worldModel with { GeometryWorldMatrix = prior with { Rotation = world.Matrix.Rotation, X = world.Matrix.X, Y = world.Matrix.Y, Z = world.Matrix.Z } }) };
                     return current;
                 case NativeBattleEffect101Stage stage:
                     NativeBattleStageState previous = NativeStage ?? throw new NotSupportedException("Effect101 requires its current stage groups.");

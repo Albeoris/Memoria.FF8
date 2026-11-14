@@ -15,8 +15,8 @@ public static partial class NativeBattleEffect166Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect166 requires its current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        int actor = parameters.Actor78;
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
+        int actor = parameters.Source;
         int target = packets.ReadContact(header.FirstContactIndex ?? throw new NotSupportedException("Effect166 requires its actual first contact pointer.")).Primary.ActorIndex;
         int textureOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect166 requires its actual executed initializer pointer.");
         uint source = checked(CommonAddress + (uint)textureOffset);

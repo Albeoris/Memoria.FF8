@@ -11,13 +11,13 @@ public sealed partial class BattleSession
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect251 bounds require current physical memory.");
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect251 bounds require the current physical rig.");
         frame = frame with { Staging = NativeFileStaging };
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect251 bounds require the current model world matrix.");
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect251 bounds require the current actor transform.");
         _ = NativeBattleBodyBoneMatrices.Require(model, source);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model with { GeometryWorldMatrix = world with { Y = 0 } }, world with { Y = 0 });
         model = model with { GeometryWorldMatrix = world with { Y = transform.Position28.Y } };
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect251 bounds require their actual temporary owner."), 24);
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 24);
@@ -87,7 +87,7 @@ public sealed partial class BattleSession
 
     private NativeBattleResourcePointer NativeEffect251BoundsSkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, int actor)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
         {
             NativeBattleResourcePointer? pointer;
@@ -112,9 +112,9 @@ public sealed partial class BattleSession
     private NativeBattleEffect251Frame RestoreNativeEffect251BoundsPose(ref NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, int actor, NativeBattlePoseSource source)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect251 bounds require retained pose temporary memory."), 88);
-        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.Models[actor], source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, prepared.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
         NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(prepared.Model.SequenceState ?? throw new NotSupportedException("Effect251 bounds require the decoded pose owner."), source);
         if (!decoded.HasScale)

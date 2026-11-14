@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Wind Blast requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Wind Blast requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Wind Blast requires its actual current view matrix.");
-        Func<int, NativeBattleGraphicsModel> readModel = actor => graphics.Models[actor];
+        Func<BattleModelOwner, NativeBattleGraphicsModel> readModel = actor => graphics.ActorModels.Get(actor);
         NativeBattleWindBlast29Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), readModel, PoseSource, Execute, AdvanceGeneric);
         frame = NativeBattleWindBlast29Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             NativeCrtRandomState genericRandom = current.Random;
             NativeBattleCuragaControllerInputs genericInputs = new(nativeActionPackets, view, readModel, PoseSource)
             {
-                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0)) }
+                ObserveBoneAnchor = (nodes, actor, selector) => nodes with { Memory = ObserveNativeBoneAnchor(nodes.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, 0)) }
             };
             NativeBattleCuragaLeafStep advanced = NativeBattleCuragaNodeEngine.AdvanceGeneric87E1A0(current.ToGeneric(), address, resources.GenericNodes(), genericInputs, new(AdvanceNodes));
             return new(current.WithGeneric(advanced.Frame) with { Random = genericRandom }, advanced.Result);

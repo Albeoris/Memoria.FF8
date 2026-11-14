@@ -18,8 +18,8 @@ public static partial class NativeBattleEffect315Controller
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect315 requires its actual COMMON arena.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect315 requires its executed texture initializer.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int header = Parameters(frame).HeaderIndex7C;
-        int first = packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect315 requires its actual first current contact pointer.");
+        BattleActionHeaderReference header = Parameters(frame).Header;
+        int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect315 requires its actual first current contact pointer.");
         uint target = packets.ReadContact(first).Primary.ActorIndex;
         NativeBattleEffectTaskPool root = RetainPayload(NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount), frame.State.RootBankStorage);
         NativeBattleEffectTaskPool children = RetainPayload(NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount), frame.State.ChildBankStorage);
@@ -27,7 +27,7 @@ public static partial class NativeBattleEffect315Controller
         (children, int mainSlot) = children.Append(0x598E70);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(0xC, 0));
         children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(0xC, 0));
-        frame = frame with { Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, State = frame.State.WriteDword(TargetGlobal, target).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Actor78).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
+        frame = frame with { Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, State = frame.State.WriteDword(TargetGlobal, target).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
         for (int index = 0; index < ParticleCount; index++)
         {
             frame = WriteBytes(frame, checked(ParticleAddress + (uint)(index * ParticleStride)), NativeBattleEffectArena.Clear(), 4);

@@ -38,8 +38,8 @@ public static class NativeBattleCarbuncle278Entry
         }
         if (roster is not null)
         {
-            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.HeaderIndex7C);
-            if (!roster.ContainsRow(parameters.Actor78) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
+            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
             {
                 throw new InvalidDataException("Hosted Carbuncle entry requires a bound caster and at least one bound recipient model row.");
             }
@@ -54,7 +54,7 @@ public static class NativeBattleCarbuncle278Entry
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
         pool = pool.WriteSlot(slot, task);
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadByte(0x10);
         int sum = 0;
         if (count != 0)
@@ -96,7 +96,7 @@ public static class NativeBattleCarbuncle278Entry
             lift = 0;
             floor = centroid;
         }
-        state = state with { Random811C = value, Action8120 = 0x1D99A78, Caster8124 = NativeBattleGraphicsModelAddress.Encode(parameters.Actor78), Centroid81C4 = centroid, Base81CC = floor, Lift81D0 = lift, ModelBuffer81F8 = NativeBattleEffectNodeMemory.ArenaAddress };
+        state = state with { Random811C = value, Action8120 = 0x1D99A78, Caster8124 = NativeBattleGraphicsModelAddress.Encode(parameters.Source), Centroid81C4 = centroid, Base81CC = floor, Lift81D0 = lift, ModelBuffer81F8 = NativeBattleEffectNodeMemory.ArenaAddress };
         return frame with { Memory = frame.Memory with { Textures = textures, Carbuncle278 = state }, Effect = frame.Effect with { Pools = [pool], ReturnedDescriptor = MainDescriptor }, Random = random };
 
         NativeBattleGraphicsModel Model(int index) => (uint)index < models.Length ? models[index] : throw new NotSupportedException("Native Carbuncle target pointer leaves the seven physical actor rows.");

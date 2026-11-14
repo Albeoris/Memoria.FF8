@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         short zsf4 = registers.Zsf4 ?? throw new NotSupportedException("Native Sticky Web requires ZSF4.");
         short dqa = registers.Dqa;
         int dqb = registers.Dqb;
-        int caster = effect.Parameters!.Actor78;
+        int caster = effect.Parameters!.Source;
         int target = effect.Parameters.TargetActors.EnumerateRows().First();
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
@@ -89,10 +89,10 @@ public sealed partial class BattleSession
             int frame = Word(task, 12);
             if (frame == 0)
             {
-                NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.Models[target], NativeGraphicsPoseResource(graphics, target).PoseSource ?? throw new NotSupportedException("Native Sticky Web requires its target pose."));
+                NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.ActorModels.Get(target), NativeGraphicsPoseResource(graphics, target).PoseSource ?? throw new NotSupportedException("Native Sticky Web requires its target pose."));
                 NativeBattleVector position = new(anchor.X, anchor.Y, anchor.Z);
                 Put(0x190E, anchor.W);
-                NativeBattleEffectLocalBounds bounds = graphics.Models[target].GeometryBounds52 ?? throw new NotSupportedException("Native Sticky Web requires its target geometry bounds.");
+                NativeBattleEffectLocalBounds bounds = graphics.ActorModels.Get(target).GeometryBounds52 ?? throw new NotSupportedException("Native Sticky Web requires its target geometry bounds.");
                 Store(0x1908, position with { Y = unchecked((short)((bounds.Minimum.Y + bounds.Maximum.Y) >> 1)) });
             }
             if (frame == 1)
@@ -121,7 +121,7 @@ public sealed partial class BattleSession
             }
             if (frame == 55)
             {
-                int first = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C].FirstContactIndex ?? throw new InvalidDataException("Native Sticky Web requires its actual first contact.");
+                int first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContactIndex ?? throw new InvalidDataException("Native Sticky Web requires its actual first contact.");
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                 graphics = graphics with { PendingContacts = pending };

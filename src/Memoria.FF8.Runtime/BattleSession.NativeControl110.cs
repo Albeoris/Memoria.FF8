@@ -50,9 +50,9 @@ public sealed partial class BattleSession
             if (Allocate(5, 0x6CEA30, out int slot))
             {
                 NativeBattleModulePoolTask director = Clear(5, slot);
-                int headerIndex = effect.Parameters!.HeaderIndex7C;
-                int count = nativeActionPackets.Headers[headerIndex].ReadByte(16);
-                int contact = nativeActionPackets.Headers[headerIndex].FirstContactIndex ?? throw new InvalidDataException("Native control110 requires its original target array.");
+                BattleActionHeaderReference headerIndex = effect.Parameters!.Header;
+                int count = nativeActionPackets.ReadHeader(headerIndex).ReadByte(16);
+                int contact = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new InvalidDataException("Native control110 requires its original target array.");
                 if (count is < 1 or > 3)
                 {
                     throw new InvalidDataException("Native control110 target pointers leave their three physical slots.");
@@ -222,7 +222,7 @@ public sealed partial class BattleSession
                 return 0;
             }
             int actor = Actor(task.ReadDword(28));
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (WindWord(task, 12) == 0)
             {
                 int ordinal = WindWord(task, 32);
@@ -238,7 +238,7 @@ public sealed partial class BattleSession
                     QueueNativeText(combatant, program, actor == 3 ? 10 : 1, 0);
                 }
             }
-            model = graphics.Models[actor];
+            model = graphics.ActorModels.Get(actor);
             if (WindWord(task, 20) == 0)
             {
                 model = model with { Flags0 = (ushort)(model.Flags0 | 8) };
@@ -263,7 +263,7 @@ public sealed partial class BattleSession
                     {
                         continue;
                     }
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                     NativeBattleVector point = Sample110(actor, index);
                     NativeBattleModulePoolTask particle = WindStore(Clear(4, particleSlot), 16, point).WriteWord(22, unchecked((ushort)((Random() & 0x7FF) + 0xC00))).WriteWord(24, unchecked((ushort)((unchecked((int)director.ReadDword(44)) << 7) / distance))).WriteWord(26, 0).WriteWord(28, unchecked((ushort)((unchecked((int)director.ReadDword(48)) << 7) / distance)));
                     Put(4, particleSlot, particle);
@@ -288,7 +288,7 @@ public sealed partial class BattleSession
             {
                 model = model with { Flags0 = (ushort)((model.Flags0 | 4) & 0xEFFF) };
             }
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             return counter >= 50 ? 2 : 0;
         }
 
@@ -346,7 +346,7 @@ public sealed partial class BattleSession
             }
             Put(1, slot, task);
         }
-        NativeBattleVector Position(int actor) => graphics.Models[actor].Transform!.Position28;
+        NativeBattleVector Position(int actor) => graphics.ActorModels.Get(actor).Transform!.Position28;
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + (uint)offset);
         int Actor(uint address)
         {
@@ -400,7 +400,7 @@ public sealed partial class BattleSession
         {
             var data = Inputs110(actor);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ModelGroupMatrices50F190(graphics.Models[actor], data.Source, identity);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ModelGroupMatrices50F190(graphics.ActorModels.Get(actor), data.Source, identity);
             if (NativeBattleStorm11Vertices.Find6CE880(data.Body, data.Mask, matrices, ref vertex, out NativeBattleVector point))
             {
                 return point;
@@ -409,7 +409,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native control110 exhausted its actual vertex bank.");
             }
-            matrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(graphics.Models[actor], data.LinkedSource!, identity);
+            matrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(graphics.ActorModels.Get(actor), data.LinkedSource!, identity);
             if (!NativeBattleStorm11Vertices.Find6CE880(data.Linked, uint.MaxValue, matrices, ref vertex, out point))
             {
                 throw new InvalidDataException("Native control110 exhausted its actual linked vertex bank.");
@@ -426,7 +426,7 @@ public sealed partial class BattleSession
                 body = body.SetItem(1, linked.Single());
                 linked = [];
             }
-            return (body, linked, graphics.Models[actor].SequenceState!.MeshMask124, resource.PoseSource!, resource.LinkedPoseSource);
+            return (body, linked, graphics.ActorModels.Get(actor).SequenceState!.MeshMask124, resource.PoseSource!, resource.LinkedPoseSource);
         }
     }
 

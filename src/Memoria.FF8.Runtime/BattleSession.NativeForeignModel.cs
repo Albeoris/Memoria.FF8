@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private bool NativeGraphicsUsesForeignPose(NativeBattleGraphicsState graphics, int index)
     {
-        return presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null && graphics.Models[index].ActiveStagedResourceRow100 is null && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ResourceRenzokukenTargetBank is null;
+        return presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null && graphics.ActorModels.Get(index).ActiveStagedResourceRow100 is null && graphics.ActorModels.Get(index).ResourceMagicId is null && graphics.ActorModels.Get(index).ResourceRenzokukenTargetBank is null;
     }
 
     private NativeBattleEffectActorGeometry? ReadNativeGraphicsForeignTarget(NativeBattleGraphicsState graphics, int index)
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         {
             return foreign.AtStandingPose ?? throw new NotSupportedException("The host actor has no current standing animation observation.");
         }
-        return ((graphics.Models[index].ResourceFlags44 ?? throw new NotSupportedException("Native actor standing observation requires its current resource flags.")) & 0x40) != 0;
+        return ((graphics.ActorModels.Get(index).ResourceFlags44 ?? throw new NotSupportedException("Native actor standing observation requires its current resource flags.")) & 0x40) != 0;
     }
 
     private bool NativeGraphicsModelIs(NativeBattleGraphicsState graphics, int index, byte modelId)
@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        return (graphics.Models[index].ModelId4 ?? throw new NotSupportedException("Native model identity comparison requires the current native resource identity.")) == modelId;
+        return (graphics.ActorModels.Get(index).ModelId4 ?? throw new NotSupportedException("Native model identity comparison requires the current native resource identity.")) == modelId;
     }
 
     private NativeBattlePosedActor? ReadNativeForeignPose(NativeBattleGraphicsState graphics, int index)
@@ -42,13 +42,13 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattlePosedActor pose = foreign!.Pose ?? throw new NotSupportedException("The host actor cannot supply its actual posed bone segments.");
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         return pose with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, model), pose.World) };
     }
 
     private (NativeBattleEffectMemory Memory, NativeBattleVector Point) ObserveNativeGraphicsBoneAnchor(NativeBattleEffectMemory memory, NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
     {
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (NativeGraphicsUsesForeignPose(graphics, index) && presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
             if ((model.Flags0 & 2) == 0)
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleEffectActorGeometry anchors = foreign!.Geometry?.Anchors ?? throw new NotSupportedException("The host actor cannot supply posed skeleton bounds.");
-        NativeBattleActionMatrix delta = NativeBattleForeignPlacement.Delta(foreign, graphics.Models[index]);
+        NativeBattleActionMatrix delta = NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(index));
         return anchors with { Anchor240 = NativeBattleGfMatrices.Transform460840(delta, anchors.Anchor240), Anchor241 = NativeBattleGfMatrices.Transform460840(delta, anchors.Anchor241) };
     }
 
@@ -98,12 +98,12 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleForeignModelGeometry geometry = foreign!.Geometry ?? throw new NotSupportedException("The host actor cannot supply posed triangles and their original materials.");
-        return geometry with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, graphics.Models[index]), geometry.World) };
+        return geometry with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(index)), geometry.World) };
     }
 
     internal NativeBattleActionMatrix ReadEffectPresentationForeignPlacement(int index)
     {
         NativeBattleForeignActor actor = presentationForeignActors?[index] ?? throw new InvalidOperationException("The selected actor is not owned by the host.");
-        return NativeBattleForeignPlacement.Delta(actor, NativeGraphics!.Models[index]);
+        return NativeBattleForeignPlacement.Delta(actor, NativeGraphics!.ActorModels.Get(index));
     }
 }

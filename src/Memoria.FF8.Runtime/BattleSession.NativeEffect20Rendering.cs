@@ -55,7 +55,7 @@ public sealed partial class BattleSession
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
         int index = task.ReadByte(0x2C);
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect20 body requires its actual original rig.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect20 body requires its current camera.");
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
         PublishBones();
         actor = actor with { SequenceState = actor.SequenceState! with { MeshMask124 = savedMask } };
         ReleaseNativeEffect20Temporary(temporary, retained, 140);
-        return (graphics with { Models = graphics.Models.SetItem(index, actor) }, current);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(index, actor) }, current);
 
         void PublishBones()
         {

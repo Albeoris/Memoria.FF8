@@ -15,8 +15,8 @@ public static partial class NativeBattleEffect338Controller
             throw new InvalidDataException("Effect338 requires its exclusive inactive root bank.");
         }
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int header = Parameters(frame).HeaderIndex7C;
-        int first = packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Effect338 requires its actual first action contact.");
+        BattleActionHeaderReference header = Parameters(frame).Header;
+        int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect338 requires its actual first action contact.");
         uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
         frame = frame with { Random = frame.Random.Draw(out ushort seed), State = frame.State.InitializeSource(resources) };
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect338 requires its current texture process.");
@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect338Controller
         }
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        frame = frame with { Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, State = frame.State.WriteDword(0x25561C8, seed).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)).WriteDword(TargetGlobal, target).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        frame = frame with { Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, State = frame.State.WriteDword(0x25561C8, seed).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)).WriteDword(TargetGlobal, target).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
         return ClearDwords701200(frame, RootBank + 12, 2);
     }
 

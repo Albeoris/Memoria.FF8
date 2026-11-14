@@ -4,7 +4,7 @@ public sealed record NativeBattleCuragaNodeCycleStep(NativeBattleCuragaFrame Fra
 
 public static partial class NativeBattleCuragaNodeKinematics
 {
-    public static NativeBattleCuragaNodeCycleStep AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, bool birth882E20 = false)
+    public static NativeBattleCuragaNodeCycleStep AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, NativeCrtRandomState random, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, bool birth882E20 = false)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);

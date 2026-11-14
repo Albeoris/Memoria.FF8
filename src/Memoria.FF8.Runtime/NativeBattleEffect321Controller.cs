@@ -18,7 +18,7 @@ public static partial class NativeBattleEffect321Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect321 requires its actual parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect321 requires its actual first contact pointer.");
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)offset)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Actor78).WriteDword(TargetGlobal, packets.ReadContact(first).Primary.ActorIndex) };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)offset)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, packets.ReadContact(first).Primary.ActorIndex) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0]);
         NativeBattleEffectTaskPool child = CreatePool(frame, Pools[1]);
         frame = frame with { State = frame.State.DetachBank(RootBank).DetachBank(ChildBank), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };
@@ -99,7 +99,7 @@ public static partial class NativeBattleEffect321Controller
     private static NativeBattleActionHeaderSlot CurrentHeader(NativeBattleEffect321Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect321 requires its actual action header.");
-        return packets.Headers[parameters.HeaderIndex7C];
+        return packets.ReadHeader(parameters.Header);
     }
 
     public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect321 requires an actual physical model row.");

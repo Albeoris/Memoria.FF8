@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDoom8NodePackets(bool Common, NativeBattleGfGeometryBatch Batch) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8NodeAppend(NativeBattleDoom8Frame Frame, uint Address);
-public sealed record NativeBattleDoom8NodeInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute)
+public sealed record NativeBattleDoom8NodeInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute)
 {
     public Func<uint, int, byte[]>? ReadExternal { get; init; }
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }

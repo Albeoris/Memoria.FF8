@@ -14,7 +14,7 @@ public sealed record NativeBattleGatlingGun305DrawStatic88(uint TemporaryAddress
 public sealed record NativeBattleGatlingGun305DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305AnchorStep(NativeBattleGatlingGun305Frame Frame, NativeBattleModuleAnchor Anchor);
 public sealed record NativeBattleGatlingGun305PointStep(NativeBattleGatlingGun305Frame Frame, NativeBattleVector Position);
-public sealed record NativeBattleGatlingGun305Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleGatlingGun305Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleGatlingGun305Frame, int, short, short, NativeBattleGatlingGun305PointStep> ReadBone502170, Func<NativeBattleGatlingGun305Frame, int, NativeBattleGatlingGun305AnchorStep> ReadAnchor571400, Func<NativeBattleGatlingGun305Frame, NativeBattleGatlingGun305Operation, NativeBattleGatlingGun305Frame> Execute)
+public sealed record NativeBattleGatlingGun305Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleGatlingGun305Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleGatlingGun305Frame, BattleModelOwner, short, short, NativeBattleGatlingGun305PointStep> ReadBone502170, Func<NativeBattleGatlingGun305Frame, BattleModelOwner, NativeBattleGatlingGun305AnchorStep> ReadAnchor571400, Func<NativeBattleGatlingGun305Frame, NativeBattleGatlingGun305Operation, NativeBattleGatlingGun305Frame> Execute)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }

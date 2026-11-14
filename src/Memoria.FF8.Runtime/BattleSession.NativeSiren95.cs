@@ -19,14 +19,14 @@ public sealed partial class BattleSession
             NativeBattleSiren95Resources resources = effect.Binding.Siren95Resources ?? throw new NotSupportedException("Native Siren requires its original programme and IO resources.");
             resources.Validate();
             NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Siren requires its current camera owner.");
-            NativeBattleSiren95DirectorServices director = new(nativeActionPackets, StartVibration, StopVibration, SpawnStage, PlaySound, actor => graphics.Models[actor], WriteModel);
-            frame = NativeBattleSiren95Controller.Advance739F40(frame, new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute) { ReadForeignTarget = ReadNativeForeignTarget });
+            NativeBattleSiren95DirectorServices director = new(nativeActionPackets, StartVibration, StopVibration, SpawnStage, PlaySound, actor => graphics.ActorModels.Get(actor), WriteModel);
+            frame = NativeBattleSiren95Controller.Advance739F40(frame, new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute) { ReadForeignTarget = ReadNativeForeignTarget });
 
             NativeBattlePoseSource ReadPoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Siren requires its selected actor pose source.");
 
             NativeBattleSiren95Frame InitializeTarget(NativeBattleSiren95Frame current, uint address)
             {
-                current = NativeBattleSiren95Director.Initialize73A6E0(current, actor => graphics.Models[actor]);
+                current = NativeBattleSiren95Director.Initialize73A6E0(current, actor => graphics.ActorModels.Get(actor));
                 return NativeBattleSiren95Io.Initialize73A270(current, resources.IoScript);
             }
 
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
                 {
                     case 0x7456A0:
                     case 0x745840:
-                        return NativeBattleSiren95TargetMeshes.Advance(current, address, new(nativeActionPackets, actor => graphics.Models[actor], DrawTargetMesh));
+                        return NativeBattleSiren95TargetMeshes.Advance(current, address, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), DrawTargetMesh));
                     case 0x745250:
                     case 0x7452F0:
                         return NativeBattleSiren95Waves.Advance(current, address, new(nativeActionPackets, DrawWave));
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                     case 0x745180:
                         NativeBattlePrimitiveFrame nodePrimitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren nodes require their current ordering table.");
                         NativeBattleCameraState nodeCamera = NativeCamera ?? throw new NotSupportedException("Native Siren nodes require their current camera.");
-                        NativeBattleSiren95NodeStep nodes = NativeBattleSiren95Nodes.Advance745180(current, address, nodePrimitive.Pending, new(nativeActionPackets, actor => graphics.Models[actor], ReadPoseSource, nodeCamera.Projection ?? throw new NotSupportedException("Native Siren nodes require their actual projection."), nodeCamera.Roll, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren nodes require their color constants."), resources.StaticNodeSource) { ReadForeignBone = (actor, selector) => ReadNativeForeignTarget(actor) is { } foreign ? selector == 240 ? foreign.Anchor240 : selector == 241 ? foreign.Anchor241 : throw new NotSupportedException("The host actor has no requested semantic node anchor.") : null });
+                        NativeBattleSiren95NodeStep nodes = NativeBattleSiren95Nodes.Advance745180(current, address, nodePrimitive.Pending, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), ReadPoseSource, nodeCamera.Projection ?? throw new NotSupportedException("Native Siren nodes require their actual projection."), nodeCamera.Roll, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren nodes require their color constants."), resources.StaticNodeSource) { ReadForeignBone = (actor, selector) => ReadNativeForeignTarget(actor) is { } foreign ? selector == 240 ? foreign.Anchor240 : selector == 241 ? foreign.Anchor241 : throw new NotSupportedException("The host actor has no requested semantic node anchor.") : null });
                         graphics = graphics with { PrimitiveFrame = nodePrimitive with { Pending = nodes.Ordering } };
                         return new(nodes.Frame, nodes.Complete);
                     case 0x8DDC30:
@@ -88,9 +88,9 @@ public sealed partial class BattleSession
                     case 0x744570:
                         return NativeBattleSiren95Decorations.AdvanceChild(current, address, DrawDecoration);
                     case 0x743250:
-                        return NativeBattleSiren95TargetParticles.Advance743250(current, address, nativeActionPackets, actor => graphics.Models[actor]);
+                        return NativeBattleSiren95TargetParticles.Advance743250(current, address, nativeActionPackets, actor => graphics.ActorModels.Get(actor));
                     case 0x7447C0:
-                        return NativeBattleSiren95Contacts.Advance7447C0(current, address, new(nativeActionPackets, actor => graphics.Models[actor], SelectContactSequence));
+                        return NativeBattleSiren95Contacts.Advance7447C0(current, address, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), SelectContactSequence));
                     case 0x744AA0:
                     case 0x744C30:
                     case 0x746FD0:
@@ -298,7 +298,7 @@ public sealed partial class BattleSession
 
             NativeBattleSiren95Frame WriteModel(NativeBattleSiren95Frame current, int actor, NativeBattleGraphicsModel model)
             {
-                graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                 return current;
             }
 

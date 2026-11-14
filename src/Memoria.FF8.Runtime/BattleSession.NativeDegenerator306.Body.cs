@@ -17,11 +17,11 @@ public sealed partial class BattleSession
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Degenerator target requires its addressed temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativeDegenerator306View(staging, 0x1D969A8, 4);
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Degenerator target requires its observed linked geometry presence.");
-        bool linked = graphics.Models[actor].LinkedTransform is not null;
-        NativeBattleDegenerator306ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeDegenerator306View(staging, temporaryAddress, 136));
+        bool linked = graphics.ActorModels.Get(actor).LinkedTransform is not null;
+        NativeBattleDegenerator306ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativeDegenerator306View(staging, temporaryAddress, 136));
         NativeBattleDegenerator306ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleDegenerator306ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
         return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary136, 136) }, graphics);
 
         NativeBattleDegenerator306ModelFrame Shadow(NativeBattleDegenerator306ModelFrame current)

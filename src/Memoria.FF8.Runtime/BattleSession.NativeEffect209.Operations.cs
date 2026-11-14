@@ -18,10 +18,10 @@ public sealed partial class BattleSession
             case NativeBattleEffect209UploadTim505E30 upload when upload.SourceAddress == TimAddress:
                 return current with { Memory = current.Memory with { Textures = (current.Memory.Textures ?? throw new NotSupportedException("Effect209 requires its texture queue.")).EnqueueTim505E30(resources.EmbeddedTim).State } };
             case NativeBattleEffect209ModelFlags flags:
-                NativeBattleGraphicsModel model = graphics.Models[flags.Actor];
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
                 ushort mask = flags.WordWidth ? flags.AndMask : (ushort)(0xFF00 | (flags.AndMask & 0xFF));
                 ushort bits = flags.WordWidth ? flags.OrMask : (ushort)(flags.OrMask & 0xFF);
-                graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | bits) }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | bits) }) };
                 return current;
             case NativeBattleEffect209QueueVariant50E3A0 request:
                 NativeBattleStageVariant137Entry selected = ReadNativeEffect209Variant(resources);
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             case NativeBattleEffect209PublishNormalColor44 color:
                 NativeBattleStageState normalStage = NativeStage ?? throw new NotSupportedException("Effect209 requires its current normal model color.");
                 NativeStage = normalStage with { ModelColors = (normalStage.ModelColors ?? throw new NotSupportedException("Effect209 requires its retained color DWORDs.")) with { Color44 = color.Color } };
-                graphics = graphics with { Models = graphics.Models.Select(model => (model.Flags0 & 2) != 0 ? model with { Color44 = color.Color } : model).ToImmutableArray() };
+                graphics = graphics with { ActorModels = graphics.Models.Select(model => (model.Flags0 & 2) != 0 ? model with { Color44 = color.Color } : model).ToImmutableArray() };
                 return current;
             case NativeBattleEffect209Sound501330 sound:
                 PublishNativeEffect209Frame(current);

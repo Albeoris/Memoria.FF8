@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Funguar Laser requires its shared CRT stream.");
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Funguar Laser requires its physical contact pointer.");
         int buffer = process.BufferOffset;
         effect = effect with { DrawArenaOffset = checked(buffer + (root.ReadDword(16) != 0 ? 0x10AC : 0x110AC)) };
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
             int action = root.ReadByte(14);
             if (action <= header.ReadRepeatModeMinusOne())
             {
-                NativeBattleActionHeaderSlot selected = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
+                NativeBattleActionHeaderSlot selected = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 int contact = selected.FirstContactIndex ?? throw new InvalidDataException("Native Funguar Laser requires the selected action's first contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 uint pointer = NativeBattleGraphicsModelAddress.Encode(target);
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                 NativeBattleFullMacVertex point = NativeBattleGfMatrices.TransformMac460840(view, origin);
                 NativeBattleActionMatrix muzzle = view with { X = point.X, Y = point.Y, Z = point.Z };
                 Play(ref task, 0x1C, 0x3B0, resources.Muzzle, muzzle, 0);
-                var ease = Ease68433C(counter, graphics.Models[target].Transform!.Scale38);
+                var ease = Ease68433C(counter, graphics.ActorModels.Get(target).Transform!.Scale38);
                 endpoint = endpoint with { Y = unchecked((short)(endpoint.Y + ease.Lift)) };
                 NativeBattleActionMatrix ray = Basis50CBA0(endpoint.X - origin.X, origin.Y - endpoint.Y, origin.Z - endpoint.Z).Matrix with { X = origin.X, Y = origin.Y, Z = origin.Z };
                 Play(ref task, 0x3CC, 0xE8, resources.Ray, NativeBattleGfMatrices.Compose56C2F0(view, ray), 0);
@@ -148,7 +148,7 @@ public sealed partial class BattleSession
                     var shape = Basis50CBA0(endpoint.X - origin.X, origin.Y - endpoint.Y, origin.Z - endpoint.Z);
                     NativeBattleActionMatrix matrix = shape.Matrix;
                     int length = shape.Length;
-                    short top = graphics.Models[target].MinimumY146 ?? throw new NotSupportedException("Native Funguar Laser requires actual target WORD146.");
+                    short top = graphics.ActorModels.Get(target).MinimumY146 ?? throw new NotSupportedException("Native Funguar Laser requires actual target WORD146.");
                     if (endpoint.Y < top)
                     {
                         length = unchecked(length << 1);
@@ -173,7 +173,7 @@ public sealed partial class BattleSession
             if ((uint)(counter - 33) < 24)
             {
                 NativeBattleVector spawn = LaserVector(task, 20);
-                reverse = reverse with { X = spawn.X, Y = (graphics.Models[target].MinimumY146 ?? throw new NotSupportedException("Native Funguar Laser requires actual target WORD146.")) / 2, Z = spawn.Z };
+                reverse = reverse with { X = spawn.X, Y = (graphics.ActorModels.Get(target).MinimumY146 ?? throw new NotSupportedException("Native Funguar Laser requires actual target WORD146.")) / 2, Z = spawn.Z };
                 Play(ref task, 0x4B4, 0x1B0, resources.Impact, NativeBattleGfMatrices.Compose56C2F0(view, reverse), -128);
             }
             if ((uint)(counter - 36) < 2)
@@ -238,7 +238,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector VertexPoint()
         {
-            int caster = effect.Parameters.Actor78;
+            int caster = effect.Parameters.Source;
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, caster);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Funguar Laser requires its actual body skeleton.");
             NativeBattleRawMesh mesh = (resource.Geometry ?? throw new NotSupportedException("Native Funguar Laser requires its actual model geometry."))[0];
@@ -246,11 +246,11 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Funguar Laser requires caster object zero vertex123.");
             }
-            NativeBattleGraphicsModel actor = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(graphics.Models[caster], source, NativeBattleCuragaMatrices.Identity8DD770());
+            NativeBattleGraphicsModel actor = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(graphics.ActorModels.Get(caster), source, NativeBattleCuragaMatrices.Identity8DD770());
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
             NativeBattleRawVertex vertex = mesh.Vertices[123];
             NativeBattleVector result = NativeBattleGfMatrices.Transform460840(bones[vertex.Bone], vertex.Position);
-            graphics = graphics with { Models = graphics.Models.SetItem(caster, NativeBattleBodyBoneMatrices.Publish508C90(actor, source)) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, NativeBattleBodyBoneMatrices.Publish508C90(actor, source)) };
             return result;
         }
 

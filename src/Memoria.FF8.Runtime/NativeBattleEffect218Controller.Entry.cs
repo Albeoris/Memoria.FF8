@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect218EntryInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<BattleModelTargets, NativeBattleVector> TargetCenter5020A0);
+public sealed record NativeBattleEffect218EntryInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelTargets, NativeBattleVector> TargetCenter5020A0);
 
 public static partial class NativeBattleEffect218Controller
 {
@@ -17,11 +17,11 @@ public static partial class NativeBattleEffect218Controller
             throw new InvalidDataException("Effect218 entry requires its inactive physical task banks.");
         }
         NativeBattleEffectParameters parameters = Parameters(frame);
-        int first = inputs.Packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect218 entry requires its actual first contact.");
+        int first = inputs.Packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect218 entry requires its actual first contact.");
         int target = inputs.Packets.ReadContact(first).Primary.ActorIndex;
         _ = ModelAddress(target);
-        _ = ModelAddress(parameters.Actor78);
-        NativeBattleEffect218State state = frame.State.InitializeSource(resources).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Actor78).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(0xE257E0, ArenaAddress + ParticleAOffset).WriteDword(0xE257E4, ArenaAddress + ParticleBOffset).WriteDword(0xE257E8, ArenaAddress + ProjectionOffset);
+        _ = ModelAddress(parameters.Source);
+        NativeBattleEffect218State state = frame.State.InitializeSource(resources).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(0xE257E0, ArenaAddress + ParticleAOffset).WriteDword(0xE257E4, ArenaAddress + ParticleBOffset).WriteDword(0xE257E8, ArenaAddress + ProjectionOffset);
         ImmutableArray<NativeBattleEffectTaskPool>.Builder pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>(3);
         foreach (NativeBattleCureFamilyPool profile in Pools)
         {

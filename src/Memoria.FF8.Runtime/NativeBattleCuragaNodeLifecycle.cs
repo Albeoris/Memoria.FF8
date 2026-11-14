@@ -30,7 +30,7 @@ public static partial class NativeBattleCuragaNodeKinematics
         return new(retained.ResourceAddress, retained.Data ?? throw new NotSupportedException("Native Curaga node requires its materialized executable bytes."));
     }
 
-    internal static NativeBattleEffectNodeLifecycle CreateLifecycle(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank, Func<int, NativeBattleGraphicsModel>? readModel = null)
+    internal static NativeBattleEffectNodeLifecycle CreateLifecycle(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank, Func<BattleModelOwner, NativeBattleGraphicsModel>? readModel = null)
     {
         return new(memory, bank, new(memory.State.CopiedCamera, readModel ?? (_ => throw new NotSupportedException("Native node orientation requires its actual model reader.")), (parent, source, target) => NativeBattleCuragaNodes.AllocateEmitter(memory, parent, source, target), (emitter, source) => NativeBattleCuragaNodes.AllocateGeometry(memory, emitter, source)));
     }

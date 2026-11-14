@@ -32,7 +32,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 fadeStart = 7;
                 lifetime = 15;
                 fade = (counter - 7) << 9;
-                NativeBattleModuleAnchor bone = inputs.ReadBone241(frame.Parameters.Actor78);
+                NativeBattleModuleAnchor bone = inputs.ReadBone241(frame.Parameters.Source);
                 int dx = Word(task, 16) - bone.X;
                 int dz = Word(task, 20) - bone.Z;
                 var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(dx, 0, dz);

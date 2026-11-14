@@ -17,7 +17,7 @@ public sealed record NativeBattleThundaga105CommonFlash(int First, int Second, i
 public sealed record NativeBattleThundaga105Sound(NativeBattleModuleAnchor Position) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105Contact(int Contact) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105LoadCommon(uint DestinationAddress, uint CompletionWordAddress) : NativeBattleThundaga105Operation;
-public sealed record NativeBattleThundaga105Inputs(NativeBattleActionPacketsState Packets, Func<int, ImmutableArray<byte>> ReadBone241, Func<int, NativeBattleModuleAnchor> ReadPosition, Func<int, uint> ReadActorColor40, Func<int, short> ReadActorScale38, Func<NativeBattleThundaga105Frame, NativeBattleModulePoolTask, int, ImmutableArray<byte>, NativeBattleThundaga105TaskStep> PrimaryDraw, Func<NativeBattleThundaga105Frame, NativeBattleThundaga105Operation, NativeBattleThundaga105Frame> Execute);
+public sealed record NativeBattleThundaga105Inputs(NativeBattleActionPacketsState Packets, Func<int, ImmutableArray<byte>> ReadBone241, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadPosition, Func<int, uint> ReadActorColor40, Func<int, short> ReadActorScale38, Func<NativeBattleThundaga105Frame, NativeBattleModulePoolTask, int, ImmutableArray<byte>, NativeBattleThundaga105TaskStep> PrimaryDraw, Func<NativeBattleThundaga105Frame, NativeBattleThundaga105Operation, NativeBattleThundaga105Frame> Execute);
 
 /// <summary>The original four physical task banks and shared fragment/debris owners.</summary>
 public static class NativeBattleThundaga105Controller
@@ -322,7 +322,7 @@ public static class NativeBattleThundaga105Controller
             return new(Put(tertiary!, slot, task), S(task, 0xC) >= S(task, 0xE) ? 2 : 0);
         }
 
-        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[parameters.HeaderIndex7C + sequence];
+        NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
         int Actor(int sequence) => inputs.Packets.ReadContact(Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Thundaga requires its physical contact.")).Primary.ActorIndex;
         NativeBattleThundaga105State State() => frame.Memory.Thundaga105 ?? throw new NotSupportedException("Native Thundaga lost its retained source state.");
         NativeBattleThundaga105Frame Publish() => frame with { Effect = frame.Effect with { Pools = primary is null ? [main] : [main, primary, secondary!, tertiary!] } };

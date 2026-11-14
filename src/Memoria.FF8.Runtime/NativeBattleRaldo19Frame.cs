@@ -36,7 +36,7 @@ public sealed record NativeBattleRaldo19BallTask(uint Address) : NativeBattleRal
 public sealed record NativeBattleRaldo19DebrisTask(uint Address) : NativeBattleRaldo19Operation;
 public sealed record NativeBattleRaldo19OverlayTask(uint Address) : NativeBattleRaldo19Operation;
 public sealed record NativeBattleRaldo19LeafStep(NativeBattleRaldo19Frame Frame, int Result);
-public sealed record NativeBattleRaldo19Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19Operation, NativeBattleRaldo19Frame> Execute, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19Operation, NativeBattleRaldo19LeafStep> AdvanceLeaf)
+public sealed record NativeBattleRaldo19Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19Operation, NativeBattleRaldo19Frame> Execute, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19Operation, NativeBattleRaldo19LeafStep> AdvanceLeaf)
 {
     public ushort? CameraPadding18 { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }

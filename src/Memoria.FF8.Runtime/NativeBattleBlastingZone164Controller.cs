@@ -28,7 +28,7 @@ public static partial class NativeBattleBlastingZone164Controller
         {
             return new(frame, pool, 0);
         }
-        byte actor = frame.Parameters.Actor78;
+        BattleModelOwner actor = frame.Parameters.Source;
         switch (counter)
         {
             case 0:

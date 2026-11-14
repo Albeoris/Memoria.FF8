@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState DrawNativeBombActor(NativeBattleGraphicsState graphics, int index, uint overlayColor, int scroll, bool textured, NativeBattlePilotVisualIdentity? pilotIdentity = null, Action<ImmutableArray<NativeBattlePrimitiveReference>>? recordPresentation = null)
     {
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             Draw(geometry[mesh], bones, texture, true, mesh);
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-        graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Bomb actor drawing requires its actual linked geometry presence.");
         if (!linked.IsEmpty && (actor.Flags0 & 0x200) == 0 && resource.LinkedGeometryUsesBodySkeleton != true)
         {

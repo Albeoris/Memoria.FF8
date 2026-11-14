@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix billboard = NativeBattleGfMatrices.Normalize67AAE0(view);
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Aero requires its original depth-cue constants.");
         NativeBattleAeroFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Aero requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Aero requires its retained CRT random state."));
-        frame = NativeBattleAeroController.Advance6C0D20(frame, new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Aero requires its actual target transform."), actor => ReadNativeModelAnchor(graphics, actor), Execute));
+        frame = NativeBattleAeroController.Advance6C0D20(frame, new(graphics.Flags, nativeActionPackets, actor => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Aero requires its actual target transform."), actor => ReadNativeModelAnchor(graphics, actor), Execute));
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };

@@ -36,7 +36,7 @@ internal static class NativeBattleAngelWing84Nodes
         return FromNodeFrame(frame, bridge);
     }
 
-    internal static NativeBattleAngelWing84NodeStep Advance(NativeBattleAngelWing84Frame frame, uint address, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, NativeBattleEffectNodeSpawnOrigin spawnOrigin, bool capturePresentation = false)
+    internal static NativeBattleAngelWing84NodeStep Advance(NativeBattleAngelWing84Frame frame, uint address, NativeCrtRandomState random, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, NativeBattleEffectNodeSpawnOrigin spawnOrigin, bool capturePresentation = false)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         if (hierarchy.Read(address).Callback != 0x7913C0)

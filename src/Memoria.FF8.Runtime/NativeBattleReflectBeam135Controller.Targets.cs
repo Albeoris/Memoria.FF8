@@ -72,7 +72,7 @@ public static partial class NativeBattleReflectBeam135Controller
         {
             int actor = Actor(task.ReadDword(16));
             int first = FirstContact(frame, inputs);
-            int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
             for (int index = 0; index < count; index++)
             {
                 if (inputs.Packets.ReadContact(first + index).Primary.ActorIndex == actor)

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Raldo ball requires its retained descriptor and selected actor.");
         }
-        NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Raldo ball requires its current original body rig.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Raldo ball requires its current camera.");
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         }
         PublishBones();
         current = current with { Memory = current.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
-        return (graphics with { Models = graphics.Models.SetItem(index, actor) }, current);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(index, actor) }, current);
 
         void Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> matrices, bool isLinked, bool relocated, Func<int, short?> padding)
         {

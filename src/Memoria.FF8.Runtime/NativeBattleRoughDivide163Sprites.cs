@@ -28,7 +28,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 NativeBattleModuleAnchor bone = default!;
                 if (flag == 1)
                 {
-                    bone = inputs.ReadBone(frame.Parameters.Actor78, (byte)(20 - (index != 0 ? 1 : 0)), 4096);
+                    bone = inputs.ReadBone(frame.Parameters.Source, (byte)(20 - (index != 0 ? 1 : 0)), 4096);
                     if (bone.Y <= -40)
                     {
                         continue;

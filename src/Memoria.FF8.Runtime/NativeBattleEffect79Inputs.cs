@@ -6,7 +6,7 @@ public sealed record NativeBattleEffect79Frame(NativeBattleEffectMemory Memory, 
 }
 
 public sealed record NativeBattleEffect79Step(NativeBattleEffect79Frame Frame, int Result);
-public sealed partial record NativeBattleEffect79Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect79Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect79Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect79Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect79Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect79Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect79Frame, short> ReadCameraRoll, Func<NativeBattleEffect79Frame, uint, uint> ReadColor, Func<NativeBattleEffect79Frame, NativeBattleEffect79Operation, NativeBattleEffect79Frame> Execute)
+public sealed partial record NativeBattleEffect79Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect79Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect79Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect79Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect79Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect79Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect79Frame, short> ReadCameraRoll, Func<NativeBattleEffect79Frame, uint, uint> ReadColor, Func<NativeBattleEffect79Frame, NativeBattleEffect79Operation, NativeBattleEffect79Frame> Execute)
 {
     public bool CapturePresentation { get; init; }
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }

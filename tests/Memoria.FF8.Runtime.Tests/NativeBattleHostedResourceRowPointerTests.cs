@@ -10,6 +10,9 @@ public sealed class NativeBattleHostedResourceRowPointerTests
     [InlineData(11)]
     [InlineData(36)]
     [InlineData(50)]
+    [InlineData(51)]
+    [InlineData(NativeBattleModelResourceRowAddress.MaximumEncodedRowCount)]
+    [InlineData(int.MaxValue)]
     public void Typed_alias_survives_staging_and_task_round_trips_without_numeric_bytes(int row)
     {
         NativeBattleResourcePointer pointer = new(null, null) { CpuRow = row };
@@ -46,7 +49,6 @@ public sealed class NativeBattleHostedResourceRowPointerTests
 
     [Theory]
     [InlineData(-1)]
-    [InlineData(51)]
     public void Invalid_alias_is_rejected_by_both_metadata_writers(int row)
     {
         NativeBattleResourcePointer pointer = new(null, null) { CpuRow = row };

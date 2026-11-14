@@ -19,7 +19,7 @@ public sealed record NativeBattleGilgameshContacts(int First, int Count) : Nativ
 public sealed record NativeBattleGilgameshCameraPublish(NativeBattleGuardianCameraStep Step) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshTextureLoad(uint CompletionAddress) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshPcRequest(int Mode) : NativeBattleGilgameshOperation;
-public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short Dqa, int Dqb, NativeBattleSummonColors Colors, Func<byte, NativeBattleModuleAnchor> ReadAnchor571400, Func<int> Pending508500, Func<NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> Execute)
+public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short Dqa, int Dqb, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<int> Pending508500, Func<NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> Execute)
 {
     public Func<NativeBattleCameraProjection>? ReadProjection { get; init; }
     public Func<short>? ReadFocalShadow { get; init; }
@@ -79,7 +79,7 @@ public static partial class NativeBattleGilgameshController
         private NativeBattleActionMatrix WorldView => Shared.WorldView ?? throw new NotSupportedException("Native Gilgamesh requires its current published world-view matrix.");
         private NativeBattleEffectArena Arena => Frame.Memory.Arena ?? throw new NotSupportedException("Native Gilgamesh requires its current arena.");
         private NativeBattleEffectParameters Parameters => Frame.Effect.Parameters ?? throw new NotSupportedException("Native Gilgamesh requires its current action parameters.");
-        private NativeBattleActionHeaderSlot Header => inputs.Packets.Headers[Parameters.HeaderIndex7C];
+        private NativeBattleActionHeaderSlot Header => inputs.Packets.ReadHeader(Parameters.Header);
         private NativeBattleEffectTaskPool Children => Frame.Effect.Pools[1];
         private bool Paused => (inputs.GraphicsFlags & 0x201) != 0;
         private NativeBattleGilgameshZantetsukenInputs ZantetsukenInputs(ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> contacts) => new(inputs.GraphicsFlags, contacts, actor => inputs.ReadModelWord26?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."), actor => inputs.ReadModelWorld32?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), inputs.Execute);
