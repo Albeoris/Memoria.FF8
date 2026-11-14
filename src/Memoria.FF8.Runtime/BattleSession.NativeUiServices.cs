@@ -231,11 +231,19 @@ public sealed partial class BattleSession
             ui = ui.SetFlags(0, 0x1800) with { Menu957 = widget.PreviousMenu957, Menu955 = widget.PreviousMenu955 };
         }
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending, PendingTriggerSoundActorIndex = step.PlayTriggerSound ? widget.ActorIndex : graphics.PendingTriggerSoundActorIndex };
-        MirrorNativeRenzokukenWidget(step.Widget);
+        if (!hostedBattlePresentation)
+        {
+            MirrorNativeRenzokukenWidget(step.Widget);
+        }
     }
 
     private void DispatchNativeTriggerReceipt()
     {
+        if (expandedPresentationProcess is { } process)
+        {
+            DispatchExpandedGunbladeTrigger(process);
+            return;
+        }
         if (NativeGraphics?.PendingTrigger is not { } receipt)
         {
             return;

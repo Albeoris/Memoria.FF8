@@ -120,6 +120,34 @@ public sealed class NativeBattleHostedContactReplacementTests
         return session;
     }
 
+    [Fact]
+    public void Ordinary_trigger_replacement_acknowledges_only_the_exact_pending_receipt()
+    {
+        BattleSession session = Fixture();
+        long token = session.BeginHostedAction(Header, [Contact(24)]);
+        NativeBattleTriggerReceipt receipt = new(7, 1, 1, 25, 32);
+        NativeBattleGraphicsState graphics = session.NativeGraphics! with { PendingTrigger = receipt };
+        SetGraphics(session, graphics);
+        NativeBattleActionPacketsState original = session.NativeActionPackets;
+        Assert.Throws<InvalidDataException>(() => session.PrepareHostedContactReplacement(token, [Contact(24, 2)], receipt with { }));
+        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(original, session.NativeActionPackets);
+
+        BattleSession.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(24, 2)], receipt);
+        SetGraphics(session, graphics with { });
+        Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
+        Assert.Same(receipt, session.NativeGraphics!.PendingTrigger);
+        Assert.Same(original, session.NativeActionPackets);
+
+        prepared = session.PrepareHostedContactReplacement(token, [Contact(24, 2)], receipt);
+        session.PublishHostedContactReplacement(prepared);
+        Assert.Null(session.NativeGraphics!.PendingTrigger);
+        Assert.Same(original.Headers[0], session.NativeActionPackets.Headers[0]);
+        Assert.Equal((ushort)2, session.NativeActionPackets.ReadContact(0).Primary.Amount6);
+        Assert.Equal(token, session.HostedActiveActionToken);
+        Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
+    }
+
     private static NativeBattleContactPacket Contact(byte row, ushort amount = 0, byte secondary = byte.MaxValue)
     {
         return new(new(row, 0, 1, 0, 0, amount, 0), new(secondary, 0, 0, 0, 0, 0, 0));

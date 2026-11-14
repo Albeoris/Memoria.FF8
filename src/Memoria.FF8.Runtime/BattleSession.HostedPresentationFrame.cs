@@ -106,7 +106,12 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
-            NativeGraphics = graphics with { UiServices = ui.AdvancePublication() };
+            ui = ui.AdvancePublication();
+            NativeGraphics = graphics with { UiServices = ui };
+            if (!ui.PauseDE9 && (ui.Flags942 & 0x40) != 0)
+            {
+                AdvanceNativeTriggerWidget();
+            }
         }
     }
 }

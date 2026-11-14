@@ -13,9 +13,13 @@ public sealed partial class BattleSession
             nativeGlobalRandom is null || logicalOwner.nativeGlobalRandom is null ||
             (definition.NativeCrtRandom is null) != (logicalOwner.definition.NativeCrtRandom is null) ||
             (nativeCrtRandom is null) != (definition.NativeCrtRandom is null) ||
-            (logicalOwner.nativeCrtRandom is null) != (logicalOwner.definition.NativeCrtRandom is null))
+            (logicalOwner.nativeCrtRandom is null) != (logicalOwner.definition.NativeCrtRandom is null) ||
+            definition.NativeBattleUiRandom != logicalOwner.definition.NativeBattleUiRandom ||
+            (nativeBattleUiRandom is null) != (definition.NativeBattleUiRandom is null) ||
+            (logicalOwner.nativeBattleUiRandom is null) != (logicalOwner.definition.NativeBattleUiRandom is null) ||
+            nativeBattleUiRandom?.State >= 0x8000 || logicalOwner.nativeBattleUiRandom?.State >= 0x8000)
         {
-            throw new InvalidDataException("Hosted presentation and the logical battle require matching original global RNG and CRT ownership.");
+            throw new InvalidDataException("Hosted presentation and the logical battle require matching original global, CRT and UI RNG ownership.");
         }
 
         NativeGlobalRandomChange!.Validate();
@@ -31,6 +35,7 @@ public sealed partial class BattleSession
     internal void CopyHostedPresentationRandomFrom(BattleSession logicalOwner)
     {
         nativeCrtRandom = logicalOwner.nativeCrtRandom;
+        nativeBattleUiRandom = logicalOwner.nativeBattleUiRandom;
         nativeGlobalRandom = logicalOwner.nativeGlobalRandom;
         nativeGlobalRandomCalls = logicalOwner.nativeGlobalRandomCalls;
     }

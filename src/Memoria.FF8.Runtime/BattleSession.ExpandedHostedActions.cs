@@ -4,7 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw);
+    private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw)
+    {
+        internal bool PendingGunblade { get; init; }
+        internal bool CommittedGunblade { get; init; }
+    }
 
     private bool preparingExpandedHostedAction;
     private ImmutableArray<ExpandedHostedInvocation> expandedHostedInvocations = [];
@@ -23,6 +27,11 @@ public sealed partial class BattleSession
 
     private void StageExpandedHostedInvocation(BattleActionPresentation command, NativeBattleActionHeaderPreparation header, ImmutableArray<ExpandedBattleContact> contacts, BattlePendingEnemyDraw? enemyDraw)
     {
+        StageExpandedHostedInvocationCore(command, header, contacts, enemyDraw, pendingGunblade: false);
+    }
+
+    private void StageExpandedHostedInvocationCore(BattleActionPresentation command, NativeBattleActionHeaderPreparation header, ImmutableArray<ExpandedBattleContact> contacts, BattlePendingEnemyDraw? enemyDraw, bool pendingGunblade)
+    {
         if (!preparingExpandedHostedAction)
         {
             throw new InvalidOperationException("Hosted invocation staging requires the logical preparation candidate.");
@@ -36,7 +45,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("A hosted control invocation cannot consume pending Draw without a contact.");
         }
-        expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, contacts, enemyDraw));
+        if (pendingGunblade && (contacts.Length != 1 || header.Command is not (1 or 12 or 28)))
+        {
+            throw new InvalidDataException("Hosted ordinary Gunblade requires one preliminary contact and its original command.");
+        }
+        expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, contacts, enemyDraw) { PendingGunblade = pendingGunblade });
     }
 
     private BattlePendingEnemyDraw? TakePendingHostedEnemyDraw()
@@ -92,9 +105,17 @@ public sealed partial class BattleSession
         {
             return;
         }
+        if (expandedHostedInvocations[0].PendingGunblade)
+        {
+            throw new InvalidDataException("Hosted Gunblade completed with an unresolved placeholder.");
+        }
         ValidateExpandedEffectContactCompletion();
         if (expandedHostedInvocations.Length == 1)
         {
+            if (expandedHostedInvocations[0].CommittedGunblade)
+            {
+                FlushExpandedEnemyReactions();
+            }
             expandedHostedActionToken = null;
             expandedHostedInvocations = [];
             ReleaseExpandedEffect();
@@ -129,6 +150,10 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("A hosted control invocation published an unexpected contact.");
                     }
+                    if (expandedHostedInvocations[0].PendingGunblade)
+                    {
+                        throw new InvalidDataException("Hosted Gunblade published its placeholder before trigger recomputation.");
+                    }
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
                     NativeBattleGraphicsRoster roster = expandedModelRoster!;
                     PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
@@ -152,8 +177,11 @@ public sealed partial class BattleSession
                 case NativeBattleModelParticipantSuspended suspended:
                     AcknowledgeExpandedModelSuspension(RequireExpandedLifecycleRoster(), suspended);
                     break;
+                case NativeBattleModelTriggerRegistered trigger:
+                    AcknowledgeExpandedGunbladeRegistration(trigger, actionToken);
+                    break;
                 default:
-                    // TODO(TD-009): Implement parent trigger acknowledgement before App attachment.
+                    // TODO(TD-009): Finish the remaining hosted lifecycle acknowledgements before App attachment.
                     throw new NotSupportedException($"Hosted parent acknowledgement does not handle {receipt.GetType().Name}.");
             }
         }

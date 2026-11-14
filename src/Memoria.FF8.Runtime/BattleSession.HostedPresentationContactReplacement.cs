@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets)
+    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics)
     {
         internal BattleSession Owner { get; } = owner;
         internal HostedPresentationInvocation Invocation { get; } = invocation;
@@ -12,9 +12,10 @@ public sealed partial class BattleSession
         internal long Epoch { get; } = epoch;
         internal NativeBattleActionPacketsState OriginalPackets { get; } = originalPackets;
         internal NativeBattleActionPacketsState ReplacementPackets { get; } = replacementPackets;
+        internal NativeBattleGraphicsState? ReplacementGraphics { get; } = replacementGraphics;
     }
 
-    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements)
+    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: { } roster } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation || token != invocation.Token)
@@ -37,6 +38,17 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Contact replacement must retain the invocation's original contact extent.");
         }
         byte caster = header.ReadByte(0);
+        NativeBattleGraphicsState? replacementGraphics = null;
+        if (acknowledgeTrigger is not null)
+        {
+            acknowledgeTrigger.Validate(roster);
+            if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.ActorIndex != caster ||
+                acknowledgeTrigger is not { ContactIndex: 1, TotalContacts: 1 } || header.ReadByte(1) is not (1 or 12 or 28) || original.Length != 1)
+            {
+                throw new InvalidDataException("Contact replacement does not acknowledge this invocation's pending ordinary Gunblade receipt.");
+            }
+            replacementGraphics = graphics with { PendingTrigger = null };
+        }
         ImmutableArray<NativeBattleContactPacket?>.Builder contacts = packets.Contacts.ToBuilder();
         for (int index = 0; index < replacements.Length; index++)
         {
@@ -50,7 +62,7 @@ public sealed partial class BattleSession
         }
         NativeBattleActionPacketsState replacement = packets with { Contacts = contacts.MoveToImmutable() };
         replacement.Validate();
-        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement);
+        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics);
     }
 
     internal void ValidatePreparedHostedContactReplacement(PreparedHostedContactReplacement prepared)
@@ -68,6 +80,15 @@ public sealed partial class BattleSession
     internal void PublishHostedContactReplacement(PreparedHostedContactReplacement prepared)
     {
         ValidatePreparedHostedContactReplacement(prepared);
+        CommitHostedContactReplacement(prepared);
+    }
+
+    internal void CommitHostedContactReplacement(PreparedHostedContactReplacement prepared)
+    {
         nativeActionPackets = prepared.ReplacementPackets;
+        if (prepared.ReplacementGraphics is { } graphics)
+        {
+            NativeGraphics = graphics;
+        }
     }
 }

@@ -52,6 +52,7 @@ public sealed partial class BattleSession
         Combatants = combatants.AsReadOnly();
         random = NativeBattleRandomState.Initialize(0);
         nativeCrtRandom = definition.NativeCrtRandom;
+        nativeBattleUiRandom = logicalOwner.nativeBattleUiRandom;
         nativeGlobalRandom = definition.NativeGlobalRandom;
         nativeEffectResourceResolver = logicalOwner.nativeEffectResourceResolver;
         NativeEntryAdvantage = logicalOwner.NativeEntryAdvantage;

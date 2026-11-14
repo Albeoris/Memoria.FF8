@@ -35,6 +35,9 @@ public sealed class ExpandedBattlePresentationProcess
     internal long? ActiveActionToken => presentation.HostedActiveActionToken;
     internal long? LastStepActionToken { get; private set; }
     internal NativeBattleModelLifecycleServices? LastFrameServices { get; private set; }
+    internal NativeBattleTriggerWidget? TriggerWidget => Graphics.TriggerWidget;
+    internal NativeBattleTriggerReceipt? PendingTrigger => Graphics.PendingTrigger;
+    internal ushort? TriggerOptions => presentation.HostedTriggerOptions;
 
     internal void RequireLogicalOwner(BattleSession owner)
     {
@@ -75,6 +78,27 @@ public sealed class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
+    internal void PressGunblade(long token, byte actor, NativeBattleTriggerWidget widget)
+    {
+        RequireIdle();
+        presentation.PressHostedGunblade(token, actor, widget);
+    }
+
+    internal BattleSession.PreparedHostedContactReplacement PrepareGunbladeContact(long token, NativeBattleContactPacket packet, NativeBattleTriggerReceipt receipt)
+    {
+        return presentation.PrepareHostedContactReplacement(token, [packet], receipt);
+    }
+
+    internal void ValidateGunbladeContact(BattleSession.PreparedHostedContactReplacement prepared)
+    {
+        presentation.ValidatePreparedHostedContactReplacement(prepared);
+    }
+
+    internal void CommitGunbladeContact(BattleSession.PreparedHostedContactReplacement prepared)
+    {
+        presentation.CommitHostedContactReplacement(prepared);
+    }
+
     internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null, Action? beforeCore = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
@@ -85,6 +109,7 @@ public sealed class ExpandedBattlePresentationProcess
         try
         {
             presentation.ImportHostedPresentationRandom(logicalOwner);
+            presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
             try
             {
                 long? actionToken = ActiveActionToken;
@@ -106,6 +131,7 @@ public sealed class ExpandedBattlePresentationProcess
                     finally
                     {
                         presentation.CopyHostedPresentationRandomFrom(logicalOwner);
+                        presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
                     }
                 }
             }

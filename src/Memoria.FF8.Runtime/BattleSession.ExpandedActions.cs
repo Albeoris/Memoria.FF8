@@ -253,7 +253,8 @@ public sealed partial class BattleSession
         }
         BattleNativeAction originalNative = action.NativeAction!;
         BattleNativeAction native = originalNative;
-        if (command.GuardianFormAction is null && IsGunbladeAttack(actor, command.Ability))
+        bool hostedGunblade = hosted && NativeDeferredContact(actor, command, native) == NativeBattleDeferredContactKind.OrdinaryGunblade;
+        if (!hostedGunblade && command.GuardianFormAction is null && IsGunbladeAttack(actor, command.Ability))
         {
             // 485160 recomputes the ordinary trigger contact with the installed weapon and type 10.
             native = native with { Command = command.NativeQueuedCommand == 12 ? (byte)248 : (byte)253, AttackType = 10, HitCount = 1, Critical = 0, DamagePresentation = 4 };
@@ -315,6 +316,10 @@ public sealed partial class BattleSession
             : command.AiRecipients?.RandomSide is not null ||
                 command.IndependentGuardian is null && (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, randomTarget);
+        if (hostedGunblade && (hitPlan.Length != 1 || hitPlan[0].Length != 1))
+        {
+            throw new InvalidDataException("Ordinary hosted Gunblade requires its single placeholder recipient.");
+        }
         bool hasReflector = hitPlan.Any(targets => targets.Any(recipient => NativeActionReflects(recipient, native)));
         bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null || command.FreeNativeMagic && native.Command == 2;
         BattleNativeAction? reflected = null;
@@ -376,7 +381,7 @@ public sealed partial class BattleSession
             }
             BattleCombatant? reflector;
             deferringExpandedImpacts = presentsNativeEffect && !IsExpandedOriginalGraphicPresentation(actor, command, native);
-            (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan);
+            (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade);
             deferringExpandedImpacts = false;
             if (command.NativeDraw is { Failed: true } || failedSpecial || hostedSilence)
             {
@@ -442,10 +447,13 @@ public sealed partial class BattleSession
                 CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
             }
         }
-        FlushExpandedEnemyReactions();
+        if (!hostedGunblade)
+        {
+            FlushExpandedEnemyReactions();
+        }
         if (hostedHeader is not null)
         {
-            StageExpandedHostedInvocation(resolved, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw);
+            StageExpandedHostedInvocationCore(resolved, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw, pendingGunblade: hostedGunblade);
             if (reflectedCommand is not null)
             {
                 StageExpandedHostedInvocation(reflectedCommand, reflectedHeader!, reflectedContacts, contacts.IsEmpty ? hostedDraw : null);
@@ -699,7 +707,7 @@ public sealed partial class BattleSession
         return hitPlan;
     }
 
-    private (ImmutableArray<ExpandedBattleContact> Contacts, BattleCombatant? Reflector) ResolveExpandedHitPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleCombatant[][] hitPlan)
+    private (ImmutableArray<ExpandedBattleContact> Contacts, BattleCombatant? Reflector) ResolveExpandedHitPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleCombatant[][] hitPlan, bool preliminary = false)
     {
         IGrouping<BattleCombatant, BattleCombatant>[] recipientHits = hitPlan.SelectMany(targets => targets).GroupBy(recipient => recipient).ToArray();
         NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
@@ -745,7 +753,16 @@ public sealed partial class BattleSession
                     }
                     else
                     {
-                        packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, 255, presentationRow: row);
+                        bool previousSuppression = suppressNativeImmediateCounter;
+                        suppressNativeImmediateCounter |= preliminary;
+                        try
+                        {
+                            packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, 255, preliminary, presentationRow: row);
+                        }
+                        finally
+                        {
+                            suppressNativeImmediateCounter = previousSuppression;
+                        }
                     }
                     contacts.Add(new(recipient.Id, packet));
                 }

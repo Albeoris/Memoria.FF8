@@ -103,11 +103,13 @@ public sealed class NativeBattleHostedPresentationRandomTests
         SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
         ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
         InvalidOperationException injected = new("Main callback failed after drawing.");
+        NativeBattleUiRandomState mainUi = owner.Capture().NativeBattleUiRandom!.Draw(out _);
 
         Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, beforeCore: () =>
         {
             DrawGlobal(owner);
             DrawCrt(owner);
+            SetField(owner, "nativeBattleUiRandom", mainUi);
             throw injected;
         })));
 
@@ -116,8 +118,41 @@ public sealed class NativeBattleHostedPresentationRandomTests
         Assert.Null(process.LastFrameServices);
         Assert.Null(ReadField(child, "hostedFrameServices"));
         AssertStreams(owner, process, GlobalStart.Advance(1), 1, CrtStart.Draw(out _));
+        Assert.Equal(mainUi, owner.Capture().NativeBattleUiRandom);
+        Assert.Equal(mainUi, ReadField(child, "nativeBattleUiRandom"));
         process.Advance(owner);
         Assert.Equal(1, process.Graphics.Callback);
+    }
+
+    [Fact]
+    public void Hosted_widget_draw_precedes_canonical_ui_rng_and_a_later_hook_failure_preserves_both()
+    {
+        BattleSession owner = CreateLogical();
+        BattleSession child = CreateChild(owner, [2]);
+        BattleDefinition selected = (BattleDefinition)ReadField(child, "definition")!;
+        SetField(child, "definition", selected with { LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0]) { Options978 = 1 } });
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleUiServices ui = NativeBattleUiServices.Initialize();
+        BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));
+        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(0, block, 1, ui, graphics.PresentationRoster) with { Input = new(6, 68, 2, 0, 0) };
+        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = ui, TriggerWidget = widget });
+        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        NativeBattleUiRandomState childDraw = owner.Capture().NativeBattleUiRandom!.Draw(out _);
+        NativeBattleUiRandomState mainDraw = childDraw.Draw(out _);
+        NativeBattleRandomState? beforeBattleRandom = owner.Capture().Random;
+        InvalidOperationException injected = new("The canonical hook failed after its UI draw.");
+
+        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, beforeCore: () =>
+        {
+            Assert.Equal(childDraw, owner.Capture().NativeBattleUiRandom);
+            Assert.Equal(3u, process.Graphics.UiServices!.Counter);
+            SetField(owner, "nativeBattleUiRandom", mainDraw);
+            throw injected;
+        })));
+        Assert.Equal(mainDraw, owner.Capture().NativeBattleUiRandom);
+        Assert.Equal(mainDraw, ReadField(child, "nativeBattleUiRandom"));
+        Assert.Equal(beforeBattleRandom, owner.Capture().Random);
+        Assert.Null(process.LastFrameServices);
     }
 
     [Fact]

@@ -303,6 +303,258 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         }
     }
 
+    [Fact]
+    public void Main_gunblade_holds_Oilboyles_installed_stage_two_until_descriptor_completion()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        const int formation = 79;
+        const string source = "party-0";
+        const byte sourceRow = 7;
+        int authoredCount = assets.LoadEncounter(formation).Enemies.Count(enemy => enemy.Enabled);
+        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, authoredCount, authoredCount, expanded: true, encounterId: formation);
+        BattleCombatantDefinition authoredEnemy = logicalDefinition.Combatants.First(actor => !actor.IsPlayer && actor.ModelId == 99);
+        NativeBattleAiDefinition ai = assets.ReadEnemyAi(authoredEnemy.ModelId, authoredEnemy.Level);
+        Assert.Equal(new byte[] { 4, 203, 12, 2 }, ai.Scripts[2][16..20]);
+        NativeBattleAiAbility expectedRetaliation = ai.Abilities[16 * ai.LevelBand + 2];
+        Assert.Equal((byte)8, expectedRetaliation.Command);
+        Assert.Equal((ushort)181, expectedRetaliation.Id);
+        int maximumHp = authoredEnemy.NativeTemplate!.Levels[authoredEnemy.Level].MaximumHp;
+        string targetId = authoredEnemy.Id;
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
+        BattleCombatantDefinition[] actors = logicalDefinition.Combatants.OrderBy(actor => actor.IsPlayer ? actor.Id == source ? 1 : 0 : 2).Select(actor =>
+            actor.Id == source ? actor with
+            {
+                NativeAttack = assets.ReadPlayerNativeAttackData(vitals, Array.FindIndex(vitals.Records, row => row.CharacterId == actor.ModelId)),
+                Attack = 35
+            } : actor.Id == targetId ? actor with
+            {
+                NativeAi = ai, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(actor.ModelId), CurrentHp = maximumHp / 3, MaximumHp = maximumHp
+            } : actor.NativeTemplate is { } template ? actor with
+            {
+                MaximumHp = template.Levels[actor.Level].MaximumHp, CurrentHp = template.Levels[actor.Level].MaximumHp
+            } : actor).ToArray();
+        NativeLimitProgress options = selected.LimitProgress! with { Options978 = (ushort)(selected.LimitProgress!.Options978!.Value & ~1) };
+        logicalDefinition = logicalDefinition with
+        {
+            Combatants = actors, NativeActions = assets.NativeActions.ToArray(), NativeCommandSequences = selected.NativeCommandSequences,
+            NativeFieldBattleRules = 0, NativeRetainedMemory = selected.NativeRetainedMemory, LimitProgress = options,
+            InitialRandom = NativeBattleRandomState.ForecastPhase(5)
+        };
+        selected = selected with { LimitProgress = options, NativeActionCameraRules = game.ReadNativeActionCameraRules() };
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachExpandedPresentationProcess(process);
+        for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
+        {
+            logical.Tick();
+        }
+        Assert.True(logical.NativeEntryReady);
+        Assert.Empty(logical.QueuedActions);
+        Assert.Equal(source, process.Graphics.PresentationRoster![sourceRow].ActorId);
+        BattleCombatant enemy = Assert.Single(logical.Combatants, actor => actor.Id == targetId);
+        Assert.Equal(maximumHp, enemy.MaximumHp);
+        byte targetRow = logical.ReadExpandedPresentationRow(targetId);
+        logical.QueueAttack(source, targetId);
+        long? token = null;
+        bool sawPlaceholder = false;
+        bool sawRecomputedHit = false;
+        int contactCount = 0;
+        int hp = enemy.CurrentHp;
+        for (int callback = 0; callback < ActionBudget && (token is null || !process.IsActionComplete(token.Value)); callback++)
+        {
+            logical.Tick();
+            token ??= process.LastStepActionToken;
+            Assert.DoesNotContain(logical.QueuedActions, command => command.NativeAiCallbackStage == 2);
+            if (token is not null)
+            {
+                Assert.Equal((byte)2, enemy.NativePendingReaction.Stage);
+                Assert.NotNull(logical.Capture().NativeReactionOrder);
+                sawPlaceholder |= enemy.CurrentHp == hp;
+                sawRecomputedHit |= enemy.CurrentHp < hp;
+            }
+            if (!process.LastStep.Contacts.IsEmpty)
+            {
+                Assert.Equal(token, process.LastStepActionToken);
+                NativeBattleContactPacket contact = Assert.Single(process.LastStep.Contacts);
+                Assert.Equal(targetRow, contact.Primary.ActorIndex);
+                Assert.True(enemy.CurrentHp < hp);
+                contactCount++;
+            }
+        }
+        Assert.True(sawPlaceholder);
+        Assert.True(sawRecomputedHit);
+        Assert.Equal(1, contactCount);
+        long completed = Assert.IsType<long>(token);
+        Assert.True(process.IsActionComplete(completed));
+        Assert.NotNull(logical.ActiveAction);
+        Assert.Empty(logical.QueuedActions);
+        NativeBattleRandomState beforeRetaliation = logical.Capture().Random!;
+        logical.Tick();
+        Assert.Null(logical.ActiveAction);
+        Assert.Equal((byte)0, enemy.NativePendingReaction.Stage);
+        Assert.Null(logical.Capture().NativeReactionOrder);
+        NativeBattleRandomState expectedRandom = beforeRetaliation.Draw(out byte retaliationRoll);
+        Assert.Equal(0, retaliationRoll % 3);
+        Assert.Equal(JsonSerializer.Serialize(expectedRandom), JsonSerializer.Serialize(logical.Capture().Random));
+        BattleAttackCommand retaliation = Assert.Single(logical.QueuedActions);
+        Assert.Equal((byte)2, retaliation.NativeAiCallbackStage);
+        Assert.Equal(targetId, retaliation.ActorId);
+        Assert.Equal(source, retaliation.TargetId);
+        Assert.Equal(source, Assert.Single(retaliation.AiRecipients!.ActorIds));
+        Assert.Equal(expectedRetaliation.Command, retaliation.NativeQueuedCommand);
+        Assert.Equal(expectedRetaliation.Id, retaliation.ActionId);
+        Assert.Equal(expectedRetaliation.Sequence, retaliation.NativeSequence);
+        Assert.Null(process.ActiveActionToken);
+        Assert.Single(logical.Events, item => item.Kind == "ActionComplete" && item.ActorId == source);
+    }
+
+    [Theory]
+    [InlineData(4, 5, 7, 15, 0, true, false)]
+    [InlineData(4, 5, 7, 15, 0, false, false)]
+    [InlineData(11, 14, 14, 24, 6, true, false)]
+    [InlineData(11, 14, 14, 24, 6, false, false)]
+    [InlineData(4, 5, 7, 15, 0, false, true)]
+    public void Main_gunblade_uses_the_native_widget_then_fire_on_the_same_owner(int allyCount, int enemyCount, byte sourceRow, byte targetRow, int model, bool press, bool automaticOption)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
+        string source = $"party-{model}";
+        const string fireActor = "party-1";
+        NativeLimitProgress options = selected.LimitProgress! with { Options978 = (ushort)(selected.LimitProgress!.Options978!.Value & ~1 | (automaticOption ? 1 : 0)) };
+        BattleCombatantDefinition[] actors = logicalDefinition.Combatants.OrderBy(actor => actor.IsPlayer ? actor.Id == source ? 1 : 0 : 2).Select(actor => actor.IsPlayer ? actor with
+        {
+            NativeAttack = assets.ReadPlayerNativeAttackData(vitals, Array.FindIndex(vitals.Records, row => row.CharacterId == actor.ModelId)),
+            Abilities = [BattleAbility.Attack, BattleAbility.Magic],
+            MagicStocks = [new(fire.Id, 5)],
+            Attack = 35,
+            Magic = 30,
+            NativeStatusResistances = new byte[40]
+        } : actor.NativeTemplate is { } template
+            ? actor with { MaximumHp = template.Levels[actor.Level].MaximumHp, CurrentHp = template.Levels[actor.Level].MaximumHp }
+            : actor with { MaximumHp = 6000, CurrentHp = 6000, NativeStatusResistances = new byte[40] }).ToArray();
+        NativeBattleUiRandomState ui = new(789);
+        logicalDefinition = logicalDefinition with
+        {
+            Combatants = actors, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = [fire], NativeCommandSequences = selected.NativeCommandSequences,
+            NativeFieldBattleRules = 0, NativeRetainedMemory = selected.NativeRetainedMemory, LimitProgress = options, NativeBattleUiRandom = ui
+        };
+        selected = selected with
+        {
+            LimitProgress = options, NativeBattleUiRandom = ui,
+            NativeEffectMeshes = game.ReadNativeEffectMeshes(),
+            NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([fire.NativeAction!.MagicId]),
+            NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
+            NativeActionCameraRules = game.ReadNativeActionCameraRules()
+        };
+        NativeBattleUiRandomState expectedUi = automaticOption ? ui.Draw(out ushort roll) : ui;
+        bool expectedTrigger = press || automaticOption && expectedUi.State > 0x2000;
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        BattleSession control = new(logicalDefinition, BattleAtbMode.TurnBased);
+        control.SetGunbladeMode(expectedTrigger ? BattleGunbladeMode.Automatic : BattleGunbladeMode.Manual);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachExpandedPresentationProcess(process);
+        for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
+        {
+            logical.Tick();
+        }
+        Assert.True(logical.NativeEntryReady);
+        Assert.Equal(source, process.Graphics.PresentationRoster![sourceRow].ActorId);
+        string targetId = process.Graphics.PresentationRoster[targetRow].ActorId;
+        BattleCombatant target = Assert.Single(logical.Combatants, actor => actor.Id == targetId);
+        int hp = target.CurrentHp;
+        NativeBattleRandomState? random = logical.Capture().Random;
+        var originalModels = Models(process);
+        NativeBattleModelCpuResources cpu = process.ModelCpuResources;
+        logical.QueueAttack(source, targetId);
+        control.QueueAttack(source, targetId);
+        Assert.False(logical.CanTriggerGunblade);
+        List<NativeBattleContactPacket> contacts = [];
+        long? token = null;
+        bool sawInput = false;
+        bool pressed = false;
+        for (int callback = 0; callback < ActionBudget && (logical.ActiveAction is not null || logical.QueuedActions.Count != 0); callback++)
+        {
+            logical.Tick();
+            token ??= process.LastStepActionToken;
+            if (process.TriggerWidget is { } widget && process.PendingTrigger is null && contacts.Count == 0 && target.CurrentHp == hp)
+            {
+                sawInput = true;
+                Assert.Equal(sourceRow, widget.ActorIndex);
+                Assert.Equal(hp, target.CurrentHp);
+                Assert.Equal(random, logical.Capture().Random);
+            }
+            if (automaticOption)
+            {
+                Assert.False(logical.CanTriggerGunblade);
+            }
+            if (press && !pressed && logical.GunbladeTriggerWindowOpen)
+            {
+                Assert.True(logical.TriggerGunblade());
+                Assert.True(process.TriggerWidget!.PendingTrigger);
+                Assert.False(logical.CanTriggerGunblade);
+                pressed = true;
+            }
+            if (!process.LastStep.Contacts.IsEmpty)
+            {
+                Assert.Equal(token, process.LastStepActionToken);
+                contacts.AddRange(process.LastStep.Contacts);
+            }
+        }
+        Assert.Null(logical.ActiveAction);
+        Assert.True(sawInput);
+        Assert.Equal(press, pressed);
+        long gunbladeToken = Assert.IsType<long>(token);
+        Assert.True(process.IsActionComplete(gunbladeToken));
+        Assert.Null(process.PendingTrigger);
+        Assert.Equal(targetRow, Assert.Single(contacts).Primary.ActorIndex);
+        Assert.True(hp > target.CurrentHp);
+        Assert.Single(logical.Events, item => item.Kind == "EffectContact" && item.ActorId == source && item.TargetId == targetId);
+        Assert.Equal(expectedTrigger ? 1 : 0, logical.Events.Count(item => item.Kind == "GunbladeTrigger" && item.ActorId == source));
+        RunControl();
+        Assert.Equal(control.Combatants.Single(item => item.Id == targetId).CurrentHp, target.CurrentHp);
+        Assert.Equal(JsonSerializer.Serialize(control.Capture().Random), JsonSerializer.Serialize(logical.Capture().Random));
+        Assert.Equal(expectedUi, logical.Capture().NativeBattleUiRandom);
+
+        logical.QueueAction(fireActor, targetId, BattleAbility.Magic, fire.Id);
+        control.QueueAction(fireActor, targetId, BattleAbility.Magic, fire.Id);
+        contacts.Clear();
+        long? fireToken = null;
+        for (int callback = 0; callback < ActionBudget && (logical.ActiveAction is not null || logical.QueuedActions.Count != 0); callback++)
+        {
+            logical.Tick();
+            if (process.LastStepActionToken is long current && current != gunbladeToken)
+            {
+                fireToken ??= current;
+                Assert.Equal(fireToken, current);
+                contacts.AddRange(process.LastStep.Contacts);
+            }
+        }
+        Assert.Null(logical.ActiveAction);
+        Assert.True(process.IsActionComplete(Assert.IsType<long>(fireToken)));
+        Assert.True(process.IsActionComplete(gunbladeToken));
+        Assert.Equal(targetRow, Assert.Single(contacts).Primary.ActorIndex);
+        Assert.Equal(4, logical.GetAvailableMagicCasts(fireActor, fire.Id));
+        RunControl();
+        Assert.Equal(control.Combatants.Single(item => item.Id == targetId).CurrentHp, target.CurrentHp);
+        Assert.Equal(JsonSerializer.Serialize(control.Capture().Random), JsonSerializer.Serialize(logical.Capture().Random));
+        Assert.Equal(originalModels, Models(process));
+        Assert.Same(cpu, process.ModelCpuResources);
+        Assert.Same(process, logical.ExpandedPresentationProcess);
+
+        void RunControl()
+        {
+            for (int callback = 0; callback < 150 && (control.ActiveAction is not null || control.QueuedActions.Count != 0); callback++)
+            {
+                control.Tick();
+            }
+            Assert.Null(control.ActiveAction);
+        }
+    }
+
     [Theory]
     [InlineData(4, 5, 7, 15, 0)]
     [InlineData(11, 14, 7, 24, 14)]

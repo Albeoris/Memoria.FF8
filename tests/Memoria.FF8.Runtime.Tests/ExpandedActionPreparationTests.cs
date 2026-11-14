@@ -68,19 +68,50 @@ public sealed class ExpandedActionPreparationTests
     }
 
     [Fact]
-    public void Hosted_candidate_preserves_queued_attack_header_when_Gunblade_uses_its_formula_clone()
+    public void Hosted_candidate_preserves_original_attack_and_only_prepares_the_Gunblade_placeholder()
     {
         BattleSession candidate = Create(gunblade: true);
         candidate.SetGunbladeMode(BattleGunbladeMode.Automatic);
         candidate.QueueAttack("caster", "enemy");
         ReachCommit(candidate);
+        BattleSnapshot before = candidate.Capture();
         (BattleActionPresentation command, NativeBattleActionHeaderPreparation header) = StageHostedInvocation(candidate);
 
         Assert.Equal((byte)1, command.NativeQueuedCommand);
-        Assert.Equal((byte)253, command.NativeAction!.Command);
+        Assert.Equal((byte)1, command.NativeAction!.Command);
         Assert.Equal((byte)1, header.Command);
         Assert.Equal((ushort)0, header.Effect);
         Assert.Equal(NativeBattleCommandSequenceFixture.Values[1], header.Sequence);
+        object invocation = ReadHostedInvocation(candidate);
+        Assert.True((bool)invocation.GetType().GetProperty("PendingGunblade", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(invocation)!);
+        ExpandedBattleContact placeholder = Assert.Single((ImmutableArray<ExpandedBattleContact>)invocation.GetType().GetProperty("Contacts")!.GetValue(invocation)!);
+        Assert.Equal((ushort)0, placeholder.Packet.Primary.Amount6);
+        Assert.Equal(before.Combatants.Select(actor => actor.CurrentHp), candidate.Capture().Combatants.Select(actor => actor.CurrentHp));
+        Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(candidate.Capture().Random));
+
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        NativeBattleGraphicsRoster roster = candidate.ReadExpandedPresentationRoster();
+        object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
+        typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(candidate, [invocation, roster, bridge]);
+        typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(candidate, 1L);
+        NativeBattleModelLifecycleServices services = candidate.CaptureExpandedModelLifecycleServices(roster);
+        services.EmitContact(placeholder.Packet);
+        MethodInfo acknowledger = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
+        string staged = Snapshot(candidate);
+        for (int repeat = 0; repeat < 2; repeat++)
+        {
+            TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => acknowledger.Invoke(candidate, [services, 1L]));
+            Assert.Contains("placeholder before trigger recomputation", Assert.IsType<InvalidDataException>(failure.InnerException).Message);
+        }
+        Assert.Equal(staged, Snapshot(candidate));
+        Assert.Same(invocation, ReadHostedInvocation(candidate));
+        typeof(BattleSession).GetField("nativeActionScratch", privateInstance)!.SetValue(candidate, candidate.Capture().NativeActionScratch! with { FinisherPendingE03 = null });
+        string unknownBefore = Snapshot(candidate);
+        byte sourceRow = candidate.ReadExpandedPresentationRow("caster");
+        MethodInfo recompute = typeof(BattleSession).GetMethod("ResolveExpandedGunbladeContact", privateInstance)!;
+        TargetInvocationException unknown = Assert.Throws<TargetInvocationException>(() => recompute.Invoke(candidate, [invocation, placeholder, new NativeBattleTriggerReceipt(sourceRow, 1, 1, 25, 32)]));
+        Assert.Contains("E03", Assert.IsType<NotSupportedException>(unknown.InnerException).Message);
+        Assert.Equal(unknownBefore, Snapshot(candidate));
     }
 
     [Theory]
@@ -153,6 +184,8 @@ public sealed class ExpandedActionPreparationTests
     {
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         BattleSession owner = Create();
+        BattleCombatant caster = owner.Combatants.Single(actor => actor.Id == "caster");
+        caster.NativePresentationStatus = new(caster.NativeStatus0, caster.NativeStatus1);
         NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
         byte row = owner.ReadExpandedPresentationRow("caster");
         BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 1);
@@ -185,6 +218,83 @@ public sealed class ExpandedActionPreparationTests
         Assert.Throws<TargetInvocationException>(() => acknowledger.Invoke(owner, [services, 1L]));
         Assert.Equal(before - 1, owner.GetAvailableMagicCasts("caster", 1));
         Assert.Same(newer, pending.GetValue(owner));
+        Assert.Single(owner.Events, item => item.Kind == "EnemyDrawStock");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Gunblade_replacement_binds_the_latest_pending_draw_and_debits_it_only_at_the_primary_contact(bool newerPending)
+    {
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        BattleSession owner = Create(gunblade: true, enemyWithMagicStock: true);
+        typeof(BattleSession).GetMethod("InitializeExpandedPartyPresentation", privateInstance)!.Invoke(owner, []);
+        FieldInfo pending = typeof(BattleSession).GetField("pendingEnemyDraw", privateInstance)!;
+        FieldInfo boundDraw = typeof(BattleSession).GetField("expandedEffectEnemyDraw", privateInstance)!;
+        BattlePendingEnemyDraw held = new("enemy", 1, 1);
+        BattlePendingEnemyDraw? newer = newerPending ? new("enemy", 1, 2) : null;
+        pending.SetValue(owner, held);
+        owner.QueueAttack("caster", "enemy");
+        ReachCommit(owner);
+        (_, NativeBattleActionHeaderPreparation header) = StageHostedInvocation(owner);
+        object invocation = ReadHostedInvocation(owner);
+        Assert.Same(held, invocation.GetType().GetProperty("EnemyDraw")!.GetValue(invocation));
+        Assert.Null(pending.GetValue(owner));
+        ExpandedBattleContact placeholder = Assert.Single((ImmutableArray<ExpandedBattleContact>)invocation.GetType().GetProperty("Contacts")!.GetValue(invocation)!);
+
+        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
+        typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
+        pending.SetValue(owner, newer);
+        BattleSession child = Create();
+        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
+        models[header.Actor] = models[header.Actor] with { ModelId4 = 0 };
+        PropertyInfo graphicsProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
+        graphicsProperty.SetValue(child, new NativeBattleGraphicsState(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster, EntryReady = true });
+        typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
+        typeof(BattleSession).GetField("presentationNativeTargets", privateInstance)!.SetValue(child, new Dictionary<int, NativeBattleEffectModelBinding>
+        {
+            [header.Actor] = new("caster", models[header.Actor], new([0, 0])) { IsParty = true }
+        });
+        NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { ActorIndex = header.Actor } };
+        long token = child.BeginHostedAction(header, [wrongRecipient]);
+        NativeBattleTriggerReceipt receipt = new(header.Actor, 1, 1, 25, 32);
+        graphicsProperty.SetValue(child, child.NativeGraphics! with { PendingTrigger = receipt });
+        NativeBattleGraphicsState originalGraphics = child.NativeGraphics!;
+        NativeBattleActionPacketsState rejectedPackets = child.NativeActionPackets;
+        typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, token);
+        var process = (ExpandedBattlePresentationProcess)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
+        typeof(ExpandedBattlePresentationProcess).GetField("logicalOwner", privateInstance)!.SetValue(process, owner);
+        typeof(ExpandedBattlePresentationProcess).GetField("presentation", privateInstance)!.SetValue(process, child);
+        MethodInfo recompute = typeof(BattleSession).GetMethod("DispatchExpandedGunbladeTrigger", privateInstance)!;
+        string before = Snapshot(owner);
+        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => recompute.Invoke(owner, [process])).InnerException);
+        Assert.Equal(before, Snapshot(owner));
+        Assert.Same(invocation, ReadHostedInvocation(owner));
+        Assert.Same(held, boundDraw.GetValue(owner));
+        Assert.Same(newer, pending.GetValue(owner));
+        Assert.Same(rejectedPackets, child.NativeActionPackets);
+        Assert.Same(originalGraphics, child.NativeGraphics);
+
+        typeof(BattleSession).GetField("nativeActionPackets", privateInstance)!.SetValue(child, rejectedPackets with { Contacts = rejectedPackets.Contacts.SetItem(0, placeholder.Packet) });
+        BattleCombatant target = Assert.Single(owner.Combatants, actor => actor.Id == "enemy");
+        Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
+        recompute.Invoke(owner, [process]);
+        Assert.Null(process.PendingTrigger);
+        Assert.Null(pending.GetValue(owner));
+        Assert.Same(newer ?? held, boundDraw.GetValue(owner));
+        Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
+
+        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
+        services.EmitContact(child.NativeActionPackets.ReadContact(0));
+        MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
+        acknowledge.Invoke(owner, [services, token]);
+        Assert.Null(boundDraw.GetValue(owner));
+        int expectedQuantity = newerPending ? 2 : 1;
+        Assert.Equal(5 - expectedQuantity, target.MagicStocks.Single(stock => stock.Id == 1).Count);
+        Assert.Equal(expectedQuantity, Assert.Single(owner.Events, item => item.Kind == "EnemyDrawStock").Amount);
+        Assert.Throws<TargetInvocationException>(() => acknowledge.Invoke(owner, [services, token]));
+        Assert.Equal(5 - expectedQuantity, target.MagicStocks.Single(stock => stock.Id == 1).Count);
         Assert.Single(owner.Events, item => item.Kind == "EnemyDrawStock");
     }
 
@@ -268,7 +378,7 @@ public sealed class ExpandedActionPreparationTests
 
     private static string Snapshot(BattleSession battle) => JsonSerializer.Serialize(battle.Capture());
 
-    private static BattleSession Create(bool card = false, bool miniMog = false, bool potionItem = false, bool gunblade = false, bool failSpecial = false)
+    private static BattleSession Create(bool card = false, bool miniMog = false, bool potionItem = false, bool gunblade = false, bool failSpecial = false, bool enemyWithMagicStock = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Stock(MagicSystemFixture.Create(), 1, 1, 3);
         BattleNativeAction fire = new(2, 1, 1, 1)
@@ -305,6 +415,15 @@ public sealed class ExpandedActionPreparationTests
         commandNames[6] = "Draw";
         commandNames[9] = "Cast";
         commandNames[38] = "MiniMog";
+        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Enemy", MaximumHp = 60000, CurrentHp = card ? 1 : 60000, Level = 1, Speed = 1, NativeDrawSlots = [new(1, 0), new(64, 0), new(0, 0), new(0, 0)], NativeSpecial = failSpecial && card ? new(255, 255, [0, 0, 0], 10) : new(CardReward, CardReward, [0, 0, 0], 10) };
+        if (enemyWithMagicStock)
+        {
+            enemy = enemy with
+            {
+                NativeAi = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []),
+                MagicStocks = [new(1, 5)]
+            };
+        }
         return new(new BattleDefinition
         {
             UsesExpandedRoster = true,
@@ -330,11 +449,7 @@ public sealed class ExpandedActionPreparationTests
                 new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, fire.Power, false) { NativeAction = fire },
                 new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Native, potion.Power, true) { NativeAction = potion }
             ],
-            Combatants =
-            [
-                caster,
-                new() { Id = "enemy", Name = "Enemy", MaximumHp = 60000, CurrentHp = card ? 1 : 60000, Level = 1, Speed = 1, NativeDrawSlots = [new(1, 0), new(64, 0), new(0, 0), new(0, 0)], NativeSpecial = failSpecial && card ? new(255, 255, [0, 0, 0], 10) : new(CardReward, CardReward, [0, 0, 0], 10) }
-            ]
+            Combatants = [caster, enemy]
         }, BattleAtbMode.TurnBased);
     }
 

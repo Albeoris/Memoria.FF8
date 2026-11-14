@@ -417,9 +417,9 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Null(Assert.IsType<NativeBattleCameraState>(logical.NativeCamera).ControlCursor);
     }
 
-    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded)
+    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7)
     {
-        BattleEncounter encounter = assets.LoadEncounter(7);
+        BattleEncounter encounter = assets.LoadEncounter(encounterId);
         BattleStage stage = assets.LoadStage(encounter.StageId);
         BattleEnemyPlacement[] authored = encounter.Enemies.Where(enemy => enemy.Enabled).OrderBy(enemy => enemy.Slot).Take(authoredCount).ToArray();
         Assert.Equal(authoredCount, authored.Length);
