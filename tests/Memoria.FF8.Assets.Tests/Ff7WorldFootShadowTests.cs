@@ -22,7 +22,7 @@ public sealed class Ff7WorldFootShadowTests
         Assert.False(Ff7WorldFootShadowAdapter.Eligible(entity, true, 1));
         Assert.True(Ff7WorldFootShadowAdapter.Eligible(entity, false, 1));
         Assert.False(Ff7WorldFootShadowAdapter.Eligible(entity with { Flags = 10 }, true, 0));
-        Assert.False(Ff7WorldFootShadowAdapter.Eligible(entity with { Model = 3 }, true, 0));
+        Assert.True(Ff7WorldFootShadowAdapter.Eligible(entity with { Model = 3, Terrain = 1 }, true, 1));
         Assert.False(Ff7WorldFootShadowAdapter.Eligible(entity with { GroundHeight = null }, true, 0));
         Assert.False(Ff7WorldFootShadowAdapter.Eligible(entity with { NativeAnimation = 2 }, true, 0));
         Assert.False(Ff7WorldFootShadowAdapter.Eligible(entity with { Terrain = 1 }, true, 0));
@@ -62,6 +62,33 @@ public sealed class Ff7WorldFootShadowTests
         Assert.Equal(381, Ff7WorldFootShadowAdapter.Curvature(Vector3.Zero, distant, 200, 5000));
         Assert.Equal(381, Ff7WorldFootShadowAdapter.Curvature(new(0, 9000, 0), distant, 200, 5000));
         Assert.Equal(381, Ff7WorldFootShadowAdapter.Curvature(Vector3.Zero, distant with { Width = 1280, Height = 960, Focal = 800, CenterY = 480 }, 200, 5000));
+    }
+
+    [Theory]
+    [InlineData(4, 150, 150, 24, 0, 39, 15)]
+    [InlineData(19, 150, 150, 24, 0, 39, 15)]
+    [InlineData(3, 200, 600, 24, 16, 38, 47)]
+    [InlineData(11, 600, 1200, 0, 0, 23, 47)]
+    public void VehicleAndChocoboShadowsUseNativeSizeAtlasAndGroundAnchor(int model, int halfWidth, int halfLength, int u0, int v0, int u1, int v1)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII world resources for world shadows.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation);
+        Ff7WorldEnvironmentResources environment = Ff7WorldEnvironmentResources.Load(installation, resources);
+        Ff7WorldFootShadowAdapter shadow = new(environment.Shadow, new(Ff7PcExecutableData.LoadWorldPresentation(installation, resources)));
+        Ff7WorldVisual entity = new(model, Vector3.Zero, 0, 0, 0, 2) { GroundHeight = 0, Terrain = 0, NativeAnimation = 3 };
+        Assert.True(Ff7WorldFootShadowAdapter.Eligible(entity, true, 0));
+        Ff7WorldView view = new(Matrix4x4.CreateTranslation(0, 0, 10000), Matrix4x4.Identity, 400, 640, 480, 240);
+        Capture capture = new();
+        Assert.Equal(2, shadow.Draw(capture, entity, Vector3.Zero, 0, view, 0, true, 0));
+        Assert.Contains(capture.Vertices, vertex => vertex.Uv == new Vector2((float)u0 / environment.Shadow.Width, (float)v0 / environment.Shadow.Height));
+        Assert.Contains(capture.Vertices, vertex => vertex.Uv == new Vector2((float)u1 / environment.Shadow.Width, (float)v1 / environment.Shadow.Height));
+        int offsetX = model == 3 ? -10 : 0;
+        int offsetZ = model == 3 ? 80 : model == 11 ? -360 : 0;
+        Assert.Equal(MathF.Round(320 + (offsetX + halfWidth) * 400f / (10000 + offsetZ + halfLength)), capture.Vertices[0].Position.X);
+        Assert.All(capture.Vertices, vertex => Assert.Equal(1f / (10000 + offsetZ - halfLength), vertex.Depth, 7));
+        Assert.Equal(model is 3 or 11, Ff7WorldFootShadowAdapter.Eligible(entity with { Terrain = 1 }, true, 1));
     }
 
     private sealed class Capture : ITriangleRenderer

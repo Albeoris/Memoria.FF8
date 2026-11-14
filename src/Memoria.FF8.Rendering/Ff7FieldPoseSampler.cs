@@ -5,7 +5,11 @@ using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Rendering;
 
-public readonly record struct Ff7FieldPosePhase(int Frame16, int FirstFrame = 0, int LastFrame = -1, bool Loop = false);
+public readonly record struct Ff7FieldPoseBlend(int PreviousFrame, int CurrentFrame, float Fraction);
+public readonly record struct Ff7FieldPosePhase(int Frame16, int FirstFrame = 0, int LastFrame = -1, bool Loop = false)
+{
+    public Ff7FieldPoseBlend? Blend { get; init; }
+}
 public sealed record Ff7FieldPose(IReadOnlyList<Matrix4x4> Bones, Vector3 RootTranslation);
 
 internal readonly record struct Ff7FieldPoseFrames(int First, int Second, float Fraction)
@@ -16,6 +20,22 @@ internal readonly record struct Ff7FieldPoseFrames(int First, int Second, float 
         if (animation.RotationOrder != 0x020001 || (uint)frame >= animation.Frames.Count)
         {
             throw new NotSupportedException("FF7 pose requires the admitted Z-X-Y rotation order, bounded native HRC channels and an original frame within the clip.");
+        }
+        if (phase.Blend is { } blend)
+        {
+            if ((uint)blend.PreviousFrame >= animation.Frames.Count || (uint)blend.CurrentFrame >= animation.Frames.Count || !float.IsFinite(blend.Fraction) || blend.Fraction < 0 || blend.Fraction > 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(phase), "Presentation pose samples must identify original frames and a bounded blend fraction.");
+            }
+            if (blend.Fraction == 0)
+            {
+                return new(blend.PreviousFrame, blend.PreviousFrame, 0);
+            }
+            if (blend.Fraction == 1)
+            {
+                return new(blend.CurrentFrame, blend.CurrentFrame, 0);
+            }
+            return new(blend.PreviousFrame, blend.CurrentFrame, blend.Fraction);
         }
         int last = phase.LastFrame < 0 ? animation.Frames.Count - 1 : Math.Min(phase.LastFrame, animation.Frames.Count - 1);
         float fraction = (phase.Frame16 & 15) / 16f;

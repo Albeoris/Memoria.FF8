@@ -13,6 +13,7 @@ public sealed partial class Ff7WorldRuntime
         public int Status { get; set; } = 1;
         public int Height { get; set; }
         public int Terrain { get; set; }
+        public Ff7WorldTerrainReference? Triangle { get; set; }
     }
 
     private sealed record FootCandidate(int Angle, FootTerrainPoint[] Points)
@@ -20,14 +21,17 @@ public sealed partial class Ff7WorldRuntime
         public bool Valid => Points.All(point => point.Status == 2);
     }
 
-    private sealed record FootCollisionResult(int X, int Z, int Height, int Terrain, int Angle, int Side);
+    private sealed record FootCollisionResult(int X, int Z, int Height, int Terrain, int Angle, int Side)
+    {
+        public Ff7WorldTerrainReference? Triangle { get; init; }
+    }
 
     private FootCollisionResult? ResolveFootCollision(Ff7WorldEntity player)
     {
         int dx = unchecked((short)WrappedDifference(player.X - input.PreviousX, 0x48000));
         int dz = unchecked((short)WrappedDifference(player.Z - input.PreviousZ, 0x38000));
         int angleStep = input.BridgeCooldown == 0 && input.CollisionRecovery != 1 ? 160 : 320;
-        bool dismount = player.Model == YellowChocoboModel && chocobo is { DismountPhase: 2 };
+        bool dismount = IsWorldChocobo(player.Model) && chocobo is { DismountPhase: 2 };
         FootCandidate[][] candidates = new FootCandidate[2][];
         for (int side = 0; side < 2; side++)
         {
@@ -65,12 +69,13 @@ public sealed partial class Ff7WorldRuntime
                             pendingChunk ??= (point.ChunkX, point.ChunkZ);
                             continue;
                         }
-                        (int Height, int Terrain)? terrain = QueryTerrain(point.X, point.Z, unchecked((short)player.Y), player.Terrain, player.Model, dismount);
+                        (int Height, int Terrain)? terrain = QueryTerrain(point.X, point.Z, unchecked((short)player.Y), player.Terrain, player.Model, dismount, out Ff7WorldTerrainReference? triangle);
                         if (terrain is { } found && (!dismount || Math.Abs(found.Height - player.Y) < 200))
                         {
                             point.Status = 2;
                             point.Height = found.Height;
                             point.Terrain = found.Terrain;
+                            point.Triangle = triangle;
                         }
                         else
                         {
@@ -106,7 +111,7 @@ public sealed partial class Ff7WorldRuntime
             if (selected is not null)
             {
                 FootTerrainPoint center = selected.Points[0];
-                return new(center.X, center.Z, center.Height, center.Terrain, selected.Angle, side);
+                return new(center.X, center.Z, center.Height, center.Terrain, selected.Angle, side) { Triangle = center.Triangle };
             }
         }
         return null;

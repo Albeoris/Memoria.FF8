@@ -13,7 +13,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
 {
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
 
-    public IReadOnlyList<Ff7WorldModelTriangle> Create(Vector3 nativePosition, int direction, int animationIndex, int animationFrame, IFf7ActorAppearance? appearance = null, int storyCharacter = -1)
+    public IReadOnlyList<Ff7WorldModelTriangle> Create(Vector3 nativePosition, int direction, int animationIndex, int animationFrame, IFf7ActorAppearance? appearance = null, int storyCharacter = -1, Ff7FieldPoseBlend? animationBlend = null, Vector3? nativeTilt = null, int pitchUnits = 256)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(animationIndex);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(animationIndex, descriptor.Animations.Count);
@@ -22,18 +22,24 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
         if (appearance is not null)
         {
             PcFieldModelDescriptor fieldDescriptor = new(descriptor.HrcName, 0, descriptor.HrcName, descriptor.ScaleWord.ToString(CultureInfo.InvariantCulture), Array.Empty<PcFieldLight>(), 0, descriptor.Animations);
-            Ff7ActorVisual actor = new(0, 0, 0, 0, 0, 0, animationIndex, checked(animationFrame * 16)) { PartyCharacter = storyCharacter, IsWorldModel = true };
+            Ff7ActorVisual actor = new(0, 0, 0, 0, 0, 0, animationIndex, checked(animationFrame * 16)) { PartyCharacter = storyCharacter, IsWorldModel = true, AnimationBlend = animationBlend };
             if (appearance.TryCreate(actor, fieldDescriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> mapped))
             {
                 float fieldScale = descriptor.ScaleWord / 4096f * 30.43090057373047f;
-                Matrix4x4 transform = Matrix4x4.CreateRotationX(MathF.PI) * Matrix4x4.CreateScale(descriptor.Scale / fieldScale) * Matrix4x4.CreateRotationY(direction * MathF.Tau / 4096) * Matrix4x4.CreateTranslation(nativePosition);
+                Matrix4x4 transform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(descriptor.Scale / fieldScale) * Rotation(direction, nativeTilt ?? Vector3.Zero, pitchUnits) * Matrix4x4.CreateTranslation(nativePosition);
                 Ff7WorldVertex Convert(Ff7WorldVertex vertex) => vertex with { Position = Vector3.Transform(vertex.Position, transform), Normal = vertex.Normal is Vector3 normal ? Vector3.TransformNormal(normal, transform) : null };
                 return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1 }, false)).ToArray();
             }
         }
-        Matrix4x4 normalBasis = Matrix4x4.CreateRotationX(MathF.PI / 2) * Matrix4x4.CreateRotationY(direction * MathF.Tau / 4096);
+        Matrix4x4 normalBasis = Matrix4x4.CreateRotationX(MathF.PI) * Rotation(direction, nativeTilt ?? Vector3.Zero, pitchUnits);
         Matrix4x4 basis = Matrix4x4.CreateScale(descriptor.Scale) * normalBasis * Matrix4x4.CreateTranslation(nativePosition);
-        return CreateOriginal(animation, animationFrame, descriptor.Scale, basis, normalBasis);
+        return CreateOriginal(animation, animationFrame, descriptor.Scale, basis, normalBasis, animationBlend);
+    }
+
+    public static Matrix4x4 Rotation(int direction, Vector3 nativeTilt, int pitchUnits = 256)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pitchUnits);
+        return Matrix4x4.CreateRotationX(nativeTilt.X * MathF.Tau / pitchUnits) * Matrix4x4.CreateRotationZ(nativeTilt.Z * MathF.Tau / 4096) * Matrix4x4.CreateRotationY((direction + nativeTilt.Y) * MathF.Tau / 4096);
     }
 
     public IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(int animationIndex, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis)
@@ -41,9 +47,9 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
         return CreateOriginal(resources.Animations[descriptor.Animations[animationIndex]], animationFrame, scale, basis, normalBasis);
     }
 
-    private IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(PcFieldAnimation animation, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis)
+    private IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(PcFieldAnimation animation, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis, Ff7FieldPoseBlend? animationBlend = null)
     {
-        IReadOnlyList<Matrix4x4> pose = Ff7FieldRenderer.Pose(resources, animation, animationFrame, scale);
+        IReadOnlyList<Matrix4x4> pose = Ff7FieldPoseSampler.Sample(resources, animation, new(checked(animationFrame * 16)) { Blend = animationBlend }, scale).Bones;
         Ff7ModelMaterialState materialState = new();
         List<Ff7WorldModelTriangle> triangles = new();
         foreach (Ff7BoneGeometry part in resources.Geometry)

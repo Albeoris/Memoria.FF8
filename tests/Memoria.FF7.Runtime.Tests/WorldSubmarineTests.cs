@@ -71,6 +71,7 @@ internal static class WorldSubmarineTests
         world.Advance();
         Ff7WorldEntity edge = Player(world);
         Check(beforeEdge is { X: 166899, Z: 130152, TurnOffset: 0 } && edge is { X: 166885, Z: 130094, TurnOffset: 20, Terrain: 0x2423 }, "The original WM2 terrain edge must select the first 160-unit collision deflection and blend it into model heading.");
+        WorldMapTransferTests.Run(installation, world.Machine.CopyPersistent(), ready);
     }
 
     private static Ff7WorldEntity Player(Ff7WorldRuntime world) => world.Process.Entities.Single(entity => entity.Model == 13);

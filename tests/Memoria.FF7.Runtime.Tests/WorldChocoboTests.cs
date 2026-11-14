@@ -90,7 +90,7 @@ internal static class WorldChocoboTests
         Assert(world.Process.Chocobo?.DismountPhase == 2, "The dismount must defer terrain displacement until the placement phase.");
         RestoreAndCompare(world, cold);
         AdvanceAndCompare(world, cold);
-        Assert(world.ControlledModel == 0 && world.Process.Chocobo?.Landing is { X: 229323, Z: 141201 } && world.Process.Vm.Models.Single(model => model.Model == 4).ProgramCounter == 0x1E2F && !world.Process.Vm.Models.Single(model => model.Model == 0).Detached && world.Process.Audio?.Song == 1, "The valid side-step must restore the original rider, retain the bird, and queue original model event 5.");
+        Assert(world.ControlledModel == 0 && world.Process.Chocobo?.Landing is { X: 229155, Z: 141036 } && world.Process.Vm.Models.Single(model => model.Model == 4).ProgramCounter == 0x1E2F && !world.Process.Vm.Models.Single(model => model.Model == 0).Detached && world.Process.Audio?.Song == 1, "The valid side-step must use the continuously smoothed native facing, restore the original rider, retain the bird, and queue original model event5.");
         RestoreAndCompare(world, cold);
         bool ran = false;
         for (int i = 0; i < 220 && world.Process.Chocobo is not null; i++)

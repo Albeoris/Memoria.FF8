@@ -76,6 +76,10 @@ internal static class WorldRuntimeTests
         Check(JsonSerializer.Serialize(original.Process) == JsonSerializer.Serialize(restored.Process), "Physical diagonal movement must preserve cold native terrain/collision continuation.");
         Ff7WorldProcess ready = restored.Process;
         CheckControlOptions(original, restored, ready);
+        CheckAnimationRestart(restored, ready);
+        CheckFacingDirection(restored, ready);
+        WorldScriptCameraTests.Run(original, restored, ready, installation);
+        WorldStoredPositionTests.Run(original, restored, ready, installation);
         restored.Restore(ready with { Entities = ready.Entities.Select(value => value with { Terrain = 14 }).ToArray() });
         Check(!restored.CanSave, "The native world menu cannot open on bridge terrain.");
         restored.Restore(saved with { Camera = null });
@@ -113,6 +117,40 @@ internal static class WorldRuntimeTests
         }
         Check(JsonSerializer.Serialize(restored.Process) == beforeBadUpdate, "A corrupt shared pager update must not mutate the recorded native dialogue.");
         Console.WriteLine("PASS installed original world system/onload/on_tick, source placement, tutorial, cold continuation and corruption");
+    }
+
+    private static void CheckAnimationRestart(Ff7WorldRuntime world, Ff7WorldProcess ready)
+    {
+        world.Restore(ready);
+        Ff7WorldEntity before = world.Process.Entities.Single(entity => entity.Model == world.ControlledModel);
+        for (int restart = 1; restart <= 2; restart++)
+        {
+            world.Execute(new(ready.Vm.NextRequestId, before.Model, before.Model, 0, new(WorldOperation.Animation, [before.Animation, 1])));
+            Ff7WorldEntity after = world.Process.Entities.Single(entity => entity.Model == before.Model);
+            Check(after.Animation == before.Animation && after.AnimationFrame == 0 && after.PresentationAnimationEpoch == before.PresentationAnimationEpoch + restart, "Every native animation command, including a repeated clip, must invalidate presentation pose interpolation.");
+            Check(after.PresentationEpoch == before.PresentationEpoch && after.X == before.X && after.Y == before.Y && after.Z == before.Z, "Restarting a clip must preserve position interpolation and native movement.");
+        }
+        Ff7WorldEntity cold = JsonSerializer.Deserialize<Ff7WorldEntity>(JsonSerializer.Serialize(world.Process.Entities.Single(entity => entity.Model == before.Model)))!;
+        Check(cold.PresentationAnimationEpoch == 0, "Presentation animation epochs must remain transient and absent from standalone save contracts.");
+    }
+
+    private static void CheckFacingDirection(Ff7WorldRuntime world, Ff7WorldProcess ready)
+    {
+        world.Restore(ready);
+        Ff7WorldEntity before = world.Process.Entities.Single(entity => entity.Model == world.ControlledModel);
+        world.Execute(new(ready.Vm.NextRequestId, before.Model, before.Model, 0, new(WorldOperation.Direction, [128])));
+        world.Execute(new(ready.Vm.NextRequestId + 1, before.Model, before.Model, 0, new(WorldOperation.TargetDirection, [64])));
+        Ff7WorldEntity after = world.Process.Entities.Single(entity => entity.Model == before.Model);
+        Check(after.Direction == before.Direction && after.TargetDirection == 2048 && after.ScriptDirection == 1024 && world.ReadSpecial(4, before.Model) == 128, "Native facing, smoothed body direction and script movement direction must retain separate owners.");
+        world.SetMovement(0, 0, true);
+        world.Advance();
+        after = world.Process.Entities.Single(entity => entity.Model == before.Model);
+        int desired = 2048;
+        if (Math.Abs(before.Direction - desired) > Math.Abs(before.Direction - desired + 4096))
+        {
+            desired -= 4096;
+        }
+        Check(after.Direction == ((before.Direction * 3 + desired) >> 2 & 4095), "Every native model scheduler callback must smooth its body toward facing once, including idle controlled models.");
     }
 
     private static void CheckControlOptions(Ff7WorldRuntime original, Ff7WorldRuntime restored, Ff7WorldProcess ready)

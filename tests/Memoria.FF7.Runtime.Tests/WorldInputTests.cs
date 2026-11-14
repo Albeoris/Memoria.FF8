@@ -26,6 +26,33 @@ internal static class WorldInputTests
         Check(Height(degenerate, 0, 0) == 2, "A zero projected normal must use the native mean-vertex height fallback.");
         CollisionBatch();
         BridgeAndHeightOwners();
+        VehicleTerrainMasks();
+    }
+
+    private static void VehicleTerrainMasks()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP original vehicle terrain masks: resource selection is unset.");
+            return;
+        }
+        using Ff7WorldRuntime runtime = new(Ff7Installation.Discover(root), new byte[1280], 1, new byte[] { 0, 1, 2 });
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var meshes = (Dictionary<(int Block, int Mesh), PcWorldMesh>)typeof(Ff7WorldRuntime).GetField("collisionMeshes", flags)!.GetValue(runtime)!;
+        FieldInfo input = typeof(Ff7WorldRuntime).GetField("input", flags)!;
+        MethodInfo query = typeof(Ff7WorldRuntime).GetMethods(flags).Single(method => method.Name == "QueryTerrain" && method.GetParameters().Length == 6);
+        foreach ((int model, int tint, uint mask) in new (int, int, uint)[] { (0, 0, 0x721B6F83), (5, 0, 0x70), (6, 0, 0x331B6F13), (8, 0, 0x04040008), (13, 0, 0x04048008), (19, 0, 0x321B6F83), (19, 1, 0x321B6F87), (19, 2, 0x321B6FF3), (19, 3, 0x325B7FF7), (19, 4, 0x375B7FFF), (19, 5, 0), (100, 0, 0x80) })
+        {
+            runtime.Execute(new(1, -1, -1, 0, new(Memoria.FF7.Events.WorldOperation.ChocoboColor, [tint])));
+            for (byte terrain = 0; terrain < 32; terrain++)
+            {
+                meshes[(0, 0)] = CreateMesh((0, 0, 8192, 8192, terrain));
+                input.SetValue(runtime, new Ff7WorldInputState());
+                bool accepted = query.Invoke(runtime, [4096, 4096, 0, 0, model, false]) is not null;
+                Check(accepted == ((mask & (1u << terrain)) != 0), $"Native model{model}/tint{tint} terrain{terrain} must retain its own original traversal mask.");
+            }
+        }
     }
 
     private static void BridgeAndHeightOwners()

@@ -32,6 +32,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     private Ff7WorldMarsh marsh = new();
     private Ff7WorldCameraState camera = new();
     private readonly Ff7WorldCamera cameraController;
+    private bool meteorVisible;
 
     public static int ResolveWorldId(int selector)
     {
@@ -91,6 +92,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public WorldMachine Machine { get; }
     public IReadOnlyList<ReadOnlyMemory<byte>> Texts { get; }
     public int ControlledModel => controlledModel;
+    public int PresentationArea => ResolveAudioArea(Resources.World, entrySelector, persistent);
     public bool MovementEnabled => movementEnabled;
     public long PresentationTick => tick;
     public long PresentationRestoreEpoch { get; private set; }
@@ -100,16 +102,26 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         get
         {
             EnsureHealthy();
-            return new(Resources.World, tick, entrySelector, Machine.Capture(), entities.Values.OrderBy(value => value.Model).ToArray(), controlledModel, movementEnabled, viewMode, radarMode, camera, lights.Values.OrderBy(value => value.Index).ToArray(), selectedLight, marsh, playerModel, encounterRate, window, dialogue, lastSelection, controlLock, mainState, fadeAlpha, fadeRate, fadeDisplayedAlpha, initialized, presentationCounter, input with { TerrainCache = input.TerrainCache?.ToArray() }, audio, sky, worldMapState)
+            return new(Resources.World, tick, entrySelector, Machine.Capture(), entities.Values.Select(entity => entity with { TerrainCache = entity.TerrainCache?.ToArray() }).OrderBy(value => value.Model).ToArray(), controlledModel, movementEnabled, viewMode, radarMode, camera, lights.Values.OrderBy(value => value.Index).ToArray(), selectedLight, CopyMarshState(marsh), playerModel, encounterRate, window, dialogue, lastSelection, controlLock, mainState, fadeAlpha, fadeRate, fadeDisplayedAlpha, initialized, presentationCounter, input with { TerrainCache = input.TerrainCache?.ToArray() }, audio, sky, worldMapState)
             {
                 FieldDeparture = fieldDeparture,
                 BattleState = CaptureWorldBattleState(),
                 Chocobo = CopyChocoboState(chocobo),
+                Vehicle = CopyVehicleState(vehicle),
+                ChocoboTint = chocoboTint,
+                Snow = snow,
                 EntryModule = entryModule,
                 SubmarineTint = submarineTint,
                 ApproachBubble = approachBubble,
                 WhiteFadeCallbacks = whiteFadeCallbacks,
                 WhiteFadeDisplayed = whiteFadeDisplayed,
+                MapTransfer = mapTransfer,
+                SubmarineMapEntry = submarineMapEntry,
+                ScriptCamera = scriptCamera,
+                StoredPositions = storedPositions?.ToArray(),
+                MeteorVisible = meteorVisible,
+                Effects = CopyWorldEffects(effects),
+                CameraOcclusion = cameraOcclusion,
                 ScreenShake = screenShake is { Enabled: false, X: 0, Y: 0 } ? null : screenShake
             };
         }
@@ -126,7 +138,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public void Advance()
     {
         EnsureHealthy();
-        if (ReadyFieldDeparture is not null || pendingWorldBattle is not null)
+        if (ReadyFieldDeparture is not null || ReadyMapTransfer is not null || pendingWorldBattle is not null)
         {
             return;
         }
@@ -170,16 +182,20 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             persistent[0x5F] = 0;
             BeginWorldAudio();
             Machine.Tick();
+            AdvanceWorldScriptFacing();
             InitializeUnderwaterVehicle();
             CompleteWorldAudioInitialization();
             initialized = true;
         }
         AdvanceWorldScreenShake();
         AdvancePlayerInput();
+        AdvanceScriptCamera();
         Machine.Tick();
+        AdvanceWorldScriptFacing();
         ResolvePlayerTerrain();
         AdvanceEmeraldPresentation();
         AdvanceChocoboTransport();
+        AdvanceSurfaceVehicleTransport();
         if (mainState < 0)
         {
             mainState++;
@@ -207,8 +223,14 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             whiteFadeCallbacks--;
             fadeDisplayedAlpha = fadeAlpha;
         }
-        camera = cameraController.Advance(camera, viewMode);
+        if (!AdvanceHighwindFlightCamera())
+        {
+            camera = cameraController.Advance(camera, viewMode, targetPitch: ScriptedOrTerrainPitch, targetDistance: scriptCamera?.TargetDistance is > 0 ? scriptCamera.TargetDistance : null);
+        }
         AdvanceSky();
+        AdvanceWorldCameraOcclusion();
+        AdvanceWorldMarsh();
+        AdvanceWorldEffects();
         tick++;
         presentationCounter = unchecked(presentationCounter + 2);
         AdvanceRandomWorldBattle();
@@ -218,6 +240,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         }
         if (pendingWorldBattle is null)
         {
+            AdvanceMapTransfer();
             AdvanceFieldDeparture();
         }
     }
@@ -240,13 +263,14 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             1 => entity.Z >> 13,
             2 => entity.X & 8191,
             3 => entity.Z & 8191,
-            4 => (Resources.World == 2 ? entity.TargetDirection : entity.Direction) >> 4 & 255,
+            4 => entity.TargetDirection >> 4 & 255,
             5 => entryModule,
             6 => entrySelector,
             7 => viewMode | radarMode << 2,
             8 => controlledModel < 0 ? 0 : controlledModel,
             9 => persistent[0x3FC],
             10 => escapedWorldBattle ? 1 : 0,
+            11 => marsh.InMarsh ? 1 : 0,
             12 => dialogue is { Completed: false } ? -1 : lastSelection,
             13 => entity.Terrain >> 5 & 7,
             14 => playerModel,
@@ -310,6 +334,28 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     {
         int[] values = request.Command.Arguments;
         WorldOperation operation = request.Command.Operation;
+        if (ExecuteWorldEffect(request))
+        {
+            return new(true);
+        }
+        if (ExecuteStoredPosition(request))
+        {
+            return new(true);
+        }
+        if (ExecuteScriptCamera(operation, values))
+        {
+            return new(true);
+        }
+        if (operation == WorldOperation.Surface)
+        {
+            BeginSubmarineMapTransfer(0);
+            return new(true);
+        }
+        if (operation == WorldOperation.Meteor)
+        {
+            meteorVisible = values[0] != 0;
+            return new(true);
+        }
         if (operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector)
         {
             return RequestFieldDeparture(request);
@@ -317,25 +363,15 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         if (operation == WorldOperation.CreateModel)
         {
             int model = values[0];
-            Ff7WorldEntity created = new(model);
-            for (int i = 0; i < 6; i++)
-            {
-                uint first = BinaryPrimitives.ReadUInt32LittleEndian(persistent.AsSpan(0x3B8 + i * 8));
-                uint second = BinaryPrimitives.ReadUInt32LittleEndian(persistent.AsSpan(0x3BC + i * 8));
-                if ((first >> 19 & 31) == model)
-                {
-                    int x = (int)(first & 0x7FFFF);
-                    int y = unchecked((int)second) >> 18;
-                    int z = (int)(second & 0x3FFFF);
-                    int direction = (int)(first >> 20 & 0xFF0);
-                    created = created with { X = x, Y = y, Z = z, PreviousX = x, PreviousY = y, PreviousZ = z, Direction = direction, TargetDirection = direction };
-                    break;
-                }
-            }
+            Ff7WorldEntity created = CreateWorldEntity(model);
             if (!entities.TryAdd(model, created))
             {
                 throw new InvalidDataException("FFVII world model allocation was duplicated.");
             }
+            return new(true);
+        }
+        if (ExecuteVehicleOperation(request))
+        {
             return new(true);
         }
         if (ExecuteLight(operation, values))
@@ -353,11 +389,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         }
         if (operation == WorldOperation.ResetMarsh)
         {
-            if (!marsh.Initialized)
-            {
-                int z = controlledModel < 0 ? 0 : RequireEntity(controlledModel).Z;
-                marsh = new(true, z < 0x23A98 ? 0x2008 : 0x1D4C, z < 0x23A98 ? 0x6338 : 0x11F8);
-            }
+            ResetWorldMarsh();
             return new(true);
         }
         if (operation is WorldOperation.FadeIn or WorldOperation.FadeOut)
@@ -392,6 +424,12 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             encounterRate = values[0];
             return new(true);
         }
+        if (operation == WorldOperation.ViewMode)
+        {
+            SetWorldViewMode(values[0] & 3);
+            radarMode = values[0] >> 2 & 3;
+            return new(true);
+        }
         if (operation == WorldOperation.SubmarineColor)
         {
             if (values[0] is not (0 or 1))
@@ -399,6 +437,15 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 throw new NotSupportedException($"Unsupported FFVII submarine tint {values[0]} at word {request.ProgramCounter:X4}.");
             }
             submarineTint = values[0] + 5;
+            return new(true);
+        }
+        if (operation == WorldOperation.ChocoboColor)
+        {
+            if (values[0] is < 0 or > 5)
+            {
+                throw new InvalidDataException("FFVII world Chocobo tint is outside the native terrain and palette tables.");
+            }
+            chocoboTint = values[0];
             return new(true);
         }
         if (operation == WorldOperation.EnableControl)
@@ -433,7 +480,11 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         switch (operation)
         {
             case WorldOperation.SetPlayer:
-                if (entity.Model == YellowChocoboModel && chocobo?.RiderModel is null || chocobo?.RiderModel is not null && entity.Model != YellowChocoboModel)
+                if (IsWorldChocobo(entity.Model) && entity.AttachedModel is int attachedRider)
+                {
+                    chocobo = new(attachedRider) { Model = entity.Model };
+                }
+                if (IsWorldChocobo(entity.Model) && chocobo?.RiderModel is null && entity.AttachedModel is null || chocobo?.RiderModel is not null && entity.Model != chocobo.Model)
                 {
                     throw new NotSupportedException($"FFVII world model {entity.Model} cannot change the attached rider through SetPlayer at word {request.ProgramCounter:X4}.");
                 }
@@ -441,7 +492,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 {
                     PresentationCameraEpoch++;
                 }
-                controlledModel = entity.Model;
+                SelectControlledWorldModel(entity.Model);
                 SynchronizeFreeDirection(entity);
                 break;
             case WorldOperation.ChunkPosition:
@@ -451,7 +502,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 entity = entity with { X = (entity.X & ~8191) | (values[0] & 8191), Z = (entity.Z & ~8191) | (values[1] & 8191), Flags = entity.Flags | 1, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.Direction:
-                entity = entity with { Direction = values[0] << 4 & 4095, TargetDirection = values[0] << 4 & 4095, ScriptDirection = null };
+                entity = entity with { TargetDirection = values[0] << 4 & 4095, ScriptDirection = null };
                 if (entity.Model == controlledModel)
                 {
                     SynchronizeFreeDirection(entity);
@@ -459,11 +510,11 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 break;
             case WorldOperation.TargetDirection:
                 int movementDirection = values[0] << 4 & 4095;
-                entity = Resources.World == 2 || entity.Model == YellowChocoboModel ? entity with { ScriptDirection = movementDirection } : entity with { TargetDirection = movementDirection };
+                entity = entity with { ScriptDirection = movementDirection };
                 break;
             case WorldOperation.FaceZone:
                 int zoneDirection = ReadZoneDirection(entity.Model, values[0]) & 4095;
-                entity = entity with { Direction = zoneDirection, TargetDirection = zoneDirection, ScriptDirection = null, TurnOffset = 0 };
+                entity = entity with { TargetDirection = zoneDirection, ScriptDirection = null, TurnOffset = 0 };
                 break;
             case WorldOperation.Speed:
             case WorldOperation.FastSpeed:
@@ -479,13 +530,9 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 approachBubble = new(entity.PreviousX, entity.PreviousY ?? entity.Y, entity.PreviousZ);
                 break;
             case WorldOperation.FaceModel:
-                if (entity.Model != YellowChocoboModel)
-                {
-                    throw new NotSupportedException($"FFVII world model {entity.Model} cannot use scripted facing at word {request.ProgramCounter:X4}.");
-                }
                 if (entities.TryGetValue(values[0], out Ff7WorldEntity? target) && target.Model != chocobo?.RiderModel)
                 {
-                    entity = entity with { TargetDirection = (inputMath.Direction(target.X - entity.X, target.Z - entity.Z) + (values[1] << 4)) & 4095 };
+                    entity = entity with { ScriptDirection = entity.ScriptDirection ?? entity.TargetDirection, TargetDirection = (inputMath.Direction(target.X - entity.X, target.Z - entity.Z) + (values[1] << 4)) & 4095 };
                 }
                 break;
             case WorldOperation.Elevation:
@@ -501,17 +548,13 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 entity = entity with { Y = values[0], Flags = entity.Flags | 128, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.Animation:
-                entity = entity with { Animation = unchecked((sbyte)values[0]), AnimationFrame = 0, Flags = values[1] != 0 ? entity.Flags & ~32 : entity.Flags | 32 };
+                entity = entity with { Animation = unchecked((sbyte)values[0]), AnimationFrame = 0, Flags = values[1] != 0 ? entity.Flags & ~32 : entity.Flags | 32, PresentationAnimationEpoch = entity.PresentationAnimationEpoch + 1 };
                 break;
             case WorldOperation.Hide:
                 entity = entity with { Flags = entity.Flags | 8, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.Unhide:
                 entity = entity with { Flags = entity.Flags & ~8, PresentationEpoch = entity.PresentationEpoch + 1 };
-                break;
-            case WorldOperation.ViewMode:
-                SetWorldViewMode(values[0] & 3);
-                radarMode = values[0] >> 2 & 3;
                 break;
             default:
                 throw new NotSupportedException($"Unsupported FFVII world host operation {operation} at word {request.ProgramCounter:X4}.");
@@ -577,11 +620,23 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             throw new InvalidDataException("FFVII world model and script snapshot identities differ.");
         }
         ValidateDialogue(state);
+        ValidateMapTransfer(state);
+        ValidateWorldEffects(state.Effects);
+        ValidateCameraOcclusion(state.CameraOcclusion);
+        ValidateMarshState(state.Marsh);
+        if (state.StoredPositions is not null && (state.StoredPositions.Length != 3 || state.StoredPositions.Any(point => point is null)))
+        {
+            throw new InvalidDataException("FFVII world stored-position bank requires three native vector owners.");
+        }
         if (state.Audio is { } savedAudio && (savedAudio.Publications < 0 || savedAudio.Song is < 0 or > 8 || savedAudio.PreviousSong is < 0 or > 8 || savedAudio.LastPublishedTrack is < -1 or > 98 || savedAudio.SoundPriority is < 0 or > 751 || savedAudio.Initialized != state.Initialized))
         {
             throw new InvalidDataException("FFVII world audio snapshot has invalid native song or publication state.");
         }
         ValidatePlayerInput(state.Input, state.WorldMapState);
+        foreach (Ff7WorldEntity entity in state.Entities.Where(entity => entity.TerrainCache is not null))
+        {
+            ValidatePlayerInput(new(TerrainCache: entity.TerrainCache), state.WorldMapState);
+        }
         if (state.ScreenShake is { } shake && (shake.X is not (-4 or -2 or 0 or 2) || shake.Y is not (-4 or -2 or 0 or 2)))
         {
             throw new InvalidDataException("FFVII world screen shake has invalid projection offsets.");
@@ -595,12 +650,18 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             throw new InvalidDataException("FFVII world approach presentation has invalid effect state.");
         }
         ValidateChocoboState(state);
+        if (state.ChocoboTint is < 0 or > 5)
+        {
+            throw new InvalidDataException("FFVII world snapshot has an invalid Chocobo tint.");
+        }
+        ValidateVehicleState(state);
+        ValidateSnowState(state.Snow, state.WorldId);
         ValidateWorldBattleState(state.BattleState);
         Machine.Restore(state.Vm);
         entities.Clear();
         foreach (Ff7WorldEntity entity in state.Entities)
         {
-            entities.Add(entity.Model, entity);
+            entities.Add(entity.Model, entity with { TerrainCache = entity.TerrainCache?.ToArray() });
         }
         lights.Clear();
         foreach (Ff7WorldLight light in state.Lights)
@@ -609,6 +670,9 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         }
         controlledModel = state.ControlledModel;
         chocobo = CopyChocoboState(state.Chocobo);
+        chocoboTint = state.ChocoboTint;
+        vehicle = CopyVehicleState(state.Vehicle);
+        snow = state.Snow;
         entryModule = state.EntryModule;
         movementEnabled = state.MovementEnabled;
         viewMode = state.ViewMode;
@@ -619,7 +683,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         approachBubble = state.ApproachBubble;
         whiteFadeCallbacks = state.WhiteFadeCallbacks;
         whiteFadeDisplayed = state.WhiteFadeDisplayed;
-        marsh = state.Marsh;
+        marsh = CopyMarshState(state.Marsh);
         selectedLight = state.SelectedLight;
         encounterRate = state.BattleState is null && state.EncounterRate == 0 ? 1 : state.EncounterRate;
         controlLock = state.ControlLock;
@@ -638,6 +702,13 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         sky = state.Sky ?? new();
         worldMapState = state.WorldMapState;
         fieldDeparture = state.FieldDeparture;
+        mapTransfer = state.MapTransfer;
+        submarineMapEntry = state.SubmarineMapEntry;
+        scriptCamera = state.ScriptCamera;
+        storedPositions = state.StoredPositions?.ToArray();
+        meteorVisible = state.MeteorVisible;
+        RestoreWorldEffects(state.Effects);
+        cameraOcclusion = state.CameraOcclusion ?? new();
         RestoreDialogue(state);
         faulted = false;
         PresentationRestoreEpoch++;

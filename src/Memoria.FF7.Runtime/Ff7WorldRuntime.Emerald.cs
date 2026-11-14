@@ -18,7 +18,6 @@ public sealed partial class Ff7WorldRuntime
         {
             return;
         }
-        emerald = TurnWorldPlayer(emerald, emerald.TargetDirection);
         if (mainState >= 1 && (emerald.Flags & 8) == 0 && entities.TryGetValue(controlledModel, out Ff7WorldEntity? player)
             && visibility.RequiredChunks(player.X, player.Z, camera.Heading, underwater: true).Any(chunk => chunk.ChunkX == emerald.X >> 13 && chunk.ChunkZ == emerald.Z >> 13))
         {

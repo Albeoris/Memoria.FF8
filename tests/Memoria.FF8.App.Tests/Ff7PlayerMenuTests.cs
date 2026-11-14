@@ -63,7 +63,9 @@ public sealed class Ff7PlayerMenuTests
         string before = JsonSerializer.Serialize(idle);
         Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { MovementEnabled = false }));
-        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }));
+        Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }));
+        Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 3 }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 3, MovementEnabled = false }));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { FadeDisplayedAlpha = 1 }));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { Dialogue = new(1, 0, 0, null, null, 0) }));
         Assert.Equal(before, JsonSerializer.Serialize(idle));

@@ -70,4 +70,40 @@ public sealed class CommittedPresentationHistoryTests
         Assert.False(Ff7WorldRenderInterpolation.Continuous(previous, current with { Models = [second with { Flags = 10 }] }));
         Assert.Equal(new Vector3(2, 8, 2), Assert.Single(current.Models).Position);
     }
+
+    [Theory]
+    [InlineData(3, 4)]
+    [InlineData(7, 0)]
+    [InlineData(0, 3)]
+    public void Ff7WorldBlendsCommittedPoseEndpointsIncludingWrapsAndSkippedFrames(int firstFrame, int secondFrame)
+    {
+        Ff7WorldVisual first = new(0, Vector3.Zero, 0, 1, firstFrame, 2);
+        Ff7WorldVisual second = first with { Position = new(20, 4, 10), Frame = secondFrame };
+        Ff7WorldRenderFrame previous = new(0, true, 1, 0, 0, 0, 0, 0, new(0, 0, 100, 0, 4094, 400), [first], []);
+        Ff7WorldRenderFrame current = previous with { Models = [second], Camera = previous.Camera with { Roll = 2 } };
+        Ff7WorldRenderFrame sampled = Ff7WorldRenderInterpolation.Interpolate(previous, current, 0.5f);
+        Assert.Equal(new Vector3(10, 2, 5), sampled.Models[0].Position);
+        Assert.Equal(new Ff7FieldPoseBlend(firstFrame, secondFrame, 0.5f), sampled.Models[0].AnimationBlend);
+        Assert.Equal(0, sampled.Camera.Roll);
+        Assert.Same(current, Ff7WorldRenderInterpolation.Interpolate(previous, current, 1));
+        Assert.Null(current.Models[0].AnimationBlend);
+        Assert.Equal(firstFrame, Ff7WorldRenderInterpolation.Interpolate(previous, current, 0).Models[0].AnimationBlend!.Value.PreviousFrame);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Ff7WorldRenderInterpolation.Interpolate(previous, current, float.NaN));
+    }
+
+    [Fact]
+    public void Ff7WorldClipChangesAndRestartsKeepMovementSmoothWithoutBlendingUnrelatedPoses()
+    {
+        Ff7WorldVisual first = new(0, Vector3.Zero, 0, 1, 7, 2);
+        Ff7WorldRenderFrame previous = new(0, true, 1, 0, 0, 0, 0, 0, new(0, 0, 100, 0, 0, 400), [first], []);
+        foreach (Ff7WorldVisual second in new[] { first with { Animation = 2 }, first with { PresentationAnimationEpoch = 1 } })
+        {
+            Ff7WorldRenderFrame current = previous with { Models = [second with { Position = new(20, 0, 0), Frame = 0 }] };
+            Assert.True(Ff7WorldRenderInterpolation.Continuous(previous, current));
+            Ff7WorldVisual sampled = Ff7WorldRenderInterpolation.Interpolate(previous, current, 0.5f).Models[0];
+            Assert.Equal(10, sampled.Position.X);
+            Assert.Null(sampled.AnimationBlend);
+            Assert.Equal(0, sampled.Frame);
+        }
+    }
 }

@@ -14,19 +14,19 @@ public sealed partial class Ff7WorldRuntime
 
     private void InitializeUnderwaterVehicle()
     {
-        if (Resources.World != 2)
+        if (Resources.World != 2 && !submarineMapEntry)
         {
             return;
         }
-        if (entryModule != 0 && persistent[0x3FD] == SubmarineModel && entities.ContainsKey(SubmarineModel))
+        if ((entryModule != 0 || submarineMapEntry) && persistent[0x3FD] == SubmarineModel && entities.ContainsKey(SubmarineModel))
         {
-            controlledModel = SubmarineModel;
+            SelectControlledWorldModel(SubmarineModel);
         }
         if (controlledModel == SubmarineModel)
         {
             Ff7WorldEntity submarine = RequireEntity(SubmarineModel);
-            UpdateEntity(submarine with { Y = SubmarineEntryDepth, Flags = submarine.Flags | 128 });
-            input = input with { CollisionRecovery = 0 };
+            UpdateEntity(submarine with { Y = Resources.World == 2 ? SubmarineEntryDepth : submarine.Y, Flags = submarine.Flags | (Resources.World == 2 ? 128 : 0) });
+            input = input with { CollisionRecovery = submarineMapEntry ? 2 : 0 };
         }
     }
 
@@ -45,7 +45,9 @@ public sealed partial class Ff7WorldRuntime
         heading &= 4095;
         if ((pressed & 0x40) != 0 && (submarine.Terrain & 31) == 3)
         {
-            throw new NotSupportedException("FFVII surfacing requires the surface submarine transport contract.");
+            BeginSubmarineMapTransfer(0);
+            input = input with { PreviousControlHeld = held };
+            return;
         }
         if ((pressed & 0x900) != 0)
         {
@@ -107,7 +109,6 @@ public sealed partial class Ff7WorldRuntime
         {
             submarine = submarine with { Y = Math.Min(SubmarineEntryDepth, submarine.GroundHeight + SubmarineBottomClearance) };
         }
-        submarine = TurnWorldPlayer(submarine, submarine.TargetDirection);
         if (mainState >= 0 && (submarine.Flags & 8) == 0)
         {
             if (submarine.Animation == 0)

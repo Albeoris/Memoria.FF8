@@ -42,15 +42,24 @@ public enum WorldOperation
     CloseWindow = 0x32D,
     WaitWindow = 0x32E,
     CameraTilt = 0x32F,
+    StartLeaveVehicle = 0x331,
     ReleaseChocobo = 0x332,
     FaceModel = 0x333,
+    RestoreAttachedRider = 0x335,
     FastSpeed = 0x336,
+    EnableTinyBroncoFlight = 0x337,
     Unhide = 0x338,
     Hide = 0x339,
     VerticalVelocity = 0x33A,
     FadeOut = 0x33B,
+    Surface = 0x33C,
     FieldTransitionSelector = 0x33D,
     Music = 0x33E,
+    AttachRider = 0x343,
+    SavePosition = 0x344,
+    FaceSavedPosition = 0x345,
+    ChangeModelIdentity = 0x346,
+    CopyModelPosition = 0x347,
     FadeIn = 0x348,
     WorldState = 0x349,
     Effect = 0x34A,
@@ -75,6 +84,7 @@ public interface IWorldHost
     WorldHostReply Execute(WorldHostRequest request);
     int ReadSpecial(int selector, int activeModel);
     int ReadModelDistance(int activeModel, int targetModel) => throw new NotSupportedException("The FFVII world host does not support model distances.");
+    int ReadStoredPositionDistance(int activeModel, int slot) => throw new NotSupportedException("The FFVII world host does not support stored-position distances.");
     int ReadZoneDistance(int activeModel, int zone) => throw new NotSupportedException("The FFVII world host does not support zone distances.");
     int ReadZoneDirection(int activeModel, int zone) => throw new NotSupportedException("The FFVII world host does not support zone directions.");
 }

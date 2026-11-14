@@ -156,6 +156,11 @@ public sealed partial class Ff7Session : IDisposable
     {
         if (World is { } world)
         {
+            if (world.PendingBattle is null && world.ReadyMapTransfer is int pendingMap)
+            {
+                CompleteWorldMapTransfer(world, pendingMap);
+                return;
+            }
             if (world.PendingBattle is null && world.ReadyFieldDeparture is { } pendingDeparture)
             {
                 CompleteWorldDeparture(world, pendingDeparture);
@@ -181,6 +186,11 @@ public sealed partial class Ff7Session : IDisposable
                 return;
             }
             Host.AdvanceNativeMusicClock();
+            if (world.ReadyMapTransfer is int destinationMap)
+            {
+                CompleteWorldMapTransfer(world, destinationMap);
+                return;
+            }
             if (world.ReadyFieldDeparture is { } departure)
             {
                 CompleteWorldDeparture(world, departure);

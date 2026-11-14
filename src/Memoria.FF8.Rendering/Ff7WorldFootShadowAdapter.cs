@@ -5,14 +5,15 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF8.Rendering;
 
-/// <summary>Projects original ordinary-foot shadows into the existing triangle submission contract.</summary>
+/// <summary>Projects original world shadows into the existing triangle submission contract.</summary>
 public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath math)
 {
     private readonly PixelImage image = Ff7FieldRenderer.DecodeTexture(texture);
 
     public static bool Eligible(Ff7WorldVisual entity, bool controlled, int heightSmoothVelocity)
     {
-        return (entity.Model is >= 0 and <= 2 or 4) && (entity.Flags & 2) != 0 && (entity.Flags & 8) == 0 && entity.GroundHeight is not null && (entity.Model == 4 || entity.NativeAnimation is not (>= 2 and <= 5)) && (!controlled || heightSmoothVelocity == 0) && (0x311B6F05u & (1u << (entity.Terrain & 31))) != 0;
+        bool ordinary = (entity.Model is >= 0 and <= 2 && entity.NativeAnimation is not (>= 2 and <= 5) || entity.Model is 4 or 19) && (!controlled || heightSmoothVelocity == 0) && (0x311B6F05u & (1u << (entity.Terrain & 31))) != 0;
+        return (entity.Flags & 2) != 0 && (entity.Flags & 8) == 0 && entity.GroundHeight is not null && (ordinary || entity.Model is 3 or 11);
     }
 
     public static int Curvature(Vector3 position, Ff7WorldView view, int cameraGroundHeight, int threshold)
@@ -36,10 +37,19 @@ public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath ma
             return 0;
         }
         int ground = entity.GroundHeight!.Value - curvature;
-        short halfSize = unchecked((short)(100 - (((int)position.Y - ground) >> 6)));
+        int halfSize = 100 - (((int)position.Y - ground) >> 6);
+        (short halfWidth, short halfLength) = entity.Model switch
+        {
+            4 or 19 => (unchecked((short)(halfSize * 3 >> 1)), unchecked((short)(halfSize * 3 >> 1))),
+            3 => (unchecked((short)(halfSize * 2)), unchecked((short)(halfSize * 6))),
+            11 => (unchecked((short)(halfSize * 6)), unchecked((short)(halfSize * 12))),
+            _ => (unchecked((short)halfSize), unchecked((short)halfSize))
+        };
         Matrix4x4 rotation = math.Rotation(0, 0x800 + entity.Direction + cameraRoll * 4, 0);
-        Vector3[] corners = [new(-halfSize, 0, -halfSize), new(halfSize, 0, -halfSize), new(-halfSize, 0, halfSize), new(halfSize, 0, halfSize)];
-        Vector3[] camera = corners.Select(corner => Vector3.Transform(Vector3.Transform(corner, rotation) + new Vector3(position.X, unchecked((short)ground), position.Z), view.NativeView)).ToArray();
+        Vector3 offset = entity.Model switch { 3 => new(-10, 0, 80), 11 => new(0, 0, -360), _ => Vector3.Zero };
+        offset = Vector3.Transform(offset, math.Rotation(0, entity.Direction + cameraRoll * 4, 0));
+        Vector3[] corners = [new(-halfWidth, 0, -halfLength), new(halfWidth, 0, -halfLength), new(-halfWidth, 0, halfLength), new(halfWidth, 0, halfLength)];
+        Vector3[] camera = corners.Select(corner => Vector3.Transform(Vector3.Transform(corner, rotation) + new Vector3(position.X + offset.X, unchecked((short)ground), position.Z + offset.Z), view.NativeView)).ToArray();
         if (camera.Any(point => MathF.Round(point.Z, MidpointRounding.ToEven) <= 0))
         {
             return 0;
@@ -52,7 +62,8 @@ public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath ma
         }
         float depth = 1 / camera.Min(point => point.Z);
         Vector4 color = new(64 / 255f, 64 / 255f, 64 / 255f, 128 / 255f);
-        Vector2[] uv = [new(24, 0), new(39, 0), new(24, 15), new(39, 15)];
+        (int u, int v, int width, int height) = entity.Model switch { 3 => (24, 16, 14, 31), 11 => (0, 0, 23, 47), _ => (24, 0, 15, 15) };
+        Vector2[] uv = [new(u, v), new(u + width, v), new(u, v + height), new(u + width, v + height)];
         TriangleVertex Vertex(int index)
         {
             Vector3 point = camera[index];

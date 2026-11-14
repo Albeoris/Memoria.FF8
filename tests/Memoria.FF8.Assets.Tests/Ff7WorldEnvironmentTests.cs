@@ -7,6 +7,35 @@ namespace Memoria.FF8.Tests;
 public sealed class Ff7WorldEnvironmentTests
 {
     [Fact]
+    public void OriginalMeteorUsesNativeAtlasHeadingRollAndAdditiveAlphaWithoutAdvancingState()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for the world meteor.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources world = Ff7WorldResources.Load(installation);
+        Ff7WorldPresentationData presentation = Ff7PcExecutableData.LoadWorldPresentation(installation, world);
+        Ff7WorldEnvironmentResources resources = Ff7WorldEnvironmentResources.Load(installation, world);
+        Ff7WorldEnvironmentAdapter adapter = new(resources, presentation);
+        Ff7WorldView view = new Ff7WorldCameraProjection(presentation).Create(new(185636, 307, 123325), 0, 1500, 10000, 307, 0, 400, 640, 480, 0);
+        Capture ordinary = new();
+        Capture meteor = new();
+        Capture repeated = new();
+        adapter.DrawSky(ordinary, view, new(185636, 307, 123325), 0, 10000, 307, 0, true, 0, Vector3.Zero, Vector3.Zero);
+        adapter.DrawSky(meteor, view, new(185636, 307, 123325), 0, 10000, 307, 0, true, 0, Vector3.Zero, Vector3.Zero, meteorVisible: true);
+        adapter.DrawSky(repeated, view, new(185636, 307, 123325), 0, 10000, 307, 0, true, 0, Vector3.Zero, Vector3.Zero, meteorVisible: true);
+        Assert.Equal(ordinary.Triangles.Count + 2, meteor.Triangles.Count);
+        Assert.Equal(meteor.Triangles, repeated.Triangles);
+        var sprite = meteor.Triangles[^2];
+        Assert.Equal(176, sprite.A.Position.X);
+        Assert.Equal(464, sprite.B.Position.X);
+        Assert.Equal(128, meteor.Triangles[^1].C.Position.Y - sprite.A.Position.Y);
+        Assert.Equal(new Vector2(143f / resources.Meteor.Width, 0), sprite.B.Uv);
+        Assert.Equal(new Vector4(1, 1, 1, 128 / 255f), sprite.A.Color);
+        Assert.Equal(TriangleBlend.AlphaAdd, sprite.Material.Blend);
+        Assert.False(sprite.Material.DepthWrite);
+    }
+
+    [Fact]
     public void OriginalSurfaceEnvironmentUsesNativeChunksLightingRadarAndPureDraws()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

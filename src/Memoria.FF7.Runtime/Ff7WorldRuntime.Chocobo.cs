@@ -5,6 +5,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7WorldChocoboState(int? RiderModel = null, int CancelHeldTicks = 0, int DismountPhase = 0, bool ReleaseRequested = false)
 {
+    public int Model { get; init; } = 4;
     public Ff7WorldChocoboLanding? Landing { get; init; }
     public Ff7WorldChocoboRelease? Release { get; init; }
 }
@@ -17,10 +18,16 @@ public sealed partial class Ff7WorldRuntime
     private const uint YellowChocoboTerrainMask = 0x321B6F83;
     private Ff7WorldChocoboState? chocobo;
     private const int ChocoboCancelMask = 0x40;
+    private int chocoboTint;
+
+    private static bool IsWorldChocobo(int model) => model is YellowChocoboModel or 19 or 41 or 42;
+
+    private static uint ChocoboTerrainMask(int tint) => tint switch { 0 => 0x321B6F83u, 1 => 0x321B6F87u, 2 => 0x321B6FF3u, 3 => 0x325B7FF7u, 4 => 0x375B7FFFu, 5 => 0, _ => throw new InvalidDataException("FFVII world Chocobo terrain selector is invalid.") };
 
     private IEnumerable<Ff7WorldEntity> ActiveWorldEntities()
     {
-        return entities.Values.Where(entity => entity.Model != chocobo?.RiderModel);
+        HashSet<int> detached = Machine.Capture().Models.Where(model => model.Detached).Select(model => model.Model).ToHashSet();
+        return entities.Values.Where(entity => !detached.Contains(entity.Model));
     }
 
     private void BoardWorldTransport(int model, int scriptWord)
@@ -29,7 +36,12 @@ public sealed partial class Ff7WorldRuntime
         {
             return;
         }
-        if (model != YellowChocoboModel || controlledModel is not (0 or 1 or 2) || viewMode == 3)
+        if (!IsWorldChocobo(model))
+        {
+            BoardSurfaceVehicle(model, scriptWord);
+            return;
+        }
+        if (controlledModel is not (0 or 1 or 2) || viewMode == 3)
         {
             throw new NotSupportedException($"FFVII world model {model} has no supported transport contract at word {scriptWord:X4}.");
         }
@@ -39,8 +51,10 @@ public sealed partial class Ff7WorldRuntime
             return;
         }
         Machine.DetachModel(controlledModel);
-        chocobo = new(controlledModel);
-        controlledModel = model;
+        PushWorldRide(controlledModel);
+        chocobo = new(controlledModel) { Model = model };
+        UpdateEntity(bird with { AttachedModel = controlledModel });
+        SelectControlledWorldModel(model);
         input = input with { PreviousX = bird.X, PreviousY = bird.Y, PreviousZ = bird.Z };
         PresentationCameraEpoch++;
         PlayWorldSong(2);
@@ -59,7 +73,7 @@ public sealed partial class Ff7WorldRuntime
     {
         if (chocobo is { RiderModel: int riderModel } mounted)
         {
-            Ff7WorldEntity bird = RequireEntity(YellowChocoboModel);
+            Ff7WorldEntity bird = RequireEntity(mounted.Model);
             bool cancel = (input.Held & ChocoboCancelMask) != 0;
             int heldTicks = cancel ? Math.Min(15, mounted.CancelHeldTicks + 1) : 0;
             chocobo = mounted with { CancelHeldTicks = heldTicks };
@@ -70,7 +84,10 @@ public sealed partial class Ff7WorldRuntime
                     {
                         movementEnabled = false;
                         controlLock = 2;
-                        Machine.SetModelScriptEnabled(YellowChocoboModel, false);
+                        if (mounted.Model == YellowChocoboModel)
+                        {
+                            Machine.SetModelScriptEnabled(mounted.Model, false);
+                        }
                         chocobo = chocobo with { DismountPhase = 1 };
                     }
                     break;
@@ -82,13 +99,19 @@ public sealed partial class Ff7WorldRuntime
                     break;
             }
         }
-        else if (chocobo is { Landing: not null })
+        else if (chocobo is { Model: YellowChocoboModel, Landing: not null })
         {
             AdvanceReleasedChocobo();
         }
-        else if (chocobo is null && controlledModel is 0 or 1 or 2 && movementEnabled && entities.TryGetValue(YellowChocoboModel, out Ff7WorldEntity? bird) && (bird.Flags & 8) == 0 && WorldModelsCollide(RequireEntity(controlledModel), bird))
+        else if (controlledModel is 0 or 1 or 2 && movementEnabled)
         {
-            Machine.StartModel(YellowChocoboModel, (input.Held & 32) != 0 ? 4 : 3);
+            foreach (Ff7WorldEntity bird in ActiveWorldEntities().Where(entity => IsWorldChocobo(entity.Model) || entity.Model is 3 or 5 or 6 or SubmarineModel))
+            {
+                if ((bird.Flags & 8) == 0 && WorldModelsCollide(RequireEntity(controlledModel), bird))
+                {
+                    Machine.StartModel(bird.Model, (input.Held & 32) != 0 ? 4 : 3);
+                }
+            }
         }
     }
 
@@ -96,7 +119,7 @@ public sealed partial class Ff7WorldRuntime
     {
         int dx = WrappedDifference(bird.X - input.PreviousX, 0x48000);
         int dz = WrappedDifference(bird.Z - input.PreviousZ, 0x38000);
-        Machine.SetModelScriptEnabled(YellowChocoboModel, true);
+        Machine.SetModelScriptEnabled(bird.Model, true);
         if (dx == 0 && dz == 0)
         {
             movementEnabled = true;
@@ -104,14 +127,18 @@ public sealed partial class Ff7WorldRuntime
             return;
         }
         int direction = (inputMath.Direction(dx, dz) - 1024) & 4095;
-        UpdateEntity(bird with { X = input.PreviousX, Y = input.PreviousY, Z = input.PreviousZ, Direction = direction, TargetDirection = direction, ScriptDirection = null, TurnOffset = 0, Flags = bird.Flags & ~1 });
+        UpdateEntity(bird with { X = input.PreviousX, Y = input.PreviousY, Z = input.PreviousZ, Direction = direction, TargetDirection = direction, ScriptDirection = null, TurnOffset = 0, Flags = bird.Flags & ~1, AttachedModel = null });
         Ff7WorldEntity rider = RequireEntity(riderModel);
         UpdateEntity(rider with { X = bird.X, Y = bird.Y, Z = bird.Z, PreviousX = bird.X, PreviousY = bird.Y, PreviousZ = bird.Z, Direction = direction, TargetDirection = direction, Terrain = bird.Terrain, TerrainResolved = bird.TerrainResolved, GroundHeight = bird.GroundHeight, TurnOffset = 0, Animation = 2, Flags = rider.Flags | 2, PresentationEpoch = rider.PresentationEpoch + 1 });
-        Machine.StartModel(YellowChocoboModel, 5);
-        Machine.SetModelScriptEnabled(YellowChocoboModel, false);
+        Machine.StartModel(bird.Model, 5);
+        if (bird.Model == YellowChocoboModel)
+        {
+            Machine.SetModelScriptEnabled(bird.Model, false);
+        }
         Machine.ReattachModel(riderModel);
-        chocobo = new() { Landing = new(bird.X, bird.Y, bird.Z, bird.Terrain, bird.GroundHeight) };
-        controlledModel = riderModel;
+        PopWorldRide();
+        chocobo = new() { Model = bird.Model, Landing = new(bird.X, bird.Y, bird.Z, bird.Terrain, bird.GroundHeight) };
+        SelectControlledWorldModel(riderModel);
         SynchronizeFreeDirection(RequireEntity(riderModel));
         movementEnabled = false;
         controlLock = 6;
@@ -141,15 +168,45 @@ public sealed partial class Ff7WorldRuntime
         input = input with { PreviousX = landing.X, PreviousY = landing.Y, PreviousZ = landing.Z };
     }
 
-    private static int WorldGroundOffset(int terrain) => terrain is 1 or 25 ? -192 : terrain is 4 or 7 ? -64 : 0;
+    private int WorldGroundOffset(int terrain, int model = 0)
+    {
+        if (model == 19)
+        {
+            vehicle ??= new([]);
+            int offset = vehicle.ChocoboFloatOffset;
+            if (terrain is >= 3 and <= 6 or 26)
+            {
+                if (entities.TryGetValue(controlledModel, out Ff7WorldEntity? player) && (player.Flags & 1) != 0)
+                {
+                    offset = Math.Min(0, offset + 20);
+                }
+                else
+                {
+                    int target = terrain is 4 or 6 ? -50 : -250;
+                    if (offset > target)
+                    {
+                        offset -= 10;
+                    }
+                    else if (offset < target - 20)
+                    {
+                        offset = target;
+                    }
+                }
+                vehicle = vehicle with { ChocoboFloatOffset = offset };
+                return offset;
+            }
+            vehicle = vehicle with { ChocoboFloatOffset = 0 };
+        }
+        return model switch { 8 => -15, SubmarineModel => -240, 25 => 0, _ => terrain is 1 or 25 ? -192 : terrain is 4 or 7 ? -64 : 0 };
+    }
 
     private void ValidateChocoboState(Ff7WorldProcess state)
     {
         ValidateChocoboRelease(state.Chocobo?.Release, state.WorldMapState);
         WorldEntitySnapshot[] detached = state.Vm.Models.Where(model => model.Detached).ToArray();
-        if (state.Entities.Any(entity => entity.ScriptDirection is < 0 or > 4095 || entity.ScriptDirection.HasValue && state.WorldId != 2 && entity.Model != YellowChocoboModel) || state.Chocobo is { } bird && (bird.CancelHeldTicks is < 0 or > 15 || bird.DismountPhase is < 0 or > 2 || !state.Entities.Any(entity => entity.Model == YellowChocoboModel) || bird.RiderModel is not null && (bird.ReleaseRequested || bird.Landing is not null || bird.Release is not null) || bird.RiderModel is null && bird.Landing is null) ||
-            state.Chocobo?.RiderModel is int rider && (state.ControlledModel != YellowChocoboModel || rider is not (0 or 1 or 2) || detached.Length != 1 || detached[0].Model != rider) ||
-            state.Chocobo?.RiderModel is null && (detached.Length != 0 || state.ControlledModel == YellowChocoboModel))
+        if (state.Entities.Any(entity => entity.ScriptDirection is < 0 or > 4095) || state.Chocobo is { } bird && (!IsWorldChocobo(bird.Model) || bird.CancelHeldTicks is < 0 or > 15 || bird.DismountPhase is < 0 or > 2 || !state.Entities.Any(entity => entity.Model == bird.Model) || bird.RiderModel is not null && (bird.ReleaseRequested || bird.Landing is not null || bird.Release is not null) || bird.RiderModel is null && bird.Landing is null) ||
+            state.Chocobo?.RiderModel is int rider && (state.ControlledModel != state.Chocobo.Model && !state.Entities.Any(entity => entity.Model == state.ControlledModel && entity.AttachedModel == state.Chocobo.Model) || rider is not (0 or 1 or 2) || !detached.Any(model => model.Model == rider) || detached.Any(model => model.Model != rider && !state.Entities.Any(entity => entity.AttachedModel == model.Model))) ||
+            state.Chocobo?.RiderModel is null && (detached.Any(model => !state.Entities.Any(entity => entity.AttachedModel == model.Model)) || IsWorldChocobo(state.ControlledModel)))
         {
             throw new InvalidDataException("FFVII world Chocobo state has inconsistent model ownership.");
         }

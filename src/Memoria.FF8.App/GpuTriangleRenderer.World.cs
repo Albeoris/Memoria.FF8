@@ -12,12 +12,13 @@ public sealed partial class GpuTriangleRenderer
     private readonly Dictionary<WorldTerrainMesh, LinkedListNode<TerrainBuffer>> terrainBuffers = new(ReferenceEqualityComparer.Instance);
     private readonly LinkedList<TerrainBuffer> terrainRecency = new();
     private int cachedTerrainVertices;
+    private int cachedTerrainBytes;
     private long terrainFrame;
     private WorldTerrainView? terrainView;
     private VertexBuffer? boundTerrain;
 
     internal int FrameTerrainUploads { get; private set; }
-    internal int CachedTerrainBytes => cachedTerrainVertices * WorldGpuVertex.Declaration.VertexStride;
+    internal int CachedTerrainBytes => cachedTerrainBytes;
 
     public void DrawTerrain(WorldTerrainMesh mesh, in WorldTerrainView view, in TriangleMaterial material, int startVertex = 0, int vertexCount = -1)
     {
@@ -66,7 +67,7 @@ public sealed partial class GpuTriangleRenderer
                 effect.Parameters["WorldFf7Bridge"].SetValue(axis is { } bridge ? new Vector4(bridge.X, bridge.Y, bridge.Z, 1) : Vector4.Zero);
                 terrainView = view;
             }
-            effect.CurrentTechnique = effect.Techniques["WorldTerrainTechnique"];
+            effect.CurrentTechnique = effect.Techniques[view.Ff7 is { Underwater: true } ? "Ff7UnderwaterTerrainTechnique" : "WorldTerrainTechnique"];
             SamplerState sampler = ApplyMaterial(material);
             RasterizerState rasterizer = view.Ff7 is null ? RasterizerState.CullNone : RasterizerState.CullCounterClockwise;
             if (!ReferenceEquals(device.RasterizerState, rasterizer))
@@ -125,15 +126,32 @@ public sealed partial class GpuTriangleRenderer
             }
         }
         ReadOnlySpan<WorldTerrainVertex> source = mesh.Vertices.Span;
-        WorldGpuVertex[] upload = new WorldGpuVertex[source.Length];
-        for (int index = 0; index < source.Length; index++)
-        {
-            upload[index] = new WorldGpuVertex(source[index]);
-        }
-        VertexBuffer buffer = new(device, WorldGpuVertex.Declaration, upload.Length, BufferUsage.WriteOnly);
+        bool underwater = !mesh.Ff7Triangles.IsEmpty;
+        VertexBuffer buffer = new(device, underwater ? Ff7UnderwaterGpuVertex.Declaration : WorldGpuVertex.Declaration, source.Length, BufferUsage.WriteOnly);
         try
         {
-            buffer.SetData(upload);
+            if (underwater)
+            {
+                if (mesh.Ff7Triangles.Length != source.Length)
+                {
+                    throw new InvalidDataException("FFVII underwater terrain requires metadata for every retained triangle corner.");
+                }
+                Ff7UnderwaterGpuVertex[] upload = new Ff7UnderwaterGpuVertex[source.Length];
+                for (int index = 0; index < upload.Length; index++)
+                {
+                    upload[index] = new(source[index], mesh.Ff7Triangles.Span[index]);
+                }
+                buffer.SetData(upload);
+            }
+            else
+            {
+                WorldGpuVertex[] upload = new WorldGpuVertex[source.Length];
+                for (int index = 0; index < upload.Length; index++)
+                {
+                    upload[index] = new(source[index]);
+                }
+                buffer.SetData(upload);
+            }
         }
         catch
         {
@@ -146,6 +164,7 @@ public sealed partial class GpuTriangleRenderer
             node = terrainRecency.AddLast(new TerrainBuffer(mesh, buffer, terrainFrame));
             terrainBuffers.Add(mesh, node);
             cachedTerrainVertices += source.Length;
+            cachedTerrainBytes += source.Length * buffer.VertexDeclaration.VertexStride;
         }
         return buffer;
     }
@@ -164,6 +183,7 @@ public sealed partial class GpuTriangleRenderer
         terrainRecency.RemoveFirst();
         terrainBuffers.Remove(oldest.Mesh);
         cachedTerrainVertices -= oldest.Mesh.Vertices.Length;
+        cachedTerrainBytes -= oldest.Mesh.Vertices.Length * oldest.Buffer.VertexDeclaration.VertexStride;
         if (ReferenceEquals(boundTerrain, oldest.Buffer))
         {
             UnbindTerrain();
@@ -202,6 +222,25 @@ public sealed partial class GpuTriangleRenderer
             uv = new Vector2(vertex.Uv.X, vertex.Uv.Y);
             normal = new Vector3(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z);
             deform = vertex.Deform;
+        }
+    }
+
+    private readonly struct Ff7UnderwaterGpuVertex : IVertexType
+    {
+        internal static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0), new VertexElement(20, VertexElementFormat.Vector3, VertexElementUsage.Normal, 0), new VertexElement(32, VertexElementFormat.Single, VertexElementUsage.TextureCoordinate, 1), new VertexElement(36, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 2), new VertexElement(48, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 3), new VertexElement(60, VertexElementFormat.Single, VertexElementUsage.TextureCoordinate, 4));
+        private readonly WorldGpuVertex vertex;
+        private readonly Vector3 next;
+        private readonly Vector3 last;
+        private readonly float corner;
+
+        public VertexDeclaration VertexDeclaration => Declaration;
+
+        public Ff7UnderwaterGpuVertex(WorldTerrainVertex source, Ff7WorldTriangleMetadata metadata)
+        {
+            vertex = new(source);
+            next = new(metadata.Next.X, metadata.Next.Y, metadata.Next.Z);
+            last = new(metadata.Last.X, metadata.Last.Y, metadata.Last.Z);
+            corner = metadata.Corner;
         }
     }
 }

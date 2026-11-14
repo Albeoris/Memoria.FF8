@@ -68,7 +68,30 @@ public sealed class Ff7WorldVisibility(Ff7WorldPresentationData presentation)
         return z * 3 + x;
     }
 
-    public IReadOnlyList<Ff7WorldChunkPlacement> RequiredChunks(int x, int z, int heading, int worldState = 0, bool underwater = false)
+    public static int ResolveSnowBlock(int chunkX, int chunkZ)
+    {
+        return TryResolveSnowBlock(chunkX, chunkZ, out int block) ? block : throw new InvalidDataException("FFVII snow-world terrain coordinates are outside the native four-block map.");
+    }
+
+    public static bool TryResolveSnowBlock(int chunkX, int chunkZ, out int block)
+    {
+        int x = chunkX >> 2;
+        int z = chunkZ >> 2;
+        if (x >= 4)
+        {
+            x -= 9;
+        }
+        if (z >= 3)
+        {
+            z -= 7;
+        }
+        x = x < 0 ? x + 2 : x > 1 ? x - 2 : x;
+        z = z < 0 ? z + 2 : z > 1 ? z - 2 : z;
+        block = z * 2 + x;
+        return x is >= 0 and <= 1 && z is >= 0 and <= 1;
+    }
+
+    public IReadOnlyList<Ff7WorldChunkPlacement> RequiredChunks(int x, int z, int heading, int worldState = 0, bool underwater = false, bool snow = false)
     {
         if (x is < 0 or >= 0x48000 || z is < 0 or >= 0x38000)
         {
@@ -98,7 +121,7 @@ public sealed class Ff7WorldVisibility(Ff7WorldPresentationData presentation)
                 }
                 int actualX = (chunkX + dx + 36) % 36;
                 int actualZ = (chunkZ + dz + 28) % 28;
-                int block = underwater ? ResolveUnderwaterBlock(actualX, actualZ) : ResolveBlockIndex((actualZ >> 2) * 9 + (actualX >> 2), worldState);
+                int block = underwater ? ResolveUnderwaterBlock(actualX, actualZ) : snow ? ResolveSnowBlock(actualX, actualZ) : ResolveBlockIndex((actualZ >> 2) * 9 + (actualX >> 2), worldState);
                 result.Add(new(actualX, actualZ, block, (actualZ & 3) * 4 + (actualX & 3), new((chunkX + dx) << 13, 0, (chunkZ + dz) << 13)));
             }
         }

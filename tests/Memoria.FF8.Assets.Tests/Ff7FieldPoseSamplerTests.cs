@@ -28,6 +28,34 @@ public sealed class Ff7FieldPoseSamplerTests
     }
 
     [Fact]
+    public void PresentationSamplesBlendCommittedFramesAcrossLoopAndSkippedFrames()
+    {
+        Ff7FieldModelResources model = Model();
+        PcFieldAnimation animation = Animation();
+        Ff7FieldPose Sample(int previous, int current, float fraction) => Ff7FieldPoseSampler.Sample(model, animation, new(checked(current * 16)) { Blend = new(previous, current, fraction) });
+
+        Assert.Equal(Ff7FieldRenderer.Pose(model, animation, 3).ToArray(), Sample(3, 0, 0).Bones.ToArray());
+        Assert.Equal(Ff7FieldRenderer.Pose(model, animation, 0).ToArray(), Sample(3, 0, 1).Bones.ToArray());
+        Assert.Equal(new Vector3(15, 7.5f, 3), Sample(3, 0, 0.5f).RootTranslation);
+        Ff7FieldPose skipped = Sample(0, 2, 0.5f);
+        Assert.Equal(new Vector3(10, 5, 2), skipped.RootTranslation);
+        Vector3 expected = Vector3.TransformNormal(Vector3.UnitX, Matrix4x4.CreateRotationY(MathF.PI / 4));
+        Assert.InRange(Vector3.Distance(expected, Vector3.TransformNormal(Vector3.UnitX, skipped.Bones[0])), 0, 0.0001f);
+        Assert.InRange(Vector3.Distance(Vector3.Transform(new(0, 0, -2), skipped.Bones[0]), skipped.Bones[1].Translation), 0, 0.0001f);
+    }
+
+    [Theory]
+    [InlineData(-1, 0, 0.5f)]
+    [InlineData(0, 4, 0.5f)]
+    [InlineData(0, 1, -0.1f)]
+    [InlineData(0, 1, 1.1f)]
+    [InlineData(0, 1, float.NaN)]
+    public void PresentationSamplesRejectInvalidFramesAndFractions(int previous, int current, float fraction)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Ff7FieldPoseSampler.Sample(Model(), Animation(), new(0) { Blend = new(previous, current, fraction) }));
+    }
+
+    [Fact]
     public void PartialClipsWrapToTheirFirstFrameOrHoldAtTheirTerminalFrame()
     {
         Ff7FieldModelResources model = Model();

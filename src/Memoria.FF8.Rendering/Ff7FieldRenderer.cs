@@ -13,7 +13,8 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
     public int FirstAnimationFrame { get; init; }
     public int LastAnimationFrame { get; init; } = -1;
     public bool AnimationLoop { get; init; }
-    public Ff7FieldPosePhase PosePhase => new(AnimationFrame16, FirstAnimationFrame, LastAnimationFrame, AnimationLoop);
+    public Ff7FieldPoseBlend? AnimationBlend { get; init; }
+    public Ff7FieldPosePhase PosePhase => new(AnimationFrame16, FirstAnimationFrame, LastAnimationFrame, AnimationLoop) { Blend = AnimationBlend };
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }

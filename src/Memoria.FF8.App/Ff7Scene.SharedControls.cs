@@ -20,6 +20,10 @@ internal sealed partial class Ff7Scene
         get
         {
             GameUi.UiPreferences preferences = dialoguePreferences?.Invoke() ?? new GameUi.UiPreferences();
+            if (Session?.Progress is { } progress)
+            {
+                preferences = preferences with { BattlePolicy = progress.FullCombatEnabled ? "NewGameFullCombat" : "ResearchInstantVictory", RandomEncounters = progress.RandomEncountersEnabled };
+            }
             return ReadBattleAtbMode(envelope.TurnBasedBattle) is { } mode
                 ? preferences with { AtbMode = mode }
                 : retainedBattleAtbMode is { } retained ? preferences with { AtbMode = retained } : preferences;

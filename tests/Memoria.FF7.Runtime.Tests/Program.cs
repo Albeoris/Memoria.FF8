@@ -145,6 +145,51 @@ if (args.Contains("--world-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-checkpoint-only", StringComparer.Ordinal))
+{
+    WorldCheckpointTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-controls-only", StringComparer.Ordinal))
+{
+    WorldInputTests.Run();
+    WorldRandomTests.Run();
+    WorldSubmarineTests.Run();
+    WorldChocoboTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-highwind-only", StringComparer.Ordinal))
+{
+    WorldHighwindTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-marsh-only", StringComparer.Ordinal))
+{
+    WorldMarshTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-effects-only", StringComparer.Ordinal))
+{
+    WorldEffectsTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-vehicles-only", StringComparer.Ordinal))
+{
+    WorldVehicleTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-snow-only", StringComparer.Ordinal))
+{
+    WorldSnowTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-departure-only", StringComparer.Ordinal))
 {
     WorldDepartureTests.Run();
@@ -205,8 +250,15 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay occupied waypoint and pure previews", NativeAutoPlayCrowdTests.RunOccupiedWaypoint),
     ("native run button projection and pending input ownership", NativeRunInputTests.Run),
     ("native world encounters and battle return", WorldBattleTests.Run),
+    ("native world entry, facing and animation ownership", WorldRuntimeTests.Run),
+    ("original standalone world movement and cold continuation", WorldCheckpointTests.Run),
+    ("native surface vehicles and colored Chocobos", WorldVehicleTests.Run),
+    ("native snow world wind and markers", WorldSnowTests.Run),
+    ("native Midgar Zolom pursuit and collision", WorldMarshTests.Run),
     ("native timed underwater encounter and world return", WorldTimedEncounterTests.Run),
     ("native submerged submarine controls and terrain", WorldSubmarineTests.Run),
+    ("native Highwind flight and landing", WorldHighwindTests.Run),
+    ("native world particle simulation and presentation", WorldEffectsTests.Run),
     ("FFVII native ordinary yellow Chocobo transport", WorldChocoboTests.Run),
     ("FFVII native world shared random stream", WorldRandomTests.Run),
     ("native world input displacement and terrain arithmetic", WorldInputTests.Run),

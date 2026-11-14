@@ -116,6 +116,18 @@ public sealed partial class WorldMachine
         entity.Detached = false;
     }
 
+    public void RestoreTransportRider(int model)
+    {
+        Entity entity = models.Single(entity => entity.Model == model && entity.Detached);
+        entity.Pc = 0;
+        entity.MoveCounter = 0;
+        entity.Priority = 0;
+        entity.Disabled = false;
+        entity.CalledModel = 0;
+        entity.Calls.Clear();
+        ReattachModel(model);
+    }
+
     public void RemoveModel(int model)
     {
         Entity entity = models.Single(entity => entity.Model == model);
@@ -308,12 +320,13 @@ public sealed partial class WorldMachine
             return;
         }
         int right = Pop();
-        if (opcode is 0x18 or 0x19 or 0x1B)
+        if (opcode is 0x18 or 0x19 or 0x1A or 0x1B)
         {
             int value = opcode switch
             {
                 0x18 => host.ReadZoneDistance(active.Model, right),
                 0x19 => host.ReadModelDistance(active.Model, right),
+                0x1A => host.ReadStoredPositionDistance(active.Model, right),
                 _ => host.ReadZoneDirection(active.Model, right) >> 4
             };
             Push(new(0x110, value));

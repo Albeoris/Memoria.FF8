@@ -5,7 +5,11 @@ using Memoria.FF7.Resources;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7WorldTerrainReference(int ChunkX, int ChunkZ, int Triangle);
-public sealed record Ff7WorldInputState(ushort Held = 0, ushort Pressed = 0, int Horizontal = 0, int Vertical = 0, bool Run = true, int PreviousX = 0, int PreviousY = 0, int PreviousZ = 0, int CollisionSide = 0, int CollisionAge = 0, int BridgeCooldown = 0, int TerrainScript = 0, Ff7WorldTerrainReference[]? TerrainCache = null, int? CameraHeadingTarget = null, int? FreeDirectionOffset = null, ushort PreviousControlHeld = 0, Ff7WorldBridgeState? Bridge = null, int CollisionRecovery = 2, int HeightSmoothVelocity = 0, int HeightSmoothRemaining = 0);
+public sealed record Ff7WorldInputState(ushort Held = 0, ushort Pressed = 0, int Horizontal = 0, int Vertical = 0, bool Run = true, int PreviousX = 0, int PreviousY = 0, int PreviousZ = 0, int CollisionSide = 0, int CollisionAge = 0, int BridgeCooldown = 0, int TerrainScript = 0, Ff7WorldTerrainReference[]? TerrainCache = null, int? CameraHeadingTarget = null, int? FreeDirectionOffset = null, ushort PreviousControlHeld = 0, Ff7WorldBridgeState? Bridge = null, int CollisionRecovery = 2, int HeightSmoothVelocity = 0, int HeightSmoothRemaining = 0)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldTerrainReference? GroundTriangle { get; init; }
+}
 
 public sealed partial class Ff7WorldRuntime
 {
@@ -21,6 +25,7 @@ public sealed partial class Ff7WorldRuntime
     private void InitializePlayerInput(Ff7Installation installation)
     {
         Ff7WorldPresentationData presentation = Ff7PcExecutableData.LoadWorldPresentation(installation, Resources);
+        cameraMath = new(presentation);
         inputMath = new(presentation);
         InitializeBridges(installation);
         visibility = new(presentation);
@@ -77,7 +82,10 @@ public sealed partial class Ff7WorldRuntime
         input = input with { PreviousX = player.X, PreviousY = player.Y, PreviousZ = player.Z };
         int difference = Math.Abs(player.Y - camera.GroundHeight);
         int ground = difference <= 200 ? difference > 50 ? camera.GroundHeight + Math.Sign(player.Y - camera.GroundHeight) * 50 : player.Y : (camera.GroundHeight * 7 + player.Y) >> 3;
-        camera = camera with { GroundHeight = ground };
+        if (scriptCamera?.Mode != 2)
+        {
+            camera = camera with { GroundHeight = ground };
+        }
         if (!movementEnabled)
         {
             if ((player.Terrain & 31) == 14)
@@ -94,15 +102,35 @@ public sealed partial class Ff7WorldRuntime
             AdvanceUnderwaterSubmarineInput(player);
             return;
         }
-        if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
+        if ((player.Model == 3 && viewMode == 3 || player.Model == 5 && (player.Flags & 128) != 0) && vehicle is not { DismountPhase: 2 })
+        {
+            AdvanceHighwindInput(player);
+            return;
+        }
+        if (player.Model is not (0 or 1 or 2 or 3 or YellowChocoboModel or 5 or 6 or SubmarineModel or 19 or 41 or 42))
         {
             throw new NotSupportedException($"FFVII world model {player.Model} has no supported physical movement contract.");
         }
-        int delta = (player.Model == YellowChocoboModel ? 120 : 60) * movementSpeedPercent / 100;
-        int dx = input.Horizontal * delta;
-        int dz = input.Vertical * delta;
-        int heading = input.Horizontal < 0 ? -1024 : input.Horizontal > 0 ? 1024 : -1;
-        if (input.Vertical < 0)
+        int delta = (player.Model switch { 3 => 240, YellowChocoboModel or 19 or 41 or 42 or 5 => 120, 6 => 90, _ => 60 }) * movementSpeedPercent / 100;
+        ushort held = WorldControlHeld();
+        ushort pressed = (ushort)(held & ~input.PreviousControlHeld);
+        int horizontal = input.Horizontal;
+        int vertical = input.Vertical;
+        if (player.Model == 5 && (held & 0x40) != 0)
+        {
+            horizontal = 0;
+            vertical = 0;
+            held &= 0x0FFF;
+        }
+        if (player.Model == SubmarineModel && viewMode == 2 && (held & 0x20) != 0)
+        {
+            held = (ushort)((held & ~0x4000) | 0x1000);
+            vertical = -1;
+        }
+        int dx = horizontal * delta;
+        int dz = vertical * delta;
+        int heading = horizontal < 0 ? -1024 : horizontal > 0 ? 1024 : -1;
+        if (vertical < 0)
         {
             if (heading == -1)
             {
@@ -115,7 +143,7 @@ public sealed partial class Ff7WorldRuntime
                 heading += heading >> 1;
             }
         }
-        else if (input.Vertical > 0)
+        else if (vertical > 0)
         {
             if (heading == -1)
             {
@@ -128,8 +156,12 @@ public sealed partial class Ff7WorldRuntime
                 heading -= heading >> 1;
             }
         }
-        ApplyWorldControlOptions(ref player, ref dx, ref dz, heading);
-        if (player.Model == YellowChocoboModel && heading != -1)
+        ApplyWorldControlOptions(ref player, ref dx, ref dz, heading, held, vertical);
+        if (player.Model == SubmarineModel && (pressed & 0x40) != 0 && (player.Terrain & 31) == 3)
+        {
+            BeginSubmarineMapTransfer(2);
+        }
+        if (IsWorldChocobo(player.Model) && heading != -1)
         {
             player = player with { ScriptDirection = null };
         }
@@ -164,6 +196,10 @@ public sealed partial class Ff7WorldRuntime
 
     private void ResolvePlayerTerrain()
     {
+        if (mapTransfer is not null)
+        {
+            return;
+        }
         if (controlledModel < 0)
         {
             return;
@@ -174,9 +210,18 @@ public sealed partial class Ff7WorldRuntime
             ResolveUnderwaterSubmarineTerrain(player);
             return;
         }
-        if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
+        if ((player.Model == 3 || player.Model == 5 && (player.Flags & 128) != 0) && vehicle is not { DismountPhase: 2 })
+        {
+            ResolveHighwindTerrain(player);
+            return;
+        }
+        if (player.Model is not (0 or 1 or 2 or YellowChocoboModel or 3 or 5 or 6 or SubmarineModel or 19 or 41 or 42))
         {
             throw new NotSupportedException($"FFVII world model {player.Model} has no supported terrain contract.");
+        }
+        if (vehicle is { DismountPhase: 2 })
+        {
+            player = OffsetDismountingVehicle(player);
         }
         if (chocobo is { DismountPhase: 2 })
         {
@@ -196,7 +241,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 input = input with { CollisionSide = result.Side, CollisionAge = 0 };
             }
-            input = input with { CollisionRecovery = 0 };
+            input = input with { CollisionRecovery = 0, GroundTriangle = result.Triangle ?? input.GroundTriangle };
         }
         else
         {
@@ -230,7 +275,7 @@ public sealed partial class Ff7WorldRuntime
 
     private int ResolveFootHeight(Ff7WorldEntity player, FootCollisionResult result, bool moved, int terrain)
     {
-        int offset = WorldGroundOffset(terrain);
+        int offset = WorldGroundOffset(terrain, player.Model);
         int y = (player.Flags & 128) != 0 ? player.Y : result.Height + offset;
         int velocity = input.HeightSmoothVelocity;
         int remaining = input.HeightSmoothRemaining;
@@ -288,20 +333,13 @@ public sealed partial class Ff7WorldRuntime
         foreach (Ff7WorldEntity original in ActiveWorldEntities().ToArray())
         {
             Ff7WorldEntity entity = original;
-            if (entity.Model == YellowChocoboModel && entity.Model != controlledModel)
-            {
-                entity = TurnWorldPlayer(entity, entity.TargetDirection);
-            }
             if (entity.Model != controlledModel && visibleChunks.Contains((entity.X >> 13, entity.Z >> 13)))
             {
-                if (entity.Model is not (0 or 1 or 2 or YellowChocoboModel))
-                {
-                    throw new NotSupportedException($"FFVII visible world model {entity.Model} requires its native model terrain and animation contract.");
-                }
-                (int Height, int Terrain)? terrain = QueryTerrain(entity.X, entity.Z, entity.Y, entity.Terrain, entity.Model);
+                (int Height, int Terrain)? terrain = QueryTerrain(entity.X, entity.Z, entity.Y, entity.Terrain, entity.Model, false, out _, true);
+                entity = RequireEntity(entity.Model);
                 if (terrain is { } found)
                 {
-                    int height = entity.Model == YellowChocoboModel && (entity.Flags & 128) == 0 ? found.Height + WorldGroundOffset(found.Terrain & 31) : entity.Y;
+                    int height = (entity.Flags & 128) == 0 ? found.Height + WorldGroundOffset(found.Terrain & 31, entity.Model) : entity.Y;
                     entity = entity with { Y = height, GroundHeight = found.Height, Terrain = found.Terrain, TerrainResolved = true, Flags = entity.Flags | 2 };
                 }
             }
@@ -309,7 +347,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 entity = entity with { Flags = entity.Flags & ~2 };
             }
-            if ((entity.Flags & 2) == 0 || entity.Model is not (0 or 1 or 2 or YellowChocoboModel))
+            if ((entity.Flags & 2) == 0)
             {
                 UpdateEntity(entity);
                 continue;
@@ -322,13 +360,54 @@ public sealed partial class Ff7WorldRuntime
     {
         if (!leaderAnimations.TryGetValue(entity.Model, out var animationResources))
         {
-            Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(inputInstallation, entity.Model, Resources.World);
-            animationResources = (descriptor, descriptor.Load(Resources));
+            if (!Ff7PcExecutableData.TryLoadWorldCharacterDescriptor(inputInstallation, entity.Model, out Ff7WorldCharacterDescriptor? descriptor, Resources.World, entity.Model == 19 ? chocoboTint : submarineTint, PresentationArea))
+            {
+                return entity;
+            }
+            animationResources = (descriptor!, descriptor!.Load(Resources));
             leaderAnimations.Add(entity.Model, animationResources);
         }
         int dx = WrappedDifference(entity.X - entity.PreviousX, 0x48000);
         int dz = WrappedDifference(entity.Z - entity.PreviousZ, 0x38000);
         int animation = entity.Animation != 0 ? Math.Max(0, entity.Animation) : dx * dx + dz * dz >= 100 ? 1 : 0;
+        bool moved = dx != 0 || dz != 0;
+        if (entity.Animation == 0 && entity.Model == 6)
+        {
+            vehicle ??= new([]);
+            if (entity.Model == controlledModel && moved && input.GroundTriangle is { } ground)
+            {
+                PcWorldMesh mesh = GetWorldCollisionMesh(ground.ChunkX, ground.ChunkZ);
+                PcWorldTriangle triangle = mesh.Triangles[ground.Triangle];
+                if (mesh.Normals.Count > Math.Max(triangle.A, Math.Max(triangle.B, triangle.C)))
+                {
+                    Vector3 normal = mesh.Normals[triangle.A] + mesh.Normals[triangle.B] + mesh.Normals[triangle.C];
+                    vehicle = vehicle with { BuggyTiltX = (vehicle.BuggyTiltX * 3 - inputMath.Direction((int)normal.Z, -(int)normal.Y)) >> 2, BuggyTiltZ = (vehicle.BuggyTiltZ * 3 - inputMath.Direction((int)normal.X, -(int)normal.Y)) >> 2 };
+                }
+            }
+            entity = entity with { TiltX = vehicle.BuggyTiltX, TiltZ = vehicle.BuggyTiltZ };
+            entity = entity with { FrameDivisor = entity.Model == controlledModel ? 32 : 0 };
+            if (moved)
+            {
+                vehicle ??= new([]);
+                int prior = vehicle.BuggyAnimation;
+                int terrain = entity.Terrain & 31;
+                int next = prior switch { 1 when terrain == 11 => 2, 2 when entity.AnimationFrame > 5 => 3, 3 when terrain is not (4 or 11) => 4, 4 when entity.AnimationFrame > 5 => 1, >= 1 and <= 4 => prior, _ => 1 };
+                if (next != prior)
+                {
+                    entity = entity with { AnimationFrame = 0, PresentationAnimationEpoch = entity.PresentationAnimationEpoch + 1 };
+                }
+                vehicle = vehicle with { BuggyAnimation = next };
+                animation = next;
+            }
+            else
+            {
+                animation = 0;
+            }
+        }
+        if (entity.Animation == 0 && entity.Model == SubmarineModel)
+        {
+            entity = entity with { FrameDivisor = moved ? 32 : 0 };
+        }
         animation = Math.Min(animation, animationResources.Descriptor.Animations.Count - 1);
         PcFieldAnimation clip = animationResources.Models.Animations[animationResources.Descriptor.Animations[animation]];
         int frame = entity.AnimationFrame;
@@ -345,7 +424,8 @@ public sealed partial class Ff7WorldRuntime
             nextFrame = unchecked((byte)(frame + remainder / divisor));
             remainder %= divisor;
         }
-        return entity with { PoseAnimation = animation, PoseFrame = frame, AnimationFrame = nextFrame, FrameRemainder = remainder };
+        int nextDivisor = entity.Model switch { 3 when (entity.Flags & 128) != 0 => 32, 3 when entity.FrameDivisor != 0 => unchecked((byte)(entity.FrameDivisor + 1)), 5 when entity.Model == controlledModel => 32, 5 when entity.FrameDivisor != 0 => unchecked((byte)(entity.FrameDivisor + 1)), _ => entity.FrameDivisor };
+        return entity with { PoseAnimation = animation, PoseFrame = frame, AnimationFrame = nextFrame, FrameRemainder = remainder, FrameDivisor = nextDivisor };
     }
 
     private PcWorldMesh GetWorldCollisionMesh(int chunkX, int chunkZ)
@@ -362,7 +442,7 @@ public sealed partial class Ff7WorldRuntime
 
     private int ResolveCollisionBlock(int chunkX, int chunkZ, int mapState)
     {
-        return Resources.World == 2 ? Ff7WorldVisibility.ResolveUnderwaterBlock(chunkX, chunkZ) : Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), mapState);
+        return Resources.World switch { 2 => Ff7WorldVisibility.ResolveUnderwaterBlock(chunkX, chunkZ), 3 => Ff7WorldVisibility.ResolveSnowBlock(chunkX, chunkZ), _ => Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), mapState) };
     }
 
     private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount = false)
@@ -370,7 +450,7 @@ public sealed partial class Ff7WorldRuntime
         return QueryTerrain(x, z, previousHeight, previousTerrain, model, dismount, out _);
     }
 
-    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount, out Ff7WorldTerrainReference? reference)
+    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount, out Ff7WorldTerrainReference? reference, bool entityCache = false)
     {
         reference = null;
         int chunkX = x >> 13;
@@ -381,15 +461,25 @@ public sealed partial class Ff7WorldRuntime
         int selected = -1;
         int height = 0;
         bool cachedContains = false;
+        Ff7WorldTerrainReference[]? cache = entityCache ? RequireEntity(model).TerrainCache : input.TerrainCache;
         uint mask = model switch
         {
+            SubmarineModel when vehicle is { DismountPhase: 2 } => 0x21B6F83u,
             SubmarineModel => SubmarineTerrainMask,
-            _ when (model != YellowChocoboModel || model == controlledModel) && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
+            3 when vehicle is { DismountPhase: 2 } => 0x021B6F83u,
+            5 when entities.TryGetValue(model, out Ff7WorldEntity? aircraft) && (aircraft.Flags & 128) != 0 => vehicle is { DismountPhase: 2 } ? 0x70u : uint.MaxValue,
+            5 => vehicle is { DismountPhase: 2 } ? 0x20800u : 0x70u,
+            6 => vehicle is { DismountPhase: 2 } ? 0x21B6F83u : 0x331B6F13u,
+            8 => 0x04040008u,
+            100 => 1u << 7,
+            _ when model is 0 or 1 or 2 or YellowChocoboModel && model == controlledModel && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
             YellowChocoboModel => YellowChocoboTerrainMask,
-            _ => 0x721B6F83u
+            19 => dismount ? YellowChocoboTerrainMask : ChocoboTerrainMask(chocoboTint),
+            0 or 1 or 2 => 0x721B6F83u,
+            _ => uint.MaxValue
         };
-        bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!dismount || (face.TerrainAndScript & 0xE0) != 0xE0);
-        foreach (Ff7WorldTerrainReference cached in input.TerrainCache ?? [])
+        bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!(dismount || vehicle is { DismountPhase: 2 } && model is 3 or 6 or SubmarineModel) || (face.TerrainAndScript & 0xE0) != 0xE0);
+        foreach (Ff7WorldTerrainReference cached in cache ?? [])
         {
             if (cached.ChunkX == chunkX && cached.ChunkZ == chunkZ && TryTriangleHeight(mesh, cached.Triangle, localX, localZ, out height))
             {
@@ -412,7 +502,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 if (TryTriangleHeight(mesh, triangle, localX, localZ, out int candidateHeight))
                 {
-                    int difference = Math.Abs(candidateHeight - previousHeight);
+                    int difference = model is 3 or 5 || Resources.World == 2 ? candidateHeight : Math.Abs(candidateHeight - previousHeight);
                     if (difference < best)
                     {
                         selected = triangle;
@@ -423,7 +513,15 @@ public sealed partial class Ff7WorldRuntime
             }
             if (selected >= 0)
             {
-                input = input with { TerrainCache = new[] { new Ff7WorldTerrainReference(chunkX, chunkZ, selected) }.Concat(input.TerrainCache ?? []).Take(6).ToArray() };
+                Ff7WorldTerrainReference[] updated = new[] { new Ff7WorldTerrainReference(chunkX, chunkZ, selected) }.Concat(cache ?? []).Take(6).ToArray();
+                if (entityCache)
+                {
+                    UpdateEntity(RequireEntity(model) with { TerrainCache = updated });
+                }
+                else
+                {
+                    input = input with { TerrainCache = updated };
+                }
             }
         }
         if (selected < 0)
@@ -500,6 +598,13 @@ public sealed partial class Ff7WorldRuntime
             if (reference.Triangle >= Resources.Map.ReadMesh(block, mesh).Triangles.Count)
             {
                 throw new InvalidDataException("FFVII world terrain cache refers to an absent native triangle.");
+            }
+        }
+        if (state.GroundTriangle is { } ground)
+        {
+            if (ground.ChunkX is < 0 or >= 36 || ground.ChunkZ is < 0 or >= 28 || ground.Triangle < 0 || ground.Triangle >= Resources.Map.ReadMesh(ResolveCollisionBlock(ground.ChunkX, ground.ChunkZ, restoredMapState), (ground.ChunkZ & 3) * 4 + (ground.ChunkX & 3)).Triangles.Count)
+            {
+                throw new InvalidDataException("FFVII world ground-normal owner refers to an absent native triangle.");
             }
         }
     }

@@ -10,7 +10,7 @@ public sealed partial class Ff7Session
 
     public static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed);
 
-    public static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.ControlLock == 0 && process.Dialogue is not { Completed: false };
+    public static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.Dialogue is not { Completed: false };
 
     public bool CanUseMenuPhs
     {

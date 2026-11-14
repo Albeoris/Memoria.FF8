@@ -7,7 +7,7 @@ using Memoria.FF8.Rendering;
 namespace Memoria.FF8.Tests;
 
 /// <summary>Streamed reference for parity and allocation comparisons with retained FFVII terrain.</summary>
-internal sealed class Ff7WorldTerrainReference(Ff7WorldTextureResources textures)
+internal sealed class Ff7WorldTerrainReference(Ff7WorldTextureResources textures, bool underwater = false)
 {
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
 
@@ -34,9 +34,11 @@ internal sealed class Ff7WorldTerrainReference(Ff7WorldTextureResources textures
                 images.Add(texture, image);
             }
             Ff7WorldTextureDescriptor descriptor = textures.Descriptors[triangle.TextureIndex];
+            Vector3 depths = new(cameraPositions[triangle.A].Z, cameraPositions[triangle.B].Z, cameraPositions[triangle.C].Z);
             CameraSpaceVertex Vertex(int vertex, Vector2 uv)
             {
-                return new(cameraPositions[vertex], (uv - new Vector2(descriptor.UOffset, descriptor.VOffset)) / new Vector2(texture.Width, texture.Height), colors[vertex]);
+                Vector4 color = underwater ? Ff7WorldUnderwaterTerrain.Color(Vector3.TransformNormal(mesh.Normals[vertex] / 4096f, view.NativeRotation), depths, vertex == triangle.A ? 0 : vertex == triangle.B ? 1 : 2) : colors[vertex];
+                return new(cameraPositions[vertex], (uv - new Vector2(descriptor.UOffset, descriptor.VOffset)) / new Vector2(texture.Width, texture.Height), color);
             }
             TriangleMaterial material = new(image, TriangleBlend.Replace, TriangleDepthComparison.GreaterEqual, true, Sampler: TriangleSampler.PointWrap)
             {

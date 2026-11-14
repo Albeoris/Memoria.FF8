@@ -13,6 +13,7 @@ public sealed class Ff7WorldEnvironmentAdapter
     private readonly PixelImage radar;
     private readonly PixelImage map;
     private readonly PixelImage clouds;
+    private readonly PixelImage meteor;
     private readonly PixelImage largeMap;
 
     public Ff7WorldEnvironmentAdapter(Ff7WorldEnvironmentResources resources, Ff7WorldPresentationData presentation)
@@ -22,10 +23,11 @@ public sealed class Ff7WorldEnvironmentAdapter
         radar = Ff7FieldRenderer.DecodeTexture(resources.Radar);
         map = Ff7FieldRenderer.DecodeTexture(resources.Map);
         clouds = Ff7FieldRenderer.DecodeTexture(resources.Clouds);
+        meteor = Ff7FieldRenderer.DecodeTexture(resources.Meteor);
         largeMap = Ff7FieldRenderer.DecodeTexture(resources.LargeMap);
     }
 
-    public void DrawSky(ITriangleRenderer renderer, Ff7WorldView view, Vector3 player, int heading, int distance, int groundHeight, int roll, bool visible, int cloudPhase, Vector3 upperColor, Vector3 lowerColor)
+    public void DrawSky(ITriangleRenderer renderer, Ff7WorldView view, Vector3 player, int heading, int distance, int groundHeight, int roll, bool visible, int cloudPhase, Vector3 upperColor, Vector3 lowerColor, bool meteorVisible = false, int curvatureThreshold = 5000)
     {
         ArgumentNullException.ThrowIfNull(renderer);
         if (!visible)
@@ -52,7 +54,7 @@ public sealed class Ff7WorldEnvironmentAdapter
         Vector2 bottomLeft = Point(-halfWidth - 20, 0, horizon);
         Vector2 bottomRight = Point(halfWidth + 20, 0, horizon);
         Quad(renderer, null, topLeft, topRight, bottomLeft, bottomRight, Vector2.Zero, Vector2.One, new(upperColor / 255f, 1), new(lowerColor / 255f, 1), TriangleBlend.Replace);
-        int cloudBottom = horizon - 44 - (5000 >> 8);
+        int cloudBottom = horizon - 44 - (Math.Max(1, curvatureThreshold) >> 8);
         int seam = cloudPhase - 96;
         for (int tile = (int)MathF.Floor((-halfWidth - seam) / 256); tile * 256 + seam < halfWidth; tile++)
         {
@@ -65,6 +67,13 @@ public sealed class Ff7WorldEnvironmentAdapter
             float u0 = first - seam - tile * 256;
             float u1 = last - seam - tile * 256 - 1;
             Quad(renderer, clouds, Point(first, cloudBottom - 64, 40), Point(last, cloudBottom - 64, 40), Point(first, cloudBottom, 40), Point(last, cloudBottom, 40), new(u0 / resources.Clouds.Width, 0), new(u1 / resources.Clouds.Width, 63f / resources.Clouds.Height), new(127 / 255f, 127 / 255f, 127 / 255f, 128 / 255f), new(127 / 255f, 127 / 255f, 127 / 255f, 128 / 255f), TriangleBlend.AlphaAdd);
+        }
+        if (meteorVisible)
+        {
+            int signedHeading = unchecked(-heading << 20) >> 20;
+            int left = signedHeading * (Math.Max(1, curvatureThreshold) - 500) / 10000 - 72;
+            Vector4 color = new(1, 1, 1, 128 / 255f);
+            Quad(renderer, meteor, Point(left, cloudBottom - 112, 40), Point(left + 144, cloudBottom - 112, 40), Point(left, cloudBottom - 48, 40), Point(left + 144, cloudBottom - 48, 40), Vector2.Zero, new(143f / resources.Meteor.Width, 63f / resources.Meteor.Height), color, color, TriangleBlend.AlphaAdd);
         }
     }
 

@@ -7,7 +7,7 @@ using Memoria.FF7.Resources;
 namespace Memoria.FF8.Rendering;
 
 /// <summary>Retains original terrain geometry and submits it to the common hardware terrain path.</summary>
-public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
+public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures, bool underwater = false)
 {
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
     private readonly ConditionalWeakTable<PcWorldMesh, TerrainGeometry> geometry = new();
@@ -19,7 +19,7 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
             retained = CreateGeometry(mesh, bridge);
             geometry.Add(mesh, retained);
         }
-        WorldTerrainView camera = new(view.NativeView, nativeOrigin, view.Focal, false) { Ff7 = new(view.CenterY, curvatureThreshold, bridgeAxis, view.OffsetX) };
+        WorldTerrainView camera = new(view.NativeView, nativeOrigin, view.Focal, false) { Ff7 = new(view.CenterY, curvatureThreshold, bridgeAxis, view.OffsetX, underwater) };
         foreach (TerrainRun run in retained.Runs)
         {
             PcTexture texture = textures.Read(run.TextureIndex, textureFrame(run.TextureIndex));
@@ -60,7 +60,14 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
         {
             runs.Add(new(last, start, index - start));
         }
-        return new(new(vertices), runs);
+        Ff7WorldTriangleMetadata[] metadata = underwater ? new Ff7WorldTriangleMetadata[vertices.Length] : [];
+        for (int vertex = 0; vertex < metadata.Length; vertex++)
+        {
+            int startVertex = vertex / 3 * 3;
+            int corner = vertex % 3;
+            metadata[vertex] = new(vertices[startVertex + (corner + 1) % 3].Position, vertices[startVertex + (corner + 2) % 3].Position, corner);
+        }
+        return new(new(vertices) { Ff7Triangles = metadata }, runs);
     }
 
     private TriangleMaterial Material(PcTexture texture)
@@ -91,15 +98,7 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
 
     public static Vector3 Curve(Vector3 nativePosition, Ff7WorldView view, int threshold)
     {
-        Vector3 camera = Vector3.Transform(nativePosition, view.NativeView);
-        int distance = ((int)MathF.Round(camera.Z, MidpointRounding.ToEven) >> 2) - threshold;
-        if (distance > 0 && camera.Z != 0)
-        {
-            int screenX = (int)MathF.Round(camera.X * (view.Focal * 240 / view.Height) / camera.Z, MidpointRounding.ToEven);
-            float bend = distance * (1f / 64) + Math.Abs(screenX) * (1f / 32);
-            nativePosition.Y -= bend * bend;
-        }
-        return nativePosition;
+        return Ff7WorldCameraMath.Curve(nativePosition, view.NativeView, view.Focal * 240 / view.Height, threshold);
     }
 
 }

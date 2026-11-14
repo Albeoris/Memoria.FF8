@@ -88,8 +88,17 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             target = selected;
             int targetFrames = target.Animations[0].Frames.Count;
             bool loop = loopingClips.Contains(originalName);
-            float targetFrame = MapAnimationPhase(sourceFrame, sourceClip.Frames.Count, targetFrames, loop);
-            posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0, loop: loop);
+            if (actor.AnimationBlend is { } blend)
+            {
+                float previousFrame = MapAnimationPhase(blend.PreviousFrame, sourceClip.Frames.Count, targetFrames, loop);
+                float currentFrame = MapAnimationPhase(blend.CurrentFrame, sourceClip.Frames.Count, targetFrames, loop);
+                posed = target.PoseInterpolated(0, previousFrame, currentFrame, blend.Fraction, loop: loop);
+            }
+            else
+            {
+                float targetFrame = MapAnimationPhase(sourceFrame, sourceClip.Frames.Count, targetFrames, loop);
+                posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0, loop: loop);
+            }
         }
         else if (retargeter is not null)
         {

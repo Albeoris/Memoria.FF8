@@ -12,6 +12,56 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class Ff7RetainedWorldTerrainTests(ITestOutputHelper output)
 {
+    [Fact]
+    public void WideSurfaceCameraMatchesClippedOriginalTerrain()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for wide world terrain checks.");
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation);
+        Ff7WorldPresentationData data = Ff7PcExecutableData.LoadWorldPresentation(installation, resources);
+        Ff7WorldVisibility visibility = new(data);
+        Vector3 focus = new(185636, 307, 123325);
+        Ff7WorldView view = new Ff7WorldCameraProjection(data).Create(focus, 3936, 1795, 7029, 307, 0, 400, 1720, 667, 2);
+        IReadOnlyList<Ff7WorldChunkPlacement> native = visibility.RequiredChunks((int)focus.X, (int)focus.Z, 3936);
+        float depth = native.SelectMany(chunk => resources.Map.ReadMesh(chunk.BlockIndex, chunk.MeshIndex).Vertices.Select(vertex => Vector3.Transform(vertex + chunk.Origin, view.NativeView).Z)).Max();
+        IReadOnlyList<Ff7WorldChunkPlacement> chunks = Ff7WorldViewportChunks.Extend(native, focus, view, depth);
+        Ff7WorldTextureResources textures = new(installation, resources);
+        Ff7WorldTerrainReference reference = new(textures);
+        Ff7WorldTerrainAdapter retained = new(textures);
+        (PcWorldMesh Mesh, Vector3 Origin)[] meshes = chunks.Select(chunk => (resources.Map.ReadMesh(chunk.BlockIndex, chunk.MeshIndex), chunk.Origin)).ToArray();
+        renderer.Begin(view.Width, view.Height, new(1, 0, 1, 1), 0);
+        foreach ((PcWorldMesh mesh, Vector3 origin) in meshes)
+        {
+            reference.DrawNative(renderer, mesh, origin, view, _ => 0);
+        }
+        renderer.End();
+        Color[] expected = GpuTestDevice.Read(renderer.Target);
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_RENDER_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            using FileStream image = File.Create(Path.Combine(directory, "wide-reference.png"));
+            renderer.Target.SaveAsPng(image, view.Width, view.Height);
+        }
+        renderer.Begin(view.Width, view.Height, new(1, 0, 1, 1), 0);
+        foreach ((PcWorldMesh mesh, Vector3 origin) in meshes)
+        {
+            retained.DrawRetained(renderer, mesh, origin, view, _ => 0, 5000);
+        }
+        renderer.End();
+        Color[] actual = GpuTestDevice.Read(renderer.Target);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            using FileStream image = File.Create(Path.Combine(directory, "wide-retained.png"));
+            renderer.Target.SaveAsPng(image, view.Width, view.Height);
+        }
+        output.WriteLine($"Native {native.Count}, wide {chunks.Count}; reference coverage {expected.Count(pixel => pixel != Color.Magenta)}, retained coverage {actual.Count(pixel => pixel != Color.Magenta)}.");
+        AssertSimilar(expected, actual);
+    }
+
     [Theory]
     [InlineData(0, false)]
     [InlineData(0, true)]

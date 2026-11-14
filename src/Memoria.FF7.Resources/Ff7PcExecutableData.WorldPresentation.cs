@@ -57,25 +57,60 @@ public sealed partial class Ff7PcExecutableData
         return Array.AsReadOnly(Enumerable.Range(0, 4).Select(index => new Ff7WorldCameraProfile(BinaryPrimitives.ReadInt32LittleEndian(pitches.AsSpan(index * 4)), BinaryPrimitives.ReadInt32LittleEndian(distances.AsSpan(index * 4)))).ToArray());
     }
 
-    public static Ff7WorldCharacterDescriptor LoadWorldCharacterDescriptor(Ff7Installation installation, int character, int world = 0, int? tint = null)
+    public static Ff7WorldCharacterDescriptor LoadWorldCharacterDescriptor(Ff7Installation installation, int character, int world = 0, int? tint = null, int? resourceArea = null)
     {
-        uint address = (world, character) switch
+        return TryLoadWorldCharacterDescriptor(installation, character, out Ff7WorldCharacterDescriptor? descriptor, world, tint, resourceArea) ? descriptor! : throw new NotSupportedException($"FFVII world {world} model {character} has no original descriptor in the selected resource area.");
+    }
+
+    public static bool TryLoadWorldCharacterDescriptor(Ff7Installation installation, int character, out Ff7WorldCharacterDescriptor? descriptor, int world = 0, int? tint = null, int? resourceArea = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(character);
+        if (character >= 32)
         {
-            (0, 0) => 0x96B3D0,
-            (0, 1) => 0x96B3E8,
-            (0, 2) => 0x96B400,
-            (0, 4) => 0x96A910,
-            (2, 13) => 0x96B300,
-            (2, 17) => 0x96B314,
-            (2, 18) => 0x96B328,
-            (2, 26) => 0x96B33C,
-            (2, 28) => 0x96B350,
-            (2, 29) => 0x96B364,
-            (2, 30) => 0x96B378,
-            _ => throw new NotSupportedException($"FFVII world {world} model {character} has no supported original descriptor.")
-        };
+            descriptor = null;
+            return false;
+        }
+        int area = resourceArea ?? (world == 0 ? 0 : world + 9);
+        if (area is < 0 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(resourceArea));
+        }
         using FileStream stream = OpenSupportedImage(installation);
         using PEReader pe = new(stream, PEStreamOptions.LeaveOpen);
+        uint address;
+        if (character < 3)
+        {
+            address = character switch { 0 => 0x96B3D0, 1 => 0x96B3E8, _ => 0x96B400 };
+        }
+        else
+        {
+            int slot = unchecked((sbyte)ReadVirtual(stream, pe, 0x96DF10u + (uint)(area * 32 + character), 1)[0]);
+            if (slot < 1)
+            {
+                descriptor = null;
+                return false;
+            }
+            (uint table, int tableCount) = area switch
+            {
+                0 => (0x96A910u, 10),
+                1 => (0x96AAF0u, 13),
+                2 => (0x96ABF8u, 13),
+                3 => (0x96AD00u, 13),
+                4 => (0x96AE08u, 13),
+                5 => (0x96AF10u, 13),
+                6 => (0x96B018u, 13),
+                7 => (0x96B120u, 12),
+                8 => (0x96B210u, 12),
+                9 or 10 => (0x96AAC8u, 2),
+                11 => (0x96B300u, 7),
+                _ => (0x96B390u, 3)
+            };
+            if (slot > tableCount)
+            {
+                throw new InvalidDataException("FFVII world model mapping exceeds its original resource table.");
+            }
+            address = table + (uint)((slot - 1) * 20);
+        }
         byte[] row = ReadVirtual(stream, pe, address, 20);
         string hrc = ReadWorldPresentationName(stream, pe, BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(4))).TrimStart('/');
         int count = row[8];
@@ -85,10 +120,11 @@ public sealed partial class Ff7PcExecutableData
         {
             animations[index] = ReadWorldPresentationName(stream, pe, BinaryPrimitives.ReadUInt32LittleEndian(pointers.AsSpan(index * 4)));
         }
-        Ff7WorldCharacterDescriptor descriptor = new(hrc, BinaryPrimitives.ReadInt32LittleEndian(row.AsSpan(12)), Array.AsReadOnly(animations));
+        descriptor = new(hrc, BinaryPrimitives.ReadInt32LittleEndian(row.AsSpan(12)), Array.AsReadOnly(animations));
         int? colorRow = (world, character, tint) switch
         {
             (0, 4, _) => 0,
+            (0, 19, >= 0 and <= 5) => tint,
             (2, 13, 5 or 6) => tint,
             _ => null
         };
@@ -97,7 +133,7 @@ public sealed partial class Ff7PcExecutableData
             byte[] color = ReadVirtual(stream, pe, 0x96DD78u + (uint)paletteRow * 8, 6);
             descriptor = descriptor with { ColorOffset = (BinaryPrimitives.ReadInt16LittleEndian(color), BinaryPrimitives.ReadInt16LittleEndian(color.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(color.AsSpan(4))) };
         }
-        return descriptor;
+        return true;
     }
 
     private static string ReadWorldPresentationName(Stream stream, PEReader pe, uint address)

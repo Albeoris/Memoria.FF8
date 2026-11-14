@@ -7,7 +7,14 @@ public sealed record Ff7WorldCameraState(int Heading = 0, int Pitch = 1500, int 
 /// <summary>Advances the native normal camera's profile smoothing outside rendering.</summary>
 public sealed class Ff7WorldCamera(IReadOnlyList<Ff7WorldCameraProfile> profiles)
 {
-    public Ff7WorldCameraState Advance(Ff7WorldCameraState state, int viewMode, int frameMultiplier = 2)
+    public Ff7WorldCameraProfile Profile(int viewMode)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(viewMode);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(viewMode, profiles.Count);
+        return profiles[viewMode];
+    }
+
+    public Ff7WorldCameraState Advance(Ff7WorldCameraState state, int viewMode, int frameMultiplier = 2, int? targetPitch = null, int? targetDistance = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfNegative(viewMode);
@@ -19,6 +26,6 @@ public sealed class Ff7WorldCamera(IReadOnlyList<Ff7WorldCameraProfile> profiles
         Ff7WorldCameraProfile profile = profiles[viewMode];
         int shift = frameMultiplier == 1 ? 3 : 2;
         int weight = (1 << shift) - 1;
-        return state with { Pitch = checked(state.Pitch * weight + profile.Pitch) >> shift, Distance = checked(state.Distance * weight + profile.Distance) >> shift };
+        return state with { Pitch = checked(state.Pitch * weight + (targetPitch ?? profile.Pitch)) >> shift, Distance = checked(state.Distance * weight + (targetDistance ?? profile.Distance)) >> shift };
     }
 }

@@ -18,7 +18,7 @@ internal sealed partial class Ff7Scene
     private bool menuPointerPressed;
     private bool playerMenuClockChanged;
     private bool pendingPlayerMenuRequest;
-    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Append("Battle ATB mode").ToHashSet(StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Concat(["Battle ATB mode", "Battle policy", "Random encounters"]).ToHashSet(StringComparer.Ordinal);
 
     internal MenuController? ActivePlayerMenu => guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
     internal bool IsPlayerMenuOpen => ActivePlayerMenu is not null;
@@ -79,14 +79,19 @@ internal sealed partial class Ff7Scene
             Id = "config",
             Title = "Config",
             Help = "Shared presentation and control preferences.",
-            Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-combat", "Combat", "Battle ATB mode for the current host.", "config-combat")]
+            Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-combat", "Combat", "Battle timing and encounter settings for the current game.", "config-combat")]
         });
-        playerMenu.Register(new()
+        RegisterPlayerCombatSettings(playerMenu);
+    }
+
+    internal static void RegisterPlayerCombatSettings(MenuController menu)
+    {
+        menu.Register(new()
         {
             Id = "config-combat",
             Title = "Combat",
-            Help = "Select the Battle ATB mode.",
-            Entries = menu => menu.ConfigEntries().Where(entry => entry.Id == "Battle ATB mode").ToArray()
+            Help = "Battle timing and encounter settings for the current game. Save normally to retain changes.",
+            Entries = controller => controller.HostSettingsEntries("Battle ATB mode", "Battle policy", "Random encounters")
         });
     }
 
@@ -136,6 +141,20 @@ internal sealed partial class Ff7Scene
             if (!PlayerPreferenceKeys.Contains(action.SubjectId))
             {
                 throw new NotSupportedException("This FFVII menu exposes only shared presentation and speed preferences.");
+            }
+            if (action.SubjectId is "Battle policy" or "Random encounters")
+            {
+                Ff7Session session = Session ?? throw new InvalidOperationException("Encounter settings require an active FFVII continuation.");
+                UiPreferences selected = PresentationPreferences.WithSetting(action.SubjectId, action.Value);
+                if (action.SubjectId == "Battle policy")
+                {
+                    session.SetFullCombatEnabled(selected.BattlePolicy == "NewGameFullCombat");
+                }
+                else
+                {
+                    session.SetRandomEncountersEnabled(selected.RandomEncounters);
+                }
+                return;
             }
             UiPreferences current = action.SubjectId == "Battle ATB mode" ? PresentationPreferences : dialoguePreferences?.Invoke() ?? new UiPreferences();
             UiPreferences updated = current.WithSetting(action.SubjectId, action.Value);

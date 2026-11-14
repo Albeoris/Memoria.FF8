@@ -117,6 +117,61 @@ VSOutput WorldVertexMain(WorldVSInput input)
     output.TextureTexelRectangle = 0;
     return output;
 }
+struct Ff7UnderwaterVSInput
+{
+    float3 Position : POSITION0;
+    float2 Uv : TEXCOORD0;
+    float3 Normal : NORMAL0;
+    float Deform : TEXCOORD1;
+    float3 Next : TEXCOORD2;
+    float3 Last : TEXCOORD3;
+    float Corner : TEXCOORD4;
+};
+float3 Ff7UnderwaterPalette(int index)
+{
+    return float3(max(0, 187 - 2 * min(index, 128)), max(0, 187 - index), 255 - 2 * max(0, index - 128));
+}
+VSOutput Ff7UnderwaterVertexMain(Ff7UnderwaterVSInput input)
+{
+    WorldVSInput original;
+    original.Position = input.Position;
+    original.Uv = input.Uv;
+    original.Normal = input.Normal;
+    original.Deform = input.Deform;
+    VSOutput output = WorldVertexMain(original);
+    float current = mul(float4(input.Position + WorldOffset, 1), WorldView).z;
+    float next = mul(float4(input.Next + WorldOffset, 1), WorldView).z;
+    float last = mul(float4(input.Last + WorldOffset, 1), WorldView).z;
+    float3 depths = input.Corner < 0.5 ? float3(current, next, last) : input.Corner < 1.5 ? float3(last, current, next) : float3(next, last, current);
+    int largest = depths.x < depths.y ? 1 : 0;
+    largest = depths[largest] < depths.z ? 2 : largest;
+    int other = largest == 1 ? 2 : 1;
+    int nearest = largest == 0 ? (depths.y < depths.z ? 1 : 2) : (depths.x < depths[other] ? 0 : other);
+    int middle = 3 - nearest - largest;
+    float maximum = depths.z;
+    if (round(depths.x - depths.y) < 0)
+    {
+        if (round(depths.y - depths.z) >= 0) maximum = depths.y;
+    }
+    else if (round(depths.x - depths.z) >= 0) maximum = depths.x;
+    int delta = (int)round(maximum) - 16000;
+    float3 palette;
+    if (delta <= 0)
+    {
+        int index = (int)input.Corner == nearest ? 0 : (int)input.Corner == middle ? 4 : 8;
+        palette = Ff7UnderwaterPalette(index);
+    }
+    else
+    {
+        int step = (delta >> 3) & 65472;
+        int index = step > 960 ? 255 : (step + 64) >> 2;
+        palette = float3(Ff7UnderwaterPalette(index).x, Ff7UnderwaterPalette(index - 4).y, Ff7UnderwaterPalette(index - 8).z);
+    }
+    float3 normal = mul(float4(input.Normal, 0), WorldView).xyz;
+    float factor = normal.y * (110.0 / 255) + 32.0 / 255;
+    output.Color = float4(round(clamp(palette * factor, 0, 255)) / 255, 1);
+    return output;
+}
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };
 PSOutput PixelMain(VSOutput input)
 {
@@ -216,6 +271,14 @@ technique WorldTerrainTechnique
     pass P0
     {
         VertexShader = compile VS_PROFILE WorldVertexMain();
+        PixelShader = compile PS_PROFILE WorldPixelMain();
+    }
+}
+technique Ff7UnderwaterTerrainTechnique
+{
+    pass P0
+    {
+        VertexShader = compile VS_PROFILE Ff7UnderwaterVertexMain();
         PixelShader = compile PS_PROFILE WorldPixelMain();
     }
 }

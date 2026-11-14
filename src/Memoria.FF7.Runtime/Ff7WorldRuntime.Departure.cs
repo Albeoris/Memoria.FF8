@@ -88,7 +88,7 @@ public sealed partial class Ff7WorldRuntime
         saved[0x3F5] = (byte)bridge.Counter1;
         saved[0x3F6] = (byte)bridge.Counter2;
         saved[0x3F7] = unchecked((byte)bridge.Phase);
-        foreach (WorldEntitySnapshot model in Machine.Capture().Models)
+        foreach (WorldEntitySnapshot model in Machine.Capture().Models.Where(model => !model.Detached))
         {
             Ff7WorldEntity entity = RequireEntity(model.Model);
             int slot = entity.Model switch { 0 or 1 or 2 => 0, 4 => 1, 5 or 19 => 2, 3 or 6 => 3, 13 => 4, 10 or 11 or 29 => 5, _ => -1 };
@@ -113,6 +113,10 @@ public sealed partial class Ff7WorldRuntime
     {
         if (state.FieldDeparture is not { } departure)
         {
+            if (state.MapTransfer is not null)
+            {
+                return state.MainState is 4 or 5 or 6 or 7;
+            }
             bool leavingForSpecialBattle = state.BattleState?.Pending is { } pending && (pending.ReturnsToField || pending.ReloadsWorld);
             return state.MainState is >= -15 and <= 1 && (!state.Vm.Unloading || leavingForSpecialBattle);
         }
