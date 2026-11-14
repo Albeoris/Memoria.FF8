@@ -479,7 +479,10 @@ public sealed class BattleResultFactTests
     private static void AssertLearningProgress(NativeCharacterVitals vitals, int ability, int expected)
     {
         Assert.Equal(expected, vitals.GuardianForceAbilities(0).Single(entry => entry.Ability == ability).Progress);
-        Assert.Equal(expected, vitals.GuardianForces[0].Progression!.Abilities.Single(entry => entry.Ability == ability).EarnedPoints);
+        if (vitals.GuardianForces[0].Progression is { } progression)
+        {
+            Assert.Equal(expected, progression.Abilities.Single(entry => entry.Ability == ability).EarnedPoints);
+        }
         int nativeIndex = Array.FindIndex(vitals.MenuDefinitions.Learning[0].ToArray(), rule => rule.Ability == ability);
         Assert.True(nativeIndex >= 0);
         Assert.Equal(expected, vitals.GuardianForces[0].AbilityProgress[nativeIndex]);

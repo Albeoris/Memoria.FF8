@@ -11,6 +11,62 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ExpandedBattleHostTests
 {
     [Theory]
+    [InlineData(4, 2, false)]
+    [InlineData(4, 4, true)]
+    [InlineData(5, 5, true)]
+    [InlineData(6, 6, true)]
+    [InlineData(7, 7, true)]
+    [InlineData(8, 8, true)]
+    [InlineData(9, 9, true)]
+    [InlineData(10, 10, true)]
+    [InlineData(11, 11, true)]
+    public void Random_entry_uses_actual_ordered_selection_up_to_its_capacity(int capacity, int selectedCount, bool fullNativeParty)
+    {
+        const ushort formation = 0;
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameSession initial = GameSession.CreateColdProcess();
+        initial.StartNewGame();
+        using (GameWorld bootstrap = new(initial, directory, sharedAssets: assets))
+        {
+            bootstrap.EnsureField();
+            initial.SetEventState(bootstrap.Events.Capture());
+        }
+        GameSession session = new(initial.State with { FieldId = 133, FieldName = "cavern-component", EventState = null, DepartingFieldState = initial.State.EventState, FieldLoadContext = null, FieldRequestPacket = null });
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: capacity, expandedBattleEnemyCount: 8);
+        world.EnsureField();
+        world.Apply(new(PlayerActionKind.Wait, Frames: 4));
+
+        NativeCharacterVitals vitals = session.State.CharacterVitals!;
+        if (selectedCount > NativeCharacterVitals.NativeRecordCount)
+        {
+            vitals = vitals.WithExtendedRoster(true);
+        }
+        byte[] rows = fullNativeParty ? Enumerable.Range(0, selectedCount).Select(row => (byte)row).ToArray() : [0, 3];
+        foreach (byte row in rows)
+        {
+            vitals.Records[row] = vitals.Records[row] with { MemberFlags = (ushort)(vitals.Records[row].MemberFlags | 1) };
+        }
+        vitals.Records[rows[^1]] = vitals.Records[rows[^1]] with { HitPoints = new(0, 0), Status = 1 };
+        vitals = fullNativeParty ? vitals.WithBattleParty(rows, capacity) : vitals with { CombatParty = [0, 255, 255], AdditionalCombatParty = [3, 4] };
+        if (!fullNativeParty)
+        {
+            vitals.Records[4] = vitals.Records[4] with { MemberFlags = 0 };
+        }
+        session.SetCharacterVitals(vitals);
+        string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
+        session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
+
+        BattleDefinition definition = world.CreateEncounterBattle(formation);
+        Assert.True(definition.UsesExpandedRoster);
+        Assert.Equal(rows.Select(row => (int?)row), definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId));
+        Assert.Equal(0, definition.Combatants.Single(actor => actor.MagicRecordId == rows[^1]).CurrentHp);
+        Assert.Equal(rows, ExpandedBattlePartyRows.ReadBoundRows(definition, vitals));
+        Assert.Equal(vitals.CombatParty, session.State.CharacterVitals!.CombatParty);
+    }
+
+    [Theory]
     [InlineData(87, false, false, 4)]
     [InlineData(0, true, false, 4)]
     [InlineData(89, false, true, 4)]
@@ -38,7 +94,7 @@ public sealed class ExpandedBattleHostTests
         NativeCharacterVitals initial = initialSession.State.CharacterVitals!.Rest();
         if (allyCount == 11)
         {
-            initial = initial.WithGuestBattleRecords();
+            initial = initial.WithExtendedRoster(true);
         }
         NativeCharacterVital[] records = initial.Records.ToArray();
         BattleNativeAction fire;
@@ -80,15 +136,9 @@ public sealed class ExpandedBattleHostTests
         using GameWorld world = new(session, directory, expandedBattleEnemyCount: largeEnemyCount);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
-        session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
+        byte[] selectedRows = Enumerable.Range(0, allyCount).Select(row => (byte)row).ToArray();
+        session.SetCharacterVitals((initial with { Records = records }).WithBattleParty(selectedRows, allyCount));
         session.SetEconomy(economy with { Items = items });
-        if (allyCount == 11)
-        {
-            session.SetCharacterVitals(initialSession.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
-            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount });
-            Assert.Equal(11, session.State.CharacterVitals!.Records.Length);
-            session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
-        }
         bool guardianFormsEnabled = largeEnemyCount == 11;
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount, GuardianFormsEnabled = guardianFormsEnabled });
         if (!mass)
@@ -119,7 +169,7 @@ public sealed class ExpandedBattleHostTests
         if (allyCount == 11)
         {
             Assert.Equal(Enumerable.Range(0, 11), hud.Party.Select(actor => actor.ModelId).Order());
-            Assert.False(session.State.CharacterVitals!.ExtendedRosterEnabled);
+            Assert.True(session.State.CharacterVitals!.ExtendedRosterEnabled);
         }
         Assert.Equal(allyCount + enemyCount, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));

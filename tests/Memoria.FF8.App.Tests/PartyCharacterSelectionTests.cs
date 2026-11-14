@@ -27,7 +27,7 @@ public sealed class PartyCharacterSelectionTests
         controller.Navigate(MenuInput.Down);
         Assert.Equal("0", controller.BuildView().FocusedElement!.Id);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal(destination, controller.ScreenId);
+        Assert.Equal(destination == "junction" ? "junction-dashboard" : destination, controller.ScreenId);
         Assert.Equal("0", controller.Character!.Id);
     }
 
@@ -41,7 +41,7 @@ public sealed class PartyCharacterSelectionTests
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("3", controller.BuildView().FocusedElement!.Id);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
         Assert.Equal("3", controller.Character!.Id);
     }
 
@@ -89,7 +89,7 @@ public sealed class PartyCharacterSelectionTests
         Assert.Equal("7", controller.Character!.Id);
         controller.Navigate(MenuInput.Confirm);
 
-        Assert.Equal(destination, controller.ScreenId);
+        Assert.Equal(destination == "junction" ? "junction-dashboard" : destination, controller.ScreenId);
         Assert.False(controller.IsSelectingCharacter);
         Assert.Equal("2", controller.Character!.Id);
         Assert.Equal("Renamed second", controller.Character.Name);
@@ -139,7 +139,7 @@ public sealed class PartyCharacterSelectionTests
         controller.Open();
         controller.Navigate(MenuInput.Confirm);
         controller.ChooseCharacter("2");
-        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
         controller.Execute(new MenuAction("junction-gf", "0"));
         controller.Execute(new MenuAction("select-command-slot", "3"));
         controller.Execute(new MenuAction("junction-command", "4"));
@@ -173,7 +173,7 @@ public sealed class PartyCharacterSelectionTests
         UiButton leader = Descendants(second.Root).OfType<UiButton>().Single(button => button.Id == "7");
         Assert.True(second.Focus(leader));
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
         Assert.Equal("7", controller.Character!.Id);
     }
 
@@ -197,7 +197,7 @@ public sealed class PartyCharacterSelectionTests
         float offsetX = view.ViewportMode == UiViewportMode.Fit ? (width - view.DesignWidth * scale) / 2 : 0;
         float offsetY = view.ViewportMode == UiViewportMode.Fit ? (height - view.DesignHeight * scale) / 2 : 0;
         view.Pointer(offsetX + (choice.Bounds.X + choice.Bounds.Width / 2) * scale, offsetY + (choice.Bounds.Y + choice.Bounds.Height / 2) * scale, true);
-        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
         Assert.Equal(characterId, controller.Character!.Id);
         Assert.Empty(requests);
     }

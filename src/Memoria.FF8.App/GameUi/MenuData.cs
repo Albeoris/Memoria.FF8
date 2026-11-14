@@ -19,6 +19,7 @@ public sealed class MenuData
     public bool? CardCollectionComplete { get; set; }
     public string? ChocoboWorldUnavailableReason { get; set; }
     public bool SharedMagicStock { get; set; }
+    public int PartyCapacity { get; set; } = 3;
     public bool LimitOncePerTurnPreferenceLocked { get; set; }
     public bool SelphieCardSlotsPreferenceLocked { get; set; }
     public bool DrawOncePerSpellPreferenceLocked { get; set; }

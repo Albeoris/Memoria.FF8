@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ExpandedBattleGuestProgressTests
 {
     [Fact]
-    public void PendingElevenAllySettingCreatesGuestRecordsWhenNativeBattleReturns()
+    public void PendingElevenAllyCapacityDoesNotCreateOrRecruitGuestsWhenNativeBattleReturns()
     {
         const ushort formation = 0;
         string directory = TestResources.GameDirectory;
@@ -45,10 +45,10 @@ public sealed class ExpandedBattleGuestProgressTests
         world.ApplyBattleInput(new(BattleInputKind.Return));
         Assert.Null(session.State.PendingGameplayPreferences);
         Assert.Equal(11, session.State.GameplayPreferences.BattleAllyCount);
-        Assert.Equal(11, session.State.CharacterVitals!.Records.Length);
+        Assert.Equal(8, session.State.CharacterVitals!.Records.Length);
         BattleSession next = Start(world, session, formation);
-        Assert.True(next.UsesExpandedRoster);
-        Assert.Equal(11, next.Combatants.Count(actor => actor.IsPlayer));
+        Assert.False(next.UsesExpandedRoster);
+        Assert.Equal(3, next.Combatants.Count(actor => actor.IsPlayer));
     }
 
     [Theory]
@@ -89,9 +89,13 @@ public sealed class ExpandedBattleGuestProgressTests
             world.Apply(new(PlayerActionKind.Wait, Frames: 4));
             quake = Assert.Single(world.BattleResources.NativeActions, action => action.Command == 2 && action.Name == "Quake");
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, SharedMagicStock = sharedStock });
-            NativeCharacterVitals vitals = session.State.CharacterVitals!.Rest().AcquireGuardianForce(guardianForce);
+            NativeCharacterVitals vitals = session.State.CharacterVitals!.WithExtendedRoster(true).Rest().AcquireGuardianForce(guardianForce);
             Assert.Equal(11, vitals.Records.Length);
-            Assert.False(vitals.ExtendedRosterEnabled);
+            Assert.True(vitals.ExtendedRosterEnabled);
+            for (int row = 0; row < NativeCharacterVitals.NativeRecordCount; row++)
+            {
+                vitals.Records[row] = vitals.Records[row] with { MemberFlags = (ushort)(vitals.Records[row].MemberFlags | 1) };
+            }
             int magicAbility = 20 + vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2);
             int donor = Array.FindIndex(vitals.Records, record => record.Junction.GuardianForceAssignments.Contains(guardianForce));
             vitals = donor < 0 ? vitals.ToggleGuardianForceJunction(guestId, guardianForce) : vitals.ReassignGuardianForceJunction(guestId, guardianForce, donor);
@@ -104,7 +108,8 @@ public sealed class ExpandedBattleGuestProgressTests
             Assert.Equal(5, mutation.Accepted);
             vitals = vitals.SetJunctionMagic(guestId, 0, quake.ActionId);
             vitals.Records[fallenId] = vitals.Records[fallenId] with { HitPoints = new NativeHpWord(0, 0), Status = 1 };
-            session.SetCharacterVitals(vitals with { CombatParty = [0, 1, 2] });
+            byte[] selectedRows = Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row).ToArray();
+            session.SetCharacterVitals(vitals.WithBattleParty(selectedRows, NativeCharacterVitals.ExtendedRecordCount));
             experience = vitals.Records[guestId].Experience;
 
             BattleSession expanded = Start(world, session, formation);
@@ -190,7 +195,7 @@ public sealed class ExpandedBattleGuestProgressTests
             Assert.Equal((ushort)0, fallen.HitPoints.Minimum);
             Assert.Equal(1, fallen.Status & 1);
             Assert.Equal(new byte[] { 0, 1, 2 }, current.CombatParty);
-            Assert.False(current.ExtendedRosterEnabled);
+            Assert.True(current.ExtendedRosterEnabled);
             if (sharedStock)
             {
                 Assert.Equal(guestId, MagicJunctionPolicy.GetOwner(current, quake.ActionId));

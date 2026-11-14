@@ -103,6 +103,10 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, valid character records or combat slots.");
         }
+        if (!IsValidAdditionalCombatParty(AdditionalCombatParty, Records.Length))
+        {
+            throw new InvalidDataException("Saved additional battle party rows are invalid.");
+        }
         if (Definitions is null || MenuDefinitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null || row.LearnedBank is null || row.AbilityProgress.IsDefault || row.AbilityProgress.Length != 21 || row.ForgottenAbilities > 0xFFFFFF) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
         {
             throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
@@ -148,7 +152,7 @@ public sealed partial record NativeCharacterVitals
 
     public NativeCharacterVitals DeepCopy()
     {
-        return this with { MagicSystem = MagicSystem.DeepCopy(), Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray(), ExtendedRosterPartyBeforeDream = ExtendedRosterPartyBeforeDream?.ToArray() };
+        return this with { MagicSystem = MagicSystem.DeepCopy(), Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), AdditionalCombatParty = AdditionalCombatParty?.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray(), ExtendedRosterPartyBeforeDream = ExtendedRosterPartyBeforeDream?.ToArray() };
     }
 
     /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>

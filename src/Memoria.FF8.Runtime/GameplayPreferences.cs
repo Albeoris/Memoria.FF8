@@ -39,7 +39,7 @@ public sealed record GameplayPreferences
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int AdditionalEnemies { get; init; }
 
-    public static bool IsBattleAllyCountSupported(int value) => value is 0 or 3 or 4 or 8 or 11;
+    public static bool IsBattleAllyCountSupported(int value) => value is 0 or >= 3 and <= NativeCharacterVitals.ExtendedRecordCount;
 
     public int GetMinimumAdditionalEnemies(int playerCount) => Math.Max(playerCount > 3 ? playerCount - 2 : 0, Difficulty == BattleDifficulty.Hardcore ? 1 : 0);
 

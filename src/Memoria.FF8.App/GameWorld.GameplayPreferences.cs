@@ -32,7 +32,6 @@ internal sealed partial class GameWorld
         }
         GameplayTuningPolicy policy = GameplayPolicy;
         SynchronizeExtendedRoster(policy);
-        EnsureGuestBattleRecords();
         GameplayTuning configured = session.State.ConfiguredGameplayTuning ?? session.State.GameplayPreferences.Tuning;
         GameplayTuning effective = policy.Apply(configured);
         if (ReadGameplayTuning() == effective || session.MagicMutationUnavailableReason is not null)
@@ -80,7 +79,6 @@ internal sealed partial class GameWorld
             throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
         }
         session.SetGameplayPreferences(preferences);
-        EnsureGuestBattleRecords();
         if (battle is not null)
         {
             battle.SetDifficulty(preferences.Difficulty);

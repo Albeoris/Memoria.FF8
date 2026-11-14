@@ -57,6 +57,89 @@ public sealed class NativePartySwitchTests
     }
 
     [Fact]
+    public void ExpandedSwitchAdmitsALivingFourthAllyAndPreservesNativeOrder()
+    {
+        NativeCharacterVitals party = CreateParty();
+        for (int row = 0; row < 3; row++)
+        {
+            party.Records[row] = party.Records[row] with { Status = 1, HitPoints = new(0, 0) };
+        }
+        PlayerAction add = new(PlayerActionKind.SwitchPartyMembers, 255, Quantity: 3);
+        Assert.True(NativePartySwitchInput.CanExchange(party, 255, 3, 2, capacity: 4));
+        NativeCharacterVitals selected = NativePartySwitchInput.Apply(party, add, 2, capacity: 4);
+        Assert.Equal(new byte[] { 0, 1, 2 }, selected.CombatParty);
+        Assert.Equal(new byte[] { 0, 1, 2, 3 }, selected.GetBattlePartyRows(4));
+        Assert.False(NativePartySwitchInput.CanExchange(selected, 3, 255, 2, capacity: 4));
+    }
+
+    [Fact]
+    public void ExpandedSwitchAllowsTheLastLivingMemberToBeAnEligibleGuest()
+    {
+        NativeCharacterVitals party = CreateParty().WithExtendedRoster(true);
+        party = party.WithBattleParty([0, 10], 4);
+        party.Records[0] = party.Records[0] with { Status = 1, HitPoints = new(0, 0) };
+        PlayerAction remove = new(PlayerActionKind.SwitchPartyMembers, 0, Quantity: 255);
+        NativeCharacterVitals selected = NativePartySwitchInput.Apply(party, remove, 2, capacity: 4);
+        Assert.Equal(new byte[] { 10, 255, 255 }, selected.CombatParty);
+        Assert.Equal(new byte[] { 10 }, selected.GetBattlePartyRows(4));
+        Assert.False(NativePartySwitchInput.CanExchange(selected, 10, 255, 2, capacity: 4));
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(8)]
+    [InlineData(11)]
+    public void ExpandedMenuUsesStableCharacterRowsForPointerAndMembershipEdits(int capacity)
+    {
+        NativeCharacterVitals party = CreateParty(locked: 0).WithExtendedRoster(true);
+        party.Records[4] = party.Records[4] with { MemberFlags = 1 };
+        party.Records[5] = party.Records[5] with { MemberFlags = 1 };
+        byte[] selected = [.. Enumerable.Range(0, capacity - 1).Select(row => (byte)row)];
+        party = party.WithBattleParty(selected, capacity);
+        NativeWorldControlState controls = NativeWorldControlState.CreateNewGame() with { Menu209 = 2 };
+        MenuController menu = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = party, WorldControls = controls, GameplayPreferences = new() { BattleAllyCount = capacity } }), action =>
+        {
+            party = NativePartySwitchInput.Apply(party, NativePartySwitchMenuProjection.PlayerAction(action), 2, capacity);
+        });
+        menu.Open("switch-party");
+        Assert.Equal(capacity, menu.Data.PartyCapacity);
+        Assert.Equal(selected.Select(row => $"character-{row}"), menu.Data.Characters.Where(character => character.InParty).Select(character => character.Id));
+        Assert.False(NativePartySwitchInput.CanExchange(party, 0, 255, 2, capacity));
+        UiView view = menu.BuildView();
+        UiButton add = Assert.Single(Buttons(view.Root), button => button.Id == MenuController.EmptySwitchSlotId);
+        Assert.Equal("Add to party", add.Text);
+        view.Pointer(add.Bounds.X + add.Bounds.Width / 2, add.Bounds.Y + add.Bounds.Height / 2, true);
+        Assert.Equal("switch-party-target", menu.ScreenId);
+        menu.SelectEntry("switch-party-target", $"character-{capacity - 1}");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal(capacity, party.GetBattlePartyRows(capacity).Length);
+        Assert.Equal((byte)(capacity - 1), party.GetBattlePartyRows(capacity)[^1]);
+
+        view = menu.BuildView();
+        UiButton last = Assert.Single(Buttons(view.Root), button => button.Id == $"character-{capacity - 1}");
+        Assert.True(last.Bounds.Height >= 30);
+        view.Pointer(last.Bounds.X + last.Bounds.Width / 2, last.Bounds.Y + last.Bounds.Height / 2, true);
+        Assert.Equal("switch-party-target", menu.ScreenId);
+        Assert.Equal("Remove from party", Assert.Single(menu.Entries, entry => entry.Id == MenuController.EmptySwitchSlotId).Label);
+        menu.SelectEntry("switch-party-target", MenuController.EmptySwitchSlotId);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal(selected, party.GetBattlePartyRows(capacity));
+
+        static IEnumerable<UiButton> Buttons(UiElement element)
+        {
+            if (element is UiButton button)
+            {
+                yield return button;
+            }
+            foreach (UiButton child in element.Children.SelectMany(Buttons))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    [Fact]
     public void FieldPublicationPreservesForcedFieldCellsAndUsesSelectedMenuOrder()
     {
         NativeCharacterVitals source = CreateParty(forced: 0);
@@ -198,6 +281,29 @@ public sealed class NativePartySwitchTests
         Assert.NotNull(engine.Scene.PartyBindingMemory);
         Assert.Equal(new[] { 0, 3, 2 }, engine.Scene.Party);
         Assert.Null(engine.LastFault);
+    }
+
+    [Fact]
+    public void NormalMenuPublishesAdditionalMembersWithoutChangingFieldBindings()
+    {
+        byte[] program = NormalMenuProgram();
+        (GameSession session, EventEngine engine) = OpenNormalMenu(CreateParty(), program);
+        engine.ReadBattlePartyCapacity = () => 4;
+
+        PlayerActionResult result = engine.Apply(new PlayerAction(PlayerActionKind.SwitchPartyMembers, 255, Quantity: 3));
+        Assert.True(result.Accepted, result.Detail);
+        Assert.Equal(new byte[] { 0, 1, 2, 3 }, session.CharacterVitals!.GetBattlePartyRows(4));
+        Assert.Equal(new byte[] { 0, 1, 2 }, engine.PartyMenu!.TemporaryCombatParty);
+        Assert.Equal(new[] { 0, 1, 2 }, engine.Scene.Party);
+        Assert.Equal((ushort)0, engine.PartyMenu.NativeReturnResult);
+
+        JsonElement checkpoint = engine.Capture();
+        GameSession resumedSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        EventEngine resumed = new(resumedSession);
+        resumed.LoadField(74, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        resumed.Restore(checkpoint);
+        Assert.True(JsonElement.DeepEquals(checkpoint, resumed.Capture()));
+        Assert.Equal(new byte[] { 0, 1, 2, 3 }, resumedSession.CharacterVitals!.GetBattlePartyRows(4));
     }
 
     [Fact]

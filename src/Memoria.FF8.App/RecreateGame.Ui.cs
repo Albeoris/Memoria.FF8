@@ -153,6 +153,10 @@ internal sealed partial class RecreateGame
         {
             EnsureLiveMenuCatalog();
             GameState menuState = events?.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active } activeMenu && session.State.WorldControls is { } controls ? session.State with { WorldControls = controls with { Menu209 = activeMenu.NativeEntrySelection } } : session.State;
+            if (menuState.GameplayPreferences.BattleAllyCount == 0 && world is { } currentWorld)
+            {
+                menuState = menuState with { GameplayPreferences = menuState.GameplayPreferences with { BattleAllyCount = currentWorld.ConfiguredBattleAllyCount } };
+            }
             data = LiveMenuData.Build(menuState, events?.Scene.Names, liveMenuCatalog!, placeId: events?.Scene.PlaceId);
             NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog!);
         }
@@ -202,6 +206,10 @@ internal sealed partial class RecreateGame
         data.Settings["Difficulty"] = ReadCurrentUiPreferences().Difficulty.ToString();
         data.SupportedActions.Add("config:Difficulty");
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
+        UiPreferences battlePreferences = ReadCurrentUiPreferences();
+        data.Settings["Battle roster size"] = Math.Max(3, battlePreferences.BattleAllyCount).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Additional enemies"] = battlePreferences.AdditionalEnemies.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.SupportedActions.UnionWith(["config:Battle roster size", "config:Additional enemies"]);
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
         data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null;

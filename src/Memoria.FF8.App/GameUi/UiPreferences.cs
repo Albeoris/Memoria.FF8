@@ -353,14 +353,11 @@ internal sealed record UiPreferences
         }
         if (key == "Battle roster size")
         {
-            return value switch
+            if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int count) || count < 3 || !GameplayPreferences.IsBattleAllyCountSupported(count))
             {
-                "3" => this with { BattleAllyCount = 3 },
-                "4" => this with { BattleAllyCount = 4 },
-                "8" => this with { BattleAllyCount = 8 },
-                "11" => this with { BattleAllyCount = 11 },
-                _ => throw new ArgumentException("Battle roster size requires 3, 4, 8 or 11.")
-            };
+                throw new ArgumentException($"Battle roster size requires a value from 3 to {NativeCharacterVitals.ExtendedRecordCount}.");
+            }
+            return this with { BattleAllyCount = count };
         }
         if (key == "Additional enemies")
         {

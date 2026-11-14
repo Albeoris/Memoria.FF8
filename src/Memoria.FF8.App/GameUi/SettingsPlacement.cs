@@ -39,7 +39,7 @@ internal static class SettingsPlacement
             ["World movement speed", "Field movement speed", "Battle speed", "Fast-forward multiplier"]),
         ["config-chocobo"] = new("Chocobo World", "Choose a reward provider; acquired rewards remain recorded when switching modes.", ["Chocobo World"]),
         ["config-combat"] = new("Combat", "Rules for this game; Title sets new-game defaults.",
-            ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
+            ["Difficulty", "Battle ATB mode", "Battle roster size", "Additional enemies", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "GF Transformations"]),
         ["config-triple-triad"] = new("Triple Triad", "Rules apply to this game; Title sets new-game defaults. Rare-card markers are shared across saves.",
@@ -131,7 +131,7 @@ internal static class SettingsPlacement
             {
                 "Sound" or "Controller" => SettingsAudience.Excluded,
                 "ATB" or "Battle message" or "Scan" or "Camera movement" or "Battle control" => SettingsAudience.Fixture,
-                "Battle policy" or "Random encounters" or "Battle roster size" or "Additional enemies" => SettingsAudience.Developer,
+                "Battle policy" or "Random encounters" => SettingsAudience.Developer,
                 _ => SettingsAudience.Player
             };
             string page = placement.Key ?? (setting.Id == "Vibration" ? "config-controller-settings" : audience == SettingsAudience.Developer ? "debug-battle" : "");

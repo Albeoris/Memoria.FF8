@@ -11,16 +11,22 @@ public sealed class DebugRoomSettingsTests
     public void Additional_enemies_slider_edits_stored_value_and_marks_effective_request()
     {
         UiPreferences preferences = new() { BattleAllyCount = 8, Difficulty = BattleDifficulty.Hardcore };
-        MenuController menus = new();
+        MenuController menus = new(() =>
+        {
+            MenuData data = new();
+            data.Settings["Additional enemies"] = preferences.AdditionalEnemies.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            data.SupportedActions.Add("config:Additional enemies");
+            return data;
+        }, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menus.Open("debug-battle", true);
-        menus.SelectEntry("debug-battle", "Additional enemies");
+        menus.Open("config-combat");
+        menus.SelectEntry("config-combat", "Additional enemies");
 
         UiNumericSlider slider = Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement);
         Assert.Equal(0, slider.Value);
         Assert.Equal(6f, slider.MarkerValue);
         Assert.Equal(10, slider.Max);
-        Assert.Contains("Stored 0, gold marker 6", menus.SelectedEntry!.Help);
+        Assert.Contains("Stored 0. Gold marker 6", menus.SelectedEntry!.Help);
         menus.Navigate(MenuInput.Confirm);
         menus.Navigate(MenuInput.Left);
         Assert.Equal(0, preferences.AdditionalEnemies);

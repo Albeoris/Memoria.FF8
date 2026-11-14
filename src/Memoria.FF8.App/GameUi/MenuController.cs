@@ -799,15 +799,6 @@ public sealed partial class MenuController
         {
             return;
         }
-        if (IsHostSettingsScreen && SelectedEntry.Id == "Additional enemies")
-        {
-            var key = direction < 0 ? UiKey.Left : UiKey.Right;
-            if (BuildView().Key(key))
-            {
-                SoundRequested?.Invoke(MenuSound.Move);
-            }
-            return;
-        }
         var setting = MenuSettings.Definitions.FirstOrDefault(s => s.Id == SelectedEntry?.Id);
         if (setting == null)
         {

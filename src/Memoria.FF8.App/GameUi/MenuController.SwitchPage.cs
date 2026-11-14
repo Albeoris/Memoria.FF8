@@ -6,9 +6,30 @@ public sealed partial class MenuController
 {
     private const int SwitchReserveColumns = 4;
     internal static readonly string EmptySwitchSlotId = $"character-{Memoria.FF8.Events.NativePartySwitchInput.EmptySlot}";
-    internal string SwitchEmptySlotLabel => SystemText("party.switch.empty-slot", "Empty slot");
+    internal string SwitchEmptySlotLabel
+    {
+        get
+        {
+            if (Data.PartyCapacity <= 3)
+            {
+                return SystemText("party.switch.empty-slot", "Empty slot");
+            }
+            if (ScreenId == "switch-party-target")
+            {
+                return Data.Characters.Any(character => character.Id == ExchangeId && character.InParty)
+                    ? SystemText("party.switch.remove-member", "Remove from party")
+                    : SystemText("party.switch.add-member", "Add to party");
+            }
+            return Data.SupportedActions.Contains("party-switch-add-slot")
+                ? SystemText("party.switch.add-member", "Add to party")
+                : SystemText("party.switch.remove-member", "Remove from party");
+        }
+    }
 
-    private bool ShowSwitchEmptySlot => ScreenId.StartsWith("switch-party", StringComparison.Ordinal) && Data.SupportedActions.Contains("party-switch-empty-slot");
+    private bool ShowSwitchEmptySlot => (ScreenId is "switch-party" or "switch-party-target") && Data.SupportedActions.Contains("party-switch-empty-slot") && (Data.PartyCapacity <= 3 || ScreenId != "switch-party-target" || ExchangeId != EmptySwitchSlotId);
+
+    private int SwitchPartyColumns(int count) => Data.PartyCapacity > 3 && count > 4 ? 2 : 1;
+    private static int SwitchReserveRows(int count) => Math.Max(2, (count + SwitchReserveColumns - 1) / SwitchReserveColumns);
 
     private bool NavigateNativeSwitch(MenuInput input)
     {
@@ -18,20 +39,21 @@ public sealed partial class MenuController
         }
         MenuCharacter[] party = Data.Characters.Where(character => character.InParty).ToArray();
         MenuCharacter[] reserves = Data.Characters.Where(character => !character.InParty).ToArray();
+        int partyColumns = SwitchPartyColumns(party.Length);
         (int X, int Y) Cell(MenuEntry? entry)
         {
             if (NativeSwitchCharacterId(entry) == EmptySwitchSlotId)
             {
-                return (0, party.Length);
+                return Data.PartyCapacity > 3 ? (partyColumns, SwitchReserveRows(reserves.Length)) : (0, party.Length);
             }
             MenuCharacter? character = NativeSwitchCharacter(entry);
             int index = Array.IndexOf(party, character);
             if (index >= 0)
             {
-                return (0, index);
+                return (index % partyColumns, index / partyColumns);
             }
             index = Array.IndexOf(reserves, character);
-            return (1 + index % SwitchReserveColumns, index / SwitchReserveColumns);
+            return (partyColumns + index % SwitchReserveColumns, index / SwitchReserveColumns);
         }
         (int x, int y) = Cell(SelectedEntry);
         bool horizontal = input is MenuInput.Left or MenuInput.Right;
@@ -82,7 +104,20 @@ public sealed partial class MenuController
 
         var right = Grid([3, 1], [1], 4);
         MenuCharacter[] reserves = Data.Characters.Where(character => !character.InParty).ToArray();
-        Place(right, Panel(null, NativeSwitchMembers(reserves, true, !root)), 0);
+        UiElement reserveMembers = NativeSwitchMembers(reserves, true, !root);
+        if (Data.PartyCapacity > 3 && ShowSwitchEmptySlot)
+        {
+            var reserveArea = Grid([4, 1], [1], 4);
+            Place(reserveArea, reserveMembers, 0);
+            int slotIndex = Entries.ToList().FindIndex(entry => NativeSwitchCharacterId(entry) == EmptySwitchSlotId);
+            if (slotIndex >= 0)
+            {
+                UiButton vacancy = new() { Id = EmptySwitchSlotId, Text = SwitchEmptySlotLabel, FontSize = 19 * TextScale, Enabled = Entries[slotIndex].Enabled, Click = () => Activate(slotIndex) };
+                Place(reserveArea, vacancy, 1);
+            }
+            reserveMembers = reserveArea;
+        }
+        Place(right, Panel(null, reserveMembers), 0);
         MenuCharacter? selected = root ? Character : NativeSwitchCharacter(SelectedEntry);
         IReadOnlyList<string> details = !root && NativeSwitchCharacterId(SelectedEntry) == EmptySwitchSlotId ? [SwitchEmptySlotLabel] : [selected?.Name ?? "--", FormatSystemText("ui.buildnativeswitch.details.lv", "Lv  {0}", Number(selected?.Level)), FormatSystemText("ui.buildnativeswitch.details.hp.template", "HP  {0}", (selected is null ? "--" : Hp(selected)))];
         Place(right, Panel(null, Lines(details, 25)), 1);
@@ -108,22 +143,24 @@ public sealed partial class MenuController
 
     private UiElement NativeSwitchMembers(MenuCharacter[] characters, bool reserves, bool interactive)
     {
-        int columns = reserves ? SwitchReserveColumns : 1;
-        int rows = reserves ? Math.Max(2, (characters.Length + columns - 1) / columns) : 3;
-        bool emptySlot = !reserves && ShowSwitchEmptySlot;
+        bool emptySlot = !reserves && Data.PartyCapacity <= 3 && ShowSwitchEmptySlot;
+        int count = characters.Length + (emptySlot ? 1 : 0);
+        int columns = reserves ? SwitchReserveColumns : SwitchPartyColumns(count);
+        int rows = reserves ? SwitchReserveRows(count) : Data.PartyCapacity == 3 ? 3 : Math.Max(3, (count + columns - 1) / columns);
+        float memberFontSize = columns > 1 ? 17 : rows > 3 ? 21 : 24;
         var members = Grid(Enumerable.Repeat(1f, rows).ToArray(), Enumerable.Repeat(1f, columns).ToArray(), reserves ? 6 : 4);
-        for (int index = 0; index < characters.Length + (emptySlot ? 1 : 0); index++)
+        for (int index = 0; index < count; index++)
         {
             MenuCharacter? character = index < characters.Length ? characters[index] : null;
             string id = character?.Id ?? EmptySwitchSlotId;
-            var row = reserves ? Grid([4, 1], [1], 2) : Grid([1], [1, 2.7f], 10);
+            var row = reserves ? Grid([4, 1], [1], 2) : Grid([1], [1, 2.7f], columns > 1 ? 5 : 10);
             if (character is not null)
             {
                 Place(row, Portrait(character), 0);
             }
             if (character is null)
             {
-                Place(row, Label(SwitchEmptySlotLabel, 24), 0, 1);
+                Place(row, Label(SwitchEmptySlotLabel, memberFontSize), 0, 1);
             }
             else if (reserves)
             {
@@ -131,7 +168,7 @@ public sealed partial class MenuController
             }
             else
             {
-                Place(row, Lines([character.Name, FormatSystemText("ui.nativeswitchmembers.details.lv", "Lv  {0}", Number(character.Level)), FormatSystemText("ui.nativeswitchmembers.details.hp", "HP  {0}", Hp(character))], 24), 0, 1);
+                Place(row, Lines([character.Name, FormatSystemText("ui.nativeswitchmembers.details.lv", "Lv  {0}", Number(character.Level)), FormatSystemText("ui.nativeswitchmembers.details.hp", "HP  {0}", Hp(character))], memberFontSize), 0, 1);
             }
             UiElement member = row;
             if (interactive)
@@ -144,7 +181,7 @@ public sealed partial class MenuController
                     {
                         DisableSwitchContent(row);
                     }
-                    row.Margin = new UiThickness(reserves ? 10 : 24, 0, 0, 0);
+                    row.Margin = new UiThickness(reserves ? 10 : columns > 1 ? 14 : 24, 0, 0, 0);
                     choice.Children.Add(row);
                     member = choice;
                 }

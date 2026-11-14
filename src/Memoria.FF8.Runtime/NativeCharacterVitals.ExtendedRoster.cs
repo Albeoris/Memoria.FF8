@@ -109,9 +109,13 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals ForOriginalSaveExport()
     {
         Validate();
+        if (AdditionalCombatParty is { Length: > 0 })
+        {
+            throw new NotSupportedException("Original FF8 saves cannot preserve selected additional battle party members. Clear the additional selection before exporting.");
+        }
         if (Records.Length == NativeRecordCount)
         {
-            return this;
+            return AdditionalCombatParty is null ? this : this with { AdditionalCombatParty = null };
         }
         if (MagicSystem.Reservations.Length != 0)
         {
@@ -126,6 +130,7 @@ public sealed partial record NativeCharacterVitals
         {
             Records = Records[..NativeRecordCount],
             CombatParty = DreamEnabled ? CombatParty : RemoveModOnlyPartyMembers(CombatParty),
+            AdditionalCombatParty = null,
             ExtendedRosterEnabled = false,
             ExtendedRosterPartyBeforeDream = null,
             JunctionPartyBackup = backup,

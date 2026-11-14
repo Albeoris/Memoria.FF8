@@ -14,17 +14,32 @@ public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, N
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
 public static partial class BattleResultProjection
 {
-    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience, NativeItemOrderAliases? itemOrderAliases = null)
+    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience, NativeItemOrderAliases? itemOrderAliases = null, BattleDefinition? admittedBattle = null)
     {
         result.Validate();
         sourceVitals.Validate();
         sourceEconomy.Validate();
-        byte[] party = result.UsesExpandedRoster && result.Party.Length > NativeBattleSlots.AllyCount
-            ? ExpandedBattlePartyRows.Select(sourceVitals, result.Party.Length) ?? throw new InvalidDataException("Expanded battle result lost its eligible party rows.")
-            : sourceVitals.CombatParty.Where(row => row != byte.MaxValue).ToArray();
+        byte[] nativeRows = sourceVitals.GetBattlePartyRows(NativeBattleSlots.AllyCount);
+        byte[] party = nativeRows;
+        if (result.UsesExpandedRoster && admittedBattle is not null)
+        {
+            if (admittedBattle.EncounterId != result.Encounter.Formation)
+            {
+                throw new InvalidDataException("Expanded battle result disagrees with its admitted formation.");
+            }
+            party = ExpandedBattlePartyRows.ReadBoundRows(admittedBattle, sourceVitals);
+        }
+        else if (result.UsesExpandedRoster && result.Party.Length >= nativeRows.Length)
+        {
+            party = sourceVitals.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount).Take(result.Party.Length).ToArray();
+        }
         if (!party.SequenceEqual(result.Party.Select(member => member.Row)))
         {
             throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
+        }
+        if (result.UsesExpandedRoster && admittedBattle is not null && sourceVitals.AdditionalCombatParty is null)
+        {
+            sourceVitals = ExpandedBattlePartyRows.RecoverSelection(sourceVitals, party);
         }
         if (result.EnemyDefeats.Any(defeat => !currentEnemyRewards.ContainsKey(defeat.Slot) || defeat.KillerRow is byte row && !party.Contains(row)) || result.RemainingEnemyExperience.Any(enemy => !currentEnemyRewards.ContainsKey(enemy.Slot)))
         {

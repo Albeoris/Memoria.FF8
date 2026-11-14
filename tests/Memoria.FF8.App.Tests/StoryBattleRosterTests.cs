@@ -54,10 +54,16 @@ public sealed class StoryBattleRosterTests
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         Assert.Equal(new ScriptedBattleOwner(fieldId, objectId, scriptId, operation, 0, request.ProgramHash), occurrence.ScriptedOwner);
         Assert.Equal(world.BattleResources.FormationSourceHash(formation), occurrence.FormationHash);
-        AssertFullExpandedRosterAvailable(Assert.IsType<NativeCharacterVitals>(session.State.CharacterVitals));
+        Assert.Equal(party, session.State.CharacterVitals!.GetBattlePartyRows(11));
 
         GameState pending = session.PrepareSnapshot() with { EventState = world.Events.Capture() };
-        GameSession expandedSession = new(pending with { GameplayPreferences = pending.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 } });
+        byte[] extras = [2, 3, 4];
+        NativeCharacterVitals selected = pending.CharacterVitals! with { AdditionalCombatParty = extras };
+        Assert.All(extras, row => Assert.True(selected.IsRosterMember(row)));
+        Assert.Equal(party.Concat(extras), selected.GetBattlePartyRows(11));
+        JsonObject expandedEvents = JsonNode.Parse(pending.EventState!.Value.GetRawText())!.AsObject();
+        expandedEvents["CharacterVitals"]![nameof(NativeCharacterVitals.AdditionalCombatParty)] = JsonSerializer.SerializeToNode(extras);
+        GameSession expandedSession = new(pending with { CharacterVitals = selected, EventState = JsonSerializer.SerializeToElement(expandedEvents), GameplayPreferences = pending.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 } });
         using GameWorld expandedWorld = new(expandedSession, directory, sharedAssets: assets);
         expandedWorld.EnsureField();
         Assert.Equal(3, world.ConfiguredBattleAllyCount);
@@ -150,11 +156,8 @@ public sealed class StoryBattleRosterTests
 
         Assert.True(world.HasPendingBattle);
         NativeCharacterVitals vitals = Assert.IsType<NativeCharacterVitals>(session.State.CharacterVitals);
-        Assert.Equal(new byte[] { 1, 0, 5, 3 }, ExpandedBattlePartyRows.Select(vitals));
-        if (expandedBattleAllyCount == 11)
-        {
-            AssertFullExpandedRosterAvailable(vitals);
-        }
+        Assert.True(vitals.IsRosterMember(3));
+        Assert.Equal(new byte[] { 1, 0, 5 }, vitals.GetBattlePartyRows(11));
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         Assert.Equal(29, occurrence.Formation);
         ScriptedBattleOwner owner = Assert.IsType<ScriptedBattleOwner>(occurrence.ScriptedOwner);
@@ -169,6 +172,47 @@ public sealed class StoryBattleRosterTests
 
         BattleSession restored = RestoreAndAdvance(world, battle);
         AssertTowerSlots(restored);
+    }
+
+    [Fact]
+    public void Restored_native_reward_preview_recovers_missing_record_and_rejects_conflicting_binding()
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("story-battle-136")));
+        using GameWorld original = new(session, directory, expandedBattleAllyCount: 3);
+        original.EnsureField();
+        Assert.Equal((ushort)136, original.Events.PendingInteractiveBattle!.Encounter);
+        original.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
+        BattleSession battle = Assert.IsType<BattleSession>(original.Battle);
+        Assert.False(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.NativeGraphics);
+        original.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+
+        BattleRewardSummary expected = original.PreviewBattleRewards();
+        GameState completed = session.PrepareSnapshot();
+        JsonObject saved = JsonSerializer.SerializeToNode(completed)!.AsObject();
+        JsonObject[] players = saved["Battle"]!["Definition"]!["Combatants"]!.AsArray().Where(actor => actor!["IsPlayer"]!.GetValue<bool>()).Select(actor => actor!.AsObject()).ToArray();
+        Assert.Equal(3, players.Length);
+        string actorId = players[0][nameof(BattleCombatantDefinition.Id)]!.GetValue<string>();
+        int originalRow = players[0][nameof(BattleCombatantDefinition.MagicRecordId)]!.GetValue<int>();
+        Assert.True(players[0].Remove(nameof(BattleCombatantDefinition.MagicRecordId)));
+        using (GameWorld legacy = new(new GameSession(saved.Deserialize<GameState>()!), directory, expandedBattleAllyCount: 3))
+        {
+            BattleSession restored = Assert.IsType<BattleSession>(legacy.Battle);
+            Assert.NotNull(restored.NativeGraphics);
+            Assert.Null(Assert.Single(restored.Combatants, actor => actor.Id == actorId).MagicRecordId);
+            AssertJsonEqual(expected, legacy.PreviewBattleRewards());
+        }
+
+        int conflictingRow = Enumerable.Range(0, completed.CharacterVitals!.Records.Length).First(row => !completed.CharacterVitals.CombatParty.Contains((byte)row));
+        Assert.NotEqual(originalRow, conflictingRow);
+        players[0][nameof(BattleCombatantDefinition.MagicRecordId)] = conflictingRow;
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            using GameWorld conflicting = new(new GameSession(saved.Deserialize<GameState>()!), directory, expandedBattleAllyCount: 3);
+            conflicting.PreviewBattleRewards();
+        });
     }
 
     [Fact]
@@ -209,10 +253,6 @@ public sealed class StoryBattleRosterTests
         world.EnsureField();
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = battleAllyCount });
         Assert.Equal(battleAllyCount, world.ConfiguredBattleAllyCount);
-        if (battleAllyCount == 11)
-        {
-            AssertFullExpandedRosterAvailable(Assert.IsType<NativeCharacterVitals>(session.State.CharacterVitals));
-        }
         byte[] combatParty = session.State.CharacterVitals!.CombatParty.ToArray();
 
         Assert.True(world.Apply(new(PlayerActionKind.UseFieldItem, 168, Quantity: 0)).Accepted);
@@ -228,13 +268,6 @@ public sealed class StoryBattleRosterTests
         Assert.Equal(new[] { 0, 1, 2 }, allies.Select(actor => actor.EncodeNativeSlot()));
         Assert.Equal(3, Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive).EncodeNativeSlot());
         return battle;
-    }
-
-    private static void AssertFullExpandedRosterAvailable(NativeCharacterVitals vitals)
-    {
-        Assert.False(vitals.ExtendedRosterEnabled);
-        byte[] available = Assert.IsType<byte[]>(ExpandedBattlePartyRows.Select(vitals, 11));
-        Assert.Equal(Enumerable.Range(0, 11).Select(row => (byte)row), available.Order());
     }
 
     private static void AssertOriginalStoryState(BattleSession original, BattleSession candidate, IEnumerable<byte> combatParty)

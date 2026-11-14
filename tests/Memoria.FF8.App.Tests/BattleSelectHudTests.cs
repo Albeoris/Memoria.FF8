@@ -113,7 +113,7 @@ public sealed class BattleSelectHudTests
         Assert.Equal(BattleAbility.Magic, hud.SelectedCommand);
         Assert.Equal(1, hud.SelectedAction!.Id);
         RecordingCanvas visible = Draw(hud);
-        Assert.Contains("Magic", visible.Texts);
+        Assert.Contains("Single-target attack", visible.Texts);
 
         hud.SetNativeCommandButtons(0x100);
         Assert.Empty(Draw(hud).Texts);

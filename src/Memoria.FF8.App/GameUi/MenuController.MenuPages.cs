@@ -10,18 +10,42 @@ public sealed partial class MenuController
     {
         var page = Grid([1.05f, 6.55f, 1], [3, 1.1f], 6);
         Place(page, Help(), 0);
-        var partyArea = Grid([1, 1, 1, 3], [1], 0);
+        MenuCharacter[] party = CharacterChoices.Where(character => character.InParty).ToArray();
+        MenuCharacter[] reserveCharacters = CharacterChoices.Where(character => !character.InParty).ToArray();
+        int activeCards = Math.Max(3, party.Length);
+        int activeColumns = activeCards > 4 ? 2 : 1;
+        int activeRows = (activeCards + activeColumns - 1) / activeColumns;
+        int reserveRows = (reserveCharacters.Length + 1) / 2;
+        float[] partyRows = activeColumns == 1 ? [.. Enumerable.Repeat(3f / activeRows, activeRows), 3] : Enumerable.Repeat(1f, activeRows).ToArray();
+        if (activeColumns == 2 && reserveRows > 0)
+        {
+            partyRows = [.. partyRows, reserveRows * 0.7f];
+        }
+        var partyArea = Grid(partyRows, Enumerable.Repeat(1f, activeColumns).ToArray(), 0);
         partyArea.Margin = new UiThickness(20, 0, 10, 0);
         Place(page, partyArea, 1);
-        MenuCharacter[] party = CharacterChoices.Where(character => character.InParty).ToArray();
-        for (int index = 0; index < 3; index++)
+        for (int index = 0; index < activeCards; index++)
         {
             MenuCharacter? character = party.ElementAtOrDefault(index);
-            var row = Grid([1], [0.75f, 1.7f, 1.15f, 2.7f], 5);
+            var row = Grid([1], activeColumns > 1 ? [0.75f, 2.5f] : [0.75f, 1.7f, 1.15f, 2.7f], 5);
             Place(row, Portrait(character), 0);
-            Place(row, Label(character?.Name ?? "", 28), 0, 1);
-            Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.lv", "Lv {0}", Number(character.Level)), 23), 0, 2);
-            Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.hp.template", "HP {0}", Hp(character)), 23), 0, 3);
+            if (activeColumns > 1)
+            {
+                MenuCharacter member = character!;
+                var identity = Grid([1, 1], [1], 0);
+                var heading = Grid([1], [3, 1], 4);
+                Place(heading, Label(member.Name, 19), 0);
+                Place(heading, Label(FormatSystemText("ui.buildmain.label.lv", "Lv {0}", Number(member.Level)), 16), 0, 1);
+                Place(identity, heading, 0);
+                Place(identity, Label(FormatSystemText("ui.buildmain.label.hp.template", "HP {0}", Hp(member)), 16), 1);
+                Place(row, identity, 0, 1);
+            }
+            else
+            {
+                Place(row, Label(character?.Name ?? "", activeCards == 4 ? 25 : 28), 0, 1);
+                Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.lv", "Lv {0}", Number(character.Level)), activeCards == 4 ? 21 : 23), 0, 2);
+                Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.hp.template", "HP {0}", Hp(character)), activeCards == 4 ? 21 : 23), 0, 3);
+            }
             UiPanel status = Panel(null, row);
             status.Id = "party-status-" + index;
             if (IsSelectingCharacter && character is not null)
@@ -30,36 +54,38 @@ public sealed partial class MenuController
                 UiButton choice = new() { Id = characterId, DrawBackground = false, HighlightSelection = false, Click = () => ChooseCharacter(characterId) };
                 status.Margin = new UiThickness(24, 0, 0, 0);
                 choice.Children.Add(status);
-                Place(partyArea, choice, index);
+                Place(partyArea, choice, index / activeColumns, index % activeColumns);
             }
             else
             {
-                Place(partyArea, status, index);
+                Place(partyArea, status, index / activeColumns, index % activeColumns);
             }
         }
-        MenuCharacter[] reserveCharacters = CharacterChoices.Where(character => !character.InParty).ToArray();
-        var reserves = Grid(Enumerable.Repeat(1f, Math.Max(3, (reserveCharacters.Length + 1) / 2)).ToArray(), [1, 1], 3);
-        for (int index = 0; index < reserveCharacters.Length; index++)
+        if (activeColumns == 1 || reserveRows > 0)
         {
-            MenuCharacter character = reserveCharacters[index];
-            var member = Grid([1, 1], [0.75f, 2.5f], 3);
-            Place(member, Portrait(character), 0, 0, 2);
-            Place(member, Label(character.Name, 26), 0, 1);
-            Place(member, Label(FormatSystemText("ui.buildmain.label.lv.hp", "Lv {0}   HP {1}", Number(character.Level), character.HpDisplay ?? Number(character.CurrentHp)), 20), 1, 1);
-            if (IsSelectingCharacter)
+            var reserves = Grid(Enumerable.Repeat(1f, activeColumns == 1 ? Math.Max(3, reserveRows) : reserveRows).ToArray(), [1, 1], 3);
+            for (int index = 0; index < reserveCharacters.Length; index++)
             {
-                string characterId = character.Id;
-                UiButton choice = new() { Id = characterId, DrawBackground = false, HighlightSelection = false, Click = () => ChooseCharacter(characterId) };
-                member.Margin = new UiThickness(24, 0, 0, 0);
-                choice.Children.Add(member);
-                Place(reserves, choice, index / 2, index % 2);
+                MenuCharacter character = reserveCharacters[index];
+                var member = Grid([1, 1], [0.75f, 2.5f], 3);
+                Place(member, Portrait(character), 0, 0, 2);
+                Place(member, Label(character.Name, 26), 0, 1);
+                Place(member, Label(FormatSystemText("ui.buildmain.label.lv.hp", "Lv {0}   HP {1}", Number(character.Level), character.HpDisplay ?? Number(character.CurrentHp)), 20), 1, 1);
+                if (IsSelectingCharacter)
+                {
+                    string characterId = character.Id;
+                    UiButton choice = new() { Id = characterId, DrawBackground = false, HighlightSelection = false, Click = () => ChooseCharacter(characterId) };
+                    member.Margin = new UiThickness(24, 0, 0, 0);
+                    choice.Children.Add(member);
+                    Place(reserves, choice, index / 2, index % 2);
+                }
+                else
+                {
+                    Place(reserves, member, index / 2, index % 2);
+                }
             }
-            else
-            {
-                Place(reserves, member, index / 2, index % 2);
-            }
+            Place(partyArea, Panel(null, reserves), activeRows, 0, 1, activeColumns);
         }
-        Place(partyArea, Panel(null, reserves), 3);
         var sidebar = Grid([6.3f, 0.3f, 1.4f], [1], 0);
         Place(page, sidebar, 0, 1, 3);
         Place(sidebar, Panel(null, Commands(40, 29)), 0);

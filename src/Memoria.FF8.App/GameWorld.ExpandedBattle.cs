@@ -11,14 +11,7 @@ internal sealed partial class GameWorld
     private readonly int? legacyExpandedEnemyCount;
     private readonly int defaultAdditionalEnemyCount;
     internal int ConfiguredBattleAllyCount => session.State.GameplayPreferences.BattleAllyCount == 0 ? defaultExpandedRandomAllyCount : session.State.GameplayPreferences.BattleAllyCount;
-
-    private void EnsureGuestBattleRecords()
-    {
-        if (ConfiguredBattleAllyCount == 11 && session.State.CharacterVitals is { Records.Length: NativeCharacterVitals.NativeRecordCount } vitals && !session.HasActiveBattle && session.State.PendingBattleEncounter is null)
-        {
-            session.SetCharacterVitals(vitals.WithGuestBattleRecords());
-        }
-    }
+    internal int EffectiveBattleAllyCount => BattlePartySelectionPolicy.ResolveCapacity(session.State, ConfiguredBattleAllyCount == 0 ? 3 : ConfiguredBattleAllyCount);
 
     private static BattleEnemyPlacement[]? ExpandRandomEnemyRoster(BattleEncounter encounter, int enemyCount)
     {

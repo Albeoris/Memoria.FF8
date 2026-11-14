@@ -14,7 +14,7 @@ public sealed class SettingsOwnershipTests
         Assert.Equal(62, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
         Assert.Equal(new[] { "Controller", "Sound" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Excluded).Select(placement => placement.LegacyKey).Order());
         Assert.Equal(new[] { "ATB", "Battle control", "Battle message", "Camera movement", "Scan" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Fixture).Select(placement => placement.LegacyKey).Order());
-        Assert.Equal(new[] { "Additional enemies", "Battle policy", "Battle roster size", "Random encounters" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Developer).Select(placement => placement.LegacyKey).Order());
+        Assert.Equal(new[] { "Battle policy", "Random encounters" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Developer).Select(placement => placement.LegacyKey).Order());
         Assert.All(SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Player), placement =>
         {
             Assert.StartsWith("config-", placement.Page);
@@ -58,10 +58,10 @@ public sealed class SettingsOwnershipTests
             }
         }
         Assert.Equal(player.Count, player.Distinct().Count());
-        Assert.Equal(53, player.Count);
+        Assert.Equal(55, player.Count);
         menus.Open("debug-battle", true);
         List<string> developer = menus.Entries.Where(entry => SettingsPlacement.All.Any(placement => placement.LegacyKey == entry.Id)).Select(entry => SettingsPlacement.All.Single(placement => placement.LegacyKey == entry.Id)).Select(placement => placement.Target + "/" + placement.Scope).ToList();
-        Assert.Equal(4, developer.Count);
+        Assert.Equal(2, developer.Count);
         Assert.Empty(player.Intersect(developer));
         Assert.Contains(menus.Entries, entry => entry.Action?.SubjectId == "Random encounters");
         Assert.DoesNotContain(menus.Entries, entry => entry.Action?.SubjectId is "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger");
@@ -74,15 +74,33 @@ public sealed class SettingsOwnershipTests
         menus.Navigate(MenuInput.Confirm);
         Assert.True(preferences.RandomEncounters);
         Assert.Equal("debug-battle", menus.ScreenId);
-        menus.SelectEntry("debug-battle", "Battle roster size");
-        menus.Navigate(MenuInput.Confirm);
-        Assert.Equal(4, preferences.BattleAllyCount);
-        menus.Navigate(MenuInput.Confirm);
-        Assert.Equal(8, preferences.BattleAllyCount);
-        menus.Navigate(MenuInput.Confirm);
-        Assert.Equal(11, preferences.BattleAllyCount);
-        menus.Navigate(MenuInput.Confirm);
-        Assert.Equal(3, preferences.BattleAllyCount);
+    }
+
+    [Fact]
+    public void CombatSettingsExposeEveryPartyCapacityInOrder()
+    {
+        UiPreferences preferences = new();
+        MenuController menus = new(() =>
+        {
+            MenuData data = new();
+            data.Settings["Battle roster size"] = Math.Max(3, preferences.BattleAllyCount).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            data.SupportedActions.Add("config:Battle roster size");
+            return data;
+        }, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
+        menus.Open("config-combat");
+        menus.SelectEntry("config-combat", "Battle roster size");
+        for (int capacity = 4; capacity <= 11; capacity++)
+        {
+            menus.Navigate(MenuInput.Right);
+            Assert.Equal(capacity, preferences.BattleAllyCount);
+        }
+        for (int capacity = 10; capacity >= 3; capacity--)
+        {
+            menus.Navigate(MenuInput.Left);
+            Assert.Equal(capacity, preferences.BattleAllyCount);
+        }
+        Assert.Throws<ArgumentException>(() => preferences.WithSetting("Battle roster size", "2"));
+        Assert.Throws<ArgumentException>(() => preferences.WithSetting("Battle roster size", "12"));
     }
 
     [Fact]

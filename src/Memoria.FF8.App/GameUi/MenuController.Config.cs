@@ -97,6 +97,11 @@ public sealed partial class MenuController
                 description = FontDisplayValue(setting.Id) + ". " + description;
             }
             string help = newGame && hardcoreLocked ? description : unavailableReason ?? description;
+            if (setting.Id == "Additional enemies")
+            {
+                UiPreferences preferences = FontPreferences;
+                help = FormatSystemText("ui.configentries.additional-enemies.request", "Stored {0}. Gold marker {1} is the automatic request before encounter limits.", preferences.AdditionalEnemies, EffectiveAdditionalEnemies(preferences)) + " " + help;
+            }
             if (setting.Id == "Graphics backend")
             {
                 Memoria.FF8.Platform.GraphicsBackend backend = Memoria.FF8.Platform.GraphicsBackendSelection.Parse(value);
@@ -255,6 +260,7 @@ public sealed partial class MenuController
                 Min = numbers[0],
                 Step = setting.Id is "Music volume" or "Effect volume" or "Voice volume" ? 1 : numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
                 Value = float.TryParse(value.TrimEnd('%'), CultureInfo.InvariantCulture, out float number) ? number : numbers[0],
+                MarkerValue = setting.Id == "Additional enemies" ? EffectiveAdditionalEnemies(FontPreferences) : null,
                 ValueFormat = setting.Id == "Fast-forward multiplier" ? "0'x'" : setting.Values[0].EndsWith('%') ? "0'%'" : "0",
                 ValueWidth = 66 * TextScale,
                 LabelWidthRatio = 0.52f,

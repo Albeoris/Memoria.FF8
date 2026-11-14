@@ -54,10 +54,10 @@ internal sealed partial class BattleHudElement
         return StatusStatRules.TryGetStatusId(label.Saved, label.Mask, out NativeStatusId status) ? controller.SystemText(BattleStatusLocalization.SemanticId(status), label.Name) : label.Name;
     }
 
-    private void DrawStatuses(IUiCanvas canvas, UiTheme theme, BattleStatusPresentation statuses, float x, float y, float width)
+    private void DrawStatuses(IUiCanvas canvas, UiTheme theme, BattleStatusPresentation statuses, float x, float y, float width, float? textScale = null)
     {
         StatusBadge[] active = StatusLabels.Where(status => ((status.Saved ? statuses.Saved : statuses.Battle) & status.Mask) != 0).Select(status => new StatusBadge(StatusName(status), status.Icon)).ToArray();
-        DrawStatusBadges(canvas, theme, Layout, controller.TextScale, controller.BattlePresentationSeconds, active, x, y, width);
+        DrawStatusBadges(canvas, theme, Layout, textScale ?? controller.TextScale, controller.BattlePresentationSeconds, active, x, y, width);
     }
 
     internal static void DrawStatusBadges(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, double seconds, StatusBadge[] active, float x, float y, float width)

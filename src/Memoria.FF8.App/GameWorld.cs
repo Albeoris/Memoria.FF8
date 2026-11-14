@@ -62,6 +62,10 @@ internal sealed partial class GameWorld : IDisposable
             "11x8" or "11x11" => 11,
             _ => 0
         });
+        if (!GameplayPreferences.IsBattleAllyCountSupported(defaultExpandedRandomAllyCount))
+        {
+            throw new ArgumentOutOfRangeException(nameof(expandedBattleAllyCount));
+        }
         legacyExpandedEnemyCount = expandedBattleEnemyCount;
         if (legacyExpandedEnemyCount is < 1 or > ExpandedBattleFormation.MaximumSideSize)
         {
@@ -150,6 +154,7 @@ internal sealed partial class GameWorld : IDisposable
             clock.ResolveGameFile = resolveGameFile;
         }
         Events = new EventEngine(session);
+        Events.ReadBattlePartyCapacity = () => EffectiveBattleAllyCount;
         Events.PreparingCheckpoint += CaptureNativeTutorialPlayback;
         Events.IsInspectionScriptEnabled = (objectId, scriptId) => !inspectionDisabledScripts.Contains((objectId, scriptId));
         Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled, clock.ToolsDirectory)).Prepare();
@@ -160,7 +165,6 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
         Events.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
         ConfigureTripleTriadHost();
-        EnsureGuestBattleRecords();
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
         Events.OperationCompleted += ObservePendingBattle;
@@ -325,7 +329,10 @@ internal sealed partial class GameWorld : IDisposable
             {
                 throw new NotSupportedException("World restoration requires its executed native music-loader receipt; migrate this save explicitly.");
             }
-            worldScene = new WorldMapScene(session, assets.GameDirectory, resources, modelOverrides: modelOverrides, nativeSourceFieldName: Field?.Name);
+            worldScene = new WorldMapScene(session, assets.GameDirectory, resources, modelOverrides: modelOverrides, nativeSourceFieldName: Field?.Name)
+            {
+                ReadBattlePartyCapacity = () => EffectiveBattleAllyCount
+            };
             ConfigureWorldScene(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)
             {
@@ -487,7 +494,6 @@ internal sealed partial class GameWorld : IDisposable
         {
             SynchronizeExtendedRoster(GameplayPolicy);
         }
-        EnsureGuestBattleRecords();
         if (snapshot is null && session.State.RandomEncounters is { } encounter)
         {
             session.SetRandomEncounters(encounter with { Native = encounter.Native with { WorldInitialized = false } });

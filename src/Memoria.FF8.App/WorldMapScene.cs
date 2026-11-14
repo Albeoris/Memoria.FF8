@@ -31,6 +31,7 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<WorldState, int, RandomEncounterSessionState?, (WorldState World, RandomEncounterSessionState? Encounters)>? ProcessRandomEncounters { get; set; }
     private int encounterMovementMagnitude;
     public Func<bool>? HasPendingBattle { get; set; }
+    public Func<int>? ReadBattlePartyCapacity { get; set; }
     public WorldState? LastDeparture { get; private set; }
     private int playerMovementSpeedPercent = PlayerMovementSpeed.DefaultPercent;
 
@@ -354,11 +355,12 @@ internal sealed partial class WorldMapScene : IDisposable
             NativePartySwitchInput.Validate(action);
             NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Switch requires the saved character owner.");
             byte entry = session.State.WorldControls?.Menu209 ?? 0;
-            if (HasPendingBattle?.Invoke() == true || CurrentDialogue is not null || !NativePartySwitchInput.CanExchange(vitals, action.Value, action.Quantity!.Value, entry))
+            int capacity = ReadBattlePartyCapacity?.Invoke() ?? BattlePartySelectionPolicy.ResolveCapacity(session.State, Math.Max(3, session.State.GameplayPreferences.BattleAllyCount));
+            if (HasPendingBattle?.Invoke() == true || CurrentDialogue is not null || !NativePartySwitchInput.CanExchange(vitals, action.Value, action.Quantity!.Value, entry, capacity))
             {
                 return new PlayerActionResult(false, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0, "The current world menu does not permit this party-member exchange.");
             }
-            session.SetCharacterVitals(NativePartySwitchInput.Apply(vitals, action, entry));
+            session.SetCharacterVitals(NativePartySwitchInput.Apply(vitals, action, entry, capacity));
             return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0);
         }
         if (NativeMagicMenuInput.IsMenuAction(action.Kind))

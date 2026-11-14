@@ -35,6 +35,7 @@ public static class LiveMenuData
         catalog?.SetTextNames(textNames);
         MenuData result = new()
         {
+            PartyCapacity = BattlePartySelectionPolicy.ResolveCapacity(state, Math.Max(3, state.GameplayPreferences.BattleAllyCount)),
             SharedMagicStock = state.CharacterVitals?.MagicSystem.SharedMagicStock == true,
             PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
             Location = catalog?.LocationName(state, placeId) ?? Text("common.unavailable", "Unavailable"),
@@ -95,6 +96,7 @@ public static class LiveMenuData
         {
             vitals.Validate();
             state.WorldControls?.Validate();
+            byte[] partyRows = vitals.GetBattlePartyRows(result.PartyCapacity);
             ProjectionCache projection = new(vitals, catalog, state.WorldControls, junction?.ReadRules);
             Dictionary<string, MenuMagic>? baselineMagic = junction?.Baseline?.Magic.ToDictionary(magic => magic.Id, StringComparer.Ordinal);
             Dictionary<int, (string Name, string Description)> magicMetadata = [];
@@ -119,16 +121,20 @@ public static class LiveMenuData
                 {
                     for (int target = 0; target < vitals.Records.Length; target++)
                     {
-                        if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, target, state.WorldControls!.Menu209))
+                        if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, target, state.WorldControls!.Menu209, result.PartyCapacity))
                         {
                             result.SupportedActions.Add($"party-switch:character-{source}:character-{target}");
                         }
                     }
-                    if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, Memoria.FF8.Events.NativePartySwitchInput.EmptySlot, state.WorldControls!.Menu209))
+                    if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, Memoria.FF8.Events.NativePartySwitchInput.EmptySlot, state.WorldControls!.Menu209, result.PartyCapacity))
                     {
                         result.SupportedActions.Add($"party-switch:character-{source}:{MenuController.EmptySwitchSlotId}");
                         result.SupportedActions.Add($"party-switch:{MenuController.EmptySwitchSlotId}:character-{source}");
                         result.SupportedActions.Add("party-switch-empty-slot");
+                        if (!partyRows.Contains((byte)source))
+                        {
+                            result.SupportedActions.Add("party-switch-add-slot");
+                        }
                     }
                 }
             }
@@ -140,11 +146,11 @@ public static class LiveMenuData
                 NativeCharacterVitals exchanged = vitals.ExchangeJunctions(input.Value, target);
                 return exchanged.GetMagicMaximumHitPoints(input.Value) < vitals.Records[input.Value].HitPoints.Maximum || exchanged.GetMagicMaximumHitPoints(target) < vitals.Records[target].HitPoints.Maximum;
             };
-            IEnumerable<int> rows = vitals.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, vitals.Records.Length).Where(row => !vitals.CombatParty.Contains((byte)row)));
+            IEnumerable<int> rows = partyRows.Select(row => (int)row).Concat(Enumerable.Range(0, vitals.Records.Length).Where(row => !partyRows.Contains((byte)row)));
             foreach (int row in rows)
             {
                 NativeCharacterVital native = vitals.Records[row];
-                bool inParty = vitals.CombatParty.Contains((byte)row);
+                bool inParty = partyRows.Contains((byte)row);
                 bool dreamAlias = row < NativeCharacterVitals.NativeRecordCount && native.CharacterId >= NativeCharacterVitals.NativeRecordCount;
                 bool member = dreamAlias ? state.WorldControls is { } controls && (controls.EventFlags104 & (1u << (native.CharacterId - NativeCharacterVitals.NativeRecordCount))) != 0 : vitals.IsRosterMember(row);
                 if (!inParty && !member && visibleCharacterRows?.Contains(row) != true)

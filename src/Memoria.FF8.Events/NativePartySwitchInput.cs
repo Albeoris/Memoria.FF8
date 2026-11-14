@@ -16,11 +16,15 @@ public static class NativePartySwitchInput
 
     private static bool IsSwitchSelection(int row) => (uint)row < NativeCharacterVitals.ExtendedRecordCount || row == EmptySlot;
 
-    public static bool CanExchange(NativeCharacterVitals vitals, int source, int target, byte entrySelection)
+    public static bool CanExchange(NativeCharacterVitals vitals, int source, int target, byte entrySelection, int capacity = 3)
     {
         if ((entrySelection & 2) == 0 || vitals.DreamEnabled)
         {
             return false;
+        }
+        if (capacity > 3)
+        {
+            return SelectExpandedParty(vitals, source, target, capacity) is not null;
         }
         if (source == EmptySlot || target == EmptySlot)
         {
@@ -61,14 +65,58 @@ public static class NativePartySwitchInput
         return vitals.CombatParty.Select(row => row == source ? (byte)target : row == target ? (byte)source : row).ToArray();
     }
 
-    public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, byte entrySelection)
+    private static byte[]? SelectExpandedParty(NativeCharacterVitals vitals, int source, int target, int capacity)
+    {
+        if (source == target || source != EmptySlot && !IsSelectableMember(vitals, source) || target != EmptySlot && !IsSelectableMember(vitals, target))
+        {
+            return null;
+        }
+        byte[] party = vitals.GetBattlePartyRows(capacity);
+        if (source == EmptySlot || target == EmptySlot)
+        {
+            byte member = (byte)(source == EmptySlot ? target : source);
+            if ((vitals.Records[member].MemberFlags & 6) != 0)
+            {
+                return null;
+            }
+            if (party.Contains(member))
+            {
+                party = party.Where(row => row != member).ToArray();
+            }
+            else if (party.Length < capacity)
+            {
+                party = [.. party, member];
+            }
+            else
+            {
+                return null;
+            }
+        }
+        else
+        {
+            bool sourceParty = party.Contains((byte)source);
+            bool targetParty = party.Contains((byte)target);
+            if (!sourceParty && !targetParty || sourceParty != targetParty && ((vitals.Records[source].MemberFlags | vitals.Records[target].MemberFlags) & 6) != 0)
+            {
+                return null;
+            }
+            party = party.Select(row => row == source ? (byte)target : row == target ? (byte)source : row).ToArray();
+        }
+        return party.Any(row => (vitals.Records[row].Status & 1) == 0) ? party : null;
+    }
+
+    public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, byte entrySelection, int capacity = 3)
     {
         Validate(action);
         vitals.Validate();
         int target = action.Quantity!.Value;
-        if (!CanExchange(vitals, action.Value, target, entrySelection))
+        if (!CanExchange(vitals, action.Value, target, entrySelection, capacity))
         {
             throw new InvalidOperationException("The current menu does not permit this party-member exchange.");
+        }
+        if (capacity > 3)
+        {
+            return vitals.WithBattleParty(SelectExpandedParty(vitals, action.Value, target, capacity)!, capacity);
         }
         byte[] party = SelectParty(vitals, action.Value, target);
         //4CC46D publishes the selected combat rows;495EF0 rebuilds their stats.
@@ -78,6 +126,8 @@ public static class NativePartySwitchInput
 
 public sealed partial class EventEngine
 {
+    public Func<int>? ReadBattlePartyCapacity { get; set; }
+
     private static bool HasExtendedCombatParty(NativeCharacterVitals vitals) => vitals.ExtendedRosterEnabled && !vitals.DreamEnabled && vitals.CombatParty.Any(row => NativeCharacterVitals.IsExtendedRosterCharacter(row));
 
     public void ConfigureExtendedRoster(bool enabled)
@@ -108,14 +158,16 @@ public sealed partial class EventEngine
         }
         NativeCharacterVitals source = services.CharacterVitals ?? throw new NotSupportedException("Switch requires the actual saved character owner.");
         byte entry = activeMenu ? partyMenu!.NativeEntrySelection : services.WorldControls?.Menu209 ?? 0;
-        if (!NativePartySwitchInput.CanExchange(source, action.Value, action.Quantity!.Value, entry))
+        int capacity = ReadBattlePartyCapacity?.Invoke() ?? 3;
+        if (!NativePartySwitchInput.CanExchange(source, action.Value, action.Quantity!.Value, entry, capacity))
         {
             return false;
         }
-        NativeCharacterVitals next = NativePartySwitchInput.Apply(source, action, entry);
+        NativeCharacterVitals next = NativePartySwitchInput.Apply(source, action, entry, capacity);
         // Extended combat exchanges preserve the field's authored actors and story party.
+        bool unchangedNativeParty = capacity > 3 && source.CombatParty.SequenceEqual(next.CombatParty);
         bool combatOnly = HasExtendedCombatParty(source) || HasExtendedCombatParty(next);
-        byte[]? field = combatOnly ? null : source.PreparePartyMenuFieldSlots(Scene.Party, next.CombatParty);
+        byte[]? field = combatOnly || unchangedNativeParty ? null : source.PreparePartyMenuFieldSlots(Scene.Party, next.CombatParty);
         if (field is not null && !activeMenu && (services.WorldControls!.EventFlags104 & 0x800) != 0)
         {
             if (UnsupportedJunctionBackupAliases() is string aliases)
@@ -127,7 +179,7 @@ public sealed partial class EventEngine
         if (activeMenu)
         {
             PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
-            partyMenu = partyMenu! with { TemporaryCombatParty = next.CombatParty.ToArray(), NativeReturnResult = combatOnly ? partyMenu.NativeReturnResult : (ushort)1, CombatPartyIndependent = combatOnly && partyMenu.NativeReturnResult == 1, Callbacks = checked(partyMenu.Callbacks + 1) };
+            partyMenu = partyMenu! with { TemporaryCombatParty = next.CombatParty.ToArray(), NativeReturnResult = field is null ? partyMenu.NativeReturnResult : (ushort)1, CombatPartyIndependent = unchangedNativeParty ? partyMenu.CombatPartyIndependent : combatOnly && partyMenu.NativeReturnResult == 1, Callbacks = checked(partyMenu.Callbacks + 1) };
         }
         else
         {

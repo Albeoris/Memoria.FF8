@@ -93,29 +93,38 @@ public sealed partial class MenuController
         page.Id = "vector-main";
         string title = ShowMainScreenTitle ? CurrentScreen.Title : SelectedEntry?.Label ?? SystemText("ui.buildvectormain.caption.menu", "Menu");
         Place(page, VectorHeader(title, SelectedEntry?.Help ?? CurrentScreen.Help), 0);
-        var party = VectorRows([18, 0, 18, Math.Max(72, ((CharacterChoices.Count(member => !member.InParty) + 2) / 3) * 56)], [1], 4);
+        MenuCharacter[] active = CharacterChoices.Where(member => member.InParty).ToArray();
+        MenuCharacter[] reserve = CharacterChoices.Where(member => !member.InParty).ToArray();
+        bool fourMembers = active.Length == 4;
+        bool showReserves = active.Length <= 4 || reserve.Length > 0;
+        int reserveColumns = fourMembers && reserve.Length > 6 ? 4 : 3;
+        int reserveRows = (reserve.Length + reserveColumns - 1) / reserveColumns;
+        var party = VectorRows(showReserves ? [18, 0, 18, Math.Max(72, reserveRows * 56)] : [18, 0], [1], 4);
         Place(page, party, 1);
         Place(party, VectorLabel(SystemText("ui.buildvectormain.caption.a.c.t.i.v.e.p.a", "A C T I V E   P A R T Y"), 11, true), 0);
-        MenuCharacter[] active = CharacterChoices.Where(member => member.InParty).ToArray();
-        var cards = Grid([1, 1, 1], [1], 6);
+        int activeCards = Math.Max(3, active.Length);
+        int activeColumns = activeCards > 4 ? 2 : 1;
+        var cards = Grid(Enumerable.Repeat(1f, (activeCards + activeColumns - 1) / activeColumns).ToArray(), Enumerable.Repeat(1f, activeColumns).ToArray(), 6);
         Place(party, cards, 1);
-        for (int index = 0; index < 3; index++)
+        for (int index = 0; index < activeCards; index++)
         {
-            UiElement card = VectorPartyCard(active.ElementAtOrDefault(index), false);
+            UiElement card = activeColumns == 2 ? VectorDensePartyCard(active[index]) : VectorPartyCard(active.ElementAtOrDefault(index), false, fourMembers);
             if (!card.Focusable)
             {
                 card.Id = "party-status-" + index;
             }
-            Place(cards, card, index);
+            Place(cards, card, index / activeColumns, index % activeColumns);
         }
-        Place(party, VectorLabel(SystemText("ui.buildvectormain.caption.r.e.s.e.r.v.e", "R E S E R V E"), 11, true), 2);
-        MenuCharacter[] reserve = CharacterChoices.Where(member => !member.InParty).ToArray();
-        var reserves = Grid(Enumerable.Repeat(1f, Math.Max(1, (reserve.Length + 2) / 3)).ToArray(), [1, 1, 1], 8);
-        for (int index = 0; index < reserve.Length; index++)
+        if (showReserves)
         {
-            Place(reserves, VectorPartyCard(reserve[index], true), index / 3, index % 3);
+            Place(party, VectorLabel(SystemText("ui.buildvectormain.caption.r.e.s.e.r.v.e", "R E S E R V E"), 11, true), 2);
+            var reserves = Grid(Enumerable.Repeat(1f, Math.Max(1, reserveRows)).ToArray(), Enumerable.Repeat(1f, reserveColumns).ToArray(), 8);
+            for (int index = 0; index < reserve.Length; index++)
+            {
+                Place(reserves, VectorPartyCard(reserve[index], true), index / reserveColumns, index % reserveColumns);
+            }
+            Place(party, reserves, 3);
         }
-        Place(party, reserves, 3);
         var sidebar = VectorRows([0, 85], [1], 12);
         var commands = (UiList)Commands(32, 23);
         commands.Paginated = false;
@@ -140,13 +149,28 @@ public sealed partial class MenuController
         return page;
     }
 
-    private UiElement VectorPartyCard(MenuCharacter? member, bool compact)
+    private UiElement VectorDensePartyCard(MenuCharacter member)
+    {
+        var content = Grid([1], [1, 4], 6);
+        Place(content, Portrait(member), 0);
+        var identity = VectorRows([0, 0, 4], [1], 1);
+        var heading = Grid([1], [3, 1], 4);
+        Place(heading, VectorLabel(member.Name, 19), 0);
+        Place(heading, VectorLabel(FormatSystemText("ui.vectorpartycard.caption.lv", "Lv  {0}", Number(member.Level)), 15, true), 0, 1);
+        Place(identity, heading, 0);
+        Place(identity, VectorLabel(FormatSystemText("ui.vectorpartycard.caption.hp.template", "{0}{1}", SystemText("ui.vectorpartycard.caption.hp", "HP   "), Hp(member)), 16), 1);
+        Place(identity, new UiProgressBar { Min = 0, Max = Math.Max(1, member.MaximumHp ?? 1), Value = member.CurrentHp ?? 0 }, 2);
+        Place(content, identity, 0, 1);
+        return VectorSelectablePartyCard(member, VectorPanel(null, content, 4));
+    }
+
+    private UiElement VectorPartyCard(MenuCharacter? member, bool compact, bool fourMembers = false)
     {
         var content = Grid([1], compact ? [0.8f, 1.4f] : [1.2f, 1, 1.8f], 10);
         Place(content, Portrait(member), 0);
-        float nameSize = compact ? 15 : 28;
-        float levelSize = compact ? 13 : 22;
-        float hpSize = compact ? 12 : 22;
+        float nameSize = compact ? 15 : fourMembers ? 20 : 28;
+        float levelSize = compact ? 13 : fourMembers ? 16 : 22;
+        float hpSize = compact ? 12 : fourMembers ? 18 : 22;
         const float progressRow = 7;
         const float progressGap = 2;
         var name = Grid([nameSize, levelSize], [1], 0);
@@ -167,10 +191,14 @@ public sealed partial class MenuController
         else
         {
             hp.VerticalAlignment = UiAlignment.End;
-            hp.Height = 42;
+            hp.Height = fourMembers ? 34 : 42;
             Place(content, hp, 0, 2);
         }
-        UiPanel panel = VectorPanel(null, content, compact ? 3 : 10);
+        return VectorSelectablePartyCard(member, VectorPanel(null, content, compact ? 3 : fourMembers ? 4 : 10));
+    }
+
+    private UiElement VectorSelectablePartyCard(MenuCharacter? member, UiPanel panel)
+    {
         if (IsSelectingCharacter && member is not null)
         {
             string id = member.Id;

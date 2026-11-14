@@ -575,7 +575,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         {
             world.EnsureField();
             world.Apply(new(PlayerActionKind.Wait, Frames: 4));
-            NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords().Rest();
+            NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithExtendedRoster(true).Rest();
             if (prepareHigherBand)
             {
                 vitals = PrepareHigherBandParty(directory, vitals);
@@ -632,7 +632,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 }
             }
             prepareParty?.Invoke(records);
-            vitals = vitals with { Records = records };
+            byte[] selectedRows = Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row).ToArray();
+            vitals = (vitals with { Records = records }).WithBattleParty(selectedRows, NativeCharacterVitals.ExtendedRecordCount);
             session.SetCharacterVitals(prepareVitals?.Invoke(vitals) ?? vitals);
             if (useAreaEnemyRoster)
             {

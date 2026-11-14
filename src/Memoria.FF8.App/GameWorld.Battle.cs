@@ -54,6 +54,17 @@ internal sealed partial class GameWorld
         }
         if (saved is not null)
         {
+            if (saved.Definition.UsesExpandedRoster)
+            {
+                NativeCharacterVitals current = session.State.CharacterVitals ?? throw new InvalidDataException("Saved expanded battle has no character owner.");
+                byte[] boundRows = ExpandedBattlePartyRows.ReadBoundRows(saved.Definition, current);
+                NativeCharacterVitals? frozen = saved.Definition.MagicVitals;
+                saved = saved with
+                {
+                    Definition = saved.Definition with { MagicVitals = ExpandedBattlePartyRows.RecoverSelection(frozen!, boundRows) },
+                    MagicVitals = saved.MagicVitals is { } magic ? ExpandedBattlePartyRows.RecoverSelection(magic, boundRows) : null
+                };
+            }
             saved = BattlePartyProjection.RestoreLegacyCommandProjection(saved, BattleResources);
             if (saved.Definition.UsesOriginalEnemySlots && saved.Definition.EncounterId is not null)
             {
@@ -139,10 +150,19 @@ internal sealed partial class GameWorld
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
         bool localRandomEncounter = effectPreviewRequest is null && Events.PendingHostedBattle is null && Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending?.Formation == encounterId;
-        int configuredAllies = restoredDefinition?.Combatants.Count(actor => actor.IsPlayer) ?? ConfiguredBattleAllyCount;
-        byte[]? expandedParty = configuredAllies > 3 && (restoredDefinition?.UsesExpandedRoster ?? (allowExpanded && localRandomEncounter))
-            ? ExpandedBattlePartyRows.Select(entryVitals, configuredAllies) : null;
-        int allyCount = expandedParty?.Length ?? entryVitals.CombatParty.Count(row => row != byte.MaxValue);
+        byte[] nativeParty = entryVitals.GetBattlePartyRows(3);
+        byte[]? selectedParty = null;
+        if (restoredDefinition is { UsesExpandedRoster: true })
+        {
+            selectedParty = ExpandedBattlePartyRows.ReadBoundRows(restoredDefinition, entryVitals);
+            entryVitals = entryVitals with { AdditionalCombatParty = restoredDefinition.MagicVitals!.AdditionalCombatParty };
+        }
+        else if (restoredDefinition is null && allowExpanded && localRandomEncounter)
+        {
+            selectedParty = entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
+        }
+        byte[]? expandedParty = selectedParty is not null && !selectedParty.SequenceEqual(nativeParty) ? selectedParty : null;
+        int allyCount = expandedParty?.Length ?? nativeParty.Length;
         bool legacyExpandedEntry = restoredDefinition is { UsesExpandedRoster: true, AddedEnemySources: null, UsesOriginalEnemySlots: false }
             || restoredDefinition is null && allowExpanded && legacyExpandedEnemyCount.HasValue && localRandomEncounter && expandedParty is not null;
         bool useOriginalEnemySlots = restoredDefinition?.UsesOriginalEnemySlots ?? (allowExpanded && localRandomEncounter && !legacyExpandedEntry && expandedParty is not null && NeedsOriginalEnemySlots(encounter));
@@ -170,7 +190,7 @@ internal sealed partial class GameWorld
         {
             expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources);
         }
-        bool expanded = expandedEnemies is not null && ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Length) && (expandedParty is not null || configuredAllies <= 3 || restoredDefinition is null);
+        bool expanded = expandedEnemies is not null && ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Length);
         if (restoredDefinition?.UsesExpandedRoster == true && !expanded)
         {
             throw new InvalidDataException("Saved expanded combat no longer has its eligible party or encounter.");
@@ -653,7 +673,21 @@ internal sealed partial class GameWorld
         List<BattlePartyResult> party = [];
         foreach (BattleCombatant player in active.Combatants.Where(actor => actor.IsPlayer))
         {
-            int row = int.Parse(player.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture);
+            int row;
+            if (player.MagicRecordId is int boundRow)
+            {
+                row = boundRow;
+            }
+            else if (active.UsesExpandedRoster || !player.Id.StartsWith("party-", StringComparison.Ordinal) ||
+                !int.TryParse(player.Id.AsSpan("party-".Length), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out row) ||
+                (uint)row >= vitals.Records.Length || !vitals.CombatParty.Contains((byte)row))
+            {
+                throw new InvalidDataException("Battle outcome lost its admitted character record.");
+            }
+            if ((uint)row >= vitals.Records.Length || player.Id != $"party-{row}" || player.ModelId != vitals.Records[row].CharacterId)
+            {
+                throw new InvalidDataException("Battle outcome character binding disagrees with its canonical record.");
+            }
             NativeCharacterVital original = vitals.Records[row];
             if (original.HitPoints.Minimum != original.HitPoints.Maximum)
             {
@@ -818,6 +852,7 @@ internal sealed partial class GameWorld
         Dictionary<int, int> currentAp = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
         Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyRewards(enemy.ModelId));
         bool noExperience = NativeBattleRewardDistribution.NoExperience(checked((ushort)(result.Encounter.ScriptedOwner?.Flags ?? 0)), formation.Flags);
-        return BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp, currentRewards, assets.ReadNativeBattleExperienceDefinition(), session.State.CardInventory, noExperience, NativeItemOrderAliases.From(session.State));
+        BattleDefinition? admittedBattle = result.UsesExpandedRoster ? battle?.ReadDefinition() : null;
+        return BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp, currentRewards, assets.ReadNativeBattleExperienceDefinition(), session.State.CardInventory, noExperience, NativeItemOrderAliases.From(session.State), admittedBattle);
     }
 }

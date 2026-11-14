@@ -185,7 +185,7 @@ public sealed class ExpandedBattleGuardianForceTests
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(initial.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, GuardianFormsEnabled = transform });
-        NativeCharacterVitals vitals = session.State.CharacterVitals!.Rest();
+        NativeCharacterVitals vitals = session.State.CharacterVitals!.WithExtendedRoster(true).Rest();
         byte command = checked((byte)(20 + vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)3)));
         NativeCharacterVital[] records = vitals.Records.Select(record => record with
         {
@@ -210,7 +210,8 @@ public sealed class ExpandedBattleGuardianForceTests
         NativeGuardianForceVital selectedGuardian = guardians[guardianId];
         guardians[guardianId] = selectedGuardian with { Flags = 1, LearnedBank = selectedGuardian.LearnedBank with { High = selectedGuardian.LearnedBank.High | (1UL << boostBit) } };
         guardians[guardianId] = guardians[guardianId] with { HitPoints = vitals.Definitions.GuardianForceMaximum(guardianId, guardians[guardianId]) };
-        session.SetCharacterVitals(vitals with { GuardianForces = guardians });
+        byte[] selectedRows = Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row).ToArray();
+        session.SetCharacterVitals((vitals with { GuardianForces = guardians }).WithBattleParty(selectedRows, NativeCharacterVitals.ExtendedRecordCount));
         string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, fieldId, world.Events.Frame, formation, source)));
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));

@@ -106,7 +106,10 @@ internal sealed partial class BattleHudElement : UiElement
                 canvas.AlignedText(battleMessage.Text, messageSize, Layout.MessageText, theme.Foreground, UiAlignment.Center);
             }
         }
-        bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
+        BattleCombatant? selectedActor = controller.SelectedActor;
+        bool canAttack = !controller.CommandMenuHidden && selectedActor is not null && session.Outcome == BattleOutcome.Active;
+        IReadOnlyList<BattleCombatant> party = controller.Party;
+        bool compactParty = party.Count >= 4;
         IReadOnlyList<string> choices = controller.SelectingTarget ? [] : controller.ChoiceLabels;
         string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
         IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.ShowingDrawList && !controller.ShowingMagicList && !controller.SelectingNativeSlots && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
@@ -124,8 +127,14 @@ internal sealed partial class BattleHudElement : UiElement
             valueWidth = values.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
             if (guardianHpColumn)
             {
+                valueWidth = Math.Max(valueWidth, canvas.MeasureText("9999", fontSize * Scale, 4096 * Scale).Width / Scale);
                 float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38 - arrowWidth) / Math.Max(1, nameWidth)));
-                valueWidth = Math.Max(valueWidth, canvas.MeasureText("9999", fontSize * Scale, 4096 * Scale).Width / Scale) * fit;
+                if (compactParty)
+                {
+                    float available = BattleHudLayout.PartyLeft - BattleHudLayout.CommandX - 38 - arrowWidth - 12;
+                    fit = Math.Min(fit, available / Math.Max(1, nameWidth + valueWidth));
+                }
+                valueWidth *= fit;
                 fontSize *= fit;
                 CommandWidth = Math.Clamp(38 + arrowWidth + nameWidth * fit, 194, 440) + 12 + valueWidth;
             }
@@ -209,17 +218,8 @@ internal sealed partial class BattleHudElement : UiElement
             }
         }
 
-        IReadOnlyList<BattleCombatant> party = controller.CommandMenuHidden || session.NativeGraphics?.UiServices is { } nativeUi && !(nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.")).DrawsVitals4B1740(nativeUi.Flags942) ? [] : controller.Party;
-        float partyRowHeight = party.Count > 8 ? 32 : BattleHudLayout.PartyRowHeight;
-        float partyTop = party.Count > 4 ? 660 - party.Count * partyRowHeight : BattleHudLayout.PartyTop;
-        for (int index = 0; index < party.Count; index++)
+        foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(party))
         {
-            BattleCombatant actor = party[index];
-            if (session.NativeGraphics?.UiServices is { } rowUi && !(rowUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank.")).IsVitalsRowVisible4B1740(session.NativeGraphics.ActorIds.IndexOf(actor.Id)))
-            {
-                continue;
-            }
-            float y = partyTop + index * partyRowHeight;
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
             BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
@@ -232,7 +232,7 @@ internal sealed partial class BattleHudElement : UiElement
             BattleVitalAppearance appearance = session.ReadVitalAppearance(actor.Id, gf?.Id);
             UiColor nameColor = appearance.NameKnockedOut ? new(148, 148, 164) : new(238, 238, 238);
             UiColor hpColor = appearance.HitPointsKnockedOut ? new(255, 41, 24) : appearance.Critical ? new(255, 255, 123) : new(255, 255, 255);
-            if (canAttack && controller.SelectedActor?.Id == actor.Id)
+            if (canAttack && selectedActor?.Id == actor.Id)
             {
                 int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate % 16);
                 int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
@@ -240,13 +240,21 @@ internal sealed partial class BattleHudElement : UiElement
                 nameColor = BattleHudLayout.Modulate(nameColor, shade);
                 hpColor = BattleHudLayout.Modulate(hpColor, shade);
             }
-            Layout.DrawVitals(canvas, label, hp, maximumHp, y, controller.TextScale, nameColor, hpColor);
+            Layout.DrawVitals(canvas, label, hp, maximumHp, row.Top, controller.TextScale, nameColor, hpColor, compactHeight: compactParty ? row.VitalHeight : null);
             BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
-            DrawGauge(canvas, Layout.AtbGauge(y), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, (AtbVisualStatus)((statuses.Battle >> 1) & 7));
-            DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
+            DrawGauge(canvas, Layout.AtbGauge(row.Top, row.GaugeOffset), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, (AtbVisualStatus)((statuses.Battle >> 1) & 7));
+            DrawStatuses(canvas, theme, statuses, 520, row.Top + row.StatusOffset, compactParty && form is { Phase: BattleGuardianFormPhase.Active } ? 382 : 414, row.StatusTextScale);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
-                Text(canvas, theme, controller.FormatSystemText("battle.hud.remaining-seconds", "{0}s", controller.GuardianFormSeconds(form.RemainingTicks)), 906, y - 5, 42, 18, 12);
+                string timer = controller.FormatSystemText("battle.hud.remaining-seconds", "{0}s", controller.GuardianFormSeconds(form.RemainingTicks));
+                if (compactParty)
+                {
+                    canvas.Text(timer, 11 * row.StatusTextScale * Scale, Rect(906, row.Top + row.StatusOffset, 28, row.Height - row.StatusOffset), theme.Foreground);
+                }
+                else
+                {
+                    Text(canvas, theme, timer, 906, row.Top - 5, 42, 18, 12);
+                }
             }
         }
         if (canAttack && controller.ShowingDrawList)
@@ -260,6 +268,32 @@ internal sealed partial class BattleHudElement : UiElement
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
             Text(canvas, theme, controller.SystemText("battle.hud.trigger", "TRIGGER!"), 372, 100, 280, 48, 30);
+        }
+    }
+
+    private IEnumerable<(BattleCombatant Actor, BattleHudPartyRow Row)> VisiblePartyRows(IReadOnlyList<BattleCombatant> party)
+    {
+        if (controller.CommandMenuHidden)
+        {
+            yield break;
+        }
+        NativeBattleGraphicsState? graphics = controller.Session.NativeGraphics;
+        NativeBattleUiWindows? windows = null;
+        if (graphics?.UiServices is { } nativeUi)
+        {
+            windows = nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.");
+            if (!windows.DrawsVitals4B1740(nativeUi.Flags942))
+            {
+                yield break;
+            }
+        }
+        for (int index = 0; index < party.Count; index++)
+        {
+            BattleCombatant actor = party[index];
+            if (windows is null || windows.IsVitalsRowVisible4B1740(graphics!.ActorIds.IndexOf(actor.Id)))
+            {
+                yield return (actor, BattleHudLayout.PartyRow(index, party.Count, controller.TextScale));
+            }
         }
     }
 
@@ -485,12 +519,15 @@ internal sealed partial class BattleHudElement : UiElement
                 }
             }
         }
-        else if (Rect(496, 528, 438, 114).Contains(x, y))
+        else if (controller.Session.Outcome == BattleOutcome.Active && controller.NativeDuelState is null)
         {
-            int index = (int)((y - Rect(0, 528, 0, 0).Y) / (38 * Scale));
-            if (index >= 0 && index < controller.Party.Count)
+            foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(controller.Party))
             {
-                controller.SelectParty(controller.Party[index].Id);
+                if (Layout.PartyRowBounds(row).Contains(x, y))
+                {
+                    controller.SelectParty(actor.Id);
+                    return;
+                }
             }
         }
     }

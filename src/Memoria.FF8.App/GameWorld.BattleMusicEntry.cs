@@ -99,10 +99,6 @@ internal sealed partial class GameWorld
             SynchronizeNativeBattleHostCallbacks(active);
         }
         session.SetLiveBattle(active);
-        if (active is null)
-        {
-            EnsureGuestBattleRecords();
-        }
         Events.SynchronizeNativeBattleMusicProcess(active?.NativeMusicProcess);
     }
 

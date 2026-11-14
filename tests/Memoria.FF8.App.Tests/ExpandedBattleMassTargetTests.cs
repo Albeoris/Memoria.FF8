@@ -243,7 +243,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             world.Apply(new(PlayerActionKind.Wait, Frames: 4));
             session.SetCharacterVitals(initial.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11 });
-            NativeCharacterVitals vitals = session.State.CharacterVitals!.Rest();
+            NativeCharacterVitals vitals = session.State.CharacterVitals!.WithExtendedRoster(true).Rest();
             NativeCharacterVital[] records = vitals.Records.Select(record => record with
             {
                 MemberFlags = (ushort)(record.MemberFlags | 1),
@@ -276,7 +276,8 @@ public sealed partial class ExpandedBattleMassTargetTests
                     records[row] = records[row] with { HitPoints = new NativeHpWord(0, 0), Status = 1 };
                 }
             }
-            session.SetCharacterVitals(vitals);
+            byte[] selectedRows = Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row).ToArray();
+            session.SetCharacterVitals(vitals.WithBattleParty(selectedRows, NativeCharacterVitals.ExtendedRecordCount));
             string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, fieldId, world.Events.Frame, formation, source)));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
