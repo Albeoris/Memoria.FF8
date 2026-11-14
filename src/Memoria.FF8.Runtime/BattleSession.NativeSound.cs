@@ -6,7 +6,8 @@ public sealed partial class BattleSession
 
     private void PublishNativeModuleSound(NativeBattleModuleSound sound, string? actorId = null, NativeBattleSequenceSound? sequence = null)
     {
-        if (presentationForeignActors is not null)
+        NativeBattleModelLifecycleServices? services = hostedBattlePresentation ? RequireHostedAudioFrameServices() : null;
+        if (services is null && presentationForeignActors is not null)
         {
             presentationSounds.Add(sound);
             return;
@@ -15,11 +16,22 @@ public sealed partial class BattleSession
         //The declared bufferless process owns allocation; host device availability is not simulation state.
         (NativeGlobalSoundProcess process, NativeBattleModuleSound committed) = sound.Commit46B2A0(NativeGlobalSoundProcess);
         NativeGlobalSoundProcess = process;
+        if (services is not null)
+        {
+            services.EmitSound(committed, actorId, sequence);
+            presentationSounds.Add(committed);
+            return;
+        }
         if (SkippingGuardianFormPresentation)
         {
             return;
         }
         events.Add(new BattleEvent(Frame, sequence is null ? "NativeModuleSound" : "NativeSequenceSound", actorId, null, 0, string.Empty) { NativeModuleSound = committed, NativeSound = sequence });
+    }
+
+    private NativeBattleModelLifecycleServices RequireHostedAudioFrameServices()
+    {
+        return hostedFrameServices ?? throw new InvalidOperationException("Hosted native audio requires an active presentation frame.");
     }
 
     private void PublishNativeSequenceSound(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, BattleCombatant actor, NativeBattleSequenceCue cue)

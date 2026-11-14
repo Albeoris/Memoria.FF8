@@ -12,13 +12,21 @@ public sealed partial class BattleSession
 
     private void DrainNativeMusic501B60()
     {
+        NativeBattleModelLifecycleServices? services = hostedBattlePresentation ? RequireHostedAudioFrameServices() : null;
         NativeBattleMusicProcessState music = NativeMusicProcess ?? throw new NotSupportedException("Native50065E/501B60 requires its retained music command owner on every admitted native callback; restore does not execute501C60.");
         var step = music.DrainCommands501B60Core(NativeGlobalSoundProcess, () => music.CurrentFieldWord ?? throw new NotSupportedException("Native501B60 song17 requires its actual current-field WORD1CD2FC0."));
         NativeMusicProcess = step.State;
         NativeGlobalSoundProcess = step.Sound;
         if (step.Receipt is { } receipt)
         {
-            events.Add(new(Frame, "NativeMusicCommand", null, null, 0, $"Native501B60 consumed singleton command{receipt.Command}.") { NativeMusicCommand = receipt });
+            if (services is not null)
+            {
+                services.EmitMusicCommand(receipt);
+            }
+            else
+            {
+                events.Add(new(Frame, "NativeMusicCommand", null, null, 0, $"Native501B60 consumed singleton command{receipt.Command}.") { NativeMusicCommand = receipt });
+            }
         }
     }
 }
