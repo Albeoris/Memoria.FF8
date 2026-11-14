@@ -614,7 +614,7 @@ public sealed partial class BattleCombatant
     internal bool AiDeathHandled { get; set; }
     internal BattleSide Side => IsPlayer ? BattleSide.Allies : BattleSide.Enemies;
     public BattleRosterSlot? Slot { get; private set; }
-    internal int? NativeActorIndex { get; private set; }
+    public int? NativeActorIndex { get; private set; }
 
     internal void BindRosterSlot(BattleRosterSlot? slot, bool bindNative = true)
     {

@@ -60,7 +60,10 @@ internal sealed partial class BattleScenePresentation
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
         if (definition.UsesExpandedRoster)
         {
-            BattleStageCamera expandedCamera = GameWorld.ExpandedBattleCamera(definition.Combatants.Length);
+            int actorCount = definition.UsesOriginalEnemySlots && definition.AddedEnemySources is { Count: > 0 }
+                ? definition.Combatants.Count(actor => actor.InitialActive)
+                : definition.Combatants.Length;
+            BattleStageCamera expandedCamera = GameWorld.ExpandedBattleCamera(actorCount);
             camera = BattleCamera.FromNative(expandedCamera) with { FieldOfView = 2 * MathF.Atan(108f / expandedCamera.FocalLength), VerticalCenter = 0.5f };
         }
         else if (definition.NativeGraphics is null)
@@ -80,7 +83,9 @@ internal sealed partial class BattleScenePresentation
         for (int index = 0; index < enemies.Length; index++)
         {
             BattleCombatantDefinition actor = enemies[index];
-            positions[actor.Id] = definition.UsesExpandedRoster && !definition.UsesOriginalEnemySlots ? ExpandedPosition(index, enemies.Length, false) : encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
+            positions[actor.Id] = definition.UsesOriginalEnemySlots && definition.AddedEnemySources is { } added && actor.SceneSlot is int sceneSlot && added.ContainsKey(sceneSlot)
+                ? ScenePosition(ExpandedBattleFormation.AddedEnemyPosition(sceneSlot, added.Count))
+                : definition.UsesExpandedRoster && !definition.UsesOriginalEnemySlots ? ExpandedPosition(index, enemies.Length, false) : encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
         }
         foreach (BattleCombatantDefinition actor in definition.Combatants.Where(actor => actor.InitialActive))
         {
@@ -90,7 +95,11 @@ internal sealed partial class BattleScenePresentation
 
     private static Vector3 ExpandedPosition(int index, int count, bool ally)
     {
-        NativeBattleVector position = ExpandedBattleFormation.Position(index, count, ally);
+        return ScenePosition(ExpandedBattleFormation.Position(index, count, ally));
+    }
+
+    private static Vector3 ScenePosition(NativeBattleVector position)
+    {
         return new Vector3(position.X, -position.Y, -position.Z) / 100f;
     }
 

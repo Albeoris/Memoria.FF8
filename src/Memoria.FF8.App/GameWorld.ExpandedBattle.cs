@@ -26,7 +26,10 @@ internal sealed partial class GameWorld
     internal static void AttachExpandedEffects(BattleSession active, GameAssets game, BattleAssets assets)
     {
         BattleDefinition definition = active.ReadDefinition();
-        BattleStageCamera camera = ExpandedBattleCamera(active.Combatants.Count);
+        int cameraActorCount = definition.UsesOriginalEnemySlots && definition.AddedEnemySources is { Count: > 0 }
+            ? definition.Combatants.Count(actor => actor.InitialActive)
+            : active.Combatants.Count;
+        BattleStageCamera camera = ExpandedBattleCamera(cameraActorCount);
         NativeBattleCameraPose pose = new(Point(camera.NativeEye), Point(camera.NativeTarget), checked((short)camera.FocalLength), 0);
         NativeBattleCameraProjection projection = new(NativeBattlePoseMatrices.CameraView(pose), checked((ushort)camera.FocalLength), 160, 108);
         NativeBattlePrimitiveTables tables = assets.ReadNativePrimitiveTables();
@@ -47,7 +50,7 @@ internal sealed partial class GameWorld
             ImmutableArray<NativeBattleForeignActor>.Builder foreignTargets = ImmutableArray.CreateBuilder<NativeBattleForeignActor>();
             if (originalGraphic)
             {
-                foreach (BattleCombatant participant in active.Combatants.Where(actor => actor != caster && actor.Slot is { } slot && (!actor.IsPlayer || slot.Position < 3)))
+                foreach (BattleCombatant participant in active.Combatants.Where(actor => actor != caster && actor.NativeActorIndex.HasValue))
                 {
                     NativeBattleGraphicsResource resource = GetResource(participant.Id, null);
                     NativeBattleGraphicsModel model = CreateModel(participant, resource, null) with { Index = PhysicalIndex(participant) };
@@ -64,10 +67,14 @@ internal sealed partial class GameWorld
                         (model, textures) = NativeEffectActorTextures.Allocate(model, resource, textures, occupiedSlots);
                         occupiedSlots |= model.TextureAllocationMask.GetValueOrDefault();
                     }
-                    nativeTargets.Add(new(participant.Id, model, resource) { CanActivate = activatesActor && participant.IsActive && participant is { Hidden: true, Suspended: true, Untargetable: true } });
+                    nativeTargets.Add(new(participant.Id, model, resource)
+                    {
+                        CanActivate = activatesActor && participant.IsActive && participant is { Hidden: true, Suspended: true, Untargetable: true },
+                        IsParty = participant.IsPlayer
+                    });
                 }
             }
-            foreach (ExpandedBattleContact contact in contacts.Where(contact => !originalGraphic && contact.RecipientId != caster.Id))
+            foreach (ExpandedBattleContact contact in contacts.Where(contact => !originalGraphic && contact.RecipientId != caster.Id).DistinctBy(contact => contact.RecipientId))
             {
                 int? recipientForm = active.GetGuardianFormVisual(contact.RecipientId);
                 NativeBattleGraphicsResource resource = GetResource(contact.RecipientId, recipientForm);
@@ -77,7 +84,7 @@ internal sealed partial class GameWorld
                 {
                     (target, textures) = NativeEffectActorTextures.Allocate(target, resource, textures, occupiedSlots);
                     occupiedSlots |= target.TextureAllocationMask.GetValueOrDefault();
-                    nativeTargets.Add(new(contact.RecipientId, target, resource));
+                    nativeTargets.Add(new(contact.RecipientId, target, resource) { IsParty = recipient.IsPlayer });
                 }
                 else
                 {
@@ -124,14 +131,14 @@ internal sealed partial class GameWorld
                 HostCameraPose = pose,
                 GuardianFormMode = formMode,
                 GuardianSummon = guardianSummon,
+                SourceIsParty = caster.IsPlayer,
                 NativeTargets = nativeTargets.ToImmutable()
             });
         });
 
         static byte PhysicalIndex(BattleCombatant actor)
         {
-            BattleRosterSlot slot = actor.Slot ?? throw new InvalidDataException("The original graphic requires its allocated actor row.");
-            return checked((byte)(actor.IsPlayer ? slot.Position : slot.Position + 3));
+            return checked((byte)(actor.NativeActorIndex ?? throw new InvalidDataException("The original graphic requires its allocated native actor row.")));
         }
 
         NativeBattleGraphicsResource GetResource(string id, int? formModel)
@@ -150,7 +157,9 @@ internal sealed partial class GameWorld
             BattleRosterSlot slot = actor.Slot ?? throw new InvalidDataException("Expanded actor has no roster position.");
             int sideCount = actor.IsPlayer ? definition.Combatants.Count(candidate => candidate.IsPlayer) : definition.Combatants.Count(candidate => !candidate.IsPlayer);
             NativeBattleVector position = definition.UsesOriginalEnemySlots && !actor.IsPlayer
-                ? assets.LoadEncounter(definition.EncounterId!.Value).Slots.Single(placement => placement.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Original enemy lost its authored position.")
+                ? definition.AddedEnemySources is { } added && actor.SceneSlot is int sceneSlot && added.ContainsKey(sceneSlot)
+                    ? ExpandedBattleFormation.AddedEnemyPosition(sceneSlot, added.Count)
+                    : assets.LoadEncounter(definition.EncounterId!.Value).Slots.Single(placement => placement.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Original enemy lost its authored position.")
                 : ExpandedBattleFormation.Position(slot.Position, sideCount, actor.IsPlayer);
             NativeGlobalRandomState random = new(0);
             NativeBattlePoseSource poseSource = resource.PoseSource!;

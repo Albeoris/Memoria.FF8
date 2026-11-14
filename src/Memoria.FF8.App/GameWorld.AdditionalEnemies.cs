@@ -94,15 +94,17 @@ internal sealed partial class GameWorld
 
     private BattleEnemyPlacement[] EligibleAdditionalEnemyPlacements(BattleEncounter candidate, int destinationFormation)
     {
-        return candidate.Enemies.Where(enemy =>
+        return candidate.Enemies.Where(enemy => IsEligibleAdditionalEnemyPlacement(enemy, destinationFormation)).ToArray();
+    }
+
+    private bool IsEligibleAdditionalEnemyPlacement(BattleEnemyPlacement enemy, int destinationFormation)
+    {
+        if (!IsOrdinaryEnemyPlacement(enemy))
         {
-            if (!IsOrdinaryEnemyPlacement(enemy))
-            {
-                return false;
-            }
-            HashSet<int> explicitEnemyModels = [];
-            return EnemyAdmissions(enemy.ModelId, destinationFormation, explicitEnemyModels).All(admission => admission == ExpandedAiAdmission.Supported) && explicitEnemyModels.Count == 0;
-        }).ToArray();
+            return false;
+        }
+        HashSet<int> explicitEnemyModels = [];
+        return EnemyAdmissions(enemy.ModelId, destinationFormation, explicitEnemyModels).All(admission => admission == ExpandedAiAdmission.Supported) && explicitEnemyModels.Count == 0;
     }
 
     private ImmutableArray<ushort>? ReadLocalEnemyFormations()
@@ -186,23 +188,40 @@ internal sealed partial class GameWorld
         }
     }
 
-    private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies)
+    private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies, bool originalSlots = false, IReadOnlyList<BattleEnemyPlacement>? originalPlacements = null)
     {
-        List<BattleEnemyPlacement> placements = encounter.Enemies.Select((enemy, index) => enemy with { Slot = index }).ToList();
+        List<BattleEnemyPlacement> placements = originalSlots ? [.. originalPlacements ?? encounter.Slots] : encounter.Enemies.Select((enemy, index) => enemy with { Slot = index }).ToList();
+        if (originalSlots && (placements.Any(enemy => (uint)enemy.Slot >= ExpandedBattleFormation.OriginalEnemyPrototypeCount) ||
+            placements.Select(enemy => enemy.Slot).Distinct().Count() != placements.Count))
+        {
+            throw new InvalidDataException("Original enemy scene slots must be unique formation prototype indices.");
+        }
+        int firstAddedSlot = originalSlots ? ExpandedBattleFormation.OriginalEnemyPrototypeCount : placements.Count;
+        int slotLimit = originalSlots ? ExpandedBattleFormation.MaximumRewardSlots : ExpandedBattleFormation.MaximumEnemies;
+        if (addedEnemies.Count > ExpandedBattleFormation.MaximumAddedEnemies || firstAddedSlot + addedEnemies.Count > slotLimit ||
+            !addedEnemies.Keys.SequenceEqual(Enumerable.Range(firstAddedSlot, addedEnemies.Count)))
+        {
+            throw new InvalidDataException("The added enemy roster does not use the required contiguous scene slots.");
+        }
         ImmutableArray<ushort>? localFormations = addedEnemies.Count == 0 ? null : ReadLocalEnemyFormations();
         foreach ((int slot, BattleEnemyRosterSource source) in addedEnemies)
         {
+            if (source is null)
+            {
+                throw new InvalidDataException("The added enemy roster has no selected placement source.");
+            }
             source.Validate();
             if (localFormations is { } formations && (source.Formation > ushort.MaxValue || !formations.Contains((ushort)source.Formation)))
             {
                 throw new InvalidDataException($"Added enemy source formation {source.Formation} is outside the suspended exploration encounter table.");
             }
-            if (slot != placements.Count || slot >= ExpandedBattleFormation.MaximumEnemies || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
+            if (source.Formation >= BattleResources.FormationCount || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The added enemy roster disagrees with its installed source formation.");
             }
-            BattleEnemyPlacement enemy = BattleResources.LoadEncounter(source.Formation).Enemies.SingleOrDefault(candidate => candidate.Slot == source.SceneSlot && IsOrdinaryEnemyPlacement(candidate))
-                ?? throw new InvalidDataException("The added enemy no longer has its selected installed placement.");
+            BattleEncounter donor = BattleResources.LoadEncounter(source.Formation);
+            BattleEnemyPlacement enemy = donor.Enemies.SingleOrDefault(candidate => candidate.Slot == source.SceneSlot && IsEligibleAdditionalEnemyPlacement(candidate, encounter.Id))
+                ?? throw new InvalidDataException("The added enemy no longer has an eligible independent installed placement.");
             placements.Add(enemy with { Slot = slot });
         }
         return placements.ToArray();

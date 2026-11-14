@@ -13,6 +13,19 @@ public static class ExpandedBattleFormation
 
     public static bool SupportsRoster(int allyCount, int enemyCount) => allyCount is >= 1 and <= MaximumAllies && enemyCount is >= 1 and <= MaximumEnemies;
 
+    public static NativeBattleVector AddedEnemyPosition(int sceneSlot, int addedCount)
+    {
+        if (addedCount is < 1 or > MaximumAddedEnemies)
+        {
+            throw new ArgumentOutOfRangeException(nameof(addedCount));
+        }
+        if (sceneSlot < OriginalEnemyPrototypeCount || sceneSlot >= OriginalEnemyPrototypeCount + addedCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sceneSlot));
+        }
+        return Position(NativeBattleSlots.EnemyCount + sceneSlot - OriginalEnemyPrototypeCount, NativeBattleSlots.EnemyCount + addedCount, isAlly: false);
+    }
+
     public static NativeBattleVector Position(int slot, int count, bool isAlly)
     {
         if (count < 1 || count > (isAlly ? MaximumAllies : MaximumEnemies))

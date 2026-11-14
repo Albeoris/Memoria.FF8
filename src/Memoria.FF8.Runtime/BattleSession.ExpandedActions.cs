@@ -17,7 +17,8 @@ public sealed partial class BattleSession
     private bool deferringExpandedImpacts;
     private ImmutableArray<ExpandedBattleContact> expandedSharedContacts = [];
     private ImmutableArray<ExpandedBattleContact> expandedModelContacts = [];
-    private readonly HashSet<string> expandedPresentedRecipients = new(StringComparer.Ordinal);
+    private Dictionary<int, string>? expandedModelRecipients;
+    private readonly HashSet<int> expandedPresentedOccurrences = [];
     public NativeBattleEffectPresentation? ExpandedEffect => expandedGuardianFormEntry?.Effect ?? expandedEffect;
 
     public bool IsExpandedEffectReplacingModel(string actorId)
@@ -118,10 +119,7 @@ public sealed partial class BattleSession
                 {
                     PublishExpandedEffectStep(effectCommand, effect.CompleteInvocation());
                 }
-                if (expandedSharedContacts.Length != 0 || expandedPresentedRecipients.Count != expandedExpectedContacts)
-                {
-                    throw new InvalidDataException("The expanded effect completed before publishing all prepared contacts.");
-                }
+                ValidateExpandedEffectContactCompletion();
                 ReleaseExpandedEffect();
                 if (expandedMagicPresentation is not null)
                 {
@@ -431,9 +429,12 @@ public sealed partial class BattleSession
     {
         foreach (NativeBattleForeignSequenceRequest request in step.Sequences)
         {
-            ExpandedBattleContact target = expandedModelContacts.Single(contact => contact.Contact.ActorIndex == request.ActorIndex);
+            if (!expandedModelRecipients!.TryGetValue(request.ActorIndex, out string? recipient))
+            {
+                throw new InvalidDataException("The expanded effect requested a sequence outside its bound contact model rows.");
+            }
             int sequence = request.Kind == NativeBattleForeignSequenceKind.Hit ? 4 : 1;
-            Log("EffectModelSequence", command.ActorId, target.RecipientId, sequence, "Native effect model sequence.", actionContext: command);
+            Log("EffectModelSequence", command.ActorId, recipient, sequence, "Native effect model sequence.", actionContext: command);
         }
         foreach (NativeBattleEffectActivation activation in step.Activations)
         {
@@ -450,18 +451,19 @@ public sealed partial class BattleSession
         }
         foreach (NativeBattleContactPacket packet in step.Contacts)
         {
-            string recipient = expandedContactBridge!.Resolve(packet);
-            PublishExpandedEffectContact(command, recipient, packet.Primary);
+            (int ordinal, string recipient) = expandedContactBridge!.ResolveOccurrence(packet);
+            PublishExpandedEffectContact(command, ordinal, recipient, packet.Primary);
             if (packet.Secondary.ActorIndex == 0)
             {
                 PublishExpandedImpact(command, command.ActorId, packet.Secondary, "SecondaryEffectContact", deferredImpact: true);
             }
         }
-        if (!expandedSharedContacts.IsEmpty && expandedPresentedRecipients.Count == expandedContactBridge!.Count)
+        if (!expandedSharedContacts.IsEmpty && expandedPresentedOccurrences.Count == expandedContactBridge!.Count)
         {
-            foreach (ExpandedBattleContact shared in expandedSharedContacts)
+            for (int index = 0; index < expandedSharedContacts.Length; index++)
             {
-                PublishExpandedEffectContact(command, shared.RecipientId, shared.Contact);
+                ExpandedBattleContact shared = expandedSharedContacts[index];
+                PublishExpandedEffectContact(command, expandedContactBridge.Count + index, shared.RecipientId, shared.Contact);
             }
             expandedSharedContacts = [];
         }
@@ -486,9 +488,19 @@ public sealed partial class BattleSession
     {
         int nativeContactLimit = NativeBattleSlots.Count - 1;
         ImmutableArray<ExpandedBattleContact> presented = contacts.Length > nativeContactLimit ? contacts[..nativeContactLimit] : contacts;
+        // TODO(TD-009): Contacts beyond the presented slice still publish through the logical impact UI.
         expandedSharedContacts = contacts.Length > nativeContactLimit ? contacts[nativeContactLimit..] : [];
         expandedContactBridge = new(presented.Select(contact => (contact.RecipientId, contact.Packet)));
         expandedModelContacts = presented;
+        expandedModelRecipients = presented.DistinctBy(contact => contact.Contact.ActorIndex).ToDictionary(contact => (int)contact.Contact.ActorIndex, contact => contact.RecipientId);
+    }
+
+    private void ValidateExpandedEffectContactCompletion()
+    {
+        if (!expandedSharedContacts.IsEmpty || expandedPresentedOccurrences.Count != expandedExpectedContacts)
+        {
+            throw new InvalidDataException("The expanded effect completed before publishing all prepared contacts.");
+        }
     }
 
     private void ReleaseExpandedEffect()
@@ -498,9 +510,10 @@ public sealed partial class BattleSession
         expandedEffectCommand = null;
         expandedContactBridge = null;
         expandedModelContacts = [];
+        expandedModelRecipients = null;
         expandedSharedContacts = [];
         expandedExpectedContacts = 0;
-        expandedPresentedRecipients.Clear();
+        expandedPresentedOccurrences.Clear();
         expandedGuardianFormSkipRequested = false;
     }
 
@@ -558,7 +571,8 @@ public sealed partial class BattleSession
         }
 
         // The effect bank is action-local. It does not own any battle roster slot or action memory.
-        int nextRow = hitPlan[0].Length == 1 ? NativeBattleSlots.AllyCount : 1;
+        ReadOnlySpan<byte> availableRows = hitPlan[0].Length == 1 ? [3, 1, 2, 4, 5, 6] : [1, 2, 3, 4, 5, 6];
+        Dictionary<string, byte> rowsByRecipient = new(StringComparer.Ordinal);
         bool usePhysicalRows = presentsNativeEffect && (IsExpandedOriginalGraphicPresentation(actor, command, native) || IsExpandedAuthoredDeathEffectPresentation(actor, command, native));
         ImmutableArray<ExpandedBattleContact>.Builder contacts = ImmutableArray.CreateBuilder<ExpandedBattleContact>(hitPlan.Sum(targets => targets.Length));
         BattleCombatant? firstReflector = null;
@@ -581,7 +595,16 @@ public sealed partial class BattleSession
                         ResolveNativeMug(actor, recipient);
                     }
                     bool hasPresentationRow = presentsNativeEffect && contacts.Count < NativeBattleSlots.Count - 1;
-                    byte row = usePhysicalRows ? checked((byte)recipient.EncodeNativeSlot()) : hasPresentationRow && recipient != actor ? checked((byte)nextRow++) : (byte)0;
+                    byte row = 0;
+                    if (usePhysicalRows)
+                    {
+                        row = checked((byte)recipient.EncodeNativeSlot());
+                    }
+                    else if (hasPresentationRow && recipient != actor && !rowsByRecipient.TryGetValue(recipient.Id, out row))
+                    {
+                        row = availableRows[rowsByRecipient.Count];
+                        rowsByRecipient.Add(recipient.Id, row);
+                    }
                     NativeBattleContactPacket packet;
                     if (NativeActionReflects(recipient, native))
                     {
@@ -737,11 +760,11 @@ public sealed partial class BattleSession
         return Roster(side).Where(candidate => candidate.IsAlive && !candidate.Untargetable).ToArray();
     }
 
-    private void PublishExpandedEffectContact(BattleActionPresentation command, string recipient, NativeBattleContactHalf contact)
+    private void PublishExpandedEffectContact(BattleActionPresentation command, int ordinal, string recipient, NativeBattleContactHalf contact)
     {
-        if (!expandedPresentedRecipients.Add(recipient))
+        if (!expandedPresentedOccurrences.Add(ordinal))
         {
-            throw new InvalidDataException("The expanded effect repeated a published recipient.");
+            throw new InvalidDataException("The expanded effect repeated a published contact occurrence.");
         }
         CommitExpandedEnemyDraw(recipient, ref expandedEffectEnemyDraw);
         PublishExpandedImpact(command, recipient, contact, "EffectContact", deferredImpact: true);
