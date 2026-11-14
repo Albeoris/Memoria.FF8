@@ -38,22 +38,24 @@ public sealed partial class BattleSession
         {
             AdvanceNativeHostTime();
             process.Advance(this, NativeExamTimer, DispatchExpandedCore);
-            NativeExamTimerState? timer = NativeExamTimer;
             NativeExamTimerState? presentedTimer = process.Timer;
-            if (timer is null ? presentedTimer is not null : presentedTimer is null || !presentedTimer.HasSameClock(timer))
-            {
-                throw new InvalidDataException("Hosted presentation must preserve the logical battle's timer clock.");
-            }
+            RequireSameHostedTimerClock(presentedTimer, NativeExamTimer);
             NativeExamTimer = presentedTimer;
             ApplyExpandedHostedFrameReceipts(process.LastFrameServices!, process.LastStepActionToken);
-            AdvanceExpandedPresentedVitals4B0500();
+            if (process.LastPostUiVitalsAdmitted)
+            {
+                AdvanceExpandedPresentedVitals4B0500();
+            }
             RefreshPreparedPresentation();
 
             void DispatchExpandedCore()
             {
-                for (int poll = 0; poll < 3; poll++)
+                if (process.Graphics.UiServices is { PauseDE9: false } ui && (ui.Flags942 & 0x40) != 0)
                 {
-                    AdvanceExpandedPresentedVitals4B0500();
+                    for (int poll = 0; poll < 3; poll++)
+                    {
+                        AdvanceExpandedPresentedVitals4B0500();
+                    }
                 }
                 if (process.EntryReady && Outcome == BattleOutcome.Active)
                 {

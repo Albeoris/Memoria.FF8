@@ -68,8 +68,13 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
 
     public bool AllowsAtb(ushort? savedOptions)
     {
+        return AllowsAtb(savedOptions, ReadyMask != 0);
+    }
+
+    internal bool AllowsAtb(ushort? savedOptions, bool hasReadyActor)
+    {
         //4A9450 can be resolved without an unknown settings WORD only when another original OR operand proves admission.
-        if (Menu957 < 0 || Menu957 == 4 || (Flags942 & 0x10) == 0 || ReadyMask == 0)
+        if (Menu957 < 0 || Menu957 == 4 || (Flags942 & 0x10) == 0 || !hasReadyActor)
         {
             return true;
         }

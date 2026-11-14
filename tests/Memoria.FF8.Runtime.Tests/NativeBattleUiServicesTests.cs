@@ -4,6 +4,30 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleUiServicesTests
 {
+    [Theory]
+    [InlineData(-1, 0x10, true, null, true)]
+    [InlineData(4, 0x10, true, null, true)]
+    [InlineData(2, 0, true, null, true)]
+    [InlineData(2, 0x10, false, null, true)]
+    [InlineData(2, 0x10, true, (ushort)0, true)]
+    [InlineData(2, 0x10, true, (ushort)1, false)]
+    [InlineData(2, 0x10, true, null, null)]
+    public void Explicit_ready_presence_matches_the_native_mask_gate(sbyte menu, ushort flags, bool ready, ushort? options, bool? admitted)
+    {
+        NativeBattleUiServices ui = NativeBattleUiServices.Initialize() with { Menu957 = menu, Flags942 = flags, ReadyMask = ready ? 4u : 0 };
+        NativeBattleUiServices expanded = ui with { ReadyMask = 0 };
+        if (admitted is bool expected)
+        {
+            Assert.Equal(expected, ui.AllowsAtb(options));
+            Assert.Equal(expected, expanded.AllowsAtb(options, ready));
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(() => ui.AllowsAtb(options));
+            Assert.Throws<NotSupportedException>(() => expanded.AllowsAtb(options, ready));
+        }
+    }
+
     [Fact]
     public void Stage_initialization_mid_frame_places_the_actual_edge_on_third_pre_service()
     {

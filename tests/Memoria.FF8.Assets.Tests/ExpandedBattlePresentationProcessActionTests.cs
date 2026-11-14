@@ -13,13 +13,13 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     private static readonly NativeBattleContactHalf NoSecondary = new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
 
     [Theory]
-    [InlineData(BattleAbility.Draw)]
-    [InlineData(BattleAbility.Magic)]
-    public void Main_failed_draw_and_silenced_fire_finish_native_control_and_allow_ordinary_attack(BattleAbility ability)
+    [InlineData(BattleAbility.Draw, false)]
+    [InlineData(BattleAbility.Magic, true)]
+    public void Main_failed_draw_and_silenced_fire_finish_native_control_and_allow_ordinary_attack(BattleAbility ability, bool nativeClock)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true, nativeClock: nativeClock);
         BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
         const string caster = "party-1";
         const string target = "enemy-8";
@@ -40,7 +40,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 : actor.NativeTemplate is { } template ? actor with { MaximumHp = template.Levels[actor.Level].MaximumHp, CurrentHp = template.Levels[actor.Level].MaximumHp }
                 : actor).ToArray()
         };
-        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        BattleSession logical = new(logicalDefinition, nativeClock ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
         ExpandedBattlePresentationProcess process = new(logical, selected);
         logical.AttachExpandedPresentationProcess(process);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
@@ -51,10 +51,18 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         var models = Models(process);
         BattleCombatant actor = logical.Combatants.Single(item => item.Id == caster);
         BattleCombatant enemy = logical.Combatants.Single(item => item.Id == target);
+        BattleCombatant idle = logical.Combatants.Single(item => item.Id == "party-4");
+        if (nativeClock)
+        {
+            idle.Atb = 0;
+            idle.NativeStatusTimers[1] = 100;
+        }
         int mark = logical.Events.Count;
         logical.QueueAction(caster, target, ability, fire.Id);
         logical.Tick();
         Assert.Equal(BattleActionPhase.Windup, logical.ActiveAction?.Phase);
+        NativeBattleAtbState? heldGauge = idle.NativeAtb;
+        short heldTimer = idle.NativeStatusTimers[1];
         actor.NativeStatus0 |= 0x10;
         long? token = null;
         bool reachedControl = false;
@@ -66,8 +74,20 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             reachedControl |= process.Graphics.ActionGraphics is { Callback: 0x50BD00, ActorIndex: 7 };
             sequenceTen |= process.Graphics.Models[7].Sequence == 10;
             Assert.Empty(process.LastStep.Contacts);
+            if (nativeClock && logical.ActiveAction is not null)
+            {
+                Assert.Equal(1u, logical.Capture().NativeClock!.ActionPause);
+                Assert.Equal(heldGauge, idle.NativeAtb);
+                Assert.Equal(heldTimer, idle.NativeStatusTimers[1]);
+            }
         }
         Assert.Null(logical.ActiveAction);
+        if (nativeClock)
+        {
+            Assert.Equal(0u, logical.Capture().NativeClock!.ActionPause);
+            int postPoll = logicalDefinition.NativeClockRules!.AtbSpeedMultiplier * (actor.NativeAtbSpeed + 30) / 10;
+            Assert.Equal(postPoll, actor.NativeAtb!.Current);
+        }
         Assert.True(process.IsActionComplete(Assert.IsType<long>(token)));
         Assert.True(reachedControl && sequenceTen);
         Assert.Equal(6000, enemy.CurrentHp);

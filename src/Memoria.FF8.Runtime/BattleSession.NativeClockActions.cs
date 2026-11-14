@@ -10,6 +10,40 @@ public sealed partial class BattleSession
         }
     }
 
+    private bool OwnsExpandedBattleClock => OwnsExpandedHostedInvocation || expandedTurnClockObservation is not null;
+
+    private void CompleteExpandedHostedActionPause()
+    {
+        if (OwnsExpandedBattleClock && nativeBattleClock is not null)
+        {
+            SetNativeBattleActionPause(false);
+        }
+    }
+
+    internal void ActivateExpandedHostedClock()
+    {
+        if (nativeBattleClock is not null && Outcome == BattleOutcome.Active)
+        {
+            SetNativeBattleClockActive(true);
+        }
+    }
+
+    internal static bool UsesNativeOrdinaryCompletion(BattleActionPresentation action)
+    {
+        return action.NativeAiCallbackStage == 1 || action.NativeAiCallbackStage is null &&
+            action.NativePlayerReaction is null && action.NativeQueuedCommand is not (0 or 247);
+    }
+
+    private void CompleteExpandedHostedEventGauge(BattleActionPresentation action)
+    {
+        BattleCombatant actor = GetActor(action.ActorId);
+        if (nativeBattleClock is not null && actor.NativeAtb is not null && UsesNativeOrdinaryCompletion(action))
+        {
+            actor.Atb = 0;
+            actor.NativeCombatantFlags &= ~0xCu;
+        }
+    }
+
     private void QueueNativeActionClockCompletion(uint callback, string? eventActorId = null, byte? eventActorIndex = null)
     {
         if (NativeGraphics is { } graphics)

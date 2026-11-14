@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         return step;
     }
 
-    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null)
+    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null)
     {
         if (hostedFrameServices is not null || nativePreRootStack is not null)
         {
@@ -56,43 +56,46 @@ public sealed partial class BattleSession
         BeginNativeFrameStack();
         try
         {
+            BeginNativeHostPause();
             if (beforeCore is null)
             {
                 hostedFrameServices = services;
             }
             for (int pre = 0; pre < 3; pre++)
             {
-                AdvanceHostedUiPublication();
+                AdvanceHostedUiPublication(clockPoll, postCore: false);
             }
             nativePreCoreUiStack = false;
-            if (beforeCore is not null)
+            if (NativeGraphics!.UiServices?.PauseDE9 != true)
             {
-                beforeCore();
-                services = logicalOwner.CaptureExpandedModelLifecycleServices(roster);
-                services.Validate(roster, NativeGraphics!);
-                hostedFrameServices = services;
-            }
+                if (beforeCore is not null)
+                {
+                    beforeCore();
+                    services = logicalOwner.CaptureExpandedModelLifecycleServices(roster);
+                    services.Validate(roster, NativeGraphics!);
+                    hostedFrameServices = services;
+                }
 
-            if (NativeGraphics is { EntryLifecycle: 3 } entered)
-            {
-                NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CCB0 case3 requires its retained action-phase process byte.");
-                NativeGraphics = entered with { EntryLifecycle = 4, EntryReady = true };
-                NativeEffectMemory = memory with { ActionPhaseDEA = 1 };
-            }
+                if (NativeGraphics is { EntryLifecycle: 3 } entered)
+                {
+                    NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CCB0 case3 requires its retained action-phase process byte.");
+                    NativeGraphics = entered with { EntryLifecycle = 4, EntryReady = true };
+                    NativeEffectMemory = memory with { ActionPhaseDEA = 1 };
+                    clockReady?.Invoke();
+                }
 
-            PumpNativeFileIo482590();
-            AdvanceNativeGraphicsFrameCore(services);
-            if (NativeGraphics is { UiServices: { } ui } published && (published.Flags & 4) != 0)
-            {
-                uint duration = definition.NativeGraphics!.Rules.UiPublicationDuration ?? throw new NotSupportedException("Native500900 publication requires its original B8A3E4 duration DWORD.");
-                NativeGraphics = published with { UiServices = ui.QueuePublication(duration) };
+                PumpNativeFileIo482590();
+                AdvanceNativeGraphicsFrameCore(services);
+                if (NativeGraphics is { UiServices: { } ui } published && (published.Flags & 4) != 0)
+                {
+                    uint duration = definition.NativeGraphics!.Rules.UiPublicationDuration ?? throw new NotSupportedException("Native500900 publication requires its original B8A3E4 duration DWORD.");
+                    NativeGraphics = published with { UiServices = ui.QueuePublication(duration) };
+                }
             }
-            AdvanceHostedUiPublication();
+            AdvanceHostedUiPublication(clockPoll, postCore: true);
+            CompleteNativeHostPause();
             PublishNativePcUiFrame();
-            if (NativeExamTimer is { } timer && (timerObservation is null || !timer.HasSameClock(timerObservation)))
-            {
-                throw new InvalidDataException("Hosted timer display changed its authoritative clock.");
-            }
+            RequireSameHostedTimerClock(NativeExamTimer, clockPoll is null ? timerObservation : logicalOwner.NativeExamTimer);
         }
         finally
         {
@@ -102,7 +105,7 @@ public sealed partial class BattleSession
         return services;
     }
 
-    private void AdvanceHostedUiPublication()
+    private void AdvanceHostedUiPublication(Action<NativeBattleUiServices, bool>? clockPoll, bool postCore)
     {
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
@@ -112,6 +115,7 @@ public sealed partial class BattleSession
             {
                 AdvanceNativeTriggerWidget();
             }
+            clockPoll?.Invoke(NativeGraphics!.UiServices!, postCore);
         }
     }
 }

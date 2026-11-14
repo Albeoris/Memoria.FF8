@@ -265,9 +265,9 @@ public sealed partial class BattleSession
 
     private bool ExpandedTimedLimitOwnsInput => nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0 || nativeDuelProcesses.Count != 0;
 
-    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && expandedGuardianFormEntry is null && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
+    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && expandedGuardianFormEntry is null && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
 
-    private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
+    private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
 
     private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && CanAdvanceTurnBasedTime && nativeShotProcesses.Count == 0 && nativeDuelProcesses.Count == 0 && nativeRenzokukenProcesses.Count == 0 && HasAutomaticTurnWaiter;
 
@@ -349,6 +349,10 @@ public sealed partial class BattleSession
         }
         // Logical time runs on owned state so a bounded failure cannot publish partially advanced gauges or effects.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
+        if (nativeBattleClock is not null && expandedPresentationProcess is not null)
+        {
+            candidate.expandedTurnClockObservation = ExpandedClockUi ?? throw new InvalidDataException("Hosted turn advance requires its initialized UI services.");
+        }
         candidate.retainExpandedDoomForHost = HasExpandedDoomPresentation;
         candidate.StopTurnAdvance();
         return BoundedBattleAdvance.Run<BattleSession, int>(candidate, maxFrames,
@@ -585,7 +589,7 @@ public sealed partial class BattleSession
         }
         if (DispatchNativeWaits())
         {
-            if (nativeBattleClock is not null && NativeGraphics is not null)
+            if (nativeBattleClock is not null && HasGraphicsClockOwner)
             {
                 AdmitNativeBattleClock(true, true);
             }
@@ -594,10 +598,10 @@ public sealed partial class BattleSession
             return becameReady;
         }
         // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
-        bool clockAdmitted = UsesRealTimeBattleClock && expandedEffect?.IsGuardianSummon != true && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
+        bool clockAdmitted = UsesRealTimeBattleClock && expandedEffect?.IsGuardianSummon != true && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasPolledNativeBattleClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
         if (clockAdmitted)
         {
-            AdvanceBattleTime(becameReady, !HasNativeUiServiceClock);
+            AdvanceBattleTime(becameReady, !HasPolledNativeBattleClock);
         }
         CancelDeadActions();
         CompleteBattleIfNeeded();
@@ -839,6 +843,7 @@ public sealed partial class BattleSession
         CompleteNativeComponentPacketPresentation(action);
         if (completeActiveAction)
         {
+            CompleteExpandedHostedActionPause();
             ActiveAction = null;
             CompleteNativeGraphicsAction();
         }
@@ -1057,6 +1062,7 @@ public sealed partial class BattleSession
             {
                 ReleaseExpandedActionPresentation();
             }
+            CompleteExpandedHostedActionPause();
             if (!UsesExpandedRoster)
             {
                 QueueNativeActionClockCompletion(0x47DDA0);
@@ -1229,6 +1235,11 @@ public sealed partial class BattleSession
             }
         }
         Outcome = outcome;
+        CompleteExpandedHostedActionPause();
+        if (OwnsExpandedBattleClock && nativeBattleClock is not null)
+        {
+            SetNativeBattleClockActive(false);
+        }
         foreach (BattleAttackCommand queued in actions)
         {
             RefundCancelledNativeItem(queued);
@@ -1847,12 +1858,13 @@ public sealed partial class BattleSession
         //A validated physical action header may therefore retain a nonzero owned gauge between queueing and action-pause publication.
         //Ordinary Attack/Magic resolve installed metadata through the actor/action catalog and legitimately leave nativeAction null.
         //48E620's successful GF branch queues its FE input without494A60; its already-grown gauge survives before48E830.
-        //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
+        //Expanded native-clock actors retain this gauge between their ID-based queue and action pause.
         //Graphicsless components preserve the same initialization/reaction gauge in their logical clock.
         // Authored AI can refill ATB with opcode 36 after queueing its logical command.
         bool retainedExpandedAiGauge = UsesExpandedRoster && !actor.IsPlayer && actor.NativeAi is not null && ability == BattleAbility.EnemyAbility &&
             aiRecipients is { TargetPolicy: not BattleAiTargetPolicy.Compelled } && aiCallbackStage is <= 4 && (nativeAction is not null || graphic is not null);
-        bool retainedNativeGauge = retainedExpandedAiGauge || (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
+        bool retainedExpandedClockGauge = UsesExpandedRoster && definition.NativeClockRules is not null && actor.NativeAtb is not null && installedNativeAction;
+        bool retainedNativeGauge = retainedExpandedAiGauge || retainedExpandedClockGauge || (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
         if (UsesExpandedRoster && aiCallbackStage == 3 && !IsExpandedEnemyDeathAction(actor, aiCallbackStage, aiRecipients) || nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainBattleActionActor(actor, reaction, aiCallbackStage, aiRecipients) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");

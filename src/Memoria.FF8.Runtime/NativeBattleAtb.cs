@@ -66,6 +66,11 @@ public sealed partial class BattleCombatant
 public sealed partial class BattleSession
 {
     private bool HasNativeUiServiceClock => nativeBattleClock is not null && NativeGraphics?.UiServices is not null;
+    private NativeBattleUiServices? expandedTurnClockObservation;
+    private NativeBattleUiServices? ExpandedClockUi => expandedPresentationProcess?.Graphics.UiServices ?? expandedTurnClockObservation;
+    private NativeBattleUiServices? BattleClockUi => NativeGraphics?.UiServices ?? ExpandedClockUi;
+    private bool HasPolledNativeBattleClock => HasNativeUiServiceClock || nativeBattleClock is not null && (expandedPresentationProcess is not null || expandedTurnClockObservation is not null);
+    private bool HasGraphicsClockOwner => NativeGraphics is not null || expandedPresentationProcess is not null || expandedTurnClockObservation is not null;
 
     private void AdvanceNativeUiAtbService()
     {
@@ -79,13 +84,27 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattleUiServices ui = NativeGraphics?.UiServices ?? throw new InvalidDataException("Native4A84E0 lacks its initialized UI services.");
+        AdvanceNativeUiAtbService(ui, ui.ReadyMask != 0);
+    }
+
+    internal void AdvanceExpandedUiAtbService(NativeBattleUiServices ui)
+    {
+        if (nativeBattleClock is null)
+        {
+            return;
+        }
+        AdvanceNativeUiAtbService(ui, combatants.Any(actor => actor.IsPlayer && CanChoosePlayerCommand(actor.Id)));
+    }
+
+    private void AdvanceNativeUiAtbService(NativeBattleUiServices ui, bool hasReadyActor)
+    {
         if (ui.PauseDE9)
         {
             return;
         }
-        bool uiAllows = ui.AllowsAtb(definition.NativeSavedOptions is uint options ? unchecked((ushort)options) : null);
+        bool uiAllows = ui.AllowsAtb(definition.NativeSavedOptions is uint options ? unchecked((ushort)options) : null, hasReadyActor);
         bool stepAllows = UsesRealTimeBattleClock;
-        if (!stepAllows && NativeBattleClockRules.Admit(nativeBattleClock, uiAllows, false, NativeScriptAllocationPaused).AtbAdmitted != 0)
+        if (!stepAllows && NativeBattleClockRules.Admit(nativeBattleClock!, uiAllows, false, NativeScriptAllocationPaused).AtbAdmitted != 0)
         {
             //The host decision hold freezes gauge/GF growth, not registration of an already-full native gauge.
             foreach (BattleCombatant actor in combatants)

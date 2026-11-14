@@ -91,6 +91,10 @@ public sealed partial class BattleSession
             RemainingFrames = NativeActionWindupFrames(actor, command.NativeSequence),
             NativeSequenceFrame = NativeControlTrack(actor, command.NativeSequence) is null ? null : 0
         };
+        if (OwnsExpandedHostedInvocation)
+        {
+            BeginNativeBattleActionPause();
+        }
         string name = command.NativeGraphic is not null ? "Native graphical effect" : command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId);
         Log("Windup", actor.Id, command.TargetId, 0, $"{actor.Name}: {name}.");
     }

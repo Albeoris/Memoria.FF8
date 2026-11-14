@@ -35,6 +35,7 @@ public sealed class ExpandedBattlePresentationProcess
     internal long? ActiveActionToken => presentation.HostedActiveActionToken;
     internal long? LastStepActionToken { get; private set; }
     internal NativeBattleModelLifecycleServices? LastFrameServices { get; private set; }
+    internal bool LastPostUiVitalsAdmitted { get; private set; }
     internal NativeBattleTriggerWidget? TriggerWidget => Graphics.TriggerWidget;
     internal NativeBattleTriggerReceipt? PendingTrigger => Graphics.PendingTrigger;
     internal ushort? TriggerOptions => presentation.HostedTriggerOptions;
@@ -99,6 +100,12 @@ public sealed class ExpandedBattlePresentationProcess
         presentation.CommitHostedContactReplacement(prepared);
     }
 
+    internal void SetActionMenu(bool open)
+    {
+        RequireIdle();
+        presentation.SetNativeActionMenu(open);
+    }
+
     internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null, Action? beforeCore = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
@@ -108,12 +115,14 @@ public sealed class ExpandedBattlePresentationProcess
         advancing = true;
         try
         {
+            LastPostUiVitalsAdmitted = false;
             presentation.ImportHostedPresentationRandom(logicalOwner);
             presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
             try
             {
                 long? actionToken = ActiveActionToken;
-                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore);
+                bool attached = ReferenceEquals(logicalOwner.ExpandedPresentationProcess, this);
+                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? logicalOwner.ActivateExpandedHostedClock : null);
                 presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
@@ -122,6 +131,11 @@ public sealed class ExpandedBattlePresentationProcess
 
                 void DispatchBeforeCore()
                 {
+                    if (attached)
+                    {
+                        BattleSession.RequireSameHostedTimerClock(presentation.NativeExamTimer, logicalOwner.NativeExamTimer);
+                        logicalOwner.CopyHostedPresentationTimerFrom(presentation);
+                    }
                     presentation.ExportHostedPresentationRandom(logicalOwner);
                     try
                     {
@@ -130,8 +144,29 @@ public sealed class ExpandedBattlePresentationProcess
                     }
                     finally
                     {
+                        if (attached)
+                        {
+                            presentation.CopyHostedPresentationTimerFrom(logicalOwner);
+                        }
                         presentation.CopyHostedPresentationRandomFrom(logicalOwner);
                         presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
+                    }
+                }
+
+                void DispatchClockPoll(NativeBattleUiServices ui, bool postCore)
+                {
+                    if (postCore)
+                    {
+                        LastPostUiVitalsAdmitted = !ui.PauseDE9 && (ui.Flags942 & 0x40) != 0;
+                    }
+                    presentation.ExportHostedPresentationRandom(logicalOwner);
+                    try
+                    {
+                        logicalOwner.AdvanceExpandedUiAtbService(ui);
+                    }
+                    finally
+                    {
+                        presentation.CopyHostedPresentationRandomFrom(logicalOwner);
                     }
                 }
             }

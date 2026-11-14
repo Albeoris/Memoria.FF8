@@ -4,6 +4,19 @@ public sealed partial class BattleSession
 {
     public NativeExamTimerState? NativeExamTimer { get; private set; }
 
+    internal void CopyHostedPresentationTimerFrom(BattleSession owner)
+    {
+        NativeExamTimer = owner.NativeExamTimer;
+    }
+
+    internal static void RequireSameHostedTimerClock(NativeExamTimerState? observed, NativeExamTimerState? canonical)
+    {
+        if (canonical is null ? observed is not null : observed is null || !observed.HasSameClock(canonical))
+        {
+            throw new InvalidDataException("Hosted presentation must preserve the logical battle's timer clock.");
+        }
+    }
+
     private void AdvanceNativeHostTime()
     {
         if (Outcome == BattleOutcome.Active && NativeHostCallbacks is long callbacks)

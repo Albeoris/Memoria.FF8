@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         HashSet<string> becameReady = [];
         Frame = checked(Frame + 1);
-        if (HasNativeUiServiceClock)
+        if (HasPolledNativeBattleClock)
         {
             AdvanceNativeHostTime();
             // The native host polls ATB/GF four times per status/support update.
@@ -32,7 +32,7 @@ public sealed partial class BattleSession
                 }
             }
         }
-        AdvanceBattleTime(becameReady, !HasNativeUiServiceClock);
+        AdvanceBattleTime(becameReady, !HasPolledNativeBattleClock);
         DispatchNativeStatusTimers();
         DispatchNativePeriodicSupport(true, explicitAdvance);
         CancelDeadActions();

@@ -119,6 +119,7 @@ public sealed partial class BattleSession
             expandedHostedActionToken = null;
             expandedHostedInvocations = [];
             ReleaseExpandedEffect();
+            CompleteExpandedHostedEventGauge(action);
             CompleteActionPresentation(action, "Expanded action completed.");
             return;
         }

@@ -417,7 +417,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Null(Assert.IsType<NativeBattleCameraState>(logical.NativeCamera).ControlCursor);
     }
 
-    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7)
+    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7, bool nativeClock = false)
     {
         BattleEncounter encounter = assets.LoadEncounter(encounterId);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -461,6 +461,15 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             PersistentAiVariables = [1, 0, 0x1234, 0, 0, 0, 0, 0],
             Items = [new(1, 3)]
         };
+        if (nativeClock)
+        {
+            logical = logical with
+            {
+                NativeClockRules = assets.ReadNativeClockRules(),
+                NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
+                NativeSavedOptions = game.ReadNewGameInputConfiguration().Options
+            };
+        }
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition([.. party.Take(Math.Min(3, allyCount)), .. enemies.Take(authoredCount)], rules, encounter);
         if (allyCount > 3 || addedCount > 0)

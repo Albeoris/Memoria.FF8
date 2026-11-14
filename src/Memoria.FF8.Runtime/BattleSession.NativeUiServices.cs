@@ -19,22 +19,7 @@ public sealed partial class BattleSession
             BeginNativePcUiFrame();
             AdvanceNativeHostTime();
             BeginNativeFrameStack();
-            if (NativeGraphics.UiServices is { } initial)
-            {
-                bool requestPause = (initial.Flags942 & 2) != 0 && (NativeEffectMemory?.ActionPhaseDEA ?? throw new NotSupportedException("Native47CF60 pause admission requires its actual retained process BYTE DEA.")) != 0;
-                NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CF60 pause transition requires its retained primitive process.");
-                NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native47CF60 pause transition requires its retained OT reset gate.");
-                bool wasPaused = process.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause transition requires its actual prior1CFF834.");
-                if (!requestPause && wasPaused)
-                {
-                    byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native5003A0 requires its retained OT bank selector.");
-                    NativeBattlePrimitiveFrame frame = NativeGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native5003A0 requires its retained physical OT roots.");
-                    NativeGraphics = NativeGraphics with { PrimitiveFrame = frame with { Pending = frame.Pending.SelectTable(buffer).ClearRoots45D550() } };
-                    process = process with { TablePerspective = process.TablePerspective.SetItem(buffer, true) };
-                }
-                NativeEffectMemory = memory with { PrimitiveProcess = process with { DisableTableReset = requestPause } };
-                NativeGraphics = NativeGraphics with { UiServices = initial with { PauseDE9 = requestPause && initial.PauseDE9 } };
-            }
+            BeginNativeHostPause();
             for (int pre = 0; pre < 3; pre++)
             {
                 DispatchNativeUiService();
@@ -66,11 +51,7 @@ public sealed partial class BattleSession
             AdvanceNativeScanText537A30();
             //534560's538200 input publication follows the ordinary4A84E0 service polls.
             PublishNativeScanInputFrame();
-            if (NativeGraphics.UiServices is { } final)
-            {
-                bool retained = NativeEffectMemory?.PrimitiveProcess?.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause completion requires its actual1CFF834 owner.");
-                NativeGraphics = NativeGraphics with { UiServices = final with { PauseDE9 = retained } };
-            }
+            CompleteNativeHostPause();
             PublishNativePcUiFrame();
             RefreshPreparedPresentation();
             return ready;
@@ -79,6 +60,35 @@ public sealed partial class BattleSession
         {
             EndNativeFrameStack();
             nativeUiBecameReady = null;
+        }
+    }
+
+    private void BeginNativeHostPause()
+    {
+        if (NativeGraphics?.UiServices is { } initial)
+        {
+            bool requestPause = (initial.Flags942 & 2) != 0 && (NativeEffectMemory?.ActionPhaseDEA ?? throw new NotSupportedException("Native47CF60 pause admission requires its actual retained process BYTE DEA.")) != 0;
+            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CF60 pause transition requires its retained primitive process.");
+            NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native47CF60 pause transition requires its retained OT reset gate.");
+            bool wasPaused = process.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause transition requires its actual prior1CFF834.");
+            if (!requestPause && wasPaused)
+            {
+                byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native5003A0 requires its retained OT bank selector.");
+                NativeBattlePrimitiveFrame frame = NativeGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native5003A0 requires its retained physical OT roots.");
+                NativeGraphics = NativeGraphics with { PrimitiveFrame = frame with { Pending = frame.Pending.SelectTable(buffer).ClearRoots45D550() } };
+                process = process with { TablePerspective = process.TablePerspective.SetItem(buffer, true) };
+            }
+            NativeEffectMemory = memory with { PrimitiveProcess = process with { DisableTableReset = requestPause } };
+            NativeGraphics = NativeGraphics with { UiServices = initial with { PauseDE9 = requestPause && initial.PauseDE9 } };
+        }
+    }
+
+    private void CompleteNativeHostPause()
+    {
+        if (NativeGraphics?.UiServices is { } final)
+        {
+            bool retained = NativeEffectMemory?.PrimitiveProcess?.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause completion requires its actual1CFF834 owner.");
+            NativeGraphics = NativeGraphics with { UiServices = final with { PauseDE9 = retained } };
         }
     }
 
@@ -162,21 +172,34 @@ public sealed partial class BattleSession
 
     public void OpenNativeActionMenu()
     {
-        if (NativeGraphics?.UiServices is { } ui && NativeGraphics.TriggerWidget is null)
+        if (expandedPresentationProcess is { } process)
         {
-            // TODO(TD-009): The current HUD publishes the opened-list transition without native pixel-opening phases.
-            //4ADD10/4FDD90 select menu2;4ADDB0/4FDD90's opened-list path calls4A7160(1).
-            NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0x10) with { Menu957 = 2, Menu955 = -1 } };
+            process.SetActionMenu(true);
+            return;
         }
+        SetNativeActionMenu(true);
     }
 
     public void CloseNativeActionMenu()
     {
         RequireNoPendingSlotsDeal();
+        if (expandedPresentationProcess is { } process)
+        {
+            process.SetActionMenu(false);
+            return;
+        }
+        SetNativeActionMenu(false);
+    }
+
+    internal void SetNativeActionMenu(bool open)
+    {
         if (NativeGraphics?.UiServices is { } ui && NativeGraphics.TriggerWidget is null)
         {
-            //4BB710/4BB7A0 restore command menu4 and call4A7160(0).
-            NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0, 0x10) with { Menu957 = 4 } };
+            // TODO(TD-009): The current HUD publishes the list transition without native pixel-opening phases.
+            NativeGraphics = NativeGraphics with
+            {
+                UiServices = open ? ui.SetFlags(0x10) with { Menu957 = 2, Menu955 = -1 } : ui.SetFlags(0, 0x10) with { Menu957 = 4 }
+            };
         }
     }
 
