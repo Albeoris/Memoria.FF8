@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -53,6 +55,103 @@ public sealed class EncounterCameraPatchTests
         Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session));
         Assert.Same(graphics.OriginalEffect, session.NativeGraphics!.OriginalEffect);
         Assert.Equal(source, session.NativeCamera!.CurrentPose);
+    }
+
+    [Fact]
+    public void Hosted_framing_includes_high_source_and_target_without_reading_unselected_low_geometry()
+    {
+        NativeBattleGraphicsRoster roster = CameraRoster(25, 0, 16, 24);
+        ImmutableArray<NativeBattleGraphicsModel> models = CameraModels(25).SetItem(0, new(0, 2))
+            .SetItem(16, CameraModel(16, -6500)).SetItem(24, CameraModel(24, 7400));
+        NativeBattleEffectParameters parameters = new(16, 0, 0, 0, 0, 0) { PresentationTargets = default(NativeBattleGraphicsActorSet).Add(24) };
+        BattleSession session = CreateFramingSession(models, parameters, roster);
+        NativeBattleCameraPose framed = PrepareCamera(session);
+        Assert.Equal(ExpectedFraming(session.NativeCamera!, -6500, 7400), framed);
+
+        // Body geometry for the unselected loaded row is deliberately absent.
+        BattleSession withoutFarTarget = CreateFramingSession(models.SetItem(24, CameraModel(24, 0)), parameters, roster);
+        Assert.NotEqual(framed.Eye, PrepareCamera(withoutFarTarget).Eye);
+
+        BattleSession withWiderSource = CreateFramingSession(models.SetItem(16, CameraModel(16, -8500)), parameters, roster);
+        NativeBattleCameraPose framedBySource = PrepareCamera(withWiderSource);
+        Assert.Equal(ExpectedFraming(withWiderSource.NativeCamera!, -8500, 7400), framedBySource);
+        BattleSession withoutFarSource = CreateFramingSession(models.SetItem(16, CameraModel(16, 0)), parameters, roster);
+        Assert.NotEqual(framedBySource.Eye, PrepareCamera(withoutFarSource).Eye);
+    }
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(24)]
+    public void Hosted_framing_rejects_unbound_or_out_of_bank_rows_before_reading_model_geometry(int target)
+    {
+        NativeBattleGraphicsRoster roster = CameraRoster(20, 0, 18);
+        NativeBattleEffectParameters parameters = new(18, 0, 0, 0, 0, 0) { PresentationTargets = default(NativeBattleGraphicsActorSet).Add(target) };
+        BattleSession session = CreateFramingSession(CameraModels(20).SetItem(18, new(18, 2)), parameters, roster);
+        NativeBattleCameraState? beforeCamera = session.NativeCamera;
+        NativeBattleGraphicsState? beforeGraphics = session.NativeGraphics;
+        NativeBattleEffectMemory? beforeMemory = session.NativeEffectMemory;
+        TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => PrepareCamera(session));
+        Assert.IsType<InvalidDataException>(failure.InnerException);
+        Assert.Same(beforeCamera, session.NativeCamera);
+        Assert.Same(beforeGraphics, session.NativeGraphics);
+        Assert.Same(beforeMemory, session.NativeEffectMemory);
+    }
+
+    [Fact]
+    public void Native_seven_row_framing_preserves_source_and_raw_mask_projection()
+    {
+        ImmutableArray<NativeBattleGraphicsModel> models = CameraModels(7).SetItem(1, CameraModel(1, -6500)).SetItem(5, CameraModel(5, 7400)).SetItem(6, new(6, 0));
+        NativeBattleEffectParameters parameters = new(1, 0, (1 << 5) | (1 << 6), 0, 0, 0);
+        BattleSession session = CreateFramingSession(models, parameters);
+        NativeBattleCameraState camera = session.NativeCamera!;
+        NativeBattleCameraPose expected = ExpectedFraming(camera, -6500, 7400);
+        NativeBattleCameraPose actual = PrepareCamera(session);
+        Assert.Equal(expected, actual);
+        Assert.Equal(JsonSerializer.Serialize(camera.PublishProjection(4, presentationPose: expected).Projection), JsonSerializer.Serialize(camera.PublishProjection(4, presentationPose: actual).Projection));
+    }
+
+    private static BattleSession CreateFramingSession(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleEffectParameters parameters, NativeBattleGraphicsRoster? roster = null)
+    {
+        EncounterPatchComposition composition = Compose(Layer("camera", Edit("raise", "0", "12")));
+        BattleDefinition definition = new() { Name = "Camera framing", Combatants = [new() { Id = "player", Name = "Player", IsPlayer = true }, new() { Id = "original", Name = "Original" }] };
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new("fixture.encounter", "original", 11, 11, [], true));
+        BattleSession session = new(definition with { EncounterMod = compiled }, BattleAtbMode.TurnBased);
+        NativeBattleCameraPose pose = new(new(0, -500, 5000), new(0, -500, 0), 512, 0);
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CurrentPose = pose, FocalLength = 512, Projection = new(null, 512, 160, 108) };
+        NativeBattleGraphicsState graphics = new(models, roster?.Rows.Select(row => row?.ActorId).ToImmutableArray() ?? ImmutableArray.CreateRange(new string?[models.Length]), 0, 0)
+        {
+            PresentationRoster = roster,
+            OriginalEffect = new(1, 0, new(1, 0x8D6A00, 0), parameters, 0)
+        };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!.SetValue(session, camera);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { Active = 1 });
+        return session;
+    }
+
+    private static NativeBattleCameraPose PrepareCamera(BattleSession session)
+    {
+        return Assert.IsType<NativeBattleCameraPose>(typeof(BattleSession).GetMethod("PrepareEncounterCamera", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [session.NativeCamera]));
+    }
+
+    private static NativeBattleGraphicsRoster CameraRoster(int count, params int[] bound)
+    {
+        return new(Enumerable.Range(0, count).Select(row => bound.Contains(row) ? new NativeBattleGraphicsActor($"actor-{row}", row == 16) : null).ToImmutableArray());
+    }
+
+    private static ImmutableArray<NativeBattleGraphicsModel> CameraModels(int count)
+    {
+        return Enumerable.Range(0, count).Select(row => new NativeBattleGraphicsModel(row, 0)).ToImmutableArray();
+    }
+
+    private static NativeBattleGraphicsModel CameraModel(int row, int x)
+    {
+        return new(row, 2) { GeometryBounds52 = new(new(0, 0, 0), new(0, 0, 0)), GeometryWorldMatrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], x, -500, 0, 4096) };
+    }
+
+    private static NativeBattleCameraPose ExpectedFraming(NativeBattleCameraState camera, short sourceX, short targetX)
+    {
+        return EncounterCameraPresentation.FrameTargets(camera.CurrentPose!, [new(sourceX, -500, 0), new(targetX, -500, 0)], camera.Projection!.FocalLength!.Value, camera.Projection.OffsetX!.Value, camera.Projection.OffsetY!.Value);
     }
 
     [Fact]
