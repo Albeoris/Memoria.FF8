@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--background-scroll-only", StringComparer.Ordinal))
+{
+    NativeBackgroundScrollTests.Run();
+    return 0;
+}
+
+if (args.Contains("--background-depth-only", StringComparer.Ordinal))
+{
+    NativeBackgroundDepthTests.Run();
+    return 0;
+}
+
 if (args.Contains("--aura-limit-only", StringComparer.Ordinal))
 {
     OriginAuraLimitTests.Run();
@@ -487,6 +499,8 @@ var tests = new (string Name, Action Run)[]
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
     ("durable field battle settlements and legacy continuation", FieldBattleSettlementTests.Run),
+    ("native background layer depth state and field reset", NativeBackgroundDepthTests.Run),
+    ("native background scroll phase and resource restoration", NativeBackgroundScrollTests.Run),
     ("native field encounter materia modifiers and cold continuation", FieldEncounterModifierTests.Run),
     ("native guest fury ownership and cold continuation", NativeGuestFuryTests.Run),
     ("native fury producer, opposition and cold continuation", NativeFuryTests.Run),

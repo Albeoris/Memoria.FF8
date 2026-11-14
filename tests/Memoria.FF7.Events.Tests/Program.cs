@@ -1,6 +1,18 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--background-scroll-only", StringComparer.Ordinal))
+{
+    NativeBackgroundScrollTests.Run();
+    return 0;
+}
+
+if (args.Contains("--background-depth-only", StringComparer.Ordinal))
+{
+    NativeBackgroundDepthTests.Run();
+    return 0;
+}
+
 if (args.Contains("--party-direction-query-only", StringComparer.Ordinal))
 {
     NativePartyDirectionQueryTests.Run();
@@ -158,6 +170,8 @@ var tests = new (string Name, Action Run)[]
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
     ("native word talk radius operands and cold continuation", NativeWordTalkRadiusTests.Run),
     ("native party direction query and cold continuation", NativePartyDirectionQueryTests.Run),
+    ("native background layer depth operands and cold continuation", NativeBackgroundDepthTests.Run),
+    ("native background scroll operands and cold continuation", NativeBackgroundScrollTests.Run),
     ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
     ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),

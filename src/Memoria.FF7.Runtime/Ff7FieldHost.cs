@@ -18,6 +18,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         this.fieldId = fieldId;
         this.animationLength = animationLength ?? throw new ArgumentNullException(nameof(animationLength));
         Process = process ?? new Ff7FieldProcess();
+        InitializeBackgroundScroll();
         if (Process.CameraFollowPlayer is null)
         {
             Ff7Actor? legacyTarget = Process.CameraEntity < 0 ? null : Process.Actors?.SingleOrDefault(actor => actor.EntityBound && actor.Entity == Process.CameraEntity);
@@ -297,6 +298,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         AdvanceViewOffset();
         AdvanceCamera();
         AdvanceCameraShake();
+        AdvanceBackgroundScroll();
         AdvanceOffsets();
         AdvanceTurns();
         AdvanceJumps();
@@ -643,6 +645,28 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     private void Background(FieldBackgroundCommand command)
     {
+        if (command.Operation == FieldBackgroundOperation.Scroll)
+        {
+            if (command.Parameter is not (2 or 3) || command.State is < short.MinValue or > short.MaxValue || command.State2 is < short.MinValue or > short.MaxValue)
+            {
+                throw new InvalidDataException("FFVII background scrolling requires layer2/3 and two signed native words.");
+            }
+            Process = command.Parameter == 2
+                ? Process with { BackgroundLayer2Scroll = Process.BackgroundLayer2Scroll! with { VelocityX16 = (short)command.State, VelocityY16 = (short)command.State2 } }
+                : Process with { BackgroundLayer3Scroll = Process.BackgroundLayer3Scroll! with { VelocityX16 = (short)command.State, VelocityY16 = (short)command.State2 } };
+            return;
+        }
+        if (command.Operation == FieldBackgroundOperation.Depth)
+        {
+            if (command.Parameter is not (2 or 3) || (uint)command.State > ushort.MaxValue)
+            {
+                throw new InvalidDataException("FFVII background depth requires layer2/3 and its native word.");
+            }
+            Process = command.Parameter == 2
+                ? Process with { BackgroundLayer2Depth = (ushort)command.State }
+                : Process with { BackgroundLayer3Depth = (ushort)command.State };
+            return;
+        }
         if ((uint)command.Parameter >= 256 || (uint)command.State >= 16)
         {
             throw new InvalidDataException("FFVII background parameter or state is invalid.");

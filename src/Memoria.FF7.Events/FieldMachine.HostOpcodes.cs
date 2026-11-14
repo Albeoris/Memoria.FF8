@@ -14,6 +14,22 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldPartySplit(B(id, 14), splittingParty[0], splittingParty[1], splittingParty[2], R16(id, 1, 4), R16(id, 2, 6), R8(id, 3, 8), R16(id, 4, 9), R16(id, 5, 11), R8(id, 6, 13), new FieldByteOperand(Bank(id, 3), B(id, 8)), new FieldByteOperand(Bank(id, 6), B(id, 13))), 15);
             case 0x2B:
                 return Host(id, new FieldLineCommand(FieldLineOperation.Slip, Value: B(id, 1)), 2);
+            case 0x2C:
+                int depthLayer = B(id, 2);
+                if (depthLayer is not (2 or 3))
+                {
+                    Advance(id, 5);
+                    return false;
+                }
+                return Host(id, new FieldBackgroundCommand(FieldBackgroundOperation.Depth, depthLayer, unchecked((ushort)R16(id, 1, 3))), 5);
+            case 0x2D:
+                int scrollLayer = B(id, 2);
+                if (scrollLayer is not (2 or 3))
+                {
+                    Advance(id, 7);
+                    return false;
+                }
+                return Host(id, new FieldBackgroundCommand(FieldBackgroundOperation.Scroll, scrollLayer, R16(id, 1, 3), R16(id, 2, 5)), 7);
             case 0x0F when B(id, 1) == 0xF5:
                 return Host(id, new FieldControlCommand(FieldControlKind.CursorDisabled, B(id, 2)), 3);
             case 0x0F when B(id, 1) == 0xFB:

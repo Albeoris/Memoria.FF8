@@ -8,6 +8,8 @@ public sealed record PcFieldArrow(Vector3 Position, int Type);
 public sealed record PcFieldTriggers(string Name, byte ControlDirection, short CameraFocus, short CameraLeft, short CameraBottom, short CameraRight, short CameraTop, IReadOnlyList<short> LayerDimensions, IReadOnlyList<PcFieldGateway> Gateways, IReadOnlyList<PcFieldTrigger> Triggers, IReadOnlyList<PcFieldArrow> Arrows)
 {
     public byte CameraScrollConstraint { get; init; }
+    public IReadOnlyList<short> InitialLayerScrollOffsets { get; init; } = new short[4];
+    public IReadOnlyList<short> LayerCameraFactors { get; init; } = [];
 
     public static PcFieldTriggers Read(ReadOnlySpan<byte> source)
     {
@@ -22,7 +24,9 @@ public sealed record PcFieldTriggers(string Name, byte ControlDirection, short C
         byte cameraScrollConstraint = cursor.U8();
         cursor.Skip(3);
         short[] dimensions = [cursor.I16(), cursor.I16(), cursor.I16(), cursor.I16()];
-        cursor.Skip(24);
+        short[] scrollOffsets = [cursor.I16(), cursor.I16(), cursor.I16(), cursor.I16()];
+        short[] cameraFactors = [cursor.I16(), cursor.I16(), cursor.I16(), cursor.I16()];
+        cursor.Skip(8);
         PcFieldGateway[] gateways = new PcFieldGateway[12];
         for (int i = 0; i < gateways.Length; i++)
         {
@@ -54,6 +58,6 @@ public sealed record PcFieldTriggers(string Name, byte ControlDirection, short C
         {
             throw new InvalidDataException("FF7 trigger section has an unsupported record size.");
         }
-        return new PcFieldTriggers(name, direction, focus, left, bottom, right, top, Array.AsReadOnly(dimensions), Array.AsReadOnly(gateways), Array.AsReadOnly(triggers), Array.AsReadOnly(arrows)) { CameraScrollConstraint = cameraScrollConstraint };
+        return new PcFieldTriggers(name, direction, focus, left, bottom, right, top, Array.AsReadOnly(dimensions), Array.AsReadOnly(gateways), Array.AsReadOnly(triggers), Array.AsReadOnly(arrows)) { CameraScrollConstraint = cameraScrollConstraint, InitialLayerScrollOffsets = Array.AsReadOnly(scrollOffsets), LayerCameraFactors = Array.AsReadOnly(cameraFactors) };
     }
 }

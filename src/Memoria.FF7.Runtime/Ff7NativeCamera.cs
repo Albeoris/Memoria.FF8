@@ -21,7 +21,17 @@ public sealed class Ff7NativeCamera(PcFieldCamera camera, PcFieldTriggers trigge
             short y = unchecked((short)(movieCamera.Reserved2 >> 16));
             return new(x, y);
         }
-        return new(process.CameraX + (process.CameraShakeX?.Offset ?? 0), process.CameraY + (process.CameraShakeY?.Offset ?? 0));
+        return new Vector2(process.CameraX, process.CameraY) + PresentationShakeOffset(process);
+    }
+
+    public static Vector2 PresentationShakeOffset(Ff7FieldProcess process)
+    {
+        ArgumentNullException.ThrowIfNull(process);
+        if (process.Movie is { Playing: true } && !process.MovieBackgroundEnabled)
+        {
+            return Vector2.Zero;
+        }
+        return new(process.CameraShakeX?.Offset ?? 0, process.CameraShakeY?.Offset ?? 0);
     }
 
     public (short X, short Y) Follow(Ff7Actor actor, short focus)

@@ -139,6 +139,10 @@ public sealed record Ff7FieldProcess
     public Ff7Motion[] Motions { get; init; } = [];
     public Ff7AnimationRequest[] AnimationRequests { get; init; } = [];
     public ushort[] BackgroundStates { get; init; } = new ushort[256];
+    public ushort BackgroundLayer2Depth { get; init; } = 4095;
+    public ushort BackgroundLayer3Depth { get; init; } = 1;
+    public Ff7BackgroundScroll? BackgroundLayer2Scroll { get; init; }
+    public Ff7BackgroundScroll? BackgroundLayer3Scroll { get; init; }
     public ushort[] PaletteBuffer { get; init; } = new ushort[1024];
     public ushort[][] PaletteRows { get; init; } = [];
     public bool PaletteRowsUseCachedIndices { get; init; }

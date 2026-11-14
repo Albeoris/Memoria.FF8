@@ -25,6 +25,13 @@ public sealed record Ff7FieldPointerVisual(PixelImage Image, Vector2 Position, b
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
 {
     public bool FieldHidden { get; init; }
+    public ushort Layer2Depth { get; init; } = 4095;
+    public ushort Layer3Depth { get; init; } = 1;
+    public short Layer2ScrollX16 { get; init; }
+    public short Layer2ScrollY16 { get; init; }
+    public short Layer3ScrollX16 { get; init; }
+    public short Layer3ScrollY16 { get; init; }
+    public Vector2 BackgroundCameraShakePixels { get; init; }
     public uint? FieldColorArgb { get; init; }
     public uint? QuadColorArgb { get; init; }
     public TriangleBlend QuadBlend { get; init; } = TriangleBlend.Alpha;
@@ -52,6 +59,25 @@ public readonly record struct Ff7ProjectionDepth(float NearPlane, float FarPlane
             throw new InvalidDataException("FF7 rendering requires a finite admitted near/far projection contract.");
         }
         return FarPlane / (FarPlane - NearPlane) - FarPlane * NearPlane / ((FarPlane - NearPlane) * cameraZ);
+    }
+
+    public float ProjectBackground(ushort depth)
+    {
+        _ = Project(NearPlane);
+        if (depth < 1)
+        {
+            return 0.0001f;
+        }
+        if (depth <= NearPlane / 4)
+        {
+            return depth / 1000f;
+        }
+        if (depth >= 4095)
+        {
+            return 0.9999f;
+        }
+        float projected = Project(depth * 4f);
+        return projected is >= 0 and <= 1 ? projected : depth / 4096f;
     }
 }
 
@@ -208,8 +234,13 @@ public sealed partial class Ff7FieldRenderer
                 continue;
             }
             BackgroundAtlasRegion region = backgroundAtlas[tile];
-            // Native background records persist normalized device depth scaled by ten million.
-            float z = tile.Layer == 0 ? 0.9997f : tile.Z / 10000000f;
+            float z = tile.Layer switch
+            {
+                0 => 0.9997f,
+                2 => frame.Layer2Depth >= 4095 ? 0.9998f : projection.ProjectBackground(frame.Layer2Depth),
+                3 => projection.ProjectBackground(frame.Layer3Depth),
+                _ => tile.Z / 10000000f
+            };
             if (!float.IsFinite(z) || z < 0 || z > 1)
             {
                 throw new InvalidDataException($"FF7 tile {tile.Layer}/{tile.Index} has invalid persisted normalized depth.");
@@ -223,7 +254,7 @@ public sealed partial class Ff7FieldRenderer
                 _ => throw new NotSupportedException($"FF7 tile blend {tile.BlendMode} is unsupported.")
             } : TriangleBlend.Replace;
             TriangleMaterial material = new(region.Image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
-            Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
+            Vector2 origin = BackgroundTileOrigin(tile, frame);
             TrianglePrimitives.Quad(renderer, FieldPoint(origin, width, height), new Vector2(tile.PixelSize * (height / 240f)), z, FieldColor(frame), material, region.End, region.Start, pointSampleRectangle: true);
         }
     }

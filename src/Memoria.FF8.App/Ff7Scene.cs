@@ -459,7 +459,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
-        var (sampledActors, cameraOffset) = SampleFieldPresentation(session, state, camera);
+        var (sampledActors, cameraOffset, cameraShake) = SampleFieldPresentation(session, state, camera);
         PcFieldCamera? eligibilityCamera = state.Movie is { Playing: true } ? BlinkCamera() : effectCamera;
         Ff7ActorVisual[] actors = sampledActors.Where(actor => IsDrawableActor(actor, eligibilityCamera, cameraOffset, state.CameraFollowPlayer == false)).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)
         {
@@ -472,7 +472,21 @@ internal sealed partial class Ff7Scene : IDisposable
             AnimationLoop = actor.AnimationLoop && !actor.HoldAnimation && !actor.AnimationStopped,
             ModelEffects = ModelEffects(actor, effectCamera)
         }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, cameraOffset, actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldHidden = state.FadeState?.HidesField == true, FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer(sampledActors, effectCamera, cameraOffset) };
+        Ff7FieldRenderFrame frame = new(0, cameraOffset, actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion)
+        {
+            Layer2Depth = state.BackgroundLayer2Depth,
+            Layer3Depth = state.BackgroundLayer3Depth,
+            Layer2ScrollX16 = state.BackgroundLayer2Scroll?.OffsetX16 ?? 0,
+            Layer2ScrollY16 = state.BackgroundLayer2Scroll?.OffsetY16 ?? 0,
+            Layer3ScrollX16 = state.BackgroundLayer3Scroll?.OffsetX16 ?? 0,
+            Layer3ScrollY16 = state.BackgroundLayer3Scroll?.OffsetY16 ?? 0,
+            BackgroundCameraShakePixels = cameraShake,
+            FieldHidden = state.FadeState?.HidesField == true,
+            FieldColorArgb = state.FadeState?.FieldColorArgb,
+            QuadColorArgb = state.FadeState?.QuadColorArgb,
+            QuadBlend = FadeQuadBlend(state.FadeState),
+            PlayerPointer = PlayerPointer(sampledActors, effectCamera, cameraOffset)
+        };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 

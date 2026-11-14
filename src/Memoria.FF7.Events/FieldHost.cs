@@ -147,9 +147,11 @@ public enum FieldBackgroundOperation
     Off,
     Clear,
     Roll,
-    RollBack
+    RollBack,
+    Depth,
+    Scroll
 }
-public sealed record FieldBackgroundCommand(FieldBackgroundOperation Operation, int Parameter, int State) : FieldCommand;
+public sealed record FieldBackgroundCommand(FieldBackgroundOperation Operation, int Parameter, int State, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int State2 = 0) : FieldCommand;
 public sealed record FieldAudioCommand(int Operation, int Parameter0 = 0, int Parameter1 = 0, int Parameter2 = 0, int Parameter3 = 0, int Parameter4 = 0) : FieldCommand;
 
 

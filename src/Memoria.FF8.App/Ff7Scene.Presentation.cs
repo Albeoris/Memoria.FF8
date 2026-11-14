@@ -43,21 +43,23 @@ internal sealed partial class Ff7Scene
         return InterpolatePresentation && fps == 60 && !focusPaused && !userPaused && !debugMenu && error is null ? (float)Math.Clamp(tickRemainder * 30, 0, 1) : 1;
     }
 
-    private (Ff7Actor[] Actors, Vector2 Camera) SampleFieldPresentation(Ff7Session session, Ff7FieldProcess state, PcFieldCamera? movieCamera)
+    private (Ff7Actor[] Actors, Vector2 Camera, Vector2 Shake) SampleFieldPresentation(Ff7Session session, Ff7FieldProcess state, PcFieldCamera? movieCamera)
     {
         float fraction = PresentationFraction(PresentationPreferences.FieldFps);
         var (previous, current) = fieldHistory.Sample((session.Host, state.Tick), fraction, () => PrepareFieldPresentation(session, state), frame => Ff7FieldPresentation.Matches(frame.State, state));
         Vector2 camera = current.Camera ?? FieldCameraOffset(state, movieCamera);
+        Vector2 shake = Ff7NativeCamera.PresentationShakeOffset(state);
         if (previous is null)
         {
-            return (current.Actors, camera);
+            return (current.Actors, camera, shake);
         }
         if (previous.Camera is Vector2 before && Ff7FieldPresentation.CanInterpolateCamera(previous.State, current.State))
         {
             camera = Vector2.Lerp(before, camera, fraction);
+            shake = Vector2.Lerp(Ff7NativeCamera.PresentationShakeOffset(previous.State), shake, fraction);
         }
         Ff7Actor[] actors = current.Actors.Select(actor => actor.Visible && previous.ActorsBySlot.TryGetValue(actor.Slot, out Ff7Actor? old) ? Ff7ActorPresentation.Interpolate(old, actor, fraction, current.AnimationFrames[actor.Slot]) : actor).ToArray();
-        return (actors, camera);
+        return (actors, camera, shake);
     }
 
     private static Ff7FieldPresentationFrame PrepareFieldPresentation(Ff7Session session, Ff7FieldProcess state)
