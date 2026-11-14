@@ -7,6 +7,8 @@ namespace Memoria.FF7.Runtime;
 public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0, byte? Level = null, ushort? EnemyId = null, byte? Strength = null, byte? Magic = null, byte? Speed = null, byte? FormationRow = null, uint? ElementHalve = null, uint? ElementNullify = null, uint? ElementAbsorb = null, uint? ElementWeakness = null, uint? PreviousStatuses = null, uint? CaptureMask = null, byte? PresentationByte = null, ushort? LastPhysicalAttackerMask = null, ushort? LastMagicAttackerMask = null, ushort? ExtraElementAbsorb = null, byte? PhysicalEvasion = null, byte? HitEffect = null)
 {
     public byte? ElementReaction { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? CoveredCharacter { get; init; }
 }
 public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null)
 {
@@ -426,6 +428,7 @@ public static class Ff7BattleAi
                 (1, 0x4078) => actor.PhysicalEvasion ?? 0,
                 (1, 0x42B0) => actor.HitEffect ?? (byte)(actor.Slot < 3 ? 8 : 2),
                 (1, 0x40A0) => actor.Speed ?? 0,
+                (1, 0x40B8) => actor.CoveredCharacter ?? (actor.LastAttackerMask != 0 ? byte.MaxValue : (byte)0),
                 (1, 0x4270) => actor.FormationRow ?? 0,
                 (1, 0x4058) => actor.ElementReaction ?? 3,
                 (1, 0x4278) => actor.PresentationByte ?? 0xFF,
@@ -548,6 +551,7 @@ public static class Ff7BattleAi
                     (1, 0x42B0) => actor with { HitEffect = (byte)value },
                     (2, 0x4130) => actor with { ExtraElementAbsorb = (ushort)value },
                     (1, 0x40A0) => actor with { Speed = (byte)value },
+                    (1, 0x40B8) => actor with { CoveredCharacter = (byte)value },
                     (1, 0x4270) => actor with { FormationRow = (byte)value },
                     (1, 0x4278) => actor with { PresentationByte = (byte)value },
                     (2, 0x4140) => actor with { MagicPoints = (ushort)value },

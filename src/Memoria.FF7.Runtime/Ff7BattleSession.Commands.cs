@@ -855,7 +855,7 @@ public sealed partial class Ff7BattleSession
     private void PublishHit(Ff7BattleQueuedCommand command, Ff7BattleActorState target, Ff7BattleDamageAction action, Ff7BattleActionReceipt result, bool runCounters = true)
     {
         int targetSlot = target.Actor.Slot;
-        Ff7BattleAiActor native = target.Actor;
+        Ff7BattleAiActor native = target.Actor with { CoveredCharacter = byte.MaxValue };
         byte gauge = target.LimitGauge;
         if (targetSlot < 3 && (result.Target.Statuses & 1) != 0)
         {

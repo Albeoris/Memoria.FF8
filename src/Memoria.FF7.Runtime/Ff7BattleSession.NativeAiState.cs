@@ -52,7 +52,8 @@ public sealed partial class Ff7BattleSession
                     LastPhysicalAttackerMask = actor.LastPhysicalAttackerMask ?? 0,
                     LastMagicAttackerMask = actor.LastMagicAttackerMask ?? 0,
                     PhysicalEvasion = actor.PhysicalEvasion ?? stats.Evade,
-                    HitEffect = actor.HitEffect ?? (enemy is null ? (byte)8 : (byte)2)
+                    HitEffect = actor.HitEffect ?? (enemy is null ? (byte)8 : (byte)2),
+                    CoveredCharacter = actor.CoveredCharacter ?? (actor.LastAttackerMask != 0 ? byte.MaxValue : (byte)0)
                 }
             });
         }

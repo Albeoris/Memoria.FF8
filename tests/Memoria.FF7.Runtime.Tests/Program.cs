@@ -176,6 +176,12 @@ if (args.Contains("--color-transition-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--devil-ride-ai-flags-only", StringComparer.Ordinal))
+{
+    DevilRideAiFlagsTests.Run();
+    return 0;
+}
+
 if (args.Contains("--condition-consumers-only", StringComparer.Ordinal))
 {
     NativeConditionConsumerTests.Run();
@@ -408,6 +414,7 @@ var tests = new (string Name, Action Run)[]
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
     ("native model color transition", NativeColorTransitionTests.Run),
+    ("native covered-character byte and Grasslands counters", DevilRideAiFlagsTests.Run),
     ("native opening condition costs and status immunity", NativeConditionConsumerTests.Run),
     ("native opening party AI aliases and counters", PartyAiAliasTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
