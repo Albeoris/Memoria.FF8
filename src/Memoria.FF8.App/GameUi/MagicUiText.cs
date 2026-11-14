@@ -27,6 +27,7 @@ internal static class MagicUiText
         "Apply" => "Apply",
         "Cancel" => "Cancel",
         "PhysicalOverride" => "Hold {0}: Physical Attack",
+        "ConfirmCasts" => "{0}: Cast ×{1}",
         "Moved" => "Moved: record {0} → {1}, {2} ×{3}",
         "Overflow" => "Overflow retained: record {0}, {1} ×{2}",
         "Removed" => "Removed Junction: record {0}, slot {1}, {2}",

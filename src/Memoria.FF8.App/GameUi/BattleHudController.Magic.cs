@@ -11,6 +11,9 @@ public sealed partial class BattleHudController
     private readonly List<string> selectedMagicTargets = [];
 
     public int MagicCastCount => magicCastCount;
+    public bool CanConfirmMagicTargets => SelectingTarget && SelectedCommand == BattleAbility.Magic && selectedMagicTargets.Count > 0;
+    public string MagicConfirmBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.Card);
+    public string MagicConfirmCaption => CanConfirmMagicTargets ? FormatSystemText("magic.ConfirmCasts", MagicUiText.Get("ConfirmCasts"), MagicConfirmBindingHint, selectedMagicTargets.Count) : "";
 
     internal string ChoiceValue(BattleActionDefinition action)
     {

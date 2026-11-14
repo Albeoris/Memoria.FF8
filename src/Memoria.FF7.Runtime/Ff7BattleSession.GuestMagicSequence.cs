@@ -22,7 +22,7 @@ public sealed partial class Ff7BattleSession
     public bool SubmitGuestMagicSequence(int slot, ushort ability, IReadOnlyList<ushort> targets, bool group = false)
     {
         ArgumentNullException.ThrowIfNull(targets);
-        if (targets.Count is < 1 or > 3 || state.GuestMagicSequences.Any(sequence => sequence.ActorSlot == slot) || GetGuestAttack(slot) is not IFf7BattleGuestMagic magic || !magic.MagicCastCounts(ability).Contains(targets.Count))
+        if (targets.Count is < 1 or > 3 || state.GuestMagicSequences.Any(sequence => sequence.ActorSlot == slot) || GetGuestAttack(slot) is not IFf7BattleGuestMagic magic || !magic.MagicCastCounts(ability).Any(count => targets.Count <= count))
         {
             return false;
         }

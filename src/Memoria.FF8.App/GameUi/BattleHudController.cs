@@ -344,6 +344,10 @@ public sealed partial class BattleHudController
         {
             CancelTarget();
         }
+        else if (input == MenuInput.Alternate && CanConfirmMagicTargets)
+        {
+            ConfirmAction(finishMagicTargets: true);
+        }
         else if (input == MenuInput.Confirm)
         {
             if (session.Outcome == BattleOutcome.Active)
@@ -419,6 +423,11 @@ public sealed partial class BattleHudController
     }
 
     public void Attack()
+    {
+        ConfirmAction(finishMagicTargets: false);
+    }
+
+    private void ConfirmAction(bool finishMagicTargets)
     {
         if (CardSlotsOwnsInput)
         {
@@ -515,11 +524,12 @@ public sealed partial class BattleHudController
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
-        if ((SelectingNativeSlots ? actor : SelectedTarget) is not BattleCombatant target)
+        BattleCombatant? actionTarget = finishMagicTargets ? session.Combatants.FirstOrDefault(candidate => candidate.Id == selectedMagicTargets[0]) : SelectingNativeSlots ? actor : SelectedTarget;
+        if (actionTarget is not BattleCombatant target)
         {
             return;
         }
-        if (!CollectMagicTarget(target))
+        if (!finishMagicTargets && !CollectMagicTarget(target))
         {
             return;
         }
@@ -546,7 +556,7 @@ public sealed partial class BattleHudController
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
         {
-            if (selectedMagicTargets.Count == magicCastCount)
+            if (!finishMagicTargets && selectedMagicTargets.Count == magicCastCount)
             {
                 selectedMagicTargets.RemoveAt(selectedMagicTargets.Count - 1);
             }

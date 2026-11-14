@@ -7,6 +7,11 @@ internal sealed partial class Ff7Scene
     private int battleMagicCastCount = 1;
     private readonly List<ushort> battleMagicTargets = [];
 
+    private bool CanConfirmGuestMagicSelection(Ff7BattleCommandOption option)
+    {
+        return option.Command == Ff7BattleCommand.Magic && battleMagicCastCount > 1 && battleMagicTargets.Count > 0;
+    }
+
     private void BeginGuestMagicSelection(Ff7BattleCommandOption option)
     {
         battleMagicTargets.Clear();

@@ -274,7 +274,11 @@ internal sealed partial class Ff7Scene
             BattleSmartAttackPreview? previousPreview = displayedGuestSmartPreview;
             displayedGuestSmartPreview = preview;
             bool submitted = false;
-            if (pointer >= 0 || validConfirm && semanticInput.Confirm)
+            if (CanConfirmGuestMagicSelection(current) && (semanticInput.CardChallenge || sharedInput.UiDetailRequested))
+            {
+                submitted = battle.SubmitGuestMagicSequence(owner, current.Argument, battleMagicTargets, useAll);
+            }
+            else if (pointer >= 0 || validConfirm && semanticInput.Confirm)
             {
                 string? reason = targets.Where(target => (mask & 1 << target.Actor.Slot) != 0).Select(target => battle.GuestAbilityTargetUnsupportedReason(owner, current.Command, current.Argument, target.Actor.Slot)).FirstOrDefault(reason => reason is not null);
                 if (reason is not null)

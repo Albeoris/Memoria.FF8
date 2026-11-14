@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         {
             return [];
         }
-        if (action.Ability != BattleAbility.Magic || action.NativeAction is not { Command: 2, TargetFlags: byte flags } || targets.Count is < 1 or > 3 || targets[0] != firstTarget || !GetNativeMagicCastCounts(actor.Id, action.Id).Contains(targets.Count) && !(actor.IsPlayer && GetPlayerMagicCastCounts(actor.Id, action.Id).Contains(targets.Count)))
+        if (action.Ability != BattleAbility.Magic || action.NativeAction is not { Command: 2, TargetFlags: byte flags } || targets.Count is < 1 or > 3 || targets[0] != firstTarget || !GetNativeMagicCastCounts(actor.Id, action.Id).Contains(targets.Count) && !(actor.IsPlayer && GetPlayerMagicCastCounts(actor.Id, action.Id).Any(count => targets.Count <= count)))
         {
             throw new InvalidOperationException("Magic target groups require the current native Double/Triple status, sufficient stock and one installed spell.");
         }

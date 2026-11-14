@@ -290,7 +290,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             DrawStatuses(canvas, theme, controller.Session.ReadStatusPresentation(actor.Id), columnX + textInset, rowY + 25, textWidth);
         }
-        string help = group ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
+        string help = controller.CanConfirmMagicTargets ? controller.MagicConfirmCaption : group ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
         float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
         float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
         float helpPanelHeight = 14 + actionHeight + helpHeight;

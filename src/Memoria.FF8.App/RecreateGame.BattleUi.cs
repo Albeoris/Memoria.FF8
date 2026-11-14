@@ -311,6 +311,7 @@ internal sealed partial class RecreateGame
         battleHud.SlotsConfirmHint = keyboard.BindingPrompt(ControlAction.Confirm);
         battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
+        battleHud.MagicConfirmBindingHint = keyboard.BindingPrompt(ControlAction.Card);
     }
 
     private void ObserveScanAuthoringDialogues(BattleSession active)

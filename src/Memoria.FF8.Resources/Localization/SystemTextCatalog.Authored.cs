@@ -474,6 +474,7 @@ public static partial class SystemTextCatalog
         defaults["magic.PartyOffLabel"] = "Entire party magic";
         defaults["magic.PhysicalOnly"] = "Physical only";
         defaults["magic.PhysicalOverride"] = "Hold {0}: Physical Attack";
+        defaults["magic.ConfirmCasts"] = "{0}: Cast ×{1}";
         defaults["magic.RefinementCost"] = "Consume {0} {1}; receive {2} {3}. The complete batch ingredient cost is paid.";
         defaults["magic.Removed"] = "Removed Junction: record {0}, slot {1}, {2}";
         defaults["magic.ReviewHelp"] = "Review every change. Apply commits the entire migration; Cancel leaves the save unchanged.";

@@ -196,14 +196,22 @@ public sealed class NativeMagicGroupTests
         Assert.Equal(completed, JsonSerializer.Serialize(battle.Capture()));
     }
 
-    [Fact]
-    public void TripleWithoutDoubleDoesNotInventATwoCastCommand()
+    [Theory]
+    [InlineData(0u, 5, 2)]
+    [InlineData(0x20u, 5, 2)]
+    [InlineData(0x40u, 1, 1)]
+    public void TripleCanFinishAfterTwoTargetsAndPreservesItsCostAndRestore(uint passive, int stock, int cost)
     {
-        BattleSession battle = Create(0x40000, 0x40, 1);
+        BattleSession battle = Create(0x40000, passive, stock);
         Assert.Equal(new[] { 1, 3 }, battle.GetNativeMagicCastCounts("caster", 1));
-        string before = JsonSerializer.Serialize(battle.Capture());
-        Assert.Throws<InvalidOperationException>(() => battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy"]));
-        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy"]);
+        Assert.Equal(3, Assert.Single(battle.QueuedActions).NativeMagicCastMode);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(battle);
+        Complete(restored);
+        Assert.Equal(2, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Equal(stock - cost, battle.Combatants[0].MagicStocks.Sum(item => item.Count));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     private static void Complete(BattleSession battle)

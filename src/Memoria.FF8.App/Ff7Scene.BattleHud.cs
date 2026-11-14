@@ -232,7 +232,8 @@ internal sealed partial class Ff7Scene
         float titleSize = 20 * scale * textScale;
         float titleHeight = canvas.MeasureText("Mg", titleSize, float.PositiveInfinity).Height / scale;
         float titleY = panel.Y - Math.Max(18, UiTheme.DefaultCaptionFontSize * textScale * 0.75f + 8) - titleHeight - 14;
-        float hintHeight = displayedGuestSmartPreview is null && !multicast ? 0 : titleHeight;
+        bool canConfirmCasts = CanConfirmGuestMagicSelection(action);
+        float hintHeight = (displayedGuestSmartPreview is null && !multicast ? 0 : titleHeight) + (canConfirmCasts ? titleHeight : 0);
         titleY -= hintHeight;
         theme.Panel(canvas, layout.Rect(54, titleY, 440, titleHeight + hintHeight + 14));
         canvas.Text(title, titleSize, layout.Rect(68, titleY + 7, 412, titleHeight), theme.Foreground);
@@ -244,6 +245,11 @@ internal sealed partial class Ff7Scene
         else if (multicast)
         {
             canvas.Text("Page Up/Down: number of casts", titleSize, layout.Rect(68, titleY + 7 + titleHeight, 412, titleHeight), theme.Foreground);
+        }
+        if (canConfirmCasts)
+        {
+            string hint = MagicUiText.Format("ConfirmCasts", sharedInput.BindingPrompt(ControlAction.Card), battleMagicTargets.Count);
+            canvas.Text(hint, titleSize, layout.Rect(68, titleY + 7 + hintHeight, 412, titleHeight), theme.Foreground);
         }
     }
 
