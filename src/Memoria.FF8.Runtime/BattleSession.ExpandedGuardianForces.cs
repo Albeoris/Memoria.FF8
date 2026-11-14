@@ -10,6 +10,7 @@ public sealed partial class BattleSession
             SupportsExpandedAction(action) && actor.GuardianForceCompatibility is { Count: 16 } && definition.NativeBattleSpeed is not null &&
             CanNativeBattleActorAct(actor) && (actor.NativeStatus0 & 0x35) == 0 && (actor.NativeStatus1 & 0x14000) == 0 &&
             guardianForces.GetValueOrDefault(guardianForceId) is { Acquired: true, HitPoints: > 0 } &&
+            !(guardianForms?.Values.Any(form => form.GuardianForceId == guardianForceId) ?? false) &&
             !guardianForceCasts.Values.Any(cast => cast.Command.ActionId == guardianForceId) &&
             !actions.Any(command => command.Ability == BattleAbility.GuardianForce && command.ActionId == guardianForceId) &&
             !(ActiveAction is { Ability: BattleAbility.GuardianForce } active && active.ActionId == guardianForceId);
@@ -30,6 +31,15 @@ public sealed partial class BattleSession
                 continue;
             }
             BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId);
+            if (summoning && cast.Command.GuardianFormInvocation is not null)
+            {
+                if (ActiveAction is null && !ExpandedTimedLimitOwnsInput && actions.Count == 0)
+                {
+                    ReleaseGuardianForceCharge(actor);
+                    BeginCompletedGuardianFormCharge(actor, cast);
+                }
+                continue;
+            }
             BattleCombatant[] candidates = summoning ? ExpandedGuardianForceTargetGroup(action) : [];
             if (summoning && candidates.Length != 0)
             {
@@ -59,7 +69,7 @@ public sealed partial class BattleSession
         if (!actor.IsPlayer || !actor.Abilities.Contains(BattleAbility.GuardianForce) || actor.GuardianForceCompatibility is not { Count: 16 } ||
             definition.NativeBattleSpeed is null || !SupportsExpandedAction(action) || !byId.ContainsKey(command.TargetId) ||
             command.NativeQueuedCommand != 254 || command.NativeTargetMask != 0 || command.NativeHeaderIndex is not null ||
-            command.GuardianFormInvocation is not null || guardianForceCasts.Values.Count(other => other.Command.ActionId == command.ActionId) != 1)
+            guardianForceCasts.Values.Count(other => other.Command.ActionId == command.ActionId) != 1)
         {
             throw new InvalidDataException("Saved expanded GF charge lacks its logical caster, target or original GF action.");
         }

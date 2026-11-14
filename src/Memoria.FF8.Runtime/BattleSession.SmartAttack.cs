@@ -8,6 +8,10 @@ public sealed record BattleSmartAttackPreview(string ActorId, string TargetId, B
 {
     public string? DrawSourceId { get; init; }
     public int? DrawSourceIndex { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleRosterSlot? TargetSlot { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleRosterSlot? DrawSourceSlot { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -61,7 +65,7 @@ public sealed partial class BattleSession
                 pendingSmartAttack = null;
             }
         }
-        else if (PhysicalCommand(actor) == 12)
+        else if (!UsesExpandedRoster && PhysicalCommand(actor) == 12)
         {
             QueueNativePlayerCommand(preview.ActorId, preview.TargetId, 12, 0);
         }
@@ -96,13 +100,13 @@ public sealed partial class BattleSession
     {
         BattleDamageForecast physical = ForecastPhysical(actor, target);
         string physicalName = PhysicalCommand(actor) == 12 ? actor.NativeCommands.FirstOrDefault(binding => binding.Command == 12)?.Name ?? "Mug" : actor.NativeAttack?.Name ?? "Attack";
-        BattleSmartAttackPreview result = new(actor.Id, target.Id, BattleAbility.Attack, 0, physicalName, 1, forcePhysical, SmartRevision(actor, target), target.EncodeNativeSlot(), physical.ExpectedDamage, physical.KillProbability);
+        BattleSmartAttackPreview result = new(actor.Id, target.Id, BattleAbility.Attack, 0, physicalName, 1, forcePhysical, SmartRevision(actor, target), SmartNativeIndex(target), physical.ExpectedDamage, physical.KillProbability) { TargetSlot = UsesExpandedRoster ? target.Slot : null };
         if (forcePhysical || !CanSmartCast(actor, target) || PhysicalCommand(actor) == 12 && HasMugItem(target) || physical.KillProbability > 0.9)
         {
             return result;
         }
         List<BattleSmartAttackCandidate> candidates = [];
-        foreach (BattleActionDefinition action in definition.ActionDefinitions.Where(IsSmartSpell))
+        foreach (BattleActionDefinition action in definition.ActionDefinitions.Where(action => IsSmartSpell(action) && (!UsesExpandedRoster || SupportsExpandedAction(action))))
         {
             if (NativeActionReflects(target, action.NativeAction!))
             {
@@ -112,7 +116,7 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
                 {
-                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, source.EncodeNativeSlot(), CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
+                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, UsesExpandedRoster ? null : source.EncodeNativeSlot(), CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
                 }
             }
             int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
@@ -122,8 +126,11 @@ public sealed partial class BattleSession
                 candidates.Add(new(action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts), CanApplyParameterStatus: CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
             }
         }
-        return BattleSmartAttackSelector.Select(result, candidates);
+        BattleSmartAttackPreview selected = BattleSmartAttackSelector.Select(result, candidates);
+        return UsesExpandedRoster && selected.DrawSourceId is { } sourceId ? selected with { DrawSourceSlot = GetActor(sourceId).Slot } : selected;
     }
+
+    private int SmartNativeIndex(BattleCombatant actor) => UsesExpandedRoster ? NativeBattleSlots.Unassigned : actor.EncodeNativeSlot();
 
     public static bool IsSmartSpell(BattleActionDefinition action)
     {
@@ -163,11 +170,13 @@ public sealed partial class BattleSession
 
     private string SmartRevision(BattleCombatant actor, BattleCombatant target)
     {
-        string state = string.Join('|', actor.Id, target.Id, target.EncodeNativeSlot(), actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.NativeStatusResistances), string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
+        string state = string.Join('|', actor.Id, target.Id, SmartIndexIdentity(target), actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.NativeStatusResistances), string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
         state += "|" + string.Join(',', definition.StatusStatModifiers);
-        state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', combatants.Where(source => !source.IsPlayer).Select(source => $"{source.Id}:{source.EncodeNativeSlot()}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
+        state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', enemies.Select(source => $"{source.Id}:{SmartIndexIdentity(source)}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
+
+    private string SmartIndexIdentity(BattleCombatant actor) => UsesExpandedRoster ? actor.Slot?.ToString() ?? "" : actor.EncodeNativeSlot().ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private BattleDamageForecast ForecastMagic(BattleCombatant actor, BattleCombatant target, BattleNativeAction native, int casts, BattleCombatant? drawSource = null, int drawResist = 0)
     {

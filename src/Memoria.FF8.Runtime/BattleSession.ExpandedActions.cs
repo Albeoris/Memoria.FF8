@@ -68,13 +68,19 @@ public sealed partial class BattleSession
 
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
+        command = RevalidateSmartAttack(actor, command);
+        if (command.GuardianFormAction is not null && GetGuardianForm(actor.Id) is null)
+        {
+            actor.IsBusy = false;
+            return;
+        }
         if (IsDuelCallback(command.NativeLimitCallback))
         {
             StartExpandedDuelMove(command);
             return;
         }
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, command) || !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
+            !CanExecuteMagicReservation(actor, command) || command.ExpandedMagicTargets is null && !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
@@ -86,6 +92,7 @@ public sealed partial class BattleSession
         }
         ActiveAction = NativeCommandPresentation(command) with
         {
+            ExpandedMagicTargets = command.ExpandedMagicTargets,
             RemainingFrames = NativeActionWindupFrames(actor, command.NativeSequence),
             NativeSequenceFrame = NativeControlTrack(actor, command.NativeSequence) is null ? null : 0
         };
@@ -136,6 +143,11 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant actor = GetActor(command.ActorId);
+        if (command.GuardianFormAction is not null && GetGuardianForm(actor.Id) is null)
+        {
+            CompleteActionPresentation(command, "GF returned before the action was committed.");
+            return;
+        }
         if (command.NativeSequenceFrame is int frame && NativeControlTrack(actor, command.NativeSequence) is { } track && frame < track.CompletionFrame)
         {
             command = AdvanceNativeControlSequence(command);
@@ -160,6 +172,11 @@ public sealed partial class BattleSession
         {
             Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeLimitCallback == NativeLimitCallback.ShotOpening ? "Shot started." : "Shot ended.");
             CompleteActionPresentation(command, "Shot control completed.");
+            return;
+        }
+        if (command.ExpandedMagicTargets is { } magicTargets)
+        {
+            ResolveExpandedMagicGroup(actor, command, magicTargets);
             return;
         }
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction);
@@ -221,7 +238,7 @@ public sealed partial class BattleSession
             action = action with { Name = child.Name ?? action.Name, Level = independent.Level, NativeAction = child };
         }
         BattleNativeAction native = action.NativeAction!;
-        if (IsGunbladeAttack(actor, command.Ability))
+        if (command.GuardianFormAction is null && IsGunbladeAttack(actor, command.Ability))
         {
             // 485160 recomputes the ordinary trigger contact with the installed weapon and type 10.
             native = native with { Command = command.NativeQueuedCommand == 12 ? (byte)248 : (byte)253, AttackType = 10, HitCount = 1, Critical = 0, DamagePresentation = 4 };
@@ -276,7 +293,8 @@ public sealed partial class BattleSession
         int firstHitRecipientCount = hitPlan[0].Length;
         int nativeContactLimit = NativeBattleSlots.Count - 1;
         // TODO(TD-009): Reflected commands need a presentation bridge for the source and redirected contacts.
-        bool presentsNativeEffect = !hasReflector && expandedEffectFactory is not null && (spellPresentation && ExpandedBattleActionRules.HasNativeSpellPresentation(native, firstHitRecipientCount) ||
+        // TODO(TD-009): The expanded effect factory binds human caster models. GF forms publish logical contacts until it can bind the active form model.
+        bool presentsNativeEffect = command.GuardianFormAction is null && !hasReflector && expandedEffectFactory is not null && (spellPresentation && ExpandedBattleActionRules.HasNativeSpellPresentation(native, firstHitRecipientCount) ||
             command.Ability == BattleAbility.LimitBreak && CanPresentExpandedLimit(native, firstHitRecipientCount) ||
             command.Ability == BattleAbility.Item && native is { Command: 4, MagicId: 50, HitCount: 1 } && firstHitRecipientCount == 1 ||
             CanPresentExpandedEnemyEffect(actor, command, native, firstHitRecipientCount));
@@ -325,30 +343,7 @@ public sealed partial class BattleSession
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(54), BattleTextIdentity.Global(54));
             }
-            if (reflector is not null && reflected is not null)
-            {
-                BattleCombatant[] opposite = ExpandedRandomTargets(reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies);
-                if (opposite.Length != 0)
-                {
-                    BattleCombatant redirected = opposite[NextRandomByte() % opposite.Length];
-                    bool randomReflection = (reflected.TargetFlags.GetValueOrDefault() & 2) != 0;
-                    BattleCombatant[][] reflectionPlan = PlanExpandedHits(randomReflection ? opposite : [redirected], reflected.HitCount, randomReflection);
-                    reflectedCommand = resolved with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = redirected.Id, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, MagicReservationId = null };
-                    BattleActionDefinition reflectionAction = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? action.Name, BattleActionEffect.Native, reflected.Power, actor.IsPlayer == redirected.IsPlayer) { NativeAction = reflected };
-                    NativeBattleActionScratch sourceScratch = nativeActionScratch;
-                    resolvingNativeAction = reflectedCommand;
-                    nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
-                    try
-                    {
-                        (reflectedContacts, _) = ResolveExpandedHitPlan(actor, reflectedCommand, reflectionAction, reflected, reflectionPlan, presentsNativeEffect: false);
-                    }
-                    finally
-                    {
-                        nativeActionScratch = nativeActionScratch with { Command = sourceScratch.Command, Action = sourceScratch.Action };
-                        resolvingNativeAction = resolved;
-                    }
-                }
-            }
+            (reflectedCommand, reflectedContacts) = ResolveExpandedReflection(actor, resolved, action, reflector, reflected);
             CompleteNativeOrdinaryCommand(actor, resolved);
             bool continueAffinity = CompleteNativeActionInventory(actor, resolved, false);
             if (continueAffinity && HasNativeAffinityAction(actor, resolved, native))
@@ -420,6 +415,37 @@ public sealed partial class BattleSession
         expandedEffect = expandedEffectFactory!(actor, presentationAction, presentationSequence, presented);
         expandedModelContacts = presented;
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+    }
+
+    private (BattleActionPresentation? Command, ImmutableArray<ExpandedBattleContact> Contacts) ResolveExpandedReflection(BattleCombatant actor, BattleActionPresentation source, BattleActionDefinition action, BattleCombatant? reflector, BattleNativeAction? reflected)
+    {
+        if (reflector is null || reflected is null)
+        {
+            return (null, []);
+        }
+        BattleCombatant[] opposite = ExpandedRandomTargets(reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies);
+        if (opposite.Length == 0)
+        {
+            return (null, []);
+        }
+        BattleCombatant redirected = opposite[NextRandomByte() % opposite.Length];
+        bool randomReflection = (reflected.TargetFlags.GetValueOrDefault() & 2) != 0;
+        BattleCombatant[][] reflectionPlan = PlanExpandedHits(randomReflection ? opposite : [redirected], reflected.HitCount, randomReflection);
+        BattleActionPresentation command = source with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = redirected.Id, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, MagicReservationId = null };
+        BattleActionDefinition reflectionAction = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? action.Name, BattleActionEffect.Native, reflected.Power, actor.IsPlayer == redirected.IsPlayer) { NativeAction = reflected };
+        NativeBattleActionScratch sourceScratch = nativeActionScratch;
+        resolvingNativeAction = command;
+        nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
+        try
+        {
+            (ImmutableArray<ExpandedBattleContact> contacts, _) = ResolveExpandedHitPlan(actor, command, reflectionAction, reflected, reflectionPlan, presentsNativeEffect: false);
+            return (command, contacts);
+        }
+        finally
+        {
+            nativeActionScratch = nativeActionScratch with { Command = sourceScratch.Command, Action = sourceScratch.Action };
+            resolvingNativeAction = source;
+        }
     }
 
     private BattleCombatant[][] PlanExpandedHits(BattleCombatant[] recipients, byte hitCount, bool randomTarget)
@@ -508,6 +534,10 @@ public sealed partial class BattleSession
 
     private BattleActionDefinition ExpandedActionDefinition(BattleCombatant actor, BattleActionPresentation command)
     {
+        if (command.GuardianFormAction is { } formAction)
+        {
+            return GetGuardianFormActionDefinition(actor.Id, formAction);
+        }
         if (command.Ability == BattleAbility.Attack)
         {
             BattleNativeAction attack = command.NativeAction ?? actor.NativeAttack!;
@@ -539,6 +569,10 @@ public sealed partial class BattleSession
             return CurrentExpandedAiTargets(aiRecipients, native);
         }
         BattleCombatant target = GetActor(targetId);
+        if (ability == BattleAbility.EnemyAbility && actor.GuardianFormVitals is not null && native is { Command: 8 })
+        {
+            return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
+        }
         if (ability == BattleAbility.EnemyAbility && actor.IsPlayer && SupportsExpandedAngelWingSpell(native))
         {
             byte spellFlags = native!.TargetFlags!.Value;

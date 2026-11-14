@@ -55,7 +55,7 @@ public sealed partial class BattleSession
 
     private void DispatchExpandedAngelWingActors()
     {
-        foreach (BattleCombatant actor in allies.Where(actor => actor.IsReady && HasNativeAngelWing(actor)))
+        foreach (BattleCombatant actor in allies.Where(actor => actor.IsReady && HasNativeAngelWing(actor) && GetGuardianForm(actor.Id) is null))
         {
             BattleCombatant[] enemies = Roster(BattleSide.Enemies).Where(IsExpandedAiTarget).ToArray();
             if (enemies.Length == 0)

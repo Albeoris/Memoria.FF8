@@ -114,10 +114,12 @@ public sealed class ExpandedBattleGuardianForceTests
         return contacts.Length;
     }
 
-    [Fact]
-    public void InstalledShivaChargesAndHitsEveryLivingEnemyAfterStandaloneRestore()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InstalledGuardianChargesAndUsesItsCommandsAfterStandaloneRestore(bool transform)
     {
-        const byte guardianId = 1;
+        byte guardianId = transform ? (byte)2 : (byte)1;
         const byte casterRow = 10;
         const string casterId = "party-10";
         const ushort fieldId = 133;
@@ -144,7 +146,7 @@ public sealed class ExpandedBattleGuardianForceTests
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(initial.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11 });
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, GuardianFormsEnabled = transform });
         NativeCharacterVitals vitals = session.State.CharacterVitals!.Rest();
         byte command = checked((byte)(20 + vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)3)));
         NativeCharacterVital[] records = vitals.Records.Select(record => record with
@@ -155,7 +157,7 @@ public sealed class ExpandedBattleGuardianForceTests
         }).ToArray();
         records[casterRow] = records[casterRow] with
         {
-            Junction = records[casterRow].Junction with { GuardianForces = 1 << guardianId, Commands = command },
+            Junction = records[casterRow].Junction with { GuardianForces = (ushort)(1 << guardianId), Commands = command },
             GuardianForceCompatibility = Enumerable.Repeat((ushort)1000, 16).ToArray()
         };
         vitals = vitals with { Records = records };
@@ -189,11 +191,20 @@ public sealed class ExpandedBattleGuardianForceTests
         hud.Choose(hud.Commands.ToList().IndexOf(BattleAbility.GuardianForce));
         BattleActionDefinition summon = Assert.Single(hud.ActionChoices);
         Assert.Equal(guardianId, summon.Id);
-        Assert.Equal("Diamond Dust", summon.Name);
-        hud.Choose(0);
-        Assert.True(hud.SelectingTargetGroup);
-        Assert.Equal(enemyIds, hud.Targets.Select(actor => actor.Id));
-        hud.Attack();
+        Assert.Equal(transform ? "Hell Fire" : "Diamond Dust", summon.Name);
+        if (transform)
+        {
+            hud.Navigate(MenuInput.Right);
+            Assert.True(hud.SelectingGuardianFormAction);
+            hud.Choose(0);
+        }
+        else
+        {
+            hud.Choose(0);
+            Assert.True(hud.SelectingTargetGroup);
+            Assert.Equal(enemyIds, hud.Targets.Select(actor => actor.Id));
+            hud.Attack();
+        }
         BattleGuardianForceCast charge = Assert.Single(battle.GuardianForceCasts);
         Assert.Equal(casterId, charge.ActorId);
         Assert.True(charge.RemainingTicks > 0);
@@ -216,6 +227,29 @@ public sealed class ExpandedBattleGuardianForceTests
             }
             Assert.False(caster.IsBusy);
             Assert.Empty(battle.GuardianForceCasts);
+            if (transform)
+            {
+                Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(casterId)!.Phase);
+                Assert.Equal(battle.GetGuardianForm(casterId), restored.GetGuardianForm(casterId));
+                BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
+                Assert.NotEmpty(presentation.Render(battle, 640, 448));
+                Assert.NotNull(presentation.GetActorBounds(casterId, new(0, 0, 640, 448)));
+                _ = presentation.CollectSounds(battle);
+                for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                    resumedWorld.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                    world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                    resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                }
+                Assert.True(caster.IsReady);
+                world.ApplyBattleInput(new(BattleInputKind.GuardianFormAction, ActorId: casterId, TargetId: enemyIds[^1], ActionId: (int)BattleGuardianFormAction.HellFire));
+                resumedWorld.ApplyBattleInput(new(BattleInputKind.GuardianFormAction, ActorId: casterId, TargetId: enemyIds[^1], ActionId: (int)BattleGuardianFormAction.HellFire));
+                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
+                resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
+                Assert.Null(battle.GetGuardianForm(casterId));
+                Assert.Null(restored.GetGuardianForm(casterId));
+            }
             BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == casterId && entry.Ability == BattleAbility.GuardianForce).ToArray();
             Assert.Equal(enemyIds, contacts.Select(entry => entry.TargetId));
             Assert.All(contacts, contact => Assert.True(contact.Amount > 0));

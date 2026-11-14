@@ -6,6 +6,90 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class ExpandedBattleActionCompletionTests
 {
     [Theory]
+    [InlineData(0x20000u, 2, 2, 0, 3125)]
+    [InlineData(0x40000u, 2, 2, 0, 3125)]
+    [InlineData(0x40000u, 3, 4, 1, 3175)]
+    public void RepeatMagicRetainsLogicalTargetsAndAppliesPoisonOnce(uint status, int casts, int initialStock, int stockAfter, int affinity)
+    {
+        BattleSession battle = CreateMulticast(status, initialStock, poison: true);
+        string[] targets = ["enemy-10", "enemy-7", "enemy-10"];
+        battle.QueueAction("caster", targets[0], BattleAbility.Magic, 1, magicTargets: targets[..casts]);
+        Assert.Equal(targets[..casts], Assert.Single(battle.QueuedActions).ExpandedMagicTargets!.Value.ToArray());
+        battle = RoundTrip(battle);
+        battle.Tick();
+        battle = RoundTrip(battle);
+        Complete(battle);
+
+        Assert.Equal(targets[..casts], battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId));
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "caster");
+        Assert.Equal(stockAfter, caster.MagicStocks.Sum(entry => entry.Count));
+        Assert.Equal((ushort)affinity, caster.GuardianForceCompatibility![0]);
+        Assert.Single(battle.Events, entry => entry.Kind == "Damage" && entry.TargetId == caster.Id);
+    }
+
+    [Theory]
+    [InlineData(0u, false, 1, 3)]
+    [InlineData(0x20000u, false, 2, 2)]
+    [InlineData(0x20000u, true, 0, 4)]
+    public void RepeatMagicRevalidatesStatusBeforeSpendingReservedStock(uint remainingStatus, bool silenced, int performed, int stock)
+    {
+        BattleSession battle = CreateMulticast(0x40000, 4, useLedger: true);
+        battle.QueueAction("caster", "enemy-10", BattleAbility.Magic, 1, magicTargets: ["enemy-10", "enemy-7", "target"]);
+        Assert.Equal(3, Assert.Single(battle.MagicVitals!.MagicSystem.Reservations).Count);
+        battle.Tick();
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "caster");
+        caster.NativeStatus1 = remainingStatus;
+        if (silenced)
+        {
+            caster.NativeStatus0 |= 0x10;
+        }
+        Complete(battle);
+        Assert.Equal(performed, battle.Events.Count(entry => entry.Kind == "EffectContact"));
+        Assert.Equal(stock, caster.MagicStocks.Sum(entry => entry.Count));
+        Assert.Empty(battle.MagicVitals!.MagicSystem.Reservations);
+    }
+
+    [Theory]
+    [InlineData(0x20000u, 0x20u, 2)]
+    [InlineData(0x40000u, 0x40u, 3)]
+    public void SingleStockPassiveDebitsOneAfterEveryRepeat(uint status, uint passive, int casts)
+    {
+        BattleSession battle = CreateMulticast(status, 1, passive: passive, useLedger: true);
+        string[] targets = ["enemy-10", "enemy-7", "target"];
+        battle.QueueAction("caster", targets[0], BattleAbility.Magic, 1, magicTargets: targets[..casts]);
+        Assert.Equal(1, Assert.Single(battle.MagicVitals!.MagicSystem.Reservations).Count);
+        Complete(battle);
+        Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "EffectContact"));
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "caster");
+        Assert.Empty(caster.MagicStocks);
+        Assert.Equal((ushort)(3100 + 25 * casts), caster.GuardianForceCompatibility![0]);
+        Assert.Empty(battle.MagicVitals!.MagicSystem.Reservations);
+    }
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(0x20u)]
+    public void UnavailableSecondTargetFinishesGroupAndConsumesOnlyItsFirstCast(uint passive)
+    {
+        BattleSession battle = CreateMulticast(0x20000, 2, passive: passive, useLedger: true);
+        BattleCombatant first = battle.Combatants.Single(actor => actor.Id == "enemy-10");
+        BattleCombatant untargetable = battle.Combatants.Single(actor => actor.Id == "enemy-7");
+        battle.QueueAction("caster", first.Id, BattleAbility.Magic, 1, magicTargets: [first.Id, untargetable.Id]);
+        battle.Tick();
+        foreach (BattleCombatant enemy in battle.Combatants.Where(actor => !actor.IsPlayer && actor != first))
+        {
+            enemy.Untargetable = true;
+        }
+        // Keep one living enemy in the outcome roster and make both selected slots unavailable after the first contact.
+        first.CurrentHp = 1;
+        Complete(battle);
+
+        Assert.Equal(first.Id, Assert.Single(battle.Events, entry => entry.Kind == "EffectContact").TargetId);
+        Assert.Equal(1, battle.Combatants.Single(actor => actor.Id == "caster").MagicStocks.Sum(stock => stock.Count));
+        Assert.Empty(battle.MagicVitals!.MagicSystem.Reservations);
+    }
+
+    [Theory]
     [InlineData(false, 2, 1, 3125)]
     [InlineData(false, 1, 0, 3100)]
     [InlineData(true, 0, 0, 3125)]
@@ -102,6 +186,35 @@ public sealed class ExpandedBattleActionCompletionTests
                 new() { Id = "target", Name = "Target", ModelId = 3, Speed = 1, MaximumHp = 1000, CurrentHp = 1000, Defense = 5 }
             ]
         };
+    }
+
+    private static BattleSession CreateMulticast(uint status, int stock, bool poison = false, uint passive = 0, bool useLedger = false)
+    {
+        BattleDefinition definition = CreateDefinition(stock, poison);
+        BattleCombatantDefinition caster = definition.Combatants[0] with { NativeStatus1 = status };
+        if (useLedger)
+        {
+            NativeCharacterVitals vitals = MagicSystemFixture.Create().ChangeMagicStock(1, 1, stock, MagicOperationReason.ScriptReward, out _);
+            definition = definition with { MagicVitals = vitals };
+            caster = caster with { MagicRecordId = 1 };
+            if (passive != 0)
+            {
+                byte[] character = new byte[36];
+                for (int offset = 12; offset < character.Length; offset += 4)
+                {
+                    character[offset + 1] = 1;
+                    character[offset + 2] = 100;
+                    character[offset + 3] = 1;
+                }
+                caster = caster with
+                {
+                    NativeGrowth = new(0, new byte[6].ToImmutableArray()),
+                    NativePlayerStatRules = new(1, 1, character.ToImmutableArray(), new byte[12].ToImmutableArray(), Enumerable.Range(0, 57).Select(_ => new byte[60].ToImmutableArray()).ToImmutableArray(), Enumerable.Range(0, 19).Select(_ => new byte[8].ToImmutableArray()).ToImmutableArray(), new byte[20].ToImmutableArray(), 0, vitals.Definitions) { NativeStatusPassiveFlags = passive }
+                };
+            }
+        }
+        BattleCombatantDefinition[] extended = Enumerable.Range(2, 9).Select(index => definition.Combatants[2] with { Id = $"enemy-{index}" }).ToArray();
+        return new(definition with { Combatants = [caster, .. definition.Combatants.Skip(1), .. extended] }, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession RoundTrip(BattleSession battle)

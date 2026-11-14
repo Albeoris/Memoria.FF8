@@ -72,7 +72,7 @@ public sealed partial class BattleSession
 
     private int MagicCost(BattleCombatant actor, BattleAttackCommand command)
     {
-        int targets = Math.Max(1, command.NativeMagicTargets.Length);
+        int targets = Math.Max(1, command.ExpandedMagicTargets?.Length ?? command.NativeMagicTargets.Length);
         return command.NativeMagicCastMode == 0 ? MagicCost(actor, targets) : Math.Min(targets, MagicCost(actor, command.NativeMagicCastMode));
     }
 
@@ -137,23 +137,23 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("A saved magic bank cannot change the current caster identity or profile.");
             }
         }
-        bool NeedsReservation(string actorId, BattleAbility ability, BattleNativeAction? native, bool free, int? header)
+        bool NeedsReservation(string actorId, BattleAbility ability, BattleNativeAction? native, bool free, int? header, BattleGuardianFormAction? formAction)
         {
-            if (header is null && free && !(ability == BattleAbility.Magic && native?.Command == 247 || ability == BattleAbility.EnemyAbility && native?.Command == 2 && (NativeBattleStatusBits(GetActor(actorId)) & 0x2000000) != 0))
+            if (header is null && free && !(formAction == BattleGuardianFormAction.Fire && ability == BattleAbility.Magic && native?.Command == 2 && GetGuardianForm(actorId) is { EntryCompleted: true } || ability == BattleAbility.Magic && native?.Command == 247 || ability == BattleAbility.EnemyAbility && native?.Command == 2 && (NativeBattleStatusBits(GetActor(actorId)) & 0x2000000) != 0))
             {
                 throw new InvalidDataException("A saved free spell requires its original reflected or Angel Wing source.");
             }
             return header is null && !free && ability != BattleAbility.Draw && GetActor(actorId).MagicRecordId is not null && (ability == BattleAbility.Magic || native?.Command == 2);
         }
-        List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeaderIndex))).ToList();
+        List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeaderIndex, command.GuardianFormAction))).ToList();
         if (ActiveAction is { } active)
         {
-            commands.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId, NeedsReservation(active.ActorId, active.Ability, active.NativeAction, active.FreeNativeMagic, active.NativeHeaderIndex)));
+            commands.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId, NeedsReservation(active.ActorId, active.Ability, active.NativeAction, active.FreeNativeMagic, active.NativeHeaderIndex, active.GuardianFormAction)));
         }
         if (nativeTimedAction is { } timed)
         {
             BattleActionPresentation action = timed.Command;
-            commands.Add((action.MagicReservationId, action.ActorId, action.NativeAction?.ActionId ?? action.ActionId, NeedsReservation(action.ActorId, action.Ability, action.NativeAction, action.FreeNativeMagic, action.NativeHeaderIndex)));
+            commands.Add((action.MagicReservationId, action.ActorId, action.NativeAction?.ActionId ?? action.ActionId, NeedsReservation(action.ActorId, action.Ability, action.NativeAction, action.FreeNativeMagic, action.NativeHeaderIndex, action.GuardianFormAction)));
         }
         if (commands.Any(command => command.Required && command.Identity is null))
         {
@@ -195,6 +195,10 @@ public sealed partial class BattleSession
         {
             return false;
         }
+        if (command.ExpandedMagicTargets is not null)
+        {
+            return GetAvailableMagicCasts(actor.Id, command.ActionId, reservation.ActionId) > 0 && (NativeSavedStatusBits(actor) & 0x10) == 0 && actor.Abilities.Contains(BattleAbility.Magic);
+        }
         uint statuses = NativeBattleStatusBits(actor);
         int mode = command.NativeMagicCastMode == 0 ? command.NativeMagicTargets.Length : command.NativeMagicCastMode;
         int casts = mode >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
@@ -210,7 +214,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant target = GetActor(confirmed.TargetId);
         BattleSmartAttackPreview now = SelectSmartAttack(actor, target, confirmed.ForcePhysical, command.MagicReservationId);
-        bool same = target.EncodeNativeSlot() == confirmed.TargetIndex && target.IsAlive && target.IsActive && !target.Untargetable && now.Ability == confirmed.Ability && now.Ability is BattleAbility.Magic or BattleAbility.Draw && now.ActionId == confirmed.ActionId && now.CastCount == confirmed.CastCount && now.DrawSourceId == confirmed.DrawSourceId && now.DrawSourceIndex == confirmed.DrawSourceIndex;
+        bool same = SmartNativeIndex(target) == confirmed.TargetIndex && now.TargetSlot == confirmed.TargetSlot && target.IsAlive && target.IsActive && !target.Untargetable && now.Ability == confirmed.Ability && now.Ability is BattleAbility.Magic or BattleAbility.Draw && now.ActionId == confirmed.ActionId && now.CastCount == confirmed.CastCount && now.DrawSourceId == confirmed.DrawSourceId && now.DrawSourceIndex == confirmed.DrawSourceIndex && now.DrawSourceSlot == confirmed.DrawSourceSlot;
         if (same)
         {
             return command;

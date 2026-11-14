@@ -24,7 +24,7 @@ public sealed partial class BattleSession
             if (!ExpandedTimedLimitOwnsInput)
             {
                 DispatchExpandedAngelWingActors();
-                foreach (BattleCombatant actor in allies.Where(actor => actor.IsReady && CanNativeBattleActorAct(actor) && RequiresNativeCompelledCommand(actor) && !HasNativeAngelWing(actor)))
+                foreach (BattleCombatant actor in allies.Where(actor => actor.IsReady && CanNativeBattleActorAct(actor) && RequiresNativeCompelledCommand(actor) && !HasNativeAngelWing(actor) && GetGuardianForm(actor.Id) is not { Phase: BattleGuardianFormPhase.Active }))
                 {
                     BattleAttackCommand? command = PrepareExpandedCompelledCommand(actor);
                     if (command is not null)
@@ -175,19 +175,45 @@ public sealed partial class BattleSession
         throw new NotSupportedException("Native Confuse command rejection has no supported available physical command and would not terminate.");
     }
 
-    private static bool RequiresExpandedCompelledReplacement(BattleCombatant actor, BattleAttackCommand command)
+    private bool RequiresExpandedCompelledReplacement(BattleCombatant actor, BattleAttackCommand command)
     {
         return RequiresNativeCompelledCommand(actor) && !HasNativeAngelWing(actor) && command.NativePlayerReaction is null &&
-            command.NativeLimitCallback is null && command.AiRecipients?.TargetPolicy != BattleAiTargetPolicy.Compelled;
+            command.NativeLimitCallback is null && command.AiRecipients?.TargetPolicy != BattleAiTargetPolicy.Compelled &&
+            GetGuardianForm(actor.Id) is not { Phase: BattleGuardianFormPhase.Active };
     }
 
     private BattleAttackCommand? PrepareExpandedCompelledCommand(BattleCombatant actor, BattleAttackCommand? previous = null)
     {
-        if (previous is not null)
+        NativeBattleRandomState savedRandom = random;
+        NativeCharacterVitals? savedMagic = magicVitals;
+        ChocoboRewardLedger savedRewards = chocoboRewards;
+        NativeItemStock[]? savedItems = previous?.ReservedNativeItemSlot is not null || (NativeBattleStatusBits(actor) & 0x4000) != 0
+            ? (NativeItemStock[])nativeItems.Clone()
+            : null;
+        try
         {
-            // The native invocation discards the buffered input and releases its reservation before replacement.
-            RefundCancelledNativeItem(previous);
+            if (previous is not null)
+            {
+                // The cancellation can make its reserved stock eligible for the replacement selection.
+                RefundCancelledNativeItem(previous);
+            }
+            return SelectExpandedCompelledCommand(actor);
         }
+        catch
+        {
+            random = savedRandom;
+            magicVitals = savedMagic;
+            chocoboRewards = savedRewards;
+            if (savedItems is not null)
+            {
+                Array.Copy(savedItems, nativeItems, nativeItems.Length);
+            }
+            throw;
+        }
+    }
+
+    private BattleAttackCommand? SelectExpandedCompelledCommand(BattleCombatant actor)
+    {
         bool confused = (NativeBattleStatusBits(actor) & 0x4000) != 0;
         var selection = (NativeSavedStatusBits(actor) & 0x20) != 0
             ? (Command: (byte)1, ActionId: (ushort)0, TargetFlags: (byte?)null, OppositeSide: !confused)
@@ -208,9 +234,9 @@ public sealed partial class BattleSession
             _ => BattleAbility.Attack
         };
         BattleNativeAction? native = selection.Command == 1 && actor.NativeAttack is null ? null : FindNativeCommandAction(actor, selection.Command, selection.ActionId);
-        if (ability is BattleAbility.Magic or BattleAbility.Item)
+        if (ability is BattleAbility.Magic or BattleAbility.Item && !ExpandedBattleActionRules.SupportsCompelledAction(ability, native!))
         {
-            RequireExpandedAction(FindAction(ability, selection.ActionId));
+            throw new NotSupportedException($"Compelled command {selection.Command}/{selection.ActionId} has no expanded contact contract.");
         }
         if (selection.Command == 12 && GetActor(targetId) is { IsPlayer: false, NativeMug: null })
         {

@@ -93,7 +93,7 @@ internal sealed partial class GameWorld
     internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, GameplayPreferences preferences)
     {
         preferences.Validate();
-        BattleSession active = CreateLiveBattleSession(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = !definition.UsesExpandedRoster && preferences.GuardianFormsEnabled, Tuning = preferences.Tuning, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
+        BattleSession active = CreateLiveBattleSession(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, Tuning = preferences.Tuning, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
         active.SetDifficulty(preferences.Difficulty);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return active;

@@ -7,6 +7,42 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class BattleGuardianFormLifecycleTests
 {
     [Fact]
+    public void ExpandedIfritChargesAndUsesHisInstalledCommandsAgainstTheLastEnemy()
+    {
+        BattleDefinition initial = Definition();
+        BattleNativeAction hellFire = Native(254, 66, 11, 20, 0x40) with { KernelSection = 2, KernelIndex = 2, PowerModifier = 10, LevelModifier = 10, RawRecord = [.. new byte[128]] };
+        BattleDefinition definition = initial with
+        {
+            UsesExpandedRoster = true,
+            NativeBattleSpeed = 0,
+            NativeActions = [.. initial.NativeActions, hellFire],
+            ActionDefinitions = [initial.ActionDefinitions[0], initial.ActionDefinitions[1] with { NativeAction = hellFire }],
+            Combatants = [initial.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, .. Enumerable.Range(0, 7).Select(index => initial.Combatants[1] with { Id = $"enemy-{index}", Speed = 1 })]
+        };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.RequestGuardianForm("actor", 2);
+        Assert.Equal(BattleGuardianFormPhase.Charging, battle.GetGuardianForm("actor")!.Phase);
+        battle = RoundTrip(battle.Capture());
+        battle.Tick();
+        Assert.Equal(61, battle.GetGuardianFormVisual("actor"));
+        Assert.Equal(80, Actor(battle).CurrentHp);
+        foreach (BattleGuardianFormAction action in new[] { BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire })
+        {
+            Actor(battle).Atb = BattleSession.AtbMaximum;
+            battle.QueueGuardianFormAction("actor", "enemy-6", action);
+            Assert.Equal(0, Assert.Single(battle.QueuedActions).NativeTargetMask);
+            battle = RoundTrip(battle.Capture());
+            int before = battle.Events.Count;
+            for (int frame = 0; frame < 32 && Actor(battle).IsBusy; frame++)
+            {
+                battle.Tick();
+            }
+            Assert.Contains(battle.Events.Skip(before), item => item.Kind == "EffectContact" && item.TargetId == "enemy-6");
+        }
+        Assert.Null(battle.GetGuardianForm("actor"));
+        Assert.Equal(37, Actor(battle).CurrentHp);
+    }
+    [Fact]
     public void DisabledBattleUsesNoFeatureMetadataOrResources()
     {
         BattleDefinition definition = Definition() with { GuardianFormsEnabled = false, GuardianFormResources = [] };

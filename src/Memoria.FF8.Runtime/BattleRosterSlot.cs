@@ -8,7 +8,8 @@ public enum BattleSide
 
 public readonly record struct BattleRosterSlot
 {
-    private BattleRosterSlot(BattleSide side, int position)
+    [System.Text.Json.Serialization.JsonConstructor]
+    internal BattleRosterSlot(BattleSide side, int position)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(position);
         Side = side;

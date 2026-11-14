@@ -5,6 +5,30 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class SmartAttackDrawTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExpandedSmartDrawRetainsDistinctLogicalSourceAndTargetAfterRestore(bool invalidateSource)
+    {
+        BattleDefinition native = Create([Spell(1, 80)], [], drawOnly: true).ReadDefinition();
+        BattleDefinition definition = native with { UsesExpandedRoster = true, Combatants = [native.Combatants[0], .. Enumerable.Range(0, 5).Select(index => native.Combatants[1] with { Id = $"extra-{index}" }), native.Combatants[1], native.Combatants[2]] };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(BattleAbility.Draw, preview.Ability);
+        Assert.Equal(BattleRosterSlot.Enemy(5), preview.TargetSlot);
+        Assert.Equal(BattleRosterSlot.Enemy(6), preview.DrawSourceSlot);
+        battle.QueueSmartAttack(preview);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.Equal(preview, Assert.Single(restored.QueuedActions).SmartAttack);
+        if (invalidateSource)
+        {
+            restored.Combatants.Single(actor => actor.Id == "source").Untargetable = true;
+        }
+        restored.Tick();
+        Assert.Equal(invalidateSource ? BattleAbility.Attack : BattleAbility.Draw, restored.ActiveAction!.Ability);
+        Assert.Equal(invalidateSource ? "enemy" : "source", restored.ActiveAction.TargetId);
+        Assert.Equal(invalidateSource ? null : "enemy", restored.ActiveAction.DrawCastTargetId);
+    }
     [Fact]
     public void DrawOnlyCommandUsesRevealedSpellAndKeepsSourceSeparateFromRecipient()
     {

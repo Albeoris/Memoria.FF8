@@ -140,6 +140,49 @@ public sealed class NativeBattleEscapeTests
         Assert.Equal(expected, restored.EscapeDisabled);
     }
 
+    [Fact]
+    public void ExpandedEscapeUsesLogicalCombatantsAndRestoresItsModeTwoCountdown()
+    {
+        BattleEnemyRewardDefinition rewards = new(0, 1, 20, 30, 255, false, 0, [.. Enumerable.Repeat(new BattleStock(0, 0), 12)]);
+        BattleDefinition definition = new()
+        {
+            UsesExpandedRoster = true,
+            ExpandedFormationFlags = 0,
+            NativeGlobalMessages = ["", "Escape!"],
+            NativeMessageSpeed = 2,
+            InitialRandom = NativeBattleRandomState.ForecastPhase(1),
+            Combatants =
+            [
+                .. Enumerable.Range(0, 4).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = $"Ally {index}", IsPlayer = true, NativeStatus0 = index < 3 ? (ushort)4 : (ushort)0, Speed = 1, InitialAtb = BattleSession.AtbMaximum }),
+                .. Enumerable.Range(0, 6).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = $"Enemy {index}", SceneSlot = index, RewardSlot = index, Speed = 1, Level = 1, Information254 = 0, Rewards = rewards })
+            ]
+        };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.PublishNativeEscapeButtons(3);
+        Tick(battle, 60);
+        Assert.Equal((byte)40, battle.Escape.ExpandedOutcomeFrames);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.False(battle.CanChoosePlayerCommand("ally-3"));
+        Assert.Contains(battle.Events, item => item.NativeTextIdentity == BattleTextIdentity.Global(1) && item.Amount == 24);
+        battle.PublishNativeEscapeButtons(0);
+        Tick(battle, 20);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Tick(battle, 20);
+        Tick(restored, 20);
+        Assert.Equal(BattleOutcome.Escaped, restored.Outcome);
+        Assert.Equal((byte?)2, restored.NativeResult);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(Enumerable.Range(0, 6), restored.CaptureEscapeRemainingExperience().Select(receipt => receipt.Slot));
+        Assert.All(restored.CaptureEscapeRemainingExperience(), receipt => Assert.Null(receipt.NativeIndex));
+
+        BattleSession forbidden = new(definition with { ExpandedFormationFlags = 1 }, BattleAtbMode.TurnBased);
+        Assert.True(forbidden.EscapeDisabled);
+        forbidden.PublishNativeEscapeButtons(3);
+        Tick(forbidden, 120);
+        Assert.Equal(BattleOutcome.Active, forbidden.Outcome);
+        Assert.Equal((byte)0, forbidden.Escape.ExpandedOutcomeFrames);
+    }
+
     private static BattleSession Create(ushort flags = 0)
     {
         NativeBattleEnemyLevel level = new(100, 20, 5, 20, 5, 1, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);

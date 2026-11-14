@@ -37,6 +37,14 @@ internal static class ExpandedBattleActionRules
             { KernelSection: 1, ActionId: 51, AttackType: 32, HitCount: 1, Statuses1: 0x100560D };
     }
 
+    public static bool SupportsCompelledAction(BattleAbility ability, BattleNativeAction action)
+    {
+        return SupportsPlayerAction(ability, action) || action.HitCount == 1 && !action.PresentationOnly && action.CrisisLevel is null &&
+            ((ability, action.Command, action.KernelSection, action.AttackType) is (BattleAbility.Magic, 2, 1, 3 or 32) or (BattleAbility.Item, 4, 7, 4 or 32) &&
+                action.TargetFlags is byte flags && (flags & 0x30) != 0x30 && (flags & 1) == 0 && (action.Statuses1 & 0x10000) != 0 ||
+            ability == BattleAbility.Magic && action is { Command: 2, KernelSection: 1, AttackType: 2, Power: 0, Element: 0, TargetFlags: 0x48, AttackFlags: 0x23, StatusAttack: 254, Statuses0: 0, Statuses1: 0x10000 });
+    }
+
     public static bool SupportsPlayerAction(BattleAbility ability, BattleNativeAction action)
     {
         return (ability, action.Command) is (BattleAbility.Magic, 2) or (BattleAbility.Item, 4) &&

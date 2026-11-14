@@ -66,11 +66,11 @@ public sealed record BattleEnemyRewardDefinition(ushort KillExperience, ushort S
 public sealed record BattleExperienceAwards(IReadOnlyDictionary<byte, ushort> Characters, IReadOnlyDictionary<byte, ushort> GuardianForces);
 
 /// <summary>Current enemy operands used to settle shared experience after an escape.</summary>
-public sealed record BattleEnemyRemainingExperience(int Slot, byte Level, int MaximumHp, int CurrentHp, int NativeIndex)
+public sealed record BattleEnemyRemainingExperience(int Slot, byte Level, int MaximumHp, int CurrentHp, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? NativeIndex)
 {
     public void Validate()
     {
-        if (NativeIndex is < 3 or > 6 || Slot is < 0 or >= 8 || Level is < 1 or > 100 || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
+        if (NativeIndex is < 3 or > 6 || Slot < 0 || Slot >= (NativeIndex.HasValue ? NativeBattleSlots.FormationSlotCount : ExpandedBattleFormation.MaximumSideSize) || Level is < 1 or > 100 || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
         {
             throw new InvalidDataException("Remaining enemy experience requires its current slot, level and HP operands.");
         }

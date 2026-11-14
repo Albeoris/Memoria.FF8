@@ -65,7 +65,8 @@ internal sealed partial class GameWorld
             }
             if (saved.Definition.EncounterId is not null)
             {
-                saved = saved with { Definition = BindExpandedEnemyMug(BindExpandedEnemySpecials(saved.Definition)) };
+                BattleDefinition definition = saved.Definition;
+                saved = saved with { Definition = BindExpandedEscapeResources(BindExpandedEnemyMug(BindExpandedEnemySpecials(definition)), definition.EncounterId!.Value) };
             }
         }
         battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(saved));
@@ -254,8 +255,8 @@ internal sealed partial class GameWorld
             LimitOncePerTurn = session.State.GameplayPreferences.LimitOncePerTurn,
             SelphieCardSlots = session.State.GameplayPreferences.SelphieCardSlots,
             DrawOncePerSpell = session.State.GameplayPreferences.DrawOncePerSpell,
-            GuardianFormsEnabled = !expanded && session.State.GameplayPreferences.GuardianFormsEnabled,
-            GuardianFormResources = !expanded && session.State.GameplayPreferences.GuardianFormsEnabled ? [BattleResources.ReadIfritGuardianFormResources()] : [],
+            GuardianFormsEnabled = restoredDefinition?.GuardianFormsEnabled ?? session.State.GameplayPreferences.GuardianFormsEnabled,
+            GuardianFormResources = (restoredDefinition?.GuardianFormsEnabled ?? session.State.GameplayPreferences.GuardianFormsEnabled) ? [BattleResources.ReadIfritGuardianFormResources()] : [],
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
             NativeScanNames = new Dictionary<byte, int> { [0x30] = 0, [0x34] = 1, [0x50] = GameNames.GrieverSubject }.ToDictionary(pair => pair.Key, pair => Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN).GetBytes(Events.Scene.Names.GetValueOrDefault(pair.Value) ?? GameNames.DefaultName(pair.Value)).Append((byte)0).ToArray()),
             NativeScanActorNames = combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => EncodeScanName24(actor.Name)),
@@ -290,7 +291,7 @@ internal sealed partial class GameWorld
         };
         if (effectPreviewRequest is null)
         {
-            definition = BindExpandedEnemyMug(BindExpandedEnemySpecials(BindExpandedEnemyLevels(definition)));
+            definition = BindExpandedEscapeResources(BindExpandedEnemyMug(BindExpandedEnemySpecials(BindExpandedEnemyLevels(definition))), encounterId);
         }
         else
         {
@@ -308,6 +309,21 @@ internal sealed partial class GameWorld
         }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
+    }
+
+    private BattleDefinition BindExpandedEscapeResources(BattleDefinition definition, int encounterId)
+    {
+        if (!definition.UsesExpandedRoster)
+        {
+            return definition;
+        }
+        return definition with
+        {
+            ExpandedFormationFlags = definition.ExpandedFormationFlags ?? BattleResources.LoadEncounter(encounterId).Flags,
+            Combatants = definition.Combatants.Select(actor => actor.IsPlayer || actor.NativeTemplate?.Information254 is not null || actor.Information254 is not null
+                ? actor
+                : actor with { Information254 = BattleResources.ReadEnemyNativeEntryFlags(actor.ModelId) }).ToArray()
+        };
     }
 
     internal static BattleDefinition ApplyEncounterBattlePolicy(BattleDefinition definition, EncounterBindingContext context, BattleDefinition? restoredDefinition, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? currentPolicy)

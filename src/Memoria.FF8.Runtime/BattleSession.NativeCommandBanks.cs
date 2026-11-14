@@ -122,10 +122,20 @@ public sealed partial class BattleSession
 
     private bool TryTakeQueuedCommand(out BattleAttackCommand command)
     {
-        if (actions.TryDequeue(out BattleAttackCommand? queued))
+        while (actions.TryPeek(out BattleAttackCommand? queued))
         {
-            command = queued;
-            return true;
+            BattleAttackCommand? prepared = queued;
+            if (UsesExpandedRoster && RequiresExpandedCompelledReplacement(GetActor(queued.ActorId), queued))
+            {
+                // Keep the source command in the FIFO until replacement preparation commits.
+                prepared = PrepareExpandedCompelledCommand(GetActor(queued.ActorId), queued);
+            }
+            actions.Dequeue();
+            if (prepared is not null)
+            {
+                command = prepared;
+                return true;
+            }
         }
         return TryTakeNativeBankCommand(out command);
     }

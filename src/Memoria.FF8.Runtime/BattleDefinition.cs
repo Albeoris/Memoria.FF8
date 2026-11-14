@@ -83,6 +83,8 @@ public sealed record BattleCombatantDefinition
 {
     public int? MagicRecordId { get; init; }
     public byte? Information246 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? Information254 { get; init; }
     public BattleNativeEnemySpecial? NativeSpecial { get; init; }
     public BattleNativeCharacterGrowth? NativeGrowth { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
@@ -235,6 +237,8 @@ public sealed record BattleDefinition
     public NativeBattleGil? NativeGil { get; init; }
     public byte NativeSeed { get; init; }
     public ushort NativeFlags { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? ExpandedFormationFlags { get; init; }
     public ushort? NativeFieldBattleMode { get; init; }
     public NativeBattleRandomState? InitialRandom { get; init; }
     public GameplayTuning Tuning { get; init; } = new();
@@ -270,6 +274,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public BattleNativeDuelInvocation? NativeDuel { get; init; }
     public BattleNativeSlotsRoll? NativeSlots { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<string>? ExpandedMagicTargets { get; init; }
     public int NativeMagicCastMode { get; init; }
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
@@ -302,6 +308,8 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public BattleNativeDuelInvocation? NativeDuel { get; init; }
     public BattleNativeSlotsRoll? NativeSlots { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<string>? ExpandedMagicTargets { get; init; }
     public int NativeMagicCastMode { get; init; }
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }

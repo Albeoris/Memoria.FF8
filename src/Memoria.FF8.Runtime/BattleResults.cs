@@ -121,7 +121,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         ValidateNativeSpecialEffects();
         NativeGlobalRandomChange?.Validate();
         ValidateNativeDeathCounts();
-        if (RemainingEnemyExperience is null || RemainingEnemyExperience.Any(enemy => enemy is null) || RemainingEnemyExperience.Select(enemy => enemy.NativeIndex).Distinct().Count() != RemainingEnemyExperience.Length || RemainingEnemyExperience.Length > 0 && (RewardPolicy != BattleRewardPolicy.NativeCombat || Outcome != BattleOutcome.Escaped))
+        if (RemainingEnemyExperience is null || RemainingEnemyExperience.Any(enemy => enemy is null || UsesExpandedRoster == enemy.NativeIndex.HasValue || enemy.Slot >= EffectiveEnemySlotCount) || RemainingEnemyExperience.Select(enemy => enemy.NativeIndex ?? enemy.Slot).Distinct().Count() != RemainingEnemyExperience.Length || RemainingEnemyExperience.Length > 0 && (RewardPolicy != BattleRewardPolicy.NativeCombat || Outcome != BattleOutcome.Escaped))
         {
             throw new InvalidDataException("Remaining enemy experience facts require unique current native escape allocations.");
         }

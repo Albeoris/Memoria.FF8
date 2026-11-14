@@ -302,6 +302,41 @@ public sealed class BattleUiTests
     }
 
     [Fact]
+    public void ExpandedTripleKeepsHudTargetOrderWhenAnIntermediateSelectionIsCancelled()
+    {
+        BattleNativeAction spell = new(2, 1, 1, 1) { Name = "Fire", MagicId = 2, AttackType = 2, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        BattleSession battle = new(new BattleDefinition
+        {
+            UsesExpandedRoster = true,
+            ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, 20, false) { NativeAction = spell }],
+            Combatants =
+            [
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeStatus1 = 0x40000, Abilities = [BattleAbility.Magic], MagicStocks = [new(1, 3)] },
+                .. Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = $"Enemy {index}" })
+            ]
+        }, BattleAtbMode.TurnBased);
+        BattleInput? submitted = null;
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }, execute: input =>
+        {
+            submitted = input;
+            battle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, magicTargets: input.MagicTargets);
+        });
+        hud.Choose(hud.Commands.ToList().IndexOf(BattleAbility.Magic));
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(3, hud.MagicCastCount);
+        hud.SelectTarget("enemy-10", true);
+        hud.SelectTarget("enemy-8", true);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.Null(submitted);
+        Assert.Empty(battle.QueuedActions);
+        hud.SelectTarget("enemy-7", true);
+        hud.SelectTarget("enemy-10", true);
+
+        Assert.Equal(new[] { "enemy-10", "enemy-7", "enemy-10" }, submitted!.MagicTargets.ToArray());
+        Assert.Equal(submitted.MagicTargets.ToArray(), Assert.Single(battle.QueuedActions).ExpandedMagicTargets!.Value.ToArray());
+    }
+
+    [Fact]
     public void Attack_requires_target_confirmation_and_uses_host_command_callback()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);

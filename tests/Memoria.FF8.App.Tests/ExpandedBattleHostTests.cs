@@ -101,7 +101,7 @@ public sealed class ExpandedBattleHostTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.UsesExpandedRoster);
-        Assert.False(battle.ReadDefinition().GuardianFormsEnabled);
+        Assert.Equal(guardianFormsEnabled, battle.ReadDefinition().GuardianFormsEnabled);
         BattleDefinition original = world.CreateEncounterBattle(88);
         Assert.False(original.UsesExpandedRoster);
         Assert.NotNull(original.NativeGraphics);
@@ -109,7 +109,6 @@ public sealed class ExpandedBattleHostTests
         int enemyCount = allyCount == 11 ? largeEnemyCount : ExpandedBattleFormation.DefaultEnemyCount(allyCount);
         string lastEnemy = $"enemy-{enemyCount - 1}";
         Assert.Equal(allyCount + enemyCount, battle.Combatants.Count);
-        Assert.True(battle.EscapeDisabled);
         Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
         BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
         string casterId = $"party-{casterRow}";
@@ -125,6 +124,7 @@ public sealed class ExpandedBattleHostTests
         Assert.Equal(allyCount + enemyCount, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));
         Assert.Equal(5, MagicCount(quake.ActionId));
+        Assert.Equal(BattleRosterSlot.Enemy(enemyCount - 1), battle.PreviewSmartAttack(casterId, lastEnemy, forcePhysical: true).TargetSlot);
         if (allyCount >= 8)
         {
             _ = presentation.Render(battle, 640, 448);

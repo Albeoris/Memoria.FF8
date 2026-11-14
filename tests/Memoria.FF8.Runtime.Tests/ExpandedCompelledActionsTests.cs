@@ -121,6 +121,34 @@ public sealed class ExpandedCompelledActionsTests
         Assert.Equal(!silenced, battle.Events.Any(entry => entry.Kind == "Damage" && entry.TargetId == "enemy"));
     }
 
+    [Fact]
+    public void FailedConfusePreparationKeepsTheQueuedItemItsStockAndRandomCursor()
+    {
+        BattleNativeAction item = new(4, 1, 7, 1) { Name = "Potion", MagicId = 0, AttackType = 4, Power = 20, HitCount = 1, TargetFlags = 0x10, AttackFlags = 2, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [.. new byte[24]], SupplementalRecord = [] };
+        BattleNativeAction unavailable = item with { Command = 2, KernelSection = 1, AttackType = 14, TargetFlags = 0x50 };
+        BattleDefinition definition = new()
+        {
+            UsesExpandedRoster = true,
+            Combatants = [Combatant("caster") with { IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.Item], NativeCommandSlots = [2, 2, 2, 2], MagicStocks = [new(1, 1)] }, Combatant("enemy")],
+            ActionDefinitions = [new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Native, 20, true) { NativeAction = item }],
+            NativeActions = [item, unavailable],
+            NativeFieldBattleRules = 0,
+            Items = [new(1, 1)]
+        };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.QueueAction("caster", "caster", BattleAbility.Item, 1);
+        BattleSnapshot queued = battle.Capture();
+        queued.Combatants[0] = queued.Combatants[0] with { NativeStatus = queued.Combatants[0].NativeStatus! with { Battle = 0x4000 } };
+        battle = BattleSession.Restore(queued);
+
+        Assert.Throws<NotSupportedException>(battle.Tick);
+
+        Assert.Equal(Assert.Single(queued.QueuedActions), Assert.Single(battle.QueuedActions));
+        Assert.Equal(queued.NativeItemInventory, battle.Capture().NativeItemInventory);
+        Assert.Equal(JsonSerializer.Serialize(queued.Random), JsonSerializer.Serialize(battle.Capture().Random));
+        Assert.Equal(1, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+    }
+
     private static BattleCombatantDefinition Combatant(string id)
     {
         return new() { Id = id, Name = id, CurrentHp = 500, MaximumHp = 500, Speed = 1, Attack = 40, Level = 10, Abilities = [BattleAbility.Attack] };

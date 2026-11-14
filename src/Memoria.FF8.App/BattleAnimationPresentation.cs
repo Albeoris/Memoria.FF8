@@ -58,17 +58,20 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             // TODO(TD-009): Native effect-only deaths require the battle effect VM; fade is presentation tuning.
             return new BattleAnimationSample(0, 0, Vector3.Zero, (float)Math.Clamp(1 - age / 15, 0, 1));
         }
-        if (actor.IsPlayer && session.Outcome == BattleOutcome.Victory)
+        if (actor.IsPlayer && (session.Outcome == BattleOutcome.Victory || session.IsExpandedEscapeFinishing) && sequences.Contains(17))
         {
             // Native502F90 selects17 through505C00/505BC0, replacing the previous sequence and resetting its position.
             BattleEvent? outcome = session.Events.LastOrDefault(item => item.Kind == "Outcome");
             int[] clips = Sequence(17).Animations.ToArray();
             if (clips.Length != 0)
             {
-                return Play(clips, outcome is null ? 0 : Age(session, outcome), Vector3.Zero);
+                double age = session.IsExpandedEscapeFinishing
+                    ? (NativeBattleOutcomeCallbacks.Duration47DFC0(2) - session.Escape.ExpandedOutcomeFrames) / 2d
+                    : outcome is null ? 0 : Age(session, outcome);
+                return Play(clips, age, Vector3.Zero);
             }
         }
-        BattleEvent? windup = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
+        BattleEvent? windup = CurrentModelEvents(session).LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
         if (windup is not null)
         {
             double age = Age(session, windup);
@@ -88,7 +91,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                 return Play(clips, progress * Length(clips), offset, approachTarget);
             }
         }
-        BattleEvent? damage = session.Events.LastOrDefault(item => (item.Kind is "Damage" or "EffectDamage") && item.Amount > 0 && item.TargetId == actor.Id && BattleImpactPresentation.IsImpact(session, item));
+        BattleEvent? damage = CurrentModelEvents(session).LastOrDefault(item => (item.Kind is "Damage" or "EffectDamage") && item.Amount > 0 && item.TargetId == actor.Id && BattleImpactPresentation.IsImpact(session, item));
         if (damage is not null)
         {
             int[] clips = Sequence(4).Animations.ToArray();
@@ -96,6 +99,14 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             if (clips.Length != 0 && age < Length(clips))
             {
                 return Play(clips, age, Vector3.Zero);
+            }
+        }
+        if (session.IsExpandedEscapeRunning && session.CanParticipateInEscape(actor) && sequences.Contains(16))
+        {
+            int[] clips = Sequence(16).Animations.ToArray();
+            if (clips.Length != 0)
+            {
+                return Play(clips, (session.Escape.HeldFrames / 2d) % Length(clips), Vector3.Zero);
             }
         }
         // Native4842B0/4A9450 can hold gameplay while502AB0 continues the actor sequence/pose callback.
@@ -177,14 +188,14 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             return [];
         }
         List<BattleSequenceSoundCue> result = [];
-        foreach (BattleEvent item in session.Events)
+        foreach (BattleEvent item in CurrentModelEvents(session))
         {
             int sequence = item.Kind switch
             {
                 "Windup" when item.ActorId == definition.Id => CommandSequence(item.Ability, item.NativeSequence),
                 "Defeated" when item.TargetId == definition.Id => 3,
                 "Damage" or "EffectDamage" when item.TargetId == definition.Id && item.Amount > 0 && BattleImpactPresentation.IsImpact(session, item) => 4,
-                "Outcome" when definition.IsPlayer && session.Outcome == BattleOutcome.Victory => 17,
+                "Outcome" when definition.IsPlayer && session.Outcome == BattleOutcome.Victory && sequences.Contains(17) => 17,
                 _ => 0
             };
             if (sequence == 0)
@@ -209,6 +220,23 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             }
         }
         return result;
+    }
+
+    private IEnumerable<BattleEvent> CurrentModelEvents(BattleSession session)
+    {
+        if (!session.UsesExpandedRoster || !definition.IsPlayer || !session.GuardianFormsEnabled)
+        {
+            return session.Events;
+        }
+        for (int index = session.Events.Count - 1; index >= 0; index--)
+        {
+            BattleEvent item = session.Events[index];
+            if (item.ActorId == definition.Id && item.Kind is "GuardianFormActive" or "GuardianFormReturned")
+            {
+                return session.Events.Skip(index + 1);
+            }
+        }
+        return session.Events;
     }
 
     private BattleSequence Sequence(int sequence)

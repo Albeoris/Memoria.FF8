@@ -9,13 +9,9 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
-        if (UsesExpandedRoster && (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.NativeCommand or BattleAbility.LimitBreak) || magicTargets is { Count: > 1 }))
+        if (UsesExpandedRoster && ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.NativeCommand or BattleAbility.LimitBreak))
         {
             throw new NotSupportedException("This command requires a battle process outside the expanded host.");
-        }
-        if (UsesExpandedRoster && magicTargets is { Count: 1 } && magicTargets[0] == targetId)
-        {
-            magicTargets = null;
         }
         if (drawCast && ability != BattleAbility.Draw)
         {
@@ -54,13 +50,13 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
-        System.Collections.Immutable.ImmutableArray<ushort> magicMasks = PrepareNativeMagicTargets(actor, action, targetId, magicTargets);
+        var (magicMasks, expandedMagicTargets) = PreparePlayerMagicTargets(actor, action, targetId, magicTargets);
         if (action.NativeAction is { } native)
         {
             ValidateNativeActionContract(native);
             ValidateIndependentGuardianItem(actor, native);
         }
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || UsesExpandedRoster && RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(ability) || !IsValidSelectedActionTarget(actor, action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedEscape || !actor.IsReady || UsesExpandedRoster && RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(ability) || !IsValidSelectedActionTarget(actor, action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }
@@ -93,8 +89,8 @@ public sealed partial class BattleSession
             default:
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
-        int magicMode = actor.IsPlayer && magicMasks.Length == 2 && (NativeBattleStatusBits(actor) & 0x60000) == 0x40000 ? 3 : 0;
-        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
+        int magicMode = actor.IsPlayer && (expandedMagicTargets?.Length ?? magicMasks.Length) == 2 && (NativeBattleStatusBits(actor) & 0x60000) == 0x40000 ? 3 : 0;
+        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, ExpandedMagicTargets = expandedMagicTargets, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
         if (UsesExpandedRoster && ability == BattleAbility.GuardianForce)

@@ -851,7 +851,8 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Pending Selphie card Slots policy cannot change during battle.");
         }
-        if (state.Battle is { Definition: { } battleDefinition } && battleDefinition.GuardianFormsEnabled != (!battleDefinition.UsesExpandedRoster && state.GameplayPreferences.GuardianFormsEnabled))
+        if (state.Battle is { Definition: { } battleDefinition } && battleDefinition.GuardianFormsEnabled != state.GameplayPreferences.GuardianFormsEnabled &&
+            !(battleDefinition.UsesExpandedRoster && !battleDefinition.GuardianFormsEnabled && battleDefinition.GuardianFormResources.IsDefaultOrEmpty))
         {
             throw new InvalidDataException("Saved battle GF Transformations option differs from its save preference.");
         }

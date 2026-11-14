@@ -7,10 +7,12 @@ public sealed record NativeBattleEscapeState
     public int HeldFrames { get; init; }
     public bool Requested { get; init; }
     public bool Completed { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public byte ExpandedOutcomeFrames { get; init; }
 
     public void Validate()
     {
-        if (HeldFrames is < 0 or >= 60 || !Held && (HeldFrames != 0 || Requested))
+        if (HeldFrames is < 0 or >= 60 || !Held && (HeldFrames != 0 || Requested) || ExpandedOutcomeFrames > NativeBattleOutcomeCallbacks.Duration47DFC0(2) || ExpandedOutcomeFrames > 0 && (Completed || Requested))
         {
             throw new InvalidDataException("Invalid consecutive escape-button hold state.");
         }
@@ -42,7 +44,12 @@ public sealed partial class BattleSession
 {
     private NativeBattleEscapeState nativeEscape = new();
     public NativeBattleEscapeState Escape => nativeEscape;
-    public bool EscapeDisabled => UsesExpandedRoster || (nativeScriptState.EscapeDisabled ?? (ResolvedNativeFlags & 1) != 0);
+    private ushort EscapeFlags => definition.ExpandedFormationFlags is byte formationFlags ? NativeBattleEntryRules.MergeFlags(definition.NativeFlags, formationFlags) : ResolvedNativeFlags;
+    public bool EscapeDisabled => nativeScriptState.EscapeDisabled ?? (EscapeFlags & 1) != 0;
+    public bool IsExpandedEscapeRunning => UsesExpandedRoster && !HasPendingExpandedEscape && Outcome == BattleOutcome.Active && nativeEscape.PresentationHeld;
+    public bool IsExpandedEscapeFinishing => HasPendingExpandedEscape || UsesExpandedRoster && Outcome == BattleOutcome.Escaped;
+
+    private bool HasPendingExpandedEscape => nativeEscape.ExpandedOutcomeFrames > 0;
 
     private bool EscapeAdvancesBattleTime => nativeEscape.Held && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && PendingSlotsDeal is null && NativeGraphics?.UiServices?.PauseDE9 != true;
     private bool UsesRealTimeBattleClock => Mode != BattleAtbMode.TurnBased || EscapeAdvancesBattleTime;
@@ -53,10 +60,25 @@ public sealed partial class BattleSession
         nativeEscape = held ? nativeEscape with { Held = true } : nativeEscape with { Held = false, HeldFrames = 0, Requested = false };
     }
 
-    private bool HasEscapeParticipant => combatants.Any(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3 && NativeBattleEscapeRules.Eligible(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.NativeCombatantFlags));
+    public bool CanParticipateInEscape(BattleCombatant actor) => actor.IsPlayer && (UsesExpandedRoster ? actor.IsActive : actor.EncodeNativeSlot() is >= 0 and < 3) && NativeBattleEscapeRules.Eligible(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.NativeCombatantFlags);
+
+    private bool HasEscapeParticipant => allies.Any(CanParticipateInEscape);
+
+    private IEnumerable<BattleCombatant> CurrentEscapeEnemies => enemies.Where(actor => UsesExpandedRoster ? actor.IsActive : actor.EncodeNativeSlot() is >= 3 and < 7);
 
     private void AdvanceNativeEscapeFrame()
     {
+        if (HasPendingExpandedEscape)
+        {
+            Frame = checked(Frame + 1);
+            byte remaining = NativeBattleOutcomeCallbacks.AdvanceCountdown47CCB0(nativeEscape.ExpandedOutcomeFrames);
+            nativeEscape = nativeEscape with { ExpandedOutcomeFrames = remaining, Completed = remaining == 0 };
+            if (remaining == 0)
+            {
+                CompleteBattleIfNeeded();
+            }
+            return;
+        }
         if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || !NativeEntryReady || NativeGraphics?.UiServices?.PauseDE9 == true)
         {
             return;
@@ -77,15 +99,17 @@ public sealed partial class BattleSession
         nativeEscape = nativeEscape with { HeldFrames = heldFrames };
         if (!EscapeDisabled && heldFrames == 0 && HasEscapeParticipant)
         {
-            byte advantage = NativeEntryAdvantage ?? 0;
+            byte advantage = NativeEntryAdvantage ?? (UsesExpandedRoster
+                ? (EscapeFlags & 0xE0) switch { 0x20 => (byte)1, 0x40 => (byte)2, _ => (byte)0 }
+                : (byte)0);
             List<byte> information = [];
             if (advantage == 0)
             {
-                BattleCombatant[] enemies = combatants.Where(actor => !actor.IsPlayer && actor.EncodeNativeSlot() is >= 3 and < 7).ToArray();
+                BattleCombatant[] enemies = CurrentEscapeEnemies.ToArray();
                 bool eligibleEnemy = enemies.Any(actor => (NativeSavedStatusBits(actor) & 0x25) == 0 && (NativeBattleStatusBits(actor) & 0x4001) == 0);
                 if (eligibleEnemy)
                 {
-                    information.AddRange(enemies.Where(actor => (NativeSavedStatusBits(actor) & 1) == 0).Select(actor => actor.SourceDefinition.NativeTemplate?.Information254 ?? throw new NotSupportedException("Native escape requires the enemy's original information BYTE254.")));
+                    information.AddRange(enemies.Where(actor => (NativeSavedStatusBits(actor) & 1) == 0).Select(actor => actor.SourceDefinition.NativeTemplate?.Information254 ?? actor.SourceDefinition.Information254 ?? throw new NotSupportedException("Native escape requires the enemy's original information BYTE254.")));
                 }
             }
             byte threshold = NativeBattleEscapeRules.Threshold(advantage, information);
@@ -104,6 +128,10 @@ public sealed partial class BattleSession
     {
         get
         {
+            if (UsesExpandedRoster)
+            {
+                return ActiveAction is not null || ExpandedTimedLimitOwnsInput || HasExpandedAiDescriptors || enemies.Any(HasExpandedEnemyDeathAction);
+            }
             if (nativeCommandBanks is not { } banks)
             {
                 return false;
@@ -124,6 +152,15 @@ public sealed partial class BattleSession
     private void BeginNativeEscape4862A0()
     {
         StopTurnAdvance();
+        if (UsesExpandedRoster)
+        {
+            if (definition.NativeGlobalMessages.Length > 1 && definition.NativeGlobalMessages[1] is { } text && definition.NativeMessageSpeed is byte speed)
+            {
+                QueueNativeDescriptorMessage(new(Frame, "NativeText", null, null, unchecked((byte)(8 * speed + 8)), text) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(1) });
+            }
+            nativeEscape = nativeEscape with { Requested = false, ExpandedOutcomeFrames = NativeBattleOutcomeCallbacks.Duration47DFC0(2) };
+            return;
+        }
         if (NativeGraphics is not { } graphics)
         {
             nativeEscape = nativeEscape with { Completed = true };

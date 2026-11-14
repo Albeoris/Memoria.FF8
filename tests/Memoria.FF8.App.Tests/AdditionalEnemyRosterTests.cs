@@ -69,6 +69,25 @@ public sealed class AdditionalEnemyRosterTests
             AssertRestoredRoster(snapshot with { GameplayPreferences = snapshot.GameplayPreferences with { AdditionalEnemies = 10 } }, directory, definition);
             AssertNonlocalDonorRejected(snapshot, directory, world.BattleResources, world.Field!.RandomEncounters!.Formations);
         }
+        if (allies == 11)
+        {
+            Assert.False(battle.EscapeDisabled);
+            battle.PublishNativeEscapeButtons(3);
+            for (int tick = 0; tick < 1200 && battle.Outcome == BattleOutcome.Active; tick++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.Equal(BattleOutcome.Escaped, battle.Outcome);
+            Assert.Equal((byte?)2, battle.NativeResult);
+            Assert.Contains(battle.CaptureEscapeRemainingExperience(), receipt => receipt is { Slot: > 6, NativeIndex: null });
+            Assert.Empty(world.PreviewBattleRewards().Items);
+            world.ApplyBattleInput(new(BattleInputKind.Return));
+            Assert.Null(world.Battle);
+            Assert.Null(session.State.PendingBattleEncounter);
+            Assert.Null(session.State.RandomEncounters!.Pending);
+            Assert.Single(session.State.AppliedBattleResultIds);
+            return;
+        }
         world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
         Assert.Empty(world.PreviewBattleRewards().Items);
     }

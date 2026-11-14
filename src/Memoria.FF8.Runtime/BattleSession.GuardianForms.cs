@@ -68,16 +68,19 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("GF transformation requires saved compatibility and battle speed.");
         }
-        _ = nativeCommandBanks.Allocate(2);
-        if (!Enumerable.Range(0, 16).Any(index => !nativeScriptState.Tasks.Allocated(index)))
+        if (!UsesExpandedRoster)
         {
-            throw new InvalidOperationException("GF transformation requires a free charge task slot.");
+            _ = nativeCommandBanks.Allocate(2);
+            if (!Enumerable.Range(0, 16).Any(index => !nativeScriptState.Tasks.Allocated(index)))
+            {
+                throw new InvalidOperationException("GF transformation requires a free charge task slot.");
+            }
+            PrepareGuardianFormPresentation(actor, guardianForceId);
         }
         if (nativePartyPresentation is not null)
         {
             _ = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
         }
-        PrepareGuardianFormPresentation(actor, guardianForceId);
         if (NativeGraphics is null)
         {
             QueueGuardianForce(actor, command);
@@ -108,21 +111,21 @@ public sealed partial class BattleSession
         QueueGuardianFormActionCore(actor, form, GetActor(targetId), action);
     }
 
-    private void QueueGuardianFormActionCore(BattleCombatant actor, BattleGuardianFormState form, BattleCombatant target, BattleGuardianFormAction binding)
+    private void QueueGuardianFormActionCore(BattleCombatant actor, BattleGuardianFormState form, BattleCombatant target, BattleGuardianFormAction binding, bool compelled = false)
     {
         BattleGuardianFormActionBinding policy = BattleGuardianFormProfiles.Find(form.GuardianForceId)!.Binding(binding);
         BattleActionDefinition action = GetGuardianFormActionDefinition(actor.Id, binding);
         BattleNativeAction native = action.NativeAction ?? throw new NotSupportedException("GF form action requires its installed action metadata.");
         ValidateNativeActionContract(native);
-        if (!target.IsActive || target.Untargetable || !HasValidTargetLifeState(action, target) || (actor.IsPlayer == target.IsPlayer) != action.Allies || policy.Source != BattleGuardianFormActionSource.Physical && ((NativeSavedStatusBits(actor) & 0x10) != 0 || HasStatus(actor, BattleStatusKind.Silence)))
+        if (!target.IsActive || target.Untargetable || !HasValidTargetLifeState(action, target) || !compelled && (actor.IsPlayer == target.IsPlayer) != action.Allies || policy.Source != BattleGuardianFormActionSource.Physical && ((NativeSavedStatusBits(actor) & 0x10) != 0 || HasStatus(actor, BattleStatusKind.Silence)))
         {
             throw new InvalidOperationException("GF form action has an unavailable actor or target.");
         }
         bool finisher = policy.Terminal;
-        ushort mask = policy.Source == BattleGuardianFormActionSource.Physical ? checked((ushort)(1 << target.EncodeNativeSlot())) : finisher ? NativeAutomaticActionTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF finisher requires original target rules.")) : NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF spell requires original target rules."), target.EncodeNativeSlot());
+        ushort mask = UsesExpandedRoster ? (ushort)0 : policy.Source == BattleGuardianFormActionSource.Physical ? checked((ushort)(1 << target.EncodeNativeSlot())) : finisher ? NativeAutomaticActionTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF finisher requires original target rules.")) : NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF spell requires original target rules."), target.EncodeNativeSlot());
         BattleAttackCommand command = new(actor.Id, target.Id, action.Ability, action.Id)
         {
-            NativeAction = finisher ? null : native,
+            NativeAction = !UsesExpandedRoster && finisher ? null : native,
             NativeSequence = policy.Sequence,
             NativeQueuedCommand = finisher ? (byte)254 : native.Command,
             NativeTargetMask = mask,
@@ -130,12 +133,20 @@ public sealed partial class BattleSession
             GuardianFormAction = binding,
             GuardianFormInvocation = finisher ? new(form.InvocationId, form.GuardianForceId, GuardianFormInvocationMode.FinisherWithoutEntry) : null
         };
-        _ = nativeCommandBanks.Allocate(finisher ? (byte)1 : (byte)2);
-        if (finisher)
+        if (UsesExpandedRoster)
         {
-            PrepareGuardianFormFinisher(actor, form);
+            StopTurnAdvance();
+            actions.Enqueue(command);
         }
-        EnqueueNativeInputCommand(command);
+        else
+        {
+            _ = nativeCommandBanks.Allocate(finisher ? (byte)1 : (byte)2);
+            if (finisher)
+            {
+                PrepareGuardianFormFinisher(actor, form);
+            }
+            EnqueueNativeInputCommand(command);
+        }
         OnNativePlayerCommandSubmitted(actor, finisher ? (byte)3 : command.NativeQueuedCommand!.Value);
         actor.Atb = 0;
         actor.IsBusy = true;
@@ -165,7 +176,15 @@ public sealed partial class BattleSession
         if (form.Phase == BattleGuardianFormPhase.Charging)
         {
             guardianForms![actor.Id] = form with { Phase = BattleGuardianFormPhase.Entering };
-            BeginGuardianFormEntry(actor, form.GuardianForceId, invocation.Id);
+            if (UsesExpandedRoster)
+            {
+                // TODO(TD-009): The expanded host switches models here until it can play entry using the logical caster.
+                CompleteGuardianFormEntry(actor.Id, invocation.Id);
+            }
+            else
+            {
+                BeginGuardianFormEntry(actor, form.GuardianForceId, invocation.Id);
+            }
         }
         return true;
     }
@@ -249,9 +268,29 @@ public sealed partial class BattleSession
                 ReturnGuardianForm(actor, terminal);
                 continue;
             }
+            if (UsesExpandedRoster && form.Phase == BattleGuardianFormPhase.Finishing && ActiveAction?.ActorId != actor.Id && !actions.Any(command => command.ActorId == actor.Id && command.GuardianFormInvocation?.Id == form.InvocationId))
+            {
+                ReturnGuardianForm(actor, false);
+                continue;
+            }
             if (form.Phase == BattleGuardianFormPhase.Active && form.RemainingTicks == 0 && (!CanNativeBattleActorAct(actor) || (actor.NativeStatus0 & 0x35) != 0 || (actor.NativeStatus1 & 0x14000) != 0 || (NativeSavedStatusBits(actor) & 0x10) != 0 || HasStatus(actor, BattleStatusKind.Silence)))
             {
                 ReturnGuardianForm(actor, false);
+                continue;
+            }
+            if (UsesExpandedRoster && form is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 } && actor.IsReady && RequiresNativeCompelledCommand(actor) && CanNativeBattleActorAct(actor) && !ExpandedTimedLimitOwnsInput)
+            {
+                bool magic = HasNativeAngelWing(actor);
+                bool friendly = !magic && (NativeBattleStatusBits(actor) & 0x4000) != 0;
+                BattleCombatant[] recipients = Roster(friendly ? BattleSide.Allies : BattleSide.Enemies).Where(IsExpandedAiTarget).ToArray();
+                if (recipients.Length != 0 && (!magic || (NativeSavedStatusBits(actor) & 0x10) == 0))
+                {
+                    QueueGuardianFormActionCore(actor, form, recipients[NextRandomByte() % recipients.Length], magic ? BattleGuardianFormAction.Fire : BattleGuardianFormAction.Attack, compelled: true);
+                }
+                else
+                {
+                    actor.Atb = 0;
+                }
                 continue;
             }
             if (form.Phase != BattleGuardianFormPhase.Active || form.RemainingTicks != 0 || actor.IsBusy || ActiveAction is not null || nativeTimedAction is not null || QueuedActions.Count != 0 || NativeGraphics is { } graphics && NativeOriginalEffectBusy(graphics))
@@ -300,6 +339,10 @@ public sealed partial class BattleSession
         RestoreGuardianFormHumanVital(actor);
         actor.Atb = 0;
         guardianForms.Remove(actor.Id);
+        if (UsesExpandedRoster && ActiveAction is { GuardianFormAction: not null } action && action.ActorId == actor.Id)
+        {
+            CompleteActionPresentation(action, "GF returned before the action was committed.");
+        }
         Log("GuardianFormReturned", actor.Id, actor.Id, form.GuardianForceId, "GF form returned.");
     }
 
@@ -430,7 +473,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (contact.CommittingSecondary && contact.Secondary is { } secondary && secondary.ActorIndex == actor.EncodeNativeSlot())
+        if (contact.CommittingSecondary && contact.Secondary is { } secondary && (UsesExpandedRoster ? contact.Actor == actor : secondary.ActorIndex == actor.EncodeNativeSlot()))
         {
             contact.Secondary = secondary with { HitFlags3 = (byte)(secondary.HitFlags3 | 0x20) };
         }
