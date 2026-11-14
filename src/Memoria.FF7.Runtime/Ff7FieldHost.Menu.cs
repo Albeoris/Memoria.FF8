@@ -86,6 +86,7 @@ public sealed partial class Ff7Session
         Ff7Progress next = Progress with { Party = members.ToArray() };
         next.Validate();
         Host.CompleteMenu(requestId);
+        Machine.SynchronizePartyFromMain(next.Party);
         PublishFieldParty(next);
         return true;
     }

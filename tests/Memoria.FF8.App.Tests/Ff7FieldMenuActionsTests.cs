@@ -39,6 +39,7 @@ public sealed class Ff7FieldMenuActionsTests
         Choose("ff7-story-party", "confirm");
         Assert.Null(scene.ActivePlayerMenu);
         Assert.Equal(new[] { 0, 3, 2 }, session.Progress.Party);
+        Assert.Equal(new[] { 0, 2, 3 }, Enumerable.Range(9, 3).Select(address => (int)session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).Order());
         Assert.True(session.Host.Process.Menu!.Completed);
         Assert.False(session.CompleteStoryPartyMenu(request.Id, [0, 1, 2]));
 
