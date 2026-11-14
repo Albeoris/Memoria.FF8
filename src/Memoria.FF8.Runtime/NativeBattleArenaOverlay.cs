@@ -357,6 +357,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     {
         Source.RequireRange(offset, 4);
         NativeBattleEffectArena.ValidatePointer(pointer);
+        InvalidateExecutionReferences(offset, 4);
         SavePointer(offset);
         pointers[offset] = new(true, pointer);
     }
@@ -384,6 +385,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         }
         byteUndo.Clear();
         pointerUndo.Clear();
+        executionUndo.Clear();
         pointerSaved.Clear();
     }
 
@@ -410,6 +412,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
                 pointers.Remove(undo.Offset);
             }
         }
+        RollbackExecutionChanges();
         dirty.RemoveRange(checkpointDirtyCount, dirty.Count - checkpointDirtyCount);
         extent = checkpointExtent;
         textureFileChanges.RemoveRange(checkpointTextureFileChanges, textureFileChanges.Count - checkpointTextureFileChanges);
@@ -420,7 +423,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
 
     internal NativeBattleEffectArena Commit()
     {
-        if (dirty.Count == 0 && pointers.Count == 0 && textureFileChanges.Count == 0)
+        if (dirty.Count == 0 && pointers.Count == 0 && executionChanges.Count == 0 && textureFileChanges.Count == 0)
         {
             return Source;
         }
@@ -550,7 +553,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
             }
             last = index;
         }
-        owner.PrepareCoverage(checked(runs + pointerStores));
+        owner.PrepareCoverage(checked(runs + pointerStores + executionChanges.Count));
         preparedTextureFiles = textureFileChanges.Count == 0 ? null : AllTextureFiles;
         NativeBattleTextureFileMetadata.Validate(preparedTextureFiles, Kernel.LogicalLength);
     }
@@ -559,7 +562,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     {
         NativeBattleEffectArena owner = Source;
         NativeBattleWorkingMemory memory = owner.Working;
-        memory.ReserveCheckpointCapacity(checked(dirty.Count + pointers.Count * 4), checked(memory.ResourcePointerCount + pointers.Count * 2));
+        memory.ReserveCheckpointCapacity(checked(dirty.Count + pointers.Count * 4 + executionChanges.Count * 4), checked(memory.ResourcePointerCount + memory.ExecutionReferenceCount + pointers.Count * 2 + executionChanges.Count * 2));
         for (int index = 0; index < dirty.Count;)
         {
             int first = dirty[index++];
@@ -585,6 +588,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
                 memory.SetResourcePointer(owner.WorkingOffset + offset, pointer.Value);
             }
         }
+        ApplyExecutionChanges(memory, owner.WorkingOffset);
         if (textureFileChanges.Count != 0)
         {
             memory.SetTextureFiles(preparedTextureFiles);
@@ -659,6 +663,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
 
     private void InvalidatePointers(int offset, int length)
     {
+        InvalidateExecutionReferences(offset, length);
         pointerScratch.Clear();
         NativeBattleEffectArena owner = Source;
         using (var retained = owner.Working.EnumerateResourcePointers())
@@ -721,9 +726,11 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
             checkpointSaved[undo.Offset] = false;
         }
         pointers.Clear();
+        executionChanges.Clear();
         pointerScratch.Clear();
         byteUndo.Clear();
         pointerUndo.Clear();
+        executionUndo.Clear();
         pointerSaved.Clear();
         extent = 0;
         textureFileChanges.Clear();

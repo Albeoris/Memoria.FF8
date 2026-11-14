@@ -5,7 +5,10 @@ using System.Runtime.ExceptionServices;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Detached physical storage. Unmaterialized suffix bytes use InitialKnownZero.</summary>
-internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectUnknownRegion> DataFootprint = default, ImmutableArray<NativeBattleEffectUnknownRegion> ClassifiedRanges = default, ImmutableArray<NativeBattleTextureFileSource>? TextureFiles = null);
+internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectUnknownRegion> DataFootprint = default, ImmutableArray<NativeBattleEffectUnknownRegion> ClassifiedRanges = default, ImmutableArray<NativeBattleTextureFileSource>? TextureFiles = null)
+{
+    internal ImmutableDictionary<int, BattleExecutionReferenceEntry> ExecutionReferences { get; init; } = ImmutableDictionary<int, BattleExecutionReferenceEntry>.Empty;
+}
 
 internal interface INativeBattleCheckpointParticipant
 {
@@ -18,7 +21,7 @@ internal interface INativeBattleCheckpointParticipant
 internal sealed partial class NativeBattleWorkingMemory : IDisposable
 {
     private readonly record struct ByteUndo(int Offset, byte Data, bool Known);
-    private readonly record struct PointerUndo(int Offset, bool Present, NativeBattleResourcePointer? Value);
+    private readonly record struct PointerUndo(int Offset, bool Present, NativeBattleResourcePointer? Value, bool IsExecution = false, BattleExecutionReferenceEntry? Execution = null);
     private readonly record struct CheckpointMark(int Bytes, int Pointers, int StoredLength);
     private readonly int logicalLength;
     private readonly bool initialKnownZero;
@@ -232,7 +235,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers?.Count ?? 0);
+        ReserveJournal(changes, (removedPointers?.Count ?? 0) + RemovedExecutionCount);
         ObserveReadWindowWrite(null, offset, source.Length);
         EnsureCapacity(offset + source.Length);
         if (checkpoint)
@@ -279,7 +282,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers?.Count ?? 0);
+        ReserveJournal(changes, (removedPointers?.Count ?? 0) + RemovedExecutionCount);
         ObserveReadWindowWrite(null, offset, source.Length);
         EnsureCapacity(offset + source.Length);
         if (checkpoint)
@@ -325,7 +328,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers?.Count ?? 0);
+        ReserveJournal(changes, (removedPointers?.Count ?? 0) + RemovedExecutionCount);
         ObserveReadWindowWrite(null, destination, length);
         EnsureCapacity(destination + length);
         if (checkpoint)
@@ -599,7 +602,11 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         for (int index = pointerUndo!.Count - 1; index >= firstPointer; index--)
         {
             PointerUndo entry = pointerUndo![index];
-            if (entry.Present)
+            if (entry.IsExecution)
+            {
+                RestoreExecutionUndo(entry);
+            }
+            else if (entry.Present)
             {
                 pointers![entry.Offset] = entry.Value;
             }
@@ -643,7 +650,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
             unknown.Add(new(first, index - first));
         }
-        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers?.ToImmutableDictionary() ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage), textureFiles);
+        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers?.ToImmutableDictionary() ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage), textureFiles) { ExecutionReferences = executionReferences?.ToImmutableDictionary() ?? ImmutableDictionary<int, BattleExecutionReferenceEntry>.Empty };
     }
 
     public static NativeBattleWorkingMemory Restore(NativeBattleWorkingMemorySnapshot snapshot)
@@ -713,6 +720,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
             (result.pointers ??= new()).Add(entry.Key, pointer);
         }
+        result.RestoreExecutionReferences(snapshot.ExecutionReferences);
         return result;
     }
 
@@ -807,7 +815,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, (removedPointers?.Count ?? 0) + extraPointers);
+        ReserveJournal(changes, (removedPointers?.Count ?? 0) + RemovedExecutionCount + extraPointers);
         ObserveReadWindowWrite(null, offset, length);
         EnsureCapacity(offset + length);
     }
@@ -832,6 +840,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
 
     private void CollectPointers(int offset, int length)
     {
+        CollectExecutionReferences(offset, length);
         removedPointers?.Clear();
         if (pointers is null)
         {
@@ -849,6 +858,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
 
     private void InvalidatePointers()
     {
+        InvalidateExecutionReferences();
         if (removedPointers is null)
         {
             return;

@@ -184,7 +184,7 @@ public sealed partial record NativeBattleModulePoolTask
         NativeBattleTaskBankOwner current = RequireOwner();
         if (current.HasCheckpoint)
         {
-            current.Storage.ReserveCheckpointCapacity(PayloadLength, current.Storage.ResourcePointerCount);
+            current.Storage.ReserveCheckpointCapacity(PayloadLength, checked(current.Storage.ResourcePointerCount + current.Storage.ExecutionReferenceCount));
         }
         Span<byte> zero = stackalloc byte[256];
         zero.Clear();
@@ -214,10 +214,12 @@ public sealed partial record NativeBattleModulePoolTask
         NativeBattleTaskBankSnapshot proof = new(0, 0, checked((ushort)(PayloadLength + 12)), [data], null, null, false);
         proof.Tasks[0].ValidateUnknownPayloadRanges();
         proof.Tasks[0].ValidateResourcePointers();
+        var executionWrites = data.ExecutionReferences.Select(pair => (Offset: pair.Key, Entry: pair.Value, Encoding: data.ReadExecutionEncoding(pair.Key, pair.Value.Width))).ToArray();
         NativeBattleTaskBankOwner current = RequireOwner();
         if (current.HasCheckpoint)
         {
-            current.Storage.ReserveCheckpointCapacity(checked(PayloadLength + 12 + 4 * (data.Pointers?.Count ?? 0)), checked(current.Storage.ResourcePointerCount + 2 * (data.Pointers?.Count ?? 0)));
+            int stores = checked((data.Pointers?.Count ?? 0) + executionWrites.Length);
+            current.Storage.ReserveCheckpointCapacity(checked(PayloadLength + 12 + 4 * stores), checked(current.Storage.ResourcePointerCount + current.Storage.ExecutionReferenceCount + 2 * stores));
         }
         UpdateHeader(data.Flags, data.State, data.Next, data.Callback);
         WriteBytes(12, data.Payload.AsSpan());
@@ -228,6 +230,10 @@ public sealed partial record NativeBattleModulePoolTask
         foreach ((int offset, NativeBattleResourcePointer pointer) in data.Pointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty)
         {
             WriteResourcePointer(offset, pointer);
+        }
+        foreach (var write in executionWrites)
+        {
+            WriteExecutionReference(write.Offset, write.Entry.Width, write.Entry.Reference, write.Encoding);
         }
     }
 }

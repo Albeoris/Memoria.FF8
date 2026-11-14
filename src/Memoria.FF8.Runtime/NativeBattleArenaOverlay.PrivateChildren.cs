@@ -156,6 +156,8 @@ internal sealed partial class NativeBattleArenaOverlay
         int originalTextureFileChanges = textureFileChanges.Count;
         int originalByteUndoCount = byteUndo.Count;
         int originalPointerUndoCount = pointerUndo.Count;
+        int originalExecutionUndoCount = executionUndo.Count;
+        var originalExecutionChanges = executionChanges.Count == 0 ? null : new Dictionary<int, BattleExecutionReferenceEntry?>(executionChanges);
         child.dirty.Sort();
         mergeBytes.EnsureCapacity(child.dirty.Count);
         foreach (int offset in child.dirty)
@@ -222,6 +224,10 @@ internal sealed partial class NativeBattleArenaOverlay
                 SavePointer(target);
                 pointers[target] = value;
             }
+            foreach ((int offset, BattleExecutionReferenceEntry? entry) in child.executionChanges)
+            {
+                RecordExecutionChange(checked(destinationOffset + offset), entry);
+            }
             textureFileChanges.AddRange(child.textureFileChanges);
         }
         catch
@@ -258,6 +264,15 @@ internal sealed partial class NativeBattleArenaOverlay
             }
             byteUndo.RemoveRange(originalByteUndoCount, byteUndo.Count - originalByteUndoCount);
             pointerUndo.RemoveRange(originalPointerUndoCount, pointerUndo.Count - originalPointerUndoCount);
+            executionUndo.RemoveRange(originalExecutionUndoCount, executionUndo.Count - originalExecutionUndoCount);
+            executionChanges.Clear();
+            if (originalExecutionChanges is not null)
+            {
+                foreach ((int offset, BattleExecutionReferenceEntry? entry) in originalExecutionChanges)
+                {
+                    executionChanges.Add(offset, entry);
+                }
+            }
             throw;
         }
         finally

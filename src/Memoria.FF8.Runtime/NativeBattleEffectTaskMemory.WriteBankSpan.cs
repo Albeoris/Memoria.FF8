@@ -17,6 +17,8 @@ public static partial class NativeBattleEffectTaskMemory
         //The native copy observes source bytes/knownness before any overlapping destination stores.
         (byte[] bytes, bool[] known) = source.ReadSnapshot(0, length);
         KeyValuePair<int, NativeBattleResourcePointer?>[] sourcePointers = source.EnumerateResourcePointers().ToArray();
+        KeyValuePair<int, BattleExecutionReferenceEntry>[] sourceExecution = source.EnumerateExecutionReferences().ToArray();
+        List<(int Offset, BattleExecutionReferenceEntry Entry, ImmutableArray<byte>? Encoding)> execution = [];
         Dictionary<int, TaskHeader> headers = [];
         List<(int Offset, NativeBattleResourcePointer Pointer)> pointers = [];
         int copied = 0;
@@ -58,6 +60,13 @@ public static partial class NativeBattleEffectTaskMemory
             }
             else
             {
+                foreach ((int referenceOffset, BattleExecutionReferenceEntry entry) in sourceExecution)
+                {
+                    if (referenceOffset >= copied && referenceOffset <= copied + count - entry.Width)
+                    {
+                        execution.Add((offset + referenceOffset, entry, ExecutionReferenceEncoding.Capture(bytes.AsSpan(referenceOffset, entry.Width), known.AsSpan(referenceOffset, entry.Width))));
+                    }
+                }
                 foreach ((int pointerOffset, NativeBattleResourcePointer? pointer) in sourcePointers)
                 {
                     if (pointerOffset >= copied && pointerOffset + 4 <= copied + count)
@@ -108,12 +117,17 @@ public static partial class NativeBattleEffectTaskMemory
         }
         if (owner.HasCheckpoint)
         {
-            owner.Storage.ReserveCheckpointCapacity(checked(length + 4 * pointers.Count), checked(owner.Storage.ResourcePointerCount + 2 * pointers.Count));
+            int stores = checked(pointers.Count + execution.Count);
+            owner.Storage.ReserveCheckpointCapacity(checked(length + 4 * stores), checked(owner.Storage.ResourcePointerCount + owner.Storage.ExecutionReferenceCount + 2 * stores));
         }
         owner.Body.WriteWithKnownness(owner.StorageOffset + offset, bytes, known);
         foreach ((int target, NativeBattleResourcePointer pointer) in pointers)
         {
             owner.Body.SetResourcePointer(owner.StorageOffset + target, pointer);
+        }
+        foreach (var write in execution)
+        {
+            owner.Body.WriteExecutionReference(owner.StorageOffset + write.Offset, write.Entry.Width, write.Entry.Reference, write.Encoding);
         }
         return pool;
     }

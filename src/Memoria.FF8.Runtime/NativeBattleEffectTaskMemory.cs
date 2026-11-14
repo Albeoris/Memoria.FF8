@@ -180,6 +180,10 @@ public static partial class NativeBattleEffectTaskMemory
             {
                 writer.SetResourcePointer(checked(target + field), pointer);
             }
+            foreach ((int field, BattleExecutionReferenceEntry entry) in task.EnumerateExecutionReferences())
+            {
+                writer.WriteExecutionReference(checked(target + field), entry.Width, entry.Reference, ExecutionReferenceEncoding.Capture(data.AsSpan(field, entry.Width), known.AsSpan(field, entry.Width)));
+            }
         }
     }
 

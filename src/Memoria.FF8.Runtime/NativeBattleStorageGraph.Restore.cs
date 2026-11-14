@@ -73,7 +73,25 @@ internal sealed partial class NativeBattleStorageRestoreContext
             {
                 throw new InvalidOperationException("Battle physical authority is missing its data definition.");
             }
-            NativeBattleWorkingMemorySnapshot frozen = new(authority.LogicalLength, authority.InitialKnownZero, authority.StoredLength, content.Regions, content.UnknownRegions, content.ResourcePointers, authority.DataFootprint, authority.ClassifiedRanges, content.TextureFiles);
+            NativeBattleWorkingMemorySnapshot? capturedOwner = null;
+            foreach (NativeBattleEffectArena view in views)
+            {
+                if (view.StorageReference?.AuthorityId != id || view.CapturedAuthority is not { } captured)
+                {
+                    continue;
+                }
+                if (captured.LogicalLength != authority.LogicalLength || captured.StoredLength != authority.StoredLength ||
+                    capturedOwner is { } previous && (previous.ExecutionReferences.Count != captured.ExecutionReferences.Count ||
+                    previous.ExecutionReferences.Any(pair => !captured.ExecutionReferences.TryGetValue(pair.Key, out BattleExecutionReferenceEntry? entry) || entry != pair.Value)))
+                {
+                    throw new InvalidOperationException("Battle physical authority has conflicting captured execution references.");
+                }
+                capturedOwner = captured;
+            }
+            NativeBattleWorkingMemorySnapshot frozen = new(authority.LogicalLength, authority.InitialKnownZero, authority.StoredLength, content.Regions, content.UnknownRegions, content.ResourcePointers, authority.DataFootprint, authority.ClassifiedRanges, content.TextureFiles)
+            {
+                ExecutionReferences = capturedOwner?.ExecutionReferences ?? ImmutableDictionary<int, BattleExecutionReferenceEntry>.Empty
+            };
             NativeBattleWorkingMemory owner = NativeBattleWorkingMemory.Restore(frozen);
             graphOwners.Add(id, owner);
             foreach (NativeBattleEffectArena view in views)

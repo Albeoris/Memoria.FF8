@@ -44,17 +44,23 @@ public partial record NativeBattleEffectArena
     {
         (byte[] data, bool[] known) = source.ReadSnapshot(sourceOffset, length);
         KeyValuePair<int, NativeBattleResourcePointer?>[] pointers = source.MayHaveResourcePointers() ? source.EnumerateResourcePointers().Where(entry => entry.Key >= sourceOffset && entry.Key - sourceOffset <= length - 4).ToArray() : [];
-        NativeBattleEffectArena result = Write(destinationOffset, data);
-        for (int index = 0; index < length; index++)
+        var execution = ProjectExecutionReferences(source.EnumerateExecutionReferences(), sourceOffset, length)
+            .Select(pair => (Offset: pair.Key, Entry: pair.Value, Encoding: ExecutionReferenceEncoding.Capture(data.AsSpan(pair.Key, pair.Value.Width), known.AsSpan(pair.Key, pair.Value.Width)))).ToArray();
+        RequireWritable();
+        RequireRange(destinationOffset, length);
+        if (!TryEffectiveRoute(destinationOffset, length, out _, out _) && Working.HasCheckpoint)
         {
-            if (!known[index])
-            {
-                result = result.MarkUnknown(destinationOffset + index, 1);
-            }
+            int stores = checked(pointers.Length + execution.Length);
+            Working.ReserveCheckpointCapacity(checked(length + 4 * stores), checked(Working.ResourcePointerCount + Working.ExecutionReferenceCount + 2 * stores));
         }
+        NativeBattleEffectArena result = WriteWithKnownness(destinationOffset, data, known);
         foreach ((int offset, NativeBattleResourcePointer? pointer) in pointers)
         {
             result = result.WriteResourcePointer(checked(destinationOffset + offset - sourceOffset), pointer);
+        }
+        foreach (var write in execution)
+        {
+            result = result.WriteExecutionReference(checked(destinationOffset + write.Offset), write.Entry.Width, write.Entry.Reference, write.Encoding);
         }
         return result;
     }

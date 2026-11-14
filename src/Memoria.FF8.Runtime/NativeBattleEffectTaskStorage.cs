@@ -5,7 +5,25 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleTaskSnapshotData(ushort Flags, ushort State, int? Next, uint Callback, ImmutableArray<byte> Payload, ImmutableArray<NativeBattleEffectUnknownRegion>? Unknown, ImmutableDictionary<int, NativeBattleResourcePointer>? Pointers);
+internal sealed record NativeBattleTaskSnapshotData(ushort Flags, ushort State, int? Next, uint Callback, ImmutableArray<byte> Payload, ImmutableArray<NativeBattleEffectUnknownRegion>? Unknown, ImmutableDictionary<int, NativeBattleResourcePointer>? Pointers)
+{
+    internal ImmutableDictionary<int, BattleExecutionReferenceEntry> ExecutionReferences { get; init; } = ImmutableDictionary<int, BattleExecutionReferenceEntry>.Empty;
+
+    internal ImmutableArray<byte>? ReadExecutionEncoding(int offset, int width)
+    {
+        if (offset < 12 || offset - 12 > Payload.Length - width)
+        {
+            throw new InvalidDataException("A live execution reference leaves its task payload.");
+        }
+        Span<bool> known = stackalloc bool[width];
+        for (int index = 0; index < width; index++)
+        {
+            int lane = offset + index;
+            known[index] = Unknown is not { } ranges || !ranges.Any(range => range.Offset <= lane && lane < range.Offset + range.Length);
+        }
+        return ExecutionReferenceEncoding.Capture(Payload.AsSpan().Slice(offset - 12, width), known);
+    }
+}
 
 internal sealed class NativeBattleTaskBankSnapshot
 {
@@ -89,6 +107,10 @@ internal sealed partial class NativeBattleTaskBankOwner
             foreach ((int offset, NativeBattleResourcePointer pointer) in task.Pointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty)
             {
                 Body.SetResourcePointer(start + offset, pointer);
+            }
+            foreach ((int offset, BattleExecutionReferenceEntry entry) in task.ExecutionReferences)
+            {
+                Body.WriteExecutionReference(start + offset, entry.Width, entry.Reference, task.ReadExecutionEncoding(offset, entry.Width));
             }
         }
         UpdateLinks(head, tail);
@@ -282,6 +304,19 @@ internal sealed partial class NativeBattleTaskBankOwner
         byte[] bytes = new byte[Stride];
         bool[] known = new bool[Stride];
         using NativeBattleEffectArenaWriter writer = new(arena);
+        var executionWrites = Body.EnumerateExecutionReferences().Select(pair =>
+        {
+            var (offset, entry) = pair;
+            int field = (offset - StorageOffset) % Stride;
+            if (field < 12 || field > Stride - entry.Width)
+            {
+                throw new InvalidDataException("A live execution reference leaves its task payload.");
+            }
+            Span<byte> physical = stackalloc byte[4];
+            Span<bool> knownBytes = stackalloc bool[4];
+            Body.ReadWithKnownness(offset, physical[..entry.Width], knownBytes[..entry.Width]);
+            return (Offset: offset, Entry: entry, Encoding: ExecutionReferenceEncoding.Capture(physical[..entry.Width], knownBytes[..entry.Width]));
+        }).ToArray();
         for (int slot = 0; slot < Tasks.Length; slot++)
         {
             int source = StorageOffset + slot * Stride;
@@ -312,6 +347,10 @@ internal sealed partial class NativeBattleTaskBankOwner
                 throw new InvalidDataException("Native task binding cannot publish unresolved pointer ownership.");
             }
             writer.SetResourcePointer(checked(targetOffset + offset - StorageOffset), pointer);
+        }
+        foreach (var write in executionWrites)
+        {
+            writer.WriteExecutionReference(checked(targetOffset + write.Offset - StorageOffset), write.Entry.Width, write.Entry.Reference, write.Encoding);
         }
         writer.Freeze();
     }
@@ -589,7 +628,10 @@ internal sealed partial class NativeBattleTaskBankOwner
                 pointers.Add(offset - start, context is null ? present : context.Map(present));
             }
         }
-        return new(Body.ReadUInt16(start), Body.ReadUInt16(start + 2), Next(slot), Body.ReadUInt32(start + 8), System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(bytes), unknown.Count == 0 ? null : unknown.ToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable());
+        return new(Body.ReadUInt16(start), Body.ReadUInt16(start + 2), Next(slot), Body.ReadUInt32(start + 8), System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(bytes), unknown.Count == 0 ? null : unknown.ToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable())
+        {
+            ExecutionReferences = NativeBattleEffectArena.ProjectExecutionReferences(Body.EnumerateExecutionReferences(), start, Stride).Where(pair => pair.Key >= 12).ToImmutableDictionary()
+        };
     }
 
     public NativeBattleTaskBankSnapshot Capture(NativeBattleStorageCaptureContext context)

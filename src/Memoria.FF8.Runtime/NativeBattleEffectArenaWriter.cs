@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A bounded unpublished producer, or a forwarding adapter borrowing an enclosing transaction.</summary>
-internal sealed class NativeBattleEffectArenaWriter : IDisposable
+internal sealed partial class NativeBattleEffectArenaWriter : IDisposable
 {
     private readonly NativeBattleEffectArena source;
     internal ImmutableArray<NativeBattleTextureFileSource>? TextureFiles => transaction is null ? overlay!.TextureFiles : NativeBattleTextureFileMetadata.Project(transaction.TextureFiles, transactionOffset, source.Bound);

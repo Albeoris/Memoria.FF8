@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A bounded task-body view of the operative physical authority, including a public arena transaction.</summary>
-internal sealed class NativeBattleTaskBody(NativeBattleTaskBankOwner owner)
+internal sealed partial class NativeBattleTaskBody(NativeBattleTaskBankOwner owner)
 {
     private readonly Dictionary<(int Offset, int Length), byte[]> rawScratch = [];
     private bool[] knownScratch = [];
