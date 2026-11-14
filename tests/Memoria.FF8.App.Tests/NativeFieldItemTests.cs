@@ -189,6 +189,28 @@ public sealed class NativeFieldItemTests
         Assert.Equal(strength.Vitals.Records[0].StatBonuses[0], restored.Records[0].StatBonuses[0]);
     }
 
+    [Fact]
+    public void LevelModeAllowsStatItemsWithoutLettingHiddenGrowthConsumeTheirCap()
+    {
+        using GameAssets assets = Assets();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithSavedHitPoints(0, 100);
+        vitals.Records[0] = vitals.Records[0] with { BonusSources = null, StatBonuses = [255, 0, 0, 0, 0, 0] };
+        NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(170, 1, out _);
+        var ordinary = catalog.FieldItem(170)!.Use(vitals, economy, 170, 0, assets.ReadFieldItemStatRules(vitals, 0));
+        Assert.False(ordinary.Changed);
+        vitals = vitals with { LevelBasedStatBonuses = true };
+        var enabled = catalog.FieldItem(170)!.Use(vitals, economy, 170, 0, assets.ReadFieldItemStatRules(vitals, 0));
+        Assert.True(enabled.Changed);
+        NativeCharacterVital grown = enabled.Vitals.Records[0];
+        Assert.Equal(99, Assert.Single(grown.BonusSources!.Groups, group => group.Source == NativeStatBonusSources.LevelUp).Stats[0]);
+        Assert.Equal(157, Assert.Single(grown.BonusSources.Groups, group => group.Source == NativeStatBonusSources.Items).Stats[0]);
+        Assert.Equal(255, grown.StatBonuses[0]);
+        Assert.Equal(157, enabled.Vitals.EffectiveGrowth(grown).StatBonuses[0]);
+        Assert.Equal(100, grown.HitPoints.Minimum);
+        Assert.Equal(0, enabled.Economy.Items.Where(stock => stock.ItemId == 170).Sum(stock => stock.Count));
+    }
+
     [Theory]
     [InlineData(SceneKind.Field)]
     [InlineData(SceneKind.WorldMap)]

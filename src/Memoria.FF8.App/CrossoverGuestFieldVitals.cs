@@ -25,7 +25,7 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
     {
         CombinedSessionSave source = read();
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
-        NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
+        NativeCharacterVitals vitals = document.RestoreCharacterVitals(assets.ReadNewGameCharacterVitals());
         return source.GetMixedCombatBindings().Select(binding => ReadGuest(document, vitals, binding)).ToArray();
     }
 
@@ -43,7 +43,7 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
             return;
         }
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
-        NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
+        NativeCharacterVitals vitals = document.RestoreCharacterVitals(assets.ReadNewGameCharacterVitals());
         NativeCharacterVital[] rows = (NativeCharacterVital[])document.Characters.Records.Clone();
         foreach (Ff7MixedCombatBinding binding in affected)
         {

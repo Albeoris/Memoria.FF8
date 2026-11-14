@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -61,6 +62,14 @@ public sealed class StatBonusSourceTests
         Assert.Equal(before, JsonSerializer.Serialize(session.CharacterVitals.Records[0].Growth.Sources));
         Assert.Equal(10, session.CharacterVitals.Records[0].HitPoints.Minimum);
         Assert.Equal(60, session.CharacterVitals.EffectiveGrowth(session.CharacterVitals.Records[0]).HitPointBonus);
+        string path = TestResources.ArtifactFile("bonus-policy-cache.json");
+        session.Save(path);
+        JsonObject saved = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        saved["CharacterVitals"]!.AsObject().Remove("LevelBasedStatBonuses");
+        File.WriteAllText(path, saved.ToJsonString());
+        GameState recovered = GameSession.Load(path);
+        Assert.True(recovered.CharacterVitals!.LevelBasedStatBonuses);
+        Assert.Equal(before, JsonSerializer.Serialize(recovered.CharacterVitals.Records[0].Growth.Sources));
         BattleSession battle = new(new BattleDefinition { Tuning = enabled, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
         session.SetBattle(battle.Capture());
         session.ConfigureGameplayTuning(new(), new());

@@ -84,3 +84,5 @@ The built-in `Memoria/Level-Based Stat Bonuses` package is disabled by default a
 While equipped, HP Bonus contributes `min(2970, 30 * (level - 1))` HP; Str, Vit, Mag and Spr Bonus each contribute `min(99, level - 1)` to their respective stat. Unequipping removes this contribution. Accumulated permanent Bonus growth is ignored while active. Level-ups continue recording permanent Bonus growth, which becomes effective again when the mod is disabled. Stat gains from items and Devour remain. There are no added Speed or Luck Bonus abilities. Disabling the package restores the ordinary permanent-growth rule and any recorded historical Bonus growth.
 
 The Mods details description includes built-in English, Russian, Japanese, German, French, Italian and Spanish text selected by the active interface language. Translation packages can override `$en_interface_system_mods.level-based-stat-bonuses.description` through the ordinary interface localization contract.
+
+See [Permanent stat bonus sources](stat-bonuses.md) for save compatibility, source groups and original-save export.

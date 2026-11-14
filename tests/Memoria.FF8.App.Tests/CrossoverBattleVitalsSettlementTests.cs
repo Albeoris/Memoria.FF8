@@ -9,8 +9,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper output)
 {
-    [Fact]
-    public void Field_guest_recovery_publishes_once_and_updates_only_the_selected_origin_rows()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Field_guest_recovery_publishes_once_and_updates_only_the_selected_origin_rows(bool levelBased)
     {
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff8Root), "Select the original FFVIII installation.");
@@ -19,7 +21,11 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         int squall = installed.FindPhysicalRow(0);
         int zell = installed.FindPhysicalRow(1);
         NativeCharacterVitals injured = installed.WithSavedHitPoints(squall, 35).WithSavedHitPoints(zell, 70);
+        injured = injured with { LevelBasedStatBonuses = levelBased };
+        injured.Records[zell] = injured.Records[zell] with { Junction = injured.Records[zell].Junction with { Abilities = 65 } };
         GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, world: false) with { Characters = GameplaySaveCharacters.Capture(injured) };
+        GameplaySaveProgression progress = document.Progression!;
+        document = document with { Progression = progress with { Rules = progress.Rules with { Preferences = progress.Rules.Preferences with { Tuning = progress.Rules.Preferences.Tuning with { LevelBasedStatBonuses = levelBased } } } } };
         using MemoryStream payload = new();
         GameplaySaveCodec.Write(payload, document);
         CombinedSessionSave envelope = new() { ActiveGame = SessionGame.Ff8, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, MixedCombatBindings = [new(0, 0), new(1, 1)] };
@@ -44,7 +50,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         Assert.Equal(new[] { (0, 35), (1, 60) }, field.ReadAll().Select(guest => (guest.StoryCharacter, (int)guest.Hp)));
         field.RecoverCharacters([1], false);
         Assert.Equal(2, publications);
-        Assert.Equal(new[] { (0, 35), (1, (int)installed.GetMagicMaximumHitPoints(zell)) }, field.ReadAll().Select(guest => (guest.StoryCharacter, (int)guest.Hp)));
+        Assert.Equal(new[] { (0, 35), (1, (int)injured.GetMagicMaximumHitPoints(zell)) }, field.ReadAll().Select(guest => (guest.StoryCharacter, (int)guest.Hp)));
         field.AddHitPoints(1, -10);
         field.RecoverCharacters([0, 1], true);
         Assert.Equal(4, publications);

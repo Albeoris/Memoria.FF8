@@ -30,6 +30,7 @@ internal static class SnapshotDefaults
         bool modified = originalVersion < GameState.CurrentSnapshotSchemaVersion;
         bool requiresLegacyLimitInitialization = SnapshotLimitProgressMigration.Apply(saved, options, originalVersion, initializeLegacyAngelo);
         SnapshotMigrations.Apply(saved, options);
+        modified |= CompleteStatBonusPolicy(saved);
         if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
         {
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
@@ -66,6 +67,32 @@ internal static class SnapshotDefaults
         // Current, complete saves can deserialize directly from the original UTF-8 payload.
         GameState? state = modified ? completed.Deserialize<GameState>(options) : payload.Deserialize<GameState>(options);
         return state ?? throw new JsonException("Empty checkpoint.");
+    }
+
+    private static bool CompleteStatBonusPolicy(JsonObject saved)
+    {
+        bool enabled = saved["GameplayPreferences"]?["Tuning"]?["LevelBasedStatBonuses"]?.GetValue<bool>() == true;
+        bool modified = false;
+        foreach (JsonObject? owner in new[] { saved["CharacterVitals"] as JsonObject, saved["EventState"]?["CharacterVitals"] as JsonObject, saved["DepartingFieldState"]?["CharacterVitals"] as JsonObject })
+        {
+            if (enabled && owner is not null && !owner.ContainsKey("LevelBasedStatBonuses"))
+            {
+                owner["LevelBasedStatBonuses"] = true;
+                modified = true;
+            }
+        }
+        if (saved["Battle"]?["Definition"] is JsonObject battle && battle["Tuning"]?["LevelBasedStatBonuses"]?.GetValue<bool>() == true && battle["Combatants"] is JsonArray combatants)
+        {
+            foreach (JsonNode? actor in combatants)
+            {
+                if (actor?["NativePlayerStatRules"] is JsonObject rules && !rules.ContainsKey("LevelBasedStatBonuses"))
+                {
+                    rules["LevelBasedStatBonuses"] = true;
+                    modified = true;
+                }
+            }
+        }
+        return modified;
     }
 
     private static JsonObject CreateColdDefaults(JsonSerializerOptions options)

@@ -34,6 +34,11 @@ public sealed record GameplaySaveComponentDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveAudioPresentation? AudioPresentation { get; init; }
 
+    public NativeCharacterVitals RestoreCharacterVitals(NativeCharacterVitals installed)
+    {
+        return Characters.Restore(installed) with { LevelBasedStatBonuses = Progression?.Rules.Preferences.Tuning.LevelBasedStatBonuses ?? false };
+    }
+
     /// <summary>Captures only the named component owners. The coordinator must separately preserve all remaining gameplay owners.</summary>
     public static GameplaySaveComponentDocument Capture(GameplaySaveResumeDescriptor resume, NativeCharacterVitals characters, NativeEconomy economy, NativeLimitProgress limits)
     {

@@ -28,7 +28,7 @@ internal static class CrossoverBattleVitalsSettlement
             throw new InvalidDataException("Guest vitals require the exact suspended FFVIII payload and matching host battle occurrence.");
         }
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
-        NativeCharacterVitals vitals = document.Characters.Restore(installed);
+        NativeCharacterVitals vitals = document.RestoreCharacterVitals(installed);
         string sourceHash = Hash(source.Ff8Payload!);
         return roster.Guests.OrderBy(guest => guest.HostSlot).Select(guest => ReadBinding(roster.EncounterId, guest, sourceHash, document, vitals, assets)).ToArray();
     }
@@ -91,7 +91,7 @@ internal static class CrossoverBattleVitalsSettlement
         {
             throw new InvalidDataException("Guest settlement requires the native presentation result exactly when the host executed a guest attack.");
         }
-        NativeCharacterVitals original = document.Characters.Restore(installed);
+        NativeCharacterVitals original = document.RestoreCharacterVitals(installed);
         foreach (Ff7BattleGuestVitalsBinding binding in bindings)
         {
             ValidateOrigin(original, binding);
@@ -177,7 +177,7 @@ internal static class CrossoverBattleVitalsSettlement
         if (battle.Outcome == Ff7BattleOutcome.Victory)
         {
             Ff7BattleReward reward = settledHost.Progress.CompletedBattles.Single(receipt => receipt.FieldGeneration == host.FieldGeneration && receipt.RequestId == battle.RequestId).Reward;
-            NativeCharacterVitals rewarded = updated.Characters.Restore(installed);
+            NativeCharacterVitals rewarded = updated.RestoreCharacterVitals(installed);
             byte[] guestParty = bindings.Select(binding => checked((byte)binding.OriginRow)).Concat(Enumerable.Repeat(byte.MaxValue, 3 - bindings.Length)).ToArray();
             int[] eligible = BattleResultProjection.EligibleGuardianForces(rewarded with { CombatParty = guestParty });
             // Native AP saturates the current learning byte without carrying into the next ability.

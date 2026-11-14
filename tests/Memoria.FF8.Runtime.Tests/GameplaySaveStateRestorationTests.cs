@@ -8,6 +8,20 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameplaySaveStateRestorationTests
 {
     [Fact]
+    public void ComponentAndCompleteRestorationRecoverBonusPolicyFromSavedPreferences()
+    {
+        GameState source = Source();
+        source = source with { GameplayPreferences = source.GameplayPreferences with { Tuning = source.GameplayPreferences.Tuning with { LevelBasedStatBonuses = true } } };
+        GameplaySaveComponentDocument document = Document(source);
+        NativeCharacterVitals component = document.RestoreCharacterVitals(MagicSystemFixture.Create());
+        Assert.True(component.LevelBasedStatBonuses);
+        Assert.Equal(source.CharacterVitals!.Records, component.Records);
+        GameState complete = GameplaySaveStateRestoration.Restore(document, Initialized());
+        Assert.True(complete.CharacterVitals!.LevelBasedStatBonuses);
+        Assert.Equal(source.CharacterVitals.Records, complete.CharacterVitals.Records);
+    }
+
+    [Fact]
     public void Restores_nondefault_semantic_owners_with_current_installed_definitions()
     {
         GameState source = Source();

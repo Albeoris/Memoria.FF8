@@ -44,7 +44,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
 
             GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
             NativeCharacterVitals installed = game.ReadNewGameCharacterVitals();
-            NativeCharacterVitals origin = document.Characters.Restore(installed);
+            NativeCharacterVitals origin = document.RestoreCharacterVitals(installed);
             NativeGlobalRandomState originRandom = document.Progression?.Clocks.GlobalRandom ?? throw new NotSupportedException("Mixed combat requires the suspended FFVIII global RNG owner.");
             CrossoverGuestEncounterSnapshot? shared = null;
             Dictionary<int, (CrossoverGunbladeHostSnapshot Attack, CrossoverGuestActorSnapshot? Actions)> savedActors = [];

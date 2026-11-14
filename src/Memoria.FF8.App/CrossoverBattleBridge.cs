@@ -151,7 +151,7 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
         }
         using GameAssets origin = new(directory);
         using BattleAssets battle = new(directory);
-        NativeCharacterVitals vitals = source.Characters.Restore(origin.ReadNewGameCharacterVitals());
+        NativeCharacterVitals vitals = source.RestoreCharacterVitals(origin.ReadNewGameCharacterVitals());
         foreach (int characterId in destination.Mappings.Select(mapping => mapping.AppearanceCharacter).Distinct())
         {
             CrossoverFf8BattleKit kit = Read(vitals, battle, characterId);

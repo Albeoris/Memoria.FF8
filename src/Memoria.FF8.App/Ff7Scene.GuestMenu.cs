@@ -72,7 +72,7 @@ internal sealed partial class Ff7Scene
         GameAssets assets = guestMenuAssets!;
         GameplaySaveProgression progress = document.Progression ?? throw new InvalidDataException("The suspended FFVIII save has no durable menu owners.");
         NativeWorldControlState? controls = progress.Story.Controls is { } savedControls ? NativeWorldControlState.CreateNewGame() with { EventFlags103 = savedControls.Flags, EventFlags104 = savedControls.EventFlags, Menu209 = (byte)(savedControls.Menu & ~2), MusicKeep207 = savedControls.MusicKeep } : null;
-        NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals()) with { LevelBasedStatBonuses = progress.Rules.Preferences.Tuning.LevelBasedStatBonuses };
+        NativeCharacterVitals vitals = document.RestoreCharacterVitals(assets.ReadNewGameCharacterVitals());
         byte[] party = [255, 255, 255];
         int[] active = ActiveGuestCharacters(envelope.GetMixedCombatBindings(), Session!.Progress.Party);
         for (int index = 0; index < active.Length; index++)
