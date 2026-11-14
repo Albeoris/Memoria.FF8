@@ -179,6 +179,16 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldControlCommand(FieldControlKind.BattlesDisabled, B(id, 1)), 2);
             case 0x72:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode, B(id, 1), B(id, 2)), 3);
+            case 0x73:
+                int directionPartySlot = B(id, 2);
+                int directionCharacter = directionPartySlot < 3 ? ReadParty()[directionPartySlot] : 255;
+                int partyDirectionTarget = directionCharacter != 255 ? Array.FindIndex(entities, actor => actor.PartyCharacter == directionCharacter) : -1;
+                if (partyDirectionTarget < 0 || !entities[partyDirectionTarget].ModelBound)
+                {
+                    Advance(id, 4);
+                    return false;
+                }
+                return Host(id, new FieldActorQuery(FieldActorQueryKind.Direction, partyDirectionTarget), 4, result: value => Variables.WriteByte(Bank(id, 2), B(id, 3), unchecked((byte)value)));
             case 0x75:
                 int positionPartySlot = B(id, 3);
                 int positionCharacter = positionPartySlot < 3 ? ReadParty()[positionPartySlot] : 255;
