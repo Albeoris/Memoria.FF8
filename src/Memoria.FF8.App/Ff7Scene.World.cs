@@ -37,6 +37,7 @@ internal sealed partial class Ff7Scene
         Ff7WorldEffectParticle[] particles = effects?.DisplayParticles ?? effects?.Particles ?? [];
         byte[]? widths = effects?.DisplayWidths ?? effects?.Widths;
         byte[]? heights = effects?.DisplayHeights ?? effects?.Heights;
+        HashSet<int> detached = state.Vm.Models.Where(model => model.Detached).Select(model => model.Model).ToHashSet();
         Ff7WorldEntity? controlled = state.Entities.SingleOrDefault(entity => entity.Model == state.ControlledModel);
         Ff7WorldMarsh marsh = state.Marsh;
         Ff7WorldMarshSegment[] marshSegments = marsh.Initialized && marsh.Points is { Length: 48 } && controlled is { X: >= 0x30000 and < 0x40000, Z: >= 0x1C000 and < 0x2C000 }
@@ -48,7 +49,7 @@ internal sealed partial class Ff7Scene
             : [];
         return new(state.ControlledModel, state.Initialized, state.MainState, state.ViewMode, state.RadarMode, state.WorldMapState, state.PresentationCounter, state.Sky?.CloudPhase ?? 0,
             new(camera.Heading, camera.Pitch, camera.Distance, camera.GroundHeight, camera.Roll, camera.Focal),
-            state.Entities.Where(entity => entity.Model != state.Chocobo?.RiderModel).Select(entity => new Ff7WorldVisual(entity.Model, new(entity.X, entity.Y, entity.Z), (entity.Direction + entity.TurnOffset) & 4095, entity.PoseAnimation, entity.PoseFrame, entity.Flags)
+            state.Entities.Where(entity => !detached.Contains(entity.Model) && entity.Model != state.Chocobo?.RiderModel).Select(entity => new Ff7WorldVisual(entity.Model, new(entity.X, entity.Y, entity.Z), (entity.Direction + entity.TurnOffset) & 4095, entity.PoseAnimation, entity.PoseFrame, entity.Flags)
             {
                 GroundHeight = entity.GroundHeight,
                 Terrain = entity.Terrain,

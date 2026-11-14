@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json;
+using Memoria.FF7.Events;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
 
@@ -7,6 +8,17 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class CommittedPresentationHistoryTests
 {
+    [Fact]
+    public void Ff7WorldAttachedRidersStayOutOfTheCommittedVisualsForEveryVehicle()
+    {
+        WorldEntitySnapshot rider = new(0, 0, 0, 0, false, 0, []) { Detached = true };
+        WorldSnapshot vm = new(1, "presentation", 0, 0, false, [], [], new(-1, 0, 0, 0, false, 0, []), [rider, new(5, 0, 0, 0, false, 0, [])]);
+        Ff7WorldProcess state = new(0, 0, 0, vm, [new(0), new(5) { AttachedModel = 0 }], 5, true, 0, 0, null, [], -1, new(), 0, 1);
+        Assert.Equal(5, Assert.Single(Ff7Scene.WorldRenderFrame(state).Models).Model);
+        Ff7WorldProcess dismounted = state with { Vm = vm with { Models = [rider with { Detached = false }, vm.Models[1]] }, ControlledModel = 0, Entities = [new(0), new(5)] };
+        Assert.Equal(new[] { 0, 5 }, Ff7Scene.WorldRenderFrame(dismounted).Models.Select(model => model.Model));
+    }
+
     [Fact]
     public void CallbackEndpointsAreRetainedAndPreparationFailureIsDeferred()
     {
