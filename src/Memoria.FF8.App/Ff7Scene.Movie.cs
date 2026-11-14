@@ -107,8 +107,8 @@ internal sealed partial class Ff7Scene
             throw new NotSupportedException("FFVII movie presentation requires the admitted 15 fps original-resource timeline.");
         }
         IReadOnlyList<PcMovieCamera>? cameras = resource.Cameras;
-        Ff7MovieCameraTrack? cameraTrack = cameras is null ? null : new Ff7MovieCameraTrack(cameras);
-        return new Ff7MovieSource(resource.Path, information, information.FrameCount, 15, frame => cameraTrack?.CameraAt(frame), (frame, words) => cameraTrack?.Publish(frame, words)) { CameraRecordCount = cameras?.Count ?? 0, SnapshotCameraFrame = (frame, words) => cameraTrack?.SnapshotAt(frame, words) };
+        Ff7MovieCameraTrack cameraTrack = new(cameras ?? []);
+        return new Ff7MovieSource(resource.Path, information, information.FrameCount, 15, frame => cameraTrack.CameraAt(frame), (frame, words) => cameraTrack.Publish(frame, words)) { CameraRecordCount = cameras?.Count ?? 0, SnapshotCameraFrame = (frame, words) => cameraTrack.SnapshotAt(frame, words) };
     }
 
     private (long Generation, long? Request, int Id) MovieIdentity(Ff7Movie movie)

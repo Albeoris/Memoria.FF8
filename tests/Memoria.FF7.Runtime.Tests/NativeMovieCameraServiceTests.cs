@@ -67,6 +67,7 @@ internal static class NativeMovieCameraServiceTests
         ModelEffectCamera();
         Installed();
         InstalledModelEffectCheckpoint();
+        InstalledMissingCameraCheckpoint();
     }
 
     private static void ModelEffectCamera()
@@ -176,6 +177,47 @@ internal static class NativeMovieCameraServiceTests
         Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The original movie-entry fixture changed its first callback after cold restore.");
         Check(File.ReadAllBytes(path).SequenceEqual(original), "Movie model-effect validation changed the original standalone fixture.");
         Console.WriteLine($"PASS original movie model-effect first callback: field={session.Field.Name} tick={session.Host.Process.Tick} movie={session.Host.Process.Movie?.PreparedId} playing={session.Host.Process.Movie?.Playing} cameraDisabled={session.Host.Process.MovieCameraDisabled}");
+    }
+
+    private static void InstalledMissingCameraCheckpoint()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_MISSING_MOVIE_CAMERA_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP installed missing movie camera: optional original resources or standalone fixture are unset.");
+            return;
+        }
+        byte[] original = File.ReadAllBytes(path);
+        using MemoryStream input = new(original);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7 ?? throw new InvalidDataException("The movie camera fixture lacks its FFVII session.");
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session session = Ff7Session.Restore(installation, saved);
+        using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
+        long tick = session.Host.Process.Tick;
+        for (int callback = 0; callback < 2; callback++)
+        {
+            session.AdvanceTick();
+            cold.AdvanceTick();
+            Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Cold original missing-camera continuation changed its next callback.");
+        }
+        Ff7Movie movie = session.Host.Process.Movie is { Playing: true, CameraDisabled: false } active ? active : throw new InvalidOperationException("The original fixture did not start its enabled movie camera owner.");
+        Ff7MovieResources source = Ff7MovieResources.Load(installation, movie.PreparedId);
+        Check(source.Cameras is null && !session.Host.Process.MovieCameraDisabled, "The original fixture no longer exercises its unavailable native CAM member.");
+        PcFieldCamera blank = new(default, default, default, 0, default, 0, 0);
+        string before = JsonSerializer.Serialize(session.Capture());
+        Check(session.ReadNativeMovieCamera() == blank && cold.ReadNativeMovieCamera() == blank, "Unavailable native CAM must produce the original zero camera, rather than the field camera or a fabricated matrix.");
+        Check(before == JsonSerializer.Serialize(session.Capture()), "Reading the missing native camera changed its saved owners.");
+        Check(movie.CameraConsumption is { WordsBeforeRead: 0, WordsAfterRead: 0 }, "An unavailable native CAM consumed a camera row.");
+        int frame = movie.Frame + 1;
+        session.Host.PublishMovieFrame(frame, false);
+        cold.Host.PublishMovieFrame(frame, false);
+        before = JsonSerializer.Serialize(session.Capture());
+        session.Host.PublishMovieFrame(frame, false);
+        Check(before == JsonSerializer.Serialize(session.Capture()) && before == JsonSerializer.Serialize(cold.Capture()), "Repeated/cold unavailable-camera publication changed its read budget.");
+        Check(session.Host.Process.Movie!.CameraConsumption is { WordsBeforeRead: 0, WordsAfterRead: 0 } && session.ReadNativeMovieCamera() == blank, "Later unavailable-camera frames changed the zero camera or consumed rows.");
+        Check(session.Host.Process.Tick == tick + 2 && File.ReadAllBytes(path).SequenceEqual(original), "Missing-camera validation changed the standalone fixture or callback count.");
+        Console.WriteLine($"PASS original missing movie camera: field={session.Field.Name} tick={session.Host.Process.Tick} movie={movie.PreparedId} path={Path.GetFileName(source.Path)}");
     }
 
     private static void Check(bool condition, string message)

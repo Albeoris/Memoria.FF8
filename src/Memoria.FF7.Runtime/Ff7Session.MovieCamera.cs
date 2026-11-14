@@ -17,13 +17,13 @@ public sealed partial class Ff7Session
         {
             Ff7MovieResources resources = Ff7MovieResources.Load(installation, movie.PreparedId, executable);
             nativeMovieResources = resources;
-            nativeMovieCameraTrack = resources.Cameras is null ? null : new(resources.Cameras);
+            nativeMovieCameraTrack = new(resources.Cameras ?? []);
             nativeMovieCameraIdentity = identity;
         }
         return nativeMovieResources;
     }
 
-    private int ReadNativeMovieCameraRecordCount() => NativeMovieResources().Cameras?.Count ?? throw new NotSupportedException("An enabled movie camera requires the native behavior of its missing original member.");
+    private int ReadNativeMovieCameraRecordCount() => NativeMovieResources().Cameras?.Count ?? 0;
 
     public PcFieldCamera? ReadNativeMovieCamera()
     {

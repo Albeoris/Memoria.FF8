@@ -14,7 +14,11 @@ public sealed record Ff7MovieResources(string Path, IReadOnlyList<PcMovieCamera>
             throw new InvalidDataException("The FFVII movie index is outside its original execution-data table.");
         }
         string name = native.MovieFiles[movieId];
-        string path = System.IO.Path.Combine(installation.GetRequired(Ff7ResourceRole.Movies).Path, name);
+        string path = System.IO.Path.Combine(installation.DataDirectory, $"lang-{installation.Language}", "movies", name);
+        if (!File.Exists(path))
+        {
+            path = System.IO.Path.Combine(installation.GetRequired(Ff7ResourceRole.Movies).Path, name);
+        }
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MovieCameraArchive).Path);
         IReadOnlyList<LgpEntry> members = archive.Find(System.IO.Path.ChangeExtension(name, ".cam"));
         IReadOnlyList<PcMovieCamera>? cameras = members.Count switch
