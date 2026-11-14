@@ -123,5 +123,5 @@ public sealed partial class Ff7BattleSession
 
     private bool AwaitingTerminalResolution() => !HasLivingEnemy() || !HasLivingParty();
 
-    private ushort ReadyPlayerMask() => Mask(state.Actors.Where(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor)));
+    private ushort ReadyPlayerMask() => Mask(state.Actors.Where(actor => actor.Actor.Slot < 3 && (actor.Actor.Conditions & 0x10) == 0 && actor.AwaitingTurn && CanAct(actor)));
 }

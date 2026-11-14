@@ -146,6 +146,7 @@ public sealed partial class Ff7BattleSession
     private readonly IReadOnlyList<byte> beatRushSymbols;
     private readonly Ff7BattlePlayerStats?[] party = new Ff7BattlePlayerStats?[3];
     private readonly Ff7CharacterState?[] characters = new Ff7CharacterState?[3];
+    private readonly string?[] displayNames = new string?[3];
     private readonly int[] limitDivisors = new int[3];
     private int speedDenominator;
     public const int LogicUpdatesPerSecond = 60;
@@ -181,6 +182,7 @@ public sealed partial class Ff7BattleSession
             Ff7CharacterState character = progress.Characters.Single(character => character.Id == Ff7NativeCharacterIdentity.RecordId(id));
             Ff7BattlePlayerStats stats = Ff7NativeBattlePlayerStats.Create(character, kernel, materiaModifiers);
             characters[slot] = character;
+            displayNames[slot] = Ff7CharacterDisplayName.Resolve(progress.Characters, id);
             party[slot] = stats;
             limitDivisors[slot] = Ff7NativeBattleLimits.ReadGaugeDivisor(character, kernel);
             partyDexterity.Add(character.NativeRecord[6]);
@@ -220,6 +222,10 @@ public sealed partial class Ff7BattleSession
             CarryFormationState(previousFormation);
         }
         RestoreNativeAiState(initialSaveBank1, progress.Gil, fresh: true);
+        foreach (Ff7BattleActorState actor in state.Actors.Where(actor => actor.Actor.Slot < 3 && IsAlive(actor)).ToArray())
+        {
+            InvokeAi(actor.Actor.Slot, 0);
+        }
         foreach (SceneBattleEnemy enemy in Data.Enemies)
         {
             InvokeAi(enemy.FormationSlot + 4, 0);
@@ -282,7 +288,7 @@ public sealed partial class Ff7BattleSession
         _ => state.EntryMusicTrack
     };
     public bool ResultReady => !FormationTransitionReady && Outcome != Ff7BattleOutcome.Fighting && state.TerminalFrames >= TerminalDuration;
-    public int? ReadyPlayer => IntroActive || Outcome != Ff7BattleOutcome.Fighting || BeatRushSelecting ? null : state.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor) && GetGuestAttack(actor.Actor.Slot) is not IFf7BattleGuestProcess { ProcessActive: true } && !HasCompelledPlayerTurn(actor))?.Actor.Slot;
+    public int? ReadyPlayer => IntroActive || Outcome != Ff7BattleOutcome.Fighting || BeatRushSelecting ? null : state.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && (actor.Actor.Conditions & 0x10) == 0 && actor.AwaitingTurn && CanAct(actor) && GetGuestAttack(actor.Actor.Slot) is not IFf7BattleGuestProcess { ProcessActive: true } && !HasCompelledPlayerTurn(actor))?.Actor.Slot;
     public bool BeatRushSelecting => Outcome == Ff7BattleOutcome.Fighting && state.BeatRush is { Reel.Stopped: false };
     public Ff7BeatRushSlot? BeatRushVisible => state.BeatRush?.Reel.ReadVisibleSymbol(beatRushSymbols);
     public long RequestId => state.RequestId;
@@ -307,7 +313,7 @@ public sealed partial class Ff7BattleSession
         {
             return guest.OriginName;
         }
-        return slot < 3 ? characters[slot]!.Name : ReadBattleText(Enemy(slot).Rewards.Name.Span);
+        return slot < 3 ? displayNames[slot]! : ReadBattleText(Enemy(slot).Rewards.Name.Span);
     }
 
     public int WeaponModel(int slot) => WeaponModelSelector(slot) & 15;
@@ -501,7 +507,7 @@ public sealed partial class Ff7BattleSession
             changed |= gauge != actor.Gauge;
             actor = actor with { Gauge = gauge, AwaitingTurn = ready };
             state.Actors[index] = actor;
-            if (ready && slot >= 4)
+            if (ready && (slot >= 4 || (actor.Actor.Conditions & 0x10) != 0))
             {
                 state = state with { Queue = Ff7BattleCommandQueue.StageReady(state.Queue, slot, 0xFF) };
             }
@@ -564,7 +570,7 @@ public sealed partial class Ff7BattleSession
             }
             foreach (Ff7BattleActorState recipient in state.Actors.Where(actor => (command.TargetMask & 1 << actor.Actor.Slot) != 0).ToArray())
             {
-                if (recipient.Actor.Slot >= 4)
+                if (recipient.Actor.Slot != 3)
                 {
                     InvokeAi(recipient.Actor.Slot, (byte)command.Argument);
                 }
@@ -605,7 +611,10 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattleAiActor[] actors = state.Actors.Select(candidate => candidate.Actor).ToArray();
         Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, NativeImprisonedType);
-        Ff7BattleAiResult result = Ff7BattleAi.RunActorCallback(new(slot, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback, GlobalMemory: state.AiGlobalMemory, SaveBank1: state.AiSaveBank1), actor.AiMemory, Data, random, kernel[1].Data);
+        Ff7BattleAiContext context = new(slot, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback, GlobalMemory: state.AiGlobalMemory, SaveBank1: state.AiSaveBank1);
+        Ff7BattleAiResult result = slot < 3
+            ? Ff7BattleAi.Run(Ff7KernelBattleAi.ReadScript(kernel[2].Data, actor.Identity, callback).Span, context, actor.AiMemory, Data, random, kernel[1].Data)
+            : Ff7BattleAi.RunActorCallback(context, actor.AiMemory, Data, random, kernel[1].Data);
         Replace(actor with { AiMemory = result.LocalMemory });
         state = state with { AiGlobalMemory = result.GlobalMemory.ToArray() };
         ApplyNativeSaveWrites(result);

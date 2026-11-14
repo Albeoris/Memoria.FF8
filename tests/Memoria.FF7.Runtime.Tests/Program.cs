@@ -158,6 +158,18 @@ if (args.Contains("--flashback-party-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--reward-suppression-only", StringComparer.Ordinal))
+{
+    RewardSuppressionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--character-names-only", StringComparer.Ordinal))
+{
+    CharacterDisplayNameTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-battle-only", StringComparer.Ordinal))
 {
     WorldBattleTests.Run();
@@ -375,6 +387,8 @@ var tests = new (string Name, Action Run)[]
     ("native opening enemy command banks and Grasslands continuation", EnemyCommandBankTests.Run),
     ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
+    ("native opening request reward suppression", RewardSuppressionTests.Run),
+    ("native opening character display names", CharacterDisplayNameTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
     ("native Cross-slash action and settlement", NativeBattleCrossSlashTests.Run),
     ("native Mindblow action and settlement", NativeBattleMindblowTests.Run),

@@ -16,7 +16,7 @@ public static class Ff7DebugVictory
         return Project(progress, formation, kernel, fieldGeneration, requestId, random, dormantGuestStoryCharacter: dormantGuestStoryCharacter, guestStoryCharacters: guestStoryCharacters).Progress;
     }
 
-    internal static Ff7VictoryProjection Project(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null)
+    internal static Ff7VictoryProjection Project(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool suppressRewards = false)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(formation);
@@ -29,6 +29,13 @@ public static class Ff7DebugVictory
                 throw new InvalidDataException("The FFVII victory request changed formation identity.");
             }
             return new(progress, previous.Reward, [], [], []);
+        }
+        if (suppressRewards)
+        {
+            Ff7BattleReward empty = new(0, 0, 0, []);
+            Ff7Progress completed = progress with { CompletedBattles = [.. progress.CompletedBattles, new(fieldGeneration, requestId, checked((ushort)formation.FormationId), empty)] };
+            completed.Validate();
+            return new(completed, empty, [], [], []);
         }
         if (kernel.Count < 9)
         {

@@ -961,7 +961,7 @@ public sealed partial class Ff7BattleSession
         }
         int[] guestStoryCharacters = state.GetGuestSlotStates().Select(guest => guest.Binding.StoryCharacter).ToArray();
         Ff7BattleRng candidate = new(kernel[2].Data.Span, random.Capture());
-        return Ff7DebugVictory.Project(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters);
+        return Ff7DebugVictory.Project(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0);
     }
 
     public Ff7BattleReward PreviewVictory()
@@ -969,6 +969,10 @@ public sealed partial class Ff7BattleSession
         if (Outcome != Ff7BattleOutcome.Victory)
         {
             throw new InvalidOperationException("Only a completed FFVII victory has rewards.");
+        }
+        if ((state.RequestFlags & 0x80) != 0)
+        {
+            return new(0, 0, 0, []);
         }
         Ff7BattleRng preview = new(kernel[2].Data.Span, random.Capture());
         return Ff7DebugVictory.ResolveRewards(Formation, preview, IsDefeated);

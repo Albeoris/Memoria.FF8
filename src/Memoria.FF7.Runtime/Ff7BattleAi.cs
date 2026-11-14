@@ -4,7 +4,10 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0, byte? Level = null, ushort? EnemyId = null, byte? Strength = null, byte? Magic = null, byte? Speed = null, byte? FormationRow = null, uint? ElementHalve = null, uint? ElementNullify = null, uint? ElementAbsorb = null, uint? ElementWeakness = null, uint? PreviousStatuses = null, uint? CaptureMask = null, byte? PresentationByte = null, ushort? LastPhysicalAttackerMask = null, ushort? LastMagicAttackerMask = null, ushort? ExtraElementAbsorb = null, byte? PhysicalEvasion = null, byte? HitEffect = null);
+public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0, byte? Level = null, ushort? EnemyId = null, byte? Strength = null, byte? Magic = null, byte? Speed = null, byte? FormationRow = null, uint? ElementHalve = null, uint? ElementNullify = null, uint? ElementAbsorb = null, uint? ElementWeakness = null, uint? PreviousStatuses = null, uint? CaptureMask = null, byte? PresentationByte = null, ushort? LastPhysicalAttackerMask = null, ushort? LastMagicAttackerMask = null, ushort? ExtraElementAbsorb = null, byte? PhysicalEvasion = null, byte? HitEffect = null)
+{
+    public byte? ElementReaction { get; init; }
+}
 public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null);
 public sealed record Ff7BattleAiCommand(int ActorSlot, byte CommandId, ushort AttackId, int SceneAttackSlot, ushort TargetMask, byte[]? Message = null, byte Callback = 1, byte Priority = 2);
 public sealed record Ff7BattleAiTransfer(int SourceSlot, int DestinationSlot);
@@ -148,7 +151,7 @@ public static class Ff7BattleAi
             }
 
             bool formationScript = context.ActorSlot == 3;
-            if (context.ActorSlot is < 3 or > 9 || (!formationScript && actors[context.ActorSlot] is null) || (formationScript && context.GlobalMemory is null) || context.Callback >= 16 || context.QueuePriority is > 6 || ((context.EligibleMask | context.KnockedOutMask | context.ExcludedOpponentMask) & ~(party | enemies)) != 0)
+            if (context.ActorSlot is < 0 or > 9 || (!formationScript && actors[context.ActorSlot] is null) || (formationScript && context.GlobalMemory is null) || context.Callback >= 16 || context.QueuePriority is > 6 || ((context.EligibleMask | context.KnockedOutMask | context.ExcludedOpponentMask) & ~(party | enemies)) != 0)
             {
                 throw new InvalidDataException("FFVII enemy AI context has an invalid owner or mask.");
             }
@@ -165,7 +168,7 @@ public static class Ff7BattleAi
                 return;
             }
             Ff7BattleAiActor current = actors[context.ActorSlot]!;
-            bool swapped = BitOperations.PopCount(current.Statuses & 0x00400040) == 1;
+            bool swapped = ((context.ActorSlot < 4 ? 1 : 0) + BitOperations.PopCount(current.Statuses & 0x00400040)) % 2 != 0;
             ushort friendly = (ushort)((swapped ? party : enemies) & context.EligibleMask);
             ushort opposing = (ushort)((swapped ? enemies : party) & context.EligibleMask);
             allies = (ushort)(friendly & ~context.KnockedOutMask);
@@ -263,6 +266,12 @@ public static class Ff7BattleAi
                         break;
                     case 0x92:
                         QueueAttack();
+                        break;
+                    case 0x96:
+                        QueryElementReaction();
+                        break;
+                    case 0xA0:
+                        DiscardDebugMessage();
                         break;
                     case 0x93:
                         QueueMessage();
@@ -402,6 +411,7 @@ public static class Ff7BattleAi
                 (1, 0x42B0) => actor.HitEffect ?? (byte)(actor.Slot < 3 ? 8 : 2),
                 (1, 0x40A0) => actor.Speed ?? 0,
                 (1, 0x4270) => actor.FormationRow ?? 0,
+                (1, 0x4058) => actor.ElementReaction ?? 3,
                 (1, 0x4278) => actor.PresentationByte ?? 0xFF,
                 (1, 0x4080) => actor.IdleAction,
                 (1, 0x4088) => actor.HurtAction,
@@ -685,6 +695,72 @@ public static class Ff7BattleAi
             return Ff7BattleAttack.Read(kernelAttacks.Span.Slice(offset, Ff7BattleAttack.RecordSize)).CastingCost;
         }
 
+        private void DiscardDebugMessage()
+        {
+            uint arguments = ReadOperand(1);
+            while (ReadOperand(1) != 0)
+            {
+            }
+            for (uint argument = 0; argument < arguments; argument++)
+            {
+                Pop();
+            }
+        }
+
+        private void QueryElementReaction()
+        {
+            uint elements = Pop().At(0);
+            ushort selected = (ushort)Pop().At(0);
+            ushort result = 0;
+            for (int slot = 0; slot < actors.Length; slot++)
+            {
+                if (actors[slot] is not Ff7BattleAiActor actor)
+                {
+                    continue;
+                }
+                byte reaction = 3;
+                if ((selected & (1 << slot)) != 0)
+                {
+                    uint[] buckets = new uint[8];
+                    if (slot >= 4)
+                    {
+                        SceneBattleEnemy enemy = formation.Enemies.Single(enemy => enemy.FormationSlot + 4 == slot);
+                        foreach (SceneEnemyAffinity affinity in enemy.Affinities)
+                        {
+                            if (affinity.Type < 32 && affinity.Rate < 8)
+                            {
+                                buckets[affinity.Rate] |= 1U << affinity.Type;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        buckets[4] = actor.ElementHalve ?? 0;
+                        buckets[5] = actor.ElementNullify ?? 0;
+                        buckets[6] = actor.ElementAbsorb ?? 0;
+                    }
+                    buckets[5] |= actor.ElementNullify ?? 0;
+                    buckets[6] |= actor.ExtraElementAbsorb ?? 0;
+                    for (byte bucket = 0; bucket < 8; bucket++)
+                    {
+                        if ((buckets[bucket] & elements) != 0)
+                        {
+                            reaction = bucket;
+                            break;
+                        }
+                    }
+                    if (reaction != 3)
+                    {
+                        result |= (ushort)(1 << slot);
+                    }
+                }
+                actors[slot] = actor with { ElementReaction = reaction };
+                updatedActors |= (ushort)(1 << slot);
+            }
+            target = result;
+            WriteMemory(global, 2, 0x70, target);
+        }
+
         private void QueueAttack()
         {
             ushort id = (ushort)Pop().At(0);
@@ -695,7 +771,7 @@ public static class Ff7BattleAi
             {
                 throw new InvalidDataException("FFVII battle AI callback command has an invalid callback index.");
             }
-            if (command is 0x01 or 0x22 or 0x24)
+            if (command is 0x01 or 0x22 or 0x24 || command == 2 && slot < 3 && id < 0x38 && kernelAttacks.Length >= (id + 1) * Ff7BattleAttack.RecordSize)
             {
                 commands.Add(new(slot, (byte)command, id, -1, target, Callback: context.Callback, Priority: priority));
                 return;

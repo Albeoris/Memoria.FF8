@@ -8,6 +8,8 @@ internal static class FlashbackPartyTests
     public static void Run()
     {
         Check(Enumerable.Range(0, 9).All(id => Ff7NativeCharacterIdentity.RecordId(id) == id) && Ff7NativeCharacterIdentity.RecordId(9) == 6 && Ff7NativeCharacterIdentity.RecordId(10) == 7, "Native temporary identities must map to their retained physical records.");
+        string[] prefixes = ["rt", "sb", "ru", "rv", "rw", "rx", "ry", "sf", "rz", "rt", "sa"];
+        Check(Enumerable.Range(0, prefixes.Length).All(id => Ff7BattleAnimationResources.ModelPrefix(id, false) == prefixes[id]), "Original party filename/resource selector must retain all eleven logical model identities.");
         try
         {
             Ff7NativeCharacterIdentity.RecordId(11);
@@ -50,6 +52,7 @@ internal static class FlashbackPartyTests
         Check(changed.Characters.Single(character => character.Id == 6).HitPoints == recovered.Characters.Single(character => character.Id == 6).HitPoints - 10 && changed.Characters.Single(character => character.Id == 0) == original.Characters.Single(character => character.Id == 0), "Young Cloud recovery must update physical record6 and preserve adult Cloud.");
         Check(Ff7BattleAnimationResources.ModelPrefix(9, false) == Ff7BattleAnimationResources.ModelPrefix(0, false), "Original temporary Cloud must retain the CLOUD.DAT model identity.");
         TestBattleInitialization(selected, kernel, executable, installation);
+        PartyBattleAiTests.Run(original, kernel, executable, installation);
         Console.WriteLine("Original temporary party identities, physical records, JSON/native saves and recovery passed.");
     }
 
@@ -81,10 +84,18 @@ internal static class FlashbackPartyTests
         Ff7BattlePlayerStats sephirothUnequipped = Ff7NativeBattlePlayerStats.Create(sephiroth with { NativeRecord = sephirothBare }, kernel, executable.NativeMateriaStatModifiers);
         Check(sephirothEquipped.Actor.Defense == sephirothUnequipped.Actor.Defense + 50 && sephirothEquipped.Actor.MagicDefense == sephirothUnequipped.Actor.MagicDefense + 50, "Original Touph Ring must add fifty Vitality and Spirit through both native stat selectors.");
         SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(formation => formation.FormationId == 292);
-        Ff7BattleSession battle = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
+        for (int id = 0; id <= 10; id++)
+        {
+            string prefix = Ff7BattleAnimationResources.ModelPrefix(id, false);
+            Check(animations.BoneCount(prefix) > 0 && animations.ClipFrameCount(prefix, 0) > 0, $"Original party identity {id} failed its native model and body clip decode.");
+        }
+        Ff7BattleSession battle = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, animations: animations);
         Check(battle.Actors.Where(actor => actor.Actor.Slot < 3).Select(actor => actor.Identity).SequenceEqual([9, 10]), "Original flashback battle must retain its logical actor identities.");
         Ff7BattleSnapshot snapshot = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
-        Ff7BattleSession cold = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot);
+        Ff7BattleSession cold = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
         for (int callback = 0; callback < 8; callback++)
         {
             battle.Advance();
@@ -92,7 +103,7 @@ internal static class FlashbackPartyTests
         }
         Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Original battle292 initialization changed through JSON continuation.");
         Ff7BattleSnapshot injured = snapshot with { Actors = snapshot.Actors.Select(actor => actor.Identity == 9 ? actor with { Actor = actor.Actor with { HitPoints = actor.Actor.HitPoints - 5 } } : actor).ToArray() };
-        Ff7BattleSession changed = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: injured);
+        Ff7BattleSession changed = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: injured, animations: animations);
         Ff7Progress settled = changed.PublishVitals(progress);
         Check(settled.Characters.Single(character => character.Id == 6).HitPoints == young.HitPoints - 5 && settled.Characters.Single(character => character.Id == 0) == progress.Characters.Single(character => character.Id == 0), "Temporary battle vitals must publish to physical record6 and preserve adult Cloud.");
     }
