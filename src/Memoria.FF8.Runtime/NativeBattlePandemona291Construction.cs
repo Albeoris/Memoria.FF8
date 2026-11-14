@@ -9,6 +9,23 @@ public sealed record NativeBattlePandemona291ConstructionInputs(NativeBattleActi
 
 public static class NativeBattlePandemona291Construction
 {
+    internal static void ValidateHostedRows(NativeBattleActionPacketsState packets, NativeBattleEffectParameters? parameters)
+    {
+        if (packets.PresentationRoster is not { } roster)
+        {
+            return;
+        }
+        if (parameters is null)
+        {
+            throw new NotSupportedException("Native Pandemona requires its current action parameters.");
+        }
+        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.HeaderIndex7C);
+        if (!roster.ContainsRow(parameters.Actor78) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+        {
+            throw new InvalidDataException("Hosted Pandemona requires a bound caster and at least one bound recipient model row.");
+        }
+    }
+
     public static NativeBattlePandemona291Frame Initialize6ED3B6(NativeBattlePandemona291Frame frame, NativeBattlePandemona291ConstructionInputs inputs)
     {
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona construction requires its retained module owner.");
@@ -18,6 +35,8 @@ public static class NativeBattlePandemona291Construction
             throw new NotSupportedException("Native Pandemona construction requires the actual current arena buffer.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona construction requires its arena.");
+        NativeBattleGraphicsRoster? roster = inputs.Packets.PresentationRoster;
+        ValidateHostedRows(inputs.Packets, frame.Effect.Parameters);
         ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools;
         AddPool(0x25562A8, 0x21A4, 0x1030, 1);
         AddPool(0x2556298, 0x1AA4, 0x1C, 0x40);
@@ -92,6 +111,10 @@ public static class NativeBattlePandemona291Construction
                 {
                     throw new InvalidDataException("Native Pandemona linked target ring does not close at its source.");
                 }
+                if (roster is not null && !roster.ContainsRow(current))
+                {
+                    throw new InvalidDataException("Hosted Pandemona linked target ring leaves its bound model rows.");
+                }
                 NativeBattleGraphicsModel other = inputs.ReadModel(current);
                 if ((other.Flags0 & 2) != 0 && Enumerable.Range(0, count).Any(target => ActorIndex(child + 0x14 + target * 32) == current))
                 {
@@ -129,7 +152,15 @@ public static class NativeBattlePandemona291Construction
 
         void WriteWord(int offset, ushort value) => arena = arena.Write(offset, BitConverter.GetBytes(value));
         void WriteDword(int offset, uint value) => arena = arena.Write(offset, BitConverter.GetBytes(value));
-        int ActorIndex(int record) => NativeBattleGraphicsModelAddress.Decode(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(record, 4)));
+        int ActorIndex(int record)
+        {
+            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(record, 4));
+            if (roster is null)
+            {
+                return NativeBattleGraphicsModelAddress.Decode(pointer);
+            }
+            return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actor, roster) ? actor : throw new InvalidDataException("Hosted Pandemona target record leaves its bound model rows.");
+        }
         NativeBattleGraphicsModel ReadActor(int record) => inputs.ReadModel(ActorIndex(record));
         void CopySnapshot(int source, int destination) => StoreSnapshot(destination, arena.ReadSnapshot(source, 32));
         void StoreSnapshot(int destination, (byte[] Data, bool[] Known) snapshot)

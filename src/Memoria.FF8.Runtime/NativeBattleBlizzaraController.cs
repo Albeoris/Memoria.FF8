@@ -56,6 +56,11 @@ public static class NativeBattleBlizzaraController
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
             RequireCallback(task, 0x6DA3A0);
+            uint? hostedAddress = null;
+            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadByte(17))
+            {
+                hostedAddress = ActorAddress(ReadActor(task.ReadByte(14)), roster);
+            }
             bool alternate = Dword(task, 16) == 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = alternate ? 0x296D4 : 0x196D4 } };
             task = WriteDword(task, 16, alternate ? 1u : 0u);
@@ -72,10 +77,7 @@ public static class NativeBattleBlizzaraController
             if (Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadByte(17))
             {
                 int sequence = task.ReadByte(14);
-                NativeBattleActionHeaderSlot header = Header(sequence);
-                int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Blizzara requires an actual header contact owner.");
-                int actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
-                uint actorAddress = ActorAddress(actor);
+                uint actorAddress = hostedAddress ?? ActorAddress(ReadActor(sequence), null);
                 bool duplicate = primary!.Slots.Any(current => (current.Flags & 1) != 0 && Dword(current, 16) == actorAddress && Word(current, 12) <= 60);
                 if (duplicate)
                 {
@@ -121,13 +123,19 @@ public static class NativeBattleBlizzaraController
         ImmutableArray<NativeBattleEffectTaskPool> pools = primary is null ? [rootStep.Pool] : [rootStep.Pool, primary, secondary!, tertiary!, smoke!, trail!];
         return frame with { Effect = frame.Effect with { Pools = pools, ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : MainDescriptor } };
 
+        int ReadActor(int sequence)
+        {
+            int contact = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Blizzara requires an actual header contact owner.");
+            return inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+        }
+
         NativeBattleEffectTaskCallback Primary(NativeBattleEffectTaskPool pool, int slot)
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
             RequireCallback(task, 0x6DAA30);
             int phase = Word(task, 12);
             int sequence = task.ReadWord(14);
-            int actor = ActorIndex(Dword(task, 16));
+            int actor = ActorIndex(Dword(task, 16), inputs.Packets.PresentationRoster);
             short ground = inputs.ReadTransform(actor).Angle36;
             if (phase == 0)
             {
@@ -303,7 +311,7 @@ public static class NativeBattleBlizzaraController
             {
                 return new(Put(pool, slot, task), 2);
             }
-            short ground = inputs.ReadTransform(ActorIndex(Dword(task, 16))).Angle36;
+            short ground = inputs.ReadTransform(ActorIndex(Dword(task, 16), inputs.Packets.PresentationRoster)).Angle36;
             if (Word(task, 22) < ground - 4 * Word(task, 30))
             {
                 task = Add(task, 30, 4);
@@ -359,16 +367,16 @@ public static class NativeBattleBlizzaraController
         return (int)(delta / 0x53CC);
     }
 
-    public static int ActorIndex(uint pointer)
+    public static int ActorIndex(uint pointer, NativeBattleGraphicsRoster? roster = null)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row, roster))
         {
             throw new NotSupportedException("Native Blizzara's graphics row pointer has no actual actor owner.");
         }
         return row;
     }
 
-    private static uint ActorAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
+    private static uint ActorAddress(int actor, NativeBattleGraphicsRoster? roster) => (roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)) ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
     private static void RequireCallback(NativeBattleModulePoolTask task, uint callback)
     {
         if (task.Callback != callback)

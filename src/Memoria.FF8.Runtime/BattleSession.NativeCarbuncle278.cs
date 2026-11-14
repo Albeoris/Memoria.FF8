@@ -11,7 +11,8 @@ public sealed partial class BattleSession
         NativeBattleCarbuncle278Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Carbuncle requires its retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Carbuncle lost its selected effect."), nativeCrtRandom ?? throw new NotSupportedException("Native Carbuncle requires its actual CRT random owner."));
         if (initialize)
         {
-            ImmutableArray<int>? enemyModels = presentationForeignActors?.Values.Where(actor => !actor.IsParty).Select(actor => actor.Index).Order().ToImmutableArray();
+            ImmutableArray<int>? enemyModels = graphics.PresentationRoster?.EnemyRows.ToImmutableArray() ??
+                presentationForeignActors?.Values.Where(actor => !actor.IsParty).Select(actor => actor.Index).Order().ToImmutableArray();
             NativeBattleEffectSceneContext sceneContext = ReadRequiredEffectSceneContext();
             ImmutableArray<NativeBattleModelTransform>? opposingTransforms = sceneContext.ReadOpposingTransforms?.Invoke();
             if (opposingTransforms is { } sceneOpponents && enemyModels is { } boundEnemies)
@@ -161,7 +162,8 @@ public sealed partial class BattleSession
 
             int ActorIndex(uint actor)
             {
-                if (!NativeBattleGraphicsModelAddress.TryDecode(actor, out int actorIndex, graphics.Models.Length))
+                if (!NativeBattleGraphicsModelAddress.TryDecode(actor, out int actorIndex, graphics.Models.Length) ||
+                    graphics.PresentationRoster is { } roster && !roster.ContainsRow(actorIndex))
                 {
                     throw new InvalidDataException("Native Carbuncle recipient does not address a current physical actor row.");
                 }

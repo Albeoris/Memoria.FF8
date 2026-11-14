@@ -18,22 +18,31 @@ public static class NativeBattleCarbuncle278Entry
     {
         sceneContext.Validate();
         RequireBinding(frame.Effect);
-        frame.Effect.Validate();
+        frame.Effect.Validate(packets.PresentationRoster);
         packets.Validate();
         NativeBattleCarbuncle278State state = RequireState(frame.Memory);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle entry requires its current action parameters.");
-        if (models.IsDefault || models.Length != 7 || models.Where((model, index) => model is null || model.Index != index).Any())
+        NativeBattleGraphicsRoster? roster = packets.PresentationRoster;
+        if (models.IsDefault || models.Length != (roster?.ActorCount ?? 7) || models.Where((model, index) => model is null || model.Index != index).Any())
         {
-            throw new InvalidDataException("Native Carbuncle entry requires its seven ordered physical graphics rows.");
+            throw new InvalidDataException(roster is null ? "Native Carbuncle entry requires its seven ordered physical graphics rows." : "Hosted Carbuncle entry requires its ordered presentation model bank.");
         }
-        ImmutableArray<int> enemies = enemyModelIndices ?? [3, 4, 5, 6];
-        if (enemies.IsDefault || enemies.Any(index => (uint)index >= models.Length) || enemies.Distinct().Count() != enemies.Length)
+        ImmutableArray<int> enemies = enemyModelIndices ?? (roster is null ? [3, 4, 5, 6] : roster.EnemyRows.ToImmutableArray());
+        if (enemies.IsDefault || enemies.Any(index => (uint)index >= models.Length || roster is not null && (!roster.ContainsRow(index) || roster[index].IsParty)) || enemies.Distinct().Count() != enemies.Length)
         {
             throw new InvalidDataException("Native Carbuncle clearance requires distinct physical enemy model rows within the current model bank.");
         }
         if (opposingTransforms is { } opposing && (opposing.IsDefault || opposing.Any(transform => transform is null)))
         {
             throw new InvalidDataException("Native Carbuncle clearance requires initialized opposing scene transforms.");
+        }
+        if (roster is not null)
+        {
+            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.HeaderIndex7C);
+            if (!roster.ContainsRow(parameters.Actor78) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+            {
+                throw new InvalidDataException("Hosted Carbuncle entry requires a bound caster and at least one bound recipient model row.");
+            }
         }
         NativeCrtRandomState random = frame.Random.Draw(out ushort value);
         int resource = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2508110)?.ArenaOffset ?? throw new NotSupportedException("Native Carbuncle entry requires its executed initializer publication.");

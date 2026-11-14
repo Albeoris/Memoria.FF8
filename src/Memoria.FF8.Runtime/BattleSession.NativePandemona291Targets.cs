@@ -169,6 +169,7 @@ public sealed partial class BattleSession
                     IEnumerable<int> rows = arena.Read(row + 0x1E, 1)[0] != 0 ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor };
                     foreach (int selected in rows)
                     {
+                        RequireBoundRingRow(selected);
                         if ((graphics.Models[selected].Flags0 & 2) != 0 || selected == actor)
                         {
                             var drawn = DrawNativePandemona291Actor(frame, selected, angles, new(0, center, 0), new(factor, factor, factor), graphics);
@@ -181,6 +182,7 @@ public sealed partial class BattleSession
                 IEnumerable<int> hidden = ring ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor };
                 foreach (int selected in hidden)
                 {
+                    RequireBoundRingRow(selected);
                     NativeBattleGraphicsModel target = graphics.Models[selected];
                     if (!ring || (target.Flags0 & 2) != 0)
                     {
@@ -197,11 +199,19 @@ public sealed partial class BattleSession
         int Actor(int row)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length) ||
+                graphics.PresentationRoster is { } roster && !roster.ContainsRow(actorIndex))
             {
                 throw new NotSupportedException("Native Pandemona target record requires its actual physical actor pointer.");
             }
             return actorIndex;
+        }
+        void RequireBoundRingRow(int row)
+        {
+            if (graphics.PresentationRoster is { } roster && ((uint)row >= graphics.Models.Length || !roster.ContainsRow(row)))
+            {
+                throw new InvalidDataException("Hosted Pandemona linked target ring leaves its bound model rows.");
+            }
         }
         static NativeBattleModelTransform RequireTransform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Native Pandemona target motion requires its retained signed position.");
         short Trig(int angle, bool cosine) => BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice((angle & 0xFFF) * 4 + (cosine ? 2 : 0), 2));

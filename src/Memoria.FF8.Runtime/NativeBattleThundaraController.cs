@@ -66,16 +66,21 @@ public static class NativeBattleThundaraController
             {
                 return new(Put(pool, slot, WriteByte(task, 15, 1)), 0);
             }
+            int? hostedActor = null;
+            uint? hostedAddress = null;
+            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 0 && ReadByte(task, 14) <= Header(0).ReadByte(17))
+            {
+                hostedActor = ReadActor(ReadByte(task, 14));
+                hostedAddress = ActorAddress(hostedActor.Value, roster);
+            }
             bool alternate = ReadDword(task, 16) == 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = alternate ? 0x8000 : 0 } };
             task = WriteDword(task, 16, alternate ? 1u : 0u);
             int sequence = ReadByte(task, 14);
             if (Word(task, 12) == 0 && sequence <= Header(0).ReadByte(17))
             {
-                NativeBattleActionHeaderSlot header = Header(sequence);
-                int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Thundara requires its actual header contact pointer.");
-                int actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
-                uint actorAddress = ActorAddress(actor);
+                int actor = hostedActor ?? ReadActor(sequence);
+                uint actorAddress = hostedAddress ?? ActorAddress(actor, null);
                 bool duplicate = primary.Slots.Any(current => (current.Flags & 1) != 0 && ReadDword(current, 16) == actorAddress && Word(current, 12) <= 26);
                 if (duplicate)
                 {
@@ -110,6 +115,12 @@ public static class NativeBattleThundaraController
         });
         return frame with { Effect = frame.Effect with { Pools = [rootStep.Pool, primary, secondary, tertiary], ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : MainDescriptor } };
 
+        int ReadActor(int sequence)
+        {
+            int contact = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Thundara requires its actual header contact pointer.");
+            return inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+        }
+
         NativeBattleEffectTaskCallback Primary(NativeBattleEffectTaskPool pool, int slot)
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
@@ -118,7 +129,7 @@ public static class NativeBattleThundaraController
                 throw new NotSupportedException($"Native Thundara primary callback{task.Callback:X8} is unsupported.");
             }
             int phase = Word(task, 12);
-            int actor = ActorIndex(ReadDword(task, 16));
+            int actor = ActorIndex(ReadDword(task, 16), inputs.Packets.PresentationRoster);
             NativeBattleModuleAnchor position = Anchor(task, 20);
             if (phase == 4)
             {
@@ -306,9 +317,9 @@ public static class NativeBattleThundaraController
         _ => throw new NotSupportedException("Native Thundara sprite requires an authored resource selector.")
     };
 
-    public static int ActorIndex(uint address)
+    public static int ActorIndex(uint address, NativeBattleGraphicsRoster? roster = null)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster))
         {
             throw new NotSupportedException("Native Thundara requires an exact retained156-byte graphics row pointer.");
         }
@@ -325,9 +336,9 @@ public static class NativeBattleThundaraController
         return (int)(offset / 44);
     }
 
-    private static uint ActorAddress(int actor)
+    private static uint ActorAddress(int actor, NativeBattleGraphicsRoster? roster)
     {
-        if ((uint)actor >= 7)
+        if (!(roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)))
         {
             throw new NotSupportedException("Native Thundara's contact selects an unowned graphics row.");
         }

@@ -41,6 +41,16 @@ public static class NativeBattleGraphicsModelAddress
         return false;
     }
 
+    public static bool TryDecode(uint address, out int row, NativeBattleGraphicsRoster? roster)
+    {
+        if (TryDecode(address, out row, roster?.ActorCount ?? NativeRowCount) && (roster is null || roster.ContainsRow(row)))
+        {
+            return true;
+        }
+        row = -1;
+        return false;
+    }
+
     /// <summary>Resolves a field within one owned row. A zero-length field still starts at an owned byte.</summary>
     public static (int ActorIndex, int Offset) ResolveField(uint address, int byteLength, int actorCount = NativeRowCount)
     {

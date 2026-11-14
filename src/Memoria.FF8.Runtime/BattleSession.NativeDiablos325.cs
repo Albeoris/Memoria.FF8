@@ -80,9 +80,11 @@ public sealed partial class BattleSession
                 {
                     int headerIndex = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Diablos actor restoration requires its retained action header.");
                     int count = nativeActionPackets.Headers[headerIndex].ReadByte(0x10);
+                    NativeBattleGraphicsRoster? roster = nativeActionPackets.PresentationRoster;
+                    NativeBattleDiablos325Recipients.ValidateHostedRecords(task, count, roster);
                     for (int index = 0; index < count; index++)
                     {
-                        int actor = NativeBattleDiablos325Recipients.ActorIndex(task.ReadDword(0x94 + index * 12));
+                        int actor = NativeBattleDiablos325Recipients.ActorIndex(task.ReadDword(0x94 + index * 12), roster);
                         graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 & 0xFFF3) }) };
                     }
                     return current;

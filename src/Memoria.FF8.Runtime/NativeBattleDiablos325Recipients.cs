@@ -21,11 +21,13 @@ public static class NativeBattleDiablos325Recipients
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos recipient sink requires its retained action header.");
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int count = header.ReadByte(0x10);
+        NativeBattleGraphicsRoster? roster = packets.PresentationRoster;
+        ValidateHostedRecords(task, count, roster);
         for (int index = 0; index < count; index++)
         {
             int record = 0x94 + index * 12;
             uint address = task.ReadDword(record);
-            int actorIndex = ActorIndex(address);
+            int actorIndex = ActorIndex(address, roster);
             NativeBattleGraphicsModel actor = services.ReadActor(actorIndex);
             if (counter == 368)
             {
@@ -89,12 +91,24 @@ public static class NativeBattleDiablos325Recipients
         return NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(ratio >> 2) >> 2) >> 2);
     }
 
-    internal static int ActorIndex(uint address)
+    internal static int ActorIndex(uint address, NativeBattleGraphicsRoster? roster = null)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster))
         {
             throw new InvalidDataException("Native Diablos recipient requires its exact physical actor pointer.");
         }
         return row;
+    }
+
+    internal static void ValidateHostedRecords(NativeBattleModulePoolTask task, int count, NativeBattleGraphicsRoster? roster)
+    {
+        if (roster is null)
+        {
+            return;
+        }
+        for (int index = 0; index < count; index++)
+        {
+            _ = ActorIndex(task.ReadDword(0x94 + index * 12), roster);
+        }
     }
 }

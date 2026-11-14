@@ -133,7 +133,8 @@ public sealed partial class BattleSession
                 InitializeBody = (current, address, task) =>
                 {
                     uint caster = current.Memory.Pandemona291?.Caster2556260 ?? throw new NotSupportedException("Native Pandemona model initialization requires its actual caster pointer.");
-                    if (!NativeBattleGraphicsModelAddress.TryDecode(caster, out int index, graphics.Models.Length))
+                    if (!NativeBattleGraphicsModelAddress.TryDecode(caster, out int index, graphics.Models.Length) ||
+                        graphics.PresentationRoster is { } roster && !roster.ContainsRow(index))
                     {
                         throw new InvalidDataException("Native Pandemona caster pointer leaves its current graphics-model rows.");
                     }

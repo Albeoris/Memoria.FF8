@@ -72,6 +72,8 @@ public sealed class NativeBattleThundaraControllerTests
         var fixture = Fixture();
         NativeBattleThundaraFrame normal = fixture.Frame;
         NativeBattleThundaraFrame flagged = NativeBattleTestSnapshots.Independent(fixture.Frame);
+        Dictionary<long, long> matchingGenerations = [];
+        HashSet<long> matchedActualGenerations = [];
         for (int callback = 0; callback < 38; callback++)
         {
             List<NativeBattleThundaraOperation> expected = [];
@@ -87,7 +89,38 @@ public sealed class NativeBattleThundaraControllerTests
                 return frame;
             }) with { GraphicsFlags = 0x201 });
             Assert.Equal(NativeBattleTestSnapshots.Json(normal), NativeBattleTestSnapshots.Json(flagged));
+            Assert.Equal(expected.Count, actual.Count);
+            for (int index = 0; index < actual.Count; index++)
+            {
+                actual[index] = (expected[index], actual[index]) switch
+                {
+                    (NativeBattleThundaraSprite left, NativeBattleThundaraSprite right) => right with { PilotIdentity = MatchGeneration(left.PilotIdentity, right.PilotIdentity) },
+                    (NativeBattleThundaraGeometry left, NativeBattleThundaraGeometry right) => right with { PilotIdentity = MatchGeneration(left.PilotIdentity, right.PilotIdentity) },
+                    _ => actual[index]
+                };
+            }
             Assert.Equal(NativeBattleTestSnapshots.Json(expected.Select(operation => new { Kind = operation.GetType().Name, Json = NativeBattleTestSnapshots.Json(operation, operation.GetType()) })), NativeBattleTestSnapshots.Json(actual.Select(operation => new { Kind = operation.GetType().Name, Json = NativeBattleTestSnapshots.Json(operation, operation.GetType()) })));
+        }
+
+        NativeBattlePilotVisualIdentity? MatchGeneration(NativeBattlePilotVisualIdentity? expected, NativeBattlePilotVisualIdentity? actual)
+        {
+            Assert.Equal(expected.HasValue, actual.HasValue);
+            if (expected is not { } left || actual is not { } right)
+            {
+                return actual;
+            }
+            Assert.True(left.Generation > 0);
+            Assert.True(right.Generation > 0);
+            if (matchingGenerations.TryGetValue(left.Generation, out long matched))
+            {
+                Assert.Equal(matched, right.Generation);
+            }
+            else
+            {
+                Assert.True(matchedActualGenerations.Add(right.Generation));
+                matchingGenerations.Add(left.Generation, right.Generation);
+            }
+            return right with { Generation = left.Generation };
         }
     }
 

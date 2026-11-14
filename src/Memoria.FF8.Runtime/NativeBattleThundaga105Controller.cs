@@ -82,6 +82,15 @@ public static class NativeBattleThundaga105Controller
             {
                 throw new NotSupportedException("Native Thundaga root bank contains an unsupported callback.");
             }
+            int? hostedActor = null;
+            if (inputs.Packets.PresentationRoster is { } roster && task.ReadWord(0xC) == 1 && task.ReadByte(0xE) <= Header(0).ReadByte(17) && (task.ReadByte(0x14) == 0 || HasFree(primary!)))
+            {
+                hostedActor = Actor(task.ReadByte(0xE));
+                if (!roster.ContainsRow(hostedActor.Value))
+                {
+                    throw new InvalidDataException("Native Thundaga contact selects an unowned graphics row.");
+                }
+            }
             bool alternate = task.ReadDword(0x18) == 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = alternate ? 0x20C1C : 0x8C1C }, Memory = frame.Memory with { Thundaga105 = State() with { SecondaryWorkspaceArenaOffset = alternate ? 0x38C1C : 0x20C1C } } };
             task = task.WriteDword(0x18, alternate ? 1u : 0u);
@@ -99,7 +108,7 @@ public static class NativeBattleThundaga105Controller
                 int sequence = task.ReadByte(0xE);
                 if (sequence <= Header(0).ReadByte(17) && HasFree(primary!))
                 {
-                    int actor = Actor(sequence);
+                    int actor = hostedActor ?? Actor(sequence);
                     (primary, int slot) = primary!.Append(0x6D43B0);
                     NativeBattleModulePoolTask child = primary.Slots[slot].ClearPayload(0x884 - 12);
                     child = child.WriteWord(0xE, (ushort)sequence).WriteDword(0x10, NativeBattleGraphicsModelAddress.Encode(actor)).WriteDword(0x14, inputs.ReadActorColor40(actor)).WriteDword(0x18, unchecked((uint)(((inputs.ReadActorScale38(actor) >> 1) + 3718) >> 1)));
@@ -171,7 +180,7 @@ public static class NativeBattleThundaga105Controller
             }
             int phase = task.ReadWord(0xC);
             int sequence = task.ReadWord(0xE);
-            int actor = ActorIndex(task.ReadDword(0x10));
+            int actor = ActorIndex(task.ReadDword(0x10), inputs.Packets.PresentationRoster);
             ImmutableArray<byte> anchor = inputs.ReadBone241(actor);
             if (anchor.IsDefault || anchor.Length != 8)
             {
@@ -327,7 +336,7 @@ public static class NativeBattleThundaga105Controller
 
     private static NativeBattleModulePoolTask ClearSprite(NativeBattleModulePoolTask task, uint address, ushort duration) => (task.ClearPayload(0x20)).WriteDword(0x10, address).WriteWord(0xE, duration).WriteWord(0x1A, 4096);
     private static uint HalfColor(uint saved, uint current) => (current & 0xFF000000) | (((saved & 255) + 255) >> 1) | (((((saved >> 8) & 255) + 255) >> 1) << 8) | (((((saved >> 16) & 255) + 255) >> 1) << 16);
-    private static int ActorIndex(uint address) => NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
+    private static int ActorIndex(uint address, NativeBattleGraphicsRoster? roster) => NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster) ? row : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
     private static NativeBattleVector Vector(ImmutableArray<byte> raw) => new(Signed(raw, 0), Signed(raw, 2), Signed(raw, 4));
     private static short Signed(ImmutableArray<byte> raw, int offset) => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan().Slice(offset));
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

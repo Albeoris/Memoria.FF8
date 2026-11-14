@@ -51,6 +51,7 @@ public static class NativeBattlePandemona291Entry
             throw new InvalidDataException("Native Pandemona requires its selected original entry.");
         }
         resources.Validate();
+        NativeBattlePandemona291Construction.ValidateHostedRows(packets, frame.Effect.Parameters);
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona entry requires its retained module owner.");
         state = state with { Scratch25562EC = 0 };
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Pandemona requires its current TIM queue.");

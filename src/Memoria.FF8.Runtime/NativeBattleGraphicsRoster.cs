@@ -35,6 +35,8 @@ public sealed class NativeBattleGraphicsRoster
         }
     }
 
+    public bool ContainsRow(int row) => (uint)row < (uint)ActorCount && Rows[row] is not null;
+
     public void Validate()
     {
         if (Rows.IsDefault || Rows.Length is < NativeBattleGraphicsModelAddress.NativeRowCount or > NativeBattleGraphicsModelAddress.MaximumRowCount)

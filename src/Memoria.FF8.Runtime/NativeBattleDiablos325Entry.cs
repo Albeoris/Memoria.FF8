@@ -12,13 +12,22 @@ public static class NativeBattleDiablos325Entry
     public static NativeBattleDiablos325Frame Initialize6541E0(NativeBattleDiablos325Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models)
     {
         RequireBinding(frame.Effect);
-        frame.Effect.Validate();
+        frame.Effect.Validate(packets.PresentationRoster);
         packets.Validate();
         NativeBattleDiablos325State state = RequireState(frame.Memory);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos entry requires its current action parameters.");
-        if (models.IsDefault || models.Length != 7 || models.Where((model, index) => model is null || model.Index != index).Any())
+        NativeBattleGraphicsRoster? roster = packets.PresentationRoster;
+        if (models.IsDefault || models.Length != (roster?.ActorCount ?? 7) || models.Where((model, index) => model is null || model.Index != index).Any())
         {
-            throw new InvalidDataException("Native Diablos entry requires seven ordered physical graphics rows.");
+            throw new InvalidDataException(roster is null ? "Native Diablos entry requires seven ordered physical graphics rows." : "Hosted Diablos entry requires its ordered presentation model bank.");
+        }
+        if (roster is not null)
+        {
+            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.HeaderIndex7C);
+            if (!roster.ContainsRow(parameters.Actor78) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+            {
+                throw new InvalidDataException("Hosted Diablos entry requires a bound caster and at least one bound recipient model row.");
+            }
         }
         int resource = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x250517C)?.ArenaOffset ?? throw new NotSupportedException("Native Diablos entry requires its executed initializer publication.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos entry requires its current effect arena.");

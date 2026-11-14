@@ -11,7 +11,7 @@ public sealed record NativeBattleDiablos325State([property: JsonRequired] uint P
 
     public void Validate()
     {
-        if (Action5184 is not (0 or 0x1D99A78) || Caster5188 != 0 && !NativeBattleGraphicsModelAddress.TryDecode(Caster5188, out _) || ModelBuffer5208 != 0 && ModelBuffer5208 != NativeBattleEffectNodeMemory.ArenaAddress || !Cursor(PacketCursor51D0) || !Cursor(ParticleCursor51F4))
+        if (Action5184 is not (0 or 0x1D99A78) || Caster5188 != 0 && !NativeBattleGraphicsModelAddress.TryDecode(Caster5188, out _, NativeBattleGraphicsModelAddress.MaximumRowCount) || ModelBuffer5208 != 0 && ModelBuffer5208 != NativeBattleEffectNodeMemory.ArenaAddress || !Cursor(PacketCursor51D0) || !Cursor(ParticleCursor51F4))
         {
             throw new InvalidDataException("Native Diablos module pointers leave their original action, actor or effect arena owners.");
         }
