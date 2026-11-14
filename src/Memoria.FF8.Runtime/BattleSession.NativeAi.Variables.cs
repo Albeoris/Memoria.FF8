@@ -45,12 +45,12 @@ public sealed partial class BattleSession
     {
         //487DF0 indexes1D277C4 by52*actor+U8 variable; actor records begin1D27B10,211 DWORDs later.
         //48B310/48BBD0 own the forty resistance bytes at actor+144;48C5C0 deliberately retains them.
-        if (UsesExpandedRoster)
+        if (UsesExpandedRoster && variable is >= 220 and <= 227)
         {
-            if (variable is >= 220 and <= 227)
-            {
-                return (actor, 4 * (variable - 211));
-            }
+            return (actor, 4 * (variable - 211));
+        }
+        if (UsesExpandedRoster && (!UsesOriginalEnemySlots || !HasNativeRosterSlot(actor)))
+        {
             throw new NotSupportedException($"Expanded battle AI variable {variable} requires a physical actor-bank alias.");
         }
         int offset = checked(actor.EncodeNativeSlot() * 208 + 4 * (variable - 211));
@@ -60,9 +60,9 @@ public sealed partial class BattleSession
         }
         int index = offset / 208;
         int member = offset % 208;
-        BattleCombatant? owner = combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == index);
+        BattleCombatant? owner = FindAllocatedNativeActor(index);
         bool owned = member is >= 36 and <= 64 || member is >= 144 and <= 180 && owner?.MutableNativeStatusResistances.Length == 40;
-        if (index >= 7 || owner is null || !owned)
+        if (owner is null || !owned)
         {
             throw new NotSupportedException($"Native battle AI variable {variable} aliases unowned actor memory at slot{index}+{member}.");
         }

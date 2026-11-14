@@ -235,7 +235,19 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 14 or 18:
-                        if (script[pc] is < 220 or > 227 || script[pc + 1] == 203 && (opcode != 14 || callback != 2))
+                        if (script[pc] is < 220 or > 227)
+                        {
+                            if (script[pc + 1] == 203)
+                            {
+                                MarkUnsupportedService($"actor-reference-write:{opcode}/{script[pc]}/{script[pc + 1]}");
+                            }
+                            else if (!originalEnemySlots)
+                            {
+                                admission = ExpandedAiAdmission.RequiresOriginalSlots;
+                                blockers?.Add($"physical-variable:{opcode}/{script[pc]}");
+                            }
+                        }
+                        else if (script[pc + 1] == 203 && (opcode != 14 || callback != 2))
                         {
                             MarkUnsupportedService($"actor-reference-write:{opcode}/{script[pc]}/{script[pc + 1]}");
                         }
@@ -277,7 +289,7 @@ public static class NativeBattleExpandedAi
 
     internal static bool SupportsAction(BattleNativeAction action, bool originalEnemySlots)
     {
-        if (action is { Command: 4, KernelSection: 2, AttackType: 4, TargetFlags: byte flags })
+        if (action is { Command: 4, KernelSection: 7, AttackType: 4, TargetFlags: byte flags })
         {
             // Enemy AI provides the target and dispatches the Item record without a party inventory reservation.
             return (flags & 3) == 0 && ExpandedBattleActionRules.SupportsContacts(action);

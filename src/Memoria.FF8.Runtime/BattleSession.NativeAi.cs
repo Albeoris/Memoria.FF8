@@ -573,12 +573,15 @@ public sealed partial class BattleSession
 
     private BattleCombatant? FindActiveNativeActor(int index)
     {
-        if (NativeBattleSlots.Contains(index))
-        {
-            BattleRosterSlot slot = NativeBattleSlots.Decode(index);
-            return Roster(slot.Side).SingleOrDefault(candidate => candidate.Slot == slot && candidate.IsActive);
-        }
-        return null;
+        BattleCombatant? actor = FindAllocatedNativeActor(index);
+        return actor is { IsActive: true } ? actor : null;
+    }
+
+    private BattleCombatant? FindAllocatedNativeActor(int index)
+    {
+        return NativeBattleSlots.Contains(index)
+            ? Roster(NativeBattleSlots.Decode(index).Side).SingleOrDefault(candidate => candidate.NativeActorIndex == index)
+            : null;
     }
 
     private IReadOnlyList<BattleCombatant> Roster(BattleSide side) => side == BattleSide.Allies ? allies : enemies;

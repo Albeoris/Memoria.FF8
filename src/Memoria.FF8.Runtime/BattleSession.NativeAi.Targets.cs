@@ -110,8 +110,7 @@ public sealed partial class BattleSession
         return (group == 200 ? BattleSide.Allies : group == 201 ? BattleSide.Enemies : null, candidate => InGroup(candidate) && Eligible(candidate));
     }
 
-    private static bool HasNativeRosterSlot(BattleCombatant actor) =>
-        actor.Slot is { } slot && NativeBattleSlots.TryEncode(slot).HasValue;
+    private static bool HasNativeRosterSlot(BattleCombatant actor) => actor.NativeActorIndex.HasValue;
 
     private bool HasAiRosterSlot(BattleCombatant actor) => UsesExpandedRoster ? actor.Slot is not null : HasNativeRosterSlot(actor);
 
@@ -122,7 +121,7 @@ public sealed partial class BattleSession
 
     private ushort PickNativeAiTarget(BattleSide? side, Func<BattleCombatant, bool> eligible)
     {
-        HashSet<BattleRosterSlot> candidates = NativeTargetActors().Where(candidate => (side is null || candidate.Side == side) && eligible(candidate)).Select(candidate => candidate.Slot!.Value).ToHashSet();
+        HashSet<int> candidates = NativeTargetActors().Where(candidate => (side is null || candidate.Side == side) && eligible(candidate)).Select(candidate => candidate.NativeActorIndex!.Value).ToHashSet();
         int count = side switch
         {
             BattleSide.Allies => NativeBattleSlots.AllyCount,
@@ -137,7 +136,7 @@ public sealed partial class BattleSession
         while (true)
         {
             int index = first + NextRandomByte() % count;
-            if (candidates.Contains(NativeBattleSlots.Decode(index)))
+            if (candidates.Contains(index))
             {
                 return NativeAiIndexMask(index);
             }

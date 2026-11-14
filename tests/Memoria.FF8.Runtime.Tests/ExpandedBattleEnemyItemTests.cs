@@ -7,9 +7,9 @@ public sealed class ExpandedBattleEnemyItemTests
     [Fact]
     public void EnemyItemUsesItsSelectedActorAndLeavesPartyStockIntactAfterRestore()
     {
-        BattleNativeAction item = new(4, 3, 2, 3)
+        BattleNativeAction item = new(4, 3, 7, 3)
         {
-            Name = "Hi-Potion", MagicId = 50, AttackType = 4, HitCount = 1, Power = 20, Hit = 255, TargetFlags = 0x14, AttackFlags = 0xE2,
+            Name = "Hi-Potion", MagicId = 51, AttackType = 4, HitCount = 1, Power = 20, Hit = 255, TargetFlags = 0x14, AttackFlags = 0xE2,
             DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
         NativeBattleAiDefinition ai = new([[0], [4, 200, 12, 0, 0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(4, 0, 3), 48).ToArray(), 0, []);

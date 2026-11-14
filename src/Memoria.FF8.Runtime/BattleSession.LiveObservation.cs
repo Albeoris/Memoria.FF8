@@ -24,6 +24,14 @@ public sealed record BattleLiveObservation
 
     internal static BattleLiveObservation FromSnapshot(BattleSnapshot snapshot)
     {
+        bool expanded = snapshot.Definition.UsesExpandedRoster;
+        int recordCount = expanded ? snapshot.Definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount : NativeCharacterVitals.ExtendedRecordCount;
+        BattleLiveMaximumHp Observe(BattleCombatantSnapshot actor)
+        {
+            BattleCombatantDefinition? source = snapshot.Definition.Combatants.SingleOrDefault(candidate => candidate.Id == actor.Id);
+            bool transformed = snapshot.GuardianForms?.Forms.Any(form => form.ActorId == actor.Id && (form.Phase is BattleGuardianFormPhase.Active or BattleGuardianFormPhase.Finishing)) == true;
+            return MaximumHp(actor.Id, actor.NativeParticipant, source, expanded, recordCount, transformed);
+        }
         return new()
         {
             EncounterId = snapshot.Definition.EncounterId,
@@ -36,7 +44,7 @@ public sealed record BattleLiveObservation
             Music = snapshot.NativeMusicProcess,
             EnemyDefeats = [.. snapshot.EnemyDefeats],
             StockDraws = [.. snapshot.OriginalStockDrawOperations ?? []],
-            MaximumHitPoints = [.. snapshot.Combatants.Select(actor => MaximumHp(actor.Id, actor.NativeParticipant, snapshot.Definition.Combatants.SingleOrDefault(source => source.Id == actor.Id)))],
+            MaximumHitPoints = [.. snapshot.Combatants.Select(Observe)],
             Vitals = snapshot.MagicVitals?.DeepCopy(),
             Cards = snapshot.NativeCards?.DeepCopy(),
             Items = [.. snapshot.NativeItemInventory ?? []],
@@ -45,11 +53,16 @@ public sealed record BattleLiveObservation
         };
     }
 
-    internal static BattleLiveMaximumHp MaximumHp(string id, NativeBattleParticipantSnapshot? participant, BattleCombatantDefinition? definition)
+    private static BattleLiveMaximumHp MaximumHp(string id, NativeBattleParticipantSnapshot? participant, BattleCombatantDefinition? definition, bool expanded, int recordCount, bool transformed)
     {
-        bool maximum = participant is { Active: true, Suspended: false, MaximumHitPoints: 9999 };
-        bool eligible = maximum && participant is { ActorIndex: >= 0 and < 3 } && definition is { IsPlayer: true, MagicRecordId: >= 0 and < 11, NativePlayerStatRules: not null };
-        return new(id, definition?.MagicRecordId, maximum, eligible);
+        bool maximum = participant is { Active: true, Suspended: false, MaximumHitPoints: 9999 } && !transformed && definition is { IsPlayer: true, NativePlayerStatRules: not null };
+        bool admittedAlly = expanded || participant is { ActorIndex: >= 0 and < NativeBattleSlots.AllyCount };
+        return MaximumHp(id, definition?.MagicRecordId, maximum, admittedAlly, recordCount);
+    }
+
+    internal static BattleLiveMaximumHp MaximumHp(string id, int? recordId, bool maximum, bool admittedAlly, int recordCount)
+    {
+        return new(id, recordId, maximum, maximum && admittedAlly && recordId is int row && (uint)row < recordCount);
     }
 }
 
@@ -72,7 +85,7 @@ public sealed partial class BattleSession
             Music = NativeMusicProcess,
             EnemyDefeats = [.. enemyDefeats],
             StockDraws = [.. originalStockDrawOperations],
-            MaximumHitPoints = [.. combatants.Select(actor => ObserveMaximumHitPoints(actor))],
+            MaximumHitPoints = [.. combatants.Select(ObserveMaximumHitPoints)],
             Vitals = magicVitals?.DeepCopy(),
             Cards = nativeCards?.DeepCopy(),
             Items = [.. nativeItems],
@@ -81,10 +94,12 @@ public sealed partial class BattleSession
         };
     }
 
-    private static BattleLiveMaximumHp ObserveMaximumHitPoints(BattleCombatant actor)
+    private BattleLiveMaximumHp ObserveMaximumHitPoints(BattleCombatant actor)
     {
         bool maximum = actor.IsActive && !actor.Suspended && actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null && actor.MaximumHp == 9999;
-        return new(actor.Id, actor.MagicRecordId, maximum, maximum && actor.Slot is { Position: < NativeBattleSlots.AllyCount } && actor.MagicRecordId is >= 0 and < 11);
+        bool admittedAlly = actor.Slot is { Side: BattleSide.Allies } slot && (UsesExpandedRoster || slot.Position < NativeBattleSlots.AllyCount);
+        int recordCount = UsesExpandedRoster ? definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount : NativeCharacterVitals.ExtendedRecordCount;
+        return BattleLiveObservation.MaximumHp(actor.Id, actor.MagicRecordId, maximum, admittedAlly, recordCount);
     }
 
     public byte EntrySeed => definition.NativeSeed;

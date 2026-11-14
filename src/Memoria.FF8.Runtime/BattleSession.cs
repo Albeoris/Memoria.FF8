@@ -112,9 +112,20 @@ public sealed partial class BattleSession
         InitializeNativeBattleClock();
         int allySlot = 0;
         int enemySlot = 0;
+        int nativeAllies = Math.Min(allies.Count, UsesExpandedRoster && this.definition.MagicVitals is { } vitals
+            ? vitals.GetBattlePartyRows(NativeBattleSlots.AllyCount).Length
+            : NativeBattleSlots.AllyCount);
         foreach (BattleCombatant actor in combatants.ToArray())
         {
-            actor.BindRosterSlot(actor.IsPlayer ? BattleRosterSlot.Ally(allySlot++) : actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null);
+            if (actor.IsPlayer)
+            {
+                actor.BindRosterSlot(BattleRosterSlot.Ally(allySlot), bindNative: allySlot < nativeAllies);
+                allySlot++;
+            }
+            else
+            {
+                actor.BindRosterSlot(actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null);
+            }
             if (initializeNativeAi && actor.IsActive && HasNativeRosterSlot(actor) && !UsesExpandedRoster)
             {
                 nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.EncodeNativeSlot());

@@ -614,8 +614,9 @@ public sealed partial class BattleCombatant
     internal bool AiDeathHandled { get; set; }
     internal BattleSide Side => IsPlayer ? BattleSide.Allies : BattleSide.Enemies;
     public BattleRosterSlot? Slot { get; private set; }
+    internal int? NativeActorIndex { get; private set; }
 
-    internal void BindRosterSlot(BattleRosterSlot? slot)
+    internal void BindRosterSlot(BattleRosterSlot? slot, bool bindNative = true)
     {
         if (slot is { } assigned && assigned.Side != Side)
         {
@@ -623,9 +624,14 @@ public sealed partial class BattleCombatant
         }
         nativePresentationStatus = NativePresentationStatus;
         Slot = slot;
+        NativeActorIndex = bindNative && slot is { } candidate ? NativeBattleSlots.TryEncode(candidate) : null;
     }
 
-    internal int EncodeNativeSlot() => NativeBattleSlots.Encode(Slot);
+    internal int EncodeNativeSlot()
+    {
+        return Slot is null ? NativeBattleSlots.Unassigned
+            : NativeActorIndex ?? throw new NotSupportedException($"Battle slot {Slot} has no native actor index.");
+    }
 
     internal int? ResolvedNativeLevel { get; set; }
     internal bool ExpandedAiRemovalPending { get; set; }
