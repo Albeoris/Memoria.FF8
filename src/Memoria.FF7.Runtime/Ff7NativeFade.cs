@@ -97,7 +97,7 @@ public static class Ff7NativeFade
             int currentBlue = origin.Blue + (process.Blue - origin.Blue) * phase / process.Speed;
             if (process.Type == 11)
             {
-                uint quad = 0xFF000000u | (uint)currentRed << 16 | (uint)currentGreen << 8 | (uint)currentBlue;
+                uint quad = 0xFF000000u | (uint)unchecked((byte)currentRed) << 16 | (uint)unchecked((byte)currentGreen) << 8 | unchecked((byte)currentBlue);
                 return process with { Position = phase, QuadColorArgb = quad };
             }
             uint fieldColor = 0xFF000000u | (uint)(255 - currentRed) << 16 | (uint)(255 - currentGreen) << 8 | (uint)(255 - currentBlue);
