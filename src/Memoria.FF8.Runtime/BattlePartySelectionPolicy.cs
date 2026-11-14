@@ -16,15 +16,20 @@ public static class BattlePartySelectionPolicy
 
     public static BattlePartySelectionRestriction GetRestriction(NativeCharacterVitals vitals, NativeWorldControlState? controls, int? storyProgress, bool fixedCountSelection = false)
     {
+        return GetRestriction(vitals.DreamEnabled, controls?.EventFlags104 ?? 0, storyProgress, fixedCountSelection);
+    }
+
+    private static BattlePartySelectionRestriction GetRestriction(bool dreamEnabled, uint eventFlags, int? storyProgress, bool fixedCountSelection)
+    {
         if (fixedCountSelection)
         {
             return BattlePartySelectionRestriction.FixedCountSelection;
         }
-        if (vitals.DreamEnabled)
+        if (dreamEnabled)
         {
             return BattlePartySelectionRestriction.Dream;
         }
-        if (controls is not null && (controls.EventFlags104 & CastleSplitFlag) != 0)
+        if ((eventFlags & CastleSplitFlag) != 0)
         {
             return BattlePartySelectionRestriction.CastleSplit;
         }
@@ -52,6 +57,14 @@ public static class BattlePartySelectionPolicy
 
         int? storyProgress = state.Variables.TryGetValue(StoryProgressAddress, out int value) ? value : null;
         return ResolveCapacity(vitals, configuredCapacity, state.WorldControls, storyProgress, fixedCountSelection);
+    }
+
+    internal static int ResolveSavedCapacity(bool dreamEnabled, int savedCapacity, uint eventFlags, IReadOnlyDictionary<int, int> variables)
+    {
+        int capacity = savedCapacity == 0 ? NativeBattleSlots.AllyCount : savedCapacity;
+        ValidateCapacity(capacity);
+        int? storyProgress = variables.TryGetValue(StoryProgressAddress, out int value) ? value : null;
+        return GetRestriction(dreamEnabled, eventFlags, storyProgress, fixedCountSelection: false) == BattlePartySelectionRestriction.None ? capacity : NativeBattleSlots.AllyCount;
     }
 
     private static void ValidateCapacity(int configuredCapacity)

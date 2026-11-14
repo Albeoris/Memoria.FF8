@@ -11,18 +11,23 @@ public sealed partial record NativeCharacterVitals
 
     public byte[] GetBattlePartyRows(int capacity, bool allowAdditionalMembers = true)
     {
+        return GetBattlePartyRows(Records, CombatParty, AdditionalCombatParty, ExtendedRosterEnabled, DreamEnabled, capacity, allowAdditionalMembers);
+    }
+
+    internal static byte[] GetBattlePartyRows(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, bool extendedRosterEnabled, bool dreamEnabled, int capacity, bool allowAdditionalMembers = true)
+    {
         ValidateBattlePartyCapacity(capacity);
-        if (!IsValidAdditionalCombatParty(AdditionalCombatParty, Records.Length))
+        if (!IsValidAdditionalCombatParty(additionalCombatParty, records.Length))
         {
             throw new InvalidDataException("Saved additional battle party rows are invalid.");
         }
-        byte[] nativeRows = CombatParty.Where(row => row != byte.MaxValue).ToArray();
-        if (capacity == NativeCombatPartySize || !allowAdditionalMembers || DreamEnabled || AdditionalCombatParty is not { Length: > 0 })
+        byte[] nativeRows = combatParty.Where(row => row != byte.MaxValue).ToArray();
+        if (capacity == NativeCombatPartySize || !allowAdditionalMembers || dreamEnabled || additionalCombatParty is not { Length: > 0 })
         {
             return nativeRows;
         }
 
-        return [.. nativeRows, .. AdditionalCombatParty.Where(row => !nativeRows.Contains(row) && IsRosterMember(row)).Take(capacity - nativeRows.Length)];
+        return [.. nativeRows, .. additionalCombatParty.Where(row => !nativeRows.Contains(row) && IsRosterMember(records, row, extendedRosterEnabled, dreamEnabled)).Take(capacity - nativeRows.Length)];
     }
 
     public NativeCharacterVitals WithBattleParty(IReadOnlyList<byte> rows, int capacity)

@@ -345,7 +345,7 @@ internal sealed partial class PlayerSaveStore
                         SavedAtUtc = savedAtUtc,
                         SavedLocalAt = summary?.SavedLocalAt,
                         PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
-                        PartyPortraits = summary?.PartyPortraits ?? (state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : [])
+                        PartyPortraits = summary?.PartyPortraits ?? SaveSummary.CapturePartyPortraits(state)
                     };
                 }
             }

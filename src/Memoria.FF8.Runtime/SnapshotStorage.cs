@@ -29,8 +29,22 @@ public sealed record SaveSummary(SceneKind Scene, int FieldId, string FieldName,
         {
             placeId = id;
         }
-        int[] portraits = state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : [];
-        return new(state.Scene, state.FieldId, state.FieldName, state.Playtime, portraits, placeId, state.World?.X, state.World?.Z);
+        return new(state.Scene, state.FieldId, state.FieldName, state.Playtime, CapturePartyPortraits(state), placeId, state.World?.X, state.World?.Z);
+    }
+
+    public static int[] CapturePartyPortraits(GameState state)
+    {
+        if (state.CharacterVitals is not { } vitals)
+        {
+            return [];
+        }
+        return CapturePartyPortraits(vitals.Records, vitals.CombatParty, vitals.AdditionalCombatParty, vitals.ExtendedRosterEnabled, vitals.DreamEnabled, state.GameplayPreferences.BattleAllyCount, state.WorldControls?.EventFlags104 ?? 0, state.Variables);
+    }
+
+    internal static int[] CapturePartyPortraits(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, bool extendedRosterEnabled, bool dreamEnabled, int savedCapacity, uint eventFlags, IReadOnlyDictionary<int, int> variables)
+    {
+        int capacity = BattlePartySelectionPolicy.ResolveSavedCapacity(dreamEnabled, savedCapacity, eventFlags, variables);
+        return NativeCharacterVitals.GetBattlePartyRows(records, combatParty, additionalCombatParty, extendedRosterEnabled, dreamEnabled, capacity).Select(row => (int)records[row].CharacterId).ToArray();
     }
 }
 
@@ -141,7 +155,7 @@ internal static class SnapshotStorage
                 throw new InvalidDataException("Save display checksum does not match.");
             }
             SaveSummary summary = JsonSerializer.Deserialize<SaveSummary>(summaryBytes, options) ?? throw new InvalidDataException("Empty save display data.");
-            if (!Enum.IsDefined(summary.Scene) || summary.FieldName is null || summary.PartyPortraits is null || summary.PartyPortraits.Length > 3 || summary.PartyPortraits.Any(id => id is < 0 or > 255))
+            if (!Enum.IsDefined(summary.Scene) || summary.FieldName is null || summary.PartyPortraits is null || summary.PartyPortraits.Length > NativeCharacterVitals.ExtendedRecordCount || summary.PartyPortraits.Any(id => id is < 0 or > 255))
             {
                 throw new InvalidDataException("Invalid save display data.");
             }

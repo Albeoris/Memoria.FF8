@@ -43,7 +43,14 @@ public static class GameplaySaveCodec
     {
         GameplaySaveComponentDocument document = Read(source);
         GameplaySaveProgression progression = document.Progression ?? throw new NotSupportedException("Partial gameplay components do not describe a loadable player save.");
-        int[] portraits = document.Characters.CombatParty.Where(row => row != 255).Select(row => (int)document.Characters.Records[row].CharacterId).ToArray();
+        GameplaySaveCharacters characters = document.Characters;
+        GameplaySaveStory story = progression.Story;
+        IReadOnlyDictionary<int, int> variables = story.RestoreEventMemory().KnownValues;
+        if (story.WorldEntry is { } bytes)
+        {
+            variables = NativeWorldEntryMemory.ProjectVariables(bytes, variables);
+        }
+        int[] portraits = SaveSummary.CapturePartyPortraits(characters.Records, characters.CombatParty, characters.AdditionalCombatParty, characters.ExtendedRosterEnabled, characters.DreamEnabled, progression.Rules.Preferences.BattleAllyCount, story.Controls?.EventFlags ?? 0, variables);
         return new(document.Resume.Kind == GameplaySaveResumeKind.World ? SceneKind.WorldMap : SceneKind.Field, document.Resume.FieldId, "", progression.Clocks.Playtime, portraits, progression.SceneFacts?.PlaceId, document.Resume.World?.X, document.Resume.World?.Z) { SavedLocalAt = document.SavedLocalAt };
     }
 

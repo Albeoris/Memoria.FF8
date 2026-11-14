@@ -79,8 +79,17 @@ public sealed record NativeWorldEntryMemory([property: JsonRequired] int Version
     public IReadOnlyDictionary<int, int> ProjectVariables(IReadOnlyDictionary<int, int> values)
     {
         Validate();
+        return ProjectVariables(Bytes, values);
+    }
+
+    internal static IReadOnlyDictionary<int, int> ProjectVariables(ImmutableArray<byte> bytes, IReadOnlyDictionary<int, int> values)
+    {
+        if (bytes.IsDefault || bytes.Length != ByteCount)
+        {
+            throw new InvalidDataException("Native world-entry projection requires the complete saved byte bank.");
+        }
         Dictionary<int, int> variables = new(values);
-        foreach ((int address, int value) in new[] { (256, (int)StoryWord), (264, (int)ReplacementFlags264), (265, ReadBytes(265, 1)), (266, (int)StoryByte266) })
+        foreach ((int address, int value) in new[] { (256, bytes[0] | bytes[1] << 8), (264, (int)bytes[8]), (265, (int)bytes[9]), (266, (int)bytes[10]) })
         {
             if (value != 0)
             {

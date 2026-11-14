@@ -18,12 +18,17 @@ public sealed partial record NativeCharacterVitals
 
     public bool IsRosterMember(int row)
     {
-        bool extended = ExtendedRosterEnabled && !DreamEnabled;
-        if ((uint)row >= Records.Length || row >= NativeRecordCount && !extended)
+        return IsRosterMember(Records, row, ExtendedRosterEnabled, DreamEnabled);
+    }
+
+    private static bool IsRosterMember(NativeCharacterVital[] records, int row, bool extendedRosterEnabled, bool dreamEnabled)
+    {
+        bool extended = extendedRosterEnabled && !dreamEnabled;
+        if ((uint)row >= records.Length || row >= NativeRecordCount && !extended)
         {
             return false;
         }
-        return extended && IsExtendedRosterCharacter(row) || IsNativeRosterMember(row);
+        return extended && IsExtendedRosterCharacter(row) || IsNativeRosterMember(records, row);
     }
 
     public byte GetBattleWeapon(int row)
@@ -157,11 +162,11 @@ public sealed partial record NativeCharacterVitals
             && (beforeDream is null || records.Length == ExtendedRecordCount && beforeDream is { Length: 3 } && beforeDream.All(row => row == 255 || row < records.Length));
     }
 
-    private bool IsNativeRosterMember(int row) => row < NativeRecordCount && (Records[row].MemberFlags & 1) != 0;
+    private static bool IsNativeRosterMember(NativeCharacterVital[] records, int row) => row < NativeRecordCount && (records[row].MemberFlags & 1) != 0;
 
     private byte[] RemoveModOnlyPartyMembers(byte[] party)
     {
-        byte[] remaining = party.Where(row => row < 6 || row < NativeRecordCount && IsNativeRosterMember(row)).ToArray();
+        byte[] remaining = party.Where(row => row < 6 || row < NativeRecordCount && IsNativeRosterMember(Records, row)).ToArray();
         if (remaining.Length == 0)
         {
             return [0, 255, 255];

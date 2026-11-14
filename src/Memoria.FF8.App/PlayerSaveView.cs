@@ -245,11 +245,25 @@ internal sealed partial class PlayerSaveView : UiElement
             metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad || entry.PlayTime.HasValue ? entry.PlayTimeText : "", FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
             metadata.Children.Add(new UiLabel { GridRow = 1, GridColumn = 1, Text = entry.SavedAtText, FontSize = 16 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
             UiGrid portraits = new() { GridColumn = 2, GridRowSpan = 2, Margin = new UiThickness(4), Gap = 4 };
-            portraits.RowDefinitions.Add(UiGridLength.Star());
-            for (int member = 0; member < entry.PartyPortraits.Count; member++)
+            int portraitCount = entry.PartyPortraits.Count;
+            int columns = portraitCount <= 4 ? portraitCount : (portraitCount + 1) / 2;
+            int thumbnailWidth = portraitCount <= 3 ? 62 : portraitCount == 4 ? 46 : (196 - 4 * (columns - 1)) / columns;
+            if (portraitCount > 4)
             {
-                portraits.ColumnDefinitions.Add(UiGridLength.Pixel(62));
-                portraits.Children.Add(new UiImage { GridColumn = member, Source = new UiImageSource(UiImageKind.CharacterPortrait, entry.PartyPortraits[member]) });
+                portraits.RowDefinitions.Add(UiGridLength.Pixel(40));
+                portraits.RowDefinitions.Add(UiGridLength.Pixel(40));
+            }
+            else
+            {
+                portraits.RowDefinitions.Add(UiGridLength.Star());
+            }
+            for (int column = 0; column < columns; column++)
+            {
+                portraits.ColumnDefinitions.Add(UiGridLength.Pixel(thumbnailWidth));
+            }
+            for (int member = 0; member < portraitCount; member++)
+            {
+                portraits.Children.Add(new UiImage { GridRow = member / columns, GridColumn = member % columns, Source = new UiImageSource(UiImageKind.CharacterPortrait, entry.PartyPortraits[member]) });
             }
             metadata.Children.Add(portraits);
             block.Children.Add(metadata);
