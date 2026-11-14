@@ -12,6 +12,7 @@ internal static class NativeMovementTests
         TriangleAndBlockedAccess();
         CollisionAndPushOwnership();
         HeightAndSlopeRounding();
+        LaboratorySlotException();
     }
 
     public static void RunInstalled()
@@ -170,7 +171,24 @@ internal static class NativeMovementTests
         Equal(12 * 4096, result.Actor.Z4096);
     }
 
-    private static Ff7NativeMovement Movement(IReadOnlyList<PcWalkmeshTriangle> mesh)
+    private static void LaboratorySlotException()
+    {
+        PcWalkmeshTriangle[] mesh = FlatMesh();
+        Ff7NativeMovement lab = Movement(mesh, 263);
+        Ff7NativeMovement other = Movement(mesh, 262);
+        Ff7Actor actor = Actor(1, 10, 10) with { CollisionRadius = 34 };
+        Ff7NativeMoveResult ordinary = other.StepDirection(actor, 0, [actor], []);
+        Ff7NativeMoveResult exception = lab.StepDirection(actor, 0, [actor], []);
+        Ff7Actor slotZero = actor with { Slot = 0 };
+        Ff7NativeMoveResult unselected = lab.StepDirection(slotZero, 0, [slotZero], []);
+        Equal(false, ordinary.Moved);
+        Equal(false, unselected.Moved);
+        Equal(true, exception.Moved);
+        Equal(ordinary.ProbeActor!.X4096, exception.Actor.X4096);
+        Equal(ordinary.ProbeActor.Y4096, exception.Actor.Y4096);
+    }
+
+    private static Ff7NativeMovement Movement(IReadOnlyList<PcWalkmeshTriangle> mesh, ushort? map = null)
     {
         // Authored analytic fixtures exercise table consumption; original lookup validation belongs to resources.
         var vectors = new short[512];
@@ -184,7 +202,7 @@ internal static class NativeMovementTests
         {
             angles[index] = (byte)Math.Round(Math.Asin(index / 128.0) * 128 / Math.PI);
         }
-        return new Ff7NativeMovement(mesh, vectors, angles);
+        return new Ff7NativeMovement(mesh, vectors, angles, map);
     }
 
     private static PcWalkmeshTriangle[] FlatMesh() =>

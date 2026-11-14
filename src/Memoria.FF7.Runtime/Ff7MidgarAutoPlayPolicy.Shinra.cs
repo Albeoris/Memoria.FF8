@@ -46,6 +46,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy
             "blin1" => NeedsShinraSupplies ? driver.Gateway(235, 91) : ApproachLineWithConfirm(driver, 17),
             "blin2" => NeedsShinraSupplies ? driver.Gateway(236) : driver.Gateway(234, 147),
             "blin2_i" => NeedsShinraSupplies ? ApproachLineWithConfirm(driver, 15) : driver.Gateway(235),
+            "eleout" when story == 284 => ApproachLineWithConfirm(driver, 7),
             "eleout" => ChooseShinraElevatorInput(driver),
             "blin60_1" => driver.Gateway(241),
             "blin60_2" => ApproachLine(driver, 11),
@@ -60,6 +61,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy
                 < 269 => driver.Gateway(252, run: false),
                 269 => ApproachLine(driver, 22),
                 270 => ApproachLine(driver, 23),
+                284 => ApproachLineWithConfirm(driver, 27),
                 _ => ApproachLine(driver, 24)
             },
             "blin66_3" => story < 269 ? ApproachLineWithConfirm(driver, 2) : driver.Gateway(250),
@@ -68,13 +70,15 @@ public sealed partial class Ff7MidgarAutoPlayPolicy
             {
                 271 or 272 => ApproachLine(driver, 12),
                 273 => ApproachLine(driver, 11),
+                284 => driver.Gateway(250),
                 _ => ApproachLine(driver, 18)
             },
             "blin67_3" => story < 278 ? ApproachLine(driver, 7) : driver.Gateway(256, 43, run: false),
+            "blin68_1" when story == 284 && (ReadFlags(0xE9) & 8) != 0 => ApproachLine(driver, 13),
             "blin68_1" => story < 284 ? ApproachLine(driver, 14) : ReadFlags(0xE0) < 68 ? driver.TalkTo(7) : driver.Gateway(264),
             "blin68_2" => story < 284 ? default : driver.Gateway(262, 101),
             "blin67_2" => default,
-            "blin69_1" => driver.Gateway(266, 13),
+            "blin69_1" => (ReadFlags(0xE9) & 8) == 0 ? driver.Steer(new(1080, 142, 0), run: false) : driver.Gateway(262),
             "blin70_1" or "blin70_2" => default,
             _ => default
         };

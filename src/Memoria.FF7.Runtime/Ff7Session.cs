@@ -314,7 +314,7 @@ public sealed partial class Ff7Session : IDisposable
             NativeMovieCameraRecordCount = ReadNativeMovieCameraRecordCount,
             NativeBlinkRandomTable = executable.NativeFieldRandomTable,
             NativeModelConfiguration = slot => map == 502 ? throw new NotSupportedException("This native field requires its dynamic party presentation-mask owner.") : executable.NativePresentation.Model(map, slot),
-            Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
+            Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles, map),
             NativeFieldEntryFadeAlpha = executable.NativeFieldEntryFadeAlpha,
             CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,

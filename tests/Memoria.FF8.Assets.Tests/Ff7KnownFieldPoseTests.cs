@@ -181,6 +181,43 @@ public sealed class Ff7KnownFieldPoseTests
         Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(19, 21, 1));
     }
 
+    [Fact]
+    public void InstalledAerithCellMotionPreservesOriginalBodyAndHairRestOrientation()
+    {
+        Ff7Installation installation = Installed();
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "blin67_2");
+        PcFieldModelDescriptor descriptor = Assert.Single(field.Models.Models, model => model.Hrc.Equals("AUFF.HRC", StringComparison.OrdinalIgnoreCase));
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(archive, descriptor);
+        HrcHierarchy body = HrcHierarchy.Read(archive.ReadEntry(Assert.Single(archive.Find("aaaa.hrc"))));
+        PcFieldAnimation original = PcFieldAnimation.Read(archive.ReadEntry(Assert.Single(archive.Find("avfd.a"))));
+        PcFieldAnimation idle = PcFieldAnimation.Read(archive.ReadEntry(Assert.Single(archive.Find("avbf.a"))));
+        PcFieldAnimation motion = model.Animations["avfd.a"];
+
+        Assert.Equal(21, original.BoneCount);
+        Assert.Equal(23, motion.BoneCount);
+        Assert.Equal(20, motion.Frames.Count);
+        Assert.Equal(original.Frames.Count, motion.Frames.Count);
+        string[] hair = ["non_1", "kami"];
+        Assert.Equal(hair.Order(), model.Hierarchy.Bones.Select(bone => bone.Name).Except(body.Bones.Select(bone => bone.Name)).Order());
+        Dictionary<string, HrcBone> bodyByName = body.Bones.ToDictionary(bone => bone.Name);
+        for (int frame = 0; frame < motion.Frames.Count; frame++)
+        {
+            Assert.Equal(original.Frames[frame].RootRotation, motion.Frames[frame].RootRotation);
+            Assert.Equal(original.Frames[frame].RootTranslation, motion.Frames[frame].RootTranslation);
+            foreach (HrcBone bone in model.Hierarchy.Bones)
+            {
+                Vector3 expected = hair.Contains(bone.Name) ? idle.Frames[0].BoneRotations[bone.Index] : original.Frames[frame].BoneRotations[bodyByName[bone.Name].Index];
+                Assert.Equal(expected, motion.ReadNativeBoneRotation(frame, bone.Index, 1));
+            }
+            Assert.Equal(23, Ff7FieldRenderer.Pose(model, motion, frame).Count);
+        }
+
+        Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(19, 21, 1));
+        Assert.Throws<NotSupportedException>(() => motion.ReadNativeBoneRotation(19, 23, 1));
+        Assert.Throws<NotSupportedException>(() => Ff7FieldRenderer.Pose(model, motion, 20));
+    }
+
     private sealed class Capture : ITriangleRenderer
     {
         public List<Vector2> Positions { get; } = [];

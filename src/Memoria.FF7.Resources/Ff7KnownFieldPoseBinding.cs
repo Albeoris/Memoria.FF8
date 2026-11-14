@@ -156,5 +156,20 @@ public sealed class Ff7KnownFieldPoseBinding
         return motion.BindBoneRotations(motion.Frames.Select(frame => (IReadOnlyList<Vector3>)channels.Select((channel, targetIndex) => channel < 0 ? rest?[targetIndex] ?? Vector3.Zero : frame.BoneRotations[channel]).ToArray()).ToArray());
     }
 
+    internal static PcFieldAnimation BindAerithCellMotion(PcFieldAnimation motion, ReadOnlySpan<byte> motionBytes, HrcHierarchy target, ReadOnlySpan<byte> hierarchyBytes, ReadOnlySpan<byte> sourceBytes, ReadOnlySpan<byte> idleBytes)
+    {
+        // TODO(TD-031): Preserve Aerith's hair joints from her original idle while using the shared body motion.
+        if (!Matches(motionBytes, "F849D21B15B0C4BC3F2DB28F4160814C99BB4E470CD87F2C5AA621A2830A19D9") || !Matches(hierarchyBytes, "DF90A7FE366557A35E0E3C7595F60867E4F4519819831B5EE81E3A6ECC5B5DBA") || !Matches(sourceBytes, "0D68FC022A40BFE2B05775FC1CEC8A7B5FE1EFCF7D0EEFAE02889AC7B97A1452") || !Matches(idleBytes, "7BAE11718B10CB74307FA73F3B182D7151E9C702448E03619E92AA1168B99E32"))
+        {
+            return motion;
+        }
+        PcFieldAnimation idle = PcFieldAnimation.Read(idleBytes);
+        if (idle.BoneCount != target.Bones.Count || idle.RotationOrder != motion.RotationOrder)
+        {
+            throw new InvalidDataException("The original Aerith idle does not match its rig.");
+        }
+        return BindBodyChannels(motion, HrcHierarchy.Read(sourceBytes), target, ["non_1", "kami"], idle.Frames[0].BoneRotations);
+    }
+
     private static bool Matches(ReadOnlySpan<byte> bytes, string expected) => Convert.ToHexString(SHA256.HashData(bytes)).Equals(expected, StringComparison.Ordinal);
 }

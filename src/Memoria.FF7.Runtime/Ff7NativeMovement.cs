@@ -11,8 +11,9 @@ public sealed class Ff7NativeMovement
     private readonly PcWalkmeshTriangle[] triangles;
     private readonly short[] vectors;
     private readonly byte[] angles;
+    private readonly ushort? map;
 
-    public Ff7NativeMovement(IReadOnlyList<PcWalkmeshTriangle> triangles, IReadOnlyList<short> directionVectors, IReadOnlyList<byte> arcAngles)
+    public Ff7NativeMovement(IReadOnlyList<PcWalkmeshTriangle> triangles, IReadOnlyList<short> directionVectors, IReadOnlyList<byte> arcAngles, ushort? map = null)
     {
         ArgumentNullException.ThrowIfNull(triangles);
         ArgumentNullException.ThrowIfNull(directionVectors);
@@ -24,6 +25,7 @@ public sealed class Ff7NativeMovement
         this.triangles = triangles.ToArray();
         vectors = directionVectors.ToArray();
         angles = arcAngles.ToArray();
+        this.map = map;
         for (int index = 0; index < this.triangles.Length; index++)
         {
             var triangle = this.triangles[index];
@@ -176,7 +178,9 @@ public sealed class Ff7NativeMovement
         }
         // The final crossing uses the last head probe, as does the native field movement contract.
         int finalCorrection = Cross(ref finalTriangle, candidateX, candidateY, lastProbeX, lastProbeY, blockedTriangles, out candidateZ);
-        bool moved = headCorrection == 0 && leftCorrection == 0 && rightCorrection == 0 && !headContact && !leftContact && !rightContact && finalCorrection == 0;
+        // NG-087: The original laboratory clears the movement rejection flags for physical slot 1.
+        bool nativeCollisionException = map == 263 && actor.Slot == 1;
+        bool moved = nativeCollisionException || headCorrection == 0 && leftCorrection == 0 && rightCorrection == 0 && !headContact && !leftContact && !rightContact && finalCorrection == 0;
         Ff7Actor result = actor with { Direction = moveDirection, Triangle = finalTriangle };
         if (moved)
         {
