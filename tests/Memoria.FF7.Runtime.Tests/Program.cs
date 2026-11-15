@@ -69,6 +69,12 @@ if (args.Contains("--autoplay-world-frontiers-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-world-navigation-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldNavigationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-transport-only", StringComparer.Ordinal))
 {
     WorldTransportContinuationTests.Run();
@@ -529,6 +535,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),
+    ("native autoplay world navigation", AutoPlayWorldNavigationTests.Run),
     ("native autoplay global visit guards", AutoPlayVisitGuardTests.Run),
     ("native autoplay transition progress guard", NativeAutoPlayTransitionGuardTests.Run),
     ("native autoplay successful target completion", NativeAutoPlayTests.RunCompletion),
