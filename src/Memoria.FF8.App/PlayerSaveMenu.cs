@@ -42,7 +42,8 @@ internal sealed class PlayerSaveMenu
     private bool cancelRequested;
     public const int EntriesPerPage = 5;
     public int PageCapacity { get; private set; } = EntriesPerPage;
-    internal float? ConfiguredTextScale { get; set; }
+    internal (float TextScale, bool TwoPortraitRows)? ConfiguredSlotLayout { get; set; }
+    internal int LargestPortraitCount { get; private set; }
 
     internal void SetPageCapacity(int capacity)
     {
@@ -485,7 +486,7 @@ internal sealed class PlayerSaveMenu
             IReadOnlyList<PlayerSaveEntry> nextEntries = store.ReadEntries(bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring);
             RememberCursor();
             Bank = bank;
-            Entries = nextEntries;
+            SetEntries(nextEntries);
             SetSelectedSlot(slot);
             return true;
         }
@@ -537,14 +538,20 @@ internal sealed class PlayerSaveMenu
 
     private void RefreshEntries()
     {
-        Entries = Mode switch
+        SetEntries(Mode switch
         {
             PlayerSaveMenuMode.QuickLoad => store.ReadQuickEntries(),
             PlayerSaveMenuMode.QuickSave => [new PlayerSaveEntry(0, "New Quick Save", null, "Create a rotating quick save.", false) { DetailsSystemId = "save.slot.create-quick" }],
             _ => store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring)
-        };
+        });
         Selection = Math.Clamp(Selection, 0, Math.Max(0, Entries.Count - 1));
         Page = Selection / PageCapacity;
+    }
+
+    private void SetEntries(IReadOnlyList<PlayerSaveEntry> entries)
+    {
+        Entries = entries;
+        LargestPortraitCount = entries.Select(entry => entry.PartyPortraits.Count).DefaultIfEmpty(0).Max();
     }
 
     private void SetSelectedSlot(int slot)

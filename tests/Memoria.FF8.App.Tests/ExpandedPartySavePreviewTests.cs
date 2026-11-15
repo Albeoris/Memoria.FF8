@@ -67,17 +67,33 @@ public sealed class ExpandedPartySavePreviewTests
         {
             PlayerSaveMenu menu = OpenBrowser(directory);
             menu.SelectSlot(4);
+            bool checkedExpandedRow = false;
             UiView view = PlayerSaveView.Build(menu, "Transfer", "Bank / Page");
             view.Resize(1280, 720);
             view.Draw(new BattleUiTests.TestCanvas(), new UiTheme());
             Assert.InRange(menu.PageCapacity, 1, PlayerSaveMenu.EntriesPerPage - 1);
             Assert.Equal("save-slot-4", view.FocusedElement?.Id);
+            int expandedCapacity = menu.PageCapacity;
             CheckVisibleSlots();
             menu.RequestPage(1);
+            int nextSlot = menu.SelectedSlot;
             view = PlayerSaveView.Build(menu, "Transfer", "Bank / Page");
             view.Resize(1280, 720);
             view.Draw(new BattleUiTests.TestCanvas(), new UiTheme());
             CheckVisibleSlots();
+            Assert.True(checkedExpandedRow);
+            Assert.Equal(expandedCapacity, menu.PageCapacity);
+            Assert.Equal($"save-slot-{nextSlot}", view.FocusedElement?.Id);
+
+            Assert.True(menu.SelectBank(1));
+            int originalSlot = menu.SelectedSlot;
+            PlayerSaveView.ConfigureTextScale(menu, 1);
+            Assert.True(menu.PageCapacity > expandedCapacity);
+            Assert.Equal(originalSlot, menu.SelectedSlot);
+            Assert.True(menu.SelectBank(0));
+            PlayerSaveView.ConfigureTextScale(menu, 1);
+            Assert.Equal(expandedCapacity, menu.PageCapacity);
+            Assert.Equal(nextSlot, menu.SelectedSlot);
 
             void CheckVisibleSlots()
             {
@@ -94,6 +110,7 @@ public sealed class ExpandedPartySavePreviewTests
                     UiGrid portraits = Assert.IsType<UiGrid>(Assert.Single(metadata.Children, child => child.GridColumn == 2));
                     if (portraits.Children.Count > 4)
                     {
+                        checkedExpandedRow = true;
                         Assert.All(portraits.Children, portrait => Assert.True(portrait.Bounds.Height >= 39.99f && portrait.Bounds.Bottom <= slots[index].Bounds.Bottom));
                     }
                 }
@@ -130,7 +147,7 @@ public sealed class ExpandedPartySavePreviewTests
     private static PlayerSaveMenu OpenBrowser(string directory)
     {
         PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), directory, discoverOriginalSaves: false);
-        int[] sizes = [3, 4, 5, 11];
+        int[] sizes = [3, 4, 3, 4, 5, 11];
         for (int slot = 1; slot <= 12; slot++)
         {
             byte[] metadata = JsonSerializer.SerializeToUtf8Bytes(new SaveSummary(SceneKind.Field, 106, "Balamb Garden", null, Identities[..sizes[(slot - 1) % sizes.Length]], null, null, null));

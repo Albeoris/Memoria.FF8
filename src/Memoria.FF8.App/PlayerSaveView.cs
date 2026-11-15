@@ -5,6 +5,13 @@ namespace Memoria.FF8;
 /// <summary>One save browser for manual saving, loading, Continue and quick actions.</summary>
 internal sealed partial class PlayerSaveView : UiElement
 {
+    private const int SinglePortraitRowLimit = 4;
+    private const float PortraitRowHeight = 40;
+    private const float PortraitGap = 4;
+    private const float BlockGap = 3;
+    private static readonly UiThickness PortraitMargin = new(4);
+    private static readonly UiThickness MetadataMargin = new(35, 3, 8, 3);
+
     private readonly PlayerSaveMenu menu;
     private readonly float textScale;
     private readonly UiGrid content;
@@ -93,7 +100,9 @@ internal sealed partial class PlayerSaveView : UiElement
     {
         float width = bounds.Width * 0.96f;
         float height = bounds.Height * 0.96f;
-        float blockHeight = blocks.Children.OfType<UiButton>().Select(button => button.Children[0].Measure(new UiSize(width, height)).Height + button.Children[0].Margin.Vertical).DefaultIfEmpty(60 * textScale + 6).Max();
+        bool twoPortraitRows = menu.LargestPortraitCount > SinglePortraitRowLimit;
+        float textHeight = twoPortraitRows ? EstimatedSlotTextHeight(textScale) : blocks.Children.OfType<UiButton>().Select(button => button.Children[0].Measure(new UiSize(width, height)).Height).DefaultIfEmpty(EstimatedSlotTextHeight(textScale)).Max();
+        float blockHeight = RequiredSlotHeight(textHeight, twoPortraitRows);
         float controlsHeight = BankHeight(textScale) + ActionHeight(textScale) + content.Gap * 3;
         UiSize available = new(width, height);
         float stackedHeight = header.Measure(available).Height + help.Measure(available).Height + information.Gap;
@@ -116,7 +125,7 @@ internal sealed partial class PlayerSaveView : UiElement
         }
         float informationHeight = information.Measure(available).Height;
         float remaining = Math.Max(0, height - controlsHeight - informationHeight);
-        int capacity = Math.Clamp((int)((remaining + 3) / (blockHeight + 3)), 1, PlayerSaveMenu.EntriesPerPage);
+        int capacity = Math.Clamp((int)((remaining + BlockGap) / (blockHeight + BlockGap)), 1, PlayerSaveMenu.EntriesPerPage);
         if (capacity != menu.PageCapacity)
         {
             menu.SetPageCapacity(capacity);
@@ -167,6 +176,13 @@ internal sealed partial class PlayerSaveView : UiElement
     private static float HeaderHeight(float scale) => Math.Max(40, 37 * scale);
     private static float HelpHeight(float scale) => Math.Max(70, 46 * scale);
     private static float ActionHeight(float scale) => Math.Max(34, 27 * scale);
+    private static float EstimatedSlotTextHeight(float scale) => 60 * scale;
+
+    private static float RequiredSlotHeight(float textHeight, bool twoPortraitRows)
+    {
+        float portraitHeight = twoPortraitRows ? 2 * PortraitRowHeight + PortraitGap + PortraitMargin.Vertical : 0;
+        return Math.Max(textHeight, portraitHeight) + MetadataMargin.Vertical;
+    }
 
     internal static void ConfigureTextScale(PlayerSaveMenu menu, float textScale)
     {
@@ -174,13 +190,15 @@ internal sealed partial class PlayerSaveView : UiElement
         {
             throw new ArgumentOutOfRangeException(nameof(textScale));
         }
-        if (menu.ConfiguredTextScale == textScale)
+        bool twoPortraitRows = menu.LargestPortraitCount > SinglePortraitRowLimit;
+        if (menu.ConfiguredSlotLayout == (textScale, twoPortraitRows))
         {
             return;
         }
-        menu.ConfiguredTextScale = textScale;
+        menu.ConfiguredSlotLayout = (textScale, twoPortraitRows);
         float available = 672 * 0.96f - BankHeight(textScale) - HeaderHeight(textScale) - HelpHeight(textScale) - ActionHeight(textScale) - 20;
-        int capacity = Math.Clamp((int)(available / (60 * textScale + 9)), 1, PlayerSaveMenu.EntriesPerPage);
+        float blockHeight = RequiredSlotHeight(EstimatedSlotTextHeight(textScale), twoPortraitRows);
+        int capacity = Math.Clamp((int)(available / (blockHeight + BlockGap)), 1, PlayerSaveMenu.EntriesPerPage);
         menu.SetPageCapacity(capacity);
     }
 
@@ -228,12 +246,12 @@ internal sealed partial class PlayerSaveView : UiElement
 
     internal static UiGrid BuildBlocks(IReadOnlyList<PlayerSaveEntry> entries, bool loading, float textScale = 1, int pageCapacity = PlayerSaveMenu.EntriesPerPage)
     {
-        UiGrid blocks = new() { Columns = 1, Rows = Math.Max(pageCapacity, entries.Count), Gap = 3 };
+        UiGrid blocks = new() { Columns = 1, Rows = Math.Max(pageCapacity, entries.Count), Gap = BlockGap };
         for (int index = 0; index < entries.Count; index++)
         {
             PlayerSaveEntry entry = entries[index];
             UiButton block = new() { GridRow = index, Id = "save-slot-" + entry.Slot, HighlightSelection = false, PointerSize = 20 };
-            UiGrid metadata = new() { Margin = new UiThickness(35, 3, 8, 3), VerticalAlignment = UiAlignment.Center, Gap = 0 };
+            UiGrid metadata = new() { Margin = MetadataMargin, VerticalAlignment = UiAlignment.Center, Gap = 0 };
             metadata.RowDefinitions.Add(UiGridLength.Auto);
             metadata.RowDefinitions.Add(UiGridLength.Auto);
             metadata.ColumnDefinitions.Add(UiGridLength.Star(2.1f));
@@ -244,14 +262,14 @@ internal sealed partial class PlayerSaveView : UiElement
             metadata.Children.Add(new UiLabel { GridRow = 1, Text = entry.Details, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
             metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad || entry.PlayTime.HasValue ? entry.PlayTimeText : "", FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
             metadata.Children.Add(new UiLabel { GridRow = 1, GridColumn = 1, Text = entry.SavedAtText, FontSize = 16 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
-            UiGrid portraits = new() { GridColumn = 2, GridRowSpan = 2, Margin = new UiThickness(4), Gap = 4 };
+            UiGrid portraits = new() { GridColumn = 2, GridRowSpan = 2, Margin = PortraitMargin, Gap = PortraitGap };
             int portraitCount = entry.PartyPortraits.Count;
-            int columns = portraitCount <= 4 ? portraitCount : (portraitCount + 1) / 2;
-            int thumbnailWidth = portraitCount <= 3 ? 62 : portraitCount == 4 ? 46 : (196 - 4 * (columns - 1)) / columns;
-            if (portraitCount > 4)
+            int columns = portraitCount <= SinglePortraitRowLimit ? portraitCount : (portraitCount + 1) / 2;
+            int thumbnailWidth = portraitCount <= 3 ? 62 : portraitCount == SinglePortraitRowLimit ? 46 : (196 - 4 * (columns - 1)) / columns;
+            if (portraitCount > SinglePortraitRowLimit)
             {
-                portraits.RowDefinitions.Add(UiGridLength.Pixel(40));
-                portraits.RowDefinitions.Add(UiGridLength.Pixel(40));
+                portraits.RowDefinitions.Add(UiGridLength.Pixel(PortraitRowHeight));
+                portraits.RowDefinitions.Add(UiGridLength.Pixel(PortraitRowHeight));
             }
             else
             {
