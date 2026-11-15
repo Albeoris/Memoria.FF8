@@ -12,7 +12,7 @@ public sealed class MemoriaComponentTests : IDisposable
     {
         Write("BundledMods/Memoria/Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
         Write("Mods/Memoria/Meltdown/config.json", """{"meltdown":{"VitalityReductionPercent":73,"SpiritReductionPercent":37}}""");
-        Write("BundledMods/Memoria/Girl Next Door/mod.ini", "enabled=0");
+        Write("BundledMods/Memoria/Girl Next Door/mod.ini", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "GirlNextDoor", "mod.ini")));
         Write("BundledMods/Memoria/Girl Next Door/GirlNextDoor.png", "art");
         Write("Mods/Memoria/User Mod/mod.ini", "enabled=0");
         using (ModRuntime runtime = new(root, watch: false))
@@ -22,20 +22,21 @@ public sealed class MemoriaComponentTests : IDisposable
             Assert.False(runtime.View.Packages[0].CanToggle);
             BehaviorModSetting book = Find(runtime, "Girl Next Door");
             BehaviorModSetting vitality = Find(runtime, Vitality);
-            Assert.Equal(("Items", "toggle", 0), (book.Category, book.Control, book.Value));
-            Assert.Equal(("Battle", "slider", 73), (vitality.Category, vitality.Control, vitality.Value));
-            Assert.False(runtime.SetBehaviorSettings(Group, [book with { Value = 1 }, vitality with { Value = 101 }]).Success);
-            Assert.Equal(0, Find(runtime, "Girl Next Door").Value);
-            Assert.True(runtime.SetBehaviorSettings(Group, [book with { Value = 1 }, vitality with { Value = 66 }]).Success);
-            Publish(runtime);
+            Assert.Equal(("Items", "toggle", 1), (book.Category, book.Control, book.Value));
             Assert.Contains(runtime.Catalog.Files, file => file.PackageId == "Memoria/Girl Next Door" && file.RelativePath == "GirlNextDoor.png");
+            Assert.Equal(("Battle", "slider", 73), (vitality.Category, vitality.Control, vitality.Value));
+            Assert.False(runtime.SetBehaviorSettings(Group, [book with { Value = 0 }, vitality with { Value = 101 }]).Success);
+            Assert.Equal(1, Find(runtime, "Girl Next Door").Value);
+            Assert.True(runtime.SetBehaviorSettings(Group, [book with { Value = 0 }, vitality with { Value = 66 }]).Success);
+            Publish(runtime);
+            Assert.DoesNotContain(runtime.Catalog.Files, file => file.PackageId == "Memoria/Girl Next Door");
             Assert.True(BehaviorMods.TryPrepare(runtime.Catalog, out BehaviorMods behavior, out _));
             Assert.Equal(66, behavior.MeltdownVitalityReductionPercent);
             Assert.Equal(37, behavior.MeltdownSpiritReductionPercent);
         }
         using ModRuntime reopened = new(root, watch: false);
         Publish(reopened);
-        Assert.Equal(1, Find(reopened, "Girl Next Door").Value);
+        Assert.Equal(0, Find(reopened, "Girl Next Door").Value);
         Assert.Equal(66, Find(reopened, Vitality).Value);
     }
 

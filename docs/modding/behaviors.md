@@ -77,7 +77,7 @@ Each numeric behavior parameter and the selected status-name binding has one act
 
 The built-in components appear under one **Memoria** entry with the silver Griever crest. Its settings group the components into collapsible categories. Bundled defaults live in `Data/BundledMods/Memoria` with the same resource paths and precedence. Choices saved through the Memoria settings live in `Mods/Memoria/memoria-settings.json` and take precedence over the corresponding older package preferences. Existing package preferences still supply values for settings you have yet to change in Memoria.
 
-Under **Items**, enable **Girl Next Door** to read the magazine from the FFVIII Item menu. Opening it displays the cover at its original aspect ratio and preserves the item quantity. Cancel returns to inventory.
+**Girl Next Door** is enabled by default. To turn it off, go to **Mods > Memoria > Items**. Opening the magazine from the FFVIII Item menu displays the cover at its original aspect ratio and preserves the item quantity. Cancel returns to inventory.
 
 Under **FFVII**, the FFVII Enemy Integration toggle controls availability of the bundled enemy extensions. The campaign's **Automatic** preference requires the extensions after a transition from FFVIII and locks this component for that segment. Outside that rule, the saved component toggle and campaign preference determine availability for the next encounter.
 
