@@ -69,12 +69,11 @@ public sealed partial class BattleSession
             if (Allocate(1, 0x6EA920, out int slot))
             {
                 int count = header.ReadContactCount();
-                if (count is < 1 or > 3)
+                if (count == 0)
                 {
-                    throw new InvalidDataException("Native Storm Breath requires one to three original target records.");
+                    throw new InvalidDataException("Native Storm Breath requires at least one published target.");
                 }
-                NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x4F8);
-                target = target.WriteWord(14, (ushort)count);
+                NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x4F8).WriteContactCount(14, count);
                 int[] ordered = Enumerable.Range(0, count).ToArray();
                 for (int a = 0; a < count - 1; a++)
                 {
@@ -90,10 +89,10 @@ public sealed partial class BattleSession
                         }
                     }
                 }
-                for (int index = 0; index < count; index++)
+                const int physicalTargetCells = 3;
+                target = target.WriteOrderedContactRecipients(16, physicalTargetCells, nativeActionPackets, header, ordered);
+                for (int index = 0; index < Math.Min(count, physicalTargetCells); index++)
                 {
-                    BattleModelOwner actor = nativeActionPackets.ReadContact(firstContact.Advance(ordered[index])).Primary.Recipient;
-                    target.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
                     target = target.WriteTraversalPosition(0x1C + index, ordered[index]);
                 }
                 target = target.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, (ushort)((count << 12) / 40)).WriteWord(0x2C, unchecked((ushort)CountVertices(TargetOwner(target, 0))));
@@ -155,19 +154,26 @@ public sealed partial class BattleSession
                 NativeBattleVector aim = new(unchecked((short)(from.X + ((to.X - from.X) * t >> 12))), unchecked((short)(from.Y + ((to.Y - from.Y) * t >> 12))), unchecked((short)(from.Z + ((to.Z - from.Z) * t >> 12))));
                 if (frame >= 30)
                 {
-                    t = unchecked((short)(t + Word(task, 0x26)));
+                    int step = Word(task, 0x26);
+                    int count = task.ReadContactCount(14);
+                    t = unchecked((short)(t + step));
                     if (t >= 4096)
                     {
-                        BattleContactCursor contact = firstContact.Advance(task.ReadTraversalPosition(0x1C + cur));
-                        ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
-                        graphics = graphics with { PendingContacts = pending };
+                        // The stream continues past its last recipient. Its last contact publishes only once.
+                        int completed = (frame - 30) * step >> 12;
+                        if (completed < count)
+                        {
+                            BattleContactOccurrence contact = StormTargets(task)[cur].Occurrence;
+                            ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
+                            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
+                            graphics = graphics with { PendingContacts = pending };
+                        }
                         if (cur != next)
                         {
                             task = task.WriteWord(0x2C, unchecked((ushort)CountVertices(TargetOwner(task, next))));
                         }
                         t -= 4096;
-                        task = task.WriteWord(0x20, (ushort)next).WriteWord(0x22, (ushort)Math.Min(next + 1, Word(task, 14) - 1));
+                        task = task.WriteWord(0x20, (ushort)next).WriteWord(0x22, (ushort)Math.Min(next + 1, count - 1));
                     }
                     task = task.WriteWord(0x24, unchecked((ushort)t));
                 }
@@ -473,8 +479,14 @@ public sealed partial class BattleSession
 
     private static BattleModelOwner TargetOwner(NativeBattleModulePoolTask task, int index)
     {
-        return task.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
+        return StormTargets(task)[index].Owner;
     }
+
+    private static ImmutableArray<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)> StormTargets(NativeBattleModulePoolTask task)
+    {
+        return task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients;
+    }
+
     private static NativeBattleModulePoolTask WriteBasis(NativeBattleModulePoolTask task, NativeBattleActionMatrix matrix)
     {
         for (int index = 0; index < 9; index++)

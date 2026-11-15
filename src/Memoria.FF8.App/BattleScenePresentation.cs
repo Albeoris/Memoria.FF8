@@ -12,7 +12,6 @@ internal sealed partial class BattleScenePresentation
 {
     private readonly BattleStage stage;
     private readonly BattleAssets assets;
-    private readonly NativeBattlePrimitiveCapabilities? primitiveCapabilities;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
     private readonly Dictionary<string, int?> activeVisualModels = [];
@@ -29,6 +28,7 @@ internal sealed partial class BattleScenePresentation
     private BattleCamera? renderedCamera;
     private BattleRenderer? renderer;
     private NativeBattlePreparedPrimitiveFrame? renderedPrimitiveFrame;
+    private NativeBattlePrimitiveCapabilities? renderedPrimitiveCapabilities;
     internal NativeBattlePreparedPresentation? PresentedNativeFrame { get; private set; }
     private NativeBattlePcRenderTailReceipt? renderedPcRenderTail;
     private NativeBattlePcUiFrame? renderedPcUiFrame;
@@ -52,7 +52,6 @@ internal sealed partial class BattleScenePresentation
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
         this.assets = assets;
-        primitiveCapabilities = definition.NativeGraphics?.PrimitiveCapabilities;
         renzokukenResources = definition.NativeRenzokukenResources.ToDictionary(resource => resource.MagicId);
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
@@ -220,11 +219,12 @@ internal sealed partial class BattleScenePresentation
                     : BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
             NativeBattlePreparedPrimitiveFrame frame = prepared.Primitives;
+            NativeBattlePrimitiveCapabilities? primitiveCapabilities = prepared.PrimitiveCapabilities;
             NativeBattleEffectTextureState? textures = prepared.Textures;
             NativeBattlePcUiFrame? uiFrame = prepared.UiFrame;
             NativeBattlePcTextureWindowCache? windows = prepared.TextureWindows;
             IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(prepared);
-            bool unchanged = pilotNext is null && ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
+            bool unchanged = pilotNext is null && ReferenceEquals(renderedPrimitiveFrame, frame) && renderedPrimitiveCapabilities == primitiveCapabilities && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
@@ -238,6 +238,7 @@ internal sealed partial class BattleScenePresentation
                 renderedPixels = null;
                 byte[] result = RenderNative();
                 renderedPrimitiveFrame = frame;
+                renderedPrimitiveCapabilities = primitiveCapabilities;
                 renderedPcRenderTail = frame.LastPcRenderTail;
                 renderedPcUiFrame = uiFrame;
                 renderedTextures = textures;
@@ -252,6 +253,7 @@ internal sealed partial class BattleScenePresentation
             renderedGpu = null;
             renderedPixels = RenderNative();
             renderedPrimitiveFrame = frame;
+            renderedPrimitiveCapabilities = primitiveCapabilities;
             renderedPcRenderTail = frame.LastPcRenderTail;
             renderedPcUiFrame = uiFrame;
             renderedTextures = textures;
