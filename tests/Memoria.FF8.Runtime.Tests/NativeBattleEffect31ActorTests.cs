@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect31Controller;
@@ -209,11 +210,11 @@ public sealed class NativeBattleEffect31ActorTests
 
         public Fixture()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, _) = packets.Prepare(new(3, 8, 13, 0, 26, 31, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, 0, 26, 31, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
-            Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, actor) => new(actor, 0), (_, _) => null!, _ => Identity, _ => new(null, 100, 160, 108), _ => 0, (_, _, _) => NativeBattleEffectArena.Clear(), (current, _, _, _, retained) => new(current, retained), (current, operation) =>
+            Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, _) => new(0), (_, _) => null!, _ => Identity, _ => new(null, 100, 160, 108), _ => 0, (current, _, _, _, retained) => new(current, retained), (current, operation) =>
             {
                 if (operation is NativeBattleEffect31DrawBatch draw)
                 {
@@ -233,7 +234,7 @@ public sealed class NativeBattleEffect31ActorTests
             BitConverter.GetBytes(8).CopyTo(programme, 4);
             ImmutableDictionary<uint, ImmutableArray<byte>> staticBytes = ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(FactorAddress, new short[] { 656, 1232, 1792, 2304, 2768, 3184, 3552, 3872, 4096 }.SelectMany(BitConverter.GetBytes).ToImmutableArray()).Add(YOffsetAddress, new short[] { 256, 448, 576, 640, 640, 576, 448, 256, 0 }.SelectMany(BitConverter.GetBytes).ToImmutableArray());
             Resources = new(null!, null!, ImmutableDictionary<uint, NativeBattleGfAnimationSource>.Empty.Add(0x160AF24, new(0x160AF24, programme.ToImmutableArray())), ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty, ImmutableDictionary<uint, NativeBattleModuleResource>.Empty, staticBytes);
-            NativeBattleOriginalEffectState effect = new(31, 31, new(31, Entry, Initializer), new(3, 1, 1, 0, 0, 0), null)
+            NativeBattleOriginalEffectState effect = new(31, 31, new(31, Entry, Initializer), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null)
             {
                 Pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray(),
                 ReturnedDescriptor = RootDescriptor

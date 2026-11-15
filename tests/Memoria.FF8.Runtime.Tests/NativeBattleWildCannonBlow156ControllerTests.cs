@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -108,7 +109,7 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
         }
         NativeBattleWildCannonBlow156Inputs inputs = Inputs() with { ReadBone502170 = (current, actor, bone, scale) =>
         {
-            Assert.Equal(3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             Assert.Equal(selector, bone);
             Assert.Equal(4096, scale);
             return new(current, PointView(new(100, 200, 300)));
@@ -157,7 +158,7 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF)) })) } };
         NativeBattleWildCannonBlow156Inputs inputs = Inputs() with { ReadBone502170 = (current, actor, selector, scale) =>
         {
-            Assert.Equal(6, actor);
+            Assert.Equal(OriginalOwner(6), actor);
             Assert.Equal(0xF1, selector);
             Assert.Equal(0, scale);
             return new(current, PointView(new(1, 2, 3)));
@@ -184,12 +185,12 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(156, 155, new(156, 0x605530, 0x605510), new(3, 0, 1, 0, 0, 0), 0x23ECE68) { ResourcePointers = [new(0x23F03C0, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(156, 155, new(156, 0x605530, 0x605510), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), 0x23ECE68) { ResourcePointers = [new(0x23F03C0, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleWildCannonBlow156State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
     private static NativeBattleWildCannonBlow156Inputs Inputs(Func<NativeBattleWildCannonBlow156Frame, NativeBattleWildCannonBlow156Operation, NativeBattleWildCannonBlow156Frame>? execute = null)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionPacketsState packets = OriginalPackets();
         byte[] payload = new byte[20];
         payload[16] = 1;
         packets = packets with { Headers = packets.Headers.SetItem(0, new(payload.ToImmutableArray(), 0, 2, null)), Contacts = packets.Contacts.SetItem(2, new(new(6, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };

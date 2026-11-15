@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         var (session, graphics, services) = Fixture();
         NativeBattleContactPacket repeated = new(new(15, 5, 0, 0, 0, 123, 0), new(7, 0, 0, 1, 0, 14, 0));
         NativeBattleContactPacket later = new(new(15, 5, 0, 0, 0, 234, 0), NoSecondary);
-        NativeBattleModelParticipantSuspended suspended = new(3, "original", 9);
+        NativeBattleModelParticipantSuspended suspended = new(OriginalOwner(3), "original", 9);
         NativeBattleModelParticipantReleased released = new(7, "extra-ally");
         NativeBattleModelTextPublished text = new(15, "extra-enemy", "Original text", 6, BattleTextIdentity.Enemy(61, 0));
         services.Emit(suspended);
@@ -44,7 +45,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
     public void Invalid_late_secondary_row_leaves_prior_receipts_and_models_intact()
     {
         var (session, graphics, services) = Fixture();
-        NativeBattleModelParticipantReleased existing = new(3, "original");
+        NativeBattleModelParticipantReleased existing = new(OriginalOwner(3), "original");
         services.Emit(existing);
         NativeBattleContactHalf valid = new(15, 5, 0, 0, 0, 123, 0);
         NativeBattleContactPacket first = new(valid, NoSecondary);
@@ -72,7 +73,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
             Field("presentationForeignActors").SetValue(session, new Dictionary<int, NativeBattleForeignActor>());
         }
         Field("hostedFrameServices").SetValue(session, services);
-        NativeBattleContactPacket packet = new(new(3, 5, 0, 0, 0, 123, 0), NoSecondary);
+        NativeBattleContactPacket packet = new(new(OriginalOwner(3), 5, 0, 0, 0, 123, 0), NoSecondary);
         NativeBattleGraphicsState nativeGraphics = hostedGraphics with
         {
             PresentationRoster = null,
@@ -107,9 +108,9 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
         Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, [], []) });
         BattleModelOwner?[] actors = new BattleModelOwner?[16];
-        actors[3] = new("original", false);
-        actors[7] = new("extra-ally", true);
-        actors[15] = new("extra-enemy", false);
+        actors[3] = new BattleEnemyActorModel(new("original"));
+        actors[7] = new BattlePartyActorModel(new("extra-ally"));
+        actors[15] = new BattleEnemyActorModel(new("extra-enemy"));
         BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         foreach (int row in new[] { 3, 7, 15 })

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -13,7 +14,7 @@ public sealed class NativeBattleEffect218GuardianCameraTests
     {
         NativeBattleCureFamilyPool profile = Pools[1];
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { GuardianCameraProcess = NativeBattleGuardianCameraProgram.FromColdProcess() }, effect, new(0xBEEF), NativeBattleEffect218State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         NativeBattleEffect218Resources resources = new(null!, [], null!, null!, null!, null!, [], [], [], [], [], [], new("guardian-camera", [0, 0x80]), null!, 0, []);
         frame = BeginGuardianCamera63E960(frame, resources);

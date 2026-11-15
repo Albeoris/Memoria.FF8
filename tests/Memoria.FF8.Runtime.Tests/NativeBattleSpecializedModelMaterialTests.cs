@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -120,7 +121,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         {
             rows = rows.SetItem(3, new("other", false));
         }
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, rows.Length).Select(index => new NativeBattleGraphicsModel(index, 0)).ToImmutableArray().SetItem(row, Model(row));
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, rows.Length).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray().SetItem(row, Model(row));
         NativeBattleGraphicsState graphics = new(models, rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
         {
             PresentationRoster = row == 0 ? null : new(rows),
@@ -131,7 +132,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
 
     private static NativeBattleGraphicsModel Model(int index)
     {
-        NativeBattleGraphicsModel model = new(index, 2)
+        NativeBattleGraphicsModel model = new(2)
         {
             ModelId4 = 0,
             Flags2 = 0,
@@ -167,7 +168,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         return result;
     }
 
-    private static NativeBattleOriginalEffectState Effect(ushort id) => new(id, id - 1, new(id, 1, 1), new(0, 0, 1, 0, 0, 0), 1);
+    private static NativeBattleOriginalEffectState Effect(ushort id) => new(id, id - 1, new(id, 1, 1), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), 1);
 
     private static NativeBattlePoseSource CreatePose()
     {

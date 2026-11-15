@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -54,7 +55,7 @@ public sealed class NativeBattleDuel112ProgramsTests
         public NativeBattleDuel112DrawingInputs Inputs { get; }
         public List<byte> Bones { get; } = [];
         public List<(int, int, int, int)> Flashes { get; } = [];
-        public NativeBattleGraphicsModel Enemy { get; private set; } = new(3, 0x8083);
+        public NativeBattleGraphicsModel Enemy { get; private set; } = new(0x8083);
 
         public Fixture(short phase)
         {
@@ -76,7 +77,7 @@ public sealed class NativeBattleDuel112ProgramsTests
                 task = task.WriteWord(108 + word * 2, (ushort)(word % 4 == 0 ? 4096 : 0));
             }
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
-            NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+            NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };
             NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25218E8, BitConverter.GetBytes(0x20DFAB8u)).Write(0x2521914, BitConverter.GetBytes(0x20E1940u));
@@ -84,7 +85,7 @@ public sealed class NativeBattleDuel112ProgramsTests
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, 372);
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, 644);
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, 1468);
-            NativeBattleGraphicsModel actor = new(0, 3) { Rotation14 = 700 };
+            NativeBattleGraphicsModel actor = new(3) { Rotation14 = 700 };
             NativeBattleDuel112ActorServices services = new(index => index == 0 ? actor : Enemy, (index, model) =>
             {
                 Assert.Equal(3, index);
@@ -93,7 +94,7 @@ public sealed class NativeBattleDuel112ProgramsTests
             NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
             Inputs = new(services, (index, bone, fraction) =>
             {
-                Assert.Equal(0, index);
+                Assert.Equal(OriginalOwner(0), index);
                 Assert.Equal((short)0, fraction);
                 Bones.Add(bone);
                 return bone == 21 ? new(-30, 40, 50) : new(60, 70, 80);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -149,18 +150,18 @@ public sealed class NativeBattleEffect140PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect140State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect140));
-        string casterId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect140 requires its actual party caster.");
-        string targetId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect140 requires its actual enemy recipient.");
+        string casterId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect140 requires its actual party caster.");
+        string targetId = ReadOriginalModelActorId(graphics, 3) ?? throw new InvalidDataException("Effect140 requires its actual enemy recipient.");
         Assert.Equal(126, restored.GetCombatantDefinition(targetId).ModelId);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 240 && row.ActionId == 1 && row.MagicId == 140 && row.KernelSection == 9 && row.KernelIndex == 1);
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(0, 240, 0, -1, 1, 140, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 240, 0, -1, 1, 140, null));
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect140 requires its actual current target status.");
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleContactPacket contact = new(new(3, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(OriginalOwner(3), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
@@ -170,11 +171,11 @@ public sealed class NativeBattleEffect140PresentationTests
         Assert.Same(game.ReadNativeEffect140Resources(), binding.Effect140Resources);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(139, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? preparedTarget : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(original.Combatants.Select(actor => actor.CurrentHp), source.Combatants.Select(actor => actor.CurrentHp));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared independent kernel240/action1/sequence0 Amount0 component; GF acquisition, item31, automatic245 and revival admission excluded", PhysicalCaster = 0, PhysicalTarget = 3, ActualCasterId = casterId, ActualTargetId = targetId, Action = action, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared independent kernel240/action1/sequence0 Amount0 component; GF acquisition, item31, automatic245 and revival admission excluded", PhysicalCaster = 0, PhysicalTarget = 3, ActualCasterId = casterId, ActualTargetId = targetId, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved" }));
         return source;
     }
     private static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 140, ReturnedDescriptor: 0 } effect && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;

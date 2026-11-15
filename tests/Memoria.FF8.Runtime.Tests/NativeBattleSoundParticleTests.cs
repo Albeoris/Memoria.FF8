@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -20,7 +21,7 @@ public sealed class NativeBattleSoundParticleTests
         NativeBattleAuxiliaryState restored = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(state))!;
         NativeBattleAuxiliaryInputs inputs = new() { ReadBone = (model, bone, fraction) =>
         {
-            Assert.Equal(3, model);
+            Assert.Equal(OriginalOwner(3), model);
             Assert.Equal((byte)240, bone);
             Assert.Equal((short)0, fraction);
             return new(12, 99, 34);
@@ -77,7 +78,7 @@ public sealed class NativeBattleSoundParticleTests
     public void PublicVmProducerRetainsTheOriginalOperandResourceAndSkipsItsFfTerminator(byte opcode, bool soundTwo)
     {
         NativeBattleGraphicsResource resource = new([1, 0, 4, 0, opcode, 240, 1, 0x82, 255, 0xAA, 0xA1]) { AnimationFrames = [] };
-        NativeBattleGraphicsModel model = new(3, 3) { Flags2 = 4, Flags8 = 0, ModelId4 = 37, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 4, Flags8 = 0, ModelId4 = 37, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
         NativeBattleAuxiliaryState tasks = NativeBattleAuxiliaryState.Clear();
         NativeGlobalRandomState random = new(0);
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null) { ScheduleSoundParticle = (program, mode, bone) =>

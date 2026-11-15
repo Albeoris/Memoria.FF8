@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -36,7 +37,7 @@ public sealed class NativeBattleFiraControllerTests
             }
             if (tick == 15)
             {
-                NativeBattleFiraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiraFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleFiraFrame restored = NativeBattleTestSnapshots.Independent(frame);
                 NativeBattleFiraFrame expected = NativeBattleFiraController.Advance61DD90(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
                 NativeBattleFiraFrame actual = NativeBattleFiraController.Advance61DD90(restored, Inputs(fixture.Packets));
                 Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
@@ -54,7 +55,7 @@ public sealed class NativeBattleFiraControllerTests
         Assert.All(frame.Effect.Pools, pool => Assert.Null(pool.Head));
         Assert.Equal(14, Assert.Single(operations, item => item.Operation is NativeBattleFiraContact).Tick);
         Assert.Equal(3, Assert.Single(operations, item => item.Operation is NativeBattleFiraSound).Tick);
-        Assert.Equal(3, Assert.IsType<NativeBattleFiraSound>(operations.Single(item => item.Operation is NativeBattleFiraSound).Operation).Owner);
+        Assert.Equal(OriginalOwner(3), Assert.IsType<NativeBattleFiraSound>(operations.Single(item => item.Operation is NativeBattleFiraSound).Operation).Owner);
         Assert.Equal(new uint[] { 0x61D4C0, 0x61D5D0, 0x61D6B0, 0x61D7F0, 0x61D9A0, 0x61DC20 }, operations.Where(item => item.Operation is NativeBattleFiraDraw).Select(item => ((NativeBattleFiraDraw)item.Operation).Task.Callback).Distinct().Order().ToArray());
         Assert.DoesNotContain(operations, item => item.Operation is NativeBattleFiraCommonTextureLoad);
         NativeCrtRandomState expectedRandom = new(1);
@@ -189,7 +190,7 @@ public sealed class NativeBattleFiraControllerTests
         Assert.Equal(1, loads);
         Assert.NotEqual(0u, frame.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[final].ReadWord(12));
-        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiraFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        frame = NativeBattleTestSnapshots.Independent(frame);
         frame = frame with { Effect = NativeBattleFiraController.WriteCompletionByte(frame.Effect, address, 1) };
         frame = NativeBattleFiraController.Advance61DD90(frame, inputs);
         Assert.Equal(1, loads);
@@ -205,19 +206,19 @@ public sealed class NativeBattleFiraControllerTests
         return frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], children] } };
     }
 
-    private static NativeBattleFiraInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleFiraFrame, NativeBattleFiraOperation, NativeBattleFiraFrame>? execute = null) => new(0, packets, owner => owner switch { 0 => new(10, -100, 30, 40), 3 => new(100, -200, 300, 400), 4 => new(500, -600, 700, 800), _ => throw new NotSupportedException("An explicit graphics owner is required.") }, execute ?? ((frame, _) => frame));
+    private static NativeBattleFiraInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleFiraFrame, NativeBattleFiraOperation, NativeBattleFiraFrame>? execute = null) => new(0, packets, owner => OriginalSlot(owner) switch { 0 => new(10, -100, 30, 40), 3 => new(100, -200, 300, 400), 4 => new(500, -600, 700, 800), _ => throw new NotSupportedException("An explicit graphics owner is required.") }, execute ?? ((frame, _) => frame));
 
     private static (NativeBattleFiraFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1, byte flags = 2)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int index = 0; index < headers; index++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 2, 142, null));
-            (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 2, 142, null));
+            (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, (byte)headers);
-        NativeBattleOriginalEffectState effect = new(142, 141, new(142, 0x61CE10, 0x61CDF0), new(0, flags, 8, 0, 0, 0), null);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
+        NativeBattleOriginalEffectState effect = new(142, 141, new(142, 0x61CE10, 0x61CDF0), new(OriginalOwner(0), flags, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleFiraController.Initialize61CE10(effect, packets);
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1)), packets);
     }

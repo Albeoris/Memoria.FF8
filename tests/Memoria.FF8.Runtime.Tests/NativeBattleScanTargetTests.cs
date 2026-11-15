@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -28,7 +29,7 @@ public sealed class NativeBattleScanTargetTests
             ReadPoseSource = _ =>
             {
                 calls.Add("bounds");
-                return fixture.Inputs.ReadPoseSource(6);
+                return fixture.Inputs.ReadPoseSource(OriginalOwner(6));
             }
         };
         NativeBattleScanTargetStep result = NativeBattleScanTarget.Advance84D230(fixture.Frame, fixture.Address, inputs);
@@ -146,17 +147,17 @@ public sealed class NativeBattleScanTargetTests
 
     private static (NativeBattleScanTargetFrame Frame, uint Address, NativeBattleScanTargetInputs Inputs) Fixture(byte branchFlags)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 50, 40, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 50, 40, null));
         (packets, _) = packets.AppendContact(Contact(4, 0));
         (packets, _) = packets.AppendContact(Contact(5, branchFlags));
-        packets = packets.WritePlayerRepeatMode(0, 2);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 2);
         (packets, _) = packets.Publish(2);
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 50, 40, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 50, 40, null));
         (packets, _) = packets.AppendContact(Contact(6, 0));
-        packets = packets.WritePlayerRepeatMode(1, 1);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(2, 1, 16, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Scan = NativeBattleScanProcess.FromColdProcess() };
         NativeBattleScanFrame scan = NativeBattleScanController.Initialize84D030(memory, effect, packets);
         NativeBattleEffectHierarchy hierarchy = new(scan.Effect.Pools);
@@ -165,7 +166,7 @@ public sealed class NativeBattleScanTargetTests
         NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x84D230, 0x58, root, (_, group, actor) => new(packets.Headers[group].ReadByte(0), packets.ReadContact(packets.Headers[group].FirstContactIndex!.Value + actor).Primary.ActorIndex));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteWord(0x48, 0x1234));
         scan = scan with { Effect = scan.Effect with { Pools = hierarchy.Pools }, Memory = scan.Memory with { Scan = scan.Memory.Scan! with { Presentation = scan.Memory.Scan!.Presentation with { Result269D938 = 9, Exit269CE2C = 10 } } } };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }).ToImmutableArray();
         ImmutableArray<NativeBattleScanByteOwner> physical = ScanPhysicalModelFixture.Models();
         physical = physical.SetItem(6, physical[6].WriteByte(0, 2));
         byte[] skeleton = new byte[64];

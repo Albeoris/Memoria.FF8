@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 using System.Text.Json;
 
@@ -22,7 +23,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
             int start = resource.SequenceStart(13);
             int contact = resource.SequenceSection.AsSpan().Slice(start, resource.SequenceEnd(13) - start).IndexOf(new byte[] { 0x97, 0, 0, 0xB4 });
             Assert.True(contact >= 0);
-            NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 1, Flags2 = 4, Flags8 = 0, Sequence = 13, ResourceFlags44 = 1, SequenceState = new() { Offset46 = checked((ushort)contact), Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
+            NativeBattleGraphicsModel model = new(3) { ModelId4 = 1, Flags2 = 4, Flags8 = 0, Sequence = 13, ResourceFlags44 = 1, SequenceState = new() { Offset46 = checked((ushort)contact), Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
             List<uint> played = [];
             bool completed = false;
             NativeBattleSequenceInputs inputs = new(null, null)
@@ -45,7 +46,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
                     NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
                     NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(source, current.Index, 3, _ => current.ModelId4!.Value, index =>
                     {
-                        Assert.Equal(0, index);
+                        Assert.Equal(OriginalOwner(0), index);
                         return default;
                     }, _ => 128, sounds, hitFlags)!;
                     played.Add(sound.Sound);
@@ -83,7 +84,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
             }
         }
         Assert.Equal(210009u, table[1]);
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, true, 4, 0), 0, null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), table)!;
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, true, 4, 0), OriginalOwner(0), null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), table)!;
         Assert.Equal(210009u, sound.Sound);
         Assert.Equal((byte)26, sound.Commit46B2A0(NativeGlobalSoundProcess.FromBufferlessColdProcess()).Sound.ReadCommittedVoice());
     }

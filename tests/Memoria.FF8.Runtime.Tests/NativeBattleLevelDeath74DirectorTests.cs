@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -23,10 +24,10 @@ public sealed class NativeBattleLevelDeath74DirectorTests
         if (operations != 0)
         {
             NativeBattleDeathBindCaster bind = Assert.IsType<NativeBattleDeathBindCaster>(observed[0]);
-            Assert.Equal((byte)2, bind.Actor);
+            Assert.Equal(OriginalOwner(2), bind.Actor);
             Assert.Equal(0x25F3F00u, bind.SavedRow);
             Assert.Equal(0x15863B0u, bind.Directory);
-            Assert.Equal(new NativeBattleDeathRingSequence(2, 1), observed[1]);
+            Assert.Equal(new NativeBattleDeathRingSequence(OriginalOwner(2), 1), observed[1]);
         }
 
         NativeBattleDeathFrame Execute(NativeBattleDeathFrame current, NativeBattleDeathOperation operation)

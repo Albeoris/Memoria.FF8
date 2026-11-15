@@ -20,7 +20,7 @@ public sealed class CrossoverGunbladePresentationTests
         NativeBattleVector target = new(0, 0, -3800);
         const short scale = 4096;
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel unloaded = new(0, 0)
+        NativeBattleGraphicsModel unloaded = new(0)
         {
             Transform = new(origin, origin, 0, 0, scale),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }

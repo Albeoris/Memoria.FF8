@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect31Profile;
 
@@ -37,7 +38,7 @@ public sealed class NativeBattleEffect31BankTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 0x64, 2);
         (pool, int slot) = pool.Append(RootCallback);
         pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0x5C, checked((ushort)parity)));
-        NativeBattleOriginalEffectState effect = new(31, 31, new(31, Entry, Initializer), new(3, 1, 1, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(31, 31, new(31, Entry, Initializer), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         uint source = NativeBattleEffect31Controller.CommonAddress + 0x1000;
         NativeBattleEffect31State state = NativeBattleEffect31State.FromColdProcess().WriteDword(InitializerGlobal, source).WriteDword(CursorGlobal, checked(source + (parity == 0 ? 0xD000u : 0u)));
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), state);

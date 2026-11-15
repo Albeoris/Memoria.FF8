@@ -215,7 +215,7 @@ public sealed class NativeBattleEffect321LowerTests
         fixture.Model = PutWord(fixture.Model, 0, 0x1445);
         NativeBattleEffect321Step result = NativeBattleEffect321Lower.Advance(fixture.Frame, fixture.Address, null!, fixture.Inputs());
         Assert.Equal(2, result.Result);
-        Assert.Equal(new NativeBattleEffect321Contact506690(2), fixture.Operations[^1]);
+        Assert.Equal(new NativeBattleEffect321Contact506690(new BattleContactOccurrence(2)), fixture.Operations[^1]);
         Assert.Equal(0x465, Word(fixture.Model, 0));
         Assert.Equal(saved.Read(4, 6), fixture.Model.Read(12, 6));
         Assert.DoesNotContain(true, fixture.Model.ReadSnapshot(18, 2).Known);

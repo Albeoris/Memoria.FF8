@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -80,8 +81,8 @@ public sealed class NativeBattleChoco97NodeResourcesTests
         }
         NativeBattleChoco97IoState io = NativeBattleChoco97Io.Initialize729EF0(ioResources.Script.Data, 0x20DFAB8 + 0x20000, banks).State;
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 1, 97, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 97, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x64, 1), NativeBattleEffectTaskPool.Initialize(0x2579D38, 0x2579548, 0x2A4, 3)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 1, 0x64);
@@ -89,11 +90,11 @@ public sealed class NativeBattleChoco97NodeResourcesTests
         List<uint> contexts = [];
         foreach (NativeBattleChoco97NodeResource resource in resources)
         {
-            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, NativeBattleChoco97Nodes.Callback, 0x2A4, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, NativeBattleChoco97Nodes.Callback, 0x2A4, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteDword(0x30, resource.Address).WriteWord(0x298, resource.Address == NativeBattleChoco97Nodes.StaticAddress ? (ushort)18 : (ushort)0).WriteWord(0x29C, 2).WriteWord(0x29E, 45));
             contexts.Add(appended.Address);
         }
-        NativeBattleOriginalEffectState effect = new(97, 96, new(97, 0x729A60, 0x729A40), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(97, 96, new(97, 0x729A60, 0x729A40), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x1FFF, [0xA5]).Write(0x13760, [0xB6]);
         NativeBattleChoco97NodeFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() }, effect, NativeBattleChoco97NodeState.FromColdProcess(), io, new(1));
         frame = NativeBattleChoco97Nodes.ClearStorage(frame, 0);
@@ -103,7 +104,7 @@ public sealed class NativeBattleChoco97NodeResourcesTests
         Assert.Equal(0xA5, frame.Memory.Arena.Read(0x1FFF, 1)[0]);
         Assert.Equal(0xB6, frame.Memory.Arena.Read(0x13760, 1)[0]);
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleGraphicsModel Model(int index) => new(index, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)) };
+        NativeBattleGraphicsModel Model(int index) => new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)) };
         NativeBattleEffectNodeDogOrigins origins = new(new(-200, -400, 100), new(200, -768, 1000));
         NativeBattleChoco97NodeFrame Initialize(NativeBattleChoco97NodeFrame current, int index) => NativeBattleChoco97Nodes.InitializeContext(current, contexts[index], resources[index], packets, Model, _ => throw new InvalidOperationException("Mode2 consumes explicit origins."), origins);
         frame = Initialize(frame, 0);

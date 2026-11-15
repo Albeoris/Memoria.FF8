@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -118,7 +119,7 @@ internal sealed class NativeBattleEffect303PresentationObserver
         if (!target.Hidden && !target.Suspended && !target.Untargetable)
         {
             activated = true;
-            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == current.NativeGraphics.ActorIds[4]);
+            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.NativeGraphics, 4));
             Mark("effect303-native-recipient-activation", current, cold);
         }
         else

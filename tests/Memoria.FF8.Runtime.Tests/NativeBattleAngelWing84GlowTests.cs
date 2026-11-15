@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -58,7 +59,7 @@ public sealed class NativeBattleAngelWing84GlowTests
     {
         var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(6, caster ? 0x796FD0u : 0x7972B0u, 88, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(6, caster ? 0x796FD0u : 0x7972B0u, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = append.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(append.Address).WriteByte(41, phase).WriteWord(36, 32).WriteDword(48, 4096).WriteDword(52, 4096).WriteDword(56, 4096).WriteDword(76, caster ? 0x15720B0u : 0x1572810u);
         hierarchy = hierarchy.Write(append.Address, task);
@@ -71,7 +72,7 @@ public sealed class NativeBattleAngelWing84GlowTests
         NativeBattleAngelWing84GlowResources resources = new([new(0, 0x15720B0, mesh.ToImmutableArray()), new(1, 0x1572810, mesh.ToImmutableArray())]);
         NativeBattleAngelWing84GlowInputs inputs = new((actor, bone, fraction) =>
         {
-            Assert.Equal((byte)0, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.Equal((byte)241, bone);
             Assert.Equal((short)0, fraction);
             return new(11, 22, 33);

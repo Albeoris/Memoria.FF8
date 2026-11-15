@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect140Controller;
 
@@ -108,8 +109,8 @@ public sealed class NativeBattleEffect140ControllerTests
         NativeBattleEffect140Step step = AdvanceTimeline6A7119(frame, Main, null!, harness.Inputs());
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)255, Read(step.Frame, Main).ReadWord(12));
-        Assert.Equal(new NativeBattleEffect140ModelFlags(3, 0xF7FF, 0), Assert.Single(harness.Operations.OfType<NativeBattleEffect140ModelFlags>()));
-        Assert.Equal(new NativeBattleEffect140ModelColor40(3, 0xEE123456), Assert.Single(harness.Operations.OfType<NativeBattleEffect140ModelColor40>()));
+        Assert.Equal(new NativeBattleEffect140ModelFlags(OriginalOwner(3), 0xF7FF, 0), Assert.Single(harness.Operations.OfType<NativeBattleEffect140ModelFlags>()));
+        Assert.Equal(new NativeBattleEffect140ModelColor40(OriginalOwner(3), 0xEE123456), Assert.Single(harness.Operations.OfType<NativeBattleEffect140ModelColor40>()));
         Assert.Equal(0u, step.Frame.State.ReadDword(0x2517B20));
     }
 
@@ -151,7 +152,7 @@ public sealed class NativeBattleEffect140ControllerTests
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x2517AD8, Main, 0x878, 1);
         (main, _) = main.Append(0x6A6750);
         main = main.WriteSlot(0, main.Slots[0].WriteBytes(12, new byte[0x878 - 12]).WriteWord(12, unchecked((ushort)age)));
-        NativeBattleOriginalEffectState effect = new(140, 139, new(140, 0x6A6300, 0x6A6310), new(0, 0, 240, 0, 0, 0), null) { Pools = [main], ReturnedDescriptor = 0x2517AE8 };
+        NativeBattleOriginalEffectState effect = new(140, 139, new(140, 0x6A6300, 0x6A6310), new(OriginalOwner(0), 0, 240, new BattleActionHeaderReference(0), 0, 0), null) { Pools = [main], ReturnedDescriptor = 0x2517AE8 };
         NativeBattleEffect140State state = NativeBattleEffect140State.FromColdProcess().DetachBank().WriteDword(0x2517B28, Main).WriteDword(0x2517B18, 3690);
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1), state) { Staging = NativeBattleFileStaging.Unknown().Rebase(0x1100000) };
     }

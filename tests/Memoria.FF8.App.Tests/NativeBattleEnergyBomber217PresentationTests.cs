@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -48,7 +49,7 @@ public sealed class NativeBattleEnergyBomber217PresentationTests
             BattleCombatantDefinition original = Assert.Single(source.Definition.Combatants, candidate => candidate.Id == actor.Id);
             Assert.Equal(index, original.SceneSlot);
             Assert.Equal(index + 112, original.ModelId);
-            Assert.Equal((byte?)(index + 128), source.NativeGraphics!.Models[index + 3].ModelId4);
+            Assert.Equal((byte?)(index + 128), ReadOriginalModelCell(source.NativeGraphics!, index + 3).ModelId4);
         }
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([217])[216];
         Assert.Equal(NativeBattleEnergyBomber217Profile.Entry, binding.Entry);
@@ -57,7 +58,7 @@ public sealed class NativeBattleEnergyBomber217PresentationTests
         Assert.Equal("mag216.tim", binding.InitializerAsset!.Name);
         Assert.Equal(135712, binding.InitializerAsset.Data.Length);
         Assert.Same(game.ReadNativeEnergyBomber217Resources(), binding.EnergyBomber217Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

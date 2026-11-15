@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -10,7 +11,7 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
     public void Initial_birth_uses_ordered_shared_random_draws_physical_parent_and_exact_clears()
     {
         var fixture = Fixture();
-        NativeBattleCarbuncle278ChildBirth result = NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Parent)), 0x20E1A64, fixture.Bounds);
+        NativeBattleCarbuncle278ChildBirth result = NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(NativeBattleTestSnapshots.Independent(fixture.Frame), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Parent)), 0x20E1A64, fixture.Bounds);
         NativeBattleSharedEffectRandomState random = fixture.Frame.Memory.SharedEffectRandom!.Draw7059E0(out ushort angle);
         NativeBattleEffectTaskPool rays = result.Frame.Effect.Pools[0];
         for (int index = 0; index < 8; index++)
@@ -45,7 +46,7 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
         Assert.Equal(unchecked((ushort)-100), result.Parent.ReadWord(0x56));
         Assert.Equal((ushort)200, result.Parent.ReadWord(0x58));
         Assert.All(fixture.Frame.Effect.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal((ushort)0, task.Flags));
-        NativeBattleCarbuncle278Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        NativeBattleCarbuncle278Frame independent = NativeBattleTestSnapshots.Independent(fixture.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(independent, fixture.Parent, 0x20E1A64, fixture.Bounds)));
     }
 
@@ -103,7 +104,7 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
         NativeBattleEffectTaskPool rays = NativeBattleEffectTaskPool.Initialize(0x2508138, 0x20DFAB8 + 0x1C04, 0x1C, 24);
         NativeBattleEffectTaskPool shards = NativeBattleEffectTaskPool.Initialize(0x2508128, 0x20DFAB8 + 4, 0x1C, 256);
         shards = NativeBattleTaskFixture.EditPool(shards, data => data with { Slots = shards.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 16).ToImmutableArray() })).ToImmutableArray() });
-        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { Pools = [rays, shards] };
+        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [rays, shards] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
         NativeBattleModulePoolTask parent = new(1, 0, null, 0x6822F0, new byte[256].ToImmutableArray());
         byte[] bounds = new byte[8 + 16 * 8];

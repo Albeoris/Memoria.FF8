@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -45,17 +46,17 @@ public sealed class NativeBattleEffect319BoneResourceTests
         fixture.RestoreFrame();
         Assert.Equal(cached, fixture.Task.ReadResourcePointer(12));
         fixture.PaddingCOW();
-        NativeBattleActionMatrix original = fixture.Graphics.Models[0].CurrentBodyBoneMatrices!.Matrices[1];
+        NativeBattleActionMatrix original = fixture.Graphics.ActorModels.Get(Fixture.Party).CurrentBodyBoneMatrices!.Matrices[1];
         fixture.Advance();
-        EqualMatrix(NativeBattlePoseMatrices.Scale56BEF0(original, 2048, 2048, 1024), fixture.Graphics.Models[0].CurrentBodyBoneMatrices!.Matrices[1]);
-        Assert.Equal(original, fixture.Graphics.Models[0].CurrentBodyBoneMatrices!.Matrices[0]);
+        EqualMatrix(NativeBattlePoseMatrices.Scale56BEF0(original, 2048, 2048, 1024), fixture.Graphics.ActorModels.Get(Fixture.Party).CurrentBodyBoneMatrices!.Matrices[1]);
+        Assert.Equal(original, fixture.Graphics.ActorModels.Get(Fixture.Party).CurrentBodyBoneMatrices!.Matrices[0]);
         NativeBattleActionMatrix refreshed = original with { X = -700000, Y = 800000, Z = -900000, Rotation = [3000, 2000, 1000, 6000, 5000, 4000, 9000, 8000, 7000] };
-        NativeBattleGraphicsModel model = fixture.Graphics.Models[0];
-        fixture.Graphics = fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, model with { CurrentBodyBoneMatrices = model.CurrentBodyBoneMatrices! with { Matrices = [original, refreshed] } }) };
+        NativeBattleGraphicsModel model = fixture.Graphics.ActorModels.Get(Fixture.Party);
+        fixture.Graphics = fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Fixture.Party, model with { CurrentBodyBoneMatrices = model.CurrentBodyBoneMatrices! with { Matrices = [original, refreshed] } }) };
         fixture.RestoreFrame();
         fixture.Advance();
-        EqualMatrix(NativeBattlePoseMatrices.Scale56BEF0(refreshed, 4096, 4096, 2048), fixture.Graphics.Models[0].CurrentBodyBoneMatrices!.Matrices[1]);
-        Assert.Equal(original, fixture.Graphics.Models[0].CurrentBodyBoneMatrices!.Matrices[0]);
+        EqualMatrix(NativeBattlePoseMatrices.Scale56BEF0(refreshed, 4096, 4096, 2048), fixture.Graphics.ActorModels.Get(Fixture.Party).CurrentBodyBoneMatrices!.Matrices[1]);
+        Assert.Equal(original, fixture.Graphics.ActorModels.Get(Fixture.Party).CurrentBodyBoneMatrices!.Matrices[0]);
         Assert.Equal(cached, fixture.Task.ReadResourcePointer(12));
     }
 
@@ -89,10 +90,10 @@ public sealed class NativeBattleEffect319BoneResourceTests
             6 => record with { Cpu = null, StagingAddress = 0x1000 },
             _ => throw new ArgumentOutOfRangeException(nameof(corruption))
         };
-        string before = NativeBattleTestSnapshots.Json(fixture.Graphics.Models[0]);
+        string before = NativeBattleTestSnapshots.Json(fixture.Graphics.ActorModels.Get(Fixture.Party));
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => fixture.Execute(record, 2048, 1024));
         Assert.IsType<NotSupportedException>(error.InnerException);
-        Assert.Equal(before, NativeBattleTestSnapshots.Json(fixture.Graphics.Models[0]));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(fixture.Graphics.ActorModels.Get(Fixture.Party)));
     }
 
     [Fact]
@@ -129,6 +130,9 @@ public sealed class NativeBattleEffect319BoneResourceTests
         internal NativeBattleGraphicsState Graphics;
         internal NativeBattleModelCpuResources Cpu;
         internal NativeBattleResourcePointer Skeleton;
+        internal static BattlePartyActorModel Party { get; } = new(new("party"));
+        private static NativeBattleModelAliases PartyAliases { get; } = new(new BattleModelRoster([Party]), [(NativeBattleModelSlot.Decode(0), Party)]);
+
         internal NativeBattleModulePoolTask Task => family == 318 ? NativeBattleEffect318Controller.Read((NativeBattleEffect318Frame)frame, effect318!.Address) : NativeBattleEffect319Controller.Read((NativeBattleEffect319Frame)frame, effect319!.Address);
 
         internal Fixture(int family, bool remastered, bool logical, bool legacy = false)
@@ -138,12 +142,12 @@ public sealed class NativeBattleEffect319BoneResourceTests
             if (family == 318)
             {
                 effect318 = new(0x65F2B0, false);
-                frame = effect318.Frame with { State = effect318.Frame.State.WriteDword(NativeBattleEffect318Profile.CasterGlobal, 0x1D972C0) };
+                frame = effect318.Frame with { State = effect318.Frame.State.WriteModelAddress(NativeBattleEffect318Profile.CasterGlobal, Party, PartyAliases) };
             }
             else
             {
                 effect319 = new(0x65F2B0, false);
-                frame = effect319.Frame with { State = effect319.Frame.State.WriteDword(NativeBattleEffect319Profile.CasterGlobal, 0x1D972C0) };
+                frame = effect319.Frame with { State = effect319.Frame.State.WriteModelAddress(NativeBattleEffect319Profile.CasterGlobal, Party, PartyAliases) };
             }
             byte[] skeleton = new byte[112];
             skeleton[0] = 2;
@@ -163,13 +167,13 @@ public sealed class NativeBattleEffect319BoneResourceTests
             typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, resource)], []));
             SetCpu();
             NativeBattleActionMatrix matrix = new([1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000], 123456, -234567, 345678, 4096);
-            NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix, matrix]) };
-            Graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, model), ["party", null, null, "enemy", null, null, null], 0, 0);
+            NativeBattleGraphicsModel model = new(3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix, matrix]) };
+            Graphics = OriginalGraphics([(0, Party, model), (3, new BattleEnemyActorModel(new("enemy")), new NativeBattleGraphicsModel(0))]);
         }
 
         internal NativeBattleResourcePointer Resolve(int bone)
         {
-            return (NativeBattleResourcePointer)typeof(BattleSession).GetMethod($"ResolveNativeEffect{family}BoneRecord", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [Graphics, frame, 0x1D972C0u, bone])!;
+            return (NativeBattleResourcePointer)typeof(BattleSession).GetMethod($"ResolveNativeEffect{family}BoneRecord", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [Graphics, frame, Party, bone])!;
         }
 
         internal void Birth()
@@ -231,7 +235,7 @@ public sealed class NativeBattleEffect319BoneResourceTests
 
         internal void RestoreFrame()
         {
-            frame = family == 318 ? NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect318Frame>(NativeBattleTestSnapshots.Json((NativeBattleEffect318Frame)frame)) : NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect319Frame>(NativeBattleTestSnapshots.Json((NativeBattleEffect319Frame)frame));
+            frame = family == 318 ? NativeBattleTestSnapshots.Independent((NativeBattleEffect318Frame)frame) : NativeBattleTestSnapshots.Independent((NativeBattleEffect319Frame)frame);
         }
     }
 }

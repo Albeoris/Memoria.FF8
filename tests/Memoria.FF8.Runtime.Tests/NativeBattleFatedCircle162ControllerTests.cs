@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -99,7 +100,7 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         Assert.Equal(0x51234u, Assert.IsType<NativeBattleFatedCircle162Sound>(operations[^1]).Address);
     }
 
-    private static NativeBattleFatedCircle162Inputs Inputs(uint flags, int pending, List<NativeBattleFatedCircle162Operation>? operations = null) => new(flags, NativeBattleActionPacketsState.Fresh(), () => pending, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (frame, operation) =>
+    private static NativeBattleFatedCircle162Inputs Inputs(uint flags, int pending, List<NativeBattleFatedCircle162Operation>? operations = null) => new(flags, OriginalPackets(), () => pending, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (frame, operation) =>
     {
         operations?.Add(operation);
         return frame;
@@ -112,7 +113,7 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23CF430, 0x23CF440, 36, 100);
         (children, _) = children.Append(0x5F91D0);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { FatedCircle162 = new(true, parameters, null) };
         NativeBattleOriginalEffectState effect = new(162, 161, new(162, 0x5F90F0, 0x5F90D0), parameters, 0x23CE640) { Pools = [main, children] };
         return (new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess()), children);

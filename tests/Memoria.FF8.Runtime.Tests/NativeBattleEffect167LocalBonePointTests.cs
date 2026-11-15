@@ -9,7 +9,7 @@ public sealed class NativeBattleEffect167LocalBonePointTests
     [Fact]
     public void Disabled_model_copies_only_position_without_reading_bones_or_temporary_memory()
     {
-        NativeBattleGraphicsModel model = new(0, 0) { Transform = new(new(0, 0, 0), new(123, -456, 789), 12, 0, 700) };
+        NativeBattleGraphicsModel model = new(0) { Transform = new(new(0, 0, 0), new(123, -456, 789), 12, 0, 700) };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         NativeBattleEffect167LocalBonePointStep result = NativeBattleEffect167LocalBonePoint.Query(memory, staging, model, null!, int.MaxValue, int.MinValue, Output());
@@ -89,7 +89,7 @@ public sealed class NativeBattleEffect167LocalBonePointTests
 
     private static NativeBattleGraphicsModel Model(NativeBattlePoseSource source)
     {
-        NativeBattleGraphicsModel model = new(0, 3) { SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
+        NativeBattleGraphicsModel model = new(3) { SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 70000, Y = -70000, Z = 32768 };
         return model with { CurrentBodyBoneMatrices = model.CurrentBodyBoneMatrices! with { Matrices = [matrix, matrix] } };

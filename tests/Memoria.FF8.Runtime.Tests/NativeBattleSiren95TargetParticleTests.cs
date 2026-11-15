@@ -28,7 +28,7 @@ public sealed class NativeBattleSiren95TargetParticleTests
         {
             random = random.Draw(out _);
         }
-        NativeBattleGraphicsModel target = new(3, 0)
+        NativeBattleGraphicsModel target = new(0)
         {
             GeometryBounds52 = new(new(-100, 50, -200), new(100, -50, 200)),
             Transform = new(new(0, 0, 0), new(-32000, 32000, -1000), 0, 0, 4096)

@@ -45,7 +45,7 @@ public sealed class NativeBattleOutcomeCallbacksTests
         state = state.Advance(inputs).State;
         Assert.Equal(new[] { (0x1D96D26u, (byte)0), (0x1D96D26u, (byte)255) }, stores);
         Assert.Null(state.Head);
-        NativeBattleGraphicsModel protectedModel = new(3, 2) { Flags8 = 0x1000, Kind5 = 0, ResourceFlags44 = 0 };
+        NativeBattleGraphicsModel protectedModel = new(2) { Flags8 = 0x1000, Kind5 = 0, ResourceFlags44 = 0 };
         Assert.True(NativeBattleActionGraphics.IsModelBusy(protectedModel, 0x40));
         Assert.False(NativeBattleActionGraphics.IsModelBusy(protectedModel, 0x40, 0x101A));
     }

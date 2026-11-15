@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -61,14 +62,14 @@ public sealed class NativeBattleIfritFormPresentationTests
         try
         {
             WaitFor(() => battle.CanRequestGuardianForm("party", 2));
-            ushort[] visibility = battle.NativeGraphics!.Models.Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
+            ushort[] visibility = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
             if (statusStanding)
             {
                 BattleSnapshot active = battle.Capture();
                 NativeBattleGraphicsState graphics = active.NativeGraphics!;
-                NativeBattleGraphicsModel model = graphics.Models[0];
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
                 Assert.Equal((byte)1, model.SequenceState!.Default2);
                 battle = BattleSession.Restore(active with { NativeGraphics = graphics with { Models = graphics.Models.SetItem(0, model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } });
             }
@@ -176,7 +177,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             AssertCommonTexture();
             Assert.Single(battle.Events, item => item.Kind == "GuardianForceCharging");
             Assert.Equal(priorPartyDamage + 1, battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "party"));
-            Assert.Equal((byte)0, battle.NativeGraphics!.Models[0].ModelId4);
+            Assert.Equal((byte)0, ReadOriginalModelCell(battle.NativeGraphics!, 0).ModelId4);
             Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
             Assert.Equal(affinityBeforeFinisher, battle.Capture().Combatants.Single(actor => actor.Id == "party").GuardianForceCompatibility![2]);
             NativeBattleRestorationPresentationTests.Publish(output, "returned", battle.Capture(), output is null ? null : scene.Render(battle, 320, 224).ToArray());
@@ -203,7 +204,7 @@ public sealed class NativeBattleIfritFormPresentationTests
 
             void AssertVisibility()
             {
-                Assert.Equal(visibility, battle.NativeGraphics!.Models.Select(model => (ushort)(model.Flags0 & 0xC)));
+                Assert.Equal(visibility, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)));
             }
         }
         catch
@@ -375,8 +376,8 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm("party")?.Phase);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        Assert.Equal((byte)77, battle.NativeGraphics!.Models[0].ModelId4);
-        Assert.Equal("party", battle.NativeGraphics.ActorIds[0]);
+        Assert.Equal((byte)77, ReadOriginalModelCell(battle.NativeGraphics!, 0).ModelId4);
+        Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics, 0));
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         NativeBattleRestorationPresentationTests.Publish(output, "landed", landed, output is null ? null : scene.Render(battle, 320, 224).ToArray());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(landed))!);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -26,7 +27,7 @@ public sealed class NativeBattleEffect54SourceAdmissionTests
         Assert.Equal(76, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
         Assert.Equal(0, source.NativeEffectMemory!.Active);
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(source.NativeGraphics.ActorIds[3]!);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 3)!);
         Assert.Equal(56, caster.ModelId);
         Assert.Equal(1, caster.SceneSlot);
         Assert.True(caster.InitialActive);
@@ -40,7 +41,7 @@ public sealed class NativeBattleEffect54SourceAdmissionTests
         Assert.True(dormant.InitiallySuspended);
         Assert.True(dormant.Untargetable);
         Assert.DoesNotContain(source.Definition.Combatants, actor => !actor.IsPlayer && actor.ModelId == 83);
-        NativeBattleGraphicsModel model = source.NativeGraphics.Models[3];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 3);
         Assert.Equal((byte)72, model.ModelId4);
         Assert.NotEqual(0, model.Flags0 & 2);
         Assert.NotNull(model.Transform);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -11,7 +12,7 @@ public sealed class NativeBattleAngelWing84CameraTests
     {
         var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(5, 0x78DE40, 100, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(5, 0x78DE40, 100, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleAngelWing84SceneMemory scene = NativeBattleAngelWing84SceneMemory.Initialize(new(0, 0, 0), new(1, 0, 0), null).WriteWord(66, 1);
         NativeBattleAngelWing84Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = appended.Hierarchy.Pools }, State = fixture.Frame.State with { Scene = scene } };
         List<(uint Source, ushort Frame)> publications = [];

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -24,7 +25,7 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         Assert.Equal((ushort)116, original.NativeGraphics.OriginalEffect!.Binding.Effect);
         Assert.Null(original.NativeEffectMemory!.ModelColorOverrides);
         Assert.Null(original.Definition.NativeRetainedMemory!.EffectMemory!.ModelColorOverrides);
-        NativeBattleGraphicsModel visible = original.NativeGraphics.Models[3];
+        NativeBattleGraphicsModel visible = ReadOriginalModelCell(original.NativeGraphics, 3);
         Assert.Equal((byte)3, visible.Index);
         Assert.Equal(0, visible.Flags0 & 0x808);
         Assert.Equal(0, visible.Flags2!.Value & 4);
@@ -53,8 +54,8 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         BattleSnapshot after = first.Capture();
         Assert.Equal(255L, after.Frame);
         Assert.Equal(497L, after.NativeGraphics!.Callback);
-        Assert.Equal(original.NativeStage!.ModelColors!.Color40, after.NativeGraphics.Models[3].Color40);
-        Assert.True(after.NativeGraphics.Models[3].Transform!.Vertical34 == 0);
+        Assert.Equal(original.NativeStage!.ModelColors!.Color40, ReadOriginalModelCell(after.NativeGraphics, 3).Color40);
+        Assert.True(ReadOriginalModelCell(after.NativeGraphics, 3).Transform!.Vertical34 == 0);
         Assert.All(after.NativeEffectMemory!.ModelColorOverrides!.Slots, slot =>
         {
             Assert.Equal((byte?)255, slot.Actor);
@@ -74,7 +75,7 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         Assert.Equal(0, completed.NativeEffectMemory!.Active);
         Assert.Equal(0u, completed.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.DoesNotContain(completed.NativeGraphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
-        NativeBattleGraphicsModel caster = completed.NativeGraphics.Models[0];
+        NativeBattleGraphicsModel caster = ReadOriginalModelCell(completed.NativeGraphics, 0);
         Assert.True(caster.Phase6 == 16);
         Assert.Equal(0, caster.Flags0 & 0x808);
         Assert.Equal(0, caster.Flags2!.Value & 4);

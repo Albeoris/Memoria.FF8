@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect323Controller;
@@ -47,12 +48,12 @@ public sealed class NativeBattleEffect323LowerTests
     public void Contact_walk_reloads_current_header_and_keeps_duplicate_matching_rows(bool shrinkAfterFirst)
     {
         Fixture fixture = new(0x65A660);
-        fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Parameters = new(4, 0, 1, 0, 0, 0) } };
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(4, 8, 13, 0, 215, 323, null));
+        fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Parameters = new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0) } };
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 13, 0, 215, 323, null));
         foreach (byte actor in new byte[] { 0, 4, 4, 3 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(4);
         List<int> delivered = [];
@@ -70,7 +71,7 @@ public sealed class NativeBattleEffect323LowerTests
                 return frame with { Random = frame.Random with { Seed = frame.Random.Seed + 1 } };
             }
         };
-        NativeBattleEffect323Frame result = NativeBattleEffect323Lower.AllMatchingContacts65A5F0(fixture.Frame, 0x1D972C0 + 4 * 156, inputs);
+        NativeBattleEffect323Frame result = NativeBattleEffect323Lower.AllMatchingContacts65A5F0(fixture.Frame, OriginalOwner(4), inputs);
         Assert.Equal(shrinkAfterFirst ? new[] { 1 } : new[] { 1, 2 }, delivered);
         Assert.Equal(fixture.Frame.Random.Seed + (uint)delivered.Count, result.Random.Seed);
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -31,7 +32,7 @@ public sealed class NativeBattleCinematicContactBranch46Tests
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicContactBranch46.Execute(frame, Program, UnexpectedActionRead, (_, actor) =>
         {
             Assert.Equal(4, mode);
-            Assert.Equal((byte)3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             statusReads++;
             return status;
         });

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -12,8 +13,8 @@ public sealed class NativeBattleDegenerator306ActorsTests
     {
         Fixture fixture = new();
         fixture.Models[1] = fixture.Models[1] with { Flags0 = 0x802 };
-        fixture.Models[2] = fixture.Models[2].WriteLinkedModelIndex140(3) with { Flags0 = 2 };
-        fixture.Models[3] = fixture.Models[3].WriteLinkedModelIndex140(2);
+        fixture.Models[2] = fixture.Models[2].WriteLinkedModel(OriginalOwner(3)) with { Flags0 = 2 };
+        fixture.Models[3] = fixture.Models[3].WriteLinkedModel(OriginalOwner(2));
         fixture.Models[4] = fixture.Models[4] with { Flags0 = 6, HasLinkedModelRing140 = null };
         fixture.Models[6] = fixture.Models[6] with { Flags0 = 2 };
         NativeBattleDegenerator306Frame frame = fixture.Frame with { State = fixture.Frame.State.WriteWord(0x2244184, 0xCAFE) };
@@ -86,7 +87,7 @@ public sealed class NativeBattleDegenerator306ActorsTests
         Assert.Equal(original.Transform!.Vertical34, BinaryPrimitives.ReadInt16LittleEndian(frame.State.Read(0x2244196, 2)));
         task = NativeBattleDegenerator306Controller.Read(frame, address).WriteWord(12, 29);
         frame = NativeBattleDegenerator306Controller.Write(frame, address, task);
-        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        frame = NativeBattleTestSnapshots.Independent(frame);
         fixture.Operations.Clear();
         (frame, result) = NativeBattleDegenerator306Actors.Advance(frame, address, fixture.Inputs());
         Assert.Equal(2, result);
@@ -129,7 +130,7 @@ public sealed class NativeBattleDegenerator306ActorsTests
 
     private sealed class Fixture
     {
-        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index is 0 or 3 ? (ushort)2 : (ushort)0) { HasLinkedModelRing140 = false, Rotation12 = 123, Rotation14 = -234, Rotation16 = 345, Transform = new(new(0, 0, 0), new(20, -40, 60), -77, 0, 4096) }).ToArray();
+        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index is 0 or 3 ? (ushort)2 : (ushort)0) { HasLinkedModelRing140 = false, Rotation12 = 123, Rotation14 = -234, Rotation16 = 345, Transform = new(new(0, 0, 0), new(20, -40, 60), -77, 0, 4096) }).ToArray();
         public List<NativeBattleDegenerator306Operation> Operations { get; } = [];
         public NativeBattleDegenerator306Frame Frame { get; }
 
@@ -137,33 +138,34 @@ public sealed class NativeBattleDegenerator306ActorsTests
         {
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
-            NativeBattleOriginalEffectState effect = new(306, 306, new(306, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
-            Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleDegenerator306State.FromColdProcess().WriteDword(TargetGlobal, 3).WriteDword(CasterGlobal, 0));
+            NativeBattleOriginalEffectState effect = new(306, 306, new(306, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
+            Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleDegenerator306State.FromColdProcess().WriteModelOperand(TargetGlobal, OriginalOwner(3), OriginalAliases).WriteModelOperand(CasterGlobal, OriginalOwner(0), OriginalAliases));
         }
 
         public (NativeBattleDegenerator306Frame Frame, uint Address) Task(uint callback, ushort age, ushort duration, ushort saved = 0)
         {
             (NativeBattleDegenerator306Frame frame, uint address) = NativeBattleDegenerator306Controller.Append(Frame, callback);
-            NativeBattleModulePoolTask task = NativeBattleDegenerator306Controller.Read(frame, address).WriteWord(12, age).WriteWord(14, 1).WriteWord(0x18, duration).WriteWord(0x1A, saved);
+            NativeBattleModulePoolTask task = NativeBattleDegenerator306Controller.Read(frame, address).WriteWord(12, age).WriteWord(0x18, duration).WriteWord(0x1A, saved);
+            task.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(OriginalOwner(1)), OriginalAliases.EncodeOperand(OriginalOwner(1), 2));
             return (NativeBattleDegenerator306Controller.Write(frame, address, task), address);
         }
 
-        public NativeBattleDegenerator306Inputs Inputs(uint flags = 0) => new(flags, NativeBattleActionPacketsState.Fresh(), actor => Models[actor], _ => throw new InvalidOperationException(), () => throw new InvalidOperationException(), actor => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(Models[actor]), 0x0C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
+        public NativeBattleDegenerator306Inputs Inputs(uint flags = 0) => new(flags, OriginalPackets(), actor => Models[OriginalSlot(actor)], _ => throw new InvalidOperationException(), () => throw new InvalidOperationException(), actor => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(Models[OriginalSlot(actor)]), 0x0C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
         {
             Operations.Add(operation);
             switch (operation)
             {
                 case NativeBattleDegenerator306ActorFlags change:
-                    Models[change.Actor] = Models[change.Actor] with { Flags0 = (ushort)((Models[change.Actor].Flags0 & ~change.ClearMask) | change.SetMask) };
+                    Models[OriginalSlot(change.Actor)] = Models[OriginalSlot(change.Actor)] with { Flags0 = (ushort)((Models[OriginalSlot(change.Actor)].Flags0 & ~change.ClearMask) | change.SetMask) };
                     break;
                 case NativeBattleDegenerator306ActorRotation8 change:
-                    Models[change.Actor] = NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(Models[change.Actor], 0x0C, change.Packed8, 0, 4), 0x10, change.Packed8, 4, 4);
+                    Models[OriginalSlot(change.Actor)] = NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(Models[OriginalSlot(change.Actor)], 0x0C, change.Packed8, 0, 4), 0x10, change.Packed8, 4, 4);
                     break;
                 case NativeBattleDegenerator306ActorPosition change:
-                    Models[change.Actor] = Models[change.Actor] with { Transform = Models[change.Actor].Transform! with { Position28 = change.Position } };
+                    Models[OriginalSlot(change.Actor)] = Models[OriginalSlot(change.Actor)] with { Transform = Models[OriginalSlot(change.Actor)].Transform! with { Position28 = change.Position } };
                     break;
                 case NativeBattleDegenerator306ActorPackedPosition8 change:
-                    Models[change.Actor] = NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(Models[change.Actor], 0x1C, change.Packed8, 0, 4), 0x20, change.Packed8, 4, 4);
+                    Models[OriginalSlot(change.Actor)] = NativeBattleRaldo19ModelMemory.Apply(NativeBattleRaldo19ModelMemory.Apply(Models[OriginalSlot(change.Actor)], 0x1C, change.Packed8, 0, 4), 0x20, change.Packed8, 4, 4);
                     break;
             }
             return frame;

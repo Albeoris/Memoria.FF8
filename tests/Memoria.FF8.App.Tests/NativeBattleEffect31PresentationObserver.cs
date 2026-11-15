@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -93,11 +94,11 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
             Assert.Equal(shape.Capacity, pool.Slots.Length);
             Assert.Null(state.FixedBanks[shape.Bank]);
         }
-        Assert.Equal(7, graphics.Models.Length);
+        Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         for (int physical = 0; physical < 7; physical++)
         {
-            NativeBattleGraphicsModel before = source.NativeGraphics!.Models[physical];
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel before = ReadOriginalModelCell(source.NativeGraphics!, physical);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.Equal(before.ModelId4, model.ModelId4);
             Assert.Equal(before.Flags0 & 2, model.Flags0 & 2);
             Assert.Equal(before.HasLinkedModelRing140, model.HasLinkedModelRing140);

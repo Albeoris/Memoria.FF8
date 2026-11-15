@@ -6,9 +6,9 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedSequenceSelectionTests
 {
     private static readonly BattleModelRoster Roster = new([
-        new("original-party", true), null, null, new("original-enemy", false), new("other-enemy", false), null, new("last-native", false),
-        new("first-extension", true), null, null, null, null, null, null, new("last-party", true), new("first-extra-enemy", false),
-        null, null, null, null, null, null, null, new("unloaded-extra-enemy", false), new("last-enemy", false)]);
+        new BattlePartyActorModel(new("original-party")), null, null, new BattleEnemyActorModel(new("original-enemy")), new BattleEnemyActorModel(new("other-enemy")), null, new BattleEnemyActorModel(new("last-native")),
+        new BattlePartyActorModel(new("first-extension")), null, null, null, null, null, null, new BattlePartyActorModel(new("last-party")), new BattleEnemyActorModel(new("first-extra-enemy")),
+        null, null, null, null, null, null, null, new BattleEnemyActorModel(new("unloaded-extra-enemy")), new BattleEnemyActorModel(new("last-enemy"))]);
 
     [Theory]
     [InlineData(0)]
@@ -136,11 +136,11 @@ public sealed class NativeBattleHostedSequenceSelectionTests
     {
         return Enumerable.Range(0, Roster.ActorCount).Select(index => index switch
         {
-            0 or 6 or 7 or 14 or 24 => new NativeBattleGraphicsModel(index, 2) { ModelId4 = 77 },
-            8 => new NativeBattleGraphicsModel(index, 2),
-            15 => new NativeBattleGraphicsModel(index, 2) { ModelId4 = 16 },
-            23 => new NativeBattleGraphicsModel(index, 0) { ModelId4 = 77 },
-            _ => new NativeBattleGraphicsModel(index, 0)
+            0 or 6 or 7 or 14 or 24 => new NativeBattleGraphicsModel(2) { ModelId4 = 77 },
+            8 => new NativeBattleGraphicsModel(2),
+            15 => new NativeBattleGraphicsModel(2) { ModelId4 = 16 },
+            23 => new NativeBattleGraphicsModel(0) { ModelId4 = 77 },
+            _ => new NativeBattleGraphicsModel(0)
         }).ToArray();
     }
 

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -36,7 +37,7 @@ public sealed class NativeBattleRinoa86ControllerTests
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(41, 6).WriteWord(94, 1));
         for (int pool = 1; pool < 9; pool++)
         {
-            hierarchy = hierarchy.Append8DC540(pool, checked((uint)(0x1000 + pool)), 36, root, (_, _, _) => new(0, 3)).Hierarchy;
+            hierarchy = hierarchy.Append8DC540(pool, checked((uint)(0x1000 + pool)), 36, root, (_, _, _) => OriginalTaskActors(0, 3)).Hierarchy;
         }
         List<int> order = [];
         NativeBattleRinoa86Inputs inputs = fixture.Inputs with
@@ -67,7 +68,7 @@ public sealed class NativeBattleRinoa86ControllerTests
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(99, 1));
         Assert.Equal((byte)3, fixture.Inputs.Packets.Headers[0].ReadByte(16));
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x77F5B0, 88, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x77F5B0, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy;
         hierarchy = hierarchy.Write(appended.Address, hierarchy.Read(appended.Address).WriteByte(41, 1));
         var poseFixture = NativeBattleRestorationControllerTests.Fixture(24);
@@ -97,19 +98,19 @@ public sealed class NativeBattleRinoa86ControllerTests
 
     internal static (NativeBattleRinoa86Frame Frame, NativeBattleRinoa86Inputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 27, 86, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(5, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 27, 86, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 100, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(5), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(3);
-        NativeBattleOriginalEffectState selected = new(86, 85, new(86, 0x77F250, 0x77F230), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x25B4CC8, 256)] };
+        NativeBattleOriginalEffectState selected = new(86, 85, new(86, 0x77F250, 0x77F230), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x25B4CC8, 256)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(85) with { Rinoa86 = NativeBattleRinoa86Storage.FromColdProcess() };
         memory = memory with { Arena = memory.Arena!.Write(256, Enumerable.Repeat((byte)0xA5, 114688).ToArray()) };
         NativeBattleRinoa86Frame frame = NativeBattleRinoa86Controller.Initialize(memory, selected, packets, null!);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        NativeBattleRinoa86Inputs inputs = new(packets, camera, index => new(index, 0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
+        NativeBattleRinoa86Inputs inputs = new(packets, camera, index => new(0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
         return (frame, inputs);
     }
 }

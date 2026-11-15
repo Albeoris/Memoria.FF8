@@ -82,7 +82,7 @@ public sealed class NativeBattleEffect298BodyTests
     {
         var source = Source();
         var decoded = new NativeBattleDecodedPose(new(10, 20, 30), [new(new(32760, 0, 0), new(512, 1024, 2048)), new(new(0, 0, 0), new(1024, 512, 2048))], scaled);
-        var model = new NativeBattleGraphicsModel(0, 3) { SequenceState = new() { DecodedPose = decoded } };
+        var model = new NativeBattleGraphicsModel(3) { SequenceState = new() { DecodedPose = decoded } };
         var offsets = NativeBattleEffectArena.Clear().Write(8, BitConverter.GetBytes((short)8));
         var temporary = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 96).ToArray());
         var actual = NativeBattleEffect298Pose.Prepare662C00(model, source, offsets, temporary);
@@ -112,7 +112,7 @@ public sealed class NativeBattleEffect298BodyTests
     public void Missing_offset_angle_bytes_are_not_replaced_from_current_matrices()
     {
         var source = Source();
-        var model = new NativeBattleGraphicsModel(0, 3) { SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
+        var model = new NativeBattleGraphicsModel(3) { SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         var offsets = NativeBattleEffectArena.Clear().MarkUnknown(24, 2);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect298Pose.Prepare662C00(model, source, offsets, NativeBattleEffectArena.Clear()));
     }
@@ -121,7 +121,7 @@ public sealed class NativeBattleEffect298BodyTests
     public void Body_outer_calls_shadow_even_when_model_flag20_is_set_and_restores_after_camera_compose()
     {
         var matrix = Identity().ReadMatrix() with { X = 10, Y = 20, Z = 30 };
-        var model = new NativeBattleGraphicsModel(0x20, 3) { Color40 = 0x123456, GeometryWorldMatrix = Identity().ReadMatrix() with { X = 100, Y = 200, Z = 300 }, SequenceState = new() { MeshMask124 = 7 }, CurrentBodyBoneMatrices = new(new string('A', 64), [matrix]) };
+        var model = new NativeBattleGraphicsModel(3) { Color40 = 0x123456, GeometryWorldMatrix = Identity().ReadMatrix() with { X = 100, Y = 200, Z = 300 }, SequenceState = new() { MeshMask124 = 7 }, CurrentBodyBoneMatrices = new(new string('A', 64), [matrix]) };
         var body = new NativeBattleEffect298BodyFrame(Memory(), NativeBattleFileStaging.Unknown(), model, NativeBattleEffectArena.Clear().MarkUnknown(0, 152));
         var offsets = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)1)).Write(2, BitConverter.GetBytes((short)2)).Write(4, BitConverter.GetBytes((short)3));
         List<string> calls = [];

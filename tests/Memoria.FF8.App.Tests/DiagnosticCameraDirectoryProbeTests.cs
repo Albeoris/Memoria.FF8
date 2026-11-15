@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -96,7 +97,7 @@ public sealed class DiagnosticCameraDirectoryProbeTests
             NativeBattleGraphicsState? graphics = battle.NativeGraphics;
             NativeBattleCameraState? camera = battle.NativeCamera;
             NativeBattleEffectAnimationRegisters? resource = camera?.ControlResource;
-            int? selector = graphics?.ActionContext?.TargetIndex is byte target ? graphics.Models[target].SequenceByte145 : null;
+            int? selector = graphics?.ActionContext?.TargetIndex is byte target ? ReadOriginalModelCell(graphics, target).SequenceByte145 : null;
             object? track = null;
             if (resource is not null && selector is int selected)
             {

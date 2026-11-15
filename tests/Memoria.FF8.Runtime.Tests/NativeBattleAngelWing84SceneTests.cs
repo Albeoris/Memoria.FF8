@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -26,10 +27,10 @@ public sealed class NativeBattleAngelWing84SceneTests
     {
         var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(2, 0x78DCE0, 72, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(2, 0x78DCE0, 72, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy;
         hierarchy = hierarchy.Write(appended.Address, hierarchy.Read(appended.Address).WriteByte(41, 1));
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToArray();
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToArray();
         models[0] = models[0] with { Flags0 = 2 };
         models[3] = models[3] with { Flags0 = 0x42 };
         List<ushort> births = [];

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCinematicActorMeshMask8DTests
@@ -21,12 +22,12 @@ public sealed class NativeBattleCinematicActorMeshMask8DTests
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorMeshMask8D.Execute(frame, new(0x1000, 4, 0x1000), actor =>
         {
             reads++;
-            Assert.Equal(selectedActor, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             return mask;
         }, (actor, value) =>
         {
             writes++;
-            Assert.Equal(selectedActor, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             published = value;
         });
         Assert.Equal(expected, published);

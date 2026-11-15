@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -65,7 +66,7 @@ public sealed class NativeBattleBladeShot12PresentationTests
         NativeBattleModulePoolTask task = Read(frame, ChildBBank).WriteWord(12, 2).WriteDword(16, 0x13627E4).WriteWord(0x14, 10).WriteWord(0x16, 20).WriteWord(0x18, 30).WriteWord(0x1A, 3).WriteWord(0x22, 2048).WriteWord(0x2C, 1).WriteWord(0x2E, 2).WriteWord(0x30, 3);
         frame = Write(frame, ChildBBank, task);
         NativeBattleBladeShot12DrawSprite180? observed = null;
-        NativeBattleBladeShot12Inputs inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0x201, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleBladeShot12Inputs inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0x201, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             observed = Assert.IsType<NativeBattleBladeShot12DrawSprite180>(operation);
             return current;
@@ -90,7 +91,7 @@ public sealed class NativeBattleBladeShot12PresentationTests
         NativeBattleOriginalEffectState effect = new(12, 11, new(12, Entry, Initializer), null, RootDescriptor) { Pools = [pool] };
         NativeBattleBladeShot12Frame frame = new(NativeBattleBladeShot12MeshContext88Tests.Memory(2000), effect, new(123), NativeBattleBladeShot12State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         List<NativeBattleBladeShot12DrawStatic88> draws = [];
-        NativeBattleBladeShot12Inputs inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => new(0, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleBladeShot12Inputs inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => new(0, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             draws.Add(Assert.IsType<NativeBattleBladeShot12DrawStatic88>(operation));
             return current;

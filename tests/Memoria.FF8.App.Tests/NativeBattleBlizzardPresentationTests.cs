@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Bitmap = SkiaSharp.SKBitmap;
@@ -79,9 +80,9 @@ public sealed class NativeBattleBlizzardPresentationTests
         // The controlled494410/47E2D0 producer updates both the physical bank and its actor projection.
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? actor with { NativeStatus = status with { Presentation = presentation } } : actor).ToArray(), NativePresentationStatusMemory = (before.NativePresentationStatusMemory ?? throw new InvalidDataException("The controlled formula producer requires its current physical presentation-status bank.")).Observe(party.NativeParticipant!.ActorIndex, presentation) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, native.Command, 11, -1, native.ActionId, native.MagicId, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), native.Command, 11, -1, native.ActionId, native.MagicId, null));
         // An explicit post-formula7HP presentation contact; no formula or previous gameplay is replayed.
-        (packets, _) = packets.AppendContact(new(new(0, native.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), native.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));

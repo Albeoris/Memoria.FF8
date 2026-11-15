@@ -25,7 +25,7 @@ public sealed class NativeBattleApocalypse221ActorTint69Tests
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x94, unchecked((ushort)red));
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x96, 0);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x98, 0);
-        NativeBattleGraphicsModel actor = new(actorIndex, 0x45) { Color40 = 0x11223344, Color44 = 0x55667788 };
+        NativeBattleGraphicsModel actor = new(0x45) { Color40 = 0x11223344, Color44 = 0x55667788 };
         int writes = 0;
         NativeBattleWaterExecutionFrame result = NativeBattleApocalypse221ActorTint69.Execute(frame, new((_, address) =>
         {

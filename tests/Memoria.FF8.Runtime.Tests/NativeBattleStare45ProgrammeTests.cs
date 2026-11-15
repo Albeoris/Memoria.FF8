@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -20,7 +21,7 @@ public sealed class NativeBattleStare45ProgrammeTests
             ReadBone502170 = (current, actor, bone, distance) =>
             {
                 calls++;
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 Assert.Equal(selector, bone);
                 Assert.Equal(0, distance);
                 return new(current, PointView(new(100, 200, 300)));
@@ -212,7 +213,7 @@ public sealed class NativeBattleStare45ProgrammeTests
         return Write(frame, pool.BankAddress, task);
     }
 
-    internal static NativeBattleStare45Inputs Inputs(Func<NativeBattleStare45Frame, NativeBattleStare45Operation, NativeBattleStare45Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(actor, 0) { Rotation14 = 0 }, (current, _, _, _) => new(current, PointView(new(0, 0, 0))), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    internal static NativeBattleStare45Inputs Inputs(Func<NativeBattleStare45Frame, NativeBattleStare45Operation, NativeBattleStare45Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(0) { Rotation14 = 0 }, (current, _, _, _) => new(current, PointView(new(0, 0, 0))), _ => OriginalPackets(), execute ?? ((current, _) => current));
     internal static NativeBattleStare45Resources Resources() => new(Source(0x17C4DA0), Source(0x17C6A14), null!, 0);
     private static uint U(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static NativeBattleGfAnimationNode Node(int ratio, uint header = 0, NativeBattleVector point = default, NativeBattleVector angles = default)

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -24,12 +25,12 @@ public sealed class EncounterAllocationRetirementTests
         BattleActionPresentation active = new("fourth", "party", BattleActionPhase.Windup, 10, BattleAbility.EnemyAbility, 1) { NativeTargetMask = 1 };
         Assert.False(retirement.HasAcceptedConsumers("copy", Header(6, 0), graphics, active));
         Assert.True(retirement.HasAcceptedConsumers("copy", Header(6, 4), graphics, active));
-        Assert.True(retirement.HasAcceptedConsumers("copy", NativeBattleActionPacketsState.Fresh(), graphics with { PendingContacts = [Contact(4)] }, active));
+        Assert.True(retirement.HasAcceptedConsumers("copy", OriginalPackets(), graphics with { PendingContacts = [Contact(4)] }, active));
     }
 
     private static NativeBattleActionPacketsState Header(byte actor, byte target)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionPacketsState packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(actor, 8, 7, 0, 1, 1, null));
         (packets, _) = packets.AppendContact(Contact(target));
         (packets, _) = packets.Publish(1);
@@ -43,6 +44,6 @@ public sealed class EncounterAllocationRetirementTests
 
     private static NativeBattleGraphicsState Graphics()
     {
-        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToImmutableArray(), new string?[] { "party", null, null, "original", "copy", null, "fourth" }.ToImmutableArray(), 0, 0);
+        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray(), new string?[] { "party", null, null, "original", "copy", null, "fourth" }.ToImmutableArray(), 0, 0);
     }
 }

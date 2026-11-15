@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -46,7 +47,7 @@ public sealed class NativeBattleEffect174ControllerTests
         Harness harness = new();
         NativeBattleEffect174Step step = AdvanceMain5D4660(Frame(10), ChildBank, null!, harness.Inputs());
         Assert.Contains(step.Frame.Effect.Pools[1].Slots, value => value.Callback == 0x5D4CB0);
-        Assert.Equal(new NativeBattleEffect174SetResourceFlags44(3, 0x1F), harness.Operations[0]);
+        Assert.Equal(new NativeBattleEffect174SetResourceFlags44(OriginalOwner(3), 0x1F), harness.Operations[0]);
     }
 
     [Fact]
@@ -222,7 +223,7 @@ public sealed class NativeBattleEffect174ControllerTests
         Assert.Equal(123, first.Frame.State.ReadWord(SavedActorsAddress + 4));
         Assert.False(ReadBytes(first.Frame, SavedActorsAddress + 10, 2).ReadSnapshot(0, 2).Known[0]);
         Assert.Equal(0xBEEF, Word(harness.Models[0], 34));
-        NativeBattleEffect174Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect174Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Frame)))!);
+        NativeBattleEffect174Frame restored = NativeBattleTestSnapshots.Independent(first.Frame);
         NativeBattleEffect174Step second = NativeBattleEffect174Lower.AdvanceActorMotion7220(restored, ChildBank, harness.Inputs());
         Assert.Equal(0, second.Frame.State.ReadWord(SavedActorsAddress + 4));
         Assert.Equal(0, second.Frame.State.ReadWord(SavedActorsAddress + 6));
@@ -259,7 +260,7 @@ public sealed class NativeBattleEffect174ControllerTests
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(callback);
         child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteBytes(16, new byte[8]));
-        NativeBattleOriginalEffectState effect = new(174, 173, new(174, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
+        NativeBattleOriginalEffectState effect = new(174, 173, new(174, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, new(42), NativeBattleEffect174State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(TargetGlobal, 0).WriteDword(ArenaGlobal, 0x20DFAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -275,7 +276,7 @@ public sealed class NativeBattleEffect174ControllerTests
         public List<NativeBattleEffect174Operation> Operations { get; } = [];
         public List<(int Actor, int Selector, int Fraction)> Points { get; } = [];
         public NativeBattleEffectArena[] Models { get; } = Enumerable.Range(0, 7).Select(actor => NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)(actor is 0 or 3 ? 2 : 0))).Write(14, BitConverter.GetBytes((short)0x1234)).Write(38, BitConverter.GetBytes((short)700))).ToArray();
-        public NativeBattleEffect174Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new(actor, Word(Models[actor], 0)) { Rotation14 = unchecked((short)Word(Models[actor], 14)), Transform = new(new(0, 0, 0), Vector(Models[actor], 28), unchecked((short)Word(Models[actor], 34)), 0, unchecked((short)Word(Models[actor], 38))) }, (_, actor) => Models[actor], (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, _ => 512, (_, address) => address == 0xB8B7D8 ? 0x80604020u : 0x80C08040u, (frame, actor, selector, fraction, retained) =>
+        public NativeBattleEffect174Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new(Word(Models[actor], 0)) { Rotation14 = unchecked((short)Word(Models[actor], 14)), Transform = new(new(0, 0, 0), Vector(Models[actor], 28), unchecked((short)Word(Models[actor], 34)), 0, unchecked((short)Word(Models[actor], 38))) }, (_, actor) => Models[actor], (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, _ => 512, (_, address) => address == 0xB8B7D8 ? 0x80604020u : 0x80C08040u, (frame, actor, selector, fraction, retained) =>
         {
             Points.Add((actor, selector, fraction));
             return new(frame, CopyBytes(Point(10, 20, 30, 0), 0, retained, 0, 6));
@@ -291,9 +292,9 @@ public sealed class NativeBattleEffect174ControllerTests
 
         private NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 13, -1, 72, 174, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, HitFlags, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 72, 174, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, HitFlags, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

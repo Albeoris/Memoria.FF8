@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect68Controller;
@@ -66,7 +67,7 @@ public sealed class NativeBattleEffect68ControllerTests
         Assert.Equal(2, step.Result);
         Assert.Equal(0, Read(step.Frame, RootBank).ReadByte(0x63));
         Assert.Equal(0, Read(step.Frame, RootBank).ReadByte(0x28));
-        Assert.Equal(new NativeBattleEffect68Contact506690(0), Assert.Single(harness.Operations.OfType<NativeBattleEffect68Contact506690>()));
+        Assert.Equal(new NativeBattleEffect68Contact506690(new BattleContactCursor(0)), Assert.Single(harness.Operations.OfType<NativeBattleEffect68Contact506690>()));
         Assert.Collection(harness.Operations, operation => Assert.IsType<NativeBattleEffect68UpdateTarget8DC610>(operation), operation => Assert.IsType<NativeBattleEffect68UpdateBounds8DC870>(operation), operation => Assert.IsType<NativeBattleEffect68Contact506690>(operation));
     }
 
@@ -93,7 +94,7 @@ public sealed class NativeBattleEffect68ControllerTests
         NativeBattleScanResultMemory old = process.Results with { Count = 7, Empty = 0xA7, Element8 = process.Results.Element8.WriteByte(7, 0x93), Pages32 = process.Results.Pages32.WriteDword(28, 0x12345678) };
         frame = frame with { Memory = frame.Memory with { Scan = process with { Results = old } }, State = frame.State.WriteDword(ResultPagesAddress + 28, 0xAABBCCDD).Write(ResultElementAddress + 7, [0x77]) };
         ScanResultTestSource source = new();
-        NativeBattleEffect68ResultStep step = NativeBattleEffect68Results.BuildB67EF0(frame, 0, source.Services);
+        NativeBattleEffect68ResultStep step = NativeBattleEffect68Results.BuildB67EF0(frame, OriginalOwner(0), source.Services);
         NativeBattleScanResultMemory actual = step.Frame.Memory.Scan!.Results;
         Assert.Equal(1, step.Count);
         Assert.Equal(1u, step.Frame.State.ReadDword(ResultCountAddress));
@@ -114,10 +115,10 @@ public sealed class NativeBattleEffect68ControllerTests
         NativeBattleEffect68Frame frame = Frame(harness);
         frame = frame with { State = frame.State.WriteView(ResultCountAddress, NativeBattleEffectArena.Clear().MarkUnknown(0, 4), 4) };
         ScanResultTestSource source = new();
-        frame = NativeBattleEffect68Results.BuildB67EF0(frame, 0, source.Services).Frame;
-        NativeBattleEffect68Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect68Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
-        NativeBattleEffect68ResultStep direct = NativeBattleEffect68Results.BuildB67EF0(frame, 0, source.Services);
-        NativeBattleEffect68ResultStep next = NativeBattleEffect68Results.BuildB67EF0(restored, 0, source.Services);
+        frame = NativeBattleEffect68Results.BuildB67EF0(frame, OriginalOwner(0), source.Services).Frame;
+        NativeBattleEffect68Frame restored = NativeBattleTestSnapshots.Independent(frame);
+        NativeBattleEffect68ResultStep direct = NativeBattleEffect68Results.BuildB67EF0(frame, OriginalOwner(0), source.Services);
+        NativeBattleEffect68ResultStep next = NativeBattleEffect68Results.BuildB67EF0(restored, OriginalOwner(0), source.Services);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)));
     }
 
@@ -156,7 +157,7 @@ public sealed class NativeBattleEffect68ControllerTests
     private static NativeBattleEffect68Frame Frame(Harness harness)
     {
         ImmutableArray<NativeBattleEffectTaskPool> pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray();
-        NativeBattleOriginalEffectState effect = new(68, 67, new(68, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { Pools = pools, ReturnedDescriptor = RootDescriptor };
+        NativeBattleOriginalEffectState effect = new(68, 67, new(68, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools, ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect68State state = NativeBattleEffect68State.FromColdProcess().WriteDword(FirstPacketGlobal, 0x20DFAB8).WriteDword(SecondPacketGlobal, 0x20E3AB8);
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -180,9 +181,9 @@ public sealed class NativeBattleEffect68ControllerTests
 
         private static NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 11, -1, 135, 68, null));
-            (packets, _) = packets.AppendContact(new(new(3, 3, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, -1, 135, 68, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 3, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

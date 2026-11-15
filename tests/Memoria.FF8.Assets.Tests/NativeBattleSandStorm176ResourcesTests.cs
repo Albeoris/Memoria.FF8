@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -17,17 +18,17 @@ public sealed class NativeBattleSandStorm176ResourcesTests
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([176])[175];
         NativeBattleEffectInitializerAsset texture = binding.InitializerAsset!;
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(3, 2, 4, 0, 1, 176, null));
-        (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 4, 0, 1, 176, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(176, 175, binding, new(3, 0, 1, 0, 0, 0), null) { ResourcePointers = [new(0x2374554, 0)] };
+        NativeBattleOriginalEffectState effect = new(176, 175, binding, new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2374554, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(175);
         memory = memory with { Arena = memory.Arena!.Write(0, texture.Data.AsSpan()), SandStorm176 = NativeBattleSandStorm176State.FromColdProcess() };
         Assert.Throws<NotSupportedException>(() => NativeBattleSandStorm176Controller.Initialize(memory with { SandStorm176 = null }, effect, resources, new(1)));
         NativeBattleSandStorm176Frame frame = NativeBattleSandStorm176Controller.Initialize(memory, effect, resources, new(1));
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleCameraProjection projection = new(identity with { Z = 12000 }, 216, 160, 108);
-        NativeBattleGraphicsModel[] actors = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0) { Transform = new(new(0, 0, 0), new(unchecked((short)(index * 400)), 0, 0), 17, 0, 4096), Rotation12 = 100, Rotation14 = 200, Rotation16 = 300, RotationPadding18 = null, GeometryWorldMatrix = identity }).ToArray();
+        NativeBattleGraphicsModel[] actors = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0) { Transform = new(new(0, 0, 0), new(unchecked((short)(index * 400)), 0, 0), 17, 0, 4096), Rotation12 = 100, Rotation14 = 200, Rotation16 = 300, RotationPadding18 = null, GeometryWorldMatrix = identity }).ToArray();
         NativeBattleGraphicsModel before = actors[0];
         NativeBattlePoseSource pose = new(new byte[64].ToImmutableArray(), [1]);
         int contacts = 0;

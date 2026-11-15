@@ -18,7 +18,7 @@ public sealed class BattleAnimationAttackSequenceResolutionTests
             }
         };
 
-        BattleAnimationSample sample = animation.SampleNativeModel(new(3, 0));
+        BattleAnimationSample sample = animation.SampleNativeModel(new(0));
 
         Assert.Equal(0, sample.Opacity);
         Assert.Equal(0, calls);

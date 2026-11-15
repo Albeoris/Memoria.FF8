@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -114,8 +115,8 @@ public sealed class NativeBattleEffect232ResourcesTests
         NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.NativeModelCpuResources);
         NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.NativeFileStaging);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
-        Assert.Equal(0, graphics.Models[3].ActiveResourceRow100);
-        Assert.Equal((byte)41, graphics.Models[3].ModelId4);
+        Assert.Equal(0, ReadOriginalModelCell(graphics, 3).ActiveResourceRow100);
+        Assert.Equal((byte)41, ReadOriginalModelCell(graphics, 3).ModelId4);
         NativeBattleModelCpuResourceRow row = cpu.Rows[0];
         Assert.Equal(new NativeBattleModelCpuReference(3, 38924), row.Require(20));
         Assert.Equal(48284, row.Lengths[20]);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -31,9 +32,9 @@ internal sealed class NativeBattleEffect64PresentationObserver
         NativeBattleEffect64State state = current.NativeEffectMemory!.Effect64!;
         NativeBattleEffect64Resources resources = effect.Binding.Effect64Resources!;
         state.Validate();
-        Assert.Equal((byte)140, current.NativeGraphics.Models[5].ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(current.NativeGraphics, 5).ModelId4);
         Assert.Equal((ushort)1448, current.NativeModelCpuResources!.ScratchMaximum);
-        if (current.NativeGraphics.Models[5].Sequence == 16)
+        if (ReadOriginalModelCell(current.NativeGraphics, 5).Sequence == 16)
         {
             sequence16 = true;
             Mark("effect64-sequence16-native-handshake", current, cold);
@@ -112,11 +113,11 @@ internal sealed class NativeBattleEffect64PresentationObserver
             Assert.Empty(effect.Pools);
             Assert.NotNull(state.RootBankStorage);
             Assert.Equal(ScriptCount, state.ScriptSources.Count);
-            Assert.Equal(3u, current.NativeGraphics.Models[5].SequenceState!.MeshMask124);
+            Assert.Equal(3u, ReadOriginalModelCell(current.NativeGraphics, 5).SequenceState!.MeshMask124);
             Assert.All(ReadMeshes(current).SelectMany(mesh => mesh.Polygons), face => Assert.Equal(0, face.Bytes[15] & 0x80));
             Mark("effect64-cleanup-retained-banks-and-scripts", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, Age = age, Sequence = current.NativeGraphics.Models[5].Sequence, Flags = current.NativeGraphics.Models[5].Flags0, Cursor = state.ReadDword(CursorGlobal), Scripts = state.ScriptSources.Count, CommonBodyPackets = body.Count, OwnedPackets = CurrentCommands.Length });
+        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, Age = age, Sequence = ReadOriginalModelCell(current.NativeGraphics, 5).Sequence, Flags = ReadOriginalModelCell(current.NativeGraphics, 5).Flags0, Cursor = state.ReadDword(CursorGlobal), Scripts = state.ScriptSources.Count, CommonBodyPackets = body.Count, OwnedPackets = CurrentCommands.Length });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -150,7 +151,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
 
     private static ImmutableHashSet<NativeBattlePrimitiveReference> BodyReferences(BattleSnapshot current)
     {
-        if (ReadMain(current) is null || (current.NativeGraphics!.Models[5].Flags0 & 4) == 0)
+        if (ReadMain(current) is null || (ReadOriginalModelCell(current.NativeGraphics!, 5).Flags0 & 4) == 0)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -158,7 +159,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics!;
         NativeBattleFileStaging staging = current.NativeFileStaging!;
         uint scratch = checked(0x196B018u - (uint)(current.NativeModelCpuResources!.ScratchMaximum!.Value * 8));
-        uint color = current.NativeGraphics.Models[5].Color40!.Value & 0xFFFFFF;
+        uint color = ReadOriginalModelCell(current.NativeGraphics, 5).Color40!.Value & 0xFFFFFF;
         HashSet<BodyFace> expected = [];
         foreach (NativeBattleRawMesh mesh in ReadMeshes(current))
         {
@@ -222,7 +223,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
 
     private static ImmutableArray<NativeBattleRawMesh> ReadMeshes(BattleSnapshot current)
     {
-        NativeBattleGraphicsModel model = current.NativeGraphics!.Models[5];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, 5);
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
         NativeBattleModelCpuReference source = cpu.Rows[model.ActiveResourceRow100!.Value].Require(16);
         int bones = model.CurrentBodyBoneMatrices!.Matrices.Length;

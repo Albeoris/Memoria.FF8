@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect183Controller;
@@ -153,7 +154,7 @@ public sealed class NativeBattleEffect183ChildrenTests
         return new(memory, effect, NativeBattleEffect183State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleEffect183Inputs Inputs(uint flags = 0, Func<NativeBattleEffect183Frame, NativeBattleEffect183Operation, NativeBattleEffect183Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = 200, Z = 300 }, null), _ => new(null, 100, 160, 108), (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, _) => current));
+    private static NativeBattleEffect183Inputs Inputs(uint flags = 0, Func<NativeBattleEffect183Frame, NativeBattleEffect183Operation, NativeBattleEffect183Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = 200, Z = 300 }, null), _ => new(null, 100, 160, 108), (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, _) => current));
     private static (NativeBattleEffect183Frame Frame, int Result) Advance(NativeBattleEffect183Frame frame, bool second, NativeBattleEffect183Inputs inputs) => second ? NativeBattleEffect183Children.Advance5C9DD0(frame, Address, Resources, inputs) : NativeBattleEffect183Children.Advance5C9C40(frame, Address, Resources, inputs);
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));
     private static ushort Word(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(context.Read(offset, 2));

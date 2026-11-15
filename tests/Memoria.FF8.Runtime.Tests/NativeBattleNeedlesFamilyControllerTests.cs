@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -159,11 +160,11 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(Profile.ChildDescriptor, Profile.ChildBank, 36, 100);
             (children, _) = children.Append(main ? Profile.MainCallback : Profile.SchedulerCallback);
             children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteDword(0x10, 0).WriteDword(0x14, 0)) });
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(3, 8, 13, 0, effect == 177 ? (ushort)25 : (ushort)230, effect, null));
-            (packets, _) = packets.AppendContact(new(new(0, 5, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, 0, effect == 177 ? (ushort)25 : (ushort)230, effect, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 5, 1, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
-            NativeBattleOriginalEffectState selected = new(effect, effect, new(effect, Profile.Entry, Profile.Initializer), new(3, 0, 0, 0, 0, 0), null) { Pools = [root, children], ReturnedDescriptor = Profile.RootDescriptor, ResourcePointers = [new(Profile.InitializerGlobal, 0x800)] };
+            NativeBattleOriginalEffectState selected = new(effect, effect, new(effect, Profile.Entry, Profile.Initializer), new(OriginalOwner(3), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root, children], ReturnedDescriptor = Profile.RootDescriptor, ResourcePointers = [new(Profile.InitializerGlobal, 0x800)] };
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), selected, new(123), NativeBattleNeedlesFamilyState.FromColdProcess(effect).WriteDword(Profile.CasterGlobal, 3).WriteDword(Profile.BaseAddress, 0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(packets, actor =>
             {

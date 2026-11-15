@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -131,7 +132,7 @@ public sealed class NativeBattleEffect324ControllerTests
         Harness harness = new();
         harness.Packets = harness.Packets with { Headers = harness.Packets.Headers.SetItem(0, harness.Packets.Headers[0] with { FirstContactIndex = 7 }) };
         NativeBattleEffect324Step result = AdvanceMain596C70(Frame(130), ChildBank, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect324Contact506690(7), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect324Contact506690(new BattleContactCursor(7)), Assert.Single(harness.Operations));
         Assert.Equal(131, Read(result.Frame, ChildBank).ReadWord(12));
     }
 
@@ -227,7 +228,7 @@ public sealed class NativeBattleEffect324ControllerTests
             pools = pools.Add(pool);
         }
         NativeBattleEffect324State state = NativeBattleEffect324State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteWord(PointAddress + 6, 0xCAFE);
-        NativeBattleOriginalEffectState effect = new(324, 323, new(324, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(324, 323, new(324, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -243,7 +244,7 @@ public sealed class NativeBattleEffect324ControllerTests
         public short LastSelector { get; private set; }
         public short LastFraction { get; private set; }
         public List<NativeBattleEffect324Operation> Operations { get; } = [];
-        public NativeBattleActionPacketsState Packets { get; set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; set; } = OriginalPackets();
         public NativeBattleEffect324Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets, (_, _) => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, selector, fraction, retained) =>
         {
             PointQueries++;

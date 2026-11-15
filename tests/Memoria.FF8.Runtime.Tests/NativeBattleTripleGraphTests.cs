@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -14,7 +15,7 @@ public sealed class NativeBattleTripleGraphTests
         NativeBattleTripleInputs inputs = fixture.Inputs with
         {
             ReadForeign = _ => geometry,
-            ReadModel = index => new(index, 2) { Transform = new(default, default, 0, 77, 4096) },
+            ReadModel = index => new(2) { Transform = new(default, default, 0, 77, 4096) },
             ReadPoseSource = _ => throw new InvalidOperationException("A host pose must not request a native skeleton or animation bank.")
         };
         NativeBattleTripleStep first = NativeBattleTripleController.Advance89DFF0(fixture.Frame, fixture.Resources, inputs, NativeCrtRandomState.FromColdProcess());
@@ -150,16 +151,16 @@ public sealed class NativeBattleTripleGraphTests
 
     private static (NativeBattleTripleFrame Frame, NativeBattleTripleResources Resources, NativeBattleTripleInputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 34, 21, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 34, 21, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         byte[] meshBytes = new byte[40];
         BinaryPrimitives.WriteInt32LittleEndian(meshBytes, 8);
         ImmutableArray<byte> mesh = meshBytes.ToImmutableArray();
         NativeBattleTripleResources resources = NativeBattleTripleControllerTests.Resources() with { Meshes = new uint[] { 0x1626CF0, 0x1626F00, 0x1627160, 0x1627380, 0x1627970, 0x1628218 }.Select(address => new NativeBattleStaticMeshResource(0, address, mesh)).ToImmutableArray(), Sprites = [Sprite(0x16269DC, 13), Sprite(0x1626B3C, 8), Sprite(0x1626C18, 10), Sprite(0x1626CC8, 1)], MorphFirst = mesh.AsSpan().Slice(0, 8).ToArray().ToImmutableArray(), MorphSecond = mesh.AsSpan().Slice(0, 8).ToArray().ToImmutableArray() };
-        NativeBattleOriginalEffectState effect = new(21, 20, new(21, 0x89DEF0, 0x89DED0), new(0, 1, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(21, 20, new(21, 0x89DEF0, 0x89DED0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(20) with { Textures = null, TripleMorph = new(mesh) };
         NativeBattleTripleFrame frame = NativeBattleTripleController.Initialize89DEF0(memory, effect, packets, resources);
         byte[] skeleton = new byte[64];
@@ -167,7 +168,7 @@ public sealed class NativeBattleTripleGraphTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
-        NativeBattleTripleInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 10000 }, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose, (current, _) => current);
+        NativeBattleTripleInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 10000 }, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose, (current, _) => current);
         return (frame, resources, inputs);
     }
 

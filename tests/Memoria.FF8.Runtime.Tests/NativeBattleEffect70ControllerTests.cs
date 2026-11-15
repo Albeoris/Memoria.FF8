@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect70Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect70Profile;
@@ -138,7 +139,7 @@ public sealed class NativeBattleEffect70ControllerTests
         frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress, 4).WriteDword(SavedFlagsAddress + 4, 4) };
         _ = RestoreFlags(frame, harness.Inputs());
         NativeBattleEffect70ModelFlags operation = Assert.Single(harness.Operations.OfType<NativeBattleEffect70ModelFlags>());
-        Assert.Equal(new NativeBattleEffect70ModelFlags(0, 0xFFFB, 4, true), operation);
+        Assert.Equal(new NativeBattleEffect70ModelFlags(OriginalOwner(0), 0xFFFB, 4, true), operation);
     }
 
     private static NativeBattleEffect70Frame Common()
@@ -150,7 +151,7 @@ public sealed class NativeBattleEffect70ControllerTests
 
     private static NativeBattleEffect70Frame Active()
     {
-        NativeBattleOriginalEffectState effect = new(70, 69, new(70, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(70, 69, new(70, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
@@ -164,7 +165,7 @@ public sealed class NativeBattleEffect70ControllerTests
         public int LastIoIndex { get; private set; } = -1;
         public List<NativeBattleEffect70Operation> Operations { get; } = [];
 
-        public NativeBattleEffect70Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), frame => throw new NotSupportedException(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor, actor == 0 ? (ushort)2 : (ushort)1), (frame, actor) => throw new NotSupportedException(), frame => 0, (frame, source) => throw new NotSupportedException(), (frame, operation) =>
+        public NativeBattleEffect70Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), frame => throw new NotSupportedException(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor == 0 ? (ushort)2 : (ushort)1), (frame, actor) => throw new NotSupportedException(), frame => 0, (frame, source) => throw new NotSupportedException(), (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;
@@ -202,21 +203,21 @@ public sealed class NativeBattleEffect70ControllerTests
         NativeBattleEffectArena rotation = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)123));
         NativeBattleEffectArena offset = NativeBattleEffectArena.Clear().Write(2, BitConverter.GetBytes((short)-45));
         uint firstRecord = Pools[1].Bank + 0x14;
-        NativeBattleEffect70DrawActor693170 first = NativeBattleEffect70Presentation.Actor(inputs, firstRecord, 3, rotation, offset, 2048);
-        NativeBattleEffect70DrawActor693170 second = NativeBattleEffect70Presentation.Actor(inputs, firstRecord + 24, 4, rotation, offset, 2048);
-        NativeBattleEffect70DrawActor693170 repeatedActor = NativeBattleEffect70Presentation.Actor(inputs, firstRecord + 48, 3, rotation, offset, 2048);
+        NativeBattleEffect70DrawActor693170 first = NativeBattleEffect70Presentation.Actor(inputs, firstRecord, OriginalOwner(3), rotation, offset, 2048);
+        NativeBattleEffect70DrawActor693170 second = NativeBattleEffect70Presentation.Actor(inputs, firstRecord + 24, OriginalOwner(4), rotation, offset, 2048);
+        NativeBattleEffect70DrawActor693170 repeatedActor = NativeBattleEffect70Presentation.Actor(inputs, firstRecord + 48, OriginalOwner(3), rotation, offset, 2048);
         const uint sharedGeometry = 0x1234000;
         NativeBattlePilotVisualIdentity a = first.PilotIdentity!.Value with { ResourceGeneration = sharedGeometry };
         NativeBattlePilotVisualIdentity b = second.PilotIdentity!.Value with { ResourceGeneration = sharedGeometry };
         NativeBattlePilotVisualIdentity c = repeatedActor.PilotIdentity!.Value with { ResourceGeneration = sharedGeometry };
         Assert.NotEqual(a, b);
         Assert.NotEqual(a, c);
-        Assert.Equal(first.PilotIdentity, NativeBattleEffect70Presentation.Actor(inputs, firstRecord, 3, rotation, offset, 2048).PilotIdentity);
-        Assert.Equal(3, first.Actor);
+        Assert.Equal(first.PilotIdentity, NativeBattleEffect70Presentation.Actor(inputs, firstRecord, OriginalOwner(3), rotation, offset, 2048).PilotIdentity);
+        Assert.Equal(OriginalOwner(3), first.Actor);
         Assert.Equal((short)2048, first.Scale);
         Assert.Same(rotation, first.Rotation8);
         Assert.Same(offset, first.Offset8);
-        NativeBattleEffect70DrawActor693170 native = NativeBattleEffect70Presentation.Actor(inputs with { CapturePresentation = false }, firstRecord, 3, rotation, offset, 2048);
+        NativeBattleEffect70DrawActor693170 native = NativeBattleEffect70Presentation.Actor(inputs with { CapturePresentation = false }, firstRecord, OriginalOwner(3), rotation, offset, 2048);
         Assert.Null(native.PilotIdentity);
         Assert.Equal(first with { PilotIdentity = null }, native);
     }

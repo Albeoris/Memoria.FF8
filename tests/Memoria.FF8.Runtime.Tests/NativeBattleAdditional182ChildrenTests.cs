@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -60,7 +61,7 @@ public sealed class NativeBattleAdditional182ChildrenTests
             identities.Add(Assert.IsType<NativeBattleAdditional182DrawSprite180>(operation).PilotIdentity!.Value);
             return Feedback(current, ((NativeBattleAdditional182DrawSprite180)operation).TemporaryAddress, 0);
         }, 0x201) with { CapturePresentation = true };
-        var plainFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        var plainFrame = NativeBattleTestSnapshots.Independent(frame);
         string plain = NativeBattleTestSnapshots.Json(AdvanceSlots(plainFrame, ChildBank, Resources, Inputs(flags: 0x201)).Frame);
         frame = AdvanceSlots(frame, ChildBank, Resources, inputs).Frame;
         Assert.Equal(plain, NativeBattleTestSnapshots.Json(frame));
@@ -389,7 +390,7 @@ public sealed class NativeBattleAdditional182ChildrenTests
             Assert.Equal((ushort)0, actual.Frame.State.ReadWord(bank + 14));
         }
         Assert.Equal(NativeBattleTemporaryMemory.Address, Cursor(actual.Frame));
-        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        var restored = NativeBattleTestSnapshots.Independent(actual.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
@@ -504,7 +505,7 @@ public sealed class NativeBattleAdditional182ChildrenTests
         return frame with { State = frame.State.WriteDword(at, 1).WriteView(at + 4, NativeBattleEffectArena.Clear().Write(0, packed.Bytes.AsSpan()).MarkUnknown(18, 2), 32) };
     }
 
-    private static NativeBattleAdditional182Inputs Inputs(Func<NativeBattleAdditional182Frame, NativeBattleAdditional182Operation, NativeBattleAdditional182Frame>? execute = null, uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleAdditional182DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
+    private static NativeBattleAdditional182Inputs Inputs(Func<NativeBattleAdditional182Frame, NativeBattleAdditional182Operation, NativeBattleAdditional182Frame>? execute = null, uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleAdditional182DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
     private static NativeBattleAdditional182Frame Feedback(NativeBattleAdditional182Frame frame, uint temporary, short value) => PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0x28, BitConverter.GetBytes(value)), 180);
     private static uint Cursor(NativeBattleAdditional182Frame frame) => BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -135,8 +136,8 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect80State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(sourceSession.NativeEffectMemory!.Effect80)));
         Assert.Equal((ushort)1448, original.NativeModelCpuResources!.ScratchMaximum);
         Assert.Equal(new NativeBattleClockState(1, 0, 0), original.NativeClock);
-        BattleCombatantDefinition caster = sourceSession.GetCombatantDefinition(graphics.ActorIds[4] ?? throw new InvalidDataException("Effect80 requires its actual caster allocation."));
-        BattleCombatantDefinition recipient = sourceSession.GetCombatantDefinition(graphics.ActorIds[5] ?? throw new InvalidDataException("Effect80 requires its actual recipient allocation."));
+        BattleCombatantDefinition caster = sourceSession.GetCombatantDefinition(ReadOriginalModelActorId(graphics, 4) ?? throw new InvalidDataException("Effect80 requires its actual caster allocation."));
+        BattleCombatantDefinition recipient = sourceSession.GetCombatantDefinition(ReadOriginalModelActorId(graphics, 5) ?? throw new InvalidDataException("Effect80 requires its actual recipient allocation."));
         Assert.Equal(123, caster.ModelId);
         Assert.Equal(124, recipient.ModelId);
         NativeBattleEnemyAllocation allocation = Assert.Single(original.NativeAllocations, item => item.Id == recipient.Id);
@@ -145,15 +146,15 @@ public sealed class NativeBattleEffect80PresentationTests
         BattleCombatantDefinition prototype = Assert.Single(original.Definition.Combatants, actor => !actor.IsPlayer && actor.SceneSlot == allocation.SceneSlot);
         Assert.Equal(124, prototype.ModelId);
         Assert.NotEqual(prototype.Id, recipient.Id);
-        Assert.Equal((byte)139, graphics.Models[4].ModelId4);
-        Assert.Equal((byte)140, graphics.Models[5].ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(graphics, 4).ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(graphics, 5).ModelId4);
         foreach ((byte index, int bones) in new[] { ((byte)4, 2), ((byte)5, 71) })
         {
-            BattleCombatantDefinition actor = sourceSession.GetCombatantDefinition(graphics.ActorIds[index] ?? throw new InvalidDataException("Effect80 requires its current physical allocation."));
+            BattleCombatantDefinition actor = sourceSession.GetCombatantDefinition(ReadOriginalModelActorId(graphics, index) ?? throw new InvalidDataException("Effect80 requires its current physical allocation."));
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actor).PoseSource ?? throw new InvalidDataException("Effect80 requires its current allocated skeleton.");
-            Assert.Equal(bones, NativeBattleBodyBoneMatrices.Require(graphics.Models[index], pose).Length);
-            Assert.NotNull(graphics.Models[index].GeometryBounds52);
-            Assert.NotNull(graphics.Models[index].GeometryWorldMatrix);
+            Assert.Equal(bones, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, index), pose).Length);
+            Assert.NotNull(ReadOriginalModelCell(graphics, index).GeometryBounds52);
+            Assert.NotNull(ReadOriginalModelCell(graphics, index).GeometryWorldMatrix);
         }
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 352 && row.MagicId == 80 && row.KernelSection == 3 && row.KernelIndex == 352);
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(123, 1), action));
@@ -164,12 +165,12 @@ public sealed class NativeBattleEffect80PresentationTests
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(4, 8, 13, -1, 352, 80, null));
-        NativeBattleContactPacket contact = new(new(5, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 13, -1, 352, 80, null));
+        NativeBattleContactPacket contact = new(new(OriginalOwner(5), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts, packets.Headers[header].FirstContactIndex);
+        Assert.Equal(priorContacts, packets.ReadHeader(new BattleActionHeaderReference(header)).FirstContact.Ordinal);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([80])[79];
         Assert.Equal(Entry, binding.Entry);
@@ -177,10 +178,10 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Same(game.ReadNativeEffect80Resources(), binding.Effect80Resources);
         NativeBattlePresentationStatusMemory presentationStatus = (original.NativePresentationStatusMemory ?? throw new InvalidDataException("Effect80 requires its current physical presentation-status bank.")).Observe(5, preparedTarget.NativeStatus!.Presentation);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(79, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == target.Id ? preparedTarget : actor).ToArray(), NativePresentationStatusMemory = presentationStatus, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-contact.json"), JsonSerializer.Serialize(new { Scenario = "Declared post-formula Amount0 contact after actual native allocation; no ordinary AI, death admission, action74 replay or damage formula", Action = action, Header = packets.Headers[header], Contact = contact, PriorActionCount = priorActions, PriorContactCount = priorContacts, CacheProducer = "47E2D0 publishes current Saved/Battle into the presentation cache", StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, CpuScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceNativeClock = original.NativeClock }));
+        File.WriteAllText(Path.Combine(output, "declared-contact.json"), JsonSerializer.Serialize(new { Scenario = "Declared post-formula Amount0 contact after actual native allocation; no ordinary AI, death admission, action74 replay or damage formula", Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = contact, PriorActionCount = priorActions, PriorContactCount = priorContacts, CacheProducer = "47E2D0 publishes current Saved/Battle into the presentation cache", StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, CpuScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceNativeClock = original.NativeClock }));
         return source;
     }
 

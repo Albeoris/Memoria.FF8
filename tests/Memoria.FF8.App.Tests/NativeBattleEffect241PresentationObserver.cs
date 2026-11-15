@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -44,8 +45,8 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
         }
         for (int physical = 0; physical < 7; physical++)
         {
-            NativeBattleGraphicsModel initial = source.NativeGraphics!.Models[physical];
-            NativeBattleGraphicsModel model = current.NativeGraphics!.Models[physical];
+            NativeBattleGraphicsModel initial = ReadOriginalModelCell(source.NativeGraphics!, physical);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, physical);
             Assert.Equal(initial.ModelId4, model.ModelId4);
             Assert.Equal(initial.HasLinkedModelRing140, model.HasLinkedModelRing140);
             Assert.Equal(initial.LinkedModelIndex140, model.LinkedModelIndex140);
@@ -95,9 +96,9 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
             };
             Assert.Equal(241, current.NativeEffectMemory!.Cinematic!.Effect);
             int header = effect.Parameters!.HeaderIndex7C;
-            Assert.Equal((byte)1, current.NativeActionPackets!.Headers[header].ReadByte(0x10));
-            Assert.Equal((byte)0, current.NativeActionPackets.Headers[header].ReadByte(0x11));
-            Assert.Equal(45, current.NativeGraphics!.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
+            Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
+            Assert.Equal((byte)0, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
+            Assert.Equal(45, ReadOriginalModelCell(current.NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);
             if (!initialized)
             {
                 var initializerAssets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);

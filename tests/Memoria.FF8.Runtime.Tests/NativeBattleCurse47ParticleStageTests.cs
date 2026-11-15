@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -94,7 +95,7 @@ public sealed class NativeBattleCurse47ParticleStageTests
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleCurse47State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleCurse47Controller.RootCallback, 100);
             Parent = root.Address;
-            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(5, NativeBattleCurse47ParticleStage.Callback, 176, Parent, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(5, NativeBattleCurse47ParticleStage.Callback, 176, Parent, (_, _, _) => OriginalTaskActors(0, 3));
             Address = child.Address;
             hierarchy = child.Hierarchy.Write(Address, child.Hierarchy.Read(Address).WriteWord(0x20, 0xA55A));
             NativeBattleOriginalEffectState effect = new(47, 47, new(47, NativeBattleCurse47Controller.Entry, 0x82A7D0), null, null) { Pools = hierarchy.Pools };

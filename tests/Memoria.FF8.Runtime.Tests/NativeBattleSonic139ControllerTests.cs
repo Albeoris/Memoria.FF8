@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleSonic139Controller;
 using static Memoria.FF8.Runtime.NativeBattleSonic139Profile;
@@ -160,7 +161,7 @@ public sealed class NativeBattleSonic139ControllerTests
         NativeBattleSonic139Frame frame = Frame(70);
         frame = frame with { Memory = frame.Memory with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } };
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-        NativeBattleGraphicsModel model = new(0, 3) { Transform = new(new(0, 0, 0), new(0, 0, 8000), 0, 0, 0) };
+        NativeBattleGraphicsModel model = new(3) { Transform = new(new(0, 0, 0), new(0, 0, 8000), 0, 0, 0) };
         NativeBattleSonic139Inputs inputs = Inputs((current, _) => current) with { ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(identity, null), ReadProjection = _ => new(identity, 256, 160, 108) };
         var observed = IncludeActor6A9AD0(frame, model, NativeBattleSonic139Bounds.Initial, inputs);
         Assert.Equal(8000u, observed.Frame.Memory.GeometryRegisters!.Sz[3]);
@@ -198,12 +199,12 @@ public sealed class NativeBattleSonic139ControllerTests
         (main, _) = main.Append(MainCallback);
         main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)age))) });
         NativeBattleEffectTaskPool lower = NativeBattleEffectTaskPool.Initialize(LowerDescriptor, NativeBattleEffectNodeMemory.ArenaAddress, 0x298, 4);
-        NativeBattleOriginalEffectState effect = new(139, 138, new(139, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [roots, main, lower] };
+        NativeBattleOriginalEffectState effect = new(139, 138, new(139, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [roots, main, lower] };
         NativeBattleGeometryRegisters geometry = NativeBattleGeometryRegisters.Unknown() with { Translation = [777, 888, 999] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = geometry, ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleSonic139State state = NativeBattleSonic139State.FromColdProcess().WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress) with { RootBankStorage = null };
         return new(memory, effect, new(55), state);
     }
 
-    private static NativeBattleSonic139Inputs Inputs(Func<NativeBattleSonic139Frame, NativeBattleSonic139Operation, NativeBattleSonic139Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 30 }, null), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute);
+    private static NativeBattleSonic139Inputs Inputs(Func<NativeBattleSonic139Frame, NativeBattleSonic139Operation, NativeBattleSonic139Frame> execute) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 30 }, null), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute);
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -41,12 +42,12 @@ public sealed class NativeBattleEffect285CameraMemoryTests
     [Fact]
     public void Model_BYTE_stores_preserve_high_flags_and_WORD_stores_restore_only_selected_bits()
     {
-        NativeBattleGraphicsModel model = new(3, 0xABFD);
-        NativeBattleGraphicsModel cleared = BattleSession.ApplyNativeEffect285ModelFlags(model, new(0x1D97494, 1, 0xFB, 0));
+        NativeBattleGraphicsModel model = new(0xABFD);
+        NativeBattleGraphicsModel cleared = BattleSession.ApplyNativeEffect285ModelFlags(model, new(OriginalOwner(3), 1, 0xFB, 0));
         Assert.Equal((ushort)0xABF9, cleared.Flags0);
-        NativeBattleGraphicsModel restored = BattleSession.ApplyNativeEffect285ModelFlags(cleared, new(0x1D97494, 2, 0xFFFB, 4));
+        NativeBattleGraphicsModel restored = BattleSession.ApplyNativeEffect285ModelFlags(cleared, new(OriginalOwner(3), 2, 0xFFFB, 4));
         Assert.Equal(model.Flags0, restored.Flags0);
-        Assert.Throws<NotSupportedException>(() => BattleSession.ApplyNativeEffect285ModelFlags(model, new(0x1D97494, 4, 0, 0)));
+        Assert.Throws<NotSupportedException>(() => BattleSession.ApplyNativeEffect285ModelFlags(model, new(OriginalOwner(3), 4, 0, 0)));
     }
 
     private static NativeBattleCameraState Camera() => NativeBattleCameraState.Initialize() with { CurrentPose = new(new(1, 2, 3), new(7, 8, 9), 777, 123), CapturedPose = new(new(-1, -2, -3), new(-7, -8, -9), 555, -5), FocalLength = 777, Roll = 123, EyePaddingF6 = 10, CapturedEyePadding806 = null, CapturedTargetPadding80E = 14, ForceCamera = true };

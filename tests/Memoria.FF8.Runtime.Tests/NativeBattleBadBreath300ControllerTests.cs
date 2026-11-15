@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -40,7 +41,7 @@ public sealed class NativeBattleBadBreath300ControllerTests
         Assert.Equal(100, fixture.Operations.OfType<NativeBattleBadBreath300DrawStrip>().Count());
         Assert.Equal(Enumerable.Range(0, 50), fixture.Operations.OfType<NativeBattleBadBreath300Clip>().Select(operation => operation.Phase));
         Assert.Single(fixture.Operations.OfType<NativeBattleBadBreath300Contact>());
-        Assert.Equal(0, fixture.Operations.OfType<NativeBattleBadBreath300Contact>().Single().Index);
+        Assert.Equal(new BattleContactOccurrence(0), fixture.Operations.OfType<NativeBattleBadBreath300Contact>().Single().Occurrence);
         Assert.Single(fixture.Operations.OfType<NativeBattleBadBreath300Sound>());
         Assert.Equal(162, fixture.Operations.OfType<NativeBattleBadBreath300DrawParticle>().Count());
         Assert.True(fixture.ScaleGates.Count > 0);
@@ -81,7 +82,7 @@ public sealed class NativeBattleBadBreath300ControllerTests
         {
             frame = first.Step(frame);
         }
-        NativeBattleBadBreath300Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath300Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleBadBreath300Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Fixture second = new();
         second.CopyCallbackFrom(first);
         first.Operations.Clear();
@@ -153,19 +154,19 @@ public sealed class NativeBattleBadBreath300ControllerTests
 
         public Fixture()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 300, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 4), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 300, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 4), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             Packets = packets;
             byte[] skeleton = new byte[112];
             skeleton[0] = 2;
             Pose = new(skeleton.ToImmutableArray(), [1]);
-            Model = new(3, 2) { Flags8 = 0, MinimumY146 = 40, Transform = new(new(0, 0, 0), new(0, 100, 100), 0, 0, 4096) };
+            Model = new(2) { Flags8 = 0, MinimumY146 = 40, Transform = new(new(0, 0, 0), new(0, 100, 100), 0, 0, 4096) };
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, _) = root.Append(RootCallback);
-            NativeBattleOriginalEffectState effect = new(300, 300, new(300, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root] };
+            NativeBattleOriginalEffectState effect = new(300, 300, new(300, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root] };
             ImmutableArray<byte> mesh = Mesh();
             NativeBattleBadBreath300State state = new(NativeBattleEffectArena.Clear(), mesh, mesh);
             Frame = new(NativeBattleEffectMemory.FromColdProcess().BeginLoad(300), effect, new(1), state.WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

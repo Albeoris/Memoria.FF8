@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -19,7 +20,7 @@ public sealed class ExpandedEffectContactConsumerTests
 
         Publish(battle, command, new([first with { PhysicalContactIndex = 0 }], [])
         {
-            Sequences = [new(3, NativeBattleForeignSequenceKind.Hit)]
+            Sequences = [new(OriginalOwner(3), NativeBattleForeignSequenceKind.Hit)]
         });
         Assert.Throws<InvalidDataException>(() => Invoke(battle, "ValidateExpandedEffectContactCompletion"));
         Assert.Throws<InvalidDataException>(() => Publish(battle, command, new([first with { PhysicalContactIndex = 0 }], [])));
@@ -76,7 +77,7 @@ public sealed class ExpandedEffectContactConsumerTests
         typeof(BattleSession).GetField("nativeActionScratch", PrivateInstance)!.SetValue(battle, new NativeBattleActionScratch { ActorIndex = 0, Command = 2, Action = 1, EventActorB0F = 0, EventLane = 2, DeferredEffectsE00 = false });
         object? result = Invoke(battle, "ResolveExpandedHitPlan", source, command, action, native, plan, true);
         (ImmutableArray<ExpandedBattleContact> contacts, _) = Assert.IsType<ValueTuple<ImmutableArray<ExpandedBattleContact>, BattleCombatant?>>(result);
-        return contacts.Select(contact => contact.Contact.ActorIndex).ToArray();
+        return contacts.Select(contact => contact.Contact.Recipient).ToArray();
     }
 
     private static BattleSession Create()

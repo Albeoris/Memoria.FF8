@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleGatlingGun150Controller;
@@ -155,7 +156,7 @@ public sealed class NativeBattleGatlingGun150ControllerTests
         (root, _) = root.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(callback);
-        NativeBattleOriginalEffectState effect = new(150, 149, new(150, Entry, Initializer), new(3, 0, 1, 3, 0, 0), RootDescriptor) { Pools = [root, children] };
+        NativeBattleOriginalEffectState effect = new(150, 149, new(150, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(3), 0, 0), RootDescriptor) { Pools = [root, children] };
         NativeBattleGatlingGun150State state = NativeBattleGatlingGun150State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(FirstTargetGlobal, 0) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);
     }
@@ -171,15 +172,15 @@ public sealed class NativeBattleGatlingGun150ControllerTests
 
     private static NativeBattleGatlingGun150Resources Resources() => new(new(0, MeshAAddress, []), new(0, MeshBAddress, []), new(0, MeshCAddress, []), new(0, SpriteAAddress, 0, 0, []), new(0, SpriteBAddress, 0, 0, []), new(0, SpriteCAddress, 0, 0, []), new("unused", []), 0x61AD6);
     private static NativeBattleEffectArena Point(short x, short y, short z) => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z));
-    private static NativeBattleGatlingGun150Inputs Inputs(List<NativeBattleGatlingGun150Operation> operations) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), (_, actor) => new(actor, 3) { Rotation14 = 100, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(0, -800, 0), new(0, 0, 0)) }, (frame, actor, selector, offset) =>
+    private static NativeBattleGatlingGun150Inputs Inputs(List<NativeBattleGatlingGun150Operation> operations) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), (_, actor) => new(3) { Rotation14 = 100, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(0, -800, 0), new(0, 0, 0)) }, (frame, actor, selector, offset) =>
     {
-        Assert.Equal(3, actor);
+        Assert.Equal(OriginalOwner(3), actor);
         Assert.Equal(0xF0, selector);
         Assert.Equal(0, offset);
         return new(frame, Point(100, 200, 300));
     }, (frame, actor) =>
     {
-        Assert.Equal(0, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         return new(frame, Point(-501, 400, 901));
     }, (frame, operation) =>
     {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -163,7 +164,7 @@ public sealed class BattleActionPacketMigrationTests
         Assert.Empty(document["Events"]!.AsArray());
         Assert.False(document.ContainsKey("NativeActionPackets"));
         //This named pre-action boundary has no published header/contact history.48D1F0 clears counts only.
-        document["NativeActionPackets"] = JsonSerializer.SerializeToNode(NativeBattleActionPacketsState.Fresh());
+        document["NativeActionPackets"] = JsonSerializer.SerializeToNode(OriginalPackets());
         //No inferred dispatch-order or remaining-hit BYTE: the next actual485460/48EB40 writer owns them.
         document["NativeReactionOrder"] = null;
         foreach (JsonNode? combatant in document["Combatants"]!.AsArray())

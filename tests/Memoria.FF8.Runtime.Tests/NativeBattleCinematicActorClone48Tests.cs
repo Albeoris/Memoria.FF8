@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -67,7 +68,7 @@ public sealed class NativeBattleCinematicActorClone48Tests
     }, (current, actor) =>
     {
         calls.Add("hide");
-        Assert.Equal(0x1D972C0u, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         return current;
     }, _ =>
     {
@@ -80,7 +81,7 @@ public sealed class NativeBattleCinematicActorClone48Tests
     }, (current, clone, actor) =>
     {
         calls.Add("refresh");
-        Assert.Equal(0x1D972C0u, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         int offset = checked((int)(clone - NativeBattleEffectNodeMemory.ArenaAddress));
         return current with { Arena = current.Arena.MarkUnknown(offset + 0x10, 12).MarkUnknown(offset + 0x30, 16) };
     }, (current, address) =>

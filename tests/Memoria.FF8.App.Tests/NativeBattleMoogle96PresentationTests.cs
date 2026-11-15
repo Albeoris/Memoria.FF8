@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -82,19 +83,19 @@ public sealed class NativeBattleMoogle96PresentationTests
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[headerIndex];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)6, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)96, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)6, header.Action);
+        Assert.Equal((ushort)96, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
         Assert.Equal((ushort)96, Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 6).MagicId);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal(1, contact.Primary.HitFlags3 & 1);
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);
-        Assert.Equal((byte)0, graphics.Models[0].ModelId4);
+        Assert.Equal((byte)0, ReadOriginalModelCell(graphics, 0).ModelId4);
         Assert.Equal((ushort)100, source.NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([96])[95];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[95]));
@@ -173,9 +174,9 @@ public sealed class NativeBattleMoogle96PresentationTests
                     contacts++;
                 }
                 Assert.True(hp is 100 or 107);
-                for (int actor = 0; actor < graphics.Models.Length; actor++)
+                for (int actor = 0; actor < ReadOriginalModelCells(graphics).Length; actor++)
                 {
-                    Assert.Equal(graphics.Models[actor].ActiveStagedResourceRow100, current.NativeGraphics.Models[actor].ActiveStagedResourceRow100);
+                    Assert.Equal(ReadOriginalModelCell(graphics, actor).ActiveStagedResourceRow100, ReadOriginalModelCell(current.NativeGraphics, actor).ActiveStagedResourceRow100);
                 }
                 NativeBattleMoogle96State? state = current.NativeEffectMemory?.Moogle96;
                 NativeBattleMoogle96IoState? previousIo = prior.NativeEffectMemory?.Moogle96?.Io;
@@ -226,12 +227,12 @@ public sealed class NativeBattleMoogle96PresentationTests
                 {
                     for (int actor = 3; actor < 7; actor++)
                     {
-                        if ((graphics.Models[actor].Flags0 & 2) == 0)
+                        if ((ReadOriginalModelCell(graphics, actor).Flags0 & 2) == 0)
                         {
                             continue;
                         }
-                        Assert.Equal(graphics.Models[actor].Flags0 & 4, current.NativeGraphics.Models[actor].Flags0 & 4);
-                        Assert.Equal(0x800, current.NativeGraphics.Models[actor].Flags0 & 0x800);
+                        Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, ReadOriginalModelCell(current.NativeGraphics, actor).Flags0 & 4);
+                        Assert.Equal(0x800, ReadOriginalModelCell(current.NativeGraphics, actor).Flags0 & 0x800);
                     }
                     sawEnemyRestoreWithOverride = true;
                 }
@@ -290,16 +291,16 @@ public sealed class NativeBattleMoogle96PresentationTests
             Assert.Equal(source.NativeStage!.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.NativeStage.Groups.Select(group => group.Flags).ToArray());
             for (int actor = 3; actor < 7; actor++)
             {
-                if ((graphics.Models[actor].Flags0 & 2) == 0)
+                if ((ReadOriginalModelCell(graphics, actor).Flags0 & 2) == 0)
                 {
                     continue;
                 }
-                NativeBattleGraphicsModel model = battle.NativeGraphics!.Models[actor];
-                Assert.Equal(graphics.Models[actor].Flags0 & 4, model.Flags0 & 4);
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, actor);
+                Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, model.Flags0 & 4);
                 Assert.Equal(0, model.Flags0 & 0x7800);
                 Assert.Equal(transition & 0xFFFFFFu, model.Color40);
                 Assert.Equal((byte)0, model.Alpha7);
-                Assert.Equal(graphics.Models[actor].Color44, model.Color44);
+                Assert.Equal(ReadOriginalModelCell(graphics, actor).Color44, model.Color44);
             }
             NativeBattleOriginalEffectState finished = battle.NativeGraphics!.OriginalEffect!;
             Assert.Equal((ushort)96, finished.Binding.Effect);

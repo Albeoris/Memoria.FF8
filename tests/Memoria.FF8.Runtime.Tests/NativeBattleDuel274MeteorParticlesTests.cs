@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -71,6 +72,6 @@ public sealed class NativeBattleDuel274MeteorParticlesTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508478, NativeBattleEffectNodeMemory.ArenaAddress + 0x4000, 44, 32);
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
-        return new(memory, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0) { Pools = [pool] }, NativeBattleFileStaging.Unknown(), new(1));
+        return new(memory, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0) { Pools = [pool] }, NativeBattleFileStaging.Unknown(), new(1));
     }
 }

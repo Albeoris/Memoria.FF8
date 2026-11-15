@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -12,7 +13,7 @@ public sealed class NativeBattleEffect344ControllerTests
     public void Entry_preserves_write_only_target_byte_without_model_eligibility_gate()
     {
         NativeBattleActionPacketsState packets = Packets();
-        NativeBattleContactPacket contact = packets.ReadContact(0);
+        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         packets = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { ActorIndex = 255 } }) };
         Harness harness = new() { CurrentPackets = packets };
         NativeBattleEffect344Frame frame = Initialize(Cold(), Resources(), harness.Inputs());
@@ -86,7 +87,7 @@ public sealed class NativeBattleEffect344ControllerTests
         Assert.Equal((ushort)33, Read(step.Frame, ChildBank).ReadWord(12));
         Assert.Collection(harness.Operations,
             operation => Assert.Equal(new NativeBattleEffect344RegisterCamera5099A0(CameraAddress), operation),
-            operation => Assert.Equal(new NativeBattleEffect344SetSequence505C00(4, 20), operation));
+            operation => Assert.Equal(new NativeBattleEffect344SetSequence505C00(OriginalOwner(4), 20), operation));
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public sealed class NativeBattleEffect344ControllerTests
         Assert.Equal((ushort)35, Read(step.Frame, ChildBank).ReadWord(12));
         Assert.Collection(harness.Operations,
             operation => Assert.Equal(new NativeBattleEffect344MusicGain501B10(0, 127), operation),
-            operation => Assert.Equal(new NativeBattleEffect344ConsumeFirstContact506690(1), operation));
+            operation => Assert.Equal(new NativeBattleEffect344ConsumeFirstContact506690(new BattleContactOccurrence(1)), operation));
         Assert.Equal(6u, step.Frame.State.ReadDword(TargetGlobal));
     }
 
@@ -136,7 +137,7 @@ public sealed class NativeBattleEffect344ControllerTests
     {
         NativeBattleEffect344Frame frame = AtAge(31);
         frame = frame with { State = frame.State with { Storage = frame.State.Storage.MarkUnknown(checked((int)(CompletionGlobal - BaseAddress)), 1) } };
-        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect344Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        frame = NativeBattleTestSnapshots.Independent(frame);
         Assert.Throws<NotSupportedException>(() => AdvanceChild(frame, ChildBank, new Harness().Inputs()));
         Assert.Throws<NotSupportedException>(() => WriteCompletionByte(frame, CompletionGlobal + 1, 1));
     }
@@ -151,7 +152,7 @@ public sealed class NativeBattleEffect344ControllerTests
 
     private static NativeBattleEffect344Frame Cold()
     {
-        NativeBattleOriginalEffectState effect = new(344, 343, new(344, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(344, 343, new(344, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null);
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, NativeBattleEffect344State.FromColdProcess());
     }
 
@@ -183,11 +184,11 @@ public sealed class NativeBattleEffect344ControllerTests
 
     private static NativeBattleActionPacketsState Packets(byte first = 6)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (packets, _) = packets.Prepare(new(4, 8, 16, -1, 368, 344, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 16, -1, 368, 344, null));
         foreach (byte actor in new byte[] { first, 1 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), null));
         }
         (packets, _) = packets.Publish(2);
         return packets;

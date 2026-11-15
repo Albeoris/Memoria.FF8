@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -105,17 +106,17 @@ public sealed class NativeBattleRestorationContextTests
     private static (NativeBattleRestorationFrame Frame, uint Address, NativeBattleRestorationControllerInputs Inputs) Fixture(ushort effect)
     {
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, effect == 27 ? (ushort)25 : (ushort)27, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, effect == 27 ? (ushort)25 : (ushort)27, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(2);
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(2, 1, 24, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0)] };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(3), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0)] };
         NativeBattleRestorationFrame frame = NativeBattleRestorationController.Initialize(NativeBattleEffectMemory.FromColdProcess().WithRestorationExecutable(NativeBattleRestorationExecutableState.FromColdProcess(effect)).BeginLoad(effect - 1), selected, packets, Resources(effect));
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, profile.TargetCallback, 88, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
-        NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, first.Address, (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, profile.TargetCallback, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(2, 3));
+        NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, first.Address, (_, _, _) => OriginalTaskActors(2, 3));
         hierarchy = child.Hierarchy;
         hierarchy = hierarchy.Write(child.Address, hierarchy.Read(child.Address).WriteDword(0x30, NativeBattleRestorationProfile.ForEffect(effect).ExecutableAddress).WriteWord(0x29E, 45));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
@@ -128,7 +129,7 @@ public sealed class NativeBattleRestorationContextTests
         {
             NativeBattleVector position = index == 2 ? new(0, 100, 0) : index == 3 ? new(-10, -200, 30) : new(20, -400, -50);
             short angle36 = index == 2 ? (short)-3 : index == 3 ? (short)10 : (short)-20;
-            return new(index, 0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
+            return new(0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
         }
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         return (frame, child.Address, new(packets, camera, Model, _ => source));

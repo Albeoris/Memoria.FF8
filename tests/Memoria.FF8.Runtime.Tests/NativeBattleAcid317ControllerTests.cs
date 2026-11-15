@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -32,7 +33,7 @@ public sealed class NativeBattleAcid317ControllerTests
         Assert.Equal(4, frame.Effect.Pools.Length);
         Assert.Equal(new ushort[] { 20, 616, 80, 32 }, frame.Effect.Pools.Select(pool => pool.Stride));
         Assert.Equal(new[] { 1, 1, 8, 128 }, frame.Effect.Pools.Select(pool => pool.Slots.Length));
-        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleAcid317SnapshotBody(3, ArenaAddress + BodyCacheOffset), operation), operation => Assert.Equal(new NativeBattleAcid317BindCaster(0, ArenaAddress + BindingOffset, 0xFFE6B0), operation), operation => Assert.Equal(new NativeBattleAcid317RingSequence(0, 3), operation), operation => Assert.Equal(new NativeBattleAcid317ActorFlags(3, 4, 0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleAcid317SnapshotBody(OriginalOwner(3), ArenaAddress + BodyCacheOffset), operation), operation => Assert.Equal(new NativeBattleAcid317BindCaster(OriginalOwner(0), ArenaAddress + BindingOffset, 0xFFE6B0), operation), operation => Assert.Equal(new NativeBattleAcid317RingSequence(OriginalOwner(0), 3), operation), operation => Assert.Equal(new NativeBattleAcid317ActorFlags(OriginalOwner(3), 4, 0), operation));
         Assert.Equal((ushort)1, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.Equal((ushort)99, frame.Effect.Pools[1].Slots[0].ReadWord(0x1C));
         Assert.Equal((byte)1, NativeBattleAcid317Controller.Read(frame, RootBank).ReadByte(14));
@@ -49,7 +50,7 @@ public sealed class NativeBattleAcid317ControllerTests
         Fixture fixture = new();
         NativeBattleAcid317Frame frame = fixture.TargetPhase(57);
         frame = fixture.Step(frame);
-        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleAcid317AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleAcid317ActorFlags(3, 0, 4), operation), operation => Assert.Equal(new NativeBattleAcid317DrawBody132(3, unchecked((short)NativeBattleCameraMath.Sine(24 * 2048 / 40))), operation), operation => Assert.Equal(new NativeBattleAcid317Contact(0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleAcid317AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleAcid317ActorFlags(OriginalOwner(3), 0, 4), operation), operation => Assert.Equal(new NativeBattleAcid317DrawBody132(OriginalOwner(3), unchecked((short)NativeBattleCameraMath.Sine(24 * 2048 / 40))), operation), operation => Assert.Equal(new NativeBattleAcid317Contact(new BattleContactOccurrence(0)), operation));
         Assert.Equal((ushort)58, frame.Effect.Pools[1].Slots[0].ReadWord(12));
     }
 
@@ -58,7 +59,7 @@ public sealed class NativeBattleAcid317ControllerTests
     {
         Fixture fixture = new();
         NativeBattleAcid317Frame frame = fixture.Step(fixture.TargetPhase(73));
-        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleAcid317AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleAcid317ActorFlags(3, 4, 0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleAcid317AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleAcid317ActorFlags(OriginalOwner(3), 4, 0), operation));
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)73, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.All(frame.Effect.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
@@ -99,7 +100,7 @@ public sealed class NativeBattleAcid317ControllerTests
         Assert.NotNull(frame.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Null(frame.Memory.ScriptedColorRegisters.Material);
         Assert.Equal(11, first.MouthCalls);
-        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.Independent(frame);
         first.Operations.Clear();
         Fixture second = new();
         Assert.Equal(NativeBattleTestSnapshots.Json(first.Step(frame)), NativeBattleTestSnapshots.Json(second.Step(restored)));
@@ -115,10 +116,10 @@ public sealed class NativeBattleAcid317ControllerTests
         private readonly NativeBattleAcid317Resources resources;
         public Fixture()
         {
-            packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 317, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 317, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, _) = root.Append(RootCallback);
@@ -126,7 +127,7 @@ public sealed class NativeBattleAcid317ControllerTests
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, ArenaAddress + 0x1280, 616, 1);
             (target, _) = target.Append(TargetCallback);
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteBytes(12, new byte[604]).WriteWord(12, 10).WriteDword(16, 0x1D97494)) });
-            NativeBattleOriginalEffectState effect = new(317, 317, new(317, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(TrailDescriptor, ArenaAddress + 0x1000, 80, 8), NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, ArenaAddress, 32, 128)] };
+            NativeBattleOriginalEffectState effect = new(317, 317, new(317, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(TrailDescriptor, ArenaAddress + 0x1000, 80, 8), NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, ArenaAddress, 32, 128)] };
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
             for (int index = 0; index < PointCount; index++)
             {
@@ -148,7 +149,7 @@ public sealed class NativeBattleAcid317ControllerTests
             (particles, _) = particles.Append(callback);
             return Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(1, targets).SetItem(3, particles) } };
         }
-        public NativeBattleAcid317Frame Step(NativeBattleAcid317Frame frame) => NativeBattleAcid317Controller.Advance(frame, resources, new(packets, actor => new(actor, 2), _ => 30, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, _) => new(current, new(100, 200, 300, 99)), (current, _, _, _) => new(current, new(200, 250, 400)), current =>
+        public NativeBattleAcid317Frame Step(NativeBattleAcid317Frame frame) => NativeBattleAcid317Controller.Advance(frame, resources, new(packets, actor => new(2), _ => 30, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, _) => new(current, new(100, 200, 300, 99)), (current, _, _, _) => new(current, new(200, 250, 400)), current =>
         {
             MouthCalls++;
             return new(current, new(20, 30, 40));

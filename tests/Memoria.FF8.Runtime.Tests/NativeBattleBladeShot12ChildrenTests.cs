@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleBladeShot12Controller;
 using static Memoria.FF8.Runtime.NativeBattleBladeShot12Profile;
@@ -94,5 +95,5 @@ public sealed class NativeBattleBladeShot12ChildrenTests
         }
         return Write(frame, pool.BankAddress, task);
     }
-    private static NativeBattleBladeShot12Inputs Inputs(Func<NativeBattleBladeShot12Frame, NativeBattleBladeShot12Operation, NativeBattleBladeShot12Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, _) => current));
+    private static NativeBattleBladeShot12Inputs Inputs(Func<NativeBattleBladeShot12Frame, NativeBattleBladeShot12Operation, NativeBattleBladeShot12Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, _) => current));
 }

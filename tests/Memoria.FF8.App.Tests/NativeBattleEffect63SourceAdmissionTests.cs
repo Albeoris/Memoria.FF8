@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -36,7 +37,7 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
         {
             int physical = index + 3;
             int original = index == 0 ? 124 : 125;
-            BattleCombatantDefinition definition = session.GetCombatantDefinition(source.NativeGraphics.ActorIds[physical]!);
+            BattleCombatantDefinition definition = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, physical)!);
             Assert.Equal(original, definition.ModelId);
             Assert.True(definition.InitialActive);
             BattleEnemyPlacement placement = Assert.Single(formation.Enemies, actor => actor.Slot == definition.SceneSlot && actor.ModelId == original);
@@ -44,18 +45,18 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
             Assert.Equal(placement.Hidden, definition.InitialHidden);
             Assert.Equal(placement.InitiallySuspended, definition.InitialSuspended);
             Assert.Equal(placement.Untargetable, definition.InitialUntargetable);
-            NativeBattleGraphicsModel current = source.NativeGraphics.Models[physical];
+            NativeBattleGraphicsModel current = ReadOriginalModelCell(source.NativeGraphics, physical);
             Assert.Equal(checked((byte)(original + 16)), current.ModelId4);
             Assert.NotEqual(0, current.Flags0 & 2);
             Assert.NotNull(current.Transform);
             Assert.NotNull(current.GeometryWorldMatrix);
             actors.Add(new { Physical = physical, definition.ModelId, definition.SceneSlot, placement.Enabled, placement.Hidden, placement.InitiallySuspended, placement.Untargetable, current.Flags0, current.Transform });
         }
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(source.NativeGraphics.ActorIds[4]!);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 4)!);
         Assert.Equal(1, caster.SceneSlot);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 361 && row.MagicId == 63 && row.KernelSection == 3 && row.KernelIndex == 361);
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleGraphicsModel model = source.NativeGraphics.Models[4];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new NotSupportedException("The current caster requires its actual skeleton.");
         Assert.Equal(2, pose.BoneCount);
         Assert.Equal(pose.BoneCount, NativeBattleBodyBoneMatrices.Require(model, pose).Length);
@@ -67,7 +68,7 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
         short midX = unchecked((short)((Word(first, 0) + Word(second, 0)) / 2));
         short midY = unchecked((short)((Word(first, 2) + Word(second, 2)) / 2));
         short midZ = unchecked((short)((Word(first, 4) + Word(second, 4)) / 2));
-        NativeBattleModelTransform target = source.NativeGraphics.Models[0].Transform ?? throw new NotSupportedException("The source requires its actual current target position.");
+        NativeBattleModelTransform target = ReadOriginalModelCell(source.NativeGraphics, 0).Transform ?? throw new NotSupportedException("The source requires its actual current target position.");
         int x = midX - target.Position28.X;
         int z = target.Position28.Z - midZ;
         (NativeBattleActionMatrix basis, int length) = NativeBattleFunguarLaser277.Basis50CBA0(x, 0, z);

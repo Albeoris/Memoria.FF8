@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -20,14 +21,14 @@ public sealed class NativeBattleReflectResourcesTests
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
         for (int action = 0; action < actions; action++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 106, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 106, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, checked((byte)actions));
-        NativeBattleOriginalEffectState effect = new(106, 105, new(106, 0x6D2AE0, 0x6D2AC0), new(0, 1, 8, 0, 0, 0), null);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), checked((byte)actions));
+        NativeBattleOriginalEffectState effect = new(106, 105, new(106, 0x6D2AE0, 0x6D2AC0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleReflectFrame frame = NativeBattleReflectController.Initialize(NativeBattleEffectMemory.FromColdProcess(), effect, resources, 1);
-        NativeBattleGraphicsModel model = new(3, 1) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0 };
+        NativeBattleGraphicsModel model = new(1) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0 };
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
         int allocations = 0;

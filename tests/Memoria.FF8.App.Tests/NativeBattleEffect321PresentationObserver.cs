@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -51,8 +52,8 @@ internal sealed class NativeBattleEffect321PresentationObserver
         int age = main?.ReadWord(12) ?? -1;
         int oldAge = before?.ReadWord(12) ?? -1;
         callbacks.UnionWith(tasks.Values.Select(task => task.Callback));
-        Assert.Equal((byte)100, graphics.Models[3].ModelId4);
-        Assert.Equal(11, graphics.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal((byte)100, ReadOriginalModelCell(graphics, 3).ModelId4);
+        Assert.Equal(11, ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.Matrices.Length);
         if (current.NativeCamera?.ControlResource is { } control && control.Source.Identity == resources.Camera.Identity)
         {
             Assert.Equal(8, control.StreamOffset);
@@ -111,10 +112,10 @@ internal sealed class NativeBattleEffect321PresentationObserver
             int actor = unchecked((short)task.ReadWord(14));
             Assert.InRange(actor, 0, 6);
             uint saved = SavedActorsAddress + (uint)(actor * SavedActorStride);
-            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]);
+            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(ReadOriginalModelCell(graphics, actor));
             if (!previous.ContainsKey(address))
             {
-                NativeBattleEffectArena entering = NativeBattleRaldo19ModelMemory.Capture(prior.NativeGraphics!.Models[actor]);
+                NativeBattleEffectArena entering = NativeBattleRaldo19ModelMemory.Capture(ReadOriginalModelCell(prior.NativeGraphics!, actor));
                 Assert.Equal((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(entering.Read(0, 2)) & 0x1020), state.ReadWord(saved));
                 EqualSnapshot(entering, 12, state.ReadView(saved + 4, 8), 0, 8);
                 EqualSnapshot(entering, 28, state.ReadView(saved + 12, 8), 0, 8);
@@ -124,7 +125,7 @@ internal sealed class NativeBattleEffect321PresentationObserver
             int targetAge = task.ReadWord(12);
             if (targetAge is >= 1 and < 66)
             {
-                Assert.Equal(0x1020, graphics.Models[actor].Flags0 & 0x1020);
+                Assert.Equal(0x1020, ReadOriginalModelCell(graphics, actor).Flags0 & 0x1020);
                 orbit |= !model.Read(28, 6).SequenceEqual(state.Read(saved + 12, 6));
             }
             if (targetAge is 1 or 12 or 54 or 66 or 67)
@@ -141,10 +142,10 @@ internal sealed class NativeBattleEffect321PresentationObserver
             Assert.Equal((ushort)67, task.ReadWord(12));
             int actor = unchecked((short)task.ReadWord(14));
             uint saved = SavedActorsAddress + (uint)(actor * SavedActorStride);
-            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]);
+            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(ReadOriginalModelCell(graphics, actor));
             EqualSnapshot(model, 12, state.ReadView(saved + 4, 8), 0, 8);
             EqualSnapshot(model, 28, state.ReadView(saved + 12, 8), 0, 8);
-            Assert.Equal((uint)state.ReadWord(saved), (uint)(graphics.Models[actor].Flags0 & 0x1020));
+            Assert.Equal((uint)state.ReadWord(saved), (uint)(ReadOriginalModelCell(graphics, actor).Flags0 & 0x1020));
             restoredActor = true;
             Contacts++;
             Mark("effect321-restored-target-contact67-to68", current, cold);

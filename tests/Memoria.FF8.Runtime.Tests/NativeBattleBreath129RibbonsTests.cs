@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -12,7 +13,7 @@ public sealed class NativeBattleBreath129RibbonsTests
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         NativeBattleBreath129State state = NativeBattleBreath129State.FromColdProcess().WriteDword(0x252117C, NativeBattleEffectNodeMemory.ArenaAddress + 0x3B70);
-        NativeBattleBreath129Frame frame = new(memory, new(129, 128, new(129, 0x6B4C00, 0x6B4C10), new(0, 0, 0, 0, 0, 0), 0), new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+        NativeBattleBreath129Frame frame = new(memory, new(129, 128, new(129, 0x6B4C00, 0x6B4C10), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), 0), new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         (frame, uint address) = NativeBattleBreath129Controller.Allocate(frame, 256);
         NativeBattleEffectArena points = NativeBattleBreath129Controller.Context(frame, address, 256);
         for (int index = 0; index < 16; index++)
@@ -21,7 +22,7 @@ public sealed class NativeBattleBreath129RibbonsTests
         }
         frame = NativeBattleBreath129Controller.PublishContext(frame, address, points, 256);
         List<NativeBattleBreath129AppendPacket> packets = [];
-        NativeBattleBreath129Inputs inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(identity, null), _ => new(identity, 256, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleBreath129Inputs inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(identity, null), _ => new(identity, 256, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             packets.Add(Assert.IsType<NativeBattleBreath129AppendPacket>(operation));
             return current;

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -122,7 +123,7 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend stage = hierarchy.Append8DC540(4, fixture.Frame.Profile.Callback(0x8B0660), 140, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend stage = hierarchy.Append8DC540(4, fixture.Frame.Profile.Callback(0x8B0660), 140, root, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = stage.Hierarchy.Pools } };
         List<NativeBattleActorDirectorOperation> operations = [];
         NativeBattleActorDirectorInputs inputs = fixture.Inputs with
@@ -163,7 +164,7 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, fixture.Inputs);
         Assert.Equal((byte)6, frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
-        NativeBattleActorDirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleActorDirectorFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleActorDirectorFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleActorDirectorFrame expected = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, fixture.Inputs);
         NativeBattleActorDirectorFrame actual = NativeBattleActorDirectorController.Advance(restored, fixture.Resources, fixture.Inputs);
         Assert.Equal((byte)7, actual.Effect.Pools[0].Slots[0].ReadByte(0x29));
@@ -256,7 +257,7 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend stage = hierarchy.Append8DC540(4, fixture.Frame.Profile.Callback(0x8B0660), 140, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend stage = hierarchy.Append8DC540(4, fixture.Frame.Profile.Callback(0x8B0660), 140, root, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = stage.Hierarchy.Pools } };
         List<NativeBattleActorDirectorStage> operations = [];
         NativeBattleActorDirectorInputs inputs = fixture.Inputs with
@@ -329,7 +330,7 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, fixture.Frame.Profile.Callback(0x8AB600), 72, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, fixture.Frame.Profile.Callback(0x8AB600), 72, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteByte(0x29, phase));
         return (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }, fixture.Resources, fixture.Inputs, child.Address);
     }
@@ -337,12 +338,12 @@ public sealed class NativeBattleActorDirectorTests
     private static (NativeBattleActorDirectorFrame Frame, NativeBattleActorDirectorResources Resources, NativeBattleActorDirectorInputs Inputs) Fixture(ushort effect)
     {
         NativeBattleActorDirectorProfile profile = NativeBattleActorDirectorProfile.ForEffect(effect);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0x1000)] };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0x1000)] };
         NativeBattleActorDirectorResources resources = Resources(effect);
         NativeBattleActorDirectorFrame frame = NativeBattleActorDirectorController.Initialize(new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, selected, NativeBattleActorDirectorState.FromColdProcess(effect)), resources, packets);
         byte[] skeleton = new byte[64];
@@ -354,7 +355,7 @@ public sealed class NativeBattleActorDirectorTests
         return (frame, resources, inputs);
     }
 
-    private static NativeBattleGraphicsModel Model(int index) => new(index, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+    private static NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
 
     private static NativeBattleActorDirectorResources Resources(ushort effect)
     {

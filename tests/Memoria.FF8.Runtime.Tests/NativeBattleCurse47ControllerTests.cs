@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -160,13 +161,13 @@ public sealed class NativeBattleCurse47ControllerTests
         public Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47Step> Leaf { get; set; } = (_, _) => throw new NotSupportedException("Actual lower callback required.");
         public Fixture(byte phase)
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(2, 2, 11, 0, 32, 15, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 32, 15, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             Packets = packets;
-            NativeBattleEffectParameters parameters = new(0, 1, 47, 0, 0, 0);
+            NativeBattleEffectParameters parameters = new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0);
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleCurse47State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleCurse47Controller.RootCallback, 100);
             Address = root.Address;
@@ -179,7 +180,7 @@ public sealed class NativeBattleCurse47ControllerTests
         public NativeBattleCurse47Frame PutRoot(NativeBattleCurse47Frame frame, NativeBattleModulePoolTask task) => NativeBattleCurse47Controller.Write(frame, Address, task);
         public NativeBattleCurse47Frame Append(NativeBattleCurse47Frame frame, int pool, uint callback, out uint address)
         {
-            NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(pool, callback, NativeBattleCurse47State.Pools[pool].Stride, Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(pool, callback, NativeBattleCurse47State.Pools[pool].Stride, Address, (_, _, _) => OriginalTaskActors(0, 3));
             address = appended.Address;
             return frame with { Effect = frame.Effect with { Pools = appended.Hierarchy.Pools } };
         }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -38,7 +39,7 @@ public sealed class NativeBattleDuel112GeometryTests
         List<byte> bones = [];
         NativeBattleVector result = NativeBattleDuel112Geometry.Midpoint6CD8B0(0x1D972C0, (actor, bone, fraction) =>
         {
-            Assert.Equal(0x1D972C0u, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.Equal((short)0, fraction);
             bones.Add(bone);
             return bone == 21 ? new(-1, 32767, -32768) : new(0, 32766, -32767);

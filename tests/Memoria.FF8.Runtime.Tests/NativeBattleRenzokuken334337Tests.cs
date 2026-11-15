@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -38,12 +39,12 @@ public sealed class NativeBattleRenzokuken334337Tests
                 operations.Add(operation);
                 return actual;
             },
-            ReadModel = _ => new(0, 0) { Transform = new(new(400, 0, 600), new(100, 0, 300), 0, 0, 4096) }
+            ReadModel = _ => new(0) { Transform = new(new(400, 0, 600), new(100, 0, 300), 0, 0, 4096) }
         };
         (NativeBattleEffectTaskPool pool, int slot) = Controller(335, 13);
         NativeBattleRenzokukenSpecialController.Advance334337(frame, pool, slot, inputs, Resources(), target =>
         {
-            Assert.Equal(3, target);
+            Assert.Equal(OriginalOwner(3), target);
             return new(1200, -50, -800, 0);
         });
         Assert.Contains(new NativeBattleRenzokukenSpecialActorPosition(1200, 3050), operations);
@@ -62,7 +63,7 @@ public sealed class NativeBattleRenzokuken334337Tests
         {
             ReadBone = (actor, bone, fraction) =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 Assert.Equal(241, bone);
                 Assert.Equal(0, fraction);
                 return new(700, -900, 1100);
@@ -148,7 +149,7 @@ public sealed class NativeBattleRenzokuken334337Tests
     }
 
     private static NativeBattleRenzokuken160Resources Resources() => new(new("animation", []), null!, [], [], [], [], 0, 0);
-    private static NativeBattleRenzokuken160Inputs Inputs() => new(0, [], _ => new(0, 0), (frame, _) => frame);
+    private static NativeBattleRenzokuken160Inputs Inputs() => new(0, [], _ => new(0), (frame, _) => frame);
 
     private static NativeBattleRenzokuken160Frame Frame(ushort effect)
     {

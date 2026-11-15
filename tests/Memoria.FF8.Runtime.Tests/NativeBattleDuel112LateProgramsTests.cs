@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -52,7 +53,7 @@ public sealed class NativeBattleDuel112LateProgramsTests
     {
         public NativeBattleDuel112Frame Frame { get; }
         public NativeBattleDuel112LateInputs Inputs { get; }
-        public NativeBattleGraphicsModel Actor { get; private set; } = new(0, 3) { Rotation14 = 3072, Transform = new(new(0, 0, 0), new(10, 20, 30), -40, 17, 4096) };
+        public NativeBattleGraphicsModel Actor { get; private set; } = new(3) { Rotation14 = 3072, Transform = new(new(0, 0, 0), new(10, 20, 30), -40, 17, 4096) };
         public int AnchorReads { get; private set; }
         public List<(int, int, int, int)> Flashes { get; } = [];
 
@@ -72,11 +73,11 @@ public sealed class NativeBattleDuel112LateProgramsTests
             NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(target.Slots[0], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xCC, 0xF48 - 12).ToImmutableArray() });
             task = task.WriteWord(12, 69).WriteDword(172, 1000).WriteDword(176, 0x1D972C0 + 156 * 3);
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
-            NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+            NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };
             Frame = new(memory, effect, NativeBattleFileStaging.Unknown().Write(0x25218E8, BitConverter.GetBytes(0x20DFAB8u)).Write(0x2521914, BitConverter.GetBytes(0x20E1940u)), new(1));
-            NativeBattleGraphicsModel enemy = new(3, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 1000) };
+            NativeBattleGraphicsModel enemy = new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 1000) };
             NativeBattleDuel112ActorServices actor = new(index => index == 0 ? Actor : enemy, (index, model) =>
             {
                 Assert.Equal(0, index);
@@ -86,7 +87,7 @@ public sealed class NativeBattleDuel112LateProgramsTests
             NativeBattleDuel112DrawingInputs drawing = new(actor, (_, _, _) => throw new InvalidOperationException(), view, null!, null!, (a, b, c, d) => Flashes.Add((a, b, c, d)));
             Inputs = new(drawing, index =>
             {
-                Assert.Equal(3, index);
+                Assert.Equal(OriginalOwner(3), index);
                 AnchorReads++;
                 return new(100, 200, 300, 77);
             });

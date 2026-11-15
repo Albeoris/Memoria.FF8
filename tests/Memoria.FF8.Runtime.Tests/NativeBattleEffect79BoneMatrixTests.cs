@@ -12,7 +12,7 @@ public sealed class NativeBattleEffect79BoneMatrixTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { BoneMatrixAnchor2795BC0 = null };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         NativeBattlePackedMatrix32 output = Output();
-        NativeBattleBoneMatrixOutputStep step = NativeBattleBoneMatrixOutput8DE8F0.Query(memory, staging, new(4, 0), null!, int.MaxValue, int.MinValue, output);
+        NativeBattleBoneMatrixOutputStep step = NativeBattleBoneMatrixOutput8DE8F0.Query(memory, staging, new(0), null!, int.MaxValue, int.MinValue, output);
         Assert.Equal(-1, step.Result);
         Assert.Same(memory, step.Memory);
         Assert.Same(staging, step.Staging);
@@ -122,7 +122,7 @@ public sealed class NativeBattleEffect79BoneMatrixTests
 
     private static NativeBattleGraphicsModel Model(NativeBattlePoseSource source)
     {
-        NativeBattleGraphicsModel model = new(4, 3)
+        NativeBattleGraphicsModel model = new(3)
         {
             GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 70000, Y = -70000, Z = 32768 },
             SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false) }

@@ -64,7 +64,7 @@ public sealed class NativeBattleCinematicSessionPublicationTests
         BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
         typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!.SetValue(session, NativeBattleCameraState.Initialize() with { Projection = new(null, 216, 160, 108) });
-        NativeBattleGraphicsState graphics = new([], [], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         NativeBattleOriginalEffectState effect = new(202, 201, new(202, 1, 0), null, null);
         using (NativeBattleTaskOperation operation = new(memory, effect))
         {
@@ -93,7 +93,7 @@ public sealed class NativeBattleCinematicSessionPublicationTests
         NativeBattleOriginalEffectState selected = new(effectId, effectId - 1, new(effectId, 1, 0), null, 0) { PresentationPackets = [reusedAddress] };
         NativeBattleOriginalEffectState coldSelected = System.Text.Json.JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(System.Text.Json.JsonSerializer.Serialize(selected))!;
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
-        NativeBattleGraphicsState graphics = new([], [], 28, 329) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 28, 329, OriginalEffects()) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
         typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
         MethodInfo poll = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;

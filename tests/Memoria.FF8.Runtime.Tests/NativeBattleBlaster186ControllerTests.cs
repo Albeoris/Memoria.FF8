@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleBlaster186Controller;
@@ -61,7 +62,7 @@ public sealed class NativeBattleBlaster186ControllerTests
         }
         if (age == 60)
         {
-            Assert.Equal(0, Assert.Single(operations.OfType<NativeBattleBlaster186ContactsAll>()).HeaderIndex);
+            Assert.Equal(new BattleActionHeaderReference(0), Assert.Single(operations.OfType<NativeBattleBlaster186ContactsAll>()).Header);
         }
         if (age == 65)
         {
@@ -166,7 +167,7 @@ public sealed class NativeBattleBlaster186ControllerTests
         Assert.Equal(0, requests);
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
-        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlaster186Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        frame = NativeBattleTestSnapshots.Independent(frame);
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
         frame = frame with { Effect = WriteCompletionByte(frame.Effect, RootBank + 30, 0xFF) };
@@ -183,7 +184,7 @@ public sealed class NativeBattleBlaster186ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(callback);
-        NativeBattleOriginalEffectState effect = new(186, 185, new(186, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [roots, children] };
+        NativeBattleOriginalEffectState effect = new(186, 185, new(186, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattleBlaster186State state = NativeBattleBlaster186State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(FirstTargetGlobal, 0).WriteDword(WorkingGlobal, ArenaAddress).WriteWord(TargetPointAddress + 4, unchecked((ushort)-5000)) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);
     }
@@ -211,9 +212,9 @@ public sealed class NativeBattleBlaster186ControllerTests
         return new(new(0, MeshAAddress, []), new(0, MeshBAddress, []), new(0, MeshCAddress, []), new(0, SpriteAAddress, 0, 0, []), new(0, SpriteBAddress, 0, 0, []), new(0, SpriteCAddress, 0, 0, []), new(0, SpriteDAddress, 0, 0, []), new("unused", []), 0x61B44, sources, [], [], [0, 8, 12, 16, 18, 22, -1], [0, 0, -4096]);
     }
 
-    private static NativeBattleBlaster186Inputs Inputs(List<NativeBattleBlaster186Operation> operations) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(actor, 3) { Rotation14 = 100, Transform = new(new(0, 0, 0), new(100, 200, 300), 0x1234, 0, 4096) }, (current, actor, selector, distance) =>
+    private static NativeBattleBlaster186Inputs Inputs(List<NativeBattleBlaster186Operation> operations) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(3) { Rotation14 = 100, Transform = new(new(0, 0, 0), new(100, 200, 300), 0x1234, 0, 4096) }, (current, actor, selector, distance) =>
     {
-        Assert.Equal(3, actor);
+        Assert.Equal(OriginalOwner(3), actor);
         Assert.Equal(4096, distance);
         NativeBattleVector point = selector switch
         {
@@ -225,7 +226,7 @@ public sealed class NativeBattleBlaster186ControllerTests
         return new(current, PointView(point));
     }, (current, actor) =>
     {
-        Assert.Equal(0, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         return new(current, PointView(new(0, 0, -5000)));
     }, (current, operation) =>
     {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -17,8 +18,8 @@ public sealed class NativeBattleHostedAudioReceiptsTests
         NativeBattleMusicProcessState music = session.NativeMusicProcess!;
         NativeBattleModuleSound request = new(123, 0, null);
         NativeBattleSequenceSound sequence = new(0, true, 0, 123);
-        NativeBattleContactPacket contact = new(new(3, 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
-        NativeBattleModelParticipantReleased released = new(3, "enemy");
+        NativeBattleContactPacket contact = new(new(OriginalOwner(3), 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleModelParticipantReleased released = new(OriginalOwner(3), "enemy");
         var expectedSound = request.Commit46B2A0(before);
         NativeBattleMusicCommandStep expectedMusic = music.DrainCommands501B60(expectedSound.Process);
 

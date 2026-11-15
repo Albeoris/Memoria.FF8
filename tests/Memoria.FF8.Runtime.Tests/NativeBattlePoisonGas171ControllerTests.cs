@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattlePoisonGas171Controller;
 using static Memoria.FF8.Runtime.NativeBattlePoisonGas171Profile;
@@ -18,7 +19,7 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<NativeBattlePoisonGas171Operation> operations = [];
         List<(int Actor, int Selector, int Distance)> bones = [];
-        NativeBattlePoisonGas171Inputs inputs = Inputs(operations, bones) with { ReadModel = (_, actor) => new(actor, flags) };
+        NativeBattlePoisonGas171Inputs inputs = Inputs(operations, bones) with { ReadModel = (_, actor) => new(flags) };
         var paused = AdvanceMain(frame, ChildBank, Resources(), inputs with { GraphicsFlags = 0x201, ReadBone502170 = (_, _, _, _) => throw new InvalidOperationException(), ReadModel = (_, _) => throw new InvalidOperationException() });
         Assert.Equal(frame, paused.Frame);
         Assert.Empty(bones);
@@ -77,7 +78,7 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF)).SetItem(2, pool.Slots[2].MarkPayloadUnknown(22, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<(int Actor, int Selector, int Distance)> bones = [];
-        NativeBattleActionPacketsState packets = Packets(35).ActivateHeader(0);
+        NativeBattleActionPacketsState packets = Packets(35).ActivateHeader(new BattleActionHeaderReference(0));
         NativeBattlePoisonGas171Frame result = AdvanceMain(NativeBattleTestSnapshots.Independent(frame), ChildBank, Resources(), Inputs([], bones) with { Packets = packets }).Frame;
         Assert.Equal(35, bones.Count);
         Assert.Equal(Enumerable.Range(0, 35).Select(ordinal => ((ordinal * 3 + 2) % 7, 0xF1, 0)), bones);
@@ -123,9 +124,9 @@ public sealed class NativeBattlePoisonGas171ControllerTests
     {
         NativeBattlePoisonGas171Frame frame = Frame(30);
         List<NativeBattlePoisonGas171Operation> operations = [];
-        NativeBattleActionPacketsState packets = Packets(3).ActivateHeader(0);
+        NativeBattleActionPacketsState packets = Packets(3).ActivateHeader(new BattleActionHeaderReference(0));
         NativeBattlePoisonGas171Frame result = AdvanceMain(frame, ChildBank, Resources(), Inputs(operations, []) with { Packets = packets }).Frame;
-        Assert.Equal(new NativeBattlePoisonGas171Contacts506BA0(1), Assert.Single(operations));
+        Assert.Equal(new NativeBattlePoisonGas171Contacts506BA0(new BattleActionHeaderReference(1)), Assert.Single(operations));
         Assert.Equal(3, packets.ReadHeaderContacts506BA0(1).Length);
         Assert.Equal((ushort)31, Read(result, ChildBank).ReadWord(12));
         Assert.Equal(frame.Random, result.Random);
@@ -194,14 +195,14 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
-        NativeBattleOriginalEffectState effect = new(171, 170, new(171, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), RootDescriptor) { Pools = [roots, children] };
+        NativeBattleOriginalEffectState effect = new(171, 170, new(171, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattlePoisonGas171State state = NativeBattlePoisonGas171State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);
     }
 
     private static NativeBattlePoisonGas171Resources Resources() => new(null!, null!, null!, [], null!, 0x61ACC);
 
-    private static NativeBattlePoisonGas171Inputs Inputs(List<NativeBattlePoisonGas171Operation> operations, List<(int Actor, int Selector, int Distance)> bones) => new(Packets(3), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(actor, 0x204), (_, _) => throw new InvalidOperationException(), (current, actor, selector, distance) =>
+    private static NativeBattlePoisonGas171Inputs Inputs(List<NativeBattlePoisonGas171Operation> operations, List<(int Actor, int Selector, int Distance)> bones) => new(Packets(3), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(0x204), (_, _) => throw new InvalidOperationException(), (current, actor, selector, distance) =>
     {
         Assert.Equal(0xF1, selector);
         Assert.Equal(0, distance);
@@ -215,11 +216,11 @@ public sealed class NativeBattlePoisonGas171ControllerTests
 
     private static NativeBattleActionPacketsState Packets(byte count)
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        (state, _) = state.Prepare(new(3, 8, 14, -1, 32, 171, null));
+        NativeBattleActionPacketsState state = OriginalPackets();
+        (state, _) = state.Prepare(new(OriginalOwner(3), 8, 14, -1, 32, 171, null));
         (state, _) = state.AppendContact(Contact(6));
         (state, _) = state.Publish(1);
-        (state, _) = state.Prepare(new(3, 8, 14, -1, 32, 171, null));
+        (state, _) = state.Prepare(new(OriginalOwner(3), 8, 14, -1, 32, 171, null));
         for (int ordinal = 0; ordinal < count; ordinal++)
         {
             (state, _) = state.AppendContact(Contact(checked((byte)((ordinal * 3 + 2) % 7))));

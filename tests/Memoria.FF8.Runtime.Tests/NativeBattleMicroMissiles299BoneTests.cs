@@ -68,7 +68,7 @@ public sealed class NativeBattleMicroMissiles299BoneTests
             BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
             Source = new(skeleton.ToImmutableArray(), [1]);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-            Model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(3, 0), Source);
+            Model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(0), Source);
             Model = Model with { GeometryWorldMatrix = identity with { X = 40000, Y = 30000, Z = -12345 }, CurrentBodyBoneMatrices = Model.CurrentBodyBoneMatrices! with { Matrices = [identity, identity with { X = 100000, Y = -30000, Z = 12345 }] } };
             NativeBattleOriginalEffectState effect = new(299, 299, new(299, NativeBattleMicroMissiles299Profile.Entry, NativeBattleMicroMissiles299Profile.Initializer), null, null);
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleMicroMissiles299State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, Enumerable.Repeat((byte)0x7C, 20).ToArray()) };

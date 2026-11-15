@@ -36,17 +36,17 @@ internal static class NativeBattleChainGun190Fixture
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
-        Assert.Equal(0, header.FirstContactIndex);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal(0, header.FirstContact.Ordinal);
         Assert.Equal((byte)3, header.ReadByte(0));
-        Assert.Equal((byte)8, header.ReadByte(1));
-        Assert.Equal((byte)14, header.ReadByte(2));
-        NativeBattleContactPacket first = packets.ReadContact(0);
+        Assert.Equal((byte)8, header.Command);
+        Assert.Equal((byte)14, header.Sequence);
+        NativeBattleContactPacket first = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, first.Primary.ActorIndex);
         Assert.Equal((ushort)7, first.Primary.Amount6);
         byte[] coldThird = source.Definition.NativeRetainedMemory!.ActionPackets.ReadContact(2).Encode();
         Assert.Equal(new byte[24], coldThird);
-        Assert.Equal(coldThird, packets.ReadContact(2).Encode());
+        Assert.Equal(coldThird, packets.ReadContact(new BattleContactOccurrence(2)).Encode());
         BattleCombatantSnapshot[] actors = source.Combatants;
         for (int actor = 1; actor < contactCount; actor++)
         {
@@ -63,9 +63,9 @@ internal static class NativeBattleChainGun190Fixture
         Assert.Equal(contactCount, packets.ReadHeaderContacts506BA0(0).Length);
         if (contactCount == 2)
         {
-            Assert.Equal(coldThird, packets.ReadContact(2).Encode());
+            Assert.Equal(coldThird, packets.ReadContact(new BattleContactOccurrence(2)).Encode());
         }
-        File.WriteAllText(Path.Combine(output, "controlled-contacts.json"), JsonSerializer.Serialize(new { Scenario = "Original ChainGun190 command8/action154/sequence14 and formation155; original party models0/1/2 loaded through the fixture pipeline; explicitly declared seven-HP counted presentation contacts with logical HP/status retained, no ordinary AOE formula or AI admission", Count = contactCount, Count2ThirdPhysicalOwner = contactCount == 2 ? "Retained actual loader-backed inactive contact ordinal2, untouched by this fixture" : null, ColdThird = coldThird, PhysicalThird = packets.ReadContact(2), Contacts = packets.ReadHeaderContacts506BA0(0) }));
+        File.WriteAllText(Path.Combine(output, "controlled-contacts.json"), JsonSerializer.Serialize(new { Scenario = "Original ChainGun190 command8/action154/sequence14 and formation155; original party models0/1/2 loaded through the fixture pipeline; explicitly declared seven-HP counted presentation contacts with logical HP/status retained, no ordinary AOE formula or AI admission", Count = contactCount, Count2ThirdPhysicalOwner = contactCount == 2 ? "Retained actual loader-backed inactive contact ordinal2, untouched by this fixture" : null, ColdThird = coldThird, PhysicalThird = packets.ReadContact(new BattleContactOccurrence(2)), Contacts = packets.ReadHeaderContacts506BA0(0) }));
         return source with { Combatants = actors, NativeActionPackets = packets };
     }
 }

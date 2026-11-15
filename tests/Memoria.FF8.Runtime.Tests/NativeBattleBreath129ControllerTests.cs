@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleBreath129Controller;
@@ -200,7 +201,7 @@ public sealed class NativeBattleBreath129ControllerTests
         NativeBattleEffectTaskPool[] pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1), NativeBattleEffectTaskPool.Initialize(0x2521180, Arena, 0x18, 9), NativeBattleEffectTaskPool.Initialize(0x2521190, Arena + 0xD8, 0x1E8, 3), NativeBattleEffectTaskPool.Initialize(0x25211A0, FibreAddress, 0x80, 16), NativeBattleEffectTaskPool.Initialize(0x25211B0, Arena + 0xE90, 0x20, 64), NativeBattleEffectTaskPool.Initialize(0x25211C0, MainAddress, 0x330, 1)];
         (pools[0], _) = pools[0].Append(0x6B4CB0);
         (pools[5], _) = pools[5].Append(0x6B5140);
-        NativeBattleOriginalEffectState effect = new(129, 128, new(129, 0x6B4C00, 0x6B4C10), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+        NativeBattleOriginalEffectState effect = new(129, 128, new(129, 0x6B4C00, 0x6B4C10), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
         for (int index = 0; index < 256; index++)
         {
@@ -213,9 +214,9 @@ public sealed class NativeBattleBreath129ControllerTests
 
     private static NativeBattleBreath129Resources Resources() => new(new("unused", []), new(0x12239B8, []), new(0x1225468, []), new(0x1226098, []), new(0x122688C, []), new(0, 0x12238C0, 0, 0, []), new("unused", []), [], [], [], [], [], [], [], 0);
 
-    private static NativeBattleBreath129Inputs Inputs(List<string> order) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(checked((int)((actor - 0x1D972C0) / 156)), 3) { ActiveStagedResourceRow100 = 0x9000 + (actor - 0x1D972C0) / 156 }, (_, _) => throw new InvalidOperationException(), (frame, actor, selector, scale) =>
+    private static NativeBattleBreath129Inputs Inputs(List<string> order) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(checked((int)((actor - 0x1D972C0) / 156)), 3) { ActiveStagedResourceRow100 = 0x9000 + (actor - 0x1D972C0) / 156 }, (_, _) => throw new InvalidOperationException(), (frame, actor, selector, scale) =>
     {
-        Assert.Equal(0x1D972C0u, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         Assert.Equal(9, selector);
         Assert.Equal((short)0x2000, scale);
         order.Add("bone");

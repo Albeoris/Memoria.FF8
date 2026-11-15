@@ -1196,9 +1196,9 @@ public sealed class LiveEvidenceValidationTests
             header[1] = 254;
             header[4] = 78;
             header[16] = 1;
-            BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), NativeBattleActionPacketsState.ContactBase);
-            NativeBattleContactPacket packet = new(new(4, 0, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0));
-            BattleDiagnosticNativeContact proof = new(0x4850A0, index + 1, "party0", "party0", 0, "recipient", 4, 0, [.. header], 0, 0, 0, [.. packet.Encode()]);
+            BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), NativeBattleContactAddress.EncodeOriginal(new BattleContactOccurrence(0)));
+            NativeBattleRawContactPacket packet = new(new(4, 0, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0));
+            BattleDiagnosticNativeContact proof = new(0x4850A0, index + 1, "party0", "party0", 0, "recipient", 4, 0, [.. header], 0, 0, 0, [.. NativeBattleContactPacketCodec.Encode(packet)]);
             resolution["native_contact"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);
         }
         return report;

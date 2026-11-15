@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect251Controller;
@@ -58,7 +59,7 @@ public sealed class NativeBattleEffect251OwnershipTests
     private static NativeBattleEffect251Frame Create()
     {
         NativeBattleEffect251State state = NativeBattleEffect251State.FromColdProcess().WriteDword(ArenaGlobal, CommonAddress);
-        NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(3, 0, 1, 0, 0, 0), 0) { Pools = [] };
+        NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), 0) { Pools = [] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleEffectArena.Length) };
         return new(memory, effect, new(42), state);
     }

@@ -129,7 +129,7 @@ public sealed class BattleEncounterAllocationTests
             battle.Tick();
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)4, header.ReadByte(0));
         Assert.Equal((byte)8, header.ReadByte(1));
         Assert.Equal((byte)7, header.ReadByte(2));

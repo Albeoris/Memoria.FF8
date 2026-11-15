@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -26,12 +27,12 @@ public sealed class NativeBattleRestorationAnimatedAnchorAssetsTests
         Assert.Equal(ratio, channels.Ratio);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(profile.Descriptors[0], profile.Banks[0], 100, 2), NativeBattleEffectTaskPool.Initialize(profile.Descriptors[1], profile.Banks[1], 88, 4), NativeBattleEffectTaskPool.Initialize(profile.Descriptors[2], profile.Banks[2], 676, 3), NativeBattleEffectTaskPool.Initialize(profile.Descriptors[3], profile.Banks[3], 64, 10)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.MainCallback, 100);
-        NativeBattleEffectHierarchyAppend generic = root.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, root.Address, (_, _, _) => new(0, 0));
+        NativeBattleEffectHierarchyAppend generic = root.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, root.Address, (_, _, _) => OriginalTaskActors(0, 0));
         hierarchy = generic.Hierarchy;
         int vector = 0x94 + anchor * 0x40;
         NativeBattleModulePoolTask task = hierarchy.Read(generic.Address).WriteDword(0x34 + 0x224, profile.ExecutableAddress + 4).WriteDword(0x34 + vector, 10u << 16).WriteDword(0x34 + vector + 4, effect == 24 ? 100u << 16 : 0).WriteDword(0x34 + vector + 8, 20u << 16);
         hierarchy = hierarchy.Write(generic.Address, task);
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), profile.Descriptors[0]) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), profile.Descriptors[0]) { Pools = hierarchy.Pools };
         int first = 2 * profile.DrawBankBytes;
         NativeBattleRestorationFrame frame = new(memory, selected, new(0, null, null, first + profile.EmitterBytes + profile.GeometryBytes, null) { Emitters = first, Geometry = first + profile.EmitterBytes, EmitterScanCursor = 0, GeometryScanCursor = 0 });
         NativeBattleRestorationNodeAllocation allocated = NativeBattleRestorationNodes.AllocateEmitter(frame, generic.Address, 0, sourceIndex, 0);

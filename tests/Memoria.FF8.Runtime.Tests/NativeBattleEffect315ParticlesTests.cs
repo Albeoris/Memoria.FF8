@@ -198,7 +198,7 @@ public sealed class NativeBattleEffect315ParticlesTests
             return PublishContext(current, draw.TemporaryAddress, Context(current, draw.TemporaryAddress, 180).Write(0x28, BitConverter.GetBytes((short)0)), 180);
         });
         frame = Step(frame, 3, inputs).Frame;
-        NativeBattleEffect315Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleEffect315Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Step(frame, 3, inputs).Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Step(restored, 3, inputs).Frame)));
     }
 

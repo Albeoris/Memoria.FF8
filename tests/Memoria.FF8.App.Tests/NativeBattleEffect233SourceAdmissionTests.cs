@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -64,7 +65,7 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         source.NativeFileStaging!.Validate();
         foreach (int physical in new[] { 0, 3 })
         {
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.NotEqual(0, model.Flags0 & 2);
             Assert.Equal(physical == 3 ? (byte)43 : (byte)0, model.ModelId4);
             Assert.Equal(physical == 3 ? 39 : 23, model.CurrentBodyBoneMatrices!.Matrices.Length);
@@ -73,10 +74,10 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
             model.GeometryWorldMatrix!.Validate();
             Assert.Null(model.ReadLinkedModelIndex140());
         }
-        Assert.Equal(new NativeBattleVector(100, 0, -1900), graphics.Models[3].Transform!.Initial20);
-        Assert.Null(graphics.Models[3].CurrentLinkedBoneMatrices);
-        Assert.Equal(2, graphics.Models[0].CurrentLinkedBoneMatrices!.Matrices.Length);
-        Assert.All(graphics.Models[0].CurrentLinkedBoneMatrices!.Matrices, matrix => matrix.Validate());
+        Assert.Equal(new NativeBattleVector(100, 0, -1900), ReadOriginalModelCell(graphics, 3).Transform!.Initial20);
+        Assert.Null(ReadOriginalModelCell(graphics, 3).CurrentLinkedBoneMatrices);
+        Assert.Equal(2, ReadOriginalModelCell(graphics, 0).CurrentLinkedBoneMatrices!.Matrices.Length);
+        Assert.All(ReadOriginalModelCell(graphics, 0).CurrentLinkedBoneMatrices!.Matrices, matrix => matrix.Validate());
         Assert.All(source.Definition.Combatants, actor =>
         {
             Assert.Null(actor.NativeTemplate);
@@ -84,7 +85,7 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         });
         foreach (int physical in new[] { 1, 2, 4, 5, 6 })
         {
-            Assert.Equal(0, graphics.Models[physical].Flags0 & 2);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
         }
     }
 
@@ -95,7 +96,7 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(queued.NativeGraphics);
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, queued.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(initialGraphics.Models), JsonSerializer.Serialize(graphics.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(initialGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(graphics)));
         Assert.Equal(JsonSerializer.Serialize(source.NativeModelCpuResources), JsonSerializer.Serialize(queued.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(queued.NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(source.NativeStage), JsonSerializer.Serialize(queued.NativeStage));
@@ -107,16 +108,16 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         packets.Validate();
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal(0u, header.UnknownByteMask);
         Assert.Equal((byte)3, header.ReadByte(0));
-        Assert.Equal((byte)8, header.ReadByte(1));
-        Assert.Equal((byte)12, header.ReadByte(2));
+        Assert.Equal((byte)8, header.Command);
+        Assert.Equal((byte)12, header.Sequence);
         Assert.Equal((ushort)49, BinaryPrimitives.ReadUInt16LittleEndian(header.Payload.AsSpan().Slice(4)));
         Assert.Equal((ushort)233, BinaryPrimitives.ReadUInt16LittleEndian(header.Payload.AsSpan().Slice(6)));
-        Assert.Equal((byte)1, header.ReadByte(0x10));
-        Assert.Equal((byte)0, header.ReadByte(0x11));
-        Assert.Equal(0, header.FirstContactIndex);
+        Assert.Equal((byte)1, header.ReadContactCount());
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
+        Assert.Equal(0, header.FirstContact.Ordinal);
         NativeBattleContactPacket contact = Assert.IsType<NativeBattleContactPacket>(packets.Contacts[0]);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);

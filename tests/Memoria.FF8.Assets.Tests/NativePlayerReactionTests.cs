@@ -22,11 +22,11 @@ public sealed class NativePlayerReactionTests
         //483400 commits each reaction's physical action facts before publishing its queued presentation mirror.
         Assert.Equal((byte?)1, saved.Combatants[0].NativeParticipant!.LastHealing);
         Assert.All(saved.QueuedActions, command => Assert.NotNull(command.NativeHeaderIndex));
-        NativeBattleActionHeaderSlot counter = saved.NativeActionPackets!.Headers[saved.QueuedActions[0].NativeHeaderIndex!.Value];
-        NativeBattleActionHeaderSlot potion = saved.NativeActionPackets.Headers[saved.QueuedActions[1].NativeHeaderIndex!.Value];
-        Assert.Equal((byte)1, counter.ReadByte(1));
-        Assert.Equal((byte)4, potion.ReadByte(1));
-        Assert.Equal((ushort)3, NativeBattleActionGraphics.Word(potion, 4));
+        NativeBattleActionHeaderSlot counter = saved.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(saved.QueuedActions[0].NativeHeaderIndex!.Value));
+        NativeBattleActionHeaderSlot potion = saved.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(saved.QueuedActions[1].NativeHeaderIndex!.Value));
+        Assert.Equal((byte)1, counter.Command);
+        Assert.Equal((byte)4, potion.Command);
+        Assert.Equal((ushort)3, potion.Action);
         NativeBattleContactPacket counterContact = saved.NativeActionPackets.ReadContact(counter.FirstContactIndex!.Value);
         NativeBattleContactPacket healingContact = saved.NativeActionPackets.ReadContact(potion.FirstContactIndex!.Value);
         Assert.Equal((byte)3, counterContact.Primary.ActorIndex);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -168,30 +169,30 @@ public sealed class NativeBattleEffect313PresentationTests
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect313State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect313));
-        string casterId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect313 requires its current caster.");
-        string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect313 requires its actual party recipient.");
+        string casterId = ReadOriginalModelActorId(graphics, 3) ?? throw new InvalidDataException("Effect313 requires its current caster.");
+        string targetId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect313 requires its actual party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
         Assert.Equal(1, caster.ModelId);
-        Assert.Equal((byte)17, graphics.Models[3].ModelId4);
+        Assert.Equal((byte)17, ReadOriginalModelCell(graphics, 3).ModelId4);
         Assert.Equal(0, caster.SceneSlot);
         Assert.False(caster.InitialHidden);
         Assert.False(caster.InitialSuspended);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new InvalidDataException("Effect313 requires its actual current skeleton.");
         Assert.Equal(36, pose.BoneCount);
-        Assert.Equal(36, NativeBattleBodyBoneMatrices.Require(graphics.Models[3], pose).Length);
-        Assert.NotNull(graphics.Models[3].GeometryWorldMatrix);
-        int row = graphics.Models[3].ActiveResourceRow100 ?? throw new InvalidDataException("Effect313 requires its physical current CPU row.");
+        Assert.Equal(36, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, 3), pose).Length);
+        Assert.NotNull(ReadOriginalModelCell(graphics, 3).GeometryWorldMatrix);
+        int row = ReadOriginalModelCell(graphics, 3).ActiveResourceRow100 ?? throw new InvalidDataException("Effect313 requires its physical current CPU row.");
         Assert.NotEqual(0u, original.NativeModelCpuResources!.Rows[row].Require(12).PhysicalAddress);
         Assert.NotNull(original.NativeFileStaging);
-        Assert.True(graphics.Models[0].Transform!.Scale38 > 0);
+        Assert.True(ReadOriginalModelCell(graphics, 0).Transform!.Scale38 > 0);
         BattleNativeAction action = Assert.Single(assets.NativeActions, value => value.Command == 8 && value.ActionId == 200 && value.MagicId == 313 && value.KernelSection == 3 && value.KernelIndex == 200);
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(3, 8, 12, cameraChoice, 200, 313, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 12, cameraChoice, 200, 313, null));
         NativeBattleStatusSnapshot status = original.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -199,10 +200,10 @@ public sealed class NativeBattleEffect313PresentationTests
         Assert.Same(game.ReadNativeEffect313Resources(), binding.Effect313Resources);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(312, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(original.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(source.NativeFileStaging));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original1 Amount0 action200/sequence12; native header-relative contact after sequence6, no ordinary AI/formula claim", ActualCasterId = casterId, PhysicalCaster = 3, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], ContactCount = 1 }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original1 Amount0 action200/sequence12; native header-relative contact after sequence6, no ordinary AI/formula claim", ActualCasterId = casterId, PhysicalCaster = 3, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), ContactCount = 1 }));
         return source;
     }
 

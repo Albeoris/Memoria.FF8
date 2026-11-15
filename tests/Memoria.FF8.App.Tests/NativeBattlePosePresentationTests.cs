@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Text.Json;
@@ -78,8 +80,8 @@ public sealed class NativeBattlePosePresentationTests
         Assert.True(session.NativeGraphics!.EntryReady);
         AssertEntrySoundAllocation(session);
         BattleSnapshot saved = session.Capture();
-        int index = saved.NativeGraphics!.ActorIds.IndexOf("ifrit");
-        NativeBattleVector position = saved.NativeGraphics.Models[index].Transform!.Position28;
+        int index = FindOriginalModelSlot(saved.NativeGraphics!, "ifrit");
+        NativeBattleVector position = ReadOriginalModelCell(saved.NativeGraphics, index).Transform!.Position28;
         byte pan = saved.NativeCamera!.Projection!.ReadPan(position);
         NativeBattleContactPacket contact = new(new(checked((byte)index), 5, 0x40, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics with { PendingContacts = [contact] } }));
@@ -137,7 +139,7 @@ public sealed class NativeBattlePosePresentationTests
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleModel body = assets.LoadPlayer(0);
         BattleAnimationPresentation animation = new(body, null, new() { Id = "squall", IsPlayer = true });
-        NativeBattleGraphicsModel row = new(0, 3) { Flags2 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = counter, PoseFlags109 = flags } };
+        NativeBattleGraphicsModel row = new(3) { Flags2 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = counter, PoseFlags109 = flags } };
 
         BattleAnimationSample sample = animation.SampleNativeModel(row);
 

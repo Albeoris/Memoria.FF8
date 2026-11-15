@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -7,7 +8,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleActorMaterialBindingTests
 {
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-    private static readonly BattleModelRoster Roster = new([new("first", true), null, null, null, null, null, null, new("second", false)]);
+    private static readonly BattleModelRoster Roster = new([new BattlePartyActorModel(new("first")), null, null, null, null, null, null, new BattleEnemyActorModel(new("second"))]);
     private static readonly NativeBattlePoseSource Pose = CreatePose();
 
     [Fact]
@@ -48,7 +49,7 @@ public sealed class NativeBattleActorMaterialBindingTests
     public void Material_selection_tracks_the_actual_draw_resource_path(string variant)
     {
         var (session, graphics) = Fixture(declareMap: variant != "legacy", declareRoster: variant != "native");
-        NativeBattleGraphicsModel model = graphics.Models[0];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
         model = variant switch
         {
             "staged" => model with { ActiveStagedResourceRow100 = 0x100u },
@@ -124,7 +125,7 @@ public sealed class NativeBattleActorMaterialBindingTests
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
         var rows = declareRoster ? Roster.Rows : Roster.Rows.RemoveAt(7);
-        ImmutableArray<NativeBattleGraphicsModel> models = rows.Select((actor, index) => actor is null ? new NativeBattleGraphicsModel(index, 0) : Model(index)).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> models = rows.Select((actor, index) => actor is null ? new NativeBattleGraphicsModel(0) : Model(index)).ToImmutableArray();
         NativeBattleGraphicsState graphics = new(models, rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
         {
             PresentationRoster = declareRoster ? Roster : null,
@@ -135,7 +136,7 @@ public sealed class NativeBattleActorMaterialBindingTests
 
     private static NativeBattleGraphicsModel Model(int index)
     {
-        NativeBattleGraphicsModel model = new(index, 2)
+        NativeBattleGraphicsModel model = new(2)
         {
             Flags2 = 0,
             Color40 = 0x808080,

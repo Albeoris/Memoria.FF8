@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -47,38 +48,38 @@ public sealed class NativeBattleEscapePresentationTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateReady(game, assets);
-        for (int callback = 0; callback < 120 && (battle.NativeGraphics!.Models.Take(3).Any(actor => actor.Sequence != 1) || !battle.NativeGraphics.Descriptors.Queue.IsEmpty); callback++)
+        for (int callback = 0; callback < 120 && (ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Any(actor => actor.Sequence != 1) || !battle.NativeGraphics.Descriptors.Queue.IsEmpty); callback++)
         {
             battle.Tick();
         }
-        Assert.All(battle.NativeGraphics!.Models.Take(3), actor => Assert.Equal((byte?)1, actor.Sequence));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), actor => Assert.Equal((byte?)1, actor.Sequence));
         Assert.Empty(battle.NativeGraphics.Descriptors.Queue);
         BattleSnapshot ready = battle.Capture();
         battle = BattleSession.Restore(ready with { NativeScriptState = ready.NativeScriptState with { EscapeDisabled = escapeDisabled } });
         Assert.Equal(escapeDisabled, battle.EscapeDisabled);
-        byte?[] standing = battle.NativeGraphics!.Models.Take(3).Select(actor => actor.Sequence).ToArray();
+        byte?[] standing = ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Select(actor => actor.Sequence).ToArray();
 
         battle.PublishNativeEscapeButtons(3);
         Assert.False(battle.Escape.PresentationHeld);
         battle.Tick();
         Assert.True(battle.Escape.PresentationHeld);
-        Assert.All(battle.NativeGraphics.Models.Take(3), actor => Assert.Equal(0x1000000u, actor.Flags8!.Value & 0x1000000u));
-        for (int callback = 0; callback < 30 && battle.NativeGraphics.Models.Take(3).Any(actor => actor.Sequence != 16); callback++)
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Take(3), actor => Assert.Equal(0x1000000u, actor.Flags8!.Value & 0x1000000u));
+        for (int callback = 0; callback < 30 && ReadOriginalModelCells(battle.NativeGraphics).Take(3).Any(actor => actor.Sequence != 16); callback++)
         {
             battle.Tick();
         }
-        Assert.All(battle.NativeGraphics.Models.Take(3), actor => Assert.Equal((byte?)16, actor.Sequence));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Take(3), actor => Assert.Equal((byte?)16, actor.Sequence));
 
         BattleSession restored = RoundTrip(battle);
         Assert.True(restored.Escape.PresentationHeld);
-        int frame = battle.NativeGraphics.Models[0].SequenceFrame;
+        int frame = ReadOriginalModelCell(battle.NativeGraphics, 0).SequenceFrame;
         bool advanced = false;
         for (int callback = 0; callback < 8; callback++)
         {
             battle.PublishNativeEscapeButtons(3);
             battle.Tick();
             restored.Tick();
-            advanced |= battle.NativeGraphics.Models[0].SequenceFrame != frame;
+            advanced |= ReadOriginalModelCell(battle.NativeGraphics, 0).SequenceFrame != frame;
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
         Assert.True(advanced);
@@ -91,14 +92,14 @@ public sealed class NativeBattleEscapePresentationTests
         battle.Tick();
         restored.Tick();
         Assert.False(battle.Escape.PresentationHeld);
-        Assert.All(battle.NativeGraphics.Models.Take(3), actor => Assert.Equal(0u, actor.Flags8!.Value & 0x1000000u));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Take(3), actor => Assert.Equal(0u, actor.Flags8!.Value & 0x1000000u));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        for (int callback = 0; callback < 30 && battle.NativeGraphics.Models.Take(3).Where((actor, index) => actor.Sequence != standing[index]).Any(); callback++)
+        for (int callback = 0; callback < 30 && ReadOriginalModelCells(battle.NativeGraphics).Take(3).Where((actor, index) => actor.Sequence != standing[index]).Any(); callback++)
         {
             battle.Tick();
             restored.Tick();
         }
-        Assert.Equal(standing, battle.NativeGraphics.Models.Take(3).Select(actor => actor.Sequence).ToArray());
+        Assert.Equal(standing, ReadOriginalModelCells(battle.NativeGraphics).Take(3).Select(actor => actor.Sequence).ToArray());
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 

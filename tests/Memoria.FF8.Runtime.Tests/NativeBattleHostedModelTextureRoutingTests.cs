@@ -131,8 +131,8 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
     private static (BattleSession Session, NativeBattleModelCpuResources Cpu, BattleModelRoster Roster) Fixture()
     {
         BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[7] = new("first", true);
-        actors[24] = new("second", true);
+        actors[7] = new BattlePartyActorModel(new("first"));
+        actors[24] = new BattlePartyActorModel(new("second"));
         BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray());
         ImmutableArray<NativeBattleGraphicsModel> models = [.. NativeBattleGraphicsModels.ClearPresentationBank(roster)];

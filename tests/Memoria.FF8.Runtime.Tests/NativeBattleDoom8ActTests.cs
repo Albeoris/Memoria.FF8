@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -86,7 +87,7 @@ public sealed class NativeBattleDoom8ActTests
         {
             if (operation is NativeBattleDoom8ActInitializeTarget target)
             {
-                Assert.Equal((byte)4, target.Actor);
+                Assert.Equal(OriginalOwner(4), target.Actor);
                 Assert.Equal(0u, fixture.Task(current).ReadDword(0x98));
                 Assert.Equal(4096u, fixture.Task(current).ReadDword(0x58));
                 return current with { Random = new(23) };
@@ -272,7 +273,7 @@ public sealed class NativeBattleDoom8ActTests
         {
             Assert.Equal(0, index);
             return Selector;
-        }, (_, _, _) => new(0, 4));
+        }, (_, _, _) => OriginalTaskActors(0, 4));
 
         public Fixture(uint callback, byte phase, int duration = 36)
         {
@@ -285,7 +286,7 @@ public sealed class NativeBattleDoom8ActTests
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleDoom8State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend parent = hierarchy.Append8DC540(2, NativeBattleDoom8Controller.DirectorCallback, 72);
             Parent = parent.Address;
-            NativeBattleEffectHierarchyAppend child = parent.Hierarchy.Append8DC540(4, callback, 1112, Parent, (_, _, _) => new(0, 4));
+            NativeBattleEffectHierarchyAppend child = parent.Hierarchy.Append8DC540(4, callback, 1112, Parent, (_, _, _) => OriginalTaskActors(0, 4));
             Address = child.Address;
             int size = callback == NativeBattleDoom8Act.PrimaryCallback ? 192 : callback == NativeBattleDoom8Act.MovingCallback ? 140 : 944;
             NativeBattleModulePoolTask task = child.Hierarchy.Read(Address).WriteByte(0x29, phase).WriteDword(0x74, SourceAddress).WriteDword(0x78, (uint)size);

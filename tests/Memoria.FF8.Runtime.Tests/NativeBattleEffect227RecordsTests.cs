@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -99,7 +100,7 @@ public sealed class NativeBattleEffect227RecordsTests
 
     internal static NativeBattleEffect227Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(227, 226, new(227, 0x6937A0, 0x693780), new(3, 0, 1, 0, 0, 0), 0x2508738) { Pools = [] };
+        NativeBattleOriginalEffectState effect = new(227, 226, new(227, 0x6937A0, 0x693780), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), 0x2508738) { Pools = [] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         NativeBattleEffect227State state = NativeBattleEffect227State.FromColdProcess().WriteDword(0x2508768, Arena).WriteDword(0x2508704, First);
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };

@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -85,28 +86,32 @@ public sealed class NativeBattleDrawStock15ControllerTests
             {
                 Assert.Equal((byte)0, frame.Effect.Pools[0].Slots[0].ReadByte(0x63));
                 Assert.DoesNotContain(operations, item => item.Operation is NativeBattleDrawStock15Contact);
-                NativeBattleDrawStock15Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDrawStock15Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleDrawStock15Frame restored = NativeBattleTestSnapshots.Independent(frame);
                 Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDrawStock15Controller.Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), fixture.Resources, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleDrawStock15Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
             }
         }
         var contact = Assert.Single(operations, item => item.Operation is NativeBattleDrawStock15Contact);
         Assert.Equal(20, contact.Callback);
-        Assert.Equal(0, ((NativeBattleDrawStock15Contact)contact.Operation).Index);
+        Assert.Equal(new BattleContactOccurrence(0), ((NativeBattleDrawStock15Contact)contact.Operation).Index);
         Assert.Equal(0x2732CE8u, frame.Effect.ReturnedDescriptor);
         Assert.NotNull(frame.Effect.Pools[2].Head);
         Assert.Null(frame.Effect.Pools[4].Head);
     }
 
     [Fact]
-    public void Entry_uses_signed_selectors_and_preserves_unwritten_suffix_words()
+    public void Entry_uses_signed_group_and_relative_contact_preserving_unwritten_suffix_words()
     {
         var fixture = Fixture();
-        NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
-        NativeBattleActionHeaderSlot selected = packets.Headers[0] with { FirstContactIndex = 2 };
-        NativeBattleActionHeaderSlot parameter = selected with { Payload = selected.Payload.SetItem(0, (byte)6).SetItem(16, (byte)4).SetItem(17, (byte)2), UnknownByteMask = selected.UnknownByteMask & ~((1u << 0) | (1u << 16) | (1u << 17)) };
-        packets = packets with { Headers = packets.Headers.SetItem(0, selected).SetItem(1, parameter) };
-        NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0].WriteByte(0x2A, 255).WriteByte(0x2B, 254).WriteWord(0x60, 0xABCD);
-        NativeBattleEffectParameters parameters = fixture.Frame.Effect.Parameters! with { HeaderIndex7C = 1 };
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 32, 15, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 1, 0, 0, 0, 100, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        (packets, _) = packets.Publish(2);
+        (packets, BattleActionHeaderReference parameterHeader) = packets.Prepare(new(OriginalOwner(6), 2, 11, 0, 32, 15, null));
+        packets = packets.WritePlayerRepeatMode(parameterHeader, 3);
+        (packets, _) = packets.Publish(4);
+        NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0].WriteByte(0x2A, 255).WriteTraversalPosition(0x2B, 1).WriteWord(0x60, 0xABCD);
+        NativeBattleEffectParameters parameters = fixture.Frame.Effect.Parameters! with { Header = parameterHeader };
         NativeBattleModulePoolTask result = NativeBattleDrawStock15Controller.InitializeRoot(task, parameters, packets);
         Assert.Equal((byte)2, result.ReadByte(0x2C));
         Assert.Equal((byte)3, result.ReadByte(0x2D));
@@ -114,9 +119,9 @@ public sealed class NativeBattleDrawStock15ControllerTests
         Assert.Equal((ushort)2, result.ReadWord(0x58));
         Assert.Equal((byte)3, result.ReadByte(0x2F));
         Assert.Equal((byte)255, result.ReadByte(0x2A));
-        Assert.Equal((byte)254, result.ReadByte(0x2B));
+        Assert.Equal((byte)1, result.ReadByte(0x2B));
         Assert.Equal((ushort)0xABCD, result.ReadWord(0x60));
-        Assert.Throws<NotSupportedException>(() => NativeBattleDrawStock15Controller.InitializeRoot(task, parameters with { HeaderIndex7C = 0 }, packets));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleDrawStock15Controller.InitializeRoot(task, parameters with { Header = new(0) }, packets));
     }
 
     [Fact]
@@ -168,10 +173,10 @@ public sealed class NativeBattleDrawStock15ControllerTests
 
     private static (NativeBattleDrawStock15Frame Frame, NativeBattleDrawStock15Resources Resources, NativeBattleDrawStock15Inputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 32, 15, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 32, 15, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         byte[] cameraBytes = new byte[0x7CC];
         BinaryPrimitives.WriteUInt16LittleEndian(cameraBytes, 2);
@@ -179,7 +184,7 @@ public sealed class NativeBattleDrawStock15ControllerTests
         NativeBattleDrawStock15Resources resources = new(new("camera", cameraBytes.ToImmutableArray()), new(new byte[0x5944].ToImmutableArray()) { ResourceAddress = 0x17FC68C }, new(Sprite(6, 4), Sprite(0, 2)));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(14);
         memory = memory with { Arena = memory.Arena!.Write(256 + 0x12000, Enumerable.Repeat((byte)0xA5, 0x438 + 0x6900).ToArray()) };
-        NativeBattleOriginalEffectState selected = new(15, 14, new(15, 0x8B0910, 0x8B08F0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x2732BF8, 256)] };
+        NativeBattleOriginalEffectState selected = new(15, 14, new(15, 0x8B0910, 0x8B08F0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2732BF8, 256)] };
         NativeBattleDrawStock15Frame frame = NativeBattleDrawStock15Controller.Initialize(memory, selected, new(1), packets, resources);
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
@@ -187,7 +192,7 @@ public sealed class NativeBattleDrawStock15ControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        NativeBattleDrawStock15Inputs inputs = new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, _ => new(0, 0, 0, unchecked((short)0xABCD)), (current, _) => current);
+        NativeBattleDrawStock15Inputs inputs = new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, _ => new(0, 0, 0, unchecked((short)0xABCD)), (current, _) => current);
         return (frame, resources, inputs);
     }
 

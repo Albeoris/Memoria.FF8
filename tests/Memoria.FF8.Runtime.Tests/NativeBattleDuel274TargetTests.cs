@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -146,7 +147,7 @@ public sealed class NativeBattleDuel274TargetTests
 
     private sealed class Fixture
     {
-        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index is 0 or 3 ? (ushort)3 : (ushort)0) { ModelId4 = index == 0 ? (byte)1 : (byte)77, SequenceByte145 = 1, Rotation12 = 10, Rotation14 = 20, Rotation16 = 30, Transform = new(new(0, 0, 0), new(10, 11, 12), 13, 14, 4096) }).ToArray();
+        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index is 0 or 3 ? (ushort)3 : (ushort)0) { ModelId4 = index == 0 ? (byte)1 : (byte)77, SequenceByte145 = 1, Rotation12 = 10, Rotation14 = 20, Rotation16 = 30, Transform = new(new(0, 0, 0), new(10, 11, 12), 13, 14, 4096) }).ToArray();
         public List<string> Calls { get; } = [];
         public NativeBattleDuel274Frame Frame { get; }
         private NativeBattleDuel274Resources Resources { get; }
@@ -161,7 +162,7 @@ public sealed class NativeBattleDuel274TargetTests
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (target, _) = target.Append(0x689AC0);
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteByte(15, 6).WriteByte(16, 1).WriteDword(20, NativeBattleDuel274Controller.Address(3))) });
-            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0) { Parameter80 = 6, Parameter82 = 0 }, 0x25084B8) { Pools = [NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1), target] };
+            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 6, Parameter82 = 0 }, 0x25084B8) { Pools = [NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1), target] };
             NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25084D8, [1, 6]);
             for (int index = 0; index < 7; index++)
             {
@@ -181,7 +182,7 @@ public sealed class NativeBattleDuel274TargetTests
             }
             Inputs = new(actors, index => Models[index], (index, model) => Models[index] = model, _ => new(100, 101, 102, 103), (current, index, row) =>
             {
-                Assert.Equal(0, index);
+                Assert.Equal(OriginalOwner(0), index);
                 Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 56, row);
                 Calls.Add("bind");
                 return Task(current, task => task.WriteDword(56, 0x1234));

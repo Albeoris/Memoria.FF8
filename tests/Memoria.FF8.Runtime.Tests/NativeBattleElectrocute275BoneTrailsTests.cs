@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -189,7 +190,7 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
     {
         Fixture fixture = new();
         var created = NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 0x1234, BonePathsAddress, 0, 1, 4096, fixture.Resources);
-        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(created.Frame)))!);
+        NativeBattleElectrocute275Frame restored = NativeBattleTestSnapshots.Independent(created.Frame);
         var expected = NativeBattleElectrocute275Controller.AdvanceBoneTrail(created.Frame, created.Address, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleElectrocute275Controller.AdvanceBoneTrail(restored, created.Address, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
@@ -247,7 +248,7 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
             return current with { BoneDirectionWord = 0x10000000 };
         };
         var firstFade = NativeBattleElectrocute275Controller.AdvanceBoneTrail(frame, first.Address, fixture.Resources, fixture.Inputs());
-        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(firstFade.Frame)))!);
+        NativeBattleElectrocute275Frame restored = NativeBattleTestSnapshots.Independent(firstFade.Frame);
         var secondFade = NativeBattleElectrocute275Controller.AdvanceBoneTrail(restored, second.Address, fixture.Resources, fixture.Inputs());
         Assert.Equal(2, calls);
         Assert.Equal(random, secondFade.Frame.Memory.SharedEffectRandom);
@@ -287,7 +288,7 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
                 NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress + 0x6A0, 24, 32),
                 NativeBattleEffectTaskPool.Initialize(ActDescriptor, ArenaAddress, 212, 8)
             ];
-            NativeBattleOriginalEffectState effect = new(275, 275, new(275, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(275, 275, new(275, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0, 0x2C474).Write(BoneFreePointerOffset, BitConverter.GetBytes(0u));
             for (int index = 0; index < PointCount; index++)
             {
@@ -307,7 +308,7 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
 
         public NativeBattleElectrocute275Frame WriteWord(NativeBattleElectrocute275Frame frame, uint address, short value) => frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(checked((int)(address - ArenaAddress)), BitConverter.GetBytes(value)) } };
         public NativeBattleElectrocute275Frame WriteDword(NativeBattleElectrocute275Frame frame, uint address, uint value) => frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(checked((int)(address - ArenaAddress)), BitConverter.GetBytes(value)) } };
-        public NativeBattleElectrocute275Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
+        public NativeBattleElectrocute275Inputs Inputs() => new(OriginalPackets(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
         {
             Draws.Add(Assert.IsType<NativeBattleElectrocute275DrawBoneTrail>(operation));
             return AfterDraw?.Invoke(frame) ?? frame;

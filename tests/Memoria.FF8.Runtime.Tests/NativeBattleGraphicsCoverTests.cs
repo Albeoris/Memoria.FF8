@@ -7,7 +7,7 @@ public sealed class NativeBattleGraphicsCoverTests
     [Fact]
     public void CoverHoldsThenReturnsToInitialZWithTheOriginalTwoStepHop()
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags2 = 0, Flags8 = 0, Transform = new(new(100, 200, 300), new(120, 220, 320), 0, 0, 256) };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 0, Flags8 = 0, Transform = new(new(100, 200, 300), new(120, 220, 320), 0, 0, 256) };
         model = NativeBattleGraphicsModels.StartService(model, 9);
         for (int callback = 0; callback < 15; callback++)
         {

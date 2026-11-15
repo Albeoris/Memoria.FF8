@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect69Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect69Profile;
@@ -64,9 +65,9 @@ public sealed class NativeBattleEffect69ControllerTests
         if (reload)
         {
             Assert.Equal(new NativeBattleEffect69ReloadStage512AC0(0, 0x20E7AD8), Assert.Single(harness.Operations.OfType<NativeBattleEffect69ReloadStage512AC0>()));
-            Assert.Equal(new NativeBattleEffect69ModelFlags(4, 0xFFFF, 0x20, false), Assert.Single(harness.Operations.OfType<NativeBattleEffect69ModelFlags>()));
+            Assert.Equal(new NativeBattleEffect69ModelFlags(OriginalOwner(4), 0xFFFF, 0x20, false), Assert.Single(harness.Operations.OfType<NativeBattleEffect69ModelFlags>()));
             Assert.Equal(new NativeBattleEffect69ModelColors44(0x32123456), Assert.Single(harness.Operations.OfType<NativeBattleEffect69ModelColors44>()));
-            Assert.Equal(new NativeBattleEffect69ModelPositionZ(4, -2722, true), Assert.Single(harness.Operations.OfType<NativeBattleEffect69ModelPositionZ>()));
+            Assert.Equal(new NativeBattleEffect69ModelPositionZ(OriginalOwner(4), -2722, true), Assert.Single(harness.Operations.OfType<NativeBattleEffect69ModelPositionZ>()));
         }
         Assert.IsType<NativeBattleEffect69DeliverCommonBatch>(harness.Operations[2]);
     }
@@ -89,7 +90,7 @@ public sealed class NativeBattleEffect69ControllerTests
 
     private static NativeBattleEffect69Frame Active(bool main)
     {
-        NativeBattleOriginalEffectState effect = new(69, 68, new(69, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(69, 68, new(69, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffect69State state = NativeBattleEffect69State.FromColdProcess().WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(CasterGlobal, 0x1D972C0 + 4 * 156);
         var pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>();
         for (int index = 0; index < (main ? 2 : 1); index++)

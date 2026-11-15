@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -29,16 +30,16 @@ public sealed class NativeBattlePain34PresentationTests
         }
         BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
-        string caster = source.NativeGraphics!.ActorIds[0]!;
-        string target = source.NativeGraphics.ActorIds[3]!;
+        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
+        string target = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         int queued = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = source.NativeGraphics.Descriptors.Packets[queued].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(relative / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal((ushort)45, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)34, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal((ushort)45, header.Action);
+        Assert.Equal((ushort)34, header.Effect);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.Equal((ushort)26, contact.Primary.SavedStatuses4);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
@@ -47,7 +48,7 @@ public sealed class NativeBattlePain34PresentationTests
         int hp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
         uint projected = source.Definition.NativeGraphics!.Rules.Project(contact.Primary.SavedStatuses4, contact.Primary.BattleStatuses8);
         Assert.NotEqual(0u, projected);
-        Assert.Equal(0u, source.NativeGraphics.Models[3].Flags8!.Value & projected);
+        Assert.Equal(0u, ReadOriginalModelCell(source.NativeGraphics, 3).Flags8!.Value & projected);
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         BattleSnapshot prior = source;
@@ -84,8 +85,8 @@ public sealed class NativeBattlePain34PresentationTests
                 {
                     completions++;
                 }
-                uint oldStatus = prior.NativeGraphics!.Models[3].Flags8!.Value & projected;
-                uint newStatus = current.NativeGraphics!.Models[3].Flags8!.Value & projected;
+                uint oldStatus = ReadOriginalModelCell(prior.NativeGraphics!, 3).Flags8!.Value & projected;
+                uint newStatus = ReadOriginalModelCell(current.NativeGraphics!, 3).Flags8!.Value & projected;
                 if (oldStatus == 0 && newStatus != 0)
                 {
                     contacts++;
@@ -123,7 +124,7 @@ public sealed class NativeBattlePain34PresentationTests
             Assert.True(peakRgb > 0, "Removing only actual private Pain packets must change visible RGB pixels.");
             Assert.Equal(1, contacts);
             Assert.Equal(1, completions);
-            Assert.Equal(projected, battle.Capture().NativeGraphics!.Models[3].Flags8!.Value & projected);
+            Assert.Equal(projected, ReadOriginalModelCell(battle.Capture().NativeGraphics!, 3).Flags8!.Value & projected);
             Assert.All(Selected(battle.Capture())!.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == caster);
             Assert.Single(battle.Events, item => item.NativeModuleSound?.Sound == source.Definition.NativeEffectCatalog[33].Pain34Resources!.Sound);

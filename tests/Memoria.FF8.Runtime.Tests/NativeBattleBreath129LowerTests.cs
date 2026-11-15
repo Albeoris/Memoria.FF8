@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleBreath129Controller;
@@ -188,7 +189,7 @@ public sealed class NativeBattleBreath129LowerTests
         NativeBattleBreath129State state = NativeBattleBreath129State.FromColdProcess().WriteDword(0x252115C, Base).WriteDword(0x252117C, Base + 0x3B70) with { MutableSources = NativeBattleEffectArena.Clear() };
         return new(memory, new(129, 128, new(129, 0x6B4C00, 0x6B4C10), null, 0), new(55), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    internal static NativeBattleBreath129Inputs Inputs(Func<NativeBattleBreath129Frame, NativeBattleBreath129Operation, NativeBattleBreath129Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, _) => current));
+    internal static NativeBattleBreath129Inputs Inputs(Func<NativeBattleBreath129Frame, NativeBattleBreath129Operation, NativeBattleBreath129Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, _) => current));
     private static NativeBattleBreath129Frame MeshFrame(short z, out uint temporary)
     {
         NativeBattleBreath129Frame frame = Frame();

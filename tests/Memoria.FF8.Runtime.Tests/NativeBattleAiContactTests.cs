@@ -25,7 +25,7 @@ public sealed class NativeBattleAiContactTests
         BattleSnapshot snapshot = battle.Capture();
         Assert.Equal(lane, snapshot.NativeActionScratch!.EventLane);
         Assert.Equal(expectedVariable, snapshot.Combatants[1].NativeParticipant!.Variables[0]);
-        Assert.Equal(stage == 1 ? (byte)18 : (byte)5, battle.NativeActionPackets.ReadContact(0).Primary.Sequence);
+        Assert.Equal(stage == 1 ? (byte)18 : (byte)5, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Sequence);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -53,7 +53,7 @@ public sealed class NativeBattleAiContactTests
                 session.Tick();
             }
             Assert.Equal((byte)1, session.NativeActionPackets.ActionCount);
-            NativeBattleActionHeaderSlot header = session.NativeActionPackets.Headers[0];
+            NativeBattleActionHeaderSlot header = session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
             Assert.Equal((byte)1, header.ReadByte(16));
             return session.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
         }

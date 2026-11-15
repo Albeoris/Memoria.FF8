@@ -11,14 +11,14 @@ public sealed class NativeBattleReadySequenceTests
     [InlineData(0x140, true)]
     public void Ready_selection_accepts_either_native_resource_ready_bit(ushort flags, bool expected)
     {
-        NativeBattleGraphicsModel model = new(3, 2) { ResourceFlags44 = flags };
+        NativeBattleGraphicsModel model = new(2) { ResourceFlags44 = flags };
         Assert.Equal(expected, NativeBattleSequenceSelections.CanSelectReady505CE0(model));
     }
 
     [Fact]
     public void Raw_ready_selection_does_not_inherit_the_BF_party_status_gate()
     {
-        NativeBattleGraphicsModel model = new(0, 2) { ResourceFlags44 = 0x40, Flags8 = 0x300000 };
+        NativeBattleGraphicsModel model = new(2) { ResourceFlags44 = 0x40, Flags8 = 0x300000 };
         Assert.True(NativeBattleSequenceSelections.CanSelectReady505CE0(model));
         Assert.False(NativeBattleSequenceSelections.CanSelectTargetBF(model));
         Assert.True(NativeBattleSequenceSelections.CanSelectReady505CE0(model with { Flags8 = null }));
@@ -27,7 +27,7 @@ public sealed class NativeBattleReadySequenceTests
     [Fact]
     public void Unknown_resource_flags_cannot_claim_ready_selection()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.CanSelectReady505CE0(new(3, 2)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.CanSelectReady505CE0(new(2)));
     }
 
     [Theory]
@@ -36,7 +36,7 @@ public sealed class NativeBattleReadySequenceTests
     public void Eligible_selection_of_an_absent_sequence_completes_without_replacing_live_sequence_or_pending_control(int selected)
     {
         NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-        NativeBattleGraphicsModel model = new(3, 2)
+        NativeBattleGraphicsModel model = new(2)
         {
             ModelId4 = 80,
             ResourceFlags44 = 0x100,

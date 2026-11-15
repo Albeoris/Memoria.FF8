@@ -9,7 +9,7 @@ public sealed class NativeBattleComponentTerminalTextureTests
     public void Resident_FF_branch_preserves_payload_program_and_texture_callbacks_across_cold_next(ushort modelFlags, ushort resourceFlags)
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 14, new([255], 0));
-        NativeBattleGraphicsModel model = new(0, modelFlags) { ResourceFlags44 = resourceFlags, Sequence = 14 };
+        NativeBattleGraphicsModel model = new(modelFlags) { ResourceFlags44 = resourceFlags, Sequence = 14 };
         string frozen = NativeBattleTestSnapshots.Json(state);
         NativeBattleAuxiliaryState cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleAuxiliaryState>(frozen)!;
         NativeBattleAuxiliaryInputs inputs = new()
@@ -36,7 +36,7 @@ public sealed class NativeBattleComponentTerminalTextureTests
     public void Resident_FF_task_still_restores_and_releases_when_native_model_predicates_change(int change)
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 14, new([255], 0));
-        NativeBattleGraphicsModel model = new(0, change == 0 ? (ushort)1 : (ushort)3) { ResourceFlags44 = change == 1 ? (ushort)0x42 : (ushort)2, Sequence = change == 2 ? (byte)15 : (byte)14 };
+        NativeBattleGraphicsModel model = new(change == 0 ? (ushort)1 : (ushort)3) { ResourceFlags44 = change == 1 ? (ushort)0x42 : (ushort)2, Sequence = change == 2 ? (byte)15 : (byte)14 };
         int copies = 0;
         int restores = 0;
         NativeBattleAuxiliaryState next = state.Advance(new()
@@ -59,7 +59,7 @@ public sealed class NativeBattleComponentTerminalTextureTests
     public void Nonterminal_deadline_still_advances_elapsed_and_cannot_be_treated_as_stationary()
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 14, new([254, 255], 0));
-        NativeBattleGraphicsModel model = new(0, 3) { ResourceFlags44 = 2, Sequence = 14 };
+        NativeBattleGraphicsModel model = new(3) { ResourceFlags44 = 2, Sequence = 14 };
         NativeBattleAuxiliaryState next = state.Advance(new() { ReadModel = _ => model }).State;
         Assert.NotEqual(state.Slots[0].Payload.ToArray(), next.Slots[0].Payload.ToArray());
         Assert.Equal(0, next.Slots[0].Program!.Offset);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -123,7 +124,7 @@ public sealed class NativeBattleSandStorm155GeometryTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(memory, effect, new(123), NativeBattleSandStorm155State.FromColdProcess() with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleSandStorm155Inputs Inputs(Func<NativeBattleSandStorm155Frame, NativeBattleSandStorm155Operation, NativeBattleSandStorm155Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => NativeBattleCuragaMatrices.Identity8DD770(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute);
+    private static NativeBattleSandStorm155Inputs Inputs(Func<NativeBattleSandStorm155Frame, NativeBattleSandStorm155Operation, NativeBattleSandStorm155Frame> execute) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => NativeBattleCuragaMatrices.Identity8DD770(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute);
     private static NativeBattleSandStorm155Resources Resources()
     {
         byte[] mesh = new byte[8 + 304 * 8];

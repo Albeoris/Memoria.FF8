@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect209Controller;
@@ -55,7 +56,7 @@ public sealed class NativeBattleEffect209ControllerTests
         Assert.Equal(0xBEEF, Read(step.Frame, ChildBank).ReadWord(22));
         Assert.Equal(0x80A09080u, step.Frame.State.ReadDword(SavedColor40Global));
         Assert.Equal(0x80706050u, step.Frame.State.ReadDword(SavedColor44Global));
-        Assert.Equal(new NativeBattleEffect209ModelFlags(3, 0xFF, 8, false), harness.Operations[0]);
+        Assert.Equal(new NativeBattleEffect209ModelFlags(OriginalOwner(3), 0xFF, 8, false), harness.Operations[0]);
     }
 
     [Theory]
@@ -65,7 +66,7 @@ public sealed class NativeBattleEffect209ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect209Step step = alternate ? AdvanceAlternate638BD0(Frame(age), ChildBank, null!, harness.Inputs()) : AdvanceMain6375D0(Frame(age), ChildBank, null!, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect209ModelFlags(3, 0xFFF7, 0, true), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect209ModelFlags(OriginalOwner(3), 0xFFF7, 0, true), Assert.Single(harness.Operations));
         Assert.Equal(age + 1, Read(step.Frame, ChildBank).ReadWord(12));
     }
 
@@ -130,7 +131,7 @@ public sealed class NativeBattleEffect209ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect209Step step = AdvanceMain6375D0(Frame(124), ChildBank, null!, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect209Contact506690(0), harness.Operations[1]);
+        Assert.Equal(new NativeBattleEffect209Contact506690(new BattleContactOccurrence(0)), harness.Operations[1]);
         Assert.Equal(125, Read(step.Frame, ChildBank).ReadWord(12));
     }
 
@@ -187,7 +188,7 @@ public sealed class NativeBattleEffect209ControllerTests
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (child, _) = child.Append(MainCallback);
         child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
-        NativeBattleOriginalEffectState effect = new(209, 208, new(209, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
+        NativeBattleOriginalEffectState effect = new(209, 208, new(209, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GuardianWorkBuffer = NativeBattleGuardianWorkBuffer.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, new(42), NativeBattleEffect209State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(GuardianGlobal, 0x209FAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -206,7 +207,7 @@ public sealed class NativeBattleEffect209ControllerTests
         {
             IoCalls++;
             return new(frame, IoResult);
-        }, _ => Packets(), (_, actor) => new(actor, 2) { ModelId4 = 131 }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, _ => 512, _ => 0, (_, address) => address == 0xB8B7D8 ? Rebuilt ? 0x80402010u : 0x80A09080u : Rebuilt ? 0x80806040u : 0x80706050u, (frame, actor, retained) => new(frame, Point()), (frame, actor, selector, fraction, retained) =>
+        }, _ => Packets(), (_, actor) => new(2) { ModelId4 = 131 }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, _ => 512, _ => 0, (_, address) => address == 0xB8B7D8 ? Rebuilt ? 0x80402010u : 0x80A09080u : Rebuilt ? 0x80806040u : 0x80706050u, (frame, actor, retained) => new(frame, Point()), (frame, actor, selector, fraction, retained) =>
         {
             Points.Add((actor, selector, fraction));
             return new(frame, Point());
@@ -220,8 +221,8 @@ public sealed class NativeBattleEffect209ControllerTests
         private static NativeBattleActionPacketsState Packets()
         {
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 13, -1, 319, 209, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 319, 209, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect322Controller;
@@ -176,7 +177,7 @@ public sealed class NativeBattleEffect322ControllerTests
             }
         }
         NativeBattleEffect322State state = NativeBattleEffect322State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(4));
-        NativeBattleOriginalEffectState effect = new(322, 321, new(322, Entry, Initializer), new(4, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(322, 321, new(322, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -194,7 +195,7 @@ public sealed class NativeBattleEffect322ControllerTests
         public Action<NativeBattleEffect322Frame, NativeBattleEffect322Operation>? OnOperation { get; set; }
         public Action<NativeBattleEffect322Frame, NativeBattleEffectArena, int, int>? OnSample { get; set; }
 
-        public NativeBattleEffect322Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattleActionPacketsState.Fresh(), (_, _) => NativeBattleEffectArena.Clear(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, selector, fraction, retained) =>
+        public NativeBattleEffect322Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => OriginalPackets(), (_, _) => NativeBattleEffectArena.Clear(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, selector, fraction, retained) =>
         {
             Assert.Equal(24, selector);
             Assert.Equal(2048, fraction);

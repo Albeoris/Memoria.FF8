@@ -1200,11 +1200,11 @@ public static partial class LiveEvidenceValidation
         }
         byte[] header = proof.HeaderPayload.ToArray();
         const uint requiredHeaderBytes = (1u << 0) | (1u << 1) | (1u << 4) | (1u << 5) | (0xFu << 8) | (1u << 16);
-        if ((proof.HeaderUnknownByteMask & ~0xFFFFFu) != 0 || (proof.HeaderUnknownByteMask & requiredHeaderBytes) != 0 || header[0] != proof.ActorIndex || header[1] != 254 || (header[4] | header[5] << 8) != nativeAction || (long)first + header[16] > NativeBattleActionPacketsState.ContactCapacity || proof.RetainedContactIndex < first || (long)proof.RetainedContactIndex >= (long)first + header[16] || BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8)) != NativeBattleActionPacketsState.ContactBase + 24u * (uint)first)
+        if ((proof.HeaderUnknownByteMask & ~0xFFFFFu) != 0 || (proof.HeaderUnknownByteMask & requiredHeaderBytes) != 0 || header[0] != proof.ActorIndex || header[1] != 254 || (header[4] | header[5] << 8) != nativeAction || (long)first + header[16] > NativeBattleContactAddress.NativeRowCount || proof.RetainedContactIndex < first || (long)proof.RetainedContactIndex >= (long)first + header[16] || BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8)) != NativeBattleContactAddress.EncodeOriginalCursor(new BattleContactCursor(first)))
         {
             return false;
         }
-        NativeBattleContactPacket packet = NativeBattleContactPacket.Decode(proof.ContactPayload.ToArray());
+        NativeBattleRawContactPacket packet = NativeBattleContactPacketCodec.Decode(proof.ContactPayload.ToArray());
         if (packet.Primary.ActorIndex != proof.RecipientIndex || !HasPhysicalIdentity(before, actor, proof.ActorIndex) || !HasPhysicalIdentity(after, actor, proof.ActorIndex) || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex))
         {
             return false;

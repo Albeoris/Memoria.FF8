@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -127,7 +128,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 for (int callback = 0; callback < 4096; callback++)
                 {
                     battle.Tick();
-                    NativeBattleSequenceState? state = battle.NativeGraphics!.Models[0].SequenceState;
+                    NativeBattleSequenceState? state = ReadOriginalModelCell(battle.NativeGraphics!, 0).SequenceState;
                     if (!approach && state is { } sequence && (sequence.Header36 != 0 || sequence.Header38 != 0 || sequence.Header40 != 0))
                     {
                         CompareNext("physical-approach");
@@ -160,7 +161,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
             Bind(battle);
             const int actorIndex = 0;
-            uint? shadowColor = battle.NativeGraphics!.Models[actorIndex].Color44;
+            uint? shadowColor = ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44;
             Assert.NotNull(shadowColor);
             uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
             bool interpolatedCurrentStageColor = false;
@@ -184,14 +185,14 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
-                interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
+                Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
+                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics, actorIndex).Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
                 if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
                     capturedFrames++;
                 }
-                targetAnimated |= battle.NativeGraphics.Models.Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
+                targetAnimated |= ReadOriginalModelCells(battle.NativeGraphics).Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
                 if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
                 {
                     Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
@@ -217,7 +218,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                     }
                     Assert.True(capturedMidpoint);
                     Assert.True(targetAnimated, "The special native target must execute its own embedded animation sequence.");
-                    Assert.All(battle.NativeGraphics.Models, target => Assert.Null(target.ResourceRenzokukenTargetBank));
+                    Assert.All(ReadOriginalModelCells(battle.NativeGraphics), target => Assert.Null(target.ResourceRenzokukenTargetBank));
                     Assert.True(registeredCamera);
                     Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
                     Assert.Equal(priorDamage + contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
@@ -245,9 +246,9 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
 
         double Distance()
         {
-            NativeBattleActionMatrix matrix = battle.NativeGraphics!.Models[0].GeometryWorldMatrix!;
+            NativeBattleActionMatrix matrix = ReadOriginalModelCell(battle.NativeGraphics!, 0).GeometryWorldMatrix!;
             int targetIndex = Array.IndexOf(battle.NativeGraphics.ActorIds.ToArray(), "enemy");
-            NativeBattleVector destination = battle.NativeGraphics.Models[targetIndex].Transform!.Position28;
+            NativeBattleVector destination = ReadOriginalModelCell(battle.NativeGraphics, targetIndex).Transform!.Position28;
             return Math.Pow(matrix.X - destination.X, 2) + Math.Pow(matrix.Z - destination.Z, 2);
         }
 

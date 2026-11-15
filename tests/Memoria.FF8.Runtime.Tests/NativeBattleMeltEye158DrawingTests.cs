@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -140,7 +141,7 @@ public sealed class NativeBattleMeltEye158DrawingTests
             ImmutableArray<NativeBattleModuleAnchor> vectors = Enumerable.Range(0, 11).Select(index => new NativeBattleModuleAnchor(0, 0, (short)(index * 100), 0)).ToImmutableArray();
             Resources = new(new("FF8_EN:DAFBF8", []), new(0, SpriteAAddress, 0, 0, []), new(0, SpriteBAddress, 0, 0, []), new(0, SpriteCAddress, 0, 0, []), new(0, MeshAAddress, []), new(0, MeshBAddress, []), vectors, 0x61AC0);
             NativeBattlePackedMatrix32 identity = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
-            Inputs = new(flags, NativeBattleActionPacketsState.Fresh(), (frame, _, _, _) => new(frame, new(0, 0, 0)), (frame, _) => new(frame, new(0, 0, 0)), (_, _) => identity, _ => identity, (frame, op) =>
+            Inputs = new(flags, OriginalPackets(), (frame, _, _, _) => new(frame, new(0, 0, 0)), (frame, _) => new(frame, new(0, 0, 0)), (_, _) => identity, _ => identity, (frame, op) =>
             {
                 Draws.Add(op);
                 if (op is NativeBattleMeltEye158DrawSprite180 sprite)

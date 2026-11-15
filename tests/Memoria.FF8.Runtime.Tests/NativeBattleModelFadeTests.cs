@@ -9,7 +9,7 @@ public sealed class NativeBattleModelFadeTests
     [Fact]
     public void LinearFadePreservesAlphaAndRequiresItsActualSourceColor()
     {
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(0, 3) { Flags2 = 0, Flags8 = 0, Alpha7 = 17 }, 4);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(3) { Flags2 = 0, Flags8 = 0, Alpha7 = 17 }, 4);
         Assert.Throws<NotSupportedException>(() => NativeBattleModelFade.Advance50C560(model, false, Colors));
         NativeBattleGraphicsModel first = NativeBattleModelFade.Advance50C560(model, true, Colors with { LinearFadeSourceB8BA94 = 0x123456 });
         Assert.Equal(0x02123456u, first.Color40);
@@ -25,7 +25,7 @@ public sealed class NativeBattleModelFadeTests
     public void FlashConsumesRandomOnlyOnZeroPhaseAndRunsThroughGraphicsPause()
     {
         int draws = 0;
-        NativeBattleGraphicsModel model = new(0, 3) { Kind5 = 8, Phase6 = 0, Color40 = 0 };
+        NativeBattleGraphicsModel model = new(3) { Kind5 = 8, Phase6 = 0, Color40 = 0 };
         model = NativeBattleModelFade.AdvanceFlash50C670(model, Colors, () =>
         {
             draws++;
@@ -42,7 +42,7 @@ public sealed class NativeBattleModelFadeTests
     [Fact]
     public void StatusRedirectsAndKindThirteenCompletionWaitForNextCallbackBeforeCleanup()
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags2 = 0x10, Flags8 = 0x100000, Color40 = 0x123456 };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 0x10, Flags8 = 0x100000, Color40 = 0x123456 };
         Assert.Equal((byte)10, NativeBattleGraphicsModels.StartService(model, 1).Kind5);
         NativeBattleGraphicsModel disappearing = NativeBattleGraphicsModels.StartService(model, 6);
         Assert.Equal((byte)13, disappearing.Kind5);
@@ -56,7 +56,7 @@ public sealed class NativeBattleModelFadeTests
     [Fact]
     public void KindThreeCompletesItsOwnColorAndAlphaServiceWithoutReleasingTheModel()
     {
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(0, 3) { Flags2 = 0, Flags8 = 0, Kind5 = 0, Sequence = 14 }, 3);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(3) { Flags2 = 0, Flags8 = 0, Kind5 = 0, Sequence = 14 }, 3);
         NativeBattleGraphicsModel paused = NativeBattleModelFade.Advance50C410(model, true, Colors);
         Assert.Equal((byte)0, paused.Phase6);
         Assert.Equal(0x02464B6Eu, paused.Color40);
@@ -86,7 +86,7 @@ public sealed class NativeBattleModelFadeTests
     [Fact]
     public void OriginalStatusBitRedirectsKindThreeToItsSeparateKindElevenService()
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags2 = 0, Flags8 = 0x100000, Kind5 = 0 };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 0, Flags8 = 0x100000, Kind5 = 0 };
         Assert.Equal((byte)11, NativeBattleGraphicsModels.StartService(model, 3).Kind5);
         Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsModels.StartService(model with { Flags8 = null }, 3));
         Assert.Equal((byte)16, NativeBattleModelFade.Advance50C410(model with { Kind5 = 3, Phase6 = 15 }, false, Colors).Phase6);

@@ -10,7 +10,6 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     private const int EntryBudget = 1200;
     private const int ActionBudget = 1500;
     private const int StandingReturnBudget = 240;
-    private static readonly NativeBattleContactHalf NoSecondary = new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
 
     [Fact]
     public void Installed_zero_action_completion_retires_and_preserves_the_process_for_attack()
@@ -26,20 +25,20 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             process.Advance(logical);
         }
         Assert.True(process.EntryReady);
-        const byte row = 7;
-        const byte target = 15;
-        string actorId = process.Graphics.PresentationRoster![row].ActorId;
+        const string actorId = "party-1";
+        BattleModelOwner owner = logical.ReadPresentationModelOwner(actorId);
+        BattleModelOwner target = logical.ReadPresentationModelOwner("enemy-8");
         var models = Models(process);
         NativeBattleModelCpuResources cpu = process.ModelCpuResources;
         string before = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
-        BattleSession.PreparedHostedDispatch prepared = process.PrepareCompletion(0x47DDA0, row, actorId);
+        BattleSession.PreparedHostedDispatch prepared = process.PrepareCompletion(0x47DDA0, owner, actorId);
         process.ValidatePreparedCompletion(prepared);
         long token = process.PublishCompletion(prepared);
         BattleCombatant actor = Assert.Single(logical.Combatants, candidate => candidate.Id == actorId);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         int record = Array.FindIndex(vitals.Records, value => value.CharacterId == actor.ModelId);
         BattleNativeAction attack = assets.ReadPlayerNativeAttackData(vitals, record);
-        NativeBattleActionHeaderPreparation header = Prepare(row, attack, selected.NativeCommandSequences);
+        NativeBattleActionHeaderPreparation header = Prepare(owner, attack, selected.NativeCommandSequences);
         NativeBattleContactPacket packet = Contact(target, attack, 137);
         long? nextAction = null;
         Descriptor? nextDescriptor = null;
@@ -54,7 +53,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                     return;
                 }
                 Assert.Null(graphicsToken);
-                Assert.Equal(new NativeBattlePresentationCompletionRequested(token, 0x47DDA0, row, actorId), request);
+                Assert.Equal(new NativeBattlePresentationCompletionRequested(token, 0x47DDA0, owner, actorId), request);
                 Assert.Same(request, process.PendingCompletion);
                 Assert.False(process.IsCompletionAcknowledged(token));
                 prePostUi = process.Graphics.UiServices!.Counter;
@@ -170,12 +169,13 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         long? token = null;
         bool reachedControl = false;
         bool sequenceTen = false;
+        BattleModelOwner casterOwner = logical.ReadPresentationModelOwner(caster);
         for (int callback = 0; callback < ActionBudget && logical.ActiveAction is not null; callback++)
         {
             logical.Tick();
             token ??= process.LastStepActionToken;
-            reachedControl |= process.Graphics.ActionGraphics is { Callback: 0x50BD00, ActorIndex: 7 };
-            sequenceTen |= process.Graphics.Models[7].Sequence == 10;
+            reachedControl |= process.Graphics.ActionGraphics is { Callback: 0x50BD00, Actor: var owner } && owner == casterOwner;
+            sequenceTen |= process.Graphics.ActorModels.Get(casterOwner).Sequence == 10;
             Assert.Empty(process.LastStep.Contacts);
             if (nativeClock && logical.ActiveAction is not null)
             {
@@ -271,16 +271,16 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Equal(reflect ? 2 : casts + 1, tokens.Count);
         Assert.All(tokens, token => Assert.True(process.IsActionComplete(token)));
         Assert.Equal(reflect ? 2 : casts + 1, contacts.Count);
-        Assert.Equal((byte)15, contacts[0].Primary.ActorIndex);
+        Assert.Equal(logical.ReadPresentationModelOwner(target), contacts[0].Primary.Recipient);
         if (reflect)
         {
-            Assert.True(process.Graphics.PresentationRoster![contacts[1].Primary.ActorIndex].IsParty);
+            Assert.IsAssignableFrom<BattlePartyModelOwner>(contacts[1].Primary.Recipient);
             Assert.Equal(6000, logical.Combatants.Single(actor => actor.Id == target).CurrentHp);
         }
         else
         {
-            Assert.All(contacts.Take(casts), packet => Assert.Equal((byte)15, packet.Primary.ActorIndex));
-            Assert.Equal((byte)7, contacts[^1].Primary.ActorIndex);
+            Assert.All(contacts.Take(casts), packet => Assert.Equal(logical.ReadPresentationModelOwner(target), packet.Primary.Recipient));
+            Assert.Equal(logical.ReadPresentationModelOwner(caster), contacts[^1].Primary.Recipient);
             Assert.InRange(contacts[^1].Primary.Amount6, 300, 540);
             Assert.True(logical.Combatants.Single(actor => actor.Id == target).CurrentHp < 6000);
         }
@@ -291,10 +291,10 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     }
 
     [Theory]
-    [InlineData(4, 5, 15, 0, false)]
-    [InlineData(11, 14, 24, 14, false)]
-    [InlineData(4, 5, 15, 0, true)]
-    public void Main_queued_attack_then_fire_use_the_attached_process_once(int allyCount, int enemyCount, byte targetRow, byte fireRow, bool poison)
+    [InlineData(4, 5, "enemy-8", "party-0", false)]
+    [InlineData(11, 14, "enemy-17", "party-10", false)]
+    [InlineData(4, 5, "enemy-8", "party-0", true)]
+    public void Main_queued_attack_then_fire_use_the_attached_process_once(int allyCount, int enemyCount, string target, string fireActor, bool poison)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -331,27 +331,26 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         }
         Assert.True(logical.NativeEntryReady);
 
-        const int attackRow = 7;
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
-        string attackActor = roster[attackRow].ActorId;
-        string fireActor = roster[fireRow].ActorId;
-        string target = roster[targetRow].ActorId;
+        const string attackActor = "party-1";
+        BattleModelOwner attackOwner = logical.ReadPresentationModelOwner(attackActor);
+        BattleModelOwner fireOwner = logical.ReadPresentationModelOwner(fireActor);
+        BattleModelOwner targetOwner = logical.ReadPresentationModelOwner(target);
         var originalModels = Models(process);
         NativeBattleModelCpuResources cpu = process.ModelCpuResources;
-        NativeBattleVector standing = HeaderDisplacement(process.Graphics.Models[attackRow]);
-        NativeBattleVector targetPosition = process.Graphics.Models[targetRow].Transform!.Position28;
-        double standingDistance = WorldDistance(process.Graphics.Models[attackRow], targetPosition);
-        RunMain(BattleAbility.Attack, 0, attackActor, attackRow, 0x50BB00);
+        NativeBattleVector standing = HeaderDisplacement(process.Graphics.ActorModels.Get(attackOwner));
+        NativeBattleVector targetPosition = process.Graphics.ActorModels.Get(targetOwner).Transform!.Position28;
+        double standingDistance = WorldDistance(process.Graphics.ActorModels.Get(attackOwner), targetPosition);
+        RunMain(BattleAbility.Attack, 0, attackActor, attackOwner, 0x50BB00);
         RejectPreparedFireWithoutPublication();
-        RunMain(BattleAbility.Magic, fire.Id, fireActor, fireRow, 0x50A9A0, alreadyQueued: true);
-        Assert.True(ReturnedToStanding(process.Graphics.Models[attackRow], standing));
+        RunMain(BattleAbility.Magic, fire.Id, fireActor, fireOwner, 0x50A9A0, alreadyQueued: true);
+        Assert.True(ReturnedToStanding(process.Graphics.ActorModels.Get(attackOwner), standing));
         Assert.Equal(4, logical.GetAvailableMagicCasts(fireActor, fire.Id));
         Assert.Equal(originalModels, Models(process));
         Assert.Same(cpu, process.ModelCpuResources);
         Assert.Same(process, logical.ExpandedPresentationProcess);
         Assert.Null(logical.NativeGraphics);
 
-        void RunMain(BattleAbility ability, int id, string actor, int sourceRow, uint service, bool alreadyQueued = false)
+        void RunMain(BattleAbility ability, int id, string actor, BattleModelOwner sourceOwner, uint service, bool alreadyQueued = false)
         {
             int startHp = logical.Combatants.Single(item => item.Id == target).CurrentHp;
             BattleCombatant caster = logical.Combatants.Single(item => item.Id == actor);
@@ -387,13 +386,13 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 }
                 if (process.Graphics.ActionGraphics is { } action && process.LastStepActionToken == token && token is not null)
                 {
-                    Assert.Equal(sourceRow, action.ActorIndex);
+                    Assert.Equal(sourceOwner, action.Actor);
                     reachedService |= action.Callback == service;
                 }
                 contacts.AddRange(process.LastStep.Contacts);
                 if (ability == BattleAbility.Attack && process.LastStepActionToken == token && !process.LastStep.Contacts.IsEmpty)
                 {
-                    Assert.True(WorldDistance(process.Graphics.Models[sourceRow], targetPosition) < standingDistance);
+                    Assert.True(WorldDistance(process.Graphics.ActorModels.Get(sourceOwner), targetPosition) < standingDistance);
                 }
                 if (poison && ability == BattleAbility.Attack && token is long current && !process.IsActionComplete(current))
                 {
@@ -406,12 +405,12 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             bool expectsPoison = poison && ability == BattleAbility.Attack;
             Assert.Equal(expectsPoison ? 2 : 1, contacts.Count);
             NativeBattleContactPacket contact = contacts[0];
-            Assert.Equal(targetRow, contact.Primary.ActorIndex);
+            Assert.Equal(targetOwner, contact.Primary.Recipient);
             if (expectsPoison)
             {
                 Assert.True(delayedCompletion);
                 NativeBattleContactHalf self = contacts[1].Primary;
-                Assert.Equal(sourceRow, self.ActorIndex);
+                Assert.Equal(sourceOwner, self.Recipient);
                 Assert.InRange(self.Amount6, (ushort)25, (ushort)45);
                 Assert.Equal(sourceHp - self.Amount6, caster.CurrentHp);
                 Assert.Equal(caster.CurrentHp, logical.ReadPresentedVital(caster.Id).HitPoints);
@@ -505,10 +504,11 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             logical.Tick();
         }
         Assert.True(logical.NativeEntryReady);
-        byte casterRow = logical.ReadExpandedPresentationRow(caster);
-        byte targetRow = logical.ReadExpandedPresentationRow(target);
-        Assert.Equal((byte)7, casterRow);
-        Assert.Equal((byte)15, targetRow);
+        BattleModelOwner casterOwner = logical.ReadPresentationModelOwner(caster);
+        BattleModelOwner targetOwner = logical.ReadPresentationModelOwner(target);
+        NativeBattleModelAliases aliases = logical.ReadBattlePresentationPacketBindings().Aliases;
+        Assert.False(aliases.TryEncodeExact(casterOwner, out _));
+        Assert.False(aliases.TryEncodeExact(targetOwner, out _));
         BattleCombatant actorState = logical.Combatants.Single(actor => actor.Id == caster);
         var models = Models(process);
         BattleActionDefinition choice = Assert.Single(logical.GetNativePlayerActionChoices(caster, limits: false, command: 28));
@@ -543,7 +543,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Null(logical.ActiveAction);
         Assert.Equal(lethal ? 2 : 3, tokens.Count);
         Assert.All(tokens, token => Assert.True(process.IsActionComplete(token)));
-        Assert.Equal(lethal ? new byte[] { targetRow, casterRow } : [targetRow, casterRow, casterRow], contacts.Select(packet => packet.Primary.ActorIndex));
+        Assert.Equal(lethal ? new BattleModelOwner[] { targetOwner, casterOwner } : [targetOwner, casterOwner, casterOwner], contacts.Select(packet => packet.Primary.Recipient));
         BattleEvent cost = Assert.Single(logical.Events, item => item.Kind == "Damage" && item.Message.StartsWith("Darkside cost:", StringComparison.Ordinal));
         Assert.Equal(50, cost.Amount);
         if (lethal)
@@ -569,7 +569,6 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         using BattleAssets assets = new(game.GameDirectory);
         const int formation = 79;
         const string source = "party-0";
-        const byte sourceRow = 7;
         int authoredCount = assets.LoadEncounter(formation).Enemies.Count(enemy => enemy.Enabled);
         var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, authoredCount, authoredCount, expanded: true, encounterId: formation);
         BattleCombatantDefinition authoredEnemy = logicalDefinition.Combatants.First(actor => !actor.IsPlayer && actor.ModelId == 99);
@@ -610,10 +609,11 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         }
         Assert.True(logical.NativeEntryReady);
         Assert.Empty(logical.QueuedActions);
-        Assert.Equal(source, process.Graphics.PresentationRoster![sourceRow].ActorId);
+        BattleModelOwner sourceOwner = logical.ReadPresentationModelOwner(source);
+        Assert.False(logical.ReadBattlePresentationPacketBindings().Aliases.TryEncodeExact(sourceOwner, out _));
         BattleCombatant enemy = Assert.Single(logical.Combatants, actor => actor.Id == targetId);
         Assert.Equal(maximumHp, enemy.MaximumHp);
-        byte targetRow = logical.ReadExpandedPresentationRow(targetId);
+        BattleModelOwner targetOwner = logical.ReadPresentationModelOwner(targetId);
         logical.QueueAttack(source, targetId);
         long? token = null;
         bool sawPlaceholder = false;
@@ -641,7 +641,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             {
                 Assert.Equal(token, process.LastStepActionToken);
                 NativeBattleContactPacket contact = Assert.Single(process.LastStep.Contacts);
-                Assert.Equal(targetRow, contact.Primary.ActorIndex);
+                Assert.Equal(targetOwner, contact.Primary.Recipient);
                 Assert.True(enemy.CurrentHp < hp);
                 contactCount++;
             }
@@ -661,7 +661,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Equal((byte)2, retaliation.NativeAiCallbackStage);
         Assert.Equal(targetId, retaliation.ActorId);
         Assert.Equal(source, retaliation.TargetId);
-        Assert.Equal(source, Assert.Single(retaliation.AiRecipients!.ActorIds));
+        var selection = Assert.IsType<BattleTargetSelection.Explicit>(retaliation.TargetRequest.Selection);
+        Assert.Equal(new BattlePartyActorReference(source), Assert.Single(selection.Actors));
         Assert.Equal(expectedRetaliation.Command, retaliation.NativeQueuedCommand);
         Assert.Equal(expectedRetaliation.Id, retaliation.ActionId);
         Assert.Equal(expectedRetaliation.Sequence, retaliation.NativeSequence);
@@ -670,12 +671,12 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     }
 
     [Theory]
-    [InlineData(4, 5, 7, 15, 0, true, false)]
-    [InlineData(4, 5, 7, 15, 0, false, false)]
-    [InlineData(11, 14, 14, 24, 6, true, false)]
-    [InlineData(11, 14, 14, 24, 6, false, false)]
-    [InlineData(4, 5, 7, 15, 0, false, true)]
-    public void Main_gunblade_uses_the_native_widget_then_fire_on_the_same_owner(int allyCount, int enemyCount, byte sourceRow, byte targetRow, int model, bool press, bool automaticOption)
+    [InlineData(4, 5, "enemy-8", 0, true, false)]
+    [InlineData(4, 5, "enemy-8", 0, false, false)]
+    [InlineData(11, 14, "enemy-17", 6, true, false)]
+    [InlineData(11, 14, "enemy-17", 6, false, false)]
+    [InlineData(4, 5, "enemy-8", 0, false, true)]
+    public void Main_gunblade_uses_the_native_widget_then_fire_on_the_same_owner(int allyCount, int enemyCount, string targetId, int model, bool press, bool automaticOption)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -722,8 +723,9 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             logical.Tick();
         }
         Assert.True(logical.NativeEntryReady);
-        Assert.Equal(source, process.Graphics.PresentationRoster![sourceRow].ActorId);
-        string targetId = process.Graphics.PresentationRoster[targetRow].ActorId;
+        BattleModelOwner sourceOwner = logical.ReadPresentationModelOwner(source);
+        Assert.False(logical.ReadBattlePresentationPacketBindings().Aliases.TryEncodeExact(sourceOwner, out _));
+        BattleModelOwner targetOwner = logical.ReadPresentationModelOwner(targetId);
         BattleCombatant target = Assert.Single(logical.Combatants, actor => actor.Id == targetId);
         int hp = target.CurrentHp;
         NativeBattleRandomState? random = logical.Capture().Random;
@@ -743,7 +745,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             if (process.TriggerWidget is { } widget && process.PendingTrigger is null && contacts.Count == 0 && target.CurrentHp == hp)
             {
                 sawInput = true;
-                Assert.Equal(sourceRow, widget.ActorIndex);
+                Assert.Equal(sourceOwner, widget.Actor);
                 Assert.Equal(hp, target.CurrentHp);
                 Assert.Equal(random, logical.Capture().Random);
             }
@@ -770,7 +772,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         long gunbladeToken = Assert.IsType<long>(token);
         Assert.True(process.IsActionComplete(gunbladeToken));
         Assert.Null(process.PendingTrigger);
-        Assert.Equal(targetRow, Assert.Single(contacts).Primary.ActorIndex);
+        Assert.Equal(targetOwner, Assert.Single(contacts).Primary.Recipient);
         Assert.True(hp > target.CurrentHp);
         Assert.Single(logical.Events, item => item.Kind == "EffectContact" && item.ActorId == source && item.TargetId == targetId);
         Assert.Equal(expectedTrigger ? 1 : 0, logical.Events.Count(item => item.Kind == "GunbladeTrigger" && item.ActorId == source));
@@ -796,7 +798,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Null(logical.ActiveAction);
         Assert.True(process.IsActionComplete(Assert.IsType<long>(fireToken)));
         Assert.True(process.IsActionComplete(gunbladeToken));
-        Assert.Equal(targetRow, Assert.Single(contacts).Primary.ActorIndex);
+        Assert.Equal(targetOwner, Assert.Single(contacts).Primary.Recipient);
         Assert.Equal(4, logical.GetAvailableMagicCasts(fireActor, fire.Id));
         RunControl();
         Assert.Equal(control.Combatants.Single(item => item.Id == targetId).CurrentHp, target.CurrentHp);
@@ -816,9 +818,9 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     }
 
     [Theory]
-    [InlineData(4, 5, 7, 15, 0)]
-    [InlineData(11, 14, 7, 24, 14)]
-    public void Installed_attack_then_fire_complete_their_own_descriptors_on_one_process(int allyCount, int enemyCount, byte attackRow, byte attackTarget, byte fireRow)
+    [InlineData(4, 5, "party-1", "enemy-8", "party-0")]
+    [InlineData(11, 14, "party-1", "enemy-17", "party-10")]
+    public void Installed_attack_then_fire_complete_their_own_descriptors_on_one_process(int allyCount, int enemyCount, string attackId, string targetId, string fireId)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -834,13 +836,16 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string logicalBefore = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
         ExpandedBattlePresentationProcess process = new(logical, selected);
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = logical.ReadBattlePresentationRoster();
+        BattleModelOwner attackOwner = logical.ReadPresentationModelOwner(attackId);
+        BattleModelOwner attackTarget = logical.ReadPresentationModelOwner(targetId);
+        BattleModelOwner fireOwner = logical.ReadPresentationModelOwner(fireId);
 
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
-        BattleCombatant attackActor = logical.Combatants.Single(actor => actor.Id == roster[attackRow].ActorId);
+        BattleCombatant attackActor = logical.Combatants.Single(actor => actor.Id == attackId);
         int attackRecord = Enumerable.Range(0, vitals.Records.Length).First(row => vitals.Records[row].CharacterId == attackActor.ModelId);
         BattleNativeAction attack = assets.ReadPlayerNativeAttackData(vitals, attackRecord);
-        NativeBattleActionHeaderPreparation attackHeader = Prepare(attackRow, attack, selected.NativeCommandSequences);
+        NativeBattleActionHeaderPreparation attackHeader = Prepare(attackOwner, attack, selected.NativeCommandSequences);
         NativeBattleContactPacket attackPacket = Contact(attackTarget, attack, 137);
         Assert.NotEqual((byte)0, attackHeader.Sequence);
         Assert.Throws<InvalidOperationException>(() => process.BeginAction(attackHeader, [attackPacket]));
@@ -869,10 +874,10 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         NativeBattleModelTextureCache originalCache = process.ModelTextureCache;
         NativeBattleStageTask originalStage = Assert.IsType<NativeBattleStageTask>(process.Stage.Task);
         ulong initialRandomCalls = process.GlobalRandomCalls;
-        NativeBattleVector attackOrigin = process.Graphics.Models[attackRow].Transform!.Position28;
-        NativeBattleVector initialDisplacement = HeaderDisplacement(process.Graphics.Models[attackRow]);
-        MotionObservation initialMotion = ObserveMotion(process, attackRow);
-        NativeBattleContactPacket invalidLate = attackPacket with { Primary = attackPacket.Primary with { ActorIndex = NativeBattleGraphicsModelAddress.MaximumRowCount } };
+        NativeBattleVector attackOrigin = process.Graphics.ActorModels.Get(attackOwner).Transform!.Position28;
+        NativeBattleVector initialDisplacement = HeaderDisplacement(process.Graphics.ActorModels.Get(attackOwner));
+        MotionObservation initialMotion = ObserveMotion(process, attackOwner);
+        NativeBattleContactPacket invalidLate = attackPacket with { Primary = attackPacket.Primary with { Recipient = new BattleEnemyActorModel(new("unbound-enemy")) } };
         NativeBattleGraphicsState beforeInvalid = process.Graphics;
         Assert.Throws<InvalidDataException>(() => process.BeginAction(attackHeader, [attackPacket, invalidLate]));
         Assert.Same(beforeInvalid, process.Graphics);
@@ -888,9 +893,9 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.True(attackResult.SourceSequenceProgressed, "The installed Attack sequence did not advance.");
         Assert.True(attackResult.SourceDisplaced && attackResult.MinimumDistance < attackResult.InitialDistance && attackResult.ApproachedAtContact,
             $"Attack did not approach its target by the first AA contact. Initial {attackResult.InitialDistance:F1}, minimum {attackResult.MinimumDistance:F1}, contact {attackResult.FirstContactDistance:F1}. Initial pose {initialMotion}, contact pose {attackResult.FirstContactMotion}.");
-        MotionObservation completedMotion = ObserveMotion(process, attackRow);
+        MotionObservation completedMotion = ObserveMotion(process, attackOwner);
         // Descriptor 104 can finish on the action callback bit before the standing sequence clears displacement.
-        for (int callback = 0; callback < StandingReturnBudget && !ReturnedToStanding(process.Graphics.Models[attackRow], initialDisplacement); callback++)
+        for (int callback = 0; callback < StandingReturnBudget && !ReturnedToStanding(process.Graphics.ActorModels.Get(attackOwner), initialDisplacement); callback++)
         {
             process.Advance(logical);
             Assert.True(process.IsActionComplete(attackToken));
@@ -898,17 +903,17 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             Assert.Empty(process.LastStep.Contacts);
             ObserveDamage(process.Graphics, attackResult);
         }
-        Assert.True(ReturnedToStanding(process.Graphics.Models[attackRow], initialDisplacement),
-            $"Attack never returned to standing. Initial {initialMotion}, first contact {attackResult.FirstContactMotion}, descriptor completion {completedMotion}, final {ObserveMotion(process, attackRow)}.");
-        Assert.Equal(initialDisplacement, HeaderDisplacement(process.Graphics.Models[attackRow]));
-        Assert.Equal(attackOrigin, process.Graphics.Models[attackRow].Transform!.Position28);
-        Assert.Contains(attackTarget, attackResult.ReactingRows);
+        Assert.True(ReturnedToStanding(process.Graphics.ActorModels.Get(attackOwner), initialDisplacement),
+            $"Attack never returned to standing. Initial {initialMotion}, first contact {attackResult.FirstContactMotion}, descriptor completion {completedMotion}, final {ObserveMotion(process, attackOwner)}.");
+        Assert.Equal(initialDisplacement, HeaderDisplacement(process.Graphics.ActorModels.Get(attackOwner)));
+        Assert.Equal(attackOrigin, process.Graphics.ActorModels.Get(attackOwner).Transform!.Position28);
+        Assert.Contains(attackTarget, attackResult.ReactingOwners);
         Assert.Contains(137, attackResult.DisplayedDamage);
         Assert.Equal(originalModelOwners, Models(process));
 
-        NativeBattleActionHeaderPreparation fireHeader = Prepare(fireRow, fire, selected.NativeCommandSequences);
-        Assert.NotEqual(attackHeader.Actor, fireHeader.Actor);
-        ImmutableArray<NativeBattleContactPacket> firePackets = roster.EnemyRows.Select((row, index) => Contact(checked((byte)row), fire, checked((ushort)(201 + index)))).ToImmutableArray();
+        NativeBattleActionHeaderPreparation fireHeader = Prepare(fireOwner, fire, selected.NativeCommandSequences);
+        Assert.NotEqual(attackHeader.Source, fireHeader.Source);
+        ImmutableArray<NativeBattleContactPacket> firePackets = roster.Enemies.Select((owner, index) => Contact(owner, fire, checked((ushort)(201 + index)))).ToImmutableArray();
         Assert.Equal(enemyCount, firePackets.Length);
         long beforeFire = process.Graphics.Callback;
         NativeCrtRandomState crtBeforeFire = Assert.IsType<NativeCrtRandomState>(logical.CurrentCrtRandom);
@@ -943,17 +948,17 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Empty(process.LastStep.Contacts);
     }
 
-    private static NativeBattleActionHeaderPreparation Prepare(byte actor, BattleNativeAction action, ImmutableArray<byte> commandSequences)
+    private static NativeBattleActionHeaderPreparation Prepare(BattleModelOwner actor, BattleNativeAction action, ImmutableArray<byte> commandSequences)
     {
         byte sequence = NativeBattleActionGraphics.ResolvePlayerSequence(action.Command, 0, action.ActionId, commandSequences);
         NativeBattleActionDataReference? data = action.Command == 2 ? new(0x47E970, action.ActionId, action.Name) : null;
         return new(actor, action.Command, sequence, -1, action.ActionId, action.Command == 1 ? (ushort)0 : action.MagicId, data);
     }
 
-    private static NativeBattleContactPacket Contact(byte target, BattleNativeAction action, ushort amount)
+    private static NativeBattleContactPacket Contact(BattleModelOwner target, BattleNativeAction action, ushort amount)
     {
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(action.DamagePresentation, 0, 0, (byte)(action.AttackFlags & 3), byte.MaxValue);
-        return new(new(target, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, amount, 0), NoSecondary);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(action.DamagePresentation, 0, 0, (byte)(action.AttackFlags & 3), covered: false);
+        return new(new(target, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, amount, 0), null);
     }
 
     private static bool RotateCompletedActionBehindCompletion(ExpandedBattlePresentationProcess process)
@@ -984,14 +989,14 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return new(slot, packet.Serial, packet.Argument);
     }
 
-    private static ActionObservation AdvanceAction(ExpandedBattlePresentationProcess process, BattleSession logical, long token, Descriptor descriptor, NativeBattleActionHeaderPreparation header, uint service, byte? movementTarget = null)
+    private static ActionObservation AdvanceAction(ExpandedBattlePresentationProcess process, BattleSession logical, long token, Descriptor descriptor, NativeBattleActionHeaderPreparation header, uint service, BattleModelOwner? movementTarget = null)
     {
         ActionObservation observed = new();
-        NativeBattleVector? destination = movementTarget is byte row ? process.Graphics.Models[row].Transform!.Position28 : null;
-        NativeBattleVector initialDisplacement = HeaderDisplacement(process.Graphics.Models[header.Actor]);
+        NativeBattleVector? destination = movementTarget is not null ? process.Graphics.ActorModels.Get(movementTarget).Transform!.Position28 : null;
+        NativeBattleVector initialDisplacement = HeaderDisplacement(process.Graphics.ActorModels.Get(header.Source));
         if (destination is { } targetPosition)
         {
-            observed.InitialDistance = WorldDistance(process.Graphics.Models[header.Actor], targetPosition);
+            observed.InitialDistance = WorldDistance(process.Graphics.ActorModels.Get(header.Source), targetPosition);
             observed.MinimumDistance = observed.InitialDistance;
         }
         Assert.Equal(token, process.ActiveActionToken);
@@ -1005,10 +1010,10 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             if (graphics.ActionGraphics is { } action)
             {
                 Assert.Equal(service, action.Callback);
-                Assert.Equal(header.Actor, action.ActorIndex);
+                Assert.Equal(header.Source, action.Actor);
                 Assert.Equal(header.Data, action.PendingData);
             }
-            NativeBattleGraphicsModel source = graphics.Models[header.Actor];
+            NativeBattleGraphicsModel source = graphics.ActorModels.Get(header.Source);
             observed.SourceSequenceProgressed |= source.Sequence == header.Sequence && (source.SequenceFrame != 0 || source.SequenceState?.Offset46 > 0);
             if (destination is { } movementDestination)
             {
@@ -1019,7 +1024,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 if (observed.FirstContactDistance is null && !process.LastStep.Contacts.IsEmpty)
                 {
                     observed.FirstContactDistance = distance;
-                    observed.FirstContactMotion = ObserveMotion(process, header.Actor);
+                    observed.FirstContactMotion = ObserveMotion(process, header.Source);
                     observed.ApproachedAtContact = observed.SourceDisplaced && observed.MinimumDistance < observed.InitialDistance;
                 }
             }
@@ -1034,10 +1039,10 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 }
                 foreach (NativeBattleContactPacket contact in process.LastStep.Contacts)
                 {
-                    NativeBattleGraphicsModel target = graphics.Models[contact.Primary.ActorIndex];
+                    NativeBattleGraphicsModel target = graphics.ActorModels.Get(contact.Primary.Recipient);
                     if (target.Sequence == contact.Primary.Sequence || target.SequenceState?.Pending3 == contact.Primary.Sequence)
                     {
-                        observed.ReactingRows.Add(contact.Primary.ActorIndex);
+                        observed.ReactingOwners.Add(contact.Primary.Recipient);
                     }
                 }
             }
@@ -1068,17 +1073,16 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return observed;
     }
 
-    private static (int Row, byte? Model, int? Body, int? Linked)[] Models(ExpandedBattlePresentationProcess process)
+    private static (BattleModelOwner Owner, byte? Model, int? Body, int? Linked)[] Models(ExpandedBattlePresentationProcess process)
     {
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
-        return roster.PartyRows.Concat(roster.EnemyRows).Select(row =>
+        return process.Graphics.ActorModels.Entries.Select(entry =>
         {
-            NativeBattleGraphicsModel model = process.Graphics.Models[row];
+            NativeBattleGraphicsModel model = entry.State;
             Assert.NotEqual(0, model.Flags0 & 2);
             int body = Assert.IsType<int>(model.ActiveResourceRow100);
             Assert.Equal(body, model.OriginalResourceRow104);
-            Assert.Equal(row, process.ModelTextureCache.PresentationActors![body]);
-            return (row, model.ModelId4, model.ActiveResourceRow100, model.LinkedTextureResourceIndex);
+            Assert.Equal(entry.Owner, process.ModelTextureCache.PresentationActors![body]);
+            return (entry.Owner, model.ModelId4, model.ActiveResourceRow100, model.LinkedTextureResourceIndex);
         }).ToArray();
     }
 
@@ -1093,9 +1097,9 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return HeaderDisplacement(model) == initialDisplacement && (model.ResourceFlags44 & 0x40) != 0;
     }
 
-    private static MotionObservation ObserveMotion(ExpandedBattlePresentationProcess process, byte row)
+    private static MotionObservation ObserveMotion(ExpandedBattlePresentationProcess process, BattleModelOwner owner)
     {
-        NativeBattleGraphicsModel model = process.Graphics.Models[row];
+        NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
         NativeBattleActionMatrix matrix = Assert.IsType<NativeBattleActionMatrix>(model.GeometryWorldMatrix);
         return new(process.Graphics.Callback, model.ModelId4, model.Sequence, model.ResourceFlags44, HeaderDisplacement(model), (matrix.X, matrix.Y, matrix.Z));
     }
@@ -1139,7 +1143,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         internal bool SawFinishedDescriptor { get; set; }
         internal int ReceivedDuringFire { get; set; }
         internal List<NativeBattleContactPacket> Contacts { get; } = [];
-        internal HashSet<byte> ReactingRows { get; } = [];
+        internal HashSet<BattleModelOwner> ReactingOwners { get; } = [];
         internal HashSet<int> DisplayedDamage { get; } = [];
     }
 }

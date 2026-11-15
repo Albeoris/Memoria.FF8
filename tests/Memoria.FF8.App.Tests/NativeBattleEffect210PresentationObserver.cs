@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -145,7 +146,7 @@ internal sealed class NativeBattleEffect210PresentationObserver
             if ((oldAge is >= 55 and < 62 or >= 72 and < 100) && currentMain.Value.ReadByte(0x61) > 0 && CurrentCommands.Any(command => command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E))
             {
                 echo = true;
-                Assert.NotNull(current.NativeGraphics.Models[4].CurrentBodyBoneMatrices);
+                Assert.NotNull(ReadOriginalModelCell(current.NativeGraphics, 4).CurrentBodyBoneMatrices);
                 Mark("effect210-current-original-companion-echo", current, cold);
             }
         }
@@ -155,8 +156,8 @@ internal sealed class NativeBattleEffect210PresentationObserver
             capture = true;
             Mark("effect210-private-current-stage-capture", current, cold);
         }
-        originalTargetY ??= prior.NativeGraphics!.Models[0].Transform!.Position28.Y;
-        if (current.NativeGraphics.Models[0].Transform!.Position28.Y != originalTargetY)
+        originalTargetY ??= ReadOriginalModelCell(prior.NativeGraphics!, 0).Transform!.Position28.Y;
+        if (ReadOriginalModelCell(current.NativeGraphics, 0).Transform!.Position28.Y != originalTargetY)
         {
             motion = true;
             Mark("effect210-native-current-target-motion", current, cold);

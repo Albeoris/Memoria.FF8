@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect79Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect79Profile;
@@ -99,7 +100,7 @@ public sealed class NativeBattleEffect79ControllerTests
 
     private static NativeBattleEffect79Frame Active()
     {
-        NativeBattleOriginalEffectState effect = new(79, 78, new(79, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(79, 78, new(79, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffect79State state = NativeBattleEffect79State.FromColdProcess().WriteDword(InitializerGlobal, 0x20DFAB8).WriteDword(0x25EA344, 0x20DFAB8).WriteDword(0x25EA340, 0x20DFAB8 + 0x8000).WriteDword(0x25E973C, 0x20DFAB8 + 0x8000).WriteDword(0x25E9738, 0x20DFAB8 + 0x10000).WriteDword(0x25EB3B8, 0x20DFAB8 + 0x10000);
         ImmutableArray<NativeBattleEffectTaskPool> pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray();
         NativeBattleEffectHierarchyAppend root = new NativeBattleEffectHierarchy(pools).Append8DC540(0, RootCallback, 100);
@@ -115,9 +116,9 @@ public sealed class NativeBattleEffect79ControllerTests
     private static NativeBattleActionPacketsState Packets()
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (packets, _) = packets.Prepare(new(4, 8, 16, -1, 351, 79, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 16, -1, 351, 79, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(2);
         return packets;
     }
@@ -126,7 +127,7 @@ public sealed class NativeBattleEffect79ControllerTests
     {
         public List<NativeBattleEffect79Operation> Operations { get; } = [];
 
-        public NativeBattleEffect79Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => Packets(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 1234 }, null), frame => new(null, 100, 160, 108), (frame, index) => new(index, 2), (frame, index) => throw new NotSupportedException("This scoped phase does not read a pose source."), frame => 0, (frame, source) => source == 0xB8B7D8 ? 0x12345678u : source == 0xB8B9A8 ? 0x90ABCDEFu : throw new InvalidDataException(), (frame, operation) =>
+        public NativeBattleEffect79Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => Packets(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 1234 }, null), frame => new(null, 100, 160, 108), (frame, index) => new(2), (frame, index) => throw new NotSupportedException("This scoped phase does not read a pose source."), frame => 0, (frame, source) => source == 0xB8B7D8 ? 0x12345678u : source == 0xB8B9A8 ? 0x90ABCDEFu : throw new InvalidDataException(), (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;

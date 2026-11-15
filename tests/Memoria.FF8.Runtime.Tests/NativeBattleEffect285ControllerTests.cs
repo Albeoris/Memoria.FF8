@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -261,7 +262,7 @@ public sealed class NativeBattleEffect285ControllerTests
         Harness harness = new();
         harness.SetContacts(7, 0, 1, 2);
         EmitContacts(Frame(0), 110, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect285AllContacts506BA0(7, 3), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect285AllContacts506BA0(new BattleContactCursor(7), 3), Assert.Single(harness.Operations));
     }
 
     [Fact]
@@ -325,7 +326,7 @@ public sealed class NativeBattleEffect285ControllerTests
             }
         }
         NativeBattleEffect285State state = NativeBattleEffect285State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
-        NativeBattleOriginalEffectState effect = new(285, 284, new(285, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(285, 284, new(285, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -342,7 +343,7 @@ public sealed class NativeBattleEffect285ControllerTests
         public List<NativeBattleEffect285Operation> Operations { get; } = [];
         public ushort[] Flags { get; } = new ushort[7];
         public short[] Z { get; } = Enumerable.Repeat((short)300, 7).ToArray();
-        public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();
         public NativeBattleEffect285CameraSnapshot Camera { get; set; } = new(PointView(new(1, 2, 3)).Write(6, BitConverter.GetBytes((ushort)0x1111)), PointView(new(4, 5, 6)).Write(6, BitConverter.GetBytes((ushort)0x2222)), PointView(new(11, 22, 33)), PointView(new(44, 55, 66)).Write(6, BitConverter.GetBytes((ushort)0xCAFE)), 288, 512, 99);
 
         public void SetContacts(int first, params int[] actors)

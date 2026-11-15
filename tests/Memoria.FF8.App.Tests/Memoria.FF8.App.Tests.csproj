@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Shared/NativeBattleTypedFixture.cs" Link="NativeBattleTypedFixture.cs" />
+    <Compile Include="../Shared/NativeBattleOriginalModelObservations.cs" Link="NativeBattleOriginalModelObservations.cs" />
     <EmbeddedResource Include="GameplaySaveRuntimeSchema.txt" LogicalName="GameplaySaveRuntimeSchema.txt" />
     <Compile Remove="WindowModeControllerTests.cs" Condition="'$(MemoriaNativeGraphics)' == 'true'" />
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -18,7 +19,7 @@ public sealed class NativeLinkedBonePublicationTests
         NativeBattleGraphicsModel model = Model(source, bodyComplete ? (byte)1 : (byte)0, 0);
         model = model with { CurrentLinkedBoneMatrices = null };
         int calls = 0;
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null)
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(null, null)
         {
             ApplyActionContacts = current =>
             {
@@ -39,7 +40,7 @@ public sealed class NativeLinkedBonePublicationTests
         NativeBattleGraphicsModel model = Model(source, 1, 1);
         NativeBattleBodyBoneMatrices owner = model.CurrentLinkedBoneMatrices!;
         model = model with { CurrentLinkedBoneMatrices = owner with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(owner.Matrices, Composed, 0) } };
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, Resource(source, [0xA1]), new(null, null));
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, Resource(source, [0xA1]), new(null, null));
         EqualLocal(step.Model, source);
         Assert.Equal(model.SequenceState!.LinkedPose, step.Model.SequenceState!.LinkedPose);
     }
@@ -64,7 +65,7 @@ public sealed class NativeLinkedBonePublicationTests
         NativeBattlePoseSource source = Source();
         NativeBattleGraphicsModel model = Model(source, 1, 1) with { ResourceFlags44 = 3 };
         model = model with { CurrentLinkedBoneMatrices = model.CurrentLinkedBoneMatrices! with { Matrices = [Composed] } };
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, Resource(source, [0xA1]), new(null, null));
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, Resource(source, [0xA1]), new(null, null));
         Assert.Same(model.CurrentLinkedBoneMatrices, step.Model.CurrentLinkedBoneMatrices);
     }
 
@@ -87,7 +88,7 @@ public sealed class NativeLinkedBonePublicationTests
         NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(model))!;
         Assert.Equal(JsonSerializer.Serialize(model.CurrentLinkedBoneMatrices), JsonSerializer.Serialize(restored.CurrentLinkedBoneMatrices));
         NativeBattleGraphicsResource resource = Resource(source, [0xA1]);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(model, resource, new(null, null)).Model), JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(restored, resource, new(null, null)).Model));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(null, null)).Model), JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(OriginalOwner(0), restored, resource, new(null, null)).Model));
     }
 
     [Fact]
@@ -115,7 +116,7 @@ public sealed class NativeLinkedBonePublicationTests
 
     private static NativeBattleGraphicsModel Model(NativeBattlePoseSource source, byte bodyFrame, byte linkedFrame)
     {
-        NativeBattleGraphicsModel model = new(0, 3)
+        NativeBattleGraphicsModel model = new(3)
         {
             Flags2 = 0,
             Flags8 = 0,

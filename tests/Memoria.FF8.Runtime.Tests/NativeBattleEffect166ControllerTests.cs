@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect166Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect166Profile;
@@ -135,7 +136,7 @@ public sealed class NativeBattleEffect166ControllerTests
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(MainCallback);
         child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
-        NativeBattleOriginalEffectState effect = new(166, 165, new(166, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
+        NativeBattleOriginalEffectState effect = new(166, 165, new(166, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, child] };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect166State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8));
     }
 
@@ -168,9 +169,9 @@ public sealed class NativeBattleEffect166ControllerTests
 
         private static NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 14, -1, 310, 166, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 310, 166, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

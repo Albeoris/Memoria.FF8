@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -7,7 +8,7 @@ public sealed class NativeBattleCinematicParameterBytesTests
     [Fact]
     public void AddressedParametersPreserveTheRealHeaderPointerAndIndependentByteOwners()
     {
-        NativeBattleEffectParameters parameters = new(5, 0xA1, 0x8123, 31, 0x82, 0x84) { Parameter80 = 0x81, Parameter82 = 0x83 };
+        NativeBattleEffectParameters parameters = new(OriginalOwner(5), 0xA1, 0x8123, new BattleActionHeaderReference(31), 0x82, 0x84) { Parameter80 = 0x81, Parameter82 = 0x83 };
         byte[] bytes = NativeBattleCinematicParameterBytes.Read(parameters, 0, 12);
         Assert.Equal(new byte[] { 5, 0xA1, 0x23, 0x81 }, bytes.AsSpan(0, 4).ToArray());
         Assert.Equal(0x1D280C4u + 31u * 20, BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4, 4)));
@@ -17,7 +18,7 @@ public sealed class NativeBattleCinematicParameterBytesTests
     [Fact]
     public void ActorReadDoesNotRequireUnrelatedUnwrittenOptionalBytes()
     {
-        NativeBattleEffectParameters parameters = new(6, 0, 1, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(6), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0);
         Assert.Equal(new byte[] { 6 }, NativeBattleCinematicParameterBytes.Read(parameters, 0, 1));
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicParameterBytes.Read(parameters, 8, 1));
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicParameterBytes.Read(parameters, 10, 1));

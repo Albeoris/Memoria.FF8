@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -53,7 +54,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     public void ActivatedPhysicalHeaderSurvivesIntermediateDd90CountsResetAndColdJsonUntilFinalEvent()
     {
         var fixture = Fixture();
-        NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets.ActivateHeader(0).ResetCounts();
+        NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets.ActivateHeader(new BattleActionHeaderReference(0)).ResetCounts();
         packets = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(packets))!;
         Field("nativeActionPackets").SetValue(fixture.Session, packets);
         Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
@@ -130,7 +131,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     {
         var fixture = Fixture();
         NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets;
-        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { Payload = packets.Headers[0].Payload.SetItem(0, 3) }) };
+        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { Payload = packets.ExportRetained().Headers[0].Payload.SetItem(0, 3) }) };
         Field("nativeActionPackets").SetValue(fixture.Session, packets);
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Complete(fixture.Session, fixture.Graphics, 0x47DDA0));
         Assert.IsType<InvalidDataException>(error.InnerException);
@@ -184,7 +185,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
                 {
                 }) };
             }
-            return graphics with { OriginalEffect = new(1, 0, new(1, 1, 1), null, 0), Descriptors = descriptors, PendingContacts = fault is "contact" or "retention" ? [session.NativeActionPackets.ReadContact(0)] : [] };
+            return graphics with { OriginalEffect = new(1, 0, new(1, 1, 1), null, 0), Descriptors = descriptors, PendingContacts = fault is "contact" or "retention" ? [session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0))] : [] };
         }
         NativeBattleGraphicsState plainGraphics = Prepare(ordinary.Session, ordinary.Graphics);
         NativeBattleGraphicsState capturedGraphics = Prepare(captured.Session, captured.Graphics);
@@ -322,8 +323,8 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             Assert.True(exactFocal.NativeEventCompleted);
             Assert.Contains("contact-or-descriptor", exactFocal.Blockers);
             NativeBattleActionPacketsState laterPackets = captured.Session.NativeActionPackets;
-            (laterPackets, _) = laterPackets.Prepare(new(0, 1, 13, -1, 0, 0, null));
-            (laterPackets, _) = laterPackets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (laterPackets, _) = laterPackets.Prepare(new(OriginalOwner(0), 1, 13, -1, 0, 0, null));
+            (laterPackets, _) = laterPackets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (laterPackets, _) = laterPackets.Publish(1);
             Field("nativeActionPackets").SetValue(captured.Session, laterPackets);
             Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
@@ -332,7 +333,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             NativeBattleDescriptorState laterDescriptors = capturedResult.Descriptors.RemoveFirst().Enqueue(10, 128, 0x47DDA0).State;
             NativeBattleGraphicsState laterResult = Complete(captured.Session, capturedResult with { Descriptors = laterDescriptors }, 0x47DDA0);
             Assert.Null(captured.Session.ActiveAction);
-            Assert.Equal((byte)1, captured.Session.NativeActionPackets.Headers[0].ReadByte(1));
+            Assert.Equal((byte)1, captured.Session.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(1));
             Assert.Equal(2, captured.Session.Events.Count(value => value.Kind == "ActionComplete"));
             Assert.Same(exactFocal, captured.Session.LastDiagnosticInvocationCompletion);
             Assert.Equal(20, exactFocal.Callback);
@@ -363,7 +364,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         {
             task = task with { Program = task.Program! with { Offset = 4 } };
         }
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 2) { ResourceFlags44 = 0, Sequence = 7 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2) { ResourceFlags44 = 0, Sequence = 7 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
         string original = NativeBattleTestSnapshots.Json(new { task, graphics });
         object? context = typeof(BattleSession).GetMethod("ObserveDiagnosticTextureAnimation", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [task, graphics]);
         Assert.Equal(original, NativeBattleTestSnapshots.Json(new { task, graphics }));
@@ -421,15 +422,15 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         //485460 resets the pending-order BYTE before dispatching the event represented by this fixture.
         Method("BeginNativeReactionBatch").Invoke(session, null);
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, 252, 0, 0, 1, 1, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 252, 0, 0, 1, 1, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
         BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = 0, NativeQueuedCommand = 252, NativeGraphic = new(1) };
         SetAction(session, action);
         typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.IsBusy))!.SetValue(session.Combatants[0], true);
-        return (session, new([], [], 0, 0) { ActionCallbackReady = false, ActionActorId = "party" }, action);
+        return (session, new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { ActionCallbackReady = false, ActionActorId = "party" }, action);
     }
 
     private static NativeBattleGraphicsState Complete(BattleSession session, NativeBattleGraphicsState graphics, uint callback) => (NativeBattleGraphicsState)Method("RunNativeDescriptorActionCallback").Invoke(session, [graphics, callback])!;

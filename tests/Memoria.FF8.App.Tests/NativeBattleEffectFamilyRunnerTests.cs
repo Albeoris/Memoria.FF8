@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -70,7 +71,7 @@ public sealed class NativeBattleEffectFamilyRunnerTests
         header[6] = 1;
         packets = packets with { Headers = [new(header.ToImmutableArray(), 0, null, null)] };
         NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, null, item);
-        NativeBattleActionGraphicsState otherHeader = new(1, 0, 0, 0, 0, null, null, 0, null, 0);
+        NativeBattleActionGraphicsState otherHeader = new(1, OriginalOwner(0), 0, 0, 0, null, null, 0, null, 0);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, otherHeader, item));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), 0x1D280C5);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(new(descriptor.ToImmutableArray()), packets, null, item));

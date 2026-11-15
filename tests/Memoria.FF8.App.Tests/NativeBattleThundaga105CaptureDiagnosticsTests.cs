@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -29,13 +30,13 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
         uint actorDelta = unchecked(actorAddress - 0x1D972C0u);
         Assert.True(actorDelta % 156 == 0 && actorDelta / 156 < 7);
         int actor = (int)(actorDelta / 156);
-        NativeBattleGraphicsModel model = snapshot.NativeGraphics.Models[actor];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics, actor);
         Assert.True(model.ModelId4 < 16);
         Assert.Null(model.ActiveStagedResourceRow100);
         Assert.Null(model.ResourceMagicId);
-        NativeBattlePoseSource actorPose = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == snapshot.NativeGraphics.ActorIds[actor]).Resource.PoseSource ?? throw new InvalidDataException("The diagnostic requires the retained party pose source.");
+        NativeBattlePoseSource actorPose = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(snapshot.NativeGraphics, actor)).Resource.PoseSource ?? throw new InvalidDataException("The diagnostic requires the retained party pose source.");
         NativeBattleVector xyz = NativeBattlePoseMatrices.ReadBone(model, actorPose, 241, 0);
-        short angle = snapshot.NativeGraphics.Models[actor].Transform!.Angle36;
+        short angle = ReadOriginalModelCell(snapshot.NativeGraphics, actor).Transform!.Angle36;
         byte[] anchor = new byte[8];
         BinaryPrimitives.WriteInt16LittleEndian(anchor, xyz.X);
         BinaryPrimitives.WriteInt16LittleEndian(anchor.AsSpan(2), xyz.Y);

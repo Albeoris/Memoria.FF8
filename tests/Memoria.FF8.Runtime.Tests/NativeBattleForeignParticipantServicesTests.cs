@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -17,7 +18,7 @@ public sealed class NativeBattleForeignParticipantServicesTests
             Assert.Equal(1024, fraction);
             return new(10, 20, 30);
         });
-        NativeBattleForeignActor actor = new(3, transform, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
+        NativeBattleForeignActor actor = new(OriginalOwner(3), transform, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
         typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<int, NativeBattleForeignActor> { [3] = actor });
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, new(3, 2) { Transform = transform, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 }), [null, null, null, "host", null, null, null], 0, 0);
         MethodInfo observe = typeof(BattleSession).GetMethod("ObserveNativeGraphicsBoneAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;

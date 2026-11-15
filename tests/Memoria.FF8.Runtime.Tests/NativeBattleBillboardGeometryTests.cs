@@ -82,7 +82,7 @@ public sealed class NativeBattleBillboardGeometryTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x10), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1]);
-        NativeBattleGraphicsModel model = new(3, 3) { Flags2 = 1, Rotation14 = 0, GeometryWorldMatrix = Identity, SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 1, Rotation14 = 0, GeometryWorldMatrix = Identity, SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
         model = model with { CurrentBodyBoneMatrices = model.CurrentBodyBoneMatrices! with { Matrices = [Identity] } };
         return (model, source);

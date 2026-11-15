@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -247,9 +248,9 @@ public sealed class NativeBattleEffect30BeamLowerTests
         {
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, RootCallback, 100);
-            NativeBattleEffectHierarchyAppend beam = root.Hierarchy.Append8DC540(3, BeamCallback, 144, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend beam = root.Hierarchy.Append8DC540(3, BeamCallback, 144, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             Beam = beam.Address;
-            NativeBattleOriginalEffectState effect = new(30, 30, new(30, Entry, Initializer), new(0, 0, 0, 0, 0, 0), Pools[0].Descriptor) { Pools = beam.Hierarchy.Pools };
+            NativeBattleOriginalEffectState effect = new(30, 30, new(30, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), Pools[0].Descriptor) { Pools = beam.Hierarchy.Pools };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             Frame = new(memory, effect, new(1), NativeBattleEffect30State.FromColdProcess().WriteDword(0x26D6A28, 0x2793E58)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             NativeBattleModulePoolTask task = Read(Frame, Beam).WriteBytes(0x54, Identity.Bytes.AsSpan()).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteDword(0x40, 0x00112233).WriteWord(0x74, 100).WriteWord(0x76, 200).WriteWord(0x78, 300).WriteWord(0x7C, 500).WriteWord(0x7E, 600).WriteWord(0x80, 700);
@@ -262,7 +263,7 @@ public sealed class NativeBattleEffect30BeamLowerTests
                 return bytes.ToImmutableArray();
             });
             Resources = new(new("fixture", []), new([]), meshes, new(0, 0, 0, 0, []), rows, 0);
-            Inputs = new(ReadBone, (_, _) => Identity, Look, _ => Identity, (_, _, _) => new(0, 3), Deliver, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+            Inputs = new(ReadBone, (_, _) => Identity, Look, _ => Identity, (_, _, _) => OriginalTaskActors(0, 3), Deliver, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
         }
 
         private NativeBattleEffect30PointStep ReadBone(NativeBattleEffect30Frame frame, byte actor, byte selector, short distance)

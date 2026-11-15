@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -46,7 +47,7 @@ public sealed class NativeBattleAngelWing84NodeTests
     {
         var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, 0x7913C0, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, 0x7913C0, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteWord(36, counter).WriteWord(664, 8));
         NativeBattleAngelWing84Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleAngelWing84NodeCallbackStep step = NativeBattleAngelWing84Nodes.AdvanceGeneric(frame, appended.Address, new(default), fixture.Inputs, new(1), new(fixture.Inputs.Camera, 256, 160, 120), 0, NativeBattleLogicalOrdering.Clear(), NativeBattleGteColorInterpolation.CodeConstants45F270, (ref NativeCrtRandomState _) => throw new InvalidOperationException("Waiting context cannot sample body bones."));
@@ -63,7 +64,7 @@ public sealed class NativeBattleAngelWing84NodeTests
         var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, 0x7913C0, 676, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, 0x7913C0, 676, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteByte(41, 1).WriteWord(84, 2));
         NativeBattleAngelWing84Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools }, State = fixture.Frame.State with { PassEmitterCount = 0, PassGeometryCount = 0 } };
         NativeBattleAngelWing84NodeCallbackStep step = NativeBattleAngelWing84Nodes.AdvanceGeneric(frame, appended.Address, new(default), fixture.Inputs, new(1), new(fixture.Inputs.Camera, 256, 160, 120), 0, NativeBattleLogicalOrdering.Clear(), NativeBattleGteColorInterpolation.CodeConstants45F270, (ref NativeCrtRandomState _) => throw new InvalidOperationException("Completed context cannot sample body bones."));

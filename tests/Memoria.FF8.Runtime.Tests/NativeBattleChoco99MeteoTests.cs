@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -59,7 +60,7 @@ public sealed class NativeBattleChoco99MeteoTests
             Assert.Equal((sbyte)-1, header);
             Assert.Equal((sbyte)2, target);
             selects++;
-            return new(0, 3);
+            return OriginalTaskActors(0, 3);
         });
         Assert.Equal(2, selects);
         Assert.Equal((byte)2, step.Task.ReadByte(0x28));
@@ -150,7 +151,7 @@ public sealed class NativeBattleChoco99MeteoTests
         for (int index = 0; index < 3; index++)
         {
             frame = frame with { Ordering = NativeBattleLogicalOrdering.Clear() };
-            NativeBattleFullscreenOverlayFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFullscreenOverlayFrame>(NativeBattleTestSnapshots.Json(frame))!;
+            NativeBattleFullscreenOverlayFrame restored = NativeBattleTestSnapshots.Independent(frame);
             NativeBattleFullscreenOverlayStep drawn = NativeBattleFullscreenOverlay.Advance8DDC30(frame, appended.Address, 0, Resources().Overlay);
             Assert.Equal(NativeBattleTestSnapshots.Json(drawn), NativeBattleTestSnapshots.Json(NativeBattleFullscreenOverlay.Advance8DDC30(restored, appended.Address, 0, Resources().Overlay)));
             Assert.Equal(5, drawn.Frame.Ordering.ProxyCursor);

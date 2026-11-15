@@ -62,7 +62,7 @@ public sealed class NativeAutomaticGuardianPreparationTests
         BattleSnapshot saved = entry.Capture();
         Assert.Empty(saved.NativeGraphics!.Descriptors.Queue);
         Assert.Equal((byte)0, saved.NativeActionPackets!.ActionCount);
-        NativeBattleActionHeaderSlot retainedHeader = saved.NativeActionPackets.Headers[0];
+        NativeBattleActionHeaderSlot retainedHeader = saved.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         saved = saved with { NativeActionPackets = saved.NativeActionPackets with { Headers = saved.NativeActionPackets.Headers.SetItem(0, retainedHeader with { Payload = retainedHeader.Payload.SetItem(17, 0xA7), UnknownByteMask = retainedHeader.UnknownByteMask & ~(1u << 17) }) } };
         NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
         (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(0, 0, 7);
@@ -92,10 +92,10 @@ public sealed class NativeAutomaticGuardianPreparationTests
         Assert.Equal(new uint[] { 0x47DD90, 0x47DDA0 }, ordered.Skip(1).Select(packet => packet.Argument));
         Assert.DoesNotContain(ordered, packet => packet.Command == 10 && packet.Argument == 0x47DE70);
         Assert.Equal(1u, battle.Capture().NativeClock!.ActionPause);
-        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.Headers[prepared.NativeHeaderIndex!.Value];
-        Assert.Equal((byte)245, header.ReadByte(1));
-        Assert.Equal((ushort)8, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)330, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(prepared.NativeHeaderIndex!.Value));
+        Assert.Equal((byte)245, header.Command);
+        Assert.Equal((ushort)8, header.Action);
+        Assert.Equal((ushort)330, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
     }
 }

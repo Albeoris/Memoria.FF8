@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -170,7 +171,7 @@ public sealed class NativeBattleCpuTrailsTests
                 NativeBattleEffectTaskPool.Initialize(WorldTrailDescriptor, ArenaAddress + WorldOffset, WorldStride, WorldCount),
                 NativeBattleEffectTaskPool.Initialize(BoneTrailDescriptor, ArenaAddress + BoneOffset, BoneStride, BoneCount)
             ];
-            NativeBattleOriginalEffectState effect = new(126, 126, new(126, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(126, 126, new(126, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0, SecondPacketOffset + PacketBankBytes).Write(WorldFreePointerOffset, BitConverter.GetBytes(0u)).Write(BoneFreePointerOffset, BitConverter.GetBytes(0u));
             for (int index = 0; index < PointCount; index++)
             {

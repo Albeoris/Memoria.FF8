@@ -48,7 +48,7 @@ public sealed class NativeBattleActionCameraStateTests
     [InlineData(0u, 256, true)]
     public void BusyPredicateUsesAllDecimal26StatusBitsAndTheActualResourceMask(uint flags, ushort resource, bool expected)
     {
-        NativeBattleGraphicsModel model = new(3, 3) { Flags8 = flags, Kind5 = 0, ResourceFlags44 = resource };
+        NativeBattleGraphicsModel model = new(3) { Flags8 = flags, Kind5 = 0, ResourceFlags44 = resource };
         Assert.Equal(expected, NativeBattleActionGraphics.IsModelBusy(model, 64));
     }
 }

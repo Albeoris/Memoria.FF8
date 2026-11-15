@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -12,7 +13,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         {
             auxiliary = auxiliary.AppendTextureAnimation(row % 7, 11, new([255], 0));
         }
-        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0) { Auxiliary = auxiliary };
+        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0) { Auxiliary = auxiliary };
     }
 
     private static BattleDiagnosticTextureQuiescence Capture(NativeBattleGraphicsState graphics)
@@ -100,7 +101,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
             _ => task
         };
         graphics = graphics with { Auxiliary = graphics.Auxiliary with { Slots = graphics.Auxiliary.Slots.SetItem(0, task) } };
-        NativeBattleGraphicsModel model = graphics.Models[0];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
         model = fault switch
         {
             "unloaded-model" => model with { Flags0 = 0 },
@@ -114,7 +115,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         graphics = fault switch
         {
             "model-unavailable" => graphics with { Models = [] },
-            "model-index-contradiction" => graphics with { Models = graphics.Models.SetItem(0, new NativeBattleGraphicsModel(1, 3) { ResourceFlags44 = 10, Sequence = 11 }) },
+            "model-index-contradiction" => graphics with { Models = graphics.Models.SetItem(0, new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }) },
             "orphan-active" => graphics with { Auxiliary = graphics.Auxiliary with { Slots = graphics.Auxiliary.Slots.SetItem(1, task) } },
             "wrong-tail" => graphics with { Auxiliary = graphics.Auxiliary with { Tail = 1 } },
             "missing-head" => graphics with { Auxiliary = graphics.Auxiliary with { Head = null } },

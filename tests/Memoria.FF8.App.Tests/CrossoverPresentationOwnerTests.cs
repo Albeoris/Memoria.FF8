@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
@@ -131,7 +132,7 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
             }
             if (reject)
             {
-                NativeBattleForeignActor actor = new(1, new(default, default, 0, 0, 4096), new(0, 0, 0, 0), (_, _) => default);
+                NativeBattleForeignActor actor = new(OriginalOwner(1), new(default, default, 0, 0, 4096), new(0, 0, 0, 0), (_, _) => default);
                 Assert.Throws<ArgumentException>(() => effect.Advance(effect.Source, effect.Random, new(null, 216, 160, 108), [actor, actor], effect.Memory.Textures!));
             }
             else

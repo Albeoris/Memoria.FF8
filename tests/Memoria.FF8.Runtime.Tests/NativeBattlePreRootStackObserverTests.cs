@@ -76,7 +76,7 @@ public sealed class NativeBattlePreRootStackObserverTests
         BinaryPrimitives.WriteUInt32LittleEndian(payload, 0x1D972C0);
         payload[9] = 11;
         NativeBattleAuxiliaryTask task = new(1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, payload.ToImmutableArray()) { Program = new([255], 0), UnknownByteMask = 0xF0 };
-        NativeBattleGraphicsModel model = new(0, 3) { Sequence = 11, ResourceFlags44 = 34 };
+        NativeBattleGraphicsModel model = new(3) { Sequence = 11, ResourceFlags44 = 34 };
         NativeBattleStackBytes stack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(Vitals(), task, model, "texture-wait");
         Assert.Equal(0x4B04E3u, stack.ReadUInt32(-0x8C));
         Assert.Equal(0x1A7904Cu, stack.ReadUInt32(-0x88));

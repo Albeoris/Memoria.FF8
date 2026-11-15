@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -67,7 +68,7 @@ public sealed class NativeBattleModulePaletteSprite570AC0Tests
         NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(3, descriptor, 0x00100007);
         NativeBattleModuleStep actual = state.Advance(new(0) { Resources = [descriptor, Sprite(5)], ReadModelAnchor = model =>
         {
-            Assert.Equal(3, model);
+            Assert.Equal(OriginalOwner(3), model);
             return new(10, 20, 30, 40);
         } });
         Assert.Equal(NativeBattleModuleKind.PaletteSprite570AC0, actual.State.Slots[actual.State.Head!.Value].Kind);

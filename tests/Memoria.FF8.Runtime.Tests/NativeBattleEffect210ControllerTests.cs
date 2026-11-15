@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -101,7 +102,7 @@ public sealed class NativeBattleEffect210ControllerTests
         Assert.Equal(2, harness.Selected);
         if (!complete)
         {
-            NativeBattleEffect210Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
+            NativeBattleEffect210Frame restored = NativeBattleTestSnapshots.Independent(step.Frame);
             NativeBattleEffect210Step next = AdvanceMain6F7310(restored, Main, null!, harness.Inputs());
             Assert.Equal(307, Read(next.Frame, Main).ReadWord(12));
             Assert.Single(harness.Operations.OfType<NativeBattleEffect210AllContacts506BA0>());
@@ -195,7 +196,7 @@ public sealed class NativeBattleEffect210ControllerTests
             pools = pools.Add(taskPool);
             state = state.DetachCommonQueue(MainDescriptor);
         }
-        NativeBattleOriginalEffectState effect = new(210, 209, new(210, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(210, 209, new(210, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -225,11 +226,11 @@ public sealed class NativeBattleEffect210ControllerTests
 
         private static NativeBattleActionPacketsState Packets(bool contact)
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 54, -1, 315, 210, null));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 54, -1, 315, 210, null));
             if (contact)
             {
-                (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(1);
             return packets;

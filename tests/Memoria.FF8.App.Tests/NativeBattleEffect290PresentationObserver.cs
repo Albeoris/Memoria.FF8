@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -58,10 +59,10 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         int oldAge = before?.ReadWord(12) ?? -1;
         int processed = before is not null ? oldAge : main is not null ? age - 1 : -1;
         callbacks.UnionWith(tasks.Values.Select(task => task.Callback));
-        Assert.Equal((byte)1, current.NativeActionPackets!.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(16));
-        Assert.Equal((byte)125, graphics.Models[3].ModelId4);
-        Assert.Equal(28, graphics.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
-        int row = graphics.Models[3].ActiveResourceRow100 ?? throw new InvalidDataException("Effect290 requires its current physical resource row.");
+        Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.HeaderIndex7C)).ReadContactCount());
+        Assert.Equal((byte)125, ReadOriginalModelCell(graphics, 3).ModelId4);
+        Assert.Equal(28, ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.Matrices.Length);
+        int row = ReadOriginalModelCell(graphics, 3).ActiveResourceRow100 ?? throw new InvalidDataException("Effect290 requires its current physical resource row.");
         Assert.NotEqual(0u, current.NativeModelCpuResources!.Rows[row].Require(12).PhysicalAddress);
         currentBones = true;
         if (graphics.ActionGraphics is { UseActionCamera: not null } action)
@@ -95,7 +96,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         if (processed is >= 0 and <= 89)
         {
             Assert.True(mainAges.Add(processed));
-            Assert.Equal(processed >= 30 ? 12 : 4, graphics.Models[3].Flags0 & 12);
+            Assert.Equal(processed >= 30 ? 12 : 4, ReadOriginalModelCell(graphics, 3).Flags0 & 12);
         }
         uint arena = state.ReadDword(ArenaGlobal);
         uint cursor = state.ReadDword(CursorGlobal);
@@ -191,7 +192,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         {
             drained = true;
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, MainVisits = mainAges.Count, Commands = CurrentCommands.Length, InternalRandom = state.ReadDword(InternalRandomGlobal), ProcessRandom = current.NativeEffectMemory.SharedEffectRandom?.State, CrtRandom = current.NativeCrtRandom?.Seed, SourceBound = sourceBound, ExhaustedCounts = exhaustedCounts, Fragments = fragments, Smoke = smoke, ModelFlags = graphics.Models[3].Flags0, CurrentSkeleton = graphics.Models[3].CurrentBodyBoneMatrices!.SkeletonSha256 });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, MainVisits = mainAges.Count, Commands = CurrentCommands.Length, InternalRandom = state.ReadDword(InternalRandomGlobal), ProcessRandom = current.NativeEffectMemory.SharedEffectRandom?.State, CrtRandom = current.NativeCrtRandom?.Seed, SourceBound = sourceBound, ExhaustedCounts = exhaustedCounts, Fragments = fragments, Smoke = smoke, ModelFlags = ReadOriginalModelCell(graphics, 3).Flags0, CurrentSkeleton = ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.SkeletonSha256 });
     }
 
     public void Publish(string output) => File.WriteAllText(Path.Combine(output, "effect290-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), PacketBanks = packetBanks.Order(), Callbacks = callbacks.Order(), Programmes = programmes.Order(), Warm = warm, Camera = camera, CameraTrack = cameraTrack, CameraView = cameraView, CameraDecision = cameraDecision, CurrentBones = currentBones, MainVisits = mainAges.Count, SourceBound = sourceBound, ExhaustedCounts = exhaustedCounts, InternalRandom = internalRandom, ProcessRandom = processRandom, CrtRandom = crtRandom, Morph640 = morph, Fragments = fragments, Smoke = smoke, CustomQuads = customQuads, Geometry = geometry, VibrationStarted = vibrationStarted, VibrationStopped = vibrationStopped, VibrationHandle = vibrationHandle, Uploaded = uploaded, MainRetired = mainRetired, Drained = drained, Contacts, ContactGlyphs, Observations = observations }));
@@ -213,7 +214,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         Assert.Equal(3, programmes.Count);
         Assert.Equal(2, packetBanks.Count);
         Assert.Equal(0, ContactGlyphs);
-        Assert.Equal(4, completed.NativeGraphics!.Models[3].Flags0 & 12);
+        Assert.Equal(4, ReadOriginalModelCell(completed.NativeGraphics!, 3).Flags0 & 12);
         Assert.False(completed.NativeEffectMemory!.Effect290!.ScriptSourcePending);
         Assert.All(completed.NativeEffectMemory.Effect290.FixedBanks.Values, bank => Assert.NotNull(bank));
     }

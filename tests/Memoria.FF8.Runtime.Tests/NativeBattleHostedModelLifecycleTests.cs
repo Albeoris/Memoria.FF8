@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -50,7 +51,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
         BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsState graphics = Graphics(roster);
-        NativeBattleGraphicsModel placeholder = new(8, 2);
+        NativeBattleGraphicsModel placeholder = new(2);
         graphics = graphics with { Models = graphics.Models.SetItem(8, placeholder).SetItem(14, Sequenced(14, 0)) };
         NativeBattleModelLifecycleServices services = session.CaptureExpandedModelLifecycleServices(roster);
 
@@ -90,8 +91,8 @@ public sealed class NativeBattleHostedModelLifecycleTests
         BattleEvent text = native.Events[1];
         Assert.Null(text.NativeTextIdentity);
         Assert.Collection(services.ReadReceipts(),
-            item => Assert.Equal(new NativeBattleModelTextPublished(0, text.ActorId!, text.Message, text.Amount, text.NativeTextIdentity), item),
-            item => Assert.Equal(new NativeBattleModelParticipantSuspended(0, "ally-0", 1), item));
+            item => Assert.Equal(new NativeBattleModelTextPublished(OriginalOwner(0), text.ActorId!, text.Message, text.Amount, text.NativeTextIdentity), item),
+            item => Assert.Equal(new NativeBattleModelParticipantSuspended(OriginalOwner(0), "ally-0", 1), item));
     }
 
     [Fact]
@@ -239,7 +240,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
 
     private static NativeBattleGraphicsModel Sequenced(int row, byte modelId)
     {
-        return new(row, 2)
+        return new(2)
         {
             Flags2 = 4,
             Flags8 = 0,
@@ -252,7 +253,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
 
     private static NativeBattleGraphicsModel Removing(int row)
     {
-        return new(row, 2)
+        return new(2)
         {
             ModelId4 = 143,
             Flags2 = 0,

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -76,19 +77,19 @@ public sealed class NativeBattleCuragaNodeRenderingTests
 
     private static (NativeBattleCuragaFrame Frame, uint Task) Fixture(GameAssets game)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, int header) = packets.Prepare(new(0, 2, 11, 0, 23, 28, null));
-        (packets, _) = packets.AppendContact(new(new(0, 1, 0, 1, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 23, 28, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 1, 0, 100, 0), null));
         packets = packets.WritePlayerRepeatMode(header, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleCuragaResources resources = game.ReadNativeCuragaResources();
-        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(28, game.ReadNativeEffectCatalogForEffects([28])) with { Parameters = new(0, 0, 1, header, 0, 0) };
+        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(28, game.ReadNativeEffectCatalogForEffects([28])) with { Parameters = new(OriginalOwner(0), 0, 1, header, 0, 0) };
         var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(initialized.Memory, initialized.Effect, packets, resources);
         NativeBattleEffectTextureDrain drain = frame.Memory.Textures!.Drain505D20(frame.Memory.Arena);
         frame = frame with { Memory = frame.Memory with { Textures = drain.State, CuragaExecutable = frame.Memory.CuragaExecutable!.Initialize87EA20(resources.Executable!) } };
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(3, 0x87E1A0, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 0));
+        NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(3, 0x87E1A0, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 0));
         //This isolates the actual private node engine with explicitly declared zero anchors and camera; it does not admit Session callbacks.
         NativeBattleModulePoolTask task = generic.Hierarchy.Read(generic.Address)
             .WriteDword(0x34 + 0x224, NativeBattleCuragaExecutableState.Address + 4)

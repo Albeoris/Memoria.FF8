@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -79,13 +80,13 @@ public sealed class NativeBattleZombiePresentationTests
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
             Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
             int headerIndex = checked((int)(offset / 20));
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[headerIndex];
-            Assert.Equal((byte)2, header.ReadByte(1));
-            Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-            Assert.Equal(item.Effect, NativeBattleActionGraphics.Word(header, 6));
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+            Assert.Equal((byte)2, header.Command);
+            Assert.Equal(action.ActionId, header.Action);
+            Assert.Equal(item.Effect, header.Effect);
             Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
             Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
-            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The ordinary producer omitted its contact owner."));
+            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
             Assert.Equal((byte)3, contact.Primary.ActorIndex);
             Assert.Equal((byte)255, contact.Secondary.ActorIndex);
             Assert.NotEqual((ushort)0, action.Statuses0);
@@ -93,15 +94,15 @@ public sealed class NativeBattleZombiePresentationTests
             Assert.Equal(action.Statuses0, (ushort)(contact.Primary.SavedStatuses4 & action.Statuses0));
             Assert.Equal(0u, contact.Primary.BattleStatuses8 & action.Statuses1);
             Assert.Equal((ushort)0, contact.Primary.Amount6);
-            string target = graphics.ActorIds[3]!;
-            string caster = graphics.ActorIds[0]!;
+            string target = ReadOriginalModelActorId(graphics, 3)!;
+            string caster = ReadOriginalModelActorId(graphics, 0)!;
             int beforeHp = beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int targetHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             Assert.Equal(beforeHp, targetHp);
             ushort statusMask = action.Statuses0;
             uint graphicsStatusMask = source.Definition.NativeGraphics!.Rules.Project(action.Statuses0, action.Statuses1);
             Assert.NotEqual(0u, graphicsStatusMask);
-            Assert.Equal(0u, source.NativeGraphics!.Models[3].Flags8!.Value & graphicsStatusMask);
+            Assert.Equal(0u, ReadOriginalModelCell(source.NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask);
             Assert.Equal(0, beforeInput.Combatants.Single(actor => actor.Id == target).NativeStatus!.Saved & statusMask);
             NativeBattleStatusSnapshot producedStatus = source.Combatants.Single(actor => actor.Id == target).NativeStatus!;
             Assert.Equal(statusMask, producedStatus.Saved & statusMask);
@@ -142,7 +143,7 @@ public sealed class NativeBattleZombiePresentationTests
                 BattleSnapshot current = battle.Capture();
                 Assert.Equal(targetHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
-                if (prior.NativeGraphics!.Models[3].Sequence != contact.Primary.Sequence && current.NativeGraphics!.Models[3].Sequence == contact.Primary.Sequence)
+                if (ReadOriginalModelCell(prior.NativeGraphics!, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.NativeGraphics!, 3).Sequence == contact.Primary.Sequence)
                 {
                     contactSequenceTransitions++;
                 }
@@ -154,8 +155,8 @@ public sealed class NativeBattleZombiePresentationTests
                 {
                     statusTransitions++;
                 }
-                uint priorGraphicsStatus = prior.NativeGraphics!.Models[3].Flags8!.Value & graphicsStatusMask;
-                uint currentGraphicsStatus = current.NativeGraphics!.Models[3].Flags8!.Value & graphicsStatusMask;
+                uint priorGraphicsStatus = ReadOriginalModelCell(prior.NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask;
+                uint currentGraphicsStatus = ReadOriginalModelCell(current.NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask;
                 if (priorGraphicsStatus != currentGraphicsStatus)
                 {
                     Assert.Equal(0u, priorGraphicsStatus);
@@ -197,7 +198,7 @@ public sealed class NativeBattleZombiePresentationTests
                 }
                 if (previousTargetAge is >= 30 and < 60)
                 {
-                    Assert.NotEqual(0, current.NativeGraphics!.Models[3].Flags0 & 8);
+                    Assert.NotEqual(0, ReadOriginalModelCell(current.NativeGraphics!, 3).Flags0 & 8);
                     NativeBattleGfGeometryBatch expectedOverlay = OverlayPackets(prior, previousTargetAge);
                     bool IsOverlay(NativeBattleLogicalResolvedCommand command) => command.Command.Packet.Bank == "20DFAB8" && expectedOverlay.Attempts.Any(attempt => attempt.Primitive is { } primitive && primitive.Words.Skip(1).SequenceEqual(command.Command.Words));
                     if (frame.LastCommands.Any(IsOverlay))
@@ -232,7 +233,7 @@ public sealed class NativeBattleZombiePresentationTests
             Assert.Equal(installed.ZombieResources!.Sound, heard.Sound);
             Assert.True(peakChangedPixels > 0, "Physical additive quad packets must contribute visible RGB pixels.");
             Assert.True(peakOverlayPixels > 0, "The actual target body overlay packets must contribute visible RGB pixels separately from mist.");
-            Assert.Equal(0, battle.NativeGraphics!.Models[3].Flags0 & 8);
+            Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).Flags0 & 8);
             NativeBattleOriginalEffectState finished = Selected(battle.Capture())!;
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
@@ -243,7 +244,7 @@ public sealed class NativeBattleZombiePresentationTests
 
             NativeBattleGfGeometryBatch OverlayPackets(BattleSnapshot snapshot, int age)
             {
-                NativeBattleGraphicsModel model = snapshot.NativeGraphics!.Models[3];
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, 3);
                 NativeBattleGraphicsResource resource = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == target).Resource;
                 if (model.ActiveResourceRow100 is int row)
                 {

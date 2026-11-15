@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -13,7 +14,7 @@ public sealed class NativeRenzokukenRawOwnerTests
         processes.Add("party", new(160, 8, null, new()));
         BattleNativeRenzokukenBlock block = new(1, [10, 10, 10], NativeBattleRenzokukenRules.Timeline([10, 10, 10]));
         BattleNativeRenzokukenInputState input = new() { Phase = 4, PoseClock = 16, SubframeClock = 2 };
-        NativeBattleTriggerWidget widget = new(0, block, input, true, false, 0, 0, 4, -1) { SourceMagicId = 160 };
+        NativeBattleTriggerWidget widget = new(OriginalOwner(0), block, input, true, false, 0, 0, 4, -1) { SourceMagicId = 160 };
         Invoke(battle, "MirrorNativeRenzokukenWidget", widget);
         BattleNativeRenzokukenState before = processes["party"];
         Assert.Equal(input, before.Input);
@@ -35,7 +36,7 @@ public sealed class NativeRenzokukenRawOwnerTests
         BattleNativeRenzokukenState process = new(159, 8, null, new());
         processes.Add("party", process);
         BattleNativeRenzokukenBlock block = new(1, [10, 10], NativeBattleRenzokukenRules.Timeline([10, 10]));
-        NativeBattleTriggerWidget widget = new(0, block, new() { Phase = 8, ContactIndex = 1 }, true, false, 0, 0, 4, -1);
+        NativeBattleTriggerWidget widget = new(OriginalOwner(0), block, new() { Phase = 8, ContactIndex = 1 }, true, false, 0, 0, 4, -1);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, battle.NativeGraphics! with { TriggerWidget = widget });
 
         Invoke(battle, "MirrorNativeRenzokukenWidget", widget);
@@ -57,7 +58,7 @@ public sealed class NativeRenzokukenRawOwnerTests
         Field<Dictionary<string, byte>>(battle, "nativeLimitLevels").Add("party", 1);
         BattleActionPresentation command = new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.LimitBreak, 65533) { NativeQueuedCommand = 5, NativeTargetMask = 8, NativeRenzokuken = new(1) };
         typeof(BattleSession).GetField("nativeTimedAction", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new NativeBattleTimedAction(command, 0));
-        NativeBattleGraphicsState graphics = battle.NativeGraphics! with { PendingTrigger = new(0, 1, 2, 25, 32) };
+        NativeBattleGraphicsState graphics = battle.NativeGraphics! with { PendingTrigger = new(OriginalOwner(0), 1, 2, 25, 32) };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
         Invoke(battle, "ValidateNativeRenzokukenOwners");
 
@@ -69,7 +70,7 @@ public sealed class NativeRenzokukenRawOwnerTests
     private static BattleSession Fixture()
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToImmutableArray(), ["party", null, null, "enemy", null, null, null], 0, 0);
+        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray(), ["party", null, null, "enemy", null, null, null], 0, 0);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
         return battle;
     }

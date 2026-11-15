@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -136,14 +137,14 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             };
             BattleSession battle = new(definition, BattleAtbMode.TurnBased);
             WaitFor(() => battle.CanRequestGuardianForm("party", 2));
-            NativeBattleGraphicsModel original = battle.NativeGraphics!.Models[slot];
+            NativeBattleGraphicsModel original = ReadOriginalModelCell(battle.NativeGraphics!, slot);
             NativeBattleCameraPose humanCamera = battle.NativeCamera!.CurrentPose!;
             Assert.Equal((byte)character, original.ModelId4);
-            Assert.Equal("party", battle.NativeGraphics.ActorIds[slot]);
+            Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics, slot));
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
             Assert.Equal(slot, battle.NativeGraphics!.GuardianFormPresentation!.ActorIndex);
-            Assert.Equal((byte)77, battle.NativeGraphics.Models[slot].ModelId4);
+            Assert.Equal((byte)77, ReadOriginalModelCell(battle.NativeGraphics, slot).ModelId4);
             Assert.Equal(character, battle.Combatants.Single(actor => actor.Id == "party").ModelId);
             NativeBattleCameraPose formCamera = battle.NativeCamera!.CurrentPose!;
             foreach (BattleGuardianFormAction action in new[] { BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire })
@@ -153,7 +154,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
                 battle.QueueGuardianFormAction("party", "enemy", action);
                 WaitFor(() => DamageCount() == damage + 1 && battle.ActiveAction is null && !battle.NativeGraphics!.GuardianFormPresentation!.IdleCameraRestorePending);
                 AssertCamera(formCamera);
-                Assert.Equal((byte)77, battle.NativeGraphics!.Models[slot].ModelId4);
+                Assert.Equal((byte)77, ReadOriginalModelCell(battle.NativeGraphics!, slot).ModelId4);
             }
             WaitFor(() => battle.CanChoosePlayerCommand("party"));
             int beforeFinisher = DamageCount();
@@ -166,14 +167,14 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             battle = restored;
             WaitFor(() => battle.GetGuardianForm("party") is null);
             Assert.Equal(beforeFinisher + 1, DamageCount());
-            NativeBattleGraphicsModel returned = battle.NativeGraphics!.Models[slot];
+            NativeBattleGraphicsModel returned = ReadOriginalModelCell(battle.NativeGraphics!, slot);
             Assert.Equal(original.ModelId4, returned.ModelId4);
             Assert.Equal(original.Transform, returned.Transform);
             Assert.Equal(original.HasLinkedModelRing140, returned.HasLinkedModelRing140);
             Assert.Equal(original.LinkedModelIndex140, returned.LinkedModelIndex140);
             Assert.Equal(original.LinkedTransform, returned.LinkedTransform);
             Assert.Equal(JsonSerializer.Serialize(original.BodyTextureSlots), JsonSerializer.Serialize(returned.BodyTextureSlots));
-            Assert.Equal("party", battle.NativeGraphics.ActorIds[slot]);
+            Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics, slot));
             AssertCamera(humanCamera);
             BattleCombatant returnedActor = battle.Combatants.Single(actor => actor.Id == "party");
             Assert.Equal(character, returnedActor.ModelId);

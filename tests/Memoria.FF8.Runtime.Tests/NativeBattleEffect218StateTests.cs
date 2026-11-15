@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
@@ -27,5 +28,5 @@ public sealed class NativeBattleEffect218StateTests
         Assert.Throws<NotSupportedException>(() => PreviousCameraEye6338B0(frame));
     }
 
-    private static NativeBattleEffect218Frame Frame(NativeBattleEffectMemory memory) => new(memory, new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor), new(1), NativeBattleEffect218State.FromColdProcess());
+    private static NativeBattleEffect218Frame Frame(NativeBattleEffectMemory memory) => new(memory, new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor), new(1), NativeBattleEffect218State.FromColdProcess());
 }

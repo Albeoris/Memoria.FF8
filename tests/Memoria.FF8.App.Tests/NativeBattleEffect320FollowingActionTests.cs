@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -27,7 +28,7 @@ public sealed class NativeBattleEffect320FollowingActionTests
         Assert.All(warm.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
         BattleSnapshot prepared = NativeBattleEffect320PresentationTests.QueueComponent(source, game, assets);
         Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.NativeEffectMemory!.Effect320));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeGraphics!.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
         BattleSnapshot completed = NativeBattleEffect320PresentationTests.RunPrepared(prepared, game, assets, output!);
         BattleSession cleanup = NativeBattleEffect320PresentationTests.Restore(completed, game);

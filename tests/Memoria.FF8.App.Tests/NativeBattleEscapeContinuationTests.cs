@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -43,11 +44,11 @@ public sealed class NativeBattleEscapeContinuationTests
             Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
         }
         Assert.NotEqual(initialGauges, Gauges(battle));
-        Assert.All(battle.NativeGraphics!.Models.Take(3), model => Assert.NotEqual(0u, model.Flags8!.Value & 0x1000000));
-        Assert.All(battle.NativeGraphics.Models.Take(3), model => Assert.Equal((byte)16, model.Sequence));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.NotEqual(0u, model.Flags8!.Value & 0x1000000));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Take(3), model => Assert.Equal((byte)16, model.Sequence));
         CompareNext("held");
         Advance(false);
-        Assert.All(battle.NativeGraphics!.Models.Take(3), model => Assert.Equal(0u, model.Flags8!.Value & 0x1000000));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.Equal(0u, model.Flags8!.Value & 0x1000000));
         Assert.Equal(0, battle.Escape.HeldFrames);
         int[] releasedGauges = Gauges(battle);
         for (int frame = 0; frame < 5; frame++)

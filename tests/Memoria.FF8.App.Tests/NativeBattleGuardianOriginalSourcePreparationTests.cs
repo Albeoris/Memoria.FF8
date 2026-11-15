@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -90,9 +91,9 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
             return session.CanSubmitDiagnosticEnemyAbility(casterDefinition.Id, selection);
         }, "original-initialization-and-readiness");
         BattleSnapshot ready = session.Capture();
-        Assert.True(ready.NativeGraphics!.Models.Length >= 7);
-        Assert.Equal((byte)144, ready.NativeGraphics.Models[3].ModelId4);
-        Assert.Equal((byte)98, ready.NativeGraphics.Models[4].ModelId4);
+        Assert.True(ReadOriginalModelCells(ready.NativeGraphics!).Length >= 7);
+        Assert.Equal((byte)144, ReadOriginalModelCell(ready.NativeGraphics, 3).ModelId4);
+        Assert.Equal((byte)98, ReadOriginalModelCell(ready.NativeGraphics, 4).ModelId4);
         Save("after-entry", ready);
         session.SubmitDiagnosticEnemyAbility(casterDefinition.Id, selection!, checked((ushort)effect));
         Pump(Queued, "normal-native-action104");
@@ -120,9 +121,9 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         {
             Assert.Equal(checked(0x1D280C4u + (uint)headerIndex * 20), queued.NativeGraphics.Descriptors.Packets[descriptor].Argument);
         }
-        NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.Headers[headerIndex];
-        Assert.Equal(effect, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The normal producer did not retain its actual contact."));
+        NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal(effect, header.Effect);
+        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Save("queued-action104", queued);
         File.WriteAllText(Path.Combine(output, "original-formation.json"), JsonSerializer.Serialize(formation));

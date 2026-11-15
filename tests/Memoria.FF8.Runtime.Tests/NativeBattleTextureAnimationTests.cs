@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -13,7 +14,7 @@ public sealed class NativeBattleTextureAnimationTests
         NativeBattleGraphicsModel model = Model(1) with { Flags0 = 0x403 };
         NativeBattleAuxiliaryProgram? scheduled = null;
         List<string> calls = [];
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null)
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(null, null)
         {
             ScheduleTextureAnimation = (program, sequence) =>
             {
@@ -29,7 +30,7 @@ public sealed class NativeBattleTextureAnimationTests
         Assert.Equal(0, step.Model.Flags0 & 0x400);
         Assert.Empty(step.Cues);
         NativeBattleGraphicsResource unterminated = new([1, 0, 4, 0, 0x9F, 2, 3]) { AnimationFrames = [1] };
-        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(model, unterminated, new(null, null)
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, unterminated, new(null, null)
         {
             ScheduleTextureAnimation = (_, _) =>
             {
@@ -80,7 +81,7 @@ public sealed class NativeBattleTextureAnimationTests
     {
         NativeBattleGraphicsResource resource = new([1, 0, 4, 0, 0xBE, (byte)blink, 0xBD, 128, 255, 0xAA, 0xA1]) { AnimationFrames = [1] };
         List<string> order = [];
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1) with { Flags0 = 0x403 }, resource, new(null, null)
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), Model(1) with { Flags0 = 0x403 }, resource, new(null, null)
         {
             ApplyTexture = (selector, variant) => order.Add($"copy:{selector}:{variant}"),
             ApplyActionContacts = model =>
@@ -174,5 +175,5 @@ public sealed class NativeBattleTextureAnimationTests
         Assert.Equal(new short[] { 0, 768, 0, 768 }, drain.Uploads.Select(upload => upload.X));
     }
 
-    private static NativeBattleGraphicsModel Model(byte sequence) => new(0, 3) { Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = sequence, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
+    private static NativeBattleGraphicsModel Model(byte sequence) => new(3) { Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = sequence, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleGravija214Controller;
@@ -230,8 +231,8 @@ public sealed class NativeBattleGravija214LowerTests
     {
         var frame = Frame(NativeBattleGravija214StateTests.Resources(), 0, 0);
         var rect = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)32767)).Write(2, BitConverter.GetBytes((short)32767)).Write(4, BitConverter.GetBytes((short)-32767)).Write(6, BitConverter.GetBytes((short)-32767));
-        var inputs = Inputs((current, _) => current) with { ReadModel = (_, pointer) => new(0, 0) { Transform = new(new(0, 0, 0), new(0, 0, 1000), 0, 0, 0) } };
-        var actual = Bounds69E860(frame, 0x1D972C0, rect, 65536, inputs);
+        var inputs = Inputs((current, _) => current) with { ReadModel = (_, pointer) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 1000), 0, 0, 0) } };
+        var actual = Bounds69E860(frame, OriginalOwner(0), rect, 65536, inputs);
         Assert.True(actual.Included);
         Assert.Equal(1000, actual.MinimumDepth);
         Assert.Equal((short)147, BinaryPrimitives.ReadInt16LittleEndian(actual.Rect8.Read(0, 2)));
@@ -272,5 +273,5 @@ public sealed class NativeBattleGravija214LowerTests
         var memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), matrix, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, new(123), NativeBattleGravija214State.FromColdProcess().CopyEntrySnapshot(resources).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleGravija214Inputs Inputs(Func<NativeBattleGravija214Frame, NativeBattleGravija214Operation, NativeBattleGravija214Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (current, _) => new(current, PointView(new(0, 0, 0))), _ => NativeBattleActionPacketsState.Fresh(), execute) { ReadOrderingTable = _ => NativeBattlePrimitiveOrdering.InitializeBattle(0).TableAddress };
+    private static NativeBattleGravija214Inputs Inputs(Func<NativeBattleGravija214Frame, NativeBattleGravija214Operation, NativeBattleGravija214Frame> execute) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (current, _) => new(current, PointView(new(0, 0, 0))), _ => OriginalPackets(), execute) { ReadOrderingTable = _ => NativeBattlePrimitiveOrdering.InitializeBattle(0).TableAddress };
 }

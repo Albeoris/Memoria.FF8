@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -59,7 +60,7 @@ public sealed class EncounterModelLoadOwnershipTests
             NativeBattleGraphicsModel model = graphics.Models[index] with { Flags0 = 7, Flags2 = 0, Kind5 = 0, EffectCounter97 = 2, Sequence = 1, SequenceState = new() { Default2 = 1 } };
             graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
         }
-        NativeBattleGraphicsModel last = graphics.Models[5] with { Flags2 = (ushort)flags, Kind5 = (byte)kind, Sequence = (byte)sequence };
+        NativeBattleGraphicsModel last = ReadOriginalModelCell(graphics, 5) with { Flags2 = (ushort)flags, Kind5 = (byte)kind, Sequence = (byte)sequence };
         graphics = graphics with { Models = graphics.Models.SetItem(5, last) };
         typeof(BattleSession).GetMethod("AdvanceEncounterAllocationPreparation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [graphics]);
         Assert.Equal(ready ? BattleEncounterAllocationPhase.Ready : BattleEncounterAllocationPhase.Loading, battle.EncounterAllocation!.Phase);
@@ -76,7 +77,7 @@ public sealed class EncounterModelLoadOwnershipTests
         BattleEncounterAllocationState batch = battle.BeginEncounterAllocation("fixture.batch", "original", "support", "assault");
         typeof(BattleSession).GetField("encounterAllocation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, batch with { Phase = BattleEncounterAllocationPhase.Loading, LoadingIndex = 0 });
         BattleCombatant copy = battle.Combatants.Single(actor => actor.Id == batch.ActorIds[0]);
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToImmutableArray(), new string?[] { "party", null, null, "original", copy.Id, batch.ActorIds[1], null }.ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray(), new string?[] { "party", null, null, "original", copy.Id, batch.ActorIds[1], null }.ToImmutableArray(), 0, 0);
         return (battle, copy, graphics);
     }
 

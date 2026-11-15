@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -155,7 +156,7 @@ public sealed class NativeBattleBio22ParticleTests
         frame = frame with { Task = frame.Task.WriteWord(0x6E, 0xCAFE).WriteWord(0x1E, unchecked((ushort)-1000)) };
         for (int tick = 0; tick < 25; tick++)
         {
-            NativeBattleBio22ParticleFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22ParticleFrame>(NativeBattleTestSnapshots.Json(frame))!;
+            NativeBattleBio22ParticleFrame restored = NativeBattleTestSnapshots.Independent(frame);
             NativeBattleBio22ParticleStep expected = Advance(callback, restored, Inputs());
             NativeBattleBio22ParticleStep step = Advance(callback, frame, Inputs());
             Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(step));
@@ -198,7 +199,7 @@ public sealed class NativeBattleBio22ParticleTests
                             Assert.Equal(0x1111u, parameter);
                             Assert.Equal((sbyte)2, header);
                             Assert.Equal((sbyte)3, target);
-                            return new(4, 5);
+                            return OriginalTaskActors(4, 5);
                         });
                         Assert.NotEqual(0u, append.Address);
                         hierarchy = append.Hierarchy;

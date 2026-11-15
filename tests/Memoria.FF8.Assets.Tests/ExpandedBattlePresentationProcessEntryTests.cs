@@ -149,19 +149,19 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         string before = LogicalState(logical);
         AssertUnselectedStageCamera(logical);
         ExpandedBattlePresentationProcess process = new(logical, selected);
-        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
+        (BattleModelRoster roster, NativeBattleModelAliases aliases) = logical.ReadBattlePresentationPacketBindings();
 
-        Assert.Equal(roster.Rows.ToArray(), process.Graphics.PresentationRoster!.Rows.ToArray());
-        Assert.Equal(allyCount, roster.PartyRows.Count());
-        Assert.Equal(enemyCount, roster.EnemyRows.Count());
+        Assert.Equal(roster.Owners, process.ModelTextureCache.PresentationRoster!.Owners);
+        Assert.Equal(allyCount, roster.Party.Count());
+        Assert.Equal(enemyCount, roster.Enemies.Count());
         if (authoredCount == 2)
         {
-            Assert.False(roster.ContainsRow(5));
-            Assert.False(roster.ContainsRow(6));
-            Assert.True(roster.ContainsRow(15));
+            Assert.Throws<InvalidDataException>(() => aliases.DecodeLiteral(5));
+            Assert.Throws<InvalidDataException>(() => aliases.DecodeLiteral(6));
+            Assert.Contains(logical.ReadPresentationModelOwner("enemy-8"), roster.Enemies);
         }
         Assert.False(process.EntryReady);
-        Assert.All(process.Graphics.Models, model => Assert.Equal(0, model.Flags0 & 2));
+        Assert.All(process.Graphics.ActorModels.Entries, entry => Assert.Equal(0, entry.State.Flags0 & 2));
 
         NativeExamTimerState? timer = allyCount == 4 && authoredCount == 4 ? NativeExamTimerState.FromColdProcess().SetRemaining(300).Display(4, 5) : null;
         uint duration = selected.NativeGraphics!.Rules.UiPublicationDuration!.Value;
@@ -190,13 +190,13 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.True(observed.AppearanceTask);
         Assert.True(observed.AppearanceCompleted);
         Assert.True(observed.BarrierTask);
-        Assert.Equal(roster.EnemyRows.Concat(roster.PartyRows).ToArray(), observed.CompletedRows.ToArray());
+        Assert.Equal(roster.Enemies.Cast<BattleModelOwner>().Concat(roster.Party), observed.CompletedOwners);
         Assert.InRange(observed.PeakQueuedDescriptors, 1, 29);
         if (allyCount == 11)
         {
             Assert.True(observed.AppearanceDeferredWhileLoadsWereQueued);
         }
-        AssertCompletedModelOwners(process, roster, selected.NativeGraphics!);
+        AssertCompletedModelOwners(process, roster, aliases, selected.NativeGraphics!);
 
         long beforeReady = process.Graphics.Callback;
         Advance(process, logical, ref timer, duration);
@@ -209,33 +209,33 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(process.Graphics.Callback, prepared.Callback);
         Assert.Equal(process.Stage.ResourceStageId, prepared.StageResourceId);
         Assert.NotEmpty(prepared.Primitives.LastCommands);
-        Assert.Equal(roster.Rows.OfType<BattleModelOwner>().Select(actor => actor.ActorId), prepared.Actors.Select(actor => actor.Id));
-        foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
+        Assert.Equal(roster.Owners.Select(ActorId), prepared.Actors.Select(actor => actor.Id));
+        foreach (BattleModelOwner owner in roster.Owners)
         {
-            NativeBattlePreparedActor actor = Assert.Single(prepared.Actors, item => item.Id == roster[row].ActorId);
-            NativeBattleGraphicsModel model = process.Graphics.Models[row];
+            NativeBattlePreparedActor actor = Assert.Single(prepared.Actors, item => item.Id == ActorId(owner));
+            NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
             Assert.Same(model.BodyTextureSlots, actor.BodyTextures);
             Assert.Same(model.LinkedTextureSlots, actor.LinkedTextures);
             Assert.Equal(selected.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actor.Id).InitialPosition, model.Transform?.Initial20);
         }
 
-        var states = roster.PartyRows.Concat(roster.EnemyRows).ToDictionary(row => row, row => IdleState(process.Graphics.Models[row]));
-        HashSet<int> advanced = [];
+        var states = roster.Owners.ToDictionary(owner => owner, owner => IdleState(process.Graphics.ActorModels.Get(owner)));
+        HashSet<BattleModelOwner> advanced = [];
         for (int callback = 0; callback < 12; callback++)
         {
             Advance(process, logical, ref timer, duration);
-            foreach ((int row, var initial) in states)
+            foreach ((BattleModelOwner owner, var initial) in states)
             {
-                if (IdleState(process.Graphics.Models[row]) != initial)
+                if (IdleState(process.Graphics.ActorModels.Get(owner)) != initial)
                 {
-                    advanced.Add(row);
+                    advanced.Add(owner);
                 }
             }
         }
-        Assert.Equal(states.Keys.Order().ToArray(), advanced.Order().ToArray());
+        Assert.True(advanced.SetEquals(states.Keys));
         Assert.True(process.PreparedPresentation!.Version > prepared.Version);
         Assert.Equal(prepared.Frame, process.PreparedPresentation.Frame);
-        AssertCompletedModelOwners(process, roster, selected.NativeGraphics!);
+        AssertCompletedModelOwners(process, roster, aliases, selected.NativeGraphics!);
         AssertRandomExchange(logical, process);
         Assert.True(process.GlobalRandomCalls > 0);
         Assert.True(string.Equals(before, LogicalState(logical), StringComparison.Ordinal), "Presentation entry or idle changed the logical battle.");
@@ -265,12 +265,13 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal((byte)3, nativeGraphics.EntryLifecycle);
         Assert.False(native.NativeEntryReady);
         Assert.False(process.EntryReady);
-        Assert.Equal(nativeEntry.CompletedRows.ToArray(), hostedEntry.CompletedRows.ToArray());
-        Assert.Equal(new[] { 3, 4, 5, 6, 0, 1, 2 }, hostedEntry.CompletedRows.ToArray());
+        Assert.Equal(nativeEntry.CompletedOwners, hostedEntry.CompletedOwners);
+        NativeBattleModelAliases aliases = native.ReadBattlePresentationPacketBindings().Aliases;
+        Assert.Equal(new byte[] { 3, 4, 5, 6, 0, 1, 2 }.Select(aliases.DecodeLiteral), hostedEntry.CompletedOwners);
         Assert.Equal(nativeGraphics.EntryBarrierCompletion, process.Graphics.EntryBarrierCompletion);
         Assert.Equal(native.NativeStage!.ResourceStageId, process.Stage.ResourceStageId);
-        Assert.Equal(nativeGraphics.Models.Select(row => (row.ModelId4, row.Transform?.Initial20, row.SequenceState?.Default2)).ToArray(),
-            process.Graphics.Models.Select(row => (row.ModelId4, row.Transform?.Initial20, row.SequenceState?.Default2)).ToArray());
+        Assert.Equal(nativeGraphics.ActorModels.Entries.Select(entry => (entry.Owner, entry.State.ModelId4, entry.State.Transform?.Initial20, entry.State.SequenceState?.Default2)),
+            process.Graphics.ActorModels.Entries.Select(entry => (entry.Owner, entry.State.ModelId4, entry.State.Transform?.Initial20, entry.State.SequenceState?.Default2)));
         Assert.Equal(native.NativeGlobalRandomChange, process.GlobalRandomChange);
         AssertRandomExchange(logical, process);
         Assert.Equal(0, native.Frame);
@@ -320,10 +321,10 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             observed.Observe(process.Graphics);
             if (!observed.AppearanceCompleted && process.Graphics.EntryGatePhase == 2)
             {
-                foreach (int row in process.Graphics.PresentationRoster!.PartyRows)
+                foreach (BattlePartyModelOwner owner in logical.ReadBattlePresentationRoster().Party)
                 {
-                    NativeBattleGraphicsModel model = process.Graphics.Models[row];
-                    Assert.True((model.Flags0 & 2) != 0, $"Appearance completed before party row {row} was loaded.");
+                    NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
+                    Assert.True((model.Flags0 & 2) != 0, $"Appearance completed before {owner} was loaded.");
                     Assert.NotNull(model.OriginalResourceRow104);
                     Assert.NotNull(model.SequenceState);
                     Assert.NotEqual((byte)0, model.SequenceState.Default2);
@@ -335,23 +336,26 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         return observed;
     }
 
-    private static void AssertCompletedModelOwners(ExpandedBattlePresentationProcess process, BattleModelRoster roster, NativeBattleGraphicsDefinition resources)
+    private static void AssertCompletedModelOwners(ExpandedBattlePresentationProcess process, BattleModelRoster roster, NativeBattleModelAliases aliases, NativeBattleGraphicsDefinition resources)
     {
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleModelTextureCache cache = process.ModelTextureCache;
         NativeBattleModelCpuResources cpu = process.ModelCpuResources;
         var bindings = resources.Bindings.ToDictionary(binding => binding.ActorId, StringComparer.Ordinal);
-        for (int row = 0; row < roster.ActorCount; row++)
+        Assert.Equal(roster.Owners, graphics.ActorModels.Owners);
+        for (byte slot = 0; slot < NativeBattleGraphicsModelAddress.NativeRowCount; slot++)
         {
-            NativeBattleGraphicsModel model = graphics.Models[row];
-            if (roster.Rows[row] is not { } actor)
+            NativeBattleModelSlot originalSlot = NativeBattleModelSlot.Decode(slot);
+            if (graphics.NativeBindings.FindOriginalOwner(originalSlot, graphics.ActorModels) is null)
             {
-                Assert.Null(graphics.ActorIds[row]);
-                Assert.Equal(0, model.Flags0 & 2);
-                continue;
+                Assert.Equal(0, graphics.NativeBindings.ReadOriginalCell(originalSlot, graphics.ActorModels).Flags0 & 2);
             }
-            NativeBattleGraphicsBinding binding = bindings[actor.ActorId];
-            Assert.Equal(actor.ActorId, graphics.ActorIds[row]);
+        }
+        foreach (BattleModelOwner owner in roster.Owners)
+        {
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+            string actorId = ActorId(owner);
+            NativeBattleGraphicsBinding binding = bindings[actorId];
             Assert.True((model.Flags0 & 2) != 0);
             Assert.Equal((byte?)2, model.EffectCounter97);
             Assert.Equal((byte?)binding.ModelId, model.ModelId4);
@@ -359,18 +363,19 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             int body = Assert.IsType<int>(model.ActiveResourceRow100);
             Assert.Equal(body, model.OriginalResourceRow104);
             Assert.Equal(body, model.TextureResourceIndex);
-            Assert.Equal(row, cache.PresentationActors![body]);
-            Assert.Equal((byte)(actor.IsParty ? 1 : 3), cache.Rows[body].Kind);
+            Assert.Equal(owner, cache.PresentationActors![body]);
+            Assert.Equal((byte)(owner is BattlePartyModelOwner ? 1 : 3), cache.Rows[body].Kind);
             Assert.NotNull(cpu.Rows[body].Require(12));
             Assert.NotNull(model.BodyTextureSlots);
-            if (actor.IsParty && binding.ModelId != 7)
+            if (owner is BattlePartyModelOwner && binding.ModelId != 7)
             {
                 Assert.NotNull(model.LinkedTextureSlots);
-                Assert.Equal((byte?)row, cpu.Rows[body].LinkedPhysicalIndex36);
+                byte? originalAlias = aliases.TryEncodeExact(owner, out byte slot) ? slot : null;
+                Assert.Equal(originalAlias, cpu.Rows[body].LinkedPhysicalIndex36);
                 Assert.NotNull(cpu.Rows[body].Require(24));
                 if (model.LinkedTextureResourceIndex is int linked)
                 {
-                    Assert.Equal(row, cache.PresentationActors![linked]);
+                    Assert.Equal(owner, cache.PresentationActors![linked]);
                     Assert.Equal((byte)2, cache.Rows[linked].Kind);
                     Assert.NotNull(cpu.Rows[linked].Require(12));
                 }
@@ -379,9 +384,16 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
                     Assert.NotNull(model.LinkedTextureResourceIndex);
                 }
             }
-            Assert.NotNull(process.Memory.Textures!.RequirePresentationTexture(actor.ActorId));
+            Assert.NotNull(process.Memory.Textures!.RequirePresentationTexture(actorId));
         }
     }
+
+    internal static string ActorId(BattleModelOwner owner) => owner switch
+    {
+        BattlePartyActorModel party => party.Actor.ActorId,
+        BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+        _ => throw new InvalidDataException("An installed encounter must have canonical actors.")
+    };
 
     private static (byte? Sequence, int Callback, ushort? Offset, byte? PoseFrame) IdleState(NativeBattleGraphicsModel model)
     {
@@ -536,7 +548,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         internal bool BarrierTask { get; private set; }
         internal int PeakQueuedDescriptors { get; private set; }
         internal bool AppearanceDeferredWhileLoadsWereQueued { get; private set; }
-        internal List<int> CompletedRows { get; } = [];
+        internal List<BattleModelOwner> CompletedOwners { get; } = [];
 
         internal void Observe(NativeBattleGraphicsState graphics)
         {
@@ -548,11 +560,11 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             AppearanceDeferredWhileLoadsWereQueued |= graphics.EntryLifecycle == 2 && !AppearanceTask &&
                 queued.Select(slot => graphics.Descriptors.Packets[slot]).Any(packet => packet.Command == 102) &&
                 queued.Select(slot => graphics.Descriptors.Packets[slot]).All(packet => packet.Command != 13);
-            foreach (NativeBattleGraphicsModel model in graphics.Models)
+            foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
             {
-                if ((model.Flags0 & 2) != 0 && model.EffectCounter97 == 2 && !CompletedRows.Contains(model.Index))
+                if ((entry.State.Flags0 & 2) != 0 && entry.State.EffectCounter97 == 2 && !CompletedOwners.Contains(entry.Owner))
                 {
-                    CompletedRows.Add(model.Index);
+                    CompletedOwners.Add(entry.Owner);
                 }
             }
 

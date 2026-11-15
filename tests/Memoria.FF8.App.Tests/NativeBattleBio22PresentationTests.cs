@@ -32,11 +32,11 @@ public sealed class NativeBattleBio22PresentationTests
         uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = checked((int)(headerOffset / 20));
-        NativeBattleActionHeaderSlot header = actionPackets.Headers[headerIndex];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal((ushort)12, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)22, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = actionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal((ushort)12, header.Action);
+        Assert.Equal((ushort)22, header.Effect);
+        NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);

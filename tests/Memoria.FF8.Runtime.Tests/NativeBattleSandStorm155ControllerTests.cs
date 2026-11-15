@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -173,12 +174,12 @@ public sealed class NativeBattleSandStorm155ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0, tim), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(155, 154, new(155, 0x606CF0, 0x606CD0), new(3, 0, 1, 0, 0, 0), 0x23F0818) { ResourcePointers = [new(0x23F2954, 0)] };
+        NativeBattleOriginalEffectState effect = new(155, 154, new(155, 0x606CF0, 0x606CD0), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), 0x23F0818) { ResourcePointers = [new(0x23F2954, 0)] };
         return new(memory, effect, new(123), NativeBattleSandStorm155State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
     private static NativeBattleSandStorm155Inputs Inputs(Func<NativeBattleSandStorm155Frame, NativeBattleSandStorm155Operation, NativeBattleSandStorm155Frame>? execute = null)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionPacketsState packets = OriginalPackets();
         packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { FirstContactIndex = 2 }), Contacts = packets.Contacts.SetItem(2, new(new(6, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };
         return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => NativeBattleCuragaMatrices.Identity8DD770(), (current, _) => new(current, new(1, 2, 3, 4)), (current, _) => new(current, new(5, 6, 7)), execute ?? ((current, _) => current));
     }

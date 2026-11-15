@@ -46,7 +46,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         NativeBattleRenzokuken160Frame frame = Frame();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24C2388, 0x24C2398, 36, 100);
         (pool, int slot) = pool.Append(0x61EDF0);
-        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0), (current, _) => current)
+        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0), (current, _) => current)
         {
             ReadBoneCount = _ => 0,
             ReadBone = (_, _, _) => new(100, -200, 300)
@@ -65,7 +65,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         (pool, int slot) = pool.Append(0x61DF70);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 2)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
-        NativeBattleRenzokuken160Inputs inputs = new(0, [10, 20, 30, 40, 10, 5], _ => new(0, 0), (current, _) => current);
+        NativeBattleRenzokuken160Inputs inputs = new(0, [10, 20, 30, 40, 10, 5], _ => new(0), (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenVariantController.Advance61DF70(frame, pool, slot, inputs, resources);
         Assert.Equal(115, NativeBattleRenzokukenVariantController.ReadState(step.Frame).Core.Duration);
         Assert.Equal(new uint[] { 0x61DF70, 0x61E8B0, 0x61EDF0, 0x61EF20 }, step.Pool.Slots.Take(4).Select(task => task.Callback));
@@ -87,7 +87,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 11, 22, 33, 4096);
-        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0) { GeometryWorldMatrix = matrix }, (current, _) => current);
+        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0) { GeometryWorldMatrix = matrix }, (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenVariantController.AdvanceController(frame, pool, slot, inputs, resources, profile);
         NativeCrtRandomState expected = frame.Random;
         for (int index = 0; index < draws; index++)

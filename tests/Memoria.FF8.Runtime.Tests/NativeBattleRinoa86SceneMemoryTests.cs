@@ -7,7 +7,7 @@ public sealed class NativeBattleRinoa86SceneMemoryTests
     [Fact]
     public void Original_scene_uses_the_loaded_enemy_box_center_and_copies_the_caster_fourth_WORD()
     {
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToArray();
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToArray();
         models[0] = models[0] with { Transform = new(default, new(10, 20, 30), -73, 0, 4096) };
         models[3] = models[3] with { Flags0 = 2, Transform = new(default, new(-101, -200, -100), 0, 0, 4096) };
         models[4] = models[4] with { Flags0 = 2, Transform = new(default, new(100, -400, 99), 0, 0, 4096) };
@@ -29,7 +29,7 @@ public sealed class NativeBattleRinoa86SceneMemoryTests
     [Fact]
     public void No_loaded_enemy_retains_the_native_zero_center_and_phase_request_needs_both_handshake_words()
     {
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToArray();
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToArray();
         models[0] = models[0] with { Transform = new(default, new(10, 20, 30), 31, 0, 4096) };
         NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(0, models);
         Assert.Equal(new byte[8], scene.Settings.Read(8, 8));

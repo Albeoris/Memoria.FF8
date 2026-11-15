@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -96,18 +97,18 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(new[] { 0x20DFAB8u + 0x151D4u, 0x20DFAB8u + 0x71D4u }, cursors);
     }
 
-    private static NativeBattleGraphicsModel ReadModel(int index) => new(index, 0) { Transform = new(new(0, 0, 0), new(0, 0, checked((short)(index == 0 ? -103 : 100))), 0, 0, 0) };
+    private static NativeBattleGraphicsModel ReadModel(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, checked((short)(index == 0 ? -103 : 100))), 0, 0, 0) };
 
     private static (NativeBattlePandemona291Frame Frame, NativeBattlePandemona291Resources Resources, NativeBattleActionPacketsState Packets) Fixture()
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(3, 240, 0, 0, 3, 291, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 240, 0, 0, 3, 291, null));
         foreach (byte actor in new byte[] { 0, 1 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
-        NativeBattleOriginalEffectState effect = new(291, 290, new(291, 0x6ED250, 0), new(3, 0, 3, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(291, 290, new(291, 0x6ED250, 0), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Pandemona291 = NativeBattlePandemona291State.FromColdProcess() with { Pause2556258 = 17, Scratch25562EC = 123 } };
         NativeBattlePandemona291Resources resources = new(Tim(0x31620, 5644, "first"), Tim(0x2220, 524, "second"));
         return (new(memory, effect, NativeCrtRandomState.FromColdProcess()), resources, packets);

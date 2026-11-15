@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -147,13 +148,13 @@ public sealed class NativeBattleSharedModelMaterialTests
         Set(session, nameof(BattleSession.NativeModelCpuResources), cpu with { Cpu = cpu.Cpu.WithBank(0, bank) });
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess()).Write(0x1D969A8, new byte[4]));
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = Projection, FocalLength = 1000 });
-        var models = Roster.Rows.Select((actor, index) => actor is null ? new NativeBattleGraphicsModel(index, 0) : Model(index)).ToImmutableArray();
+        var models = Roster.Rows.Select((actor, index) => actor is null ? new NativeBattleGraphicsModel(0) : Model(index)).ToImmutableArray();
         return (session, new(models, Roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = Roster, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
     }
 
     private static NativeBattleGraphicsModel Model(int actor)
     {
-        NativeBattleGraphicsModel model = new(actor, 2)
+        NativeBattleGraphicsModel model = new(2)
         {
             Flags2 = 0, Color40 = 0x808080, Color44 = 0x32808080,
             GeometryWorldMatrix = Identity with { Z = 1000 },
@@ -198,7 +199,7 @@ public sealed class NativeBattleSharedModelMaterialTests
             .WithPresentationTexture("second", new(NativeBattleEffectTextureState.FromColdProcess(), NativeBattlePcTextureWindowCache.Reset4647A0(null)));
     }
 
-    private static NativeBattleOriginalEffectState Effect(ushort id) => new(id, id - 1, new(id, 1, 1), new(0, 0, 1, 0, 0, 0), 1);
+    private static NativeBattleOriginalEffectState Effect(ushort id) => new(id, id - 1, new(id, 1, 1), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), 1);
 
     private static NativeBattlePoseSource CreatePose()
     {

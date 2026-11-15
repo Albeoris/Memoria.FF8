@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
@@ -77,7 +78,7 @@ public sealed class NativeBattleEffect218PairTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
         (pool, int slot) = pool.Append(0x633090);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 60).WriteWord(24, 0x8002).WriteWord(26, unchecked((ushort)-8)));
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect218State.FromColdProcess());
         uint address = pool.BankAddress + (uint)(slot * pool.Stride);
         List<ushort> ages = [];

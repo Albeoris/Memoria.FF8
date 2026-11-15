@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleMegaSpark279Controller;
@@ -306,5 +307,5 @@ public sealed class NativeBattleMegaSpark279LowerTests
         }
         return frame;
     }
-    private static NativeBattleMegaSpark279Inputs Inputs(Func<NativeBattleMegaSpark279Frame, NativeBattleMegaSpark279Operation, NativeBattleMegaSpark279Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Identity(2000), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 46, (_, row, _) => row == 0x12340000 ? Identity() : throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    private static NativeBattleMegaSpark279Inputs Inputs(Func<NativeBattleMegaSpark279Frame, NativeBattleMegaSpark279Operation, NativeBattleMegaSpark279Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Identity(2000), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 46, (_, row, _) => row == 0x12340000 ? Identity() : throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));
 }

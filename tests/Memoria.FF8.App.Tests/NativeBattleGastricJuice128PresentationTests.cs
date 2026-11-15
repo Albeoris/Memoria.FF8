@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -44,7 +45,7 @@ public sealed class NativeBattleGastricJuice128PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(33, casterSource.ModelId);
-        Assert.Equal((byte?)49, source.NativeGraphics!.Models[3].ModelId4);
+        Assert.Equal((byte?)49, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([128])[127];
         Assert.Equal(NativeBattleGastricJuice128Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleGastricJuice128Profile.Initializer, binding.Initializer);
@@ -52,7 +53,7 @@ public sealed class NativeBattleGastricJuice128PresentationTests
         Assert.Equal(166432, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeGastricJuice128Resources(), binding.GastricJuice128Resources);
         Assert.Equal(0u, source.NativeEffectMemory!.GastricJuice128!.ReadDword(NativeBattleGastricJuice128Profile.WorkingGlobal));
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

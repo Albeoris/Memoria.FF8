@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -28,7 +29,7 @@ public sealed class NativeBattleCinematicPosePosition9Tests
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicPosePosition9.Update(frame, pointer =>
         {
             reads++;
-            Assert.Equal(0x1D97494u, pointer);
+            Assert.Equal(OriginalOwner(3), pointer);
             return new(-255, new(translations[0], translations[1], translations[2]));
         });
         Assert.Equal(1, reads);

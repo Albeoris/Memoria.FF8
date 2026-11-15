@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -51,10 +52,10 @@ public sealed class NativeBattleControlGraphicsTests
         }
         Assert.True(battle.NativeEntryReady);
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, 0, sequence, -1, 9, 0, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 0, sequence, -1, 9, 0, null));
         if (contact)
         {
-            (packets, _) = packets.AppendContact(new(new(3, 0, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 1, 0, 0, 7, 0), null));
         }
         (packets, _) = packets.Publish(contact ? (byte)1 : (byte)0);
         BattleSnapshot boundary = battle.Capture();

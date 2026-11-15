@@ -56,7 +56,7 @@ public sealed class NativeBattleDuel216BoundsTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1]);
-        NativeBattleGraphicsModel model = new(0, 3) { Transform = new(new(0, 0, 0), new(10, 20, 30), 0, 0, 4096), GeometryWorldMatrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 1000, 2000, 3000, 4096), SequenceState = new() { MeshMask124 = mask, DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
+        NativeBattleGraphicsModel model = new(3) { Transform = new(new(0, 0, 0), new(10, 20, 30), 0, 0, 4096), GeometryWorldMatrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 1000, 2000, 3000, 4096), SequenceState = new() { MeshMask124 = mask, DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         return (source, NativeBattleBodyBoneMatrices.Publish508C90(model, source));
     }
 }

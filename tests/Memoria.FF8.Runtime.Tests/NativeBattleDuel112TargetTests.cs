@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDuel112TargetTests
@@ -10,12 +11,12 @@ public sealed class NativeBattleDuel112TargetTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
         (targets, _) = targets.Append(0x6CBF90);
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, targets] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, null) };
         NativeBattleDuel112Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));
-        NativeBattleGraphicsModel actor = new(0, 3) { Transform = new(new(1, 2, 3), new(10, -11, 12), -13, 14, 4096), Color40 = 0x11223344, Color44 = 0x55667788, Alpha7 = 0x99 };
-        NativeBattleGraphicsModel target = new(3, 3) { Transform = new(new(0, 0, 0), new(20, 4, 12), 0, 0, scale) };
+        NativeBattleGraphicsModel actor = new(3) { Transform = new(new(1, 2, 3), new(10, -11, 12), -13, 14, 4096), Color40 = 0x11223344, Color44 = 0x55667788, Alpha7 = 0x99 };
+        NativeBattleGraphicsModel target = new(3) { Transform = new(new(0, 0, 0), new(20, 4, 12), 0, 0, scale) };
         List<string> calls = [];
         NativeBattleDuel112ActorServices services = new(index => index == 0 ? actor : target, (index, model) =>
         {

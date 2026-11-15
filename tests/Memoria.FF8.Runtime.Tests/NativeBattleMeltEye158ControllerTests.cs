@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -86,7 +87,7 @@ public sealed class NativeBattleMeltEye158ControllerTests
         Assert.Equal(expected, f.Operations.OfType<NativeBattleMeltEye158BulkContact>().Count());
         if (expected != 0)
         {
-            Assert.Equal(new NativeBattleMeltEye158BulkContact(1, 2), Assert.Single(f.Operations.OfType<NativeBattleMeltEye158BulkContact>()));
+            Assert.Equal(new NativeBattleMeltEye158BulkContact(new BattleContactCursor(1), 2), Assert.Single(f.Operations.OfType<NativeBattleMeltEye158BulkContact>()));
         }
     }
 
@@ -180,7 +181,7 @@ public sealed class NativeBattleMeltEye158ControllerTests
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
             (children, int slot) = children.Append(SpawnerCallback);
             children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteBytes(12, new byte[24])) });
-            NativeBattleOriginalEffectState effect = new(158, 157, new(158, Entry, Initializer), new(4, 0, 1, 1, 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+            NativeBattleOriginalEffectState effect = new(158, 157, new(158, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(1), 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             byte[] tim = new byte[546];
             BitConverter.GetBytes(0x10).CopyTo(tim, 0);
             BitConverter.GetBytes(9).CopyTo(tim, 4);
@@ -191,13 +192,13 @@ public sealed class NativeBattleMeltEye158ControllerTests
             BitConverter.GetBytes((short)1).CopyTo(tim, 540);
             BitConverter.GetBytes((short)1).CopyTo(tim, 542);
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) }, effect, new(123), NativeBattleMeltEye158State.FromColdProcess().WriteDword(CasterGlobal, 4)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+            NativeBattleActionPacketsState packets = OriginalPackets();
             for (int header = 0; header < 2; header++)
             {
-                (packets, _) = packets.Prepare(new(4, 8, 13, 0, 36, 158, null));
+                (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 13, 0, 36, 158, null));
                 for (int contact = 0; contact < header + 1; contact++)
                 {
-                    (packets, _) = packets.AppendContact(new(new((byte)(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                    (packets, _) = packets.AppendContact(new(new((byte)(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
                 }
                 (packets, _) = packets.Publish(checked((byte)(header + 1)));
             }

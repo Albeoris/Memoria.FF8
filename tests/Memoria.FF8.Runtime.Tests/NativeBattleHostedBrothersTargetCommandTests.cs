@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -14,19 +15,19 @@ public sealed class NativeBattleHostedBrothersTargetCommandTests
         byte[] selected = [7, 24, 7, 8, 9, 10, 11];
         NativeBattleWaterExecutionFrame frame = Fixture([.. selected]);
         NativeBattleCinematicActorContext before = frame.Core.PresentationActors!;
-        NativeBattleGraphicsModel model = new(3, 0xA133) { Transform = new(default, new(-17, 51, -290), 999, 0, 0), Rotation14 = 124 };
+        NativeBattleGraphicsModel model = new(0xA133) { Transform = new(default, new(-17, 51, -290), 999, 0, 0), Rotation14 = 124 };
         byte flag = 0;
 
         NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, new(63, () => flag, value => flag = value, _ => model));
 
         NativeBattleCinematicActorContext actual = result.Core.PresentationActors!;
-        NativeBattleCinematicActorCache row3 = before.ReadCachedActor(3);
+        NativeBattleCinematicActorCache row3 = before.ReadCachedActor(OriginalOwner(3));
         Assert.Equal(new byte[] { 7, 24, 7, 8, 9, 10, 11, 3 }, actual.CurrentActors.ToArray());
         Assert.Equal((byte)7, actual.FirstActor);
         Assert.Equal(before.SavedActors, actual.SavedActors);
         Assert.Equal(before.ActorOrdinals, actual.ActorOrdinals);
         Assert.Equal(256, actual.ContactCursor);
-        Assert.Equal(before.CachedActors.SetItem(3, row3 with { ModelAddress = NativeBattleGraphicsModelAddress.Encode(3), Position28 = model.Transform!.Position28, Flags0 = model.Flags0 }).ToArray(), actual.CachedActors.ToArray());
+        Assert.Equal(before.CachedActors.SetItem(3, row3 with { ModelAddress = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(3)), Position28 = model.Transform!.Position28, Flags0 = model.Flags0 }).ToArray(), actual.CachedActors.ToArray());
         Assert.Equal((byte)1, flag);
         Assert.Equal(0x1004u, Pc(result));
         Assert.Equal((byte)8, result.Core.Read(Header + 0x41, 1)[0]);
@@ -78,7 +79,7 @@ public sealed class NativeBattleHostedBrothersTargetCommandTests
     private static NativeBattleWaterExecutionFrame Fixture(ImmutableArray<byte> selected, byte first = 7)
     {
         BattleModelRoster roster = new([.. Enumerable.Range(0, 25).Select(row => new BattleModelOwner($"actor-{row}", row < 3))]);
-        ImmutableArray<NativeBattleGraphicsModel> models = [.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 3) { Rotation14 = -99, Transform = new(default, new(1, 2, 3), -10, 0, 0) { Scale154 = 1024 } })];
+        ImmutableArray<NativeBattleGraphicsModel> models = [.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(3) { Rotation14 = -99, Transform = new(default, new(1, 2, 3), -10, 0, 0) { Scale154 = 1024 } })];
         NativeBattleCinematicActorContext context = NativeBattleCinematicActorContext.FromGraphics(roster, models).CaptureCurrentContacts([7, 24], first).WithCurrentActors(selected).WithSavedActors([9, 6]).WithContactCursor(256);
         if (selected.IsEmpty)
         {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleSigh46Controller;
@@ -351,11 +352,11 @@ public sealed class NativeBattleSigh46ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) };
-        NativeBattleOriginalEffectState effect = new(46, 45, new(46, Entry, Initializer), new(3, flags, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(46, 45, new(46, Entry, Initializer), new(OriginalOwner(3), flags, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleSigh46State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleSigh46Inputs Inputs(List<NativeBattleSigh46Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(actor, 2), (frame, actor, selector, distance) => new(frame, PointView(new((short)actor, (short)selector, (short)distance))), _ => 0, _ => Packets(), (frame, operation) =>
+    private static NativeBattleSigh46Inputs Inputs(List<NativeBattleSigh46Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2), (frame, actor, selector, distance) => new(frame, PointView(new((short)actor, (short)selector, (short)distance))), _ => 0, _ => Packets(), (frame, operation) =>
     {
         operations.Add(operation);
         return frame;
@@ -363,16 +364,16 @@ public sealed class NativeBattleSigh46ControllerTests
 
     private static NativeBattleActionPacketsState Packets()
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 85, 46, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 85, 46, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 85, 46, null));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(1, 4, 0, 0, 0, 7, 0), new(4, 4, 0, 0, 0, 3, 0)));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 85, 46, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
         (packets, _) = packets.Publish(2);
-        return packets.WritePlayerRepeatMode(1, 1);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 
     private static NativeBattleSigh46Resources Resources() => NativeBattleSigh46StateTests.Resources();

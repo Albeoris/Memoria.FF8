@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -67,7 +68,7 @@ public sealed class NativeBattleDuel215ControllerTests
         (root, int slot) = root.Append(0x69AC00);
         root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, counter)) });
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = new([]) };
-        NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), new(0, 0, 8, 0, 0, 0), 0x2508968) { Pools = [root] };
+        NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0x2508968) { Pools = [root] };
         return new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
     }
 

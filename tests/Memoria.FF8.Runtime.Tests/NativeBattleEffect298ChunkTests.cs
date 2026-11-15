@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect298Controller;
@@ -161,6 +162,6 @@ public sealed class NativeBattleEffect298ChunkTests
         return new(memory, effect, NativeBattleEffect298State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleEffect298Inputs Inputs(Func<NativeBattleEffect298Frame, NativeBattleEffect298Operation, NativeBattleEffect298Frame> execute, int z = 2000) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Identity(z), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), (_, _) => throw new InvalidOperationException(), execute, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+    private static NativeBattleEffect298Inputs Inputs(Func<NativeBattleEffect298Frame, NativeBattleEffect298Operation, NativeBattleEffect298Frame> execute, int z = 2000) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Identity(z), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => OriginalPackets(), (_, _) => throw new InvalidOperationException(), execute, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
     private static NativeBattlePackedMatrix32 Identity(int z = 0) => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, z, 4096), null);
 }

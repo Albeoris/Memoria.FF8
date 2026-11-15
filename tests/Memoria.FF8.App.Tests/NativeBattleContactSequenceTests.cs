@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -13,7 +14,7 @@ public sealed class NativeBattleContactSequenceTests
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        NativeBattleGraphicsModel before = battle.NativeGraphics!.Models[4];
+        NativeBattleGraphicsModel before = ReadOriginalModelCell(battle.NativeGraphics!, 4);
         Assert.Equal(3217, battle.Frame);
         Assert.Equal((byte)50, before.ModelId4);
         Assert.Equal((byte)4, before.Sequence);
@@ -25,8 +26,8 @@ public sealed class NativeBattleContactSequenceTests
 
         battle.Tick();
         Assert.Equal(3218, battle.Frame);
-        Assert.NotEqual((byte)9, battle.NativeGraphics!.Models[4].Sequence);
-        Assert.InRange(battle.NativeGraphics.Models[4].SequenceState!.Pose!.Value, (byte)0, (byte)11);
+        Assert.NotEqual((byte)9, ReadOriginalModelCell(battle.NativeGraphics!, 4).Sequence);
+        Assert.InRange(ReadOriginalModelCell(battle.NativeGraphics, 4).SequenceState!.Pose!.Value, (byte)0, (byte)11);
         for (int callback = 1; callback < 30; callback++)
         {
             battle.Tick();
@@ -62,7 +63,7 @@ public sealed class NativeBattleContactSequenceTests
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         NativeBattleGraphicsState source = battle.NativeGraphics!;
-        NativeBattleGraphicsModel original = source.Models[4];
+        NativeBattleGraphicsModel original = ReadOriginalModelCell(source, 4);
         Assert.Null(original.ReadLinkedModelIndex140());
         Assert.True(ContactResource(battle, source).Contains(4));
         Assert.False(ContactResource(battle, source).Contains(9));
@@ -80,7 +81,7 @@ public sealed class NativeBattleContactSequenceTests
             NativeBattleGraphicsModel model = original with { Flags8 = test.Status, ResourceFlags44 = test.Flags, SequenceState = original.SequenceState! with { Pending3 = 0 } };
             NativeBattleGraphicsState graphics = source with { Models = source.Models.SetItem(4, model) };
             NativeBattleGraphicsState result = Assert.IsType<NativeBattleGraphicsState>(select.Invoke(battle, [graphics, 4, test.Requested]));
-            NativeBattleGraphicsModel selected = result.Models[4];
+            NativeBattleGraphicsModel selected = ReadOriginalModelCell(result, 4);
             Assert.Equal(test.Sequence, selected.Sequence);
             Assert.Equal(test.ResultFlags, selected.ResourceFlags44);
             Assert.Equal(test.Offset, selected.SequenceState!.Offset46);

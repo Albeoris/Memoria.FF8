@@ -75,6 +75,6 @@ public sealed class NativeBattleScanCategoryOwnerTests
 
     private static ImmutableArray<NativeBattleGraphicsModel> Models()
     {
-        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0) { ModelId4 = 0 }.WriteLinkedModelIndex140(null)).ToImmutableArray();
+        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0) { ModelId4 = 0 }.WriteLinkedModelIndex140(null)).ToImmutableArray();
     }
 }

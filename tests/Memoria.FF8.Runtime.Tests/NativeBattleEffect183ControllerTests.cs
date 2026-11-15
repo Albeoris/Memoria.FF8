@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect183Controller;
@@ -25,7 +26,7 @@ public sealed class NativeBattleEffect183ControllerTests
         {
             ReadBone502170 = (current, actor, bone, scale) =>
             {
-                Assert.Equal(5, actor);
+                Assert.Equal(OriginalOwner(5), actor);
                 Assert.Equal(0xF1, bone);
                 Assert.Equal(0, scale);
                 calls++;
@@ -62,13 +63,13 @@ public sealed class NativeBattleEffect183ControllerTests
         {
             ReadHeading = actor =>
             {
-                Assert.Equal(5, actor);
+                Assert.Equal(OriginalOwner(5), actor);
                 order.Add("heading");
                 return -1234;
             },
             ReadAnchor571400 = (current, actor) =>
             {
-                Assert.Equal(5, actor);
+                Assert.Equal(OriginalOwner(5), actor);
                 Assert.Equal(callback, Read(current, FirstChild).Callback);
                 Assert.Equal(size, Read(current, FirstChild).ReadWord(28));
                 order.Add("anchor");
@@ -246,12 +247,12 @@ public sealed class NativeBattleEffect183ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x22F33F0, Director, 36, 100);
         (children, _) = children.Append(0x5C9AE0);
         children = children.WriteSlot(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30).WriteWord(22, 0xCAFE));
-        NativeBattleOriginalEffectState effect = new(183, 182, new(183, 0x5C9A50, 0x5C9A30), new(5, 0, 1, 7, 0, 0), 0x22F33E0) { Pools = [roots, children] };
+        NativeBattleOriginalEffectState effect = new(183, 182, new(183, 0x5C9A50, 0x5C9A30), new(OriginalOwner(5), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(7), 0, 0), 0x22F33E0) { Pools = [roots, children] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffect183State state = NativeBattleEffect183State.FromColdProcess().WriteDword(0x22F4214, 5);
         return new(memory, effect, state with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleEffect183Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (current, _, _, _) => new(current, Point(10, 20, 30)), _ => 0, (current, _) => new(current, Point(40, 50, 60)), (current, _) => current);
+    private static NativeBattleEffect183Inputs Inputs() => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (current, _, _, _) => new(current, Point(10, 20, 30)), _ => 0, (current, _) => new(current, Point(40, 50, 60)), (current, _) => current);
     private static NativeBattleEffectArena Point(short x, short y, short z) => NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z));
 }

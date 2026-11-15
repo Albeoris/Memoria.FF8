@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -185,7 +186,7 @@ public sealed class NativeBattleHeroDrawingTests
         NativeBattleHeroResources resources = new(effect, Source(profile.MainSource, 0x888, 4, 40), Source(profile.OrbitSource, 0x7BC, 3, 18), Mesh(28, 8, 5, 0x2B8), 300188);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         memory = memory with { PrimitiveProcess = memory.PrimitiveProcess! with { ModelRendererRegisters = new(10, 20, 30, 123, 456) } };
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 0, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleHeroFrame frame = new(memory, selected, new(1), new(effect, 0x1000, 0x20000));
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 20, 1024, 4096);
         return (frame, resources, NativeBattlePackedMatrix32.FromMatrix(view, 0xBEEF), new(view, 216, 160, 108));

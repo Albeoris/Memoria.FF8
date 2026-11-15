@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -19,7 +20,7 @@ public sealed class NativeBattleBio22ControllerTests
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(wait.Frame.Effect.Pools).Read(root);
         Assert.Equal((byte)3, task.ReadByte(0x29));
         Assert.Equal((ushort)0, task.ReadWord(0x5E));
-        NativeBattleBio22Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22Frame>(NativeBattleTestSnapshots.Json(wait.Frame))!;
+        NativeBattleBio22Frame restored = NativeBattleTestSnapshots.Independent(wait.Frame);
         NativeBattleBio22ChildStep done = NativeBattleBio22Controller.Advance89A7B0(restored, fixture.Resources, fixture.Inputs, wait.Random);
         Assert.Equal(0u, done.Frame.Effect.ReturnedDescriptor);
         Assert.Equal(0, done.Frame.State.DrawCursor);
@@ -46,7 +47,7 @@ public sealed class NativeBattleBio22ControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 2).WriteByte(0x63, 1));
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x89A8D0, 140, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x89A8D0, 140, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteByte(0x29, 10).WriteWord(0x24, 1));
         NativeBattleEffectActorGeometry target = new(new(10, -600, 30), new(20, -200, 40), 50, new(new(-100, -600, -80), new(140, 0, 90)));
         int reads = 0;
@@ -54,7 +55,7 @@ public sealed class NativeBattleBio22ControllerTests
         {
             ReadForeignTarget = index =>
             {
-                Assert.Equal(3, index);
+                Assert.Equal(OriginalOwner(3), index);
                 reads++;
                 return target;
             }
@@ -73,15 +74,15 @@ public sealed class NativeBattleBio22ControllerTests
     private static (NativeBattleBio22Frame Frame, NativeBattleBio22Resources Resources, NativeBattleBio22Inputs Inputs, NativeBattleEffectMemory Memory) Fixture()
     {
         var data = NativeBattleBio22GeometryTaskTests.Fixture();
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 0, -1, 12, 22, null));
-        (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 0, -1, 12, 22, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(22, 21, new(22, 0x89A6B0, 0x89A690), new(0, 1, 1, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(22, 21, new(22, 0x89A6B0, 0x89A690), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = data.Memory.BeginLoad(21);
         NativeBattleBio22Frame frame = NativeBattleBio22Controller.Initialize89A6B0(memory, effect, packets, data.Resources);
-        NativeBattleBio22Inputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770(), 256, 160, 108), 0, 341, index => new(index, 0), _ => throw new InvalidOperationException("This root-only case consumes no pose."), _ => throw new InvalidOperationException("This root-only case consumes no stage."), (_, _) => throw new InvalidOperationException("This root-only case consumes no proxy."), (_, _) => throw new InvalidOperationException("This root-only case emits no operation."), (_, _, _) => throw new InvalidOperationException("This root-only case reaches no actor renderer."));
+        NativeBattleBio22Inputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770(), 256, 160, 108), 0, 341, index => new(0), _ => throw new InvalidOperationException("This root-only case consumes no pose."), _ => throw new InvalidOperationException("This root-only case consumes no stage."), (_, _) => throw new InvalidOperationException("This root-only case consumes no proxy."), (_, _) => throw new InvalidOperationException("This root-only case emits no operation."), (_, _, _) => throw new InvalidOperationException("This root-only case reaches no actor renderer."));
         return (frame, data.Resources, inputs, memory);
     }
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -98,8 +99,8 @@ public sealed class NativeBattlePotion50Tests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81FCD0, 88, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
-        NativeBattleEffectHierarchyAppend particle = target.Hierarchy.Append8DC540(2, callback, 108, target.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81FCD0, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
+        NativeBattleEffectHierarchyAppend particle = target.Hierarchy.Append8DC540(2, callback, 108, target.Address, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleCureFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = particle.Hierarchy.Pools } };
         NativeCrtRandomState expected = NativeCrtRandomState.FromColdProcess();
         for (int draw = 0; draw < randomDraws; draw++)
@@ -146,12 +147,12 @@ public sealed class NativeBattlePotion50Tests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81FCD0, 88, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81FCD0, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteWord(0x38, 100).WriteWord(0x3C, 300).WriteWord(0x4A, unchecked((ushort)-100)).WriteWord(0x52, 50));
-        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(3, 0x8DCC20, 92, target.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(3, 0x8DCC20, 92, target.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = wedge.Hierarchy.Write(wedge.Address, wedge.Hierarchy.Read(wedge.Address).WriteWord(0x56, 8).WriteWord(0x58, 64));
         NativeBattleCureFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
-        NativeBattleCureControllerInputs controller = fixture.Inputs with { ReadModel = index => new(index, 0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) } };
+        NativeBattleCureControllerInputs controller = fixture.Inputs with { ReadModel = index => new(0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) } };
         List<NativeBattleCureOperation> operations = [];
         NativeBattleCureParticleInputs inputs = new(controller, NativeCrtRandomState.FromColdProcess(), (current, operation) =>
         {
@@ -173,12 +174,12 @@ public sealed class NativeBattlePotion50Tests
 
     private static (NativeBattleCureFrame Frame, NativeBattleCureControllerInputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 4, 0, 0, 0, 50, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 4, 0, 0, 0, 50, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(50, 0, new(50, 0x81FA10, 0x81F9F0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x2634AB8, 0)] };
+        NativeBattleOriginalEffectState effect = new(50, 0, new(50, 0x81FA10, 0x81F9F0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2634AB8, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0) with { Textures = null, CureContextF4 = 1, Potion50ContextF4 = -7 };
         NativeBattleCureFrame frame = NativeBattleCureController.Initialize8D6A00(memory, effect, packets, Resources());
         byte[] skeleton = new byte[64];
@@ -187,7 +188,7 @@ public sealed class NativeBattlePotion50Tests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1000, 4096);
-        return (frame, new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose));
+        return (frame, new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose));
     }
 
     private static NativeBattleCureResources Resources()

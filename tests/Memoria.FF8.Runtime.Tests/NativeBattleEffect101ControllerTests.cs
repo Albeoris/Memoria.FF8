@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect101Profile;
@@ -37,7 +38,7 @@ public sealed class NativeBattleEffect101ControllerTests
         Assert.Equal(-200, unchecked((short)main.ReadWord(28)));
         Assert.Equal((ushort)1234, main.ReadWord(30));
         Assert.Equal(MainActAddress, main.ReadDword(32));
-        Assert.Equal(new NativeBattleEffect101RingSequence(0, 14), Assert.Single(fixture.Operations.OfType<NativeBattleEffect101RingSequence>()));
+        Assert.Equal(new NativeBattleEffect101RingSequence(OriginalOwner(0), 14), Assert.Single(fixture.Operations.OfType<NativeBattleEffect101RingSequence>()));
         Assert.Single(fixture.Operations.OfType<NativeBattleEffect101Sound>());
         Assert.Equal((ushort)1, main.ReadWord(12));
         Assert.Equal(fixture.Frame.Random, next.Random);
@@ -89,7 +90,7 @@ public sealed class NativeBattleEffect101ControllerTests
         Assert.Equal(4096u, next.Memory.ScriptedColorRegisters!.Ir0);
         fixture.Clear();
         fixture.Step(Age(next, 21));
-        Assert.Equal(new NativeBattleEffect101ScalePointer(0, 0), Assert.Single(fixture.Operations.OfType<NativeBattleEffect101ScalePointer>()));
+        Assert.Equal(new NativeBattleEffect101ScalePointer(OriginalOwner(0), 0), Assert.Single(fixture.Operations.OfType<NativeBattleEffect101ScalePointer>()));
         Assert.Empty(fixture.Operations.OfType<NativeBattleEffect101PositionY>());
     }
 
@@ -135,7 +136,7 @@ public sealed class NativeBattleEffect101ControllerTests
     {
         Fixture fixture = new();
         NativeBattleEffect101Frame frame = Age(fixture.Step(fixture.Frame), 38);
-        NativeBattleEffect101Frame imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect101Frame>(NativeBattleTestSnapshots.Json(frame));
+        NativeBattleEffect101Frame imported = NativeBattleTestSnapshots.Independent(frame);
         Dictionary<int, NativeBattleGraphicsModel> models = fixture.Models.ToDictionary(pair => pair.Key, pair => NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(pair.Value)));
         NativeBattleEffect101Frame expected = NativeBattleStorageSnapshots.Capture(fixture.Step(frame));
         string expectedModels = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Models));
@@ -170,16 +171,16 @@ public sealed class NativeBattleEffect101ControllerTests
             byte[] camera = new byte[0x11C];
             BitConverter.GetBytes((ushort)camera.Length).CopyTo(camera, 6);
             Resources = new(new(MainActAddress, act.ToImmutableArray()), new("FF8_EN:13248C0", camera.ToImmutableArray()), 0x64218);
-            Models[0] = new(0, 15) { Color44 = 0xAB204080, Transform = new(Initial20: new(0, 0, 0), Position28: new(200, -100, -200), Vertical34: 1234, Angle36: 0, Scale38: 900) };
-            Models[4] = new(4, 3) { Transform = new(Initial20: new(0, 0, 0), Position28: new(500, 0, -3000), Vertical34: 0, Angle36: 0, Scale38: 512) };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(4, 8, 13, 0, 290, 101, null));
-            (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            Models[0] = new(15) { Color44 = 0xAB204080, Transform = new(Initial20: new(0, 0, 0), Position28: new(200, -100, -200), Vertical34: 1234, Angle36: 0, Scale38: 900) };
+            Models[4] = new(3) { Transform = new(Initial20: new(0, 0, 0), Position28: new(500, 0, -3000), Vertical34: 0, Angle36: 0, Scale38: 512) };
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 13, 0, 290, 101, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
             root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1));
-            NativeBattleOriginalEffectState effect = new(101, 100, new(101, Entry, Initializer), new(4, 0, 1, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+            NativeBattleOriginalEffectState effect = new(101, 100, new(101, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             byte[] tim = new byte[546];
             BitConverter.GetBytes(0x10).CopyTo(tim, 0);
             BitConverter.GetBytes(9).CopyTo(tim, 4);
@@ -190,8 +191,8 @@ public sealed class NativeBattleEffect101ControllerTests
             BitConverter.GetBytes((short)1).CopyTo(tim, 540);
             BitConverter.GetBytes((short)1).CopyTo(tim, 542);
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() with { Material = 0x4F000000, Rgb = [1, 2, 3] } };
-            Frame = new(memory, effect, new(123), NativeBattleEffect101State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97530).WriteDword(TargetGlobal, 0x1D972C0));
-            Inputs = new(packets, actor => Models[actor], (current, actor) => new(current, Position8(actor)), (current, _) => new(current, 75), (current, _, offset, size, source, context) =>
+            Frame = new(memory, effect, new(123), NativeBattleEffect101State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteModelAddress(CasterGlobal, OriginalOwner(4), OriginalAliases).WriteModelAddress(TargetGlobal, OriginalOwner(0), OriginalAliases));
+            Inputs = new(packets, actor => Models[OriginalSlot(actor)], (current, actor) => new(current, Position8(OriginalSlot(actor))), (current, _) => new(current, 75), (current, _, offset, size, source, context) =>
             {
                 Assert.Equal(32, offset);
                 Assert.Equal(0x2B0, size);
@@ -200,7 +201,7 @@ public sealed class NativeBattleEffect101ControllerTests
                 return new(current, 1);
             }, (current, actor, _, first, second) =>
             {
-                Blends.Add((Models[actor].Transform!.Position28, first, second));
+                Blends.Add((Models[OriginalSlot(actor)].Transform!.Position28, first, second));
                 return new(current, new(11, 22, 33));
             }, Execute, NativeBattleGteColorInterpolation.CodeConstants45F270);
         }
@@ -223,20 +224,20 @@ public sealed class NativeBattleEffect101ControllerTests
             switch (operation)
             {
                 case NativeBattleEffect101ActorFlags flags:
-                    Models[flags.Actor] = Models[flags.Actor] with { Flags0 = (ushort)((Models[flags.Actor].Flags0 & ~flags.Mask) | (flags.Bits & flags.Mask)) };
+                    Models[OriginalSlot(flags.Actor)] = Models[OriginalSlot(flags.Actor)] with { Flags0 = (ushort)((Models[OriginalSlot(flags.Actor)].Flags0 & ~flags.Mask) | (flags.Bits & flags.Mask)) };
                     break;
                 case NativeBattleEffect101PositionXYZ point:
-                    SetPosition(point.Actor, point.Position);
+                    SetPosition(OriginalSlot(point.Actor), point.Position);
                     break;
                 case NativeBattleEffect101PositionY point:
-                    SetPosition(point.Actor, Models[point.Actor].Transform!.Position28 with { Y = point.Y });
+                    SetPosition(OriginalSlot(point.Actor), Models[OriginalSlot(point.Actor)].Transform!.Position28 with { Y = point.Y });
                     break;
                 case NativeBattleEffect101Position8 point:
-                    SetPosition(point.Actor, new(BitConverter.ToInt16(point.Data.Read(0, 2)), BitConverter.ToInt16(point.Data.Read(2, 2)), BitConverter.ToInt16(point.Data.Read(4, 2))));
-                    Models[point.Actor] = Models[point.Actor] with { Transform = Models[point.Actor].Transform! with { Vertical34 = BitConverter.ToInt16(point.Data.Read(6, 2)) } };
+                    SetPosition(OriginalSlot(point.Actor), new(BitConverter.ToInt16(point.Data.Read(0, 2)), BitConverter.ToInt16(point.Data.Read(2, 2)), BitConverter.ToInt16(point.Data.Read(4, 2))));
+                    Models[OriginalSlot(point.Actor)] = Models[OriginalSlot(point.Actor)] with { Transform = Models[OriginalSlot(point.Actor)].Transform! with { Vertical34 = BitConverter.ToInt16(point.Data.Read(6, 2)) } };
                     break;
                 case NativeBattleEffect101Color44 color:
-                    Models[color.Actor] = Models[color.Actor] with { Color44 = color.Value };
+                    Models[OriginalSlot(color.Actor)] = Models[OriginalSlot(color.Actor)] with { Color44 = color.Value };
                     break;
             }
             return current;

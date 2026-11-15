@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -73,7 +74,7 @@ public sealed class NativeBattleLifeControllerTests
         {
             ApplyContact = (current, contact) =>
             {
-                Assert.Equal(0, contact);
+                Assert.Equal(new BattleContactOccurrence(0), contact);
                 NativeBattleModulePoolTask target = current.Effect.Pools[1].Slots[0];
                 Assert.Equal((ushort)31, target.ReadWord(0x24));
                 applied++;
@@ -189,7 +190,7 @@ public sealed class NativeBattleLifeControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         NativeBattleLifeProfile profile = NativeBattleLifeProfile.ForEntry(fixture.Frame.Effect.Binding.Entry);
         uint root = hierarchy.Address(0, 0);
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, profile.Code(0x864BC0), 100, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, profile.Code(0x864BC0), 100, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy;
         hierarchy = hierarchy.Write(target.Address, hierarchy.Read(target.Address).WriteWord(0x24, 12).WriteWord(0x58, 100).WriteWord(0x5A, 64).WriteWord(0x5C, 1));
         NativeCrtRandomState random = fixture.Inputs.Random;
@@ -225,13 +226,13 @@ public sealed class NativeBattleLifeControllerTests
     private static (NativeBattleLifeFrame Frame, NativeBattleLifeResources Resources, NativeBattleLifeInputs Inputs) Fixture(ushort effectId = 35)
     {
         NativeBattleLifeProfile profile = NativeBattleLifeProfile.ForEntry(effectId == 35 ? 0x8649C0u : 0x8D4450u);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 24, effectId, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 24, effectId, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleLifeResources resources = new(null, new uint[] { 0x15E638C, 0x15E6538, 0x15E66E4, 0x15E6890, 0x15E68EC }.Select(address => Sprite(address + profile.StaticDelta)).ToImmutableArray(), 300021);
-        NativeBattleOriginalEffectState effect = new(effectId, effectId - 1, new(effectId, profile.Entry, 0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.Global(0x26AC780), 0x10000)] };
+        NativeBattleOriginalEffectState effect = new(effectId, effectId - 1, new(effectId, profile.Entry, 0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.Global(0x26AC780), 0x10000)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0);
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 16);
@@ -252,7 +253,7 @@ public sealed class NativeBattleLifeControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 10000, 4096);
-        NativeBattleLifeInputs inputs = new(packets, new(camera, 216, 160, 108), index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 }, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, _ => source, NativeCrtRandomState.FromColdProcess(), (current, _) => current);
+        NativeBattleLifeInputs inputs = new(packets, new(camera, 216, 160, 108), index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 }, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, _ => source, NativeCrtRandomState.FromColdProcess(), (current, _) => current);
         return (frame, resources, inputs);
     }
 

@@ -37,7 +37,7 @@ public sealed class NativeBattleHypnotize133PresentationTests
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         Assert.NotNull(game.ReadNativeEffectCatalogForEffects([133])[132].Hypnotize133Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

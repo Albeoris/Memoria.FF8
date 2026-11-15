@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -44,7 +45,7 @@ public sealed class NativeBattleAcid170PresentationTests
         Assert.Same(game.ReadNativeAcid170Resources(), binding.Acid170Resources);
         BattleCombatantDefinition casterDefinition = source.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
         NativeBattleGraphicsResource casterResource = assets.ReadNativeGraphicsResource(casterDefinition);
-        NativeBattleGraphicsModel casterModel = source.NativeGraphics!.Models[3];
+        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.NativeGraphics!, 3);
         Assert.Equal(36, casterDefinition.ModelId);
         Assert.Equal(42, casterResource.PoseSource!.BoneCount);
         Assert.Equal(42, NativeBattleBodyBoneMatrices.Require(casterModel, casterResource.PoseSource).Length);
@@ -52,7 +53,7 @@ public sealed class NativeBattleAcid170PresentationTests
         Assert.Single(casterResource.Geometry!);
         BattleCombatantDefinition recipientDefinition = source.Definition.Combatants.Single(actor => actor.IsPlayer);
         NativeBattleGraphicsResource recipientResource = assets.ReadNativeGraphicsResource(recipientDefinition);
-        NativeBattleGraphicsModel recipientModel = source.NativeGraphics.Models[0];
+        NativeBattleGraphicsModel recipientModel = ReadOriginalModelCell(source.NativeGraphics, 0);
         Assert.Equal(0, recipientDefinition.ModelId);
         Assert.Equal((int?)1, recipientModel.ActiveResourceRow100);
         Assert.Equal((int?)2, recipientModel.LinkedTextureResourceIndex);
@@ -66,7 +67,7 @@ public sealed class NativeBattleAcid170PresentationTests
         Assert.NotNull(recipientModel.GeometryWorldMatrix);
         Assert.Single(recipientResource.Geometry!);
         Assert.Single(recipientResource.LinkedGeometry!.Value);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

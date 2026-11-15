@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -95,12 +96,12 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.True(session.Combatants.Single(actor => actor.Id == "party").IsReady);
         AssertCommonTexture(session, game.ReadNativeCommonEffectTexture());
         NativeBattleGraphicsState before = session.NativeGraphics!;
-        Assert.Equal(0x20u, before.Models[0].Flags8!.Value & 0x11E0);
+        Assert.Equal(0x20u, ReadOriginalModelCell(before, 0).Flags8!.Value & 0x11E0);
         Assert.Equal(0u, before.Flags & 0x410);
-        Assert.Equal(0, before.Models[0].Flags0 & 4);
-        Assert.Equal(0, before.Models[0].Flags2!.Value & 4);
-        byte timer = before.Models[0].StatusTimers[5] ?? throw new InvalidDataException("Original poison initialization did not own its selected graphics timer.");
-        Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], before.Models[0].StatusTimers[6]);
+        Assert.Equal(0, ReadOriginalModelCell(before, 0).Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(before, 0).Flags2!.Value & 4);
+        byte timer = ReadOriginalModelCell(before, 0).StatusTimers[5] ?? throw new InvalidDataException("Original poison initialization did not own its selected graphics timer.");
+        Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], ReadOriginalModelCell(before, 0).StatusTimers[6]);
         string saved = NativeBattleSnapshotJson.Serialize(session.Capture());
         BattleSession clone = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(saved)!);
         // Admit exactly one31/2Hz native callback from the retained rational clock remainder.
@@ -111,8 +112,8 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.Equal(NativeBattleSnapshotJson.Serialize(session.Capture()), NativeBattleSnapshotJson.Serialize(clone.Capture()));
         NativeBattleGraphicsState after = session.NativeGraphics!;
         Assert.Equal(before.Callback + 1, after.Callback);
-        Assert.Equal((byte?)((timer + 1) % 8), after.Models[0].StatusTimers[5]);
-        Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], after.Models[0].StatusTimers[6]);
+        Assert.Equal((byte?)((timer + 1) % 8), ReadOriginalModelCell(after, 0).StatusTimers[5]);
+        Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], ReadOriginalModelCell(after, 0).StatusTimers[6]);
         NativeBattleModuleDraw draw = Assert.Single(after.ModuleDraws, item => item.Resource?.Address == 0xC7EA38);
         Assert.Equal((ushort)timer, draw.Phase);
         int drawIndex = after.ModuleDraws.IndexOf(draw);

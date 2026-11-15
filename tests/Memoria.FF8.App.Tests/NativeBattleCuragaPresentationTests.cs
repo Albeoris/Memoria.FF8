@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Bitmap = SkiaSharp.SKBitmap;
 using Color = SkiaSharp.SKColor;
@@ -163,10 +164,10 @@ public sealed class NativeBattleCuragaPresentationTests
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, nativeCuraga.Command, 11, -1, nativeCuraga.ActionId, nativeCuraga.MagicId, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), nativeCuraga.Command, 11, -1, nativeCuraga.ActionId, nativeCuraga.MagicId, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
-        (packets, _) = packets.AppendContact(new(new(0, nativeCuraga.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), nativeCuraga.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -280,7 +281,7 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.False(HasActionDescriptor(battle), "Original Curaga104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
-        Assert.Equal(0, battle.NativeGraphics.Models[0].Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0 & 4);
         Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         Assert.Equal(before.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(before.Random, battle.Capture().Random);

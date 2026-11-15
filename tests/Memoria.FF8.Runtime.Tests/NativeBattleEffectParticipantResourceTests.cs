@@ -20,7 +20,7 @@ public sealed class NativeBattleEffectParticipantResourceTests
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(battle, NativeBattleFileStaging.FromColdProcess());
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, NativeBattleEffectMemory.FromColdProcess());
         NativeBattleSequenceState sequence = new() { Default2 = 14 };
-        NativeBattleGraphicsModel source = new(0, 3) { ModelId4 = 0, FileSelector128 = 0, FileSelector129 = 0, Flags2 = 4, SequenceState = sequence, LinkedTransform = new(default, default) };
+        NativeBattleGraphicsModel source = new(3) { ModelId4 = 0, FileSelector128 = 0, FileSelector129 = 0, Flags2 = 4, SequenceState = sequence, LinkedTransform = new(default, default) };
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, source), ["source", null, null, null, null, null, null], 0, 0);
         MethodInfo load = typeof(BattleSession).GetMethod("InitializeEffectPresentationSourceResources", BindingFlags.Instance | BindingFlags.NonPublic)!;
         graphics = (NativeBattleGraphicsState)load.Invoke(battle, [graphics, resource])!;

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -81,7 +82,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                     selected = true;
                     NativeBattleActionPacketsState packets = battle.Capture().NativeActionPackets!;
                     NativeBattleActionHeaderSlot header = packets.Headers.Single(header => header.FirstContactIndex is not null && header.ReadByte(1) == 250);
-                    NativeBattleContactHalf contact = packets.ReadContact(header.FirstContactIndex!.Value).Primary;
+                    NativeBattleContactHalf contact = packets.ReadContact(header.FirstContact).Primary;
                     Assert.Equal((byte)3, contact.Sequence);
                     Assert.Equal(8, contact.Flags2 & 8);
                     Assert.Equal(1, contact.SavedStatuses4 & 1);
@@ -95,14 +96,14 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                 {
                     Assert.True(initial);
                     Assert.Equal(0, battle.Combatants.Single(actor => !actor.IsPlayer).CurrentHp);
-                    Assert.Equal((byte)3, battle.NativeGraphics!.Models[3].Sequence);
-                    Assert.Equal((byte)6, battle.NativeGraphics.Models[3].Kind5);
+                    Assert.Equal((byte)3, ReadOriginalModelCell(battle.NativeGraphics!, 3).Sequence);
+                    Assert.Equal((byte)6, ReadOriginalModelCell(battle.NativeGraphics, 3).Kind5);
                     CompareNext("death-removal");
-                    for (int removalCallback = 0; removalCallback < 128 && (battle.NativeGraphics.Models[3].Flags0 & 2) != 0; removalCallback++)
+                    for (int removalCallback = 0; removalCallback < 128 && (ReadOriginalModelCell(battle.NativeGraphics, 3).Flags0 & 2) != 0; removalCallback++)
                     {
                         battle.Tick();
                     }
-                    Assert.Equal(0, battle.NativeGraphics!.Models[3].Flags0 & 2);
+                    Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).Flags0 & 2);
                     Assert.True(midpoint);
                     Assert.Equal(4 + finisher.HitCount, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     int initialDamage = battle.Events.Where(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy").Take(4).Sum(entry => entry.Amount);

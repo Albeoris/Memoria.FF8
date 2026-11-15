@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -131,8 +132,8 @@ internal static class NativeBattleEvilEye282FixturePreparation
         Assert.Equal(prototype.InitialUntargetable, currentDefinition.InitialUntargetable);
         Assert.Equal(prototype.InitialSuspended, currentDefinition.InitialSuspended);
         NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The activated original actor lost its graphics owner.");
-        Assert.Equal(allocated.Id, graphics.ActorIds[actualIndex]);
-        NativeBattleGraphicsModel model = graphics.Models[actualIndex];
+        Assert.Equal(allocated.Id, ReadOriginalModelActorId(graphics, actualIndex));
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualIndex);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(currentDefinition);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("The activated original model lacks its skeleton.");
         Assert.True(pose.BoneCount > 13);
@@ -155,7 +156,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
             Assert.Equal(companion.ModelId, session.GetCombatantDefinition(companion.Id).ModelId);
             int companionIndex = retained.NativeParticipant!.ActorIndex;
             BattleEnemyPlacement source = Assert.Single(formation.Slots, slot => slot.Slot == companion.SceneSlot);
-            Assert.Equal(source.NativePosition, graphics.Models[companionIndex].Transform!.Position28);
+            Assert.Equal(source.NativePosition, ReadOriginalModelCell(graphics, companionIndex).Transform!.Position28);
         }
         BattleSnapshot restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(ready))!).Capture();
         Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(restored));

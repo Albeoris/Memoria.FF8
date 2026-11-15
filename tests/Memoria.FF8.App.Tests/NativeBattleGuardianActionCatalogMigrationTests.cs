@@ -48,8 +48,8 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         Assert.True(targetIndex >= 0);
         Assert.Null(original.Combatants[targetIndex].NativeParticipant!.RemainingHits);
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        Assert.Equal((byte)1, packets.Headers[0].ReadByte(16));
-        Assert.Single(Enumerable.Range(0, packets.Headers[0].ReadByte(16)), index => packets.ReadContact(index).Primary.ActorIndex == 3);
+        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
+        Assert.Single(Enumerable.Range(0, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount()), index => packets.ReadContact(new BattleContactOccurrence(index)).Primary.ActorIndex == 3);
         Assert.Equal((byte)0, NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game));
         JsonObject targetParticipant = migratedNode["Combatants"]![targetIndex]!["NativeParticipant"]!.AsObject();
         Assert.True(targetParticipant.ContainsKey("RemainingHits"));
@@ -96,9 +96,9 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         Assert.Equal((ushort)193, original.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Empty(original.Definition.NativeActions);
         Assert.Null(original.ActiveAction);
-        NativeBattleActionHeaderSlot header = original.NativeActionPackets!.Headers[0];
-        Assert.Equal((byte)254, header.ReadByte(1));
-        Assert.Equal((ushort)64, NativeBattleActionGraphics.Word(header, 4));
+        NativeBattleActionHeaderSlot header = original.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal((byte)254, header.Command);
+        Assert.Equal((ushort)64, header.Action);
         BattleNativeAction retained = Assert.Single(original.Definition.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && action.Id == 0).NativeAction!;
         BattleNativeAction authenticated = Assert.Single(assets.NativeActions, action => action.Command == 254 && action.ActionId == 64);
         Assert.Equal(JsonSerializer.Serialize(authenticated), JsonSerializer.Serialize(retained));

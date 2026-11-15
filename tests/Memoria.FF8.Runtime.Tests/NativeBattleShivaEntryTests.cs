@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -81,13 +82,13 @@ public sealed class NativeBattleShivaEntryTests
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 254, 14, 0, 65, 185, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 254, 14, 0, 65, 185, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(185, 184, new(185, 0x5C0D50, 0x5C0D30), new(0, 0, (1 << 1) | (1 << 4) | (1 << 6), 0, 0, 0), null) { ResourcePointers = [new(0x22BC150, 0x40000)] };
+        NativeBattleOriginalEffectState effect = new(185, 184, new(185, 0x5C0D50, 0x5C0D30), new(OriginalOwner(0), 0, (1 << 1) | (1 << 4) | (1 << 6), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x22BC150, 0x40000)] };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x2BFFF, Enumerable.Repeat((byte)0xA5, 0x2D962 - 0x2BFFF).ToArray()).Write(0x40000, Tim());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 2)
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2)
         {
             Rotation14 = (short)(index == 3 ? 0x100 : 0x500),
             Transform = new(new(0, 0, 0), index switch { 1 => new(-300, 100, -111), 4 => new(700, -500, 888), 6 => new(100, 900, 200), _ => new(25000, 0, 20000) }, 0, 0x600, 4096),

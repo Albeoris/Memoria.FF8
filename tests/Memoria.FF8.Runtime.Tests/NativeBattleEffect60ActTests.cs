@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -13,9 +14,9 @@ public sealed class NativeBattleEffect60ActTests
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteWord(0x24, 5));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
-        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => new(0, 3)).Frame;
+        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => OriginalTaskActors(0, 3)).Frame;
         Assert.Empty(fixture.Operations);
-        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => new(0, 3)).Frame;
+        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => OriginalTaskActors(0, 3)).Frame;
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         Assert.Equal((byte)1, task.ReadByte(0x29));
         Assert.Equal((short)900, unchecked((short)task.ReadWord(0x184)));
@@ -38,9 +39,9 @@ public sealed class NativeBattleEffect60ActTests
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x29, 1).WriteWord(0x24, 35));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
-        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => new(0, 3)).Frame;
+        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => OriginalTaskActors(0, 3)).Frame;
         Assert.Empty(fixture.Operations);
-        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => new(0, 3)).Frame;
+        frame = NativeBattleEffect60Act.Advance(frame, address, fixture.Resources, fixture.Inputs, (_, _, _) => OriginalTaskActors(0, 3)).Frame;
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         Assert.Equal((byte)2, task.ReadByte(0x29));
         Assert.Equal(1u, task.ReadDword(0x98));
@@ -111,7 +112,7 @@ public sealed class NativeBattleEffect60ActTests
     private static NativeBattleEffect60Frame Append(NativeBattleEffect60ControllerTests.Fixture fixture, out uint address)
     {
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        return NativeBattleEffect60Act.Append(fixture.Frame, hierarchy.Address(0, 0), NativeBattleEffect60Profile.ActPrimaryCallback, 0x17A0D04, 228, 0, (_, _, _) => new(0, 3), out address);
+        return NativeBattleEffect60Act.Append(fixture.Frame, hierarchy.Address(0, 0), NativeBattleEffect60Profile.ActPrimaryCallback, 0x17A0D04, 228, 0, (_, _, _) => OriginalTaskActors(0, 3), out address);
     }
     private static NativeBattleModulePoolTask Copy(NativeBattleEffectArena source, NativeBattleModulePoolTask task, int offset)
     {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleEffect64Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect64Profile;
 using static Memoria.FF8.Runtime.Tests.NativeBattleEffect64LowerFixture;
@@ -62,7 +63,7 @@ public sealed class NativeBattleEffect64ParticleTests
         NativeBattleEffect64Frame frame = Frame(words);
         (frame, _) = Append(frame, ParticleDescriptor, 0x6E67F0);
         List<string> calls = [];
-        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Particles.Birth6E68C0(frame, Script, 0x1D975CC, Row, Resources(), Inputs(calls));
+        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Particles.Birth6E68C0(frame, Script, OriginalOwner(5), Row, Resources(), Inputs(calls));
         Assert.Equal(Script + 48, next);
         Assert.Equal(new[] { nameof(NativeBattleEffect64ApplyOffsetPose662C00), "bone:1:0" }, calls);
         Assert.Equal(frame.Random, result.Random);
@@ -85,7 +86,7 @@ public sealed class NativeBattleEffect64ParticleTests
         words[15] = 3;
         NativeBattleEffect64Frame frame = Frame(words);
         NativeCrtRandomState expected = frame.Random.Draw(out ushort x).Draw(out ushort vx);
-        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Particles.Birth6E68C0(frame, Script, 0x1D975CC, Row, Resources(), Inputs());
+        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Particles.Birth6E68C0(frame, Script, OriginalOwner(5), Row, Resources(), Inputs());
         NativeBattleModulePoolTask particle = Read(result, Common + ParticleOffset);
         Assert.Equal(expected, result.Random);
         Assert.Equal(unchecked((ushort)(10 - 250 + ((500 * x) >> 15))), particle.ReadWord(12));
@@ -104,7 +105,7 @@ public sealed class NativeBattleEffect64ParticleTests
         (frame, _) = Append(frame, ParticleDescriptor, 0x6E67F0);
         frame = frame with { State = frame.State.ReplaceScriptSource(Script, frame.State.ReadScriptSource(Script).MarkUnknown(2, 20)) };
         List<string> calls = [];
-        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Particles.Birth6E6710(frame, Script, 0, Row, Inputs(calls));
+        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Particles.Birth6E6710(frame, Script, OriginalOwner(0), Row, Inputs(calls));
         Assert.Equal(Script + 22, next);
         Assert.Empty(calls);
         Assert.Equal(frame.Random, result.Random);

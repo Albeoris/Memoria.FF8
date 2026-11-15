@@ -17,7 +17,7 @@ public sealed class NativeBattleShadowTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         //One actual compressed pose: XYZ=(0,-3,0), unscaled identity bone.
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0x80, 2, 0]);
-        NativeBattleGraphicsModel model = new(0, 3) { Flags2 = flags2, Sequence = sequence, MinimumY146 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = flags2, Sequence = sequence, MinimumY146 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
         NativeBattleGraphicsModel published = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, source);
         Assert.Equal(expectedMinimum, published.MinimumY146);
@@ -120,7 +120,7 @@ public sealed class NativeBattleShadowTests
     public void Shadow_matrix_flattens_rows_after_local_center_and_keeps_native_ground_and_seed_axes()
     {
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 0, -4096, 0, 4096, 0], 100, 200, 300, 4096);
-        NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = world, Transform = new(default, default, 0, -7, 4096) };
+        NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = world, Transform = new(default, default, 0, -7, 4096) };
         NativeBattleShadowSource source = new(Identity() with { Y = 3 }, new(4096, 0, 4096), Enumerable.Range(0, 10).Select(index => new NativeBattleVector(0, (short)index, 0)).ToImmutableArray());
         NativeBattleEffectLocalBounds bounds = new(new(0, -100, 0), new(20, 100, 40));
         NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, bounds, Identity(), source, true);

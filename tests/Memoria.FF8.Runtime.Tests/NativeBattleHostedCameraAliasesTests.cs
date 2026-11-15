@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -8,7 +9,7 @@ public sealed class NativeBattleHostedCameraAliasesTests
     public void HostedAliasesKeepTheHighestSelectedRowAndRoundTripWithTheirOwner()
     {
         BattleModelRoster roster = Roster();
-        BattleModelTargets targets = default(BattleModelTargets).Add(24).Add(0).Add(7);
+        BattleModelTargets targets = default(BattleModelTargets).Add(24).Add(OriginalOwner(0)).Add(7);
         NativeBattleCameraAliases observed = NativeBattleCameraAliases.FromColdProcess().Observe50D300(7, targets, roster);
         NativeBattleCameraAliases restored = JsonSerializer.Deserialize<NativeBattleCameraAliases>(JsonSerializer.Serialize(observed))!;
         Assert.Equal((byte)7, restored.Resolve50D790(0x9F));
@@ -28,7 +29,7 @@ public sealed class NativeBattleHostedCameraAliasesTests
         Assert.Throws<NotSupportedException>(() => aliases.Resolve50D790(0x90));
         Assert.Throws<InvalidDataException>(() => aliases.Resolve50D790(0xA0));
         Assert.Throws<InvalidDataException>(() => aliases.Observe50D300(6, default, roster));
-        Assert.Throws<InvalidDataException>(() => aliases.Observe50D300(7, default(BattleModelTargets).Add(6), roster));
+        Assert.Throws<InvalidDataException>(() => aliases.Observe50D300(7, default(BattleModelTargets).Add(OriginalOwner(6)), roster));
         Assert.Throws<InvalidDataException>(() => (aliases with { Target1D99AAA = 25 }).Validate());
     }
 
@@ -46,9 +47,9 @@ public sealed class NativeBattleHostedCameraAliasesTests
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new("original", true);
-        rows[7] = new("source", true);
-        rows[24] = new("target", false);
+        rows[0] = new BattlePartyActorModel(new("original"));
+        rows[7] = new BattlePartyActorModel(new("source"));
+        rows[24] = new BattleEnemyActorModel(new("target"));
         return new([.. rows]);
     }
 }

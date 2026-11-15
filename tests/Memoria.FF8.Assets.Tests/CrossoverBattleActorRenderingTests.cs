@@ -27,7 +27,7 @@ public sealed class CrossoverBattleActorRenderingTests(ITestOutputHelper output)
         Assert.Equal(sharedSkeleton == false, assets.ResolveWeaponModel(modelId, weaponId, body) is not null);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = modelId, WeaponId = weaponId });
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = new(0, 0)
+        NativeBattleGraphicsModel model = new(0)
         {
             Transform = new(default, default, 0, 0, 4096),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
@@ -73,7 +73,7 @@ public sealed class CrossoverBattleActorRenderingTests(ITestOutputHelper output)
         NativeBattlePoseSource source = Assert.IsType<NativeBattlePoseSource>(resource.PoseSource);
         NativeBattleVector origin = new(0, 0, 2200);
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = new(0, 0)
+        NativeBattleGraphicsModel model = new(0)
         {
             Transform = new(origin, origin, 0, 0, 4096),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },

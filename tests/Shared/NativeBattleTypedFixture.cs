@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Tests;
 
 /// <summary>Explicit original-slot bindings for tests of the original battle boundary.</summary>
-internal static class NativeBattleTypedFixture
+internal static partial class NativeBattleTypedFixture
 {
     private static readonly BattleModelOwner[] owners =
     [
@@ -31,23 +31,6 @@ internal static class NativeBattleTypedFixture
     internal static NativeBattleActionPacketsState OriginalPackets()
     {
         return NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.Fresh(), OriginalAliases);
-    }
-
-    internal static (BattleActorModels Models, NativeBattleModelBoundary Boundary) OriginalModels(IEnumerable<(int Slot, NativeBattleGraphicsModel Model)> entries)
-    {
-        BattleActorModels models = new([]);
-        NativeBattleModelBoundary boundary = NativeBattleModelBoundary.FromRetainedMemory(null);
-        foreach ((int slot, NativeBattleGraphicsModel model) in entries)
-        {
-            BattleModelOwner owner = OriginalOwner(slot);
-            if (models.Contains(owner))
-            {
-                throw new ArgumentException("The original test fixture already binds this slot.", nameof(entries));
-            }
-            (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode((byte)slot), owner, models);
-            models = models.Set(owner, model);
-        }
-        return (models, boundary);
     }
 
     internal static NativeBattleEffectsState OriginalEffects()

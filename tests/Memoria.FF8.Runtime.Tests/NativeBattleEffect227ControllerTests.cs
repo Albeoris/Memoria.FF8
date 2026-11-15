@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -84,7 +85,7 @@ public sealed class NativeBattleEffect227ControllerTests
     {
         Harness harness = new();
         EmitMainText(Frame(age), age, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect227Text4876F0(3, text, duration), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect227Text4876F0(OriginalOwner(3), text, duration), Assert.Single(harness.Operations));
     }
 
     [Theory]
@@ -198,7 +199,7 @@ public sealed class NativeBattleEffect227ControllerTests
             }
         }
         NativeBattleEffect227State state = NativeBattleEffect227State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
-        NativeBattleOriginalEffectState effect = new(227, 226, new(227, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(227, 226, new(227, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

@@ -152,7 +152,7 @@ public sealed class NativeBattleWaterInitializationTests
             BinaryPrimitives.WriteUInt32LittleEndian(owners.AsSpan(4 * i), addresses[i]);
         }
         NativeBattleWater222Profile profile = new(new("tables", new byte[0x70].ToImmutableArray()), new("directory", directory.ToImmutableArray()), new("owners", owners.ToImmutableArray()));
-        ImmutableArray<NativeBattleGraphicsModel> graphics = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, (ushort)(0x100 + index)) { Transform = new(new((short)index, 0, 0), new((short)(10 + index), (short)(20 + index), (short)(30 + index)), (short)(40 + index), 50, 4096), Rotation12 = (short)(60 + index), Rotation14 = 70, Rotation16 = 80 }).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> graphics = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((ushort)(0x100 + index)) { Transform = new(new((short)index, 0, 0), new((short)(10 + index), (short)(20 + index), (short)(30 + index)), (short)(40 + index), 50, 4096), Rotation12 = (short)(60 + index), Rotation14 = 70, Rotation16 = 80 }).ToImmutableArray();
         NativeBattleWaterTemporaryFrame frame = new(0x1D9A000, Enumerable.Repeat((byte)0xA5, 0x180).ToImmutableArray(), new bool[0x180].ToImmutableArray());
         NativeBattleWaterInitializationInputs inputs = new(new(File0, 0x100, NativeBattleEffectNodeMemory.ArenaAddress + File0), new(File1, 0x858, NativeBattleEffectNodeMemory.ArenaAddress + File1), frame, 0x1D99A78, 0x1D99B00, 0x186C84C, 1, 2, 6, [4, 4, 2], 3, 9, graphics);
         return (arena, profile, inputs);

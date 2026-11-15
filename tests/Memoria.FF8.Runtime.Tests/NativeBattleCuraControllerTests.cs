@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -113,10 +114,10 @@ public sealed class NativeBattleCuraControllerTests
 
     private static (NativeBattleCuraFrame Frame, NativeBattleCuraControllerInputs Inputs) Fixture(byte actor = 0)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionPacketsState packets = OriginalPackets();
         int headerIndex;
         (packets, headerIndex) = packets.Prepare(new(actor, 2, 11, 0, 22, 1, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
         packets = packets.WritePlayerRepeatMode(headerIndex, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState selected = new(25, 24, new(25, 0x889D60, 0x889D40), new(actor, 1, 8, headerIndex, 0, 0), null);
@@ -126,6 +127,6 @@ public sealed class NativeBattleCuraControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        return (frame, new(packets, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
+        return (frame, new(packets, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
     }
 }

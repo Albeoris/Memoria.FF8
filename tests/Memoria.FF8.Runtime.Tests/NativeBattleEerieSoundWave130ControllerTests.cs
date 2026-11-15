@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEerieSoundWave130Profile;
@@ -37,7 +38,7 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
         NativeBattleModulePoolTask impact = next.Effect.Pools[3].Slots[0];
         Assert.Equal(Model(5), impact.ReadDword(0x14));
         Assert.Equal(unchecked((ushort)0xFEDC), impact.ReadWord(18));
-        Assert.Equal(2, Assert.Single(fixture.Operations.OfType<NativeBattleEerieSoundWave130Contact>()).Index);
+        Assert.Equal(new BattleContactOccurrence(2), Assert.Single(fixture.Operations.OfType<NativeBattleEerieSoundWave130Contact>()).Occurrence);
     }
 
     [Theory]
@@ -86,7 +87,7 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
         NativeBattleEerieSoundWave130Frame live = fixture.Step(frame);
         Assert.Equal(RootDescriptor, live.Effect.ReturnedDescriptor);
         fixture.Remaining = _ => 0;
-        NativeBattleEerieSoundWave130Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEerieSoundWave130Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(live)))!);
+        NativeBattleEerieSoundWave130Frame restored = NativeBattleTestSnapshots.Independent(live);
         restored = restored with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(restored.Memory, restored.Effect.Pools) };
         NativeBattleEerieSoundWave130Frame expected = NativeBattleStorageSnapshots.Capture(fixture.Step(live));
         NativeBattleEerieSoundWave130Frame actual = fixture.Step(restored);
@@ -127,19 +128,19 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
         private NativeBattleActionPacketsState Packets { get; }
         public Fixture()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 8, 11, 0, 185, 130, null));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 11, 0, 185, 130, null));
             foreach (int actor in new[] { 3, 4, 5 })
             {
-                (packets, _) = packets.AppendContact(new(new((byte)actor, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 1, 0, 0, 0, 7, 0), null));
             }
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(3);
             Packets = packets;
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
             root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1));
-            NativeBattleOriginalEffectState effect = new(130, 129, new(130, Entry, Initializer), new(0, 0, 8, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
+            NativeBattleOriginalEffectState effect = new(130, 129, new(130, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
             Frame = new(memory, effect, new(123), NativeBattleEerieSoundWave130State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, Model(0)));
         }
@@ -148,7 +149,7 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
             Calls.Clear();
             Operations.Clear();
         }
-        public NativeBattleEerieSoundWave130Frame Step(NativeBattleEerieSoundWave130Frame frame) => NativeBattleEerieSoundWave130Controller.Advance(frame, Resources, new(Packets, actor => new(actor, 1) { Rotation14 = 0, Transform = new(Initial20: new(0, 0, 0), Position28: new((short)(actor == 5 ? 700 : actor == 4 ? -300 : 100), 0, 0), Vertical34: 0, Angle36: 0, Scale38: 512) }, () => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (current, _, _, _) => new(current, new(100, 200, 300)), (current, _) => new(current, new(700, 800, 900, unchecked((short)0xFEDC))), (current, _, kind, context) =>
+        public NativeBattleEerieSoundWave130Frame Step(NativeBattleEerieSoundWave130Frame frame) => NativeBattleEerieSoundWave130Controller.Advance(frame, Resources, new(Packets, actor => new(1) { Rotation14 = 0, Transform = new(Initial20: new(0, 0, 0), Position28: new((short)(actor == 5 ? 700 : actor == 4 ? -300 : 100), 0, 0), Vertical34: 0, Angle36: 0, Scale38: 512) }, () => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (current, _, _, _) => new(current, new(100, 200, 300)), (current, _) => new(current, new(700, 800, 900, unchecked((short)0xFEDC))), (current, _, kind, context) =>
         {
             Calls.Add((kind, context));
             return new(current, Remaining(kind));

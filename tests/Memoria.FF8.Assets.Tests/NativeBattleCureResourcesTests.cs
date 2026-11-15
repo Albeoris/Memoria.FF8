@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -38,11 +39,11 @@ public sealed class NativeBattleCureResourcesTests
         var catalog = game.ReadNativeEffectCatalogForEffects([1]);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(1, catalog);
         var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
-        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(0, 0, 8, 0, 0, 0) };
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 21, 1, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) };
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleCureFrame frame = NativeBattleCureController.Initialize8D6A00(initialized.Memory, effect, packets, resources);
         Assert.Equal(0, frame.State.SourceArenaOffset);

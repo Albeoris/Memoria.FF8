@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -36,7 +37,7 @@ public sealed class NativeBattleEffect345SourceAdmissionTests
         BattleCombatantDefinition caster = session.GetCombatantDefinition(enemy.Id);
         Assert.Equal(114, caster.ModelId);
         Assert.Equal(0, caster.SceneSlot);
-        NativeBattleGraphicsModel model = source.NativeGraphics.Models[3];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 3);
         Assert.Equal((byte)130, model.ModelId4);
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Transform);

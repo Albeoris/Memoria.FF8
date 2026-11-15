@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -115,7 +116,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         (frame, int result) = NativeBattleElectricDischarge126Controller.AdvanceMain(frame, Fixture.MainAddress, f.Resources, f.Inputs);
         Assert.Equal(2, result);
         Assert.Single(frame.Effect.Pools[3].Slots.Where(task => (task.Flags & 1) != 0));
-        Assert.Equal(new NativeBattleElectricDischarge126ContactAll(0, 2), Assert.Single(f.Operations.OfType<NativeBattleElectricDischarge126ContactAll>()));
+        Assert.Equal(new NativeBattleElectricDischarge126ContactAll(new BattleContactCursor(0), 2), Assert.Single(f.Operations.OfType<NativeBattleElectricDischarge126ContactAll>()));
         Assert.Equal((ushort)52, f.Main(frame).ReadWord(12));
     }
 
@@ -158,7 +159,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         Fixture f = new();
         (NativeBattleElectricDischarge126Frame frame, uint head) = NativeBattleElectricDischarge126Controller.StartWorld(f.Frame, new(0, 0, 0), new(100, -100, 300), new(100, -100, 300), new(0, 0, 0), -1, 0, 0, 100, 0, 3);
         uint taskAddress = frame.Effect.Pools[2].BankAddress;
-        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        frame = NativeBattleTestSnapshots.Independent(frame);
         (frame, _) = NativeBattleElectricDischarge126Controller.AdvanceWorldTrail(frame, taskAddress, f.Resources, f.Inputs);
         NativeBattleModulePoolTask[] branches = frame.Effect.Pools[2].Slots.Where(task => (task.Flags & 1) != 0).Skip(1).ToArray();
         Assert.NotEmpty(branches);
@@ -189,7 +190,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         };
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(f.Frame.Memory, effect);
         NativeBattleElectricDischarge126Frame frame = f.Frame with { Memory = transfer.Memory, Effect = transfer.Effect with { Pools = [f.Frame.Effect.Pools[0]] } };
-        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        frame = NativeBattleTestSnapshots.Independent(frame);
         frame = f.Root(frame, 1, false, 0);
         (frame, _) = NativeBattleElectricDischarge126Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         NativeBattleModulePoolTask reclaimed = frame.Effect.Pools[3].Slots[slot];
@@ -265,14 +266,14 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
             arena = arena.Write(0x30000, tim);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(0) with { Arena = arena, ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
-            NativeBattleOriginalEffectState effect = new(126, 125, new(126, Entry, Initializer), new(Caster, 0, 1, 0, 0, 0), null) { Pools = pools.ToImmutableArray(), ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+            NativeBattleOriginalEffectState effect = new(126, 125, new(126, Entry, Initializer), new(OriginalOwner(3), 0, 1, new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools.ToImmutableArray(), ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             NativeBattleElectricDischarge126State state = NativeBattleElectricDischarge126State.FromColdProcess().WriteDword(CasterGlobal, CasterPointer).WriteDword(WorkingGlobal, ArenaAddress);
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(543), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(Caster, 8, 15, 0, 28, 126, null));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, 0, 28, 126, null));
             for (int index = 0; index < 2; index++)
             {
-                (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 1, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(2);
             Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(actor, (ushort)(actor == 1 || actor == Caster ? 2 : 0)) { Color40 = (uint)(0x102030 + actor * 0x101010) }, _ => 30, _ => new(8, null), _ => NativeBattlePackedMatrix32.FromMatrix(identity with { Z = 2000 }, null), (frame, _) => new(frame, new(100, 200, 300, 444)), (frame, actor, selector, _) =>

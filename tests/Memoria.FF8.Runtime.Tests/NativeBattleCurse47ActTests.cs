@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -176,15 +177,15 @@ public sealed class NativeBattleCurse47ActTests
 
     private static (NativeBattleCurse47Frame Frame, uint Director, NativeBattleActionPacketsState Packets) BirthFrame()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 32, 15, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 32, 15, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new(NativeBattleCurse47State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend parent = hierarchy.Append8DC540(2, NativeBattleCurse47Director.Callback, 72);
         hierarchy = parent.Hierarchy.Write(parent.Address, parent.Hierarchy.Read(parent.Address).WriteDword(0x0C, 0x1D99A78));
-        NativeBattleOriginalEffectState effect = new(47, 47, new(47, NativeBattleCurse47Controller.Entry, 0x82A7D0), new(0, 1, 47, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(47, 47, new(47, NativeBattleCurse47Controller.Entry, 0x82A7D0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleCurse47IoTests.Initialized()), parent.Address, packets);
     }
 
@@ -232,7 +233,7 @@ public sealed class NativeBattleCurse47ActTests
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleCurse47State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend parent = hierarchy.Append8DC540(2, NativeBattleCurse47Director.Callback, 72);
             Parent = parent.Address;
-            NativeBattleEffectHierarchyAppend child = parent.Hierarchy.Append8DC540(4, callback, 648, Parent, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend child = parent.Hierarchy.Append8DC540(4, callback, 648, Parent, (_, _, _) => OriginalTaskActors(0, 3));
             Address = child.Address;
             hierarchy = child.Hierarchy.Write(Address, child.Hierarchy.Read(Address).WriteDword(0x74, Source.Address).WriteDword(0x78, callback == NativeBattleCurse47Act.MidpointCallback ? 500u : 340u).WriteWord(0x22, 0xCAFE));
             NativeBattleOriginalEffectState effect = new(47, 47, new(47, NativeBattleCurse47Controller.Entry, 0x82A7D0), null, null) { Pools = hierarchy.Pools };

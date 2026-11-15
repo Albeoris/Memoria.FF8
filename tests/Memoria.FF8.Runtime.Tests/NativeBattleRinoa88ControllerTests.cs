@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -52,16 +53,16 @@ public sealed class NativeBattleRinoa88ControllerTests
 
     internal static (NativeBattleRinoa88Frame Frame, NativeBattleRinoa88Inputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 19, 0, 27, 88, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 19, 0, 27, 88, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(88, 87, new(88, 0x7684F0, 0x7684D0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x25A4D98, 256)] };
+        NativeBattleOriginalEffectState selected = new(88, 87, new(88, 0x7684F0, 0x7684D0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x25A4D98, 256)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(87) with { Rinoa88 = NativeBattleRinoa88State.FromColdProcess() };
         NativeBattleRinoa88Frame frame = NativeBattleRinoa88Controller.Initialize(memory, selected, packets);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        NativeBattleRinoa88Inputs inputs = new(packets, camera, index => new(index, 0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
+        NativeBattleRinoa88Inputs inputs = new(packets, camera, index => new(0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
         return (frame, inputs);
     }
 }

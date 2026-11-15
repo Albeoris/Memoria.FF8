@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect64Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect64Profile;
@@ -20,7 +21,7 @@ public sealed class NativeBattleEffect64ProgrammeTests
         BitConverter.GetBytes(152).CopyTo(descriptors, 4);
         NativeBattleEffect64Resources resources = Resources() with { Acts = [new(0x13433C8, source.ToImmutableArray())], ProgrammeDescriptors = descriptors.ToImmutableArray() };
         List<string> calls = [];
-        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Programme.Birth6E61E0(frame, Script, 0x1D975CC, Row, false, resources, Inputs(calls));
+        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Programme.Birth6E61E0(frame, Script, OriginalOwner(5), Row, false, resources, Inputs(calls));
         NativeBattleModulePoolTask task = Read(result, address);
         Assert.Equal(new[] { nameof(NativeBattleEffect64ApplyOffsetPose662C00), "bone:1:0", nameof(NativeBattleEffect64RestorePose508C90) }, calls);
         Assert.Equal(new byte[] { 10, 0, 20, 0, 30, 0 }, task.ReadBytes(12, 6));
@@ -37,7 +38,7 @@ public sealed class NativeBattleEffect64ProgrammeTests
         NativeBattleEffect64Frame frame = Frame(58, 0, 1, 4096, 1024, -128);
         (frame, _) = Append(frame, ProgrammeDescriptor, 0x6E6310);
         List<string> calls = [];
-        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Programme.Birth6E61E0(frame, Script, 0x1D975CC, Row, false, Resources(), Inputs(calls));
+        (NativeBattleEffect64Frame result, uint next) = NativeBattleEffect64Programme.Birth6E61E0(frame, Script, OriginalOwner(5), Row, false, Resources(), Inputs(calls));
         Assert.Equal(Script + 12, next);
         Assert.Empty(calls);
         Assert.Equal(frame.Random, result.Random);
@@ -51,6 +52,6 @@ public sealed class NativeBattleEffect64ProgrammeTests
         (frame, _) = Append(frame, ProgrammeDescriptor, 0x6E6310);
         NativeBattleEffectArena script = frame.State.ReadScriptSource(Script).MarkUnknown(10, 2);
         frame = frame with { State = frame.State.ReplaceScriptSource(Script, script) };
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect64Programme.Birth6E61E0(frame, Script, 0, Row, false, Resources(), Inputs()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect64Programme.Birth6E61E0(frame, Script, OriginalOwner(0), Row, false, Resources(), Inputs()));
     }
 }

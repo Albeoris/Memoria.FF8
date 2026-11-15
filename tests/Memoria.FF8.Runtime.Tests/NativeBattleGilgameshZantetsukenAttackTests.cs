@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -32,7 +33,7 @@ public sealed class NativeBattleGilgameshZantetsukenAttackTests
     {
         NativeBattleGilgameshFrame frame = ZantetsukenFixture.Create(0x58DED0, 16);
         List<NativeBattleGilgameshOperation> operations = [];
-        NativeBattleGilgameshZantetsukenInputs inputs = ZantetsukenFixture.Inputs([new(1, 4), new(3, 0), new(2, 4)]) with
+        NativeBattleGilgameshZantetsukenInputs inputs = ZantetsukenFixture.Inputs([new(OriginalOwner(1), 4), new(OriginalOwner(3), 0), new(OriginalOwner(2), 4)]) with
         {
             ReadModelWord26 = _ => (short)height,
             Execute = (current, operation) =>
@@ -42,7 +43,7 @@ public sealed class NativeBattleGilgameshZantetsukenAttackTests
             }
         };
         NativeBattleGilgameshZantetsukenStep step = NativeBattleGilgameshZantetsukenAttack.Advance(frame, ZantetsukenFixture.Address, inputs);
-        Assert.Collection(operations, operation => Assert.Equal(0, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Ordinal), operation => Assert.Equal((byte)3, Assert.IsType<NativeBattleGilgameshZantetsukenAnchor>(operation).Actor), operation => Assert.Equal(2, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Ordinal));
+        Assert.Collection(operations, operation => Assert.Equal(0, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Ordinal), operation => Assert.Equal(OriginalOwner(3), Assert.IsType<NativeBattleGilgameshZantetsukenAnchor>(operation).Actor), operation => Assert.Equal(2, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Ordinal));
         NativeBattleModulePoolTask first = step.Frame.Effect.Pools[1].Slots[1];
         NativeBattleModulePoolTask second = step.Frame.Effect.Pools[1].Slots[2];
         Assert.Equal(0x58E3E0u, first.Callback);
@@ -79,7 +80,7 @@ public sealed class NativeBattleGilgameshZantetsukenAttackTests
     {
         NativeBattleGilgameshFrame frame = ZantetsukenFixture.Create(0x58DED0, 16);
         List<NativeBattleGilgameshOperation> operations = [];
-        NativeBattleGilgameshZantetsukenInputs inputs = ZantetsukenFixture.Inputs(hasMiss ? [new(3, 4)] : []) with { Execute = (current, operation) => { operations.Add(operation); return current; } };
+        NativeBattleGilgameshZantetsukenInputs inputs = ZantetsukenFixture.Inputs(hasMiss ? [new(OriginalOwner(3), 4)] : []) with { Execute = (current, operation) => { operations.Add(operation); return current; } };
         NativeBattleGilgameshZantetsukenStep step = NativeBattleGilgameshZantetsukenAttack.Advance(frame, ZantetsukenFixture.Address, inputs);
         NativeBattleModulePoolTask child = step.Frame.Effect.Pools[1].Slots[1];
         Assert.Equal(0x58F940u, child.Callback);
@@ -95,7 +96,7 @@ public sealed class NativeBattleGilgameshZantetsukenAttackTests
     [InlineData(1)]
     public void Native_zero_radius_fault_is_not_replaced_by_a_radius_floor(int height)
     {
-        NativeBattleGilgameshZantetsukenInputs inputs = ZantetsukenFixture.Inputs([new(3, 0)]) with { ReadModelWord26 = _ => (short)height };
+        NativeBattleGilgameshZantetsukenInputs inputs = ZantetsukenFixture.Inputs([new(OriginalOwner(3), 0)]) with { ReadModelWord26 = _ => (short)height };
         Assert.Throws<DivideByZeroException>(() => NativeBattleGilgameshZantetsukenAttack.Advance(ZantetsukenFixture.Create(0x58DED0, 16), ZantetsukenFixture.Address, inputs));
     }
 

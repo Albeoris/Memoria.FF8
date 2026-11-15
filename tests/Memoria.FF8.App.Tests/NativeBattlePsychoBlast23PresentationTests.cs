@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -43,7 +44,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         NativeBattleGraphicsState graphics = source.NativeGraphics ?? throw new InvalidDataException("The standalone lacks its current graphics process.");
         Assert.False(graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104));
         Assert.False(graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleDescriptorTaskKind.Action104 or NativeBattleDescriptorTaskKind.Callback502F30));
-        Assert.Equal(new byte?[] { 0x54, 0x61, 0x60, 0x5D }, graphics.Models.Skip(3).Take(4).Select(model => model.ModelId4).ToArray());
+        Assert.Equal(new byte?[] { 0x54, 0x61, 0x60, 0x5D }, ReadOriginalModelCells(graphics).Skip(3).Take(4).Select(model => model.ModelId4).ToArray());
         BattleCombatantSnapshot caster = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 6);
         NativeBattleParticipantSnapshot participant = caster.NativeParticipant!;
         Assert.True(participant.Active);
@@ -51,8 +52,8 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         Assert.False(participant.Suspended);
         Assert.False(participant.Untargetable);
         Assert.False(participant.AllocationPendingStatistics);
-        Assert.Equal((byte)0, graphics.Models[6].Kind5);
-        Assert.Equal((ushort)2, (ushort)(graphics.Models[6].Flags0 & 6));
+        Assert.Equal((byte)0, ReadOriginalModelCell(graphics, 6).Kind5);
+        Assert.Equal((ushort)2, (ushort)(ReadOriginalModelCell(graphics, 6).Flags0 & 6));
         Assert.Contains(source.Events, item => item.Kind == "Activated" && item.ActorId == caster.Id);
         NativeBattleEffectMemory memory = source.NativeEffectMemory ?? throw new InvalidDataException("The standalone lacks its current retained effect process.");
         Assert.Equal(0, memory.Active);
@@ -68,10 +69,10 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([23])[22];
         ImmutableArray<NativeBattleEffectBinding> catalog = source.Definition.NativeEffectCatalog.SetItem(22, binding);
         NativeBattleActionPacketsState packets = (source.NativeActionPackets ?? throw new InvalidDataException("The standalone lacks its physical action arena.")).ResetCounts();
-        (packets, int header) = packets.Prepare(new(6, action.Command, sequence, -1, action.ActionId, action.MagicId, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(6), action.Command, sequence, -1, action.ActionId, action.MagicId, null));
         BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current target lacks its actual status banks.");
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         packets.Validate();
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));

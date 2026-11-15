@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -23,7 +24,7 @@ public sealed class NativeBattleRinoa86ParticlesTests
             bones.Add(selector);
             return new(100, -200, 300);
         }
-        NativeBattleEffectTaskActors Select(uint _, sbyte __, sbyte ___) => new(0, 3);
+        NativeBattleEffectTaskActors Select(uint _, sbyte __, sbyte ___) => OriginalTaskActors(0, 3);
         NativeBattleEffectHierarchy clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectHierarchy>(NativeBattleTestSnapshots.Json(root.Hierarchy))!;
         NativeBattleRinoa86ParticleEmission emitted = NativeBattleRinoa86Emitters.Emit(root.Hierarchy, root.Address, mode, new(1), ReadBone, Select);
         Assert.Equal(Enumerable.Repeat(bone, sprites + meshes), bones);

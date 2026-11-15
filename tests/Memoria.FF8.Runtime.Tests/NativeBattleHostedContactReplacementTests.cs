@@ -14,10 +14,10 @@ public sealed class NativeBattleHostedContactReplacementTests
         BattleSession session = Fixture();
         NativeBattleContactPacket[] original = Enumerable.Range(0, 260).Select(index => Contact(index % 2 == 0 ? (byte)24 : (byte)7)).ToArray();
         long token = session.BeginHostedAction(Header, original.ToImmutableArray());
-        NativeBattleActionPacketsState packets = session.NativeActionPackets.ActivateHeader(0).AdvanceContact50A690().ResetCounts();
+        NativeBattleActionPacketsState packets = session.NativeActionPackets.ActivateHeader(new BattleActionHeaderReference(0)).AdvanceContact50A690().ResetCounts();
         Field("nativeActionPackets").SetValue(session, packets);
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
-        NativeBattleContactPacket[] replacements = original.Select((packet, index) => Contact(packet.Primary.ActorIndex, (ushort)(index + 1), index == 259 ? (byte)7 : byte.MaxValue)).ToArray();
+        NativeBattleContactPacket[] replacements = original.Select((packet, index) => Contact(packet.Primary.Recipient, (ushort)(index + 1), index == 259 ? (byte)7 : byte.MaxValue)).ToArray();
 
         BattleSession.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, replacements.ToImmutableArray());
         Assert.Same(packets, session.NativeActionPackets);
@@ -28,10 +28,10 @@ public sealed class NativeBattleHostedContactReplacementTests
         NativeBattleActionPacketsState published = session.NativeActionPackets;
         Assert.Equal(packets with { Contacts = published.Contacts }, published);
         Assert.Same(packets.Headers[0], published.Headers[0]);
-        Assert.Equal(260, published.Headers[0].ReadContactCount());
+        Assert.Equal(260, published.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
         Assert.Equal(1, published.ActiveContactIndex);
         Assert.Equal(replacements, published.ReadHeaderContacts506BA0(0));
-        Assert.Equal(259, published.ReadContact(259).PhysicalContactIndex);
+        Assert.Equal(259, published.ReadContact(new BattleContactOccurrence(259)).PhysicalContactIndex);
         Assert.Same(graphics, session.NativeGraphics);
         Assert.Equal(token, session.HostedActiveActionToken);
         Assert.False(session.IsHostedActionComplete(token));
@@ -81,7 +81,7 @@ public sealed class NativeBattleHostedContactReplacementTests
         Field("hostedFrameServices").SetValue(session, null);
         Assert.Same(original, session.NativeActionPackets);
 
-        Field("nativeActionPackets").SetValue(session, original.ActivateHeader(0));
+        Field("nativeActionPackets").SetValue(session, original.ActivateHeader(new BattleActionHeaderReference(0)));
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
         NativeBattleActionPacketsState activated = session.NativeActionPackets;
         prepared = session.PrepareHostedContactReplacement(token, [Contact(24, 2)]);
@@ -106,8 +106,8 @@ public sealed class NativeBattleHostedContactReplacementTests
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
         BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[7] = new("ally", true);
-        actors[24] = new("enemy", false);
+        actors[7] = new BattlePartyActorModel(new("ally"));
+        actors[24] = new BattleEnemyActorModel(new("enemy"));
         BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         models[7] = models[7] with { ModelId4 = 1 };
@@ -143,7 +143,7 @@ public sealed class NativeBattleHostedContactReplacementTests
         session.PublishHostedContactReplacement(prepared);
         Assert.Null(session.NativeGraphics!.PendingTrigger);
         Assert.Same(original.Headers[0], session.NativeActionPackets.Headers[0]);
-        Assert.Equal((ushort)2, session.NativeActionPackets.ReadContact(0).Primary.Amount6);
+        Assert.Equal((ushort)2, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.Equal(token, session.HostedActiveActionToken);
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -52,7 +53,7 @@ public sealed class DiagnosticMaelstromDispatchTests
             NativeBattleGraphicsState graphics = battle.NativeGraphics!;
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleGraphicsResource resource = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "party-0").Resource;
-            NativeBattleGraphicsModel party = graphics.Models[0];
+            NativeBattleGraphicsModel party = ReadOriginalModelCell(graphics, 0);
             byte sequence = party.Sequence!.Value;
             string bytes = Convert.ToHexString(resource.SequenceSection.AsSpan(resource.SequenceStart(sequence), resource.SequenceEnd(sequence) - resource.SequenceStart(sequence)));
             Console.WriteLine(JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, party.Sequence, party.ResourceFlags44, State = party.SequenceState is { } state ? new { state.Offset46, state.Wait1, state.Pending3, state.Callback42, state.Pose, state.PoseFrame114 } : null, bytes, owners = battle.ObserveDiagnosticInvocationOwners() }));

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -54,7 +55,7 @@ public sealed class NativeBattleCarbuncle278RangeContinuationTests
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
             ushort counter = Creature(current).ReadWord(0xC);
 
-            Assert.All(current.NativeGraphics!.Models.Where(model => model.Index < 3), model => Assert.Equal(0, model.Flags0 & 4));
+            Assert.All(ReadOriginalModelCells(current.NativeGraphics!).Where(model => model.Index < 3), model => Assert.Equal(0, model.Flags0 & 4));
             if (counter == 146)
             {
                 hiddenPose = JsonSerializer.Serialize(current.NativeEffectMemory!.CarbuncleExecutableMemory);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -15,7 +16,7 @@ public sealed class NativeBattleBodyPosePublicationTests
         NativeBattleGraphicsModel model = Model(source, complete ? (byte)1 : (byte)0);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 1000, 2000, 3000, 4096));
         int calls = 0;
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null)
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(null, null)
         {
             ApplyActionContacts = current =>
             {
@@ -35,13 +36,13 @@ public sealed class NativeBattleBodyPosePublicationTests
         NativeBattleGraphicsResource resource = new([1, 0, 4, 0, 0xA1]) { AnimationFrames = [1], PoseSource = source };
         NativeBattleGraphicsModel model = Model(source, 1) with { ResourceFlags44 = 3 };
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 1000, 2000, 3000, 4096));
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null));
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(null, null));
         Assert.Same(model.CurrentBodyBoneMatrices, step.Model.CurrentBodyBoneMatrices);
     }
 
     private static NativeBattleGraphicsModel Model(NativeBattlePoseSource source, byte frame)
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags2 = 0, Flags8 = 0, Sequence = 1, ResourceFlags44 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = frame, PoseLimit115 = 1, DecodedPose = source.Sample(0, 1, 0) } };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 0, Flags8 = 0, Sequence = 1, ResourceFlags44 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = frame, PoseLimit115 = 1, DecodedPose = source.Sample(0, 1, 0) } };
         return NativeBattleBodyBoneMatrices.Publish508C90(model, source);
     }
 

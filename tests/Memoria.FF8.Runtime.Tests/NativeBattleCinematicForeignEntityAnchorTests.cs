@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -19,7 +20,7 @@ public sealed class NativeBattleCinematicForeignEntityAnchorTests
             reads++;
             return new(10, 20, 3000);
         });
-        NativeBattleForeignActor foreign = new(3, original, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
+        NativeBattleForeignActor foreign = new(OriginalOwner(3), original, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
         typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<int, NativeBattleForeignActor> { [3] = foreign });
         typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, NativeBattleEffectMemory.FromColdProcess());
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, new(3, 2) { Transform = current, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 }), [null, null, null, "host", null, null, null], 0, 0);

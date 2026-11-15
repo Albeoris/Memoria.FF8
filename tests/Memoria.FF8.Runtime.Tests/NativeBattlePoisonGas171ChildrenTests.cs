@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -115,7 +116,7 @@ public sealed class NativeBattlePoisonGas171ChildrenTests
             operations.Add(operation);
             if (operation is NativeBattlePoisonGas171DrawBody176 draw)
             {
-                Assert.Equal(3, draw.Actor);
+                Assert.Equal(OriginalOwner(3), draw.Actor);
                 var context = Context(current, draw.TemporaryAddress, 176);
                 Assert.Equal((uint)(intensity * 0x10101), Dword(context, 0x6C));
                 Assert.Equal(age * 4, unchecked((int)Dword(context, 0x30)));
@@ -276,7 +277,7 @@ public sealed class NativeBattlePoisonGas171ChildrenTests
         int reads = 0;
         var actual = AdvanceSlots(frame, ChildBank, Resources, Inputs() with { ReadModelWorld = (_, actor) =>
         {
-            Assert.Equal(3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             reads++;
             return NativeBattlePackedMatrix32.FromMatrix(world, null);
         } });
@@ -324,7 +325,7 @@ public sealed class NativeBattlePoisonGas171ChildrenTests
         }
         return bytes.ToImmutableArray();
     }
-    private static NativeBattlePoisonGas171Inputs Inputs(Func<NativeBattlePoisonGas171Frame, NativeBattlePoisonGas171Operation, NativeBattlePoisonGas171Frame>? execute = null, uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), _ => 333, (_, _) => throw new InvalidOperationException(), (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattlePoisonGas171DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
+    private static NativeBattlePoisonGas171Inputs Inputs(Func<NativeBattlePoisonGas171Frame, NativeBattlePoisonGas171Operation, NativeBattlePoisonGas171Frame>? execute = null, uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), _ => 333, (_, _) => throw new InvalidOperationException(), (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattlePoisonGas171DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
     private static NativeBattlePoisonGas171Frame Feedback(NativeBattlePoisonGas171Frame frame, uint temporary, short value) => PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0x28, BitConverter.GetBytes(value)), 180);
     private static uint Cursor(NativeBattlePoisonGas171Frame frame) => BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));

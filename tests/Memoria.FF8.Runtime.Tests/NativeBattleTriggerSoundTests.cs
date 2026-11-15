@@ -54,7 +54,7 @@ public sealed class NativeBattleTriggerSoundTests
     [Fact]
     public void Pending_shot_retains_its_AB_owner_through_snapshot_serialization()
     {
-        NativeBattleGraphicsState state = new([], [], 0, 0) { PendingTriggerSoundActorIndex = 2 };
+        NativeBattleGraphicsState state = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { PendingTriggerSoundActorIndex = 2 };
         NativeBattleGraphicsState restored = JsonSerializer.Deserialize<NativeBattleGraphicsState>(JsonSerializer.Serialize(state))!;
         Assert.Equal((byte)2, restored.PendingTriggerSoundActorIndex);
     }

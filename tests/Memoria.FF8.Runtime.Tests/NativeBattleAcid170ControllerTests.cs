@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleAcid170Controller;
@@ -13,8 +14,7 @@ public sealed class NativeBattleAcid170ControllerTests
         NativeBattleAcid170Frame frame = Inactive();
         NativeBattleEffectArena arena = frame.Memory.Arena!.Write(17, new byte[] { 0xAA }).Write(PacketStep + 17, new byte[] { 0xBB });
         NativeBattleAcid170State state = frame.State.WriteDword(ParticleBase, 7).WriteDword(ParticleBase + 99 * ParticleStride, 9).WriteWord(ParticleBase + 6, 0xABCD).WriteWord(ParticleBase + 99 * ParticleStride + 22, 0xBEEF).WriteWord(CurveBase, 0xCAFE).WriteWord(SelectedVerticesBase, 0xC0DE).WriteWord(Bone38PointGlobal + 6, 0x1234).WriteWord(Bone40PointGlobal + 6, 0x5678) with { RootBankStorage = NativeBattleEffectArena.Clear().Write(14, new byte[] { 0xAB, 0xCD }), ChildBankStorage = NativeBattleEffectArena.Clear().Write(30, new byte[] { 0xEF, 0x01 }) };
-        NativeBattleActionPacketsState packets = Packets().ActivateHeader(0);
-        packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { UnknownByteMask = 1u << 16 }) };
+        NativeBattleActionPacketsState packets = Packets(selectedCount: null).ActivateHeader(new BattleActionHeaderReference(0));
         frame = Initialize(frame with { Memory = frame.Memory with { Arena = arena }, State = state }, Resources(), Inputs([], []) with { Packets = packets });
         Assert.Equal(0u, frame.State.ReadDword(FirstTargetGlobal));
         Assert.Equal(3u, frame.State.ReadDword(CasterGlobal));
@@ -49,7 +49,7 @@ public sealed class NativeBattleAcid170ControllerTests
     {
         NativeBattleAcid170Frame frame = Frame(age);
         frame = frame with { State = frame.State with { Globals = frame.State.Globals.MarkUnknown(checked((int)(CasterGlobal - BaseAddress)), 4) } };
-        NativeBattleAcid170Inputs inputs = Inputs([], []) with { GraphicsFlags = flags, Packets = NativeBattleActionPacketsState.Fresh(), ReadBone502170 = (_, _, _, _) => throw new InvalidOperationException(), Execute = (_, _) => throw new InvalidOperationException() };
+        NativeBattleAcid170Inputs inputs = Inputs([], []) with { GraphicsFlags = flags, Packets = OriginalPackets(), ReadBone502170 = (_, _, _, _) => throw new InvalidOperationException(), Execute = (_, _) => throw new InvalidOperationException() };
         var result = AdvanceMain(frame, ChildBank, Resources(), inputs);
         Assert.Equal(0, result.Result);
         Assert.Equal(frame, result.Frame);
@@ -59,7 +59,7 @@ public sealed class NativeBattleAcid170ControllerTests
     public void Old_one_orders_partial_curve_birth_bone_forty_then_thirty_eight_and_mask_two_before_sound()
     {
         NativeBattleAcid170Frame frame = Frame(1);
-        frame = frame with { State = frame.State.WriteWord(Bone40PointGlobal + 6, 0xABCD).WriteWord(Bone38PointGlobal + 6, 0xBEEF).WriteDword(FirstTargetGlobal, 0) };
+        frame = frame with { State = frame.State.WriteWord(Bone40PointGlobal + 6, 0xABCD).WriteWord(Bone38PointGlobal + 6, 0xBEEF).WriteModelOperand(FirstTargetGlobal, OriginalOwner(0), OriginalAliases) };
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         for (int index = 1; index <= 2; index++)
         {
@@ -67,10 +67,10 @@ public sealed class NativeBattleAcid170ControllerTests
         }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<NativeBattleAcid170Operation> operations = [];
-        List<(int Actor, int Selector, int Distance)> bones = [];
+        List<(BattleModelOwner Actor, int Selector, int Distance)> bones = [];
         NativeBattleAcid170Inputs inputs = Inputs(operations, bones) with { ReadBone502170 = (current, actor, selector, distance) =>
         {
-            Assert.Equal(3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             Assert.Equal(0, distance);
             Assert.Equal((ushort)1, Read(current, ChildBank).ReadWord(14));
             Assert.Equal(Callback5DCAF0, Read(current, ChildBank + ChildStride).Callback);
@@ -82,7 +82,7 @@ public sealed class NativeBattleAcid170ControllerTests
                 Assert.Equal(40, current.Memory.Active);
             }
             bones.Add((actor, selector, distance));
-            return new(current with { Memory = current.Memory with { Active = selector } }, PointView(new((short)selector, (short)actor, 123), 0x7777));
+            return new(current with { Memory = current.Memory with { Active = selector } }, PointView(new((short)selector, (short)OriginalSlot(actor), 123), 0x7777));
         }, Execute = (current, operation) =>
         {
             Assert.Equal(Callback5DEA10, Read(current, ChildBank + 2 * ChildStride).Callback);
@@ -92,7 +92,7 @@ public sealed class NativeBattleAcid170ControllerTests
             return current;
         } };
         NativeBattleAcid170Frame result = AdvanceMain(frame, ChildBank, Resources(), inputs).Frame;
-        Assert.Equal(new[] { (3, 40, 0), (3, 38, 0) }, bones);
+        Assert.Equal(new[] { (OriginalOwner(3), 40, 0), (OriginalOwner(3), 38, 0) }, bones);
         Assert.Equal((ushort)0xABCD, result.State.ReadWord(Bone40PointGlobal + 6));
         Assert.Equal((ushort)0xBEEF, result.State.ReadWord(Bone38PointGlobal + 6));
         Assert.Equal((ushort)40, result.State.ReadWord(Bone40PointGlobal));
@@ -131,21 +131,20 @@ public sealed class NativeBattleAcid170ControllerTests
     public void Old_forty_six_uses_captured_single_physical_contact_even_with_zero_or_unknown_count()
     {
         NativeBattleAcid170Frame frame = Frame(46);
-        NativeBattleActionPacketsState packets = Packets().ActivateHeader(0);
-        NativeBattleActionHeaderSlot captured = packets.Headers[1];
-        foreach (NativeBattleActionHeaderSlot header in new[] { captured with { Payload = captured.Payload.SetItem(16, 0) }, captured with { UnknownByteMask = 1u << 16 } })
+        foreach (int? count in new int?[] { 0, null })
         {
+            NativeBattleActionPacketsState packets = Packets(count).ActivateHeader(new BattleActionHeaderReference(0));
             List<NativeBattleAcid170Operation> operations = [];
-            NativeBattleAcid170Frame result = AdvanceMain(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), ChildBank, Resources(), Inputs(operations, []) with { Packets = packets with { Headers = packets.Headers.SetItem(1, header) } }).Frame;
+            NativeBattleAcid170Frame result = AdvanceMain(NativeBattleTestSnapshots.Independent(frame), ChildBank, Resources(), Inputs(operations, []) with { Packets = packets }).Frame;
             NativeBattleAcid170Contact506690 contact = Assert.IsType<NativeBattleAcid170Contact506690>(Assert.Single(operations));
-            Assert.Equal(1, contact.ContactIndex);
-            Assert.Equal((byte)0, packets.ReadContact(contact.ContactIndex).Primary.ActorIndex);
-            Assert.Equal((byte)4, packets.ReadContact(contact.ContactIndex).Secondary.ActorIndex);
+            Assert.Equal(new BattleContactOccurrence(1), contact.ContactIndex);
+            Assert.Equal(OriginalOwner(0), packets.ReadContact(contact.ContactIndex).Primary.Recipient);
+            Assert.Equal(OriginalOwner(4), packets.ReadContact(contact.ContactIndex).Secondary!.Recipient);
             Assert.Equal((ushort)47, Read(result, ChildBank).ReadWord(12));
             Assert.Equal(frame.Random, result.Random);
         }
-        packets = packets with { Headers = packets.Headers.SetItem(1, captured with { FirstContactIndex = null }) };
-        Assert.Throws<NotSupportedException>(() => AdvanceMain(frame, ChildBank, Resources(), Inputs([], []) with { Packets = packets }));
+        NativeBattleActionPacketsState missingContact = Packets(null, storeSelectedContact: false);
+        Assert.Throws<NotSupportedException>(() => AdvanceMain(frame, ChildBank, Resources(), Inputs([], []) with { Packets = missingContact }));
     }
 
     [Theory]
@@ -193,13 +192,13 @@ public sealed class NativeBattleAcid170ControllerTests
     }
 
     [Fact]
-    public void Json_continuation_keeps_unknown_global_W_and_partial_birth_payload()
+    public void Private_continuation_keeps_unknown_global_W_and_partial_birth_payload()
     {
         NativeBattleAcid170Frame frame = Frame(1);
         frame = frame with { State = frame.State with { Globals = frame.State.Globals.MarkUnknown(checked((int)(Bone40PointGlobal + 6 - BaseAddress)), 2) } };
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(30, 2)) })) } };
-        NativeBattleAcid170Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid170Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleAcid170Frame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleAcid170Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([], [])).Frame;
         NativeBattleAcid170Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([], [])).Frame;
         Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
@@ -215,7 +214,7 @@ public sealed class NativeBattleAcid170ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
-        return frame with { Effect = frame.Effect with { Pools = [roots, children], ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteDword(CasterGlobal, 3).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
+        return frame with { Effect = frame.Effect with { Pools = [roots, children], ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteModelOperand(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
     }
 
     private static NativeBattleAcid170Frame Inactive()
@@ -224,29 +223,35 @@ public sealed class NativeBattleAcid170ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) };
-        NativeBattleOriginalEffectState effect = new(170, 169, new(170, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(170, 169, new(170, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(55), NativeBattleAcid170State.FromColdProcess());
     }
 
-    private static NativeBattleAcid170Inputs Inputs(List<NativeBattleAcid170Operation> operations, List<(int Actor, int Selector, int Distance)> bones) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(actor, 0x204), (current, actor, selector, distance) =>
+    private static NativeBattleAcid170Inputs Inputs(List<NativeBattleAcid170Operation> operations, List<(BattleModelOwner Actor, int Selector, int Distance)> bones) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(0x204), (current, actor, selector, distance) =>
     {
         bones.Add((actor, selector, distance));
-        return new(current, PointView(new((short)selector, (short)actor, (short)distance), 0x7777));
+        return new(current, PointView(new((short)selector, (short)OriginalSlot(actor), (short)distance), 0x7777));
     }, (_, _) => throw new InvalidOperationException(), (current, operation) =>
     {
         operations.Add(operation);
         return current;
     });
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(int? selectedCount = 1, bool storeSelectedContact = true)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 32, 170, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 32, 170, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 32, 170, null));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(4, 4, 0, 0, 0, 3, 0)));
-        (packets, _) = packets.Publish(1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 32, 170, null));
+        if (storeSelectedContact)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
+        }
+        if (selectedCount is { } count)
+        {
+            (packets, _) = packets.Publish(count);
+        }
         return packets;
     }
 

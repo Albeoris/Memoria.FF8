@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -164,7 +165,7 @@ public sealed class NativeBattleRecover93ControllerTests
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattlePoseSource actorSource = resources.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(actorSource.Animations.AsSpan(), actorSource.BoneCount, 0).Pose;
-        return new(packets, view, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), _ => actorSource, _ => World(), (frame, rawModel, selector) =>
+        return new(packets, view, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), _ => actorSource, _ => World(), (frame, rawModel, selector) =>
         {
             uint address = rawModel - 0x30;
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
@@ -184,7 +185,7 @@ public sealed class NativeBattleRecover93ControllerTests
         }, (frame, address) =>
         {
             NativeBattleRecover93NodeState retained = profile.Read(frame.Memory)!.Nodes with { PrivateDrawCursor = frame.Effect.DrawArenaOffset };
-            NativeBattleRecover93NodeStep step = NativeBattleRecover93Nodes.Advance74F6E0(new(frame.Memory, frame.Effect, retained, frame.Random), address, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
+            NativeBattleRecover93NodeStep step = NativeBattleRecover93Nodes.Advance74F6E0(new(frame.Memory, frame.Effect, retained, frame.Random), address, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
             return new(new(profile.Write(step.Frame.Memory, profile.Read(step.Frame.Memory)! with { Nodes = step.Frame.State }), step.Frame.Effect with { DrawArenaOffset = step.Frame.State.PrivateDrawCursor }, step.Frame.Random), step.Complete);
         }, (frame, operation) =>
         {
@@ -205,10 +206,10 @@ public sealed class NativeBattleRecover93ControllerTests
     private static (NativeBattleRecover93Frame Frame, NativeBattleActionPacketsState Packets) Fixture(NativeBattleRecover93Resources resources, NativeBattleAngeloRestorationProfile profile)
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 13, profile.Effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 13, profile.Effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(profile.Effect, profile.Effect - 1, new(profile.Effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.Global(0x2592548), 0)] };
+        NativeBattleOriginalEffectState effect = new(profile.Effect, profile.Effect - 1, new(profile.Effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.Global(0x2592548), 0)] };
         return (NativeBattleRecover93Controller.Initialize74E390(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() }, effect, packets, resources, new(1)), packets);
     }
     private static GameAssets Installed()

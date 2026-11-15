@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -9,7 +10,7 @@ public sealed class NativeBattleTripleControllerTests
     public void Entry_uses_distinct_original_banks_without_hydrating_current_morph_or_skipped_TIM()
     {
         NativeBattleActionPacketsState packets = Packets();
-        NativeBattleOriginalEffectState effect = new(21, 20, new(21, 0x89DEF0, 0x89DED0), new(0, 1, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(21, 20, new(21, 0x89DEF0, 0x89DED0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(20) with { Textures = null, Arena = null };
         NativeBattleTripleFrame frame = NativeBattleTripleController.Initialize89DEF0(memory, effect, packets, Resources());
         Assert.Same(memory, frame.Memory);
@@ -32,7 +33,7 @@ public sealed class NativeBattleTripleControllerTests
     [Fact]
     public void Executed_upload_requires_its_own_initializer_pointer_and_never_uses_Double_pointer()
     {
-        NativeBattleOriginalEffectState effect = new(21, 20, new(21, 0x89DEF0, 0x89DED0), new(0, 0, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(21, 20, new(21, 0x89DEF0, 0x89DED0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(20);
         Assert.Throws<NotSupportedException>(() => NativeBattleTripleController.Initialize89DEF0(memory, effect, Packets(), Resources()));
         Assert.Throws<InvalidDataException>(() => NativeBattleEnhancementEntry.Initialize(memory, effect, Packets(), Resources().Animation, NativeBattleEnhancementProfile.Double));
@@ -99,10 +100,10 @@ public sealed class NativeBattleTripleControllerTests
 
     private static NativeBattleActionPacketsState Packets()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 34, 21, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 34, 21, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         return packets;
     }

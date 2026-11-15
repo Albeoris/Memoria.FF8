@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -60,7 +61,7 @@ public sealed class NativeBattleEffect174LowerTests
         Assert.Equal(draws, calls.Length);
         if (draws != 0)
         {
-            Assert.Equal(0, calls[0].Actor);
+            Assert.Equal(OriginalOwner(0), calls[0].Actor);
             NativeBattleEffectArena temporary = fixture.BodyTemporary!;
             Assert.Equal((uint)((age << 12) / 30), U(temporary, 0x2C));
             Assert.Equal(0xA5, temporary.Read(0x66, 1)[0]);
@@ -200,7 +201,7 @@ public sealed class NativeBattleEffect174LowerTests
     {
         Fixture fixture = new(0x5D4ED0, 0);
         NativeBattleEffect174Step step = fixture.Advance();
-        NativeBattleEffect174Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect174Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
+        NativeBattleEffect174Frame restored = NativeBattleTestSnapshots.Independent(step.Frame);
         Assert.Equal(step.Frame.State.ReadView(0x2394BA0, 32).ReadSnapshot(0, 32).Known, restored.State.ReadView(0x2394BA0, 32).ReadSnapshot(0, 32).Known);
         Assert.DoesNotContain(true, restored.State.ReadView(0x2394BA0, 32).ReadSnapshot(18, 2).Known);
     }

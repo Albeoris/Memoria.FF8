@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Bitmap = SkiaSharp.SKBitmap;
 using Color = SkiaSharp.SKColor;
@@ -162,12 +163,12 @@ public sealed class NativeBattleRestorationPresentationTests
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle), NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(1, new(priorSaved, priorBattle)) };
         NativeBattleActionPacketsState packets = before.NativeActionPackets!;
         byte sequence = definition.NativeCommandSequences[native.Command];
-        (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
         ushort amount = healing ? checked((ushort)(targetHp - 50)) : resurrection ? checked((ushort)targetHp) : (ushort)0;
-        (packets, _) = packets.AppendContact(new(new(1, native.DamagePresentation, 0, resurrection || healing ? (byte)1 : (byte)0, status.Saved, amount, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), native.DamagePresentation, 0, resurrection || healing ? (byte)1 : (byte)0, status.Saved, amount, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
-        NativeBattleGraphicsModel targetModel = graphics.Models[1];
+        NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(graphics, 1);
         uint priorFlags = definition.NativeGraphics!.Rules.Project(priorSaved, priorBattle);
         //Controlled prior display status is newly added to this healthy-entry model:509D30..47 resets exactly its added timer bytes.
         uint addedPriorFlags = priorFlags & ~(targetModel.Flags8 ?? throw new InvalidDataException("Controlled prior status requires its existing graphics status."));
@@ -233,7 +234,7 @@ public sealed class NativeBattleRestorationPresentationTests
         NativeBattleTextureCopy? expectedContactCopy = null;
         if (effect == 27 && expectedStatusTransitions != 0)
         {
-            NativeBattleGraphicsModel targetModel = initial.NativeGraphics!.Models[1];
+            NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(initial.NativeGraphics!, 1);
             NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             Assert.Equal(2u, targetModel.Flags8!.Value & 2);
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, targetModel.TextureAllocationMask, 0, 0);
@@ -274,7 +275,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 {
                     Assert.Equal(initial.Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved, priorStatus);
                     Assert.Equal((ushort)0, currentStatus);
-                    Assert.Equal(0u, graphics.Models[1].Flags8!.Value & initial.Definition.NativeGraphics!.Rules.Project(priorStatus!.Value, 0));
+                    Assert.Equal(0u, ReadOriginalModelCell(graphics, 1).Flags8!.Value & initial.Definition.NativeGraphics!.Rules.Project(priorStatus!.Value, 0));
                     if (expectedContactCopy is { } copy)
                     {
                         NativeBattleEffectVramCopy expected = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
@@ -354,7 +355,7 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.False(HasDescriptor(battle));
         Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
-        Assert.Equal(0, battle.NativeGraphics.Models[1].Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 1).Flags0 & 4);
         Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         Assert.Equal(initial.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(initial.Random, battle.Capture().Random);

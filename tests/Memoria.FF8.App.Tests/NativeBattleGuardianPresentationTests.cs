@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Buffers.Binary;
 using Memoria.FF8.Assets;
@@ -75,7 +76,7 @@ public sealed class NativeBattleGuardianPresentationTests
         {
             Assert.NotEmpty(shadowModes);
         }
-        NativeBattleGraphicsModel[] visibleModels = before.NativeGraphics.Models.Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
+        NativeBattleGraphicsModel[] visibleModels = ReadOriginalModelCells(before.NativeGraphics).Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
         Assert.All(visibleModels, model => Assert.NotNull(model.GeometryBounds52));
         Console.WriteLine($"Native entry: visiblemodels{visibleModels.Length}, shadowdrawmodes{shadowModes.Length}; zero modes is permitted when the actual camera culls every shadow.");
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
@@ -86,8 +87,8 @@ public sealed class NativeBattleGuardianPresentationTests
         BattleCombatantSnapshot[] coldActors = before.Combatants.Select(actor => actor.NativeParticipant!.ActorIndex == 3 ? actor with { NativeParticipant = actor.NativeParticipant! with { RemainingHits = coldRemainingHits } } : actor).ToArray();
         Assert.Equal((byte?)0, Assert.Single(coldActors, actor => actor.NativeParticipant!.ActorIndex == 3).NativeParticipant!.RemainingHits);
         //Native FE/action64 selects sequence14 through495070;116 is the original kernel GF effect ID.
-        (packets, int header) = packets.Prepare(new(0, 0xFE, 14, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(3, 5, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 0xFE, 14, -1, 64, 116, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -196,7 +197,7 @@ public sealed class NativeBattleGuardianPresentationTests
             sawGeometry |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8") == true;
             sawNativeFlash |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8 && command.Command.Flags20 == 1) == true;
         }
-        NativeBattleGraphicsModel finalCaster = battle.NativeGraphics!.Models[0];
+        NativeBattleGraphicsModel finalCaster = ReadOriginalModelCell(battle.NativeGraphics!, 0);
         string diagnostic = $"callback={battle.NativeGraphics.Callback}; actionPhase={battle.NativeGraphics.Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.NativeCamera?.Mask}; descriptor={battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor:X}; verifiedPrefix={prefixSnapshot is not null}";
         if (prefixSnapshot is not null && Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_BOUNDARY_OUTPUT") is { Length: > 0 } boundaryOutput)
         {
@@ -220,7 +221,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal((ushort)319, prefixPhase);
         //6C3A42..4D selects6574D0(rig=child+28h,2) at238;509440 stores thatBYTE at rig+6Ch=child+94h.
         Assert.Equal((byte)2, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
-        Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 3).Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -94,7 +95,7 @@ public sealed class NativeBattleGilgamesh330PresentationTests
         BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "prepared-support.battle.json")));
         BattleScenePresentation scene = new(assets, definition, true);
         int initialEventCount = battle.Events.Count;
-        string targetId = source.NativeGraphics.ActorIds[3]!;
+        string targetId = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         int initialTargetHp = source.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
         bool sawFormulaHeader = false;
         bool sawContactPresentation = false;
@@ -186,9 +187,9 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                     NativeBattleModulePoolTask advancedContact = Assert.Single(after.NativeGraphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => (task.Flags & 1) != 0 && task.Callback == 0x5920E0);
                     Assert.Equal((ushort)20, advancedContact.ReadWord(12));
                     NativeBattleEffectParameters parameters = effect!.Parameters!;
-                    NativeBattleActionHeaderSlot header = before.NativeActionPackets!.Headers[parameters.HeaderIndex7C];
-                    NativeBattleContactHalf half = before.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary;
-                    Assert.Equal(half.Sequence, after.NativeGraphics.Models[half.ActorIndex].Sequence);
+                    NativeBattleActionHeaderSlot header = before.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.HeaderIndex7C));
+                    NativeBattleContactHalf half = before.NativeActionPackets.ReadContact(header.FirstContact).Primary;
+                    Assert.Equal(half.Sequence, ReadOriginalModelCell(after.NativeGraphics, half.ActorIndex).Sequence);
                     Assert.Equal(1, createdText);
                     Assert.Equal(initialTargetHp - 1, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                     contactsPresented.Add(new { CounterBefore = 19, CounterAfter = 20, half.ActorIndex, half.Sequence, half.Amount6, DamageTextPublications = createdText });
@@ -220,10 +221,10 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                 {
                     Assert.Equal((byte)10, invocation.Level);
                 }
-                NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && NativeBattleActionGraphics.Word(header, 4) == 8 && NativeBattleActionGraphics.Word(header, 6) == 330);
+                NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && header.Action == 8 && header.Effect == 330);
                 if (producedHeader?.FirstContactIndex is int contactIndex)
                 {
-                    NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
+                    NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
                     Assert.Equal((byte)3, contact.Primary.ActorIndex);
                     Assert.Equal((ushort)1, contact.Primary.Amount6);
                     Assert.Equal((byte)255, contact.Secondary.ActorIndex);

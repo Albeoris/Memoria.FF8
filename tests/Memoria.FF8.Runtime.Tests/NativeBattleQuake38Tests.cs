@@ -26,7 +26,7 @@ public sealed class NativeBattleQuake38Tests
     [Fact]
     public void Saved_uninitialized_dormant_actor_bytes_remain_unknown_on_restore()
     {
-        NativeBattleGraphicsModel original = new(6, 0);
+        NativeBattleGraphicsModel original = new(0);
         NativeBattleQuake38SavedActor saved = NativeBattleQuake38SavedActor.Capture8DBBA0(original);
         NativeBattleGraphicsModel restored = saved.Restore8DBE40(original);
         Assert.Null(saved.Position28);

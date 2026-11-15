@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -31,14 +32,14 @@ public sealed class DemasterBattleModelInstalledTests
         List<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon)> materials = [];
         for (int index = 0; index < graphics.ActorIds.Length; index++)
         {
-            if (graphics.ActorIds[index] is not string actorId || graphics.Models[index].BodyTextureSlots is not { } bodyBinding)
+            if (ReadOriginalModelActorId(graphics, index) is not string actorId || ReadOriginalModelCell(graphics, index).BodyTextureSlots is not { } bodyBinding)
             {
                 continue;
             }
             BattleCombatantDefinition actor = battle.GetCombatantDefinition(actorId);
             BattleModel body = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : assets.LoadEnemy(actor.ModelId);
             materials.Add((body, bodyBinding, false));
-            if (actor.IsPlayer && actor.WeaponId is int weaponId && assets.ResolveWeaponModel(actor.ModelId, weaponId, body) is { } weapon && graphics.Models[index].LinkedTextureSlots is { } weaponBinding)
+            if (actor.IsPlayer && actor.WeaponId is int weaponId && assets.ResolveWeaponModel(actor.ModelId, weaponId, body) is { } weapon && ReadOriginalModelCell(graphics, index).LinkedTextureSlots is { } weaponBinding)
             {
                 materials.Add((weapon, weaponBinding, true));
             }

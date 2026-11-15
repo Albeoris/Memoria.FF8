@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -97,7 +98,7 @@ public sealed class NativeBattleRemainingWaveSmoothPresentationTests
             (pool, int slot) = pool.Append(0x3000);
             NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(pool.Slots[slot], data => data with { Payload = new byte[328].ToImmutableArray() }).WriteDword(0x4C, frame.Profile.MeshAddress).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteWord(0x50, 4096);
             List<NativeBattleAquaOperation> operations = [];
-            NativeBattleAquaInputs inputs = new(NativeBattleActionPacketsState.Fresh(), Identity, Projection, 0, Constants, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
+            NativeBattleAquaInputs inputs = new(OriginalPackets(), Identity, Projection, 0, Constants, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
             {
                 operations.Add(operation);
                 return current;

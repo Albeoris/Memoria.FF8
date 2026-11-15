@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -60,7 +61,7 @@ internal sealed class NativeBattleEffect344PresentationObserver
                 NativeBattleEffect344Resources resources = effect.Binding.Effect344Resources!;
                 Assert.Equal(resources.Camera.Data.ToArray(), current.NativeEffectMemory.Textures!.Animation!.Source.Data.ToArray());
                 Assert.Equal(resources.Camera.Data.ToArray(), current.NativeCamera!.ControlResource!.Source.Data.ToArray());
-                Assert.Equal((byte)20, current.NativeGraphics.Models[4].Sequence);
+                Assert.Equal((byte)20, ReadOriginalModelCell(current.NativeGraphics, 4).Sequence);
                 CameraPublished = true;
                 sequencePublished = true;
                 Mark("effect344-camera-sequence20", current, cold);
@@ -113,7 +114,7 @@ internal sealed class NativeBattleEffect344PresentationObserver
             Assert.True(BinaryPrimitives.ReadUInt16LittleEndian(state.ReadBank(0).Read(12, 2)) >= 36);
             Mark("effect344-banks-retained", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, ChildAge = child?.ReadWord(12), Completion = complete, Cursor = state.ReadDword(CursorGlobal), CameraPublished, Sequence = current.NativeGraphics.Models[4].Sequence, Contacts, ContactGlyphs });
+        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, ChildAge = child?.ReadWord(12), Completion = complete, Cursor = state.ReadDword(CursorGlobal), CameraPublished, Sequence = ReadOriginalModelCell(current.NativeGraphics, 4).Sequence, Contacts, ContactGlyphs });
     }
 
     public void Accept(BattleSnapshot completed, string output)

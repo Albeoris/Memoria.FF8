@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -55,7 +56,7 @@ public sealed class NativeBattleBoneParticleTests
         NativeBattleModuleState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModuleState>(NativeBattleSnapshotJson.Serialize(state))!;
         NativeBattleModuleInputs inputs = new(0) { Resources = [resource], ReadModelBone = (model, bone, fraction) =>
         {
-            Assert.Equal(3, model);
+            Assert.Equal(OriginalOwner(3), model);
             Assert.Equal((byte)240, bone);
             Assert.Equal((short)0, fraction);
             return new(10, 20, 30);

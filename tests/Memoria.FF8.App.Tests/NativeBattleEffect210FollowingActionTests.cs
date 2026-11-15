@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -30,9 +31,9 @@ public sealed class NativeBattleEffect210FollowingActionTests
         Assert.Empty(source.QueuedActions);
         Assert.All(source.NativeEffectMemory.Effect210!.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        string casterId = originalGraphics.ActorIds[3]!;
-        string companionId = originalGraphics.ActorIds[4]!;
-        string targetId = originalGraphics.ActorIds[0]!;
+        string casterId = ReadOriginalModelActorId(originalGraphics, 3)!;
+        string companionId = ReadOriginalModelActorId(originalGraphics, 4)!;
+        string targetId = ReadOriginalModelActorId(originalGraphics, 0)!;
         BattleCombatantDefinition caster = source.Definition.Combatants.Single(actor => actor.Id == casterId);
         BattleCombatantDefinition companion = source.Definition.Combatants.Single(actor => actor.Id == companionId);
         Assert.Equal(128, caster.ModelId);
@@ -44,13 +45,13 @@ public sealed class NativeBattleEffect210FollowingActionTests
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(3, 8, 54, cameraChoice, 315, 210, null));
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 54, cameraChoice, 315, 210, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = originalGraphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
-        Assert.Equal(JsonSerializer.Serialize(originalGraphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(source.Combatants, prepared.Combatants);
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-before-entry", prepared, null);
         BattleSession battle = Restore(prepared);
@@ -142,7 +143,7 @@ public sealed class NativeBattleEffect210FollowingActionTests
             HeaderIndex = header,
             InitialActionCount = source.NativeActionPackets!.ActionCount,
             InitialContactCount = source.NativeActionPackets.ContactCount,
-            Packets = new { result.NativeActionPackets!.ActionCount, result.NativeActionPackets.ContactCount, result.NativeActionPackets.ActiveHeaderIndex, PreparedHeader = result.NativeActionPackets.Headers[header] },
+            Packets = new { result.NativeActionPackets!.ActionCount, result.NativeActionPackets.ContactCount, result.NativeActionPackets.ActiveHeaderIndex, PreparedHeader = result.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(header)) },
             lastGraphics.ActionGraphics,
             DescriptorQueue = lastGraphics.Descriptors.Queue,
             Effect = lastEffect is null ? null : new

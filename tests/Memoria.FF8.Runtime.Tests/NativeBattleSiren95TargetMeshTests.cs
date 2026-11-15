@@ -93,7 +93,7 @@ public sealed class NativeBattleSiren95TargetMeshTests
         Assert.Equal(0, result.AllocationBytes);
     }
 
-    private static NativeBattleGraphicsModel Target() => new(3, 0) { GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), Transform = new(new(0, 0, 0), new(100, 200, 300), unchecked((short)0xABCD), 0, 4096) };
+    private static NativeBattleGraphicsModel Target() => new(0) { GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), Transform = new(new(0, 0, 0), new(100, 200, 300), unchecked((short)0xABCD), 0, 4096) };
     private static (NativeBattleSiren95Frame Frame, uint Address, NativeBattleActionPacketsState Packets) Fixture(uint callback, uint descriptor, int size)
     {
         var fixture = NativeBattleSiren95ControllerTests.Fixture();

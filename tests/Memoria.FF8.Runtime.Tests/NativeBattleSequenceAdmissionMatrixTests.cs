@@ -24,7 +24,7 @@ public sealed class NativeBattleSequenceAdmissionMatrixTests
         {
             foreach (ushort flags in new ushort[] { 0x40, 0x100, 0x140 })
             {
-                NativeBattleGraphicsModel source = new(actor, 2)
+                NativeBattleGraphicsModel source = new(2)
                 {
                     ModelId4 = actor == 0 ? (byte)4 : (byte)84,
                     Flags8 = 0,

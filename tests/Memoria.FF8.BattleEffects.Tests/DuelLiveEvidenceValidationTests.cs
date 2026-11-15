@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
@@ -48,21 +49,21 @@ public sealed class DuelLiveEvidenceValidationTests
     internal static DiagnosticDuelCycleReceipt Cycle(int index)
     {
         long callback = 10 + index * 10;
-        BattleNativeDuelState opening = new(0, 8, 120, 120, BattleNativeDuelPhase.Opening) { Selection1D28DEF = 254 };
-        BattleNativeDuelState ready = opening with { Phase = BattleNativeDuelPhase.Ready, RemainingTimer = 100 };
+        BattleDiagnosticDuelState opening = new(0, 8, 120, 120, BattleNativeDuelPhase.Opening) { Selection1D28DEF = 254 };
+        BattleDiagnosticDuelState ready = opening with { Phase = BattleNativeDuelPhase.Ready, RemainingTimer = 100 };
         BattleNativeDuelChoice choice = new(1, 0, "basic", true, false, [4, 8]);
-        BattleNativeDuelState accepted = ready with { Phase = BattleNativeDuelPhase.AwaitingEffect, MoveSetId = 1, Selection1D28DEF = 1, InputRing = [4, 8, 0, 0, 0, 0, 0, 0], InputCursor = 1 };
+        BattleDiagnosticDuelState accepted = ready with { Phase = BattleNativeDuelPhase.AwaitingEffect, MoveSetId = 1, Selection1D28DEF = 1, InputRing = [4, 8, 0, 0, 0, 0, 0, 0], InputCursor = 1 };
         byte[] commands = [11, 241, 241, 241];
         int[] actions = [65531, 0, 0, 65532];
         BattleDiagnosticEffectDispatch[] dispatches = Enumerable.Range(0, 4).Select(stage => new BattleDiagnosticEffectDispatch(index * 4 + stage + 1, callback + stage, "party0", stage == 0 ? BattleAbility.LimitBreak : BattleAbility.NativeCommand, actions[stage], 274, 274, commands[stage]) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 4 + stage + 1 }).ToArray();
         DiagnosticDuelDispatchPackets Packet(BattleDiagnosticEffectDispatch dispatch)
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, dispatch.NativeCommand!.Value, 0, -1, checked((ushort)dispatch.ActionId!.Value), dispatch.ActionId == 65532 ? (ushort)0 : (ushort)274, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), dispatch.NativeCommand!.Value, 0, -1, checked((ushort)dispatch.ActionId!.Value), dispatch.ActionId == 65532 ? (ushort)0 : (ushort)274, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
-            packets = packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
-            return new(dispatch.Serial, dispatch.Callback, 0, dispatch.NativeHeaderGeneration!.Value, packets)
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
+            return new(dispatch.Serial, dispatch.Callback, 0, dispatch.NativeHeaderGeneration!.Value, packets.ExportRetained())
             {
                 Parameter80 = dispatch.NativeCommand == 11 ? (byte)0 : dispatch.ActionId == 65532 ? (byte)8 : (byte)2,
                 Parameter82 = 0,

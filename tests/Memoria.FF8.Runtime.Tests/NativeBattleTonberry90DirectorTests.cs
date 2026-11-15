@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -22,7 +23,7 @@ public sealed class NativeBattleTonberry90DirectorTests
         frame = NativeBattleTonberry90Director.Initialize762BB0(frame, fixture.Child, actor =>
         {
             actors.Add(actor);
-            return new(actor, 0) { Transform = transform };
+            return new(0) { Transform = transform };
         }, _ => throw new InvalidOperationException("An unposed model does not read a pose resource."));
         state = frame.Memory.Tonberry90!;
         Assert.Equal(new[] { 3, 3 }, actors);
@@ -42,9 +43,9 @@ public sealed class NativeBattleTonberry90DirectorTests
     {
         var fixture = Fixture();
         NativeBattleEffectActorGeometry geometry = new(new(321, -654, 987), new(111, 222, 333), 0, new(default, default));
-        NativeBattleTonberry90Frame frame = NativeBattleTonberry90Director.Initialize762BB0(fixture.Frame, fixture.Child, actor => new(actor, 0) { Flags0 = 2, Transform = new(default, new(1, 2, 3), 0, 0, unchecked((short)0xF123)) }, _ => throw new InvalidOperationException("Foreign semantic anchors must not request a native skeleton."), actor =>
+        NativeBattleTonberry90Frame frame = NativeBattleTonberry90Director.Initialize762BB0(fixture.Frame, fixture.Child, actor => new(0) { Flags0 = 2, Transform = new(default, new(1, 2, 3), 0, 0, unchecked((short)0xF123)) }, _ => throw new InvalidOperationException("Foreign semantic anchors must not request a native skeleton."), actor =>
         {
-            Assert.Equal(3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             return geometry;
         });
         NativeBattleTonberry90State state = frame.Memory.Tonberry90!;
@@ -162,7 +163,7 @@ public sealed class NativeBattleTonberry90DirectorTests
     {
         var fixture = NativeBattleTonberry90ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectTaskActors Select(uint _, sbyte __, sbyte ___) => new(0, 3);
+        NativeBattleEffectTaskActors Select(uint _, sbyte __, sbyte ___) => OriginalTaskActors(0, 3);
         var child = hierarchy.Append8DC540(1, 0x762690, 0x58, NativeBattleTonberry90Controller.MainBank, Select);
         var director = child.Hierarchy.Append8DC540(2, 0x762C60, 0x48, child.Address, Select);
         hierarchy = director.Hierarchy.Write(director.Address, director.Hierarchy.Read(director.Address).WriteByte(0x29, phase));

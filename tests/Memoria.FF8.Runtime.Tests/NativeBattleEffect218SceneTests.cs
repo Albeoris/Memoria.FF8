@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
 
@@ -11,7 +12,7 @@ public sealed class NativeBattleEffect218SceneTests
     [InlineData(525, 0x02060606u, 3840u)]
     public void Scene_fade_preserves_RGB_code_and_publishes_the_actual_FAR_and_DPCS_controls(short age, uint expected, uint cue)
     {
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor);
         NativeBattleEffect218State state = NativeBattleEffect218State.FromColdProcess().WriteWord(StreamedModelAddress + 0x26, 0x1234).WriteWord(StreamedModelAddress + 0x2C, 0x5678);
         NativeBattleEffect218Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), state);
         frame = FadeScene633F39(frame, age, NativeBattleGteColorInterpolation.CodeConstants45F270);
@@ -32,7 +33,7 @@ public sealed class NativeBattleEffect218SceneTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
         (pool, int slot) = pool.Append(0x634B90);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 40));
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect218State.FromColdProcess());
         uint address = pool.BankAddress + (uint)(slot * pool.Stride);
         List<short> writes = [];

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -23,7 +24,7 @@ public sealed class NativeBattleEffect312PresentationTests
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
-        Assert.All(source.NativeGraphics.Models.Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
+        Assert.All(ReadOriginalModelCells(source.NativeGraphics).Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
         RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
     }
 
@@ -32,28 +33,28 @@ public sealed class NativeBattleEffect312PresentationTests
         NativeBattleGraphicsState graphics = original.NativeGraphics!;
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        string casterId = graphics.ActorIds[3]!;
-        string targetId = graphics.ActorIds[0]!;
+        string casterId = ReadOriginalModelActorId(graphics, 3)!;
+        string targetId = ReadOriginalModelActorId(graphics, 0)!;
         BattleCombatantDefinition caster = BattleSession.Restore(original).GetCombatantDefinition(casterId);
         Assert.Equal(105, caster.ModelId);
-        Assert.Equal((byte)121, graphics.Models[3].ModelId4);
+        Assert.Equal((byte)121, ReadOriginalModelCell(graphics, 3).ModelId4);
         Assert.Equal(0, caster.SceneSlot);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(caster);
-        NativeBattlePoseSource pose = NativeBattleEnemyResourceView.Resolve(original.NativeModelCpuResources!, original.NativeFileStaging!, graphics.Models[3].ActiveResourceRow100!.Value, resource).PoseSource!;
-        Assert.Equal(44, NativeBattleBodyBoneMatrices.Require(graphics.Models[3], pose).Length);
+        NativeBattlePoseSource pose = NativeBattleEnemyResourceView.Resolve(original.NativeModelCpuResources!, original.NativeFileStaging!, ReadOriginalModelCell(graphics, 3).ActiveResourceRow100!.Value, resource).PoseSource!;
+        Assert.Equal(44, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, 3), pose).Length);
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 285 && item.MagicId == 312 && item.KernelSection == 3 && item.KernelIndex == 285);
         Assert.Equal((byte)18, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(3, 8, 18, cameraChoice, 285, 312, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 18, cameraChoice, 285, 312, null));
         BattleCombatantSnapshot[] contactActors = original.Combatants.ToArray();
         for (int actor = 0; actor < 3; actor++)
         {
-            string id = graphics.ActorIds[actor]!;
+            string id = ReadOriginalModelActorId(graphics, actor)!;
             int index = Array.FindIndex(contactActors, item => item.Id == id);
             NativeBattleStatusSnapshot status = contactActors[index].NativeStatus!;
             contactActors[index] = contactActors[index] with { NativeStatus = status.Presentation.Saved is null ? status with { Presentation = new(status.Saved, status.Battle) } : status };
-            (packets, _) = packets.AppendContact(new(new(checked((byte)actor), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(checked((byte)actor), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         }
         (packets, _) = packets.Publish(3);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -61,7 +62,7 @@ public sealed class NativeBattleEffect312PresentationTests
         BattleSnapshot prepared = original with { Combatants = contactActors, Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(311, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(original.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), prepared.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
         return prepared;
     }

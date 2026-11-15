@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -235,7 +236,7 @@ public sealed class NativeBattleZantetsukenRenderingTests
         NativeBattleZantetsukenRenderInputs inputs = fixture.Inputs with { Projection = fixture.Inputs.Projection with { View = Identity } };
         NativeBattleZantetsukenRenderStep native = NativeBattleZantetsukenRendering.DrawBody(NativeBattleTestSnapshots.Independent(fixture.Memory), NativeBattleTestSnapshots.Independent(fixture.Temporary), NativeBattleTestSnapshots.Independent(fixture.Scratch), objects, inputs, uint.MaxValue, 0x808080);
         NativeBattlePilotVisualIdentity parent = new(327, 0x21FFD68, 0, 19, 0);
-        NativeBattlePilotVisualIdentity identity = NativeBattleGilgameshVisuals.ActorResource(parent, resource, 0)!.Value;
+        NativeBattlePilotVisualIdentity identity = NativeBattleGilgameshVisuals.ActorResource(parent, resource, OriginalOwner(0))!.Value;
         NativeBattleZantetsukenRenderStep captured = NativeBattleZantetsukenRendering.DrawBody(NativeBattleTestSnapshots.Independent(fixture.Memory), NativeBattleTestSnapshots.Independent(fixture.Temporary), NativeBattleTestSnapshots.Independent(fixture.Scratch), objects, inputs with { PilotIdentity = identity }, uint.MaxValue, 0x808080);
         Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
         Assert.Equal(NativeBattleTestSnapshots.Json(native.Temporary1D8), NativeBattleTestSnapshots.Json(captured.Temporary1D8));

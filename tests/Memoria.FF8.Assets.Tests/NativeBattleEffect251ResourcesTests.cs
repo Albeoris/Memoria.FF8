@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -109,7 +110,7 @@ public sealed class NativeBattleEffect251ResourcesTests
         (pool, _) = pool.Append(MainCallback);
         pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, 12, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0x6B, 0x5E0).ToArray()), 0x5E0);
         NativeBattleEffect251State state = NativeBattleEffect251State.FromColdProcess().WriteDword(ArenaGlobal, NativeBattleEffect251Controller.CommonAddress).DetachCommonQueue(MainDescriptor);
-        NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
         NativeBattleEffect251Frame frame = new(memory, effect, new(1), state);
         frame = NativeBattleEffect251Controller.BindProgramme(frame, workspace, 0x1432448, 0x144, resources);

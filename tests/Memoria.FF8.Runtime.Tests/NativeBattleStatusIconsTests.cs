@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleStatusIconsTests
 {
     private static NativeBattleStatusIconResources Resources => new(0xFF000000, [Entry(5, 0, -32, 3328), Entry(6, 0, -8, 4096), Entry(7, 192, -104, 3328), Entry(8, 0, 0, 4096), Entry(12, -104, -16, 3072)]);
-    private static NativeBattleGraphicsModel Model => new(1, 3) { Flags2 = 0, Flags8 = 0, Transform = new(new(0, 0, 0), new(12, 34, 56), 0, 0, 4096) };
+    private static NativeBattleGraphicsModel Model => new(3) { Flags2 = 0, Flags8 = 0, Transform = new(new(0, 0, 0), new(12, 34, 56), 0, 0, 4096) };
 
     [Theory]
     [InlineData(5, 0, -32, 3328)]
@@ -51,7 +51,7 @@ public sealed class NativeBattleStatusIconsTests
     [InlineData(32)]
     public void Unmapped_selector_returns_negative_descriptor_AL_without_reading_model_or_anchor(int bit)
     {
-        NativeBattleStatusIconResult result = NativeBattleStatusIcons.Advance5711C0(new(0, 0), bit, 123, 0, Resources, _ => throw new InvalidOperationException());
+        NativeBattleStatusIconResult result = NativeBattleStatusIcons.Advance5711C0(new(0), bit, 123, 0, Resources, _ => throw new InvalidOperationException());
         Assert.Equal(byte.MaxValue, result.TimerAfter);
         Assert.Null(result.Draw);
     }
@@ -119,7 +119,7 @@ public sealed class NativeBattleStatusIconsTests
     [Fact]
     public void Gated_or_unselected_icons_do_not_read_missing_resources_timer_or_anchor()
     {
-        NativeBattleGraphicsModel[] gated = [new(0, 0), new(0, 3) { Flags2 = 4 }, Model, Model with { Flags0 = 7, Flags8 = 0x20 }];
+        NativeBattleGraphicsModel[] gated = [new(0), new(3) { Flags2 = 4 }, Model, Model with { Flags0 = 7, Flags8 = 0x20 }];
         foreach (NativeBattleGraphicsModel model in gated)
         {
             NativeBattleStatusIconStep step = NativeBattleStatusIcons.Advance50A165(model, 0, null, _ => throw new InvalidOperationException());
@@ -128,7 +128,7 @@ public sealed class NativeBattleStatusIconsTests
         }
         foreach (uint flags in new uint[] { 0x10, 0x400, 0x410 })
         {
-            NativeBattleStatusIconStep step = NativeBattleStatusIcons.Advance50A165(new(0, 3) { Flags2 = 0 }, flags, null, _ => throw new InvalidOperationException());
+            NativeBattleStatusIconStep step = NativeBattleStatusIcons.Advance50A165(new(3) { Flags2 = 0 }, flags, null, _ => throw new InvalidOperationException());
             Assert.Empty(step.Draws);
         }
     }

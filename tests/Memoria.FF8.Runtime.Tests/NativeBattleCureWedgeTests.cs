@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -89,7 +90,7 @@ public sealed class NativeBattleCureWedgeTests
         NativeBattleCureParticleStep? last = null;
         for (int callback = 0; callback < 17; callback++)
         {
-            NativeBattleCureFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCureFrame>(NativeBattleTestSnapshots.Json(frame))!;
+            NativeBattleCureFrame restored = NativeBattleTestSnapshots.Independent(frame);
             List<NativeBattleCureOperation> operations = [];
             NativeBattleCureParticleInputs inputs = fixture.Inputs with { CrtRandom = random };
             NativeBattleCureParticleStep step = Advance(frame, fixture.Address, inputs, operations);
@@ -148,17 +149,17 @@ public sealed class NativeBattleCureWedgeTests
             NativeBattleEffectTaskPool.Initialize(0x278C788, 0x278A238, 92, 100)
         ]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8D6B30, 100);
-        NativeBattleEffectHierarchyAppend first = root.Hierarchy.Append8DC540(1, 0x8D6CC0, 88, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend first = root.Hierarchy.Append8DC540(1, 0x8D6CC0, 88, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = first.Hierarchy;
         hierarchy = hierarchy.Write(first.Address, hierarchy.Read(first.Address).WriteWord(0x38, 100).WriteWord(0x3C, 300).WriteWord(0x4A, unchecked((ushort)-100)).WriteWord(0x52, 50));
-        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(3, 0x8DCC20, 92, first.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(3, 0x8DCC20, 92, first.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = wedge.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(wedge.Address).WriteWord(0x56, 8).WriteByte(0x4C, 16).WriteByte(0x4D, 16).WriteByte(0x4E, 16).WriteByte(0x52, 16).WriteWord(0x3C, 256).WriteWord(0x3E, 16).WriteWord(0x40, 64).WriteWord(0x42, 16).WriteWord(0x58, 64);
         hierarchy = hierarchy.Write(wedge.Address, task);
-        NativeBattleOriginalEffectState effect = new(1, 0, new(1, 0x8D6A00, 0x8D69E0), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(1, 0, new(1, 0x8D6A00, 0x8D69E0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
         NativeBattleCureFrame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(0, 0, 0, camera));
-        NativeBattleCureControllerInputs controller = new(NativeBattleActionPacketsState.Fresh(), camera, index => new(index, 0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) }, _ => throw new InvalidOperationException("Wedges use retained first-level bounds."));
+        NativeBattleCureControllerInputs controller = new(OriginalPackets(), camera, index => new(index, 0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) }, _ => throw new InvalidOperationException("Wedges use retained first-level bounds."));
         NativeBattleCureParticleInputs inputs = new(controller, NativeCrtRandomState.FromColdProcess(), (current, _) => current) { Projection = new(camera, 216, 160, 108) };
         return (frame, wedge.Address, inputs);
     }

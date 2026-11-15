@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -48,7 +49,7 @@ public sealed class NativeBattleCastingCoverTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCastingCover.Complete(models.SetItem(2, models[2] with { ResourceFlags44 = null }), Action(1, 4)));
     }
 
-    private static NativeBattleActionGraphicsState Action(byte source, ushort targets) => new(0, 0, 0, targets, (ushort)(1 << source), source, 2, 0, null, 0x50A9A0);
+    private static NativeBattleActionGraphicsState Action(byte source, ushort targets) => new(new BattleActionHeaderReference(0), OriginalOwner(0), new BattleContactCursor(0), targets, (ushort)(1 << source), source, 2, 0, null, 0x50A9A0);
 
-    private static ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3) { ResourceFlags44 = 0x41, Transform = new(new((short)(100 + index), (short)(500 + index), (short)(200 + index)), new((short)(400 + index), (short)(300 + index), (short)(600 + index)), 80, 4096, 4096) }).ToImmutableArray();
+    private static ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { ResourceFlags44 = 0x41, Transform = new(new((short)(100 + index), (short)(500 + index), (short)(200 + index)), new((short)(400 + index), (short)(300 + index), (short)(600 + index)), 80, 4096, 4096) }).ToImmutableArray();
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -44,7 +45,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
         var fixture = Fixture(0x50B830);
         Set(fixture.Session, nameof(BattleSession.NativeEffectIoResult), 0);
         NativeBattleActionGraphicsState context = fixture.Graphics.ActionGraphics! with { IndependentSummonPartyMask6C = 5 };
-        NativeBattleGraphicsState graphics = fixture.Graphics with { ActionGraphics = context, Models = fixture.Graphics.Models.SetItem(0, fixture.Graphics.Models[0] with { Flags0 = 4 }) };
+        NativeBattleGraphicsState graphics = fixture.Graphics with { ActionGraphics = context, Models = fixture.Graphics.Models.SetItem(0, ReadOriginalModelCell(fixture.Graphics, 0) with { Flags0 = 4 }) };
         var blocked = Poll(fixture.Session, graphics, 2);
         Assert.Equal((byte)2, blocked.Phase);
         Assert.False(blocked.Complete);
@@ -71,11 +72,11 @@ public sealed class NativeBattleAdditionalActionServiceTests
         }, BattleAtbMode.Normal);
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeEffectMemory), session.NativeEffectMemory! with { Active = 1 });
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 0, 0, 65535, 1, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 0, 0, 65535, 1, null));
         (packets, _) = packets.Publish(0);
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
-        NativeBattleActionGraphicsState context = new(0, 0, 0, 0, 0, null, null, 0, null, callback);
+        NativeBattleActionGraphicsState context = new(new BattleActionHeaderReference(0), OriginalOwner(0), new BattleContactCursor(0), 0, 0, null, null, 0, null, callback);
         NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((byte)index, 0)).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0x10, 0)
         {
             ActionGraphics = context,

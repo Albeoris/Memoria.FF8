@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect187Controller;
@@ -53,7 +54,7 @@ public sealed class NativeBattleEffect187ActorOverlayTests
         Assert.Equal((ushort)2, Read(step.Frame, ChildBank).ReadWord(0x1E));
     }
 
-    private static NativeBattleEffect187Inputs Inputs(List<NativeBattleEffect187Operation> operations, uint flags) => new(Colors: null!, ReadPackets: null!, ReadFlags: _ => flags, ReadStep508500: null!, ReadView: null!, ReadProjection: null!, ReadCameraRoll: null!, ReadCameraPose: null!, ReadEyePadding: null!, ReadTargetPadding: null!, ReadModel: (_, actor) => new(actor, 2), ReadWorld: (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)), null), ReadTargetCenter5020A0: null!, ReadBone502170: null!, ReadVibrationPlaying4A2900: null!, Execute: (frame, operation) =>
+    private static NativeBattleEffect187Inputs Inputs(List<NativeBattleEffect187Operation> operations, uint flags) => new(Colors: null!, ReadPackets: null!, ReadFlags: _ => flags, ReadStep508500: null!, ReadView: null!, ReadProjection: null!, ReadCameraRoll: null!, ReadCameraPose: null!, ReadEyePadding: null!, ReadTargetPadding: null!, ReadModel: (_, actor) => new(2), ReadWorld: (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)), null), ReadTargetCenter5020A0: null!, ReadBone502170: null!, ReadVibrationPlaying4A2900: null!, Execute: (frame, operation) =>
     {
         operations.Add(operation);
         return frame;
@@ -65,7 +66,7 @@ public sealed class NativeBattleEffect187ActorOverlayTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int slot) = children.Append(0x648AF0);
         children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, checked((ushort)age)).WriteWord(14, 3).WriteWord(0x10, 0).WriteWord(0x12, 0).WriteWord(0x14, 0).WriteWord(0x18, 0).WriteWord(0x1C, 10).WriteWord(0x1E, 4));
-        NativeBattleOriginalEffectState effect = new(Effect, 186, new(Effect, Entry, Initializer), new(0, 0, 8, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
+        NativeBattleOriginalEffectState effect = new(Effect, 186, new(Effect, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, NativeCrtRandomState.FromColdProcess(), NativeBattleEffect187State.FromColdProcess().DetachBank(0).DetachBank(1)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 }

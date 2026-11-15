@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleAdditional181Controller;
 using static Memoria.FF8.Runtime.NativeBattleAdditional181Profile;
@@ -98,7 +99,7 @@ public sealed class NativeBattleAdditional181ControllerTests
         }
         if (age == 38)
         {
-            Assert.Equal(new NativeBattleAdditional181Contact506690(2), Assert.Single(operations));
+            Assert.Equal(new NativeBattleAdditional181Contact506690(new BattleContactOccurrence(2)), Assert.Single(operations));
         }
     }
 
@@ -107,15 +108,14 @@ public sealed class NativeBattleAdditional181ControllerTests
     {
         NativeBattleAdditional181Frame frame = Frame(38);
         NativeBattleActionPacketsState packets = Packets();
-        Assert.Equal(3, packets.ReadHeaderContacts506BA0(1).Length);
+        Assert.Equal(3, packets.ReadHeaderContacts(new BattleActionHeaderReference(1)).Length);
         List<NativeBattleAdditional181Operation> operations = [];
         AdvanceMain(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), ChildBank, Resources(), Inputs(operations) with { Packets = packets });
         NativeBattleAdditional181Contact506690 contact = Assert.IsType<NativeBattleAdditional181Contact506690>(Assert.Single(operations));
-        Assert.Equal(2, contact.ContactIndex);
-        Assert.Equal((byte)3, packets.ReadContact(contact.ContactIndex).Primary.ActorIndex);
-        Assert.Equal((byte)0, packets.ReadContact(contact.ContactIndex).Secondary.ActorIndex);
-        NativeBattleActionHeaderSlot header = packets.Headers[1] with { FirstContactIndex = null };
-        Assert.Throws<NotSupportedException>(() => AdvanceMain(frame, ChildBank, Resources(), Inputs([]) with { Packets = packets with { Headers = packets.Headers.SetItem(1, header) } }));
+        Assert.Equal(new BattleContactOccurrence(2), contact.ContactIndex);
+        Assert.Equal(OriginalOwner(3), packets.ReadContact(contact.ContactIndex).Primary.Recipient);
+        Assert.Equal(OriginalOwner(0), packets.ReadContact(contact.ContactIndex).Secondary!.Recipient);
+        Assert.Throws<NotSupportedException>(() => AdvanceMain(frame, ChildBank, Resources(), Inputs([]) with { Packets = Packets(storeSelectedContacts: false) }));
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class NativeBattleAdditional181ControllerTests
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(22, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
-        NativeBattleAdditional181Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional181Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleAdditional181Frame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleAdditional181Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
         NativeBattleAdditional181Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([])).Frame;
         Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
@@ -189,22 +189,22 @@ public sealed class NativeBattleAdditional181ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteWord(14, 5).WriteWord(16, 10).WriteWord(18, 200).WriteWord(20, 30)) });
-        NativeBattleOriginalEffectState effect = new(181, 180, new(181, Entry, Initializer), new(0, 0, 8, 1, 0, 0), RootDescriptor) { Pools = [roots, children] };
+        NativeBattleOriginalEffectState effect = new(181, 180, new(181, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(1), 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattleAdditional181State state = NativeBattleAdditional181State.FromColdProcess().WriteDword(CasterGlobal, 0).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);
     }
 
     private static NativeBattleAdditional181Resources Resources() => new(null!, null!, null!, null!, null!, null!, 0x4949F);
 
-    private static NativeBattleAdditional181Inputs Inputs(List<NativeBattleAdditional181Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => new(0, 3) { Transform = new(new(0, 0, 0), new(100, 0, 1300), 0, 0, 4096) }, (current, actor, selector, distance) =>
+    private static NativeBattleAdditional181Inputs Inputs(List<NativeBattleAdditional181Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => new(3) { Transform = new(new(0, 0, 0), new(100, 0, 1300), 0, 0, 4096) }, (current, actor, selector, distance) =>
     {
-        Assert.Equal(0, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         Assert.Equal(0xF0, selector);
         Assert.Equal(2560, distance);
         return new(current, PointView(new(100, 900, 300)));
     }, (current, actor) =>
     {
-        Assert.Equal(0, actor);
+        Assert.Equal(OriginalOwner(0), actor);
         return new(current, PointView(new(400, 500, 600), 0x1234));
     }, (current, operation) =>
     {
@@ -212,22 +212,25 @@ public sealed class NativeBattleAdditional181ControllerTests
         return current;
     });
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(bool storeSelectedContacts = true)
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        (state, _) = state.Prepare(new(0, 31, 24, -1, 8, 181, null));
+        NativeBattleActionPacketsState state = OriginalPackets();
+        (state, _) = state.Prepare(new(OriginalOwner(0), 31, 24, -1, 8, 181, null));
         (state, _) = state.AppendContact(Contact(0));
         (state, _) = state.AppendContact(Contact(1));
         (state, _) = state.Publish(2);
-        (state, _) = state.Prepare(new(0, 31, 24, -1, 8, 181, null));
-        (state, _) = state.AppendContact(Contact(3) with { Secondary = new(0, 4, 0, 0, 0, 7, 0) });
-        (state, _) = state.AppendContact(Contact(4));
-        (state, _) = state.AppendContact(Contact(5));
+        (state, _) = state.Prepare(new(OriginalOwner(0), 31, 24, -1, 8, 181, null));
+        if (storeSelectedContacts)
+        {
+            (state, _) = state.AppendContact(Contact(3) with { Secondary = new(OriginalOwner(0), 4, 0, 0, 0, 7, 0) });
+            (state, _) = state.AppendContact(Contact(4));
+            (state, _) = state.AppendContact(Contact(5));
+        }
         (state, _) = state.Publish(3);
         return state;
     }
 
-    private static NativeBattleContactPacket Contact(byte actor) => new(new(actor, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static NativeBattleContactPacket Contact(byte actor) => new(new(OriginalOwner(actor), 4, 0, 0, 0, 7, 0), null);
 
     private static NativeCrtRandomState AfterDraws(NativeCrtRandomState random, int count)
     {

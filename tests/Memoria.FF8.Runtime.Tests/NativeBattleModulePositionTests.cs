@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -31,7 +32,7 @@ public sealed class NativeBattleModulePositionTests
             Resources = [resource],
             TransformModelPosition = (model, local) =>
             {
-                Assert.Equal(2, model);
+                Assert.Equal(OriginalOwner(2), model);
                 Assert.Equal(new NativeBattleVector(1, 2, 3), local);
                 return new(100, -200, 300);
             }
@@ -50,14 +51,14 @@ public sealed class NativeBattleModulePositionTests
     [InlineData(-3, 98)]
     public void PlacementUsesBiasedDoubleTiesBeforeAddingCurrentTranslation(short local, short expected)
     {
-        NativeBattleGraphicsModel model = new(0, 0) { GeometryWorldMatrix = new([2048, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 65535, -65536, 0) };
+        NativeBattleGraphicsModel model = new(0) { GeometryWorldMatrix = new([2048, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 65535, -65536, 0) };
         Assert.Equal(new NativeBattleVector(expected, 1, -2), NativeBattlePoseMatrices.TransformModulePosition570CC0(model, new(local, 2, -2)));
     }
 
     [Fact]
     public void PlacementRequiresActualMatrixAndCallbackAndDoesNotInferThemFromTransformWords()
     {
-        NativeBattleGraphicsModel model = new(0, 0) { Transform = new(new(0, 0, 0), new(1, 2, 3), 0, 0, 4096), Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 };
+        NativeBattleGraphicsModel model = new(0) { Transform = new(new(0, 0, 0), new(1, 2, 3), 0, 0, 4096), Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 };
         Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.TransformModulePosition570CC0(model, new(1, 2, 3)));
         NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(0, new(1, 2, 3), Resource(), 5);
         Assert.Throws<NotSupportedException>(() => state.Advance(new(0) { Resources = [Resource()] }));

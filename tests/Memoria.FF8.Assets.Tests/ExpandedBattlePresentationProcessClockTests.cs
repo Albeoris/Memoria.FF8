@@ -34,7 +34,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
         Assert.True(battle.NativeEntryReady);
         Assert.Equal((byte)1, battle.Capture().NativeClock!.Active);
         Assert.Equal(gain, polling.NativeAtb!.Current);
-        Assert.True(battle.ReadExpandedPresentationRow(ready.Id) >= 7);
+        Assert.False(battle.ReadBattlePresentationPacketBindings().Aliases.TryEncodeExact(battle.ReadPresentationModelOwner(ready.Id), out _));
         Assert.True(battle.CanChoosePlayerCommand(ready.Id));
         Assert.Equal(0u, process.Graphics.UiServices!.ReadyMask);
 
@@ -56,8 +56,8 @@ public sealed class ExpandedBattlePresentationProcessClockTests
         BattleSession child = (BattleSession)typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process)!;
         PropertyInfo graphics = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
         int presentedBefore = battle.ReadDisplayedVital(polling.Id).HitPoints;
-        NativeBattleContactHalf damage = new(battle.ReadExpandedPresentationRow(polling.Id), 4, 0, 0, polling.NativeStatus0, 200, polling.NativeStatus1);
-        typeof(BattleSession).GetMethod("PublishExpandedPartyPresentedContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [process.Graphics.PresentationRoster, damage]);
+        NativeBattleContactHalf damage = new(battle.ReadPresentationModelOwner(polling.Id), 4, 0, 0, polling.NativeStatus0, 200, polling.NativeStatus1);
+        typeof(BattleSession).GetMethod("PublishExpandedPartyPresentedContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.ReadBattlePresentationRoster(), damage]);
         graphics.SetValue(child, process.Graphics with { UiServices = process.Graphics.UiServices!.SetFlags(2) });
         battle.Tick();
         Assert.True(process.Graphics.UiServices!.PauseDE9);
@@ -124,7 +124,8 @@ public sealed class ExpandedBattlePresentationProcessClockTests
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == source);
         polling.Atb = 0;
         polling.NativeStatusTimers[1] = 100;
-        string target = process.Graphics.PresentationRoster![15].ActorId;
+        const string target = "enemy-8";
+        Assert.Contains(battle.ReadPresentationModelOwner(target), process.Graphics.ActorModels.Owners);
         battle.QueueAttack(source, target);
         battle.Tick();
         Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction!.Phase);

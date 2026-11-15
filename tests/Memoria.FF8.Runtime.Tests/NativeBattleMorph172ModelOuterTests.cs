@@ -87,7 +87,7 @@ public sealed class NativeBattleMorph172ModelOuterTests
     }
 
     private static uint Dword(NativeBattleMorph172ModelFrame frame, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Temporary220.Read(offset, 4));
-    private static NativeBattleMorph172ModelFrame Frame(ushort flags) => new(NativeBattleEffectMemory.FromColdProcess(), NativeBattleFileStaging.Unknown(), new(3, flags)
+    private static NativeBattleMorph172ModelFrame Frame(ushort flags) => new(NativeBattleEffectMemory.FromColdProcess(), NativeBattleFileStaging.Unknown(), new(flags)
     {
         GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 100 },
         Color40 = 0x82112233,

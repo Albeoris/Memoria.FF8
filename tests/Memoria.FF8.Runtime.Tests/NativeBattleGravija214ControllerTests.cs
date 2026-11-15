@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleGravija214Controller;
@@ -48,14 +49,14 @@ public sealed class NativeBattleGravija214ControllerTests
         var frame = Initialize(Inactive(), Resources(), Inputs(operations, packets));
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 1));
         var view = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 42 }, null);
-        List<uint> models = [];
+        List<BattleModelOwner> models = [];
         var inputs = Inputs(operations, packets) with { ReadAnchor571400 = (current, model) =>
         {
             models.Add(model);
             return new(current with { Memory = current.Memory with { SharedEffectView2793E58 = view } }, PointView(new(30000, -30000, 13)));
         } };
         frame = AdvanceTask(frame, RootBank, Resources(), inputs).Frame;
-        Assert.Equal(new[] { ModelAddressFor(0), ModelAddressFor(1) }, models);
+        Assert.Equal(new[] { OriginalOwner(0), OriginalOwner(1) }, models);
         Assert.Equal(view, frame.Memory.SharedEffectView2793E58);
         Assert.IsType<NativeBattleGravija214Clear45BEE0>(operations[0]);
         Assert.Equal(new NativeBattleGravija214SetOrigin45B5E0(576, 256), operations[1]);
@@ -75,7 +76,7 @@ public sealed class NativeBattleGravija214ControllerTests
     [Fact]
     public void Zero_contact_mean_fails_instead_of_supplying_a_position()
     {
-        var packets = SetCount(Packets(1), 0);
+        var packets = Packets(1, declaredCount: 0);
         var frame = Initialize(Inactive(), Resources(), Inputs([], packets));
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 1));
         Assert.Throws<NotSupportedException>(() => AdvanceTask(frame, RootBank, Resources(), Inputs([], packets)));
@@ -131,7 +132,7 @@ public sealed class NativeBattleGravija214ControllerTests
         Assert.Equal(age == 67 ? 1 : 0, operations.OfType<NativeBattleGravija214ContactsAll506BA0>().Count());
         if (age == 67)
         {
-            Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleGravija214ContactsAll506BA0>()).HeaderIndex);
+            Assert.Equal(new BattleActionHeaderReference(1), Assert.Single(operations.OfType<NativeBattleGravija214ContactsAll506BA0>()).Header);
         }
         Assert.Equal(frame.Random, actual.Random);
     }
@@ -168,7 +169,7 @@ public sealed class NativeBattleGravija214ControllerTests
         Assert.Empty(actual.Effect.Pools);
         Assert.NotNull(actual.State.RootBankStorage);
         Assert.Equal(1, actual.Memory.Arena!.Read(0, 1)[0] & 1);
-        actual = NativeBattleTestSnapshots.RestoreJson<NativeBattleGravija214Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        actual = NativeBattleTestSnapshots.Independent(actual);
         actual = Initialize(actual, Resources(), Inputs([]));
         Assert.Single(actual.Effect.Pools);
         Assert.Equal(Resources().EntryCopySeed.Data.ToArray(), actual.State.Read(CopiedMeshAddress, EntryCopyLength));
@@ -217,7 +218,7 @@ public sealed class NativeBattleGravija214ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(214, 213, new(214, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(214, 213, new(214, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleGravija214State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -231,35 +232,30 @@ public sealed class NativeBattleGravija214ControllerTests
         }) { ReadOrderingTable = _ => 0x1D8E058 };
     }
 
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner owner)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
-        return new(actor, 2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor), (short)(200 + actor), (short)(3000 + actor)), (short)(444 + actor), 777, 4096) };
+        int actor = OriginalSlot(owner);
+        return new(2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor), (short)(200 + actor), (short)(3000 + actor)), (short)(444 + actor), 777, 4096) };
     }
 
     private static uint ModelAddressFor(int actor) => 0x1D972C0u + (uint)(actor * 156);
 
-    private static NativeBattleActionPacketsState Packets(int count)
+    private static NativeBattleActionPacketsState Packets(int count, int? declaredCount = null)
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 309, 214, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 309, 214, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 309, 214, null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 309, 214, null));
         for (int index = 0; index < count; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)index, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index), 4, 0, 0, 0, 7, 0), null));
         }
-        (packets, _) = packets.Publish(checked((byte)count));
-        return packets.WritePlayerRepeatMode(1, 1);
+        (packets, _) = packets.Publish(declaredCount ?? count);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 
-    private static NativeBattleActionPacketsState SetCount(NativeBattleActionPacketsState packets, byte count)
-    {
-        NativeBattleActionHeaderSlot header = packets.Headers[1];
-        return packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, count), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) }) };
-    }
 
     private static NativeBattleGravija214Resources Resources() => NativeBattleGravija214StateTests.Resources();
 }

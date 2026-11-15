@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -83,7 +84,7 @@ internal sealed class NativeBattleEffect322PresentationObserver
         if (main is not null && oldAge is >= 14 and <= 56)
         {
             positions.Add(Convert.ToHexString(main.Payload.AsSpan().Slice(0x64 - 12, 6)));
-            Assert.Equal(0u, graphics.Models[4].SequenceState!.MeshMask124 & 2);
+            Assert.Equal(0u, ReadOriginalModelCell(graphics, 4).SequenceState!.MeshMask124 & 2);
             hidden = true;
         }
         if (oldAge == 36)
@@ -94,7 +95,7 @@ internal sealed class NativeBattleEffect322PresentationObserver
         }
         if (oldAge == 56 && main is null)
         {
-            Assert.Equal(2u, graphics.Models[4].SequenceState!.MeshMask124 & 2);
+            Assert.Equal(2u, ReadOriginalModelCell(graphics, 4).SequenceState!.MeshMask124 & 2);
             restored = true;
             retired = true;
             Mark("effect322-main-retired-restored-mask", current, cold);

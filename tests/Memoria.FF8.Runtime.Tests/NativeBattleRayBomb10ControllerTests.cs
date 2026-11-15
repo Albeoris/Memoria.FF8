@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -69,7 +70,7 @@ public sealed class NativeBattleRayBomb10ControllerTests
     private static NativeBattleRayBomb10Inputs Inputs(uint flags, List<NativeBattleRayBomb10Operation> operations)
     {
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-        return new(flags, NativeBattleActionPacketsState.Fresh(), new(identity, 512, 160, 104), 0, new(0, 0, 0), actor => new(actor, 0), _ => identity, (_, _, _) => throw new InvalidOperationException("This boundary reads no bone."), _ => throw new InvalidOperationException("This boundary reads no target centre."), _ => throw new InvalidOperationException("This boundary reads no actor anchor."), (frame, operation) =>
+        return new(flags, OriginalPackets(), new(identity, 512, 160, 104), 0, new(0, 0, 0), actor => new(0), _ => identity, (_, _, _) => throw new InvalidOperationException("This boundary reads no bone."), _ => throw new InvalidOperationException("This boundary reads no target centre."), _ => throw new InvalidOperationException("This boundary reads no actor anchor."), (frame, operation) =>
         {
             operations.Add(operation);
             return frame;
@@ -79,7 +80,7 @@ public sealed class NativeBattleRayBomb10ControllerTests
     private static NativeBattleRayBomb10Frame Frame(NativeBattleEffectTaskPool roots)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(9) with { RayBomb10 = NativeBattleRayBomb10State.FromColdProcess() with { ArenaBase = 0x20E1AB8 } };
-        NativeBattleOriginalEffectState effect = new(10, 9, new(10, 0x627E60, 0x627E40), new(3, 0, 1, 0, 0, 0), null) { ReturnedDescriptor = 0x24C91F8, Pools = [roots, NativeBattleEffectTaskPool.Initialize(0x24C9988, 0x24C9998, 36, 100)] };
+        NativeBattleOriginalEffectState effect = new(10, 9, new(10, 0x627E60, 0x627E40), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ReturnedDescriptor = 0x24C91F8, Pools = [roots, NativeBattleEffectTaskPool.Initialize(0x24C9988, 0x24C9998, 36, 100)] };
         return new(memory, effect, new(1));
     }
 }

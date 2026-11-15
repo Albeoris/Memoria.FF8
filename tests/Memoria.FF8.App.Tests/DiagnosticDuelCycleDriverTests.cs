@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -90,7 +91,7 @@ public sealed class DiagnosticDuelCycleDriverTests
         cycle.BeginInput(new(1, 0, "Punch Rush", true, false, [16]), new(3, ready));
         cycle.Observe(new(4, ready with { Phase = BattleNativeDuelPhase.AwaitingEffect, MoveSetId = 1, InputCursor = 1, InputRing = ready.InputRing.SetItem(1, 16) }), false);
         BattleDiagnosticEffectDispatch dispatch = new(3, 5, "party", BattleAbility.NativeCommand, 0, 274, 274, 241) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
-        Assert.True(cycle.ObserveDispatch(dispatch, new(3, 5, 0, 1, NativeBattleActionPacketsState.Fresh())));
+        Assert.True(cycle.ObserveDispatch(dispatch, new(3, 5, 0, 1, OriginalPackets())));
         cycle.Observe(new(6, ready with { MoveSetId = 1 }), false);
         Assert.NotNull(cycle.Receipt.ReadyAfterBasic);
         cycle.Observe(new(7, null), true);

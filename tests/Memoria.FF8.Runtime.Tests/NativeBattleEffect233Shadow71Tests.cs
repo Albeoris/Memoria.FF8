@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -15,11 +16,11 @@ public sealed class NativeBattleEffect233Shadow71Tests
         ushort flags = 0xFFFF;
         NativeBattleCinematicShadow71Services services = new(address =>
         {
-            Assert.Equal(Actor, address);
+            Assert.Equal(OriginalOwner(3), address);
             return flags;
         }, (address, value) =>
         {
-            Assert.Equal(Actor, address);
+            Assert.Equal(OriginalOwner(3), address);
             flags = value;
         }, null!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicShadow71.Execute(frame, services);
@@ -39,7 +40,7 @@ public sealed class NativeBattleEffect233Shadow71Tests
         NativeBattleCinematicShadow71Services services = new(_ => flags, (_, value) => flags = value, (current, actor, ordering, mode, output) =>
         {
             Assert.Equal((ushort)0xAB25, flags);
-            Assert.Equal(Actor, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             Assert.Equal(0x1040u, ordering);
             Assert.Equal((byte)4, mode);
             Assert.Equal(0x200u, output);

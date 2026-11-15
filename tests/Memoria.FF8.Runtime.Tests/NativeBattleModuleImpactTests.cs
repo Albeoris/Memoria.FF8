@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -48,7 +49,7 @@ public sealed class NativeBattleModuleImpactTests
         int modelReads = 0;
         var actual = state.Advance(new(0) { CrtRandom = new(1), ReadModelRotation14 = model =>
         {
-            Assert.Equal(6, model);
+            Assert.Equal(OriginalOwner(6), model);
             modelReads++;
             return -1234;
         } });
@@ -194,7 +195,7 @@ public sealed class NativeBattleModuleImpactTests
         int anchors = 0;
         var actual = state.Advance(new(0) { Resources = [resource], CrtRandom = new(1), ReadModelRotation14 = _ => 2048, ReadModelAnchor = actor =>
         {
-            Assert.Equal(6, actor);
+            Assert.Equal(OriginalOwner(6), actor);
             anchors++;
             return new(10, 20, 30, 40);
         } });

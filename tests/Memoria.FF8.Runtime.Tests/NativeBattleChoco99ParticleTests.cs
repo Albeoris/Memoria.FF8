@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -162,7 +163,7 @@ public sealed class NativeBattleChoco99ParticleTests
         Assert.Equal(0x1D99A78u, parameters);
         Assert.Equal((sbyte)-2, header);
         Assert.Equal((sbyte)3, target);
-        return new(1, 6);
+        return OriginalTaskActors(1, 6);
     }
     private static (NativeBattleEffectHierarchy Hierarchy, uint Parent) Hierarchy()
     {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -11,14 +12,14 @@ public sealed class NativeBattleCastingModuleTests
     {
         Assert.Equal(((byte)1, 0x80000010u), NativeBattleModuleState.SelectModelEffect(255, 0xC0000010));
         Assert.Equal(((byte)255, 0x80000010u), NativeBattleModuleState.SelectModelEffect(255, 0x80000010));
-        Assert.Throws<NotSupportedException>(() => NativeBattleModuleState.Clear().AppendModelEffect(0, 6));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 6, OriginalAliases));
     }
 
     [Fact]
     public void Original574C80_appends_all_twelve_children_in_the_same_pass_and_consumes35_crt_draws()
     {
         NativeCrtRandomState initial = new(7);
-        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(0, 0).Advance(Inputs(initial));
+        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 0, OriginalAliases).Advance(Inputs(initial));
         Assert.Equal(13, first.State.PublishedCount);
         Assert.Equal(5, first.State.Slots.Count(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CastingRing5753A0));
         Assert.Equal(6, first.State.Slots.Count(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CastingParticle574F50));
@@ -41,7 +42,7 @@ public sealed class NativeBattleCastingModuleTests
     [Fact]
     public void Casting_children_restore_raw_payloads_and_release_by_their_original_counter_contracts()
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 0);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 0, OriginalAliases);
         NativeCrtRandomState random = new(17);
         int callbacks = 0;
         while (state.Head is not null && callbacks < 40)
@@ -69,7 +70,7 @@ public sealed class NativeBattleCastingModuleTests
     [Fact]
     public void Authored18_provenance_preserves_all_native_casting_callbacks_CRT_sounds_and_cold_next_states()
     {
-        NativeBattleModuleState plain = NativeBattleModuleState.Clear().AppendModelEffect(0, 0);
+        NativeBattleModuleState plain = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 0, OriginalAliases);
         NativeBattleModuleState owned = OwnedCasting();
         NativeCrtRandomState random = new(17);
         int callbacks = 0;
@@ -118,7 +119,7 @@ public sealed class NativeBattleCastingModuleTests
     [Fact]
     public void Explicit18_sidecar_is_optional_and_does_not_claim_an_unrelated_concurrent_cast()
     {
-        NativeBattleModuleState original = NativeBattleModuleState.Clear().AppendModelEffect(1, 0);
+        NativeBattleModuleState original = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(1), 0, OriginalAliases);
         Assert.DoesNotContain("CastingPresentation", JsonSerializer.Serialize(original));
         NativeBattleModuleState context = original.EnterCinematic18Presentation();
         Assert.NotNull(context.CastingPresentation!.Cinematic18Birth);
@@ -141,7 +142,7 @@ public sealed class NativeBattleCastingModuleTests
     [Fact]
     public void Ordinary_casting_motion_keeps_task_lifetimes_and_rebinds_after_json_restore()
     {
-        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(0, 0).Advance(Inputs(new(7)));
+        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 0, OriginalAliases).Advance(Inputs(new(7)));
         NativeBattleModuleDraw ring = first.Draws.First(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh && draw.MeshId == 1);
         NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(ring.PilotIdentity);
         Assert.Equal((ushort)0, identity.Effect);
@@ -231,13 +232,13 @@ public sealed class NativeBattleCastingModuleTests
         NativeBattleModuleState bound = BoundSequence();
         NativeBattleModuleState cold = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(bound))!;
         Assert.Empty(cold.CastingPresentation!.Tasks);
-        NativeBattleModuleState direct = bound.AppendModelEffect(0, 0, bound.CastingPresentation!.Sequences[0]);
-        NativeBattleModuleState restored = cold.AppendModelEffect(0, 0, cold.CastingPresentation.Sequences[0]);
+        NativeBattleModuleState direct = bound.AppendModelEffect(OriginalOwner(0), 0, OriginalAliases, bound.CastingPresentation!.Sequences[OriginalOwner(0)]);
+        NativeBattleModuleState restored = cold.AppendModelEffect(OriginalOwner(0), 0, OriginalAliases, cold.CastingPresentation.Sequences[OriginalOwner(0)]);
         Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(restored));
         Assert.Equal(3, restored.CastingPresentation!.Tasks[0].Identity.Generation);
         Assert.Equal(1, restored.CastingPresentation.Tasks[0].Source.ContextBirth);
         Assert.Equal(0x20DFB48u, restored.CastingPresentation.Tasks[0].Source.ScriptAddress);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleModuleState.Clear().AppendModelEffect(0, 0)), JsonSerializer.Serialize(restored with { CastingPresentation = null }));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 0, OriginalAliases)), JsonSerializer.Serialize(restored with { CastingPresentation = null }));
     }
 
     [Fact]
@@ -279,14 +280,14 @@ public sealed class NativeBattleCastingModuleTests
     private static NativeBattleModuleState OwnedCasting()
     {
         NativeBattleModuleState state = BoundSequence();
-        return state.AppendModelEffect(0, 0, state.CastingPresentation!.Sequences[0]);
+        return state.AppendModelEffect(OriginalOwner(0), 0, OriginalAliases, state.CastingPresentation!.Sequences[OriginalOwner(0)]);
     }
 
     private static NativeBattleModuleState BoundSequence()
     {
         NativeBattleModuleState state = NativeBattleModuleState.Clear().EnterCinematic18Presentation();
-        NativeBattleCastingSequenceProvenance source = new(new(18, 0x20DFAB8, 0, 123, 0), 0x20DFB48, 0x20DFAB8, 0x90, 0, 30, state.CastingPresentation!.Cinematic18Birth!.Value);
-        return state.BindCastingSequence(0, source);
+        NativeBattleCastingSequenceProvenance source = new(new(18, 0x20DFAB8, 0, 123, 0), 0x20DFB48, 0x20DFAB8, 0x90, OriginalOwner(0), 30, state.CastingPresentation!.Cinematic18Birth!.Value);
+        return state.BindCastingSequence(OriginalOwner(0), source);
     }
 
     private static NativeBattleModuleResource VisibleCastingSprite()

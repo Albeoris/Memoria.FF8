@@ -152,8 +152,8 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     {
         return new(Enumerable.Range(0, capacity).Select(row => row switch
         {
-            7 => new BattleModelOwner("party", true),
-            24 when bindLast => new BattleModelOwner("enemy", false),
+            7 => new BattlePartyActorModel(new("party")),
+            24 when bindLast => new BattleEnemyActorModel(new("enemy")),
             _ => null
         }).ToImmutableArray());
     }

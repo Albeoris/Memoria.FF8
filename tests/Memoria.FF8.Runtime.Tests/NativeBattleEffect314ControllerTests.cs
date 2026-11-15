@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect314Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect314Profile;
@@ -114,7 +115,7 @@ public sealed class NativeBattleEffect314ControllerTests
 
     internal static NativeBattleEffect314Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(314, 313, new(314, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(314, 313, new(314, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         NativeBattleEffect314Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect with { Pools = [root] }, new(1), NativeBattleEffect314State.FromColdProcess().DetachBank(RootBank).WriteDword(WorkGlobal, CommonAddress));
         return InitializeChildBanks(frame);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -29,7 +30,7 @@ public sealed class NativeBattleDuel112WorkspaceTests
         task = task.WriteResourcePointer(16, new(new(0, 0x123), null));
         task = task.MarkPayloadUnknown(offset, size);
         target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
         NativeBattleDuel112Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, resources) }, effect, NativeBattleFileStaging.Unknown(), new(1));
         frame = NativeBattleDuel112Workspaces.Initialize7016B0(frame, 0, offset);

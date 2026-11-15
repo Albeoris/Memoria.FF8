@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -77,7 +78,7 @@ public sealed class NativeBattleDegenerator306SlotsTests
         {
             frame = frame with { State = frame.State.WriteDword(SlotBank + (uint)(index * SlotStride), 1) };
         }
-        NativeBattleDegenerator306Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleDegenerator306Frame restored = NativeBattleTestSnapshots.Independent(frame);
         var first = NativeBattleDegenerator306Slots.Advance(frame, fixture.Address, Resources, fixture.Inputs());
         var second = NativeBattleDegenerator306Slots.Advance(restored, fixture.Address, Resources, fixture.Inputs());
         Assert.Equal(frame.Random, first.Frame.Random);
@@ -140,7 +141,7 @@ public sealed class NativeBattleDegenerator306SlotsTests
         {
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
-            NativeBattleOriginalEffectState effect = new(306, 306, new(306, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
+            NativeBattleOriginalEffectState effect = new(306, 306, new(306, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
             NativeBattleDegenerator306State state = new NativeBattleDegenerator306State(NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleDegenerator306State.Length)).ClearSlotHeads();
             NativeBattleDegenerator306Frame frame = new(memory, effect, new(1), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -160,7 +161,7 @@ public sealed class NativeBattleDegenerator306SlotsTests
             return Frame with { State = state };
         }
 
-        public NativeBattleDegenerator306Inputs Inputs(uint flags = 0) => new(flags, NativeBattleActionPacketsState.Fresh(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), () => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
+        public NativeBattleDegenerator306Inputs Inputs(uint flags = 0) => new(flags, OriginalPackets(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), () => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
         {
             NativeBattleDegenerator306DrawSprite180 draw = Assert.IsType<NativeBattleDegenerator306DrawSprite180>(operation);
             Assert.Equal(0xCE62A8u, draw.SourceAddress);

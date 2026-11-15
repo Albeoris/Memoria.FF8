@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -113,7 +114,7 @@ public sealed class NativeBattleModelResourceViewTests
         uint directory = NativeBattleFileStaging.Address + 0x1000;
         uint row = directory + 0x100;
         staging.Write(directory, Dat([Animation(4), new byte[4], Animation(5)]));
-        NativeBattleGraphicsModel model = new(1, 2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = 1, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)), SequenceState = new() { Default2 = 6 } };
+        NativeBattleGraphicsModel model = new(2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = 1, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)), SequenceState = new() { Default2 = 6 } };
         NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, cpu, model, row, directory);
         NativeBattleGraphicsResource original = new([0, 0]) { AnimationFrames = [], Geometry = [new([], [])], LinkedGeometry = [new([], [])] };
         Pilot restored = NativeBattleTestSnapshots.RestoreJson<Pilot>(NativeBattleTestSnapshots.Json(new Pilot(cpu, bound.Staging, bound.Model)));
@@ -145,7 +146,7 @@ public sealed class NativeBattleModelResourceViewTests
 
     private static (NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Load(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelDatSource source, int bodyRow, int? linkedRow)
     {
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(source.Linked ? (ushort)0x1000 : (ushort)0, 1, 0, source.Selector, source.Selector);
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(source.Linked ? (ushort)0x1000 : (ushort)0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, source.Selector, source.Selector);
         NativeBattleModelLoadStep request = loader.Poll507070(-1, [source], staging);
         NativeBattleModelLoadStep prepared = request.State.Poll507070(source.Bytes.Length, [source], request.Staging);
         NativeBattleModelLoadStep loaded = prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -13,7 +14,7 @@ public sealed class CrossoverNativeForeignBoneMatrixTests
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(hostRoot), "Select the original host game installation.");
         using GameAssets game = new(TestResources.GameDirectory);
         var (foreign, _, _) = CrossoverNativeGuardianInvocationTests.ReadHostTarget(hostRoot!, game.ReadNativeBattleGraphicsRules());
-        NativeBattlePosedActor pose = foreign.ToActor(3).Pose!;
+        NativeBattlePosedActor pose = foreign.ToActor(OriginalOwner(3)).Pose!;
         Assert.NotEmpty(foreign.Geometry.BoneTransforms);
         Assert.Equal(foreign.Geometry.BoneTransforms.Length, pose.BoneMatrices.Length);
         Vector3 local = new(12, -7, 19);

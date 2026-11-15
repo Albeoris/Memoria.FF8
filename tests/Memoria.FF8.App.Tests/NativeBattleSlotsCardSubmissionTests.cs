@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Diagnostics;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -52,7 +54,7 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         };
         if (initial.NativeGraphics?.UiServices is { } ui)
         {
-            byte index = checked((byte)initial.NativeGraphics.ActorIds.IndexOf(owner.Id));
+            byte index = checked((byte)FindOriginalModelSlot(initial.NativeGraphics, owner.Id));
             (NativeBattleUiCommands commands, uint mask, _) = NativeBattleUiCommands.Clear().Enqueue(index, 0x11).Dispatch(0);
             initial = initial with { NativeGraphics = initial.NativeGraphics with { UiServices = ui with { Commands = commands, ReadyMask = mask } } };
         }
@@ -86,7 +88,7 @@ public sealed class NativeBattleSlotsCardSubmissionTests
             Assert.Same(graphics.Auxiliary, current.Auxiliary);
             Assert.Same(graphics.ModuleEffects, current.ModuleEffects);
             Assert.Same(graphics.Descriptors, current.Descriptors);
-            Assert.Equal(graphics.Models, current.Models);
+            Assert.Equal(ReadOriginalModelCells(graphics), ReadOriginalModelCells(current));
             Assert.Equal(graphics, current with { UiServices = graphics.UiServices });
         }
         Assert.Equal(randomReceipt, battle.NativeGlobalRandomChange);

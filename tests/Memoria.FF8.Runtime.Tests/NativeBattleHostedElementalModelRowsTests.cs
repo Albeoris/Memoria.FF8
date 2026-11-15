@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -54,7 +55,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
         NativeBattleActionPacketsState packets = Packets(effect, 7, Roster());
         ElementalFrame frame = Advance(effect, Initialize(effect, packets), packets, []);
         string before = Serialize(frame, effect);
-        NativeBattleContactPacket contact = packets.ReadContact(0);
+        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         NativeBattleActionPacketsState malformed = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { ActorIndex = 8 } }) };
         List<int> observed = [];
 
@@ -117,7 +118,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
         Assert.Equal(24, row);
         Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.Encode(8), out row, roster));
         Assert.Equal(-1, row);
-        Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.Encode(3), out row, roster));
+        Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(3)), out row, roster));
         Assert.Equal(-1, row);
         Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.Encode(7), out _, roster: null));
         Assert.True(NativeBattleGraphicsModelAddress.TryDecode(0x1D97494, out row, roster: null));
@@ -126,24 +127,24 @@ public sealed class NativeBattleHostedElementalModelRowsTests
 
     private static BattleModelRoster Roster()
     {
-        var rows = new BattleModelOwner?[25].ToImmutableArray().SetItem(0, new("source", true)).SetItem(7, new("first", true)).SetItem(24, new("last", false));
+        var rows = new BattleModelOwner?[25].ToImmutableArray().SetItem(0, new BattlePartyActorModel(new("source"))).SetItem(7, new BattlePartyActorModel(new("first"))).SetItem(24, new BattleEnemyActorModel(new("last")));
         return new(rows);
     }
 
     private static NativeBattleActionPacketsState Packets(int effect, int row, BattleModelRoster? roster)
     {
         NativeBattleActionPacketsState packets = roster is null ? NativeBattleRetainedMemory.FromColdProcess().ActionPackets : NativeBattleActionPacketsState.FromPresentationStorage(roster);
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, (ushort)effect, null));
-        (packets, _) = packets.AppendContact(new(new((byte)row, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, (ushort)effect, null));
+        (packets, _) = packets.AppendContact(new(new((byte)row, 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        return packets.WritePlayerRepeatMode(0, 1);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
     }
 
     private sealed record ElementalFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 
     private static ElementalFrame Initialize(int id, NativeBattleActionPacketsState packets)
     {
-        int row = packets.ReadContact(0).Primary.ActorIndex;
+        int row = packets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient;
         BattleModelTargets targets = default(BattleModelTargets).Add(row);
         NativeBattleEffectParameters parameters = new(0, 0, targets.NativePhysicalBits, 0, 0, 0)
         {

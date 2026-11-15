@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleAdditional181Controller;
@@ -23,7 +24,7 @@ public sealed class NativeBattleAdditional181ChildrenTests
             operations.Add(operation);
             if (operation is NativeBattleAdditional181DrawBody128 body)
             {
-                Assert.Equal(0, body.Actor);
+                Assert.Equal(OriginalOwner(0), body.Actor);
                 Assert.Equal(NativeBattleTemporaryMemory.Address, body.TemporaryAddress);
                 Assert.Equal((uint)factor, current.Memory.ScriptedColorRegisters!.Ir0);
                 Assert.Equal(current.Memory.ScriptedColorRegisters.Rgb[2], Dword(Context(current, body.TemporaryAddress, 128), 0x5C));
@@ -39,7 +40,7 @@ public sealed class NativeBattleAdditional181ChildrenTests
         if (age < 15)
         {
             var flags = Assert.IsType<NativeBattleAdditional181ActorFlags>(operations[0]);
-            Assert.Equal(0, flags.Actor);
+            Assert.Equal(OriginalOwner(0), flags.Actor);
             Assert.Equal((ushort)0x804, flags.SetMask);
             Assert.Equal((ushort)0, flags.ClearMask);
             Assert.IsType<NativeBattleAdditional181DrawBody128>(operations[1]);
@@ -119,7 +120,7 @@ public sealed class NativeBattleAdditional181ChildrenTests
             random = random.Draw(out _);
         }
         Assert.Equal(random, actual.Frame.Random);
-        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional181Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        var restored = NativeBattleTestSnapshots.Independent(actual.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
@@ -213,7 +214,7 @@ public sealed class NativeBattleAdditional181ChildrenTests
         return Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, age).WriteWord(14, 1).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteWord(0x16, 77).WriteWord(0x18, 0).WriteWord(0x1A, 7).WriteWord(0x1C, 4096).WriteWord(0x1E, 128));
     }
 
-    private static NativeBattleAdditional181Inputs Inputs(Func<NativeBattleAdditional181Frame, NativeBattleAdditional181Operation, NativeBattleAdditional181Frame>? execute = null, uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleAdditional181DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
+    private static NativeBattleAdditional181Inputs Inputs(Func<NativeBattleAdditional181Frame, NativeBattleAdditional181Operation, NativeBattleAdditional181Frame>? execute = null, uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleAdditional181DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
     private static NativeBattleAdditional181Frame Feedback(NativeBattleAdditional181Frame frame, uint temporary, short value) => PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0x28, BitConverter.GetBytes(value)), 180);
     private static uint Cursor(NativeBattleAdditional181Frame frame) => BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));

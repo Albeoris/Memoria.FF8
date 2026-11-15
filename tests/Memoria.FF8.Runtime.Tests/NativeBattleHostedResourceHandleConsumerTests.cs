@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -13,7 +14,7 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         {
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
-        NativeBattleGraphicsModel native = new(0, 0) { ActiveResourceRow100 = 10 };
+        NativeBattleGraphicsModel native = new(0) { ActiveResourceRow100 = 10 };
         NativeBattleGraphicsModel extended = native with { ActiveResourceRow100 = 11 };
         Assert.Equal(NativeBattleModelResourceRowAddress.Encode(10), Address(session, native));
         Assert.Equal(0x910000u, Address(session, extended with { ActiveStagedResourceRow100 = 0x910000 }));
@@ -23,7 +24,7 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         BattleModelOwner?[] rows = new BattleModelOwner?[7];
         for (int row = 0; row < rows.Length; row++)
         {
-            rows[row] = new($"party-{row}", true);
+            rows[row] = new BattlePartyActorModel(new($"party-{row}"));
         }
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(new([.. rows]));
         PropertyInfo owner = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!;
@@ -49,8 +50,8 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         {
             ReadModel = (_, address) =>
             {
-                Assert.Equal(actor, address);
-                return new(0, 0) { ActiveResourceRow100 = 11 };
+                Assert.Equal(OriginalOwner(0), address);
+                return new(0) { ActiveResourceRow100 = 11 };
             },
             ReadResourceRowCapacity = () => capacity,
             PublishBody508C90 = (current, handle) =>
@@ -63,10 +64,10 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
                 }, []));
             }
         };
-        NativeBattleBreath129Frame captured = NativeBattleBreath129Body.Capture6B73F0(frame, actor, 0, 0, null!, inputs);
+        NativeBattleBreath129Frame captured = NativeBattleBreath129Body.Capture6B73F0(frame, OriginalOwner(0), 0, 0, null!, inputs);
         Assert.Equal(frame.Random, captured.Random);
         capacity = 11;
-        Assert.Throws<InvalidDataException>(() => NativeBattleBreath129Body.Capture6B73F0(frame, actor, 0, 0, null!, inputs));
+        Assert.Throws<InvalidDataException>(() => NativeBattleBreath129Body.Capture6B73F0(frame, OriginalOwner(0), 0, 0, null!, inputs));
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         NativeBattleMegaSpark279Frame frame = new(memory, new(279, 278, new(279, NativeBattleMegaSpark279Profile.Entry, NativeBattleMegaSpark279Profile.Initializer), null, 0), new(123), state);
         List<uint> observed = [];
         NativeBattleMegaSpark279Inputs inputs = new(
-            NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270,
+            OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270,
             _ => throw new InvalidOperationException(),
             _ => throw new InvalidOperationException(),
             (_, address) =>

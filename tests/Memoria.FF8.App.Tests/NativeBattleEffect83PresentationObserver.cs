@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -32,8 +33,8 @@ internal sealed class NativeBattleEffect83PresentationObserver
         }
         NativeBattleEffect83State state = current.NativeEffectMemory!.Effect83!;
         state.Validate();
-        Assert.Equal((byte)138, current.NativeGraphics.Models[4].ModelId4);
-        Assert.Equal((byte)139, current.NativeGraphics.Models[3].ModelId4);
+        Assert.Equal((byte)138, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.NativeGraphics, 3).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
         if (effect.ReturnedDescriptor is > 0)

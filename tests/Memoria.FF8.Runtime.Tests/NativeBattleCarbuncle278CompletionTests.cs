@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -14,12 +15,12 @@ public sealed class NativeBattleCarbuncle278CompletionTests
         (root, int index) = root.Append(NativeBattleCarbuncle278Entry.MainCallback);
         root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(index, root.Slots[index].WriteWord(0xC, 280).WriteByte(0xF, 1)) });
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root, Pool(0x2508188, 0x28A4, 0x5E0, 1), Pool(0x2508178, 0x23A4, 20, 64), Pool(0x2508168, 0x22C4, 28, 8), Pool(0x2508158, 0x1FA0, 0x10C, 3), Pool(0x2508138, 0x1C04, 28, 24), Pool(0x2508148, 0x1EA4, 28, 9), Pool(0x2508128, 4, 28, 256)];
-        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Carbuncle278 = NativeBattleCarbuncle278State.FromColdProcess() with { ModelBuffer81F8 = 0x20DFAB8, Pause8114 = pause, Done81D8 = done } };
         NativeBattleCarbuncle278Frame frame = new(memory, effect, NativeCrtRandomState.FromColdProcess());
         int restores = 0;
         int stageCalls = 0;
-        NativeBattleCarbuncle278Inputs inputs = new(NativeBattleRetainedMemory.FromColdProcess().ActionPackets, (current, _, _) => current, current => new(current, 0)) { RestoreActors = current =>
+        NativeBattleCarbuncle278Inputs inputs = new(NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases), (current, _, _) => current, current => new(current, 0)) { RestoreActors = current =>
         {
             restores++;
             return current;

@@ -27,9 +27,9 @@ public sealed class NativeBattleContactFlagTests
         NativeBattleContactPacket packet = Resolve(session, Action(attackType, attackFlags));
 
         Assert.Equal(expected, packet.Primary.PresentedAmount);
-        Assert.Equal(zombie ? (byte)0 : (byte)1, (byte)(packet.Primary.HitFlags3 & 1));
+        Assert.Equal(zombie ? (byte)0 : (byte)1, (byte)(packet.Primary.HitFlags & 1));
         Assert.Equal(400 + (zombie ? -expected : expected), session.Combatants.Single(item => item.Id == "target").CurrentHp);
-        Assert.Equal((byte)255, packet.Secondary.ActorIndex);
+        Assert.Equal((byte)255, packet.Secondary.Recipient);
         Assert.Equal(expected, Assert.Single(session.Events, item => item.Kind == (zombie ? "Damage" : "Healing")).Amount);
     }
 
@@ -75,7 +75,7 @@ public sealed class NativeBattleContactFlagTests
         Assert.Equal(unchecked((ushort)expected), packet.Primary.Amount6);
         Assert.Equal(200_000 - expected, session.Combatants.Single(item => item.Id == "target").CurrentHp);
         Assert.Equal(expected, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal((byte)255, packet.Secondary.ActorIndex);
+        Assert.Equal((byte)255, packet.Secondary.Recipient);
     }
 
     [Theory]
@@ -133,7 +133,7 @@ public sealed class NativeBattleContactFlagTests
         NativeBattleContactPacket packet = Resolve(session, action);
         Assert.Equal(expectedDamage, packet.Primary.PresentedAmount);
         Assert.Equal(401 - expectedDamage, session.Combatants.Single(actor => actor.Id == "target").CurrentHp);
-        Assert.Equal(failed, (packet.Primary.HitFlags3 & 4) != 0);
+        Assert.Equal(failed, (packet.Primary.HitFlags & 4) != 0);
     }
 
     private static BattleSession FixedRecoverySession(bool playerActor, BattleNativePlayerStatRules? rules, bool zombie)

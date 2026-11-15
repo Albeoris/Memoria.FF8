@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -77,7 +78,7 @@ public sealed class NativeBattleTonberry90ScreenSpriteTests
     {
         var fixture = NativeBattleTonberry90ControllerTests.Fixture();
         int pool = Enumerable.Range(0, fixture.Frame.Effect.Pools.Length).Single(index => fixture.Frame.Effect.Pools[index].DescriptorAddress == 0x259F098);
-        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(pool, callback, 0x7C, NativeBattleTonberry90Controller.MainBank, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(pool, callback, 0x7C, NativeBattleTonberry90Controller.MainBank, (_, _, _) => OriginalTaskActors(0, 3));
         return (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = appended.Hierarchy.Pools } }, appended.Address);
     }
 

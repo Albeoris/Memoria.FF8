@@ -150,11 +150,11 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
         foreach (int row in parties)
         {
-            rows[row] = new($"actor-{row}", true);
+            rows[row] = new BattlePartyActorModel(new($"actor-{row}"));
         }
         foreach (int row in enemies)
         {
-            rows[row] = new($"actor-{row}", false);
+            rows[row] = new BattleEnemyActorModel(new($"actor-{row}"));
         }
         BattleModelRoster roster = new([.. rows]);
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8);
@@ -175,7 +175,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
             party = party with { ModelLoadSources = [WithTexture(body, 5, 0x13), WithTexture(linked, 6, 0x27)] };
             enemy = enemy with { ModelLoadSources = [WithTexture(enemyBody, 10, 0x39)] };
         }
-        NativeBattleEffectContactBridge<string> bridge = new([(roster[target].ActorId, new NativeBattleContactPacket(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)))], roster);
+        NativeBattleEffectContactBridge<string> bridge = new([(roster[target].ActorId, new NativeBattleContactPacket(new(target, 0, 0, 0, 0, 0, 0), null))], roster);
         (NativeBattleActionPacketsState packets, BattleModelTargets selected) = bridge.PrepareHosted(8, 0, 1, 1, source);
         NativeBattleEffectParameters parameters = new(source, 0, selected.NativePhysicalBits, 0, 0, 0) { PresentationTargets = selected };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
@@ -196,7 +196,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
     private static NativeBattleGraphicsModel Model(int row, bool party, NativeBattlePoseSource body, NativeBattlePoseSource? linked = null)
     {
         NativeBattleVector position = new((short)(100 * row), 0, (short)(100 + row));
-        NativeBattleGraphicsModel model = new(row, row % 2 == 0 ? (ushort)0 : (ushort)2)
+        NativeBattleGraphicsModel model = new(row % 2 == 0 ? (ushort)0 : (ushort)2)
         {
             ModelId4 = party ? (byte)0 : (byte)16, Flags2 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0,
             Flags8 = 0, ResourceFlags44 = 0, Color40 = 0x808080, Color44 = 0x32808080, Alpha7 = 0,

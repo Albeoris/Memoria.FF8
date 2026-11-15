@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -30,8 +31,8 @@ public sealed class NativeBattleEffect227FollowingActionTests
         Assert.Empty(source.QueuedActions);
         Assert.All(source.NativeEffectMemory.Effect227!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        string casterId = originalGraphics.ActorIds[3]!;
-        string companionId = originalGraphics.ActorIds[4]!;
+        string casterId = ReadOriginalModelActorId(originalGraphics, 3)!;
+        string companionId = ReadOriginalModelActorId(originalGraphics, 4)!;
         BattleCombatantDefinition companion = source.Definition.Combatants.Single(actor => actor.Id == companionId);
         Assert.Equal(123, companion.ModelId);
         Assert.True(companion.InitialHidden);
@@ -39,19 +40,19 @@ public sealed class NativeBattleEffect227FollowingActionTests
         Assert.True(companion.InitialUntargetable);
         BattleCombatantDefinition caster = source.Definition.Combatants.Single(actor => actor.Id == casterId);
         Assert.Equal(121, caster.ModelId);
-        Assert.Equal((byte)137, originalGraphics.Models[3].ModelId4);
+        Assert.Equal((byte)137, ReadOriginalModelCell(originalGraphics, 3).ModelId4);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 339 && row.MagicId == 227 && row.KernelSection == 3 && row.KernelIndex == 339);
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(3, 8, 13, cameraChoice, 339, 227, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 13, cameraChoice, 339, 227, null));
         packets = NativeBattleEffect227PresentationTests.PublishDeclaredSelfContact(source, packets);
         Assert.Equal(source.NativeActionPackets!.ContactCount + 1, packets.ContactCount);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = originalGraphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(originalGraphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(source.Combatants, prepared.Combatants);
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-before-entry", prepared, null);
         BattleSession battle = Restore(prepared);
@@ -132,7 +133,7 @@ public sealed class NativeBattleEffect227FollowingActionTests
                 Assert.True(currentCompanion.NativeParticipant!.Hidden);
                 Assert.True(currentCompanion.NativeParticipant.Suspended);
                 Assert.True(currentCompanion.NativeParticipant.Untargetable);
-                Assert.Equal(4, graphics.Models[3].Flags0 & 4);
+                Assert.Equal(4, ReadOriginalModelCell(graphics, 3).Flags0 & 4);
                 ColdNext("following-action-completed-after-cleanup", current);
                 NativeBattleRestorationPresentationTests.Publish(output!, "following-action-completed-visible", current, new BattleScenePresentation(assets, current.Definition, true).Render(battle, 320, 224).ToArray());
                 completed = true;

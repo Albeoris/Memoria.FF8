@@ -22,10 +22,10 @@ public sealed class EffectPreviewArenaInitializationTests
         int dispatches = 0;
         active.DiagnosticEffectDispatched += _ => dispatches++;
         active.PublishDiagnosticAbilityPreview(3, 1);
-        NativeBattleActionHeaderSlot header = active.NativeActionPackets.Headers[0];
-        Assert.Equal(254, header.ReadByte(1));
-        Assert.Equal(65, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal(selected.MagicId, NativeBattleActionGraphics.Word(header, 6));
+        NativeBattleActionHeaderSlot header = active.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal(254, header.Command);
+        Assert.Equal(65, header.Action);
+        Assert.Equal(selected.MagicId, header.Effect);
         Assert.Equal(0x50B2A0u, NativeBattleActionGraphics.SelectService(header).Callback);
         Assert.Empty(active.QueuedActions);
         Assert.Equal(0, dispatches);

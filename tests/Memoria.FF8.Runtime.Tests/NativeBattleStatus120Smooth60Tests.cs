@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -8,22 +9,22 @@ public sealed class NativeBattleStatus120Smooth60Tests
     [Fact]
     public void Both_workspaces_capture_real_target_generation_without_changing_single_slot_three_contact_schedule()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 14, -1, 19, 120, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 19, 120, null));
         for (byte actor = 0; actor < 3; actor++)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 4, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 4, 0, 0), null));
         }
         (packets, _) = packets.Publish(3);
         Assert.Equal((byte)3, packets.Headers[0].ReadByte(16));
         Assert.Equal(0, packets.Headers[0].FirstContactIndex);
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         NativeBattleStatusMagicResources resources = new(120, new("animation", []), [Source(0x1277640), Source(0x1279C68)], 1);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(resources.RootDescriptor, resources.RootBank, 20, 1);
         (root, _) = root.Append(resources.RootCallback);
-        NativeBattleOriginalEffectState effect = new(120, 119, new(120, resources.Entry, 1), new(3, 0, 7, 0, 0, 0), root.DescriptorAddress) { Pools = [root] };
+        NativeBattleOriginalEffectState effect = new(120, 119, new(120, resources.Entry, 1), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2)]), new BattleActionHeaderReference(0), 0, 0), root.DescriptorAddress) { Pools = [root] };
         NativeBattleStatusMagicFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect);
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 1) { Transform = new(new(0, 0, 0), new((short)(index * 100), -100, 3000), 0, 0, 4096), Rotation14 = 0 }).ToArray();
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(1) { Transform = new(new(0, 0, 0), new((short)(index * 100), -100, 3000), 0, 0, 4096), Rotation14 = 0 }).ToArray();
         List<NativeBattlePilotVisualGeometry> geometries = [];
         List<(int Tick, int Contact)> contacts = [];
         NativeBattleStatusMagicInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770(), 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, index => models[index], _ => new([], []), (_, _) => throw new InvalidOperationException("120 does not write122 flags."), (current, operation) =>

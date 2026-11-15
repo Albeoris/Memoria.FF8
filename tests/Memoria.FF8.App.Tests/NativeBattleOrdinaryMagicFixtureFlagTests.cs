@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -51,17 +52,17 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
             NativeBattleUiServices ui = boundary.NativeGraphics!.UiServices!;
             Assert.All(ui.Commands.Queue, index => Assert.InRange(ui.Commands.Packets[index].Bytes[0], (byte)0, (byte)2));
         }
-        string party = queued.NativeGraphics!.ActorIds[0]!;
+        string party = ReadOriginalModelActorId(queued.NativeGraphics!, 0)!;
         Assert.Equal(2, beforeInput.Combatants.Single(actor => actor.Id == party).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count);
         Assert.Equal(1, queued.Combatants.Single(actor => actor.Id == party).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count);
         int descriptor = Assert.Single(queued.NativeGraphics.Descriptors.Queue, index => queued.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint offset = queued.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
-        NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.Headers[checked((int)(offset / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)223, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)10, header.ReadByte(0x10));
+        NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal(action.ActionId, header.Action);
+        Assert.Equal((ushort)223, header.Effect);
+        Assert.Equal((byte)10, header.ReadContactCount());
         string frozen = JsonSerializer.Serialize(queued);
         BattleSession direct = BattleSession.Restore(queued);
         BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozen)!);
@@ -73,7 +74,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         Assert.Equal(frozen, JsonSerializer.Serialize(queued));
         BattleCombatant nextEnemy = direct.Combatants.Single(actor => actor.Id == initialEnemy.Id);
         Assert.Equal(originalFlags, nextEnemy.NativeCombatantFlags & originalFlags);
-        return new { enemyDefinition.ModelId, physicalSlot = 3, originalFlags, entryFlags, fullGaugeRegistration = registration.Kind.ToString(), beforeInput = beforeInput.NativeGraphics!.Callback, produced = queued.NativeGraphics.Callback, next = direct.NativeGraphics!.Callback, action.Command, action.ActionId, contacts = header.ReadByte(0x10), stockBefore = 2, stockAfter = 1, coldNextEqual = true };
+        return new { enemyDefinition.ModelId, physicalSlot = 3, originalFlags, entryFlags, fullGaugeRegistration = registration.Kind.ToString(), beforeInput = beforeInput.NativeGraphics!.Callback, produced = queued.NativeGraphics.Callback, next = direct.NativeGraphics!.Callback, action.Command, action.ActionId, contacts = header.ReadContactCount(), stockBefore = 2, stockAfter = 1, coldNextEqual = true };
     }
 
     internal static void DeleteFixtureSnapshots(string fixture, NativeEffectFixtureExportResult exported)

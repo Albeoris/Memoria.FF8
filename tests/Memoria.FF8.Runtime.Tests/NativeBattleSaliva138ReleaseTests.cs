@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleSaliva138Profile;
@@ -71,7 +72,7 @@ public sealed class NativeBattleSaliva138ReleaseTests
         pools[2] = NativeBattleTaskFixture.EditPool(pools[2], data => data with { Slots = pools[2].Slots.SetItem(curve, pools[2].Slots[curve].WriteWord(12, 0x1234).MarkPayloadUnknown(14, 2)) });
         (pools[3], _) = pools[3].Append(MovingSpriteCallback);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, PointsOffset) };
-        NativeBattleOriginalEffectState effect = new(138, 137, new(138, Entry, Initializer), new(0, 0, 0, 0, 0, 0), 0) { Pools = pools.ToImmutableArray() };
+        NativeBattleOriginalEffectState effect = new(138, 137, new(138, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), 0) { Pools = pools.ToImmutableArray() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
         return new(memory, effect, new(55), NativeBattleSaliva138State.FromColdProcess().WriteDword(WorkingGlobal, working));
     }

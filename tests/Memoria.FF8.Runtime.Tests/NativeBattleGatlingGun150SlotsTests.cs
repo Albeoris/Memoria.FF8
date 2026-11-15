@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -223,7 +224,7 @@ public sealed class NativeBattleGatlingGun150SlotsTests
         {
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
-            NativeBattleOriginalEffectState effect = new(150, 150, new(150, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
+            NativeBattleOriginalEffectState effect = new(150, 150, new(150, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = Camera() };
             NativeBattleGatlingGun150Frame frame = new(memory, effect, new(1), NativeBattleGatlingGun150State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             (frame, uint address) = NativeBattleGatlingGun150Controller.Append(frame, callback);
@@ -242,7 +243,7 @@ public sealed class NativeBattleGatlingGun150SlotsTests
             return frame with { State = frame.State.WriteView(row, retained, 24) };
         }
 
-        public NativeBattleGatlingGun150Inputs Inputs(uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => Camera(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
+        public NativeBattleGatlingGun150Inputs Inputs(uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => Camera(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
         {
             NativeBattleGatlingGun150DrawSprite180 draw = Assert.IsType<NativeBattleGatlingGun150DrawSprite180>(operation);
             NativeBattleFileStaging staging = frame.Staging!;

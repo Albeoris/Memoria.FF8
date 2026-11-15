@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -70,7 +71,7 @@ public sealed class NativeBattleGroup11AliasPresentationTests
         var fixture = NativeBattleDrain39NodeTests.Fixture(56);
         NativeBattleDrainFamilyProfile profile = NativeBattleDrainFamilyProfile.ForEffect(56);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend added = hierarchy.Append8DC540(2, profile.FlashCallback, 60, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend added = hierarchy.Append8DC540(2, profile.FlashCallback, 60, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(2, 3));
         hierarchy = added.Hierarchy.Write(added.Address, added.Hierarchy.Read(added.Address).WriteDword(0x30, profile.FirstFlashAddress));
         NativeBattleDrain39Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleDrain39Resources resources = NativeBattleDrain39NodeTests.Resources(56) with { FirstFlash = [0x007F7F7F, 0x003F3F3F, 0xFF000000] };
@@ -133,7 +134,7 @@ public sealed class NativeBattleGroup11AliasPresentationTests
     }
 
     private static NativeBattleAquaFrame Frame55() => new(NativeBattleEffectMemory.FromColdProcess() with { Aqua55 = NativeBattleAquaState.FromColdProcess(55), SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) }, new(55, 54, new(55, 0x808820, 0x808800), null, 0), NativeCrtRandomState.FromColdProcess());
-    private static NativeBattleAquaInputs Inputs(NativeBattleActionMatrix view, NativeBattleCameraProjection projection, List<NativeBattleAquaOperation> operations) => new(NativeBattleActionPacketsState.Fresh(), view, projection, 0, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
+    private static NativeBattleAquaInputs Inputs(NativeBattleActionMatrix view, NativeBattleCameraProjection projection, List<NativeBattleAquaOperation> operations) => new(OriginalPackets(), view, projection, 0, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
     {
         operations.Add(operation);
         return current;

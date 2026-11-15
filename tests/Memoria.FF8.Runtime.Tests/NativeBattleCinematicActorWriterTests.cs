@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleCinematicActorAccess;
 
@@ -68,7 +69,7 @@ public sealed class NativeBattleCinematicActorWriterTests
         Assert.Equal(expectedSaved.Length, ReadSavedCount(restored, signedNative: true));
         Assert.Equal(linked ? new byte[] { 7 } : original.ToArray(), updated.CurrentActors);
         Assert.Equal(linked ? (byte)7 : (byte)24, ReadCurrentActor(restored, 0));
-        Assert.Equal((byte)24, updated.ReadActorOrdinal(0));
+        Assert.Equal((byte)24, updated.ReadActorOrdinal(OriginalOwner(0)));
         Assert.Equal(49, updated.ContactCursor);
         Assert.Equal(linked ? 1 : 0, resolves);
         Assert.Equal(linked ? 7 : 24, WaterSchedulerFixture.ReadSlotWord(restored, 0, 0x1B));
@@ -86,7 +87,7 @@ public sealed class NativeBattleCinematicActorWriterTests
     public void NativeRingPreservesTheSignedCopyLoopAndPhysicalBytes(byte count)
     {
         NativeBattleWaterExecutionFrame frame = Frame(0x10CF, 2);
-        frame = WaterSchedulerFixture.CoreDword(frame, Header + 0x60 + 8, NativeBattleGraphicsModelAddress.Encode(2));
+        frame = WaterSchedulerFixture.CoreDword(frame, Header + 0x60 + 8, NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(2)));
         frame = frame with
         {
             Core = frame.Core.Write(Header + 0x41, [count])
@@ -94,7 +95,7 @@ public sealed class NativeBattleCinematicActorWriterTests
                 .Write(Header + 0x174, [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x18, 0x19])
         };
 
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterContextCommands.ExecuteRing(frame, Services(_ => NativeBattleGraphicsModelAddress.Encode(1), _ => NativeBattleGraphicsModelAddress.Encode(1)));
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterContextCommands.ExecuteRing(frame, Services(_ => NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1)), _ => NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1))));
         Assert.Null(result.Core.PresentationActors);
         Assert.Equal(count == 3 ? new byte[] { 2, 5, 4, 0xDD, 0xEE, 0xFF, count, 0x19 } : new byte[] { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, count, 0x19 }, result.Core.Read(Header + 0x174, 8));
         Assert.Equal(new byte[] { 1, 5, 4 }, result.Core.Read(Header + 0x48, 3));
@@ -113,7 +114,7 @@ public sealed class NativeBattleCinematicActorWriterTests
     private static NativeBattleCinematicActorContext Context()
     {
         BattleModelRoster roster = new([.. Enumerable.Range(0, 25).Select(row => new BattleModelOwner($"actor-{row}", row < 3))]);
-        ImmutableArray<NativeBattleGraphicsModel> models = [.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 0))];
+        ImmutableArray<NativeBattleGraphicsModel> models = [.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(0))];
         return NativeBattleCinematicActorContext.FromGraphics(roster, models);
     }
 

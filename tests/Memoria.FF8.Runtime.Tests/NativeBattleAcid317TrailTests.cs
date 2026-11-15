@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -121,7 +122,7 @@ public sealed class NativeBattleAcid317TrailTests
         NativeBattleAcid317Frame frame = Frame();
         frame = Point(frame, 0, 100, 200, 512, 32, 2048, Address(1));
         frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
-        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.Independent(frame);
         var expected = NativeBattleAcid317Trail.Draw(frame, Address(0), 2, Resources());
         var actual = NativeBattleAcid317Trail.Draw(restored, Address(0), 2, Resources());
         Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
@@ -175,7 +176,7 @@ public sealed class NativeBattleAcid317TrailTests
 
     private static NativeBattleAcid317Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(317, 317, new(317, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);
+        NativeBattleOriginalEffectState effect = new(317, 317, new(317, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, 0x24708) };
         return new(memory, effect, new(1), NativeBattleAcid317State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
     }

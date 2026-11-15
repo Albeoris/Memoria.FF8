@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleOilShot136Profile;
@@ -99,7 +100,7 @@ public sealed class NativeBattleOilShot136ControllerTests
     {
         Fixture f = new();
         NativeBattleOilShot136Controller.AdvanceMain(f.Main(62), MainAddress, f.Resources, f.Inputs);
-        Assert.Equal(new NativeBattleOilShot136Contact(0), Assert.Single(f.Operations.OfType<NativeBattleOilShot136Contact>()));
+        Assert.Equal(new NativeBattleOilShot136Contact(new BattleContactOccurrence(0)), Assert.Single(f.Operations.OfType<NativeBattleOilShot136Contact>()));
     }
 
     [Theory]
@@ -236,13 +237,13 @@ public sealed class NativeBattleOilShot136ControllerTests
             (pools[1], _) = pools[1].Append(MainCallback);
             pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteBytes(12, new byte[1120]).WriteWord(28, 500).WriteWord(30, 600).WriteWord(32, 2000)) });
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-            NativeBattleOriginalEffectState effect = new(136, 135, new(136, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(136, 135, new(136, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             byte[] mesh = new byte[MeshBytes];
             BinaryPrimitives.WriteInt32LittleEndian(mesh, 0x368);
             BinaryPrimitives.WriteInt32LittleEndian(mesh.AsSpan(4), 108);
             NativeBattleOilShot136State state = NativeBattleOilShot136State.FromColdProcess().WriteDword(WorkingGlobal, WorkingAddress).WriteDword(CasterGlobal, 0x1D972C0) with { Mesh = mesh.ToImmutableArray(), ScaleMatrix32 = NativeBattleOilShot136Controller.PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0)), PendingColdSources = false };
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(55), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            Inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _) => throw new InvalidOperationException(), current => new(current with { State = current.State.WriteDword(CursorGlobal, 77) }, new(100, 200, 300)), _ => 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 30 }, null), (current, _, source, _, _, context) =>
+            Inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _) => throw new InvalidOperationException(), current => new(current with { State = current.State.WriteDword(CursorGlobal, 77) }, new(100, 200, 300)), _ => 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 30 }, null), (current, _, source, _, _, context) =>
             {
                 Acts.Add((source.Address, context));
                 return new(current with { State = current.State.WriteDword(CursorGlobal, current.State.ReadDword(CursorGlobal) + 1) }, Remaining);

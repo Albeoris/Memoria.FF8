@@ -55,7 +55,7 @@ public sealed class NativeBattleEffect251ModelServicesTests
         BinaryPrimitives.WriteInt32LittleEndian(skeleton.AsSpan(104), -65539);
         BinaryPrimitives.WriteInt32LittleEndian(skeleton.AsSpan(108), 1234);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [0]);
-        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(4, 2), source);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(2), source);
         model = model with { GeometryWorldMatrix = new([2048, 0, 0, 0, 4096, 0, 0, 0, 4096], 70000, -70000, 40000, 4096) };
         return (model, source);
     }

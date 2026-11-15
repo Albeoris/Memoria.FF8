@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -119,7 +120,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         };
         if (!immune)
         {
-            string controlledTargetId = source.NativeGraphics.ActorIds[3] ?? throw new InvalidDataException("The post-formula component requires its existing physical target3.");
+            string controlledTargetId = ReadOriginalModelActorId(source.NativeGraphics, 3) ?? throw new InvalidDataException("The post-formula component requires its existing physical target3.");
             BattleCombatantSnapshot target = prepared.Combatants.Single(actor => actor.Id == controlledTargetId);
             NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The post-formula component requires its actual target status banks.");
             Assert.Equal((ushort)0, status.Saved);
@@ -127,8 +128,8 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             // Declared post-formula494410 output and subsequent47E2D0 cache, not a historical-state recovery.
             NativeBattleStatusSnapshot postFormulaStatus = status with { Saved = 1, Battle = 0x10000, Presentation = new(1, 0x10000) };
             NativeBattleActionPacketsState packets = prepared.NativeActionPackets ?? throw new InvalidDataException("The component requires its existing physical action arena.");
-            (packets, int header) = packets.Prepare(new(0, kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
-            (packets, _) = packets.AppendContact(new(new(3, 3, 9, 0, 1, 0, 0x10000), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, int header) = packets.Prepare(new(OriginalOwner(0), kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 3, 9, 0, 1, 0, 0x10000), null));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = prepared.NativeGraphics!;
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -164,7 +165,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, preparedBoundary + ".battle.json")));
         BattleScenePresentation scene = new(assets, definition, true);
         int initialEventCount = battle.Events.Count;
-        string targetId = source.NativeGraphics.ActorIds[3]!;
+        string targetId = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         var originalTarget = source.Combatants.Single(actor => actor.Id == targetId);
         int initialTargetHp = originalTarget.CurrentHp;
         Assert.True(initialTargetHp > 1);
@@ -527,10 +528,10 @@ public sealed class NativeBattleGilgamesh327PresentationTests
 
         void ObserveFormula(BattleSnapshot after)
         {
-            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && NativeBattleActionGraphics.Word(header, 4) == selectedAction && NativeBattleActionGraphics.Word(header, 6) == selectedEffect);
+            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
             if (producedHeader?.FirstContactIndex is int contactIndex)
             {
-                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
+                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
                 if (!immune)
                 {
                     Assert.Equal((byte)3, contact.Primary.ActorIndex);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -111,7 +112,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         (bank, _) = bank.Publish(0);
         bank = bank.ActivateHeader(headerIndex);
         Field("nativeActionPackets").SetValue(session, bank);
-        NativeBattleActionGraphicsState action = new(mismatchedIndex ? headerIndex + 1 : headerIndex, headerActor, 0, 0, 0, null, null, 0, null, 0);
+        NativeBattleActionGraphicsState action = new(mismatchedIndex ? headerIndex + 1 : headerIndex, headerActor, new BattleContactCursor(0), 0, 0, null, null, 0, null, 0);
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
         {
             PresentationRoster = roster,
@@ -124,7 +125,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
 
         NativeBattleModelParticipantSuspended receipt = Assert.IsType<NativeBattleModelParticipantSuspended>(Assert.Single(services.ReadOrderedReceipts()));
         Assert.Same(captured ? bank.Headers[headerIndex] : null, receipt.ActiveHeader);
-        Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Fresh());
+        Field("nativeActionPackets").SetValue(session, OriginalPackets());
         Invoke(session, "AcknowledgeExpandedModelSuspension", roster, receipt);
         BattleEncounterPolicyState? state = (BattleEncounterPolicyState?)Field("encounterPolicies").GetValue(session);
         Assert.Equal(terminal, state?.TerminalReached == true);

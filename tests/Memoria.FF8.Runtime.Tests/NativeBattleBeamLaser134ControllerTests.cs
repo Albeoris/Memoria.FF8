@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleBeamLaser134Profile;
@@ -66,7 +67,7 @@ public sealed class NativeBattleBeamLaser134ControllerTests
         Assert.Empty(fixture.Operations.OfType<NativeBattleBeamLaser134Contact>());
         fixture.Clear();
         NativeBattleBeamLaser134Frame next = fixture.Step(Age(frame, 26));
-        Assert.Equal(new NativeBattleBeamLaser134Contact(0), Assert.Single(fixture.Operations.OfType<NativeBattleBeamLaser134Contact>()));
+        Assert.Equal(new NativeBattleBeamLaser134Contact(new BattleContactOccurrence(0)), Assert.Single(fixture.Operations.OfType<NativeBattleBeamLaser134Contact>()));
         Assert.Empty(fixture.Operations.OfType<NativeBattleBeamLaser134Sound>());
         Assert.Equal((ushort)27, next.Effect.Pools[1].Slots[0].ReadWord(12));
     }
@@ -147,9 +148,7 @@ public sealed class NativeBattleBeamLaser134ControllerTests
         Fixture fixture = new();
         NativeBattleBeamLaser134Frame frame = fixture.Step(fixture.Frame);
         frame = NativeBattleBeamLaser134Controller.Write(frame, RootBank, frame.Effect.Pools[0].Slots[0].WriteWord(12, 1).WriteByte(14, 0));
-        NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
-        NativeBattleContactPacket contact = packets.ReadContact(0);
-        packets = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { ActorIndex = 1 } }) };
+        NativeBattleActionPacketsState packets = Packets(OriginalOwner(1));
         NativeBattleBeamLaser134Frame next = NativeBattleBeamLaser134Controller.Advance(frame, fixture.Resources, fixture.Inputs with { Packets = packets });
         Assert.Equal((byte)0, next.Effect.Pools[0].Slots[0].ReadByte(14));
         Assert.Equal(frame.Effect.Pools[1].Slots[0].ReadDword(16), next.Effect.Pools[1].Slots[0].ReadDword(16));
@@ -161,13 +160,22 @@ public sealed class NativeBattleBeamLaser134ControllerTests
     {
         Fixture fixture = new();
         NativeBattleBeamLaser134Frame frame = Age(fixture.Step(fixture.Frame), 22);
-        NativeBattleBeamLaser134Frame imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleBeamLaser134Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleBeamLaser134Frame imported = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleBeamLaser134Frame expected = NativeBattleStorageSnapshots.Capture(fixture.Step(frame));
         NativeBattleBeamLaser134Frame actual = fixture.Step(imported);
         Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     private static NativeBattleBeamLaser134Frame Age(NativeBattleBeamLaser134Frame frame, int age) => NativeBattleBeamLaser134Controller.Write(frame, frame.Effect.Pools[1].BankAddress, frame.Effect.Pools[1].Slots[0].WriteWord(12, unchecked((ushort)age)));
+
+    private static NativeBattleActionPacketsState Packets(BattleModelOwner recipient)
+    {
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(3), 8, 14, 0, 176, 134, null));
+        (packets, _) = packets.AppendContact(new(new(recipient, 1, 0, 0, 0, 7, 0), null));
+        packets = packets.WritePlayerRepeatMode(header, 1);
+        return packets.Publish(1).State;
+    }
 
     private sealed class Fixture
     {
@@ -187,15 +195,11 @@ public sealed class NativeBattleBeamLaser134ControllerTests
             int[] lengths = [0x728, 0x126C, 0x1380, 0xB60, 0x52C];
             ImmutableArray<NativeBattleGfAnimationSource> acts = Enumerable.Range(0, 5).Select(index => Source(addresses[index], lengths[index])).ToImmutableArray();
             Resources = new(new("FF8_EN:1207680", camera.ToImmutableArray()), acts, Sprite(0x1201EBC), Sprite(0x1202068), new(0, 0x1202214, new byte[0x16C8].ToImmutableArray()), 0x61B82);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(3, 8, 14, 0, 176, 134, null));
-            (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
-            (packets, _) = packets.Publish(1);
+            NativeBattleActionPacketsState packets = Packets(OriginalOwner(0));
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
             root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) });
-            NativeBattleOriginalEffectState effect = new(134, 133, new(134, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+            NativeBattleOriginalEffectState effect = new(134, 133, new(134, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             byte[] tim = new byte[546];
             BitConverter.GetBytes(0x10).CopyTo(tim, 0);
             BitConverter.GetBytes(9).CopyTo(tim, 4);
@@ -210,8 +214,8 @@ public sealed class NativeBattleBeamLaser134ControllerTests
             BitConverter.GetBytes((short)1).CopyTo(tim, 540);
             BitConverter.GetBytes((short)1).CopyTo(tim, 542);
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) };
-            Frame = new(memory, effect, new(123), NativeBattleBeamLaser134State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97494).WriteDword(SavedCasterFlagsGlobal, 0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            Inputs = new(packets, actor => new(actor, Flags[actor]) { MinimumY146 = -2000, Transform = new(Initial20: new(0, 0, 0), Position28: new(700, -300, -500), Vertical34: 0, Angle36: 0, Scale38: 512) }, (current, _, selector, _) => new(current, selector == 0xF1 ? new(700, -300, -500) : new(100, -800, 300)), (current, _) => new(current, new(700, -300, -500, 512)), (current, matrix, local, _, anchor) =>
+            Frame = new(memory, effect, new(123), NativeBattleBeamLaser134State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteModel(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(SavedCasterFlagsGlobal, 0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Inputs = new(packets, actor => new(Flags[OriginalSlot(actor)]) { MinimumY146 = -2000, Transform = new(Initial20: new(0, 0, 0), Position28: new(700, -300, -500), Vertical34: 0, Angle36: 0, Scale38: 512) }, (current, _, selector, _) => new(current, selector == 0xF1 ? new(700, -300, -500) : new(100, -800, 300)), (current, _) => new(current, new(700, -300, -500, 512)), (current, matrix, local, _, anchor) =>
             {
                 Assert.False(matrix.Known[18]);
                 Assert.False(matrix.Known[20]);
@@ -226,7 +230,7 @@ public sealed class NativeBattleBeamLaser134ControllerTests
                 Operations.Add(operation);
                 if (operation is NativeBattleBeamLaser134ActorFlags flags)
                 {
-                    Flags[flags.Actor] = (ushort)((Flags[flags.Actor] & ~flags.Mask) | (flags.Bits & flags.Mask));
+                    Flags[OriginalSlot(flags.Actor)] = (ushort)((Flags[OriginalSlot(flags.Actor)] & ~flags.Mask) | (flags.Bits & flags.Mask));
                 }
                 if (operation is NativeBattleBeamLaser134DrawSprite180 draw)
                 {

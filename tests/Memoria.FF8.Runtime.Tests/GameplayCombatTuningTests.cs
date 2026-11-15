@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 
@@ -52,11 +53,11 @@ public sealed class GameplayCombatTuningTests
         Assert.Equal(200000 - expected, target.CurrentHp);
         Assert.Equal(expected, packet.Primary.PresentedAmount);
         Assert.Equal(unchecked((ushort)expected), NativeBattleContactPacket.Decode(packet.Encode()).Primary.Amount6);
-        NativeBattleActionPacketsState bank = NativeBattleActionPacketsState.Fresh().AppendContact(packet).State;
+        NativeBattleActionPacketsState bank = OriginalPackets().AppendContact(packet).State;
         bank = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(bank))!;
-        NativeBattleContactHalf restored = bank.ReadContact(0).Primary;
+        NativeBattleContactHalf restored = bank.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal(expected, restored.PresentedAmount);
-        NativeBattleEffectsState effects = NativeBattleEffectsState.Clear().PrependDamageText(restored.ActorIndex, restored.ContactFlags, restored.PresentedAmount);
+        NativeBattleEffectsState effects = NativeBattleEffectsState.Clear().PrependDamageText(restored.Recipient, restored.ContactFlags, restored.PresentedAmount);
         effects = JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(effects))!;
         effects = effects.Advance(NativeBattleGraphicsModels.ClearBank(), _ => new(160, 100)).State;
         Assert.Equal(expected.ToString().Select(digit => (byte)(56 + digit - '0')).Append((byte)0), Assert.Single(effects.TextDraws).Glyphs);

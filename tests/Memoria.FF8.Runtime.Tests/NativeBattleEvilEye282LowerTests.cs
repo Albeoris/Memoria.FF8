@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -108,14 +109,14 @@ public sealed class NativeBattleEvilEye282LowerTests
         {
             ReadCurrentBoneMatrix = (_, model, index) =>
             {
-                Assert.Equal(0x1D97668u, model);
+                Assert.Equal(OriginalOwner(6), model);
                 Assert.Equal(13, index);
                 calls++;
                 return NativeBattlePackedMatrix32.FromMatrix(bone, null);
             },
             ReadModelWorld = (_, model) =>
             {
-                Assert.Equal(0x1D97668u, model);
+                Assert.Equal(OriginalOwner(6), model);
                 return NativeBattlePackedMatrix32.FromMatrix(world, null);
             }
         });
@@ -138,7 +139,7 @@ public sealed class NativeBattleEvilEye282LowerTests
         int parents = 0;
         var inputs = Inputs() with { ReadBoneParent = (_, model, _) =>
         {
-            Assert.Equal(0x1D972C0u, model);
+            Assert.Equal(OriginalOwner(0), model);
             parents++;
             return 0;
         } };
@@ -265,5 +266,5 @@ public sealed class NativeBattleEvilEye282LowerTests
         var state = NativeBattleEvilEye282State.FromColdProcess().WriteDword(CasterGlobal, 0x1D97668).WriteView(NormalizedViewAddress, PackedArena(identity), 32);
         return new(memory, effect, new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleEvilEye282Inputs Inputs(Func<NativeBattleEvilEye282Frame, NativeBattleEvilEye282Operation, NativeBattleEvilEye282Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 40, (_, _, _) => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _) => Identity(), (_, _) => Identity(), (_, _, _, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    private static NativeBattleEvilEye282Inputs Inputs(Func<NativeBattleEvilEye282Frame, NativeBattleEvilEye282Operation, NativeBattleEvilEye282Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 40, (_, _, _) => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _) => Identity(), (_, _) => Identity(), (_, _, _, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));
 }

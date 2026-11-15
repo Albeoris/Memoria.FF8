@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleGatlingGun305Profile;
@@ -33,7 +34,7 @@ public sealed class NativeBattleGatlingGun305ControllerTests
         Fixture fixture = new();
         NativeBattleGatlingGun305Frame frame = NativeBattleGatlingGun305Controller.Write(fixture.Frame, ChildBank, NativeBattleGatlingGun305Controller.Read(fixture.Frame, ChildBank).WriteWord(12, 1));
         NativeBattleGatlingGun305Frame result = fixture.Step(frame);
-        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleGatlingGun305BindCaster(0, BindingSave, 0xCEB5E8), operation), operation => Assert.Equal(new NativeBattleGatlingGun305RingSequence(0, 1), operation), operation => Assert.Equal(new NativeBattleGatlingGun305Stage(192, 0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleGatlingGun305BindCaster(OriginalOwner(0), BindingSave, 0xCEB5E8), operation), operation => Assert.Equal(new NativeBattleGatlingGun305RingSequence(OriginalOwner(0), 1), operation), operation => Assert.Equal(new NativeBattleGatlingGun305Stage(192, 0), operation));
         Assert.Equal((ushort)2, NativeBattleGatlingGun305Controller.Read(result, ChildBank).ReadWord(12));
     }
 
@@ -43,7 +44,7 @@ public sealed class NativeBattleGatlingGun305ControllerTests
         Fixture fixture = new();
         NativeBattleGatlingGun305Frame frame = NativeBattleGatlingGun305Controller.Write(fixture.Frame, ChildBank, NativeBattleGatlingGun305Controller.Read(fixture.Frame, ChildBank).WriteWord(12, 30));
         frame = fixture.Step(frame);
-        Assert.Equal(new NativeBattleGatlingGun305Contact(0), Assert.Single(fixture.Operations.OfType<NativeBattleGatlingGun305Contact>()));
+        Assert.Equal(new NativeBattleGatlingGun305Contact(new BattleContactOccurrence(0)), Assert.Single(fixture.Operations.OfType<NativeBattleGatlingGun305Contact>()));
         fixture.Operations.Clear();
         frame = NativeBattleGatlingGun305Controller.Write(frame, ChildBank, NativeBattleGatlingGun305Controller.Read(frame, ChildBank).WriteWord(12, 36));
         frame = fixture.Step(frame);
@@ -137,22 +138,22 @@ public sealed class NativeBattleGatlingGun305ControllerTests
         private readonly NativeBattleGatlingGun305Resources resources;
         public Fixture()
         {
-            packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 305, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 4, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 305, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 4, 0, 0, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
             (root, _) = root.Append(RootCallback);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, _) = children.Append(MainCallback);
-            NativeBattleOriginalEffectState effect = new(305, 305, new(305, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
+            NativeBattleOriginalEffectState effect = new(305, 305, new(305, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(305) with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
             Frame = new(memory, effect, new(1), NativeBattleGatlingGun305State.FromColdProcess().WriteDword(TargetGlobal, 3).WriteDword(CasterGlobal, 0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             resources = new(new("fixture", []), new("fixture", []), new(0, 0xCED698, []), new(0, 0xCED998, []), new(0, 0xCEDC60, []), new(0, 0xCED358, 0, 0, []), new(0, 0xCED15C, 0, 0, []), new(0, 0xCED504, 0, 0, []), 0x61AD6);
         }
         public NativeBattleGatlingGun305Frame WithOnlyChild(uint callback) => NativeBattleGatlingGun305Controller.Write(Frame, ChildBank, NativeBattleTaskFixture.EditTask(NativeBattleGatlingGun305Controller.Read(Frame, ChildBank), taskData => taskData with { Callback = callback }));
-        public NativeBattleGatlingGun305Frame Step(NativeBattleGatlingGun305Frame frame, uint flags = 0, bool capturePresentation = false) => NativeBattleGatlingGun305Controller.Advance(frame, resources, new(flags, packets, actor => new(actor, 2) { Rotation14 = 0, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(-10, -800, -10), new(10, 0, 10)) }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, actor, bone, distance) =>
+        public NativeBattleGatlingGun305Frame Step(NativeBattleGatlingGun305Frame frame, uint flags = 0, bool capturePresentation = false) => NativeBattleGatlingGun305Controller.Advance(frame, resources, new(flags, packets, actor => new(2) { Rotation14 = 0, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(-10, -800, -10), new(10, 0, 10)) }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, actor, bone, distance) =>
         {
             Bones.Add((actor, bone, distance));
             return new(current, new(10, 20, 300));

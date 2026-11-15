@@ -113,7 +113,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     {
         var fixture = Fixture(3);
         NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets;
-        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { UnknownByteMask = packets.Headers[0].UnknownByteMask | (1u << 16) }) };
+        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { UnknownByteMask = packets.ExportRetained().Headers[0].UnknownByteMask | (1u << 16) }) };
         SetField(fixture.Session, "nativeActionPackets", packets);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Invoke(fixture.Session, "DispatchAction"));
@@ -250,12 +250,12 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         foreach (byte actor in actors)
         {
             (packets, _) = packets.Prepare(new(actor, 2, 11, -1, 1, 2, null));
-            (packets, _) = packets.AppendContact(new(new(actor == 0 ? (byte)3 : (byte)0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor == 0 ? (byte)3 : (byte)0, 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
         SetField(session, "nativeActionPackets", packets);
         SetField(session, "nativeActionScratch", session.Capture().NativeActionScratch! with { EventActorB0F = 3, EventLane = 0, Command = 2 });
-        NativeBattleGraphicsState graphics = new([], [], 0, 0);
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects());
         graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(104, 128, 0x1D280C4).State };
         graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DE70).State };
         Property(nameof(BattleSession.NativeGraphics)).SetValue(session, graphics);

@@ -120,7 +120,7 @@ public sealed class NativeBattleAiTargetTests
         Assert.Equal((ushort)0x40, ReadPublishedTargetMask(snapshot));
         int header = snapshot.ActiveAction?.NativeHeaderIndex ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeaderIndex is not null).NativeHeaderIndex!.Value;
         NativeBattleContactPacket contact = Assert.Single(snapshot.NativeActionPackets!.ReadHeaderContacts506BA0(header));
-        Assert.Equal((byte)6, contact.Primary.ActorIndex);
+        Assert.Equal((byte)6, contact.Primary.Recipient);
 
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(actors.Select(actor => actor.Slot), restored.Combatants.Select(actor => actor.Slot));

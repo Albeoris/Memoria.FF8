@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -18,15 +19,15 @@ public sealed class NativeBattleChoco98NodeResourcesTests
         Assert.Equal(0x167D934u, resource.Address);
         Assert.Equal(game.ReadNativeChoco97NodeResources()[0].Data.ToArray(), resource.Data.ToArray());
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 1, 98, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 98, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x64, 1), NativeBattleEffectTaskPool.Initialize(0x2573AB8, 0x25732C8, 0x2A4, 3)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 1, 0x64);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteWord(0x5A, 1));
-        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(1, NativeBattleChoco98Nodes.Callback, 0x2A4, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(1, NativeBattleChoco98Nodes.Callback, 0x2A4, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = context.Hierarchy.Write(context.Address, context.Hierarchy.Read(context.Address).WriteDword(0x30, resource.Address).WriteWord(0x298, 18).WriteWord(0x29C, 2).WriteWord(0x29E, 45));
-        NativeBattleOriginalEffectState effect = new(98, 97, new(98, 0x721860, 0x721840), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(98, 97, new(98, 0x721860, 0x721840), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x1FFF, [0xA5]).Write(0x13760, [0xB6]);
         NativeBattleChoco98NodeFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() }, effect, NativeBattleChoco97NodeState.FromColdProcess(), new(1));
         frame = NativeBattleChoco98Nodes.ClearStorage(frame, 0);
@@ -36,7 +37,7 @@ public sealed class NativeBattleChoco98NodeResourcesTests
         Assert.Equal(0xA5, frame.Memory.Arena.Read(0x1FFF, 1)[0]);
         Assert.Equal(0xB6, frame.Memory.Arena.Read(0x13760, 1)[0]);
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleGraphicsModel Model(int index) => new(index, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)) };
+        NativeBattleGraphicsModel Model(int index) => new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)) };
         NativeBattleEffectNodeDogOrigins origins = new(new(-200, -400, 100), new(200, -768, 1000));
         frame = NativeBattleChoco98Nodes.InitializeContext(frame, context.Address, resource, packets, Model, _ => throw new InvalidOperationException("Mode2 requires its explicit origins."), origins);
         ImmutableArray<byte> fixedData = NativeBattleStorageSnapshots.Capture(frame.State.StaticData!).Data;

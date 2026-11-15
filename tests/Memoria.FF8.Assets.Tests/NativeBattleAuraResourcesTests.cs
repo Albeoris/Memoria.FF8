@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -15,15 +16,15 @@ public sealed class NativeBattleAuraResourcesTests
         NativeBattleAuraResources resources = game.ReadNativeAuraResources();
         Assert.Same(resources, game.ReadNativeAuraResources());
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 111, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 111, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(111, 110, new(111, 0x6CD920, 0x6CD930), new(0, 1, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(111, 110, new(111, 0x6CD920, 0x6CD930), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleAuraFrame frame = NativeBattleAuraController.Initialize(NativeBattleEffectMemory.FromColdProcess().BeginLoad(110), effect, resources, new(1));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         NativeBattlePoseSource pose = new([], []);
-        NativeBattleGraphicsModel Model(int index) => new(index, hostPose ? (ushort)2 : (ushort)0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096) };
+        NativeBattleGraphicsModel Model(int index) => new(hostPose ? (ushort)2 : (ushort)0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096) };
         List<int> contacts = [];
         List<int> sounds = [];
         List<int> fades = [];
@@ -71,7 +72,7 @@ public sealed class NativeBattleAuraResourcesTests
         {
             ReadBone = hostPose ? (actor, selector, fraction) =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 Assert.Equal((byte)0xF1, selector);
                 Assert.Equal((short)0, fraction);
                 hostBoneReads++;
@@ -79,7 +80,7 @@ public sealed class NativeBattleAuraResourcesTests
             } : null,
             ReadAnchor = hostPose ? actor =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 return hostSound;
             } : null
         };

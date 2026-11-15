@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -40,7 +41,7 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
         (packets, int header) = packets.Prepare(new(checked((byte)caster), action.Command, sequence, -1, action.ActionId, action.MagicId, null));
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot queued = ready with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
@@ -49,10 +50,10 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(queuedPath))!);
         Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(cold.Capture()));
         Assert.Null(cold.NativeGraphics!.OriginalEffect);
-        Assert.Equal((byte)caster, packets.Headers[header].ReadByte(0));
-        Assert.Equal((byte)15, packets.Headers[header].ReadByte(2));
-        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "prepared", Effect = 269, Encounter = 436, Stage = 125, OriginalModel = 94, NativeModel = graphics.Models[caster].ModelId4, ActualCaster = caster, allocation.SceneSlot, Command = action.Command, Action = action.ActionId, Sequence = sequence, HeaderIndex = header, Header = packets.Headers[header], Contact = packets.ReadContact(0), DeclaredContactValue = 7, EffectCallbacks = 0, ready.Frame, NativeCallback = graphics.Callback, ReadyPath = readyPath, ReadySha256 = Hash(readyPath), QueuedPath = queuedPath, QueuedSha256 = Hash(queuedPath), Scope = "Actual existing native prototype allocation102/activation113; no death-callback or gameplay eligibility claim; no269 callback executed" }));
+        Assert.Equal((byte)caster, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadByte(0));
+        Assert.Equal((byte)15, packets.ReadHeader(new BattleActionHeaderReference(header)).Sequence);
+        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "prepared", Effect = 269, Encounter = 436, Stage = 125, OriginalModel = 94, NativeModel = ReadOriginalModelCell(graphics, caster).ModelId4, ActualCaster = caster, allocation.SceneSlot, Command = action.Command, Action = action.ActionId, Sequence = sequence, HeaderIndex = header, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = packets.ReadContact(new BattleContactOccurrence(0)), DeclaredContactValue = 7, EffectCallbacks = 0, ready.Frame, NativeCallback = graphics.Callback, ReadyPath = readyPath, ReadySha256 = Hash(readyPath), QueuedPath = queuedPath, QueuedSha256 = Hash(queuedPath), Scope = "Actual existing native prototype allocation102/activation113; no death-callback or gameplay eligibility claim; no269 callback executed" }));
 
         string Save(string name, BattleSnapshot snapshot)
         {

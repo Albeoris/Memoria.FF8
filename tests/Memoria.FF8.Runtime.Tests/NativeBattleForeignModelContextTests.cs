@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -25,9 +26,9 @@ public sealed class NativeBattleForeignModelContextTests
         NativeBattleForeignModelFace face = new(new(-256, -256, 0), new(256, -256, 0), new(-256, 256, 0), surface);
         NativeBattleForeignModelGeometry geometry = new(world, new(default, default, 0, new(default, default)), [face]);
         NativeBattleModelTransform transform = new(default, default, 0, 0, 4096);
-        NativeBattleForeignActor actor = new(3, transform, new(0, 0, 0, 0), (_, _) => default) { Geometry = geometry };
-        NativeBattleGraphicsModel model = new(3, 0x22) { Transform = transform, Color40 = 0x808080 };
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => index == 3 ? model : new NativeBattleGraphicsModel(index, 0)).ToImmutableArray(), ["party", null, null, "enemy", null, null, null], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleForeignActor actor = new(OriginalOwner(3), transform, new(0, 0, 0, 0), (_, _) => default) { Geometry = geometry };
+        NativeBattleGraphicsModel model = new(0x22) { Transform = transform, Color40 = 0x808080 };
+        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => index == 3 ? model : new NativeBattleGraphicsModel(0)).ToImmutableArray(), ["party", null, null, "enemy", null, null, null], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, new Dictionary<int, NativeBattleForeignActor> { [3] = actor });
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         NativeCrtRandomState random = new(123);

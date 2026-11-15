@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -33,12 +34,12 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         Assert.Equal((byte)0, context.ReadActorOrdinal(source));
         Assert.Equal((byte)0, context.ReadActorOrdinal(target));
         Assert.Equal(graphics.Models[target].Transform!.Position28, context.ReadCachedActor(target).Position28);
-        Assert.Null(context.CachedActors[6]);
+        Assert.Null(context.CachedActors[OriginalOwner(6)]);
         graphics.Validate();
 
         NativeBattleContactPacket[] replacements = Enumerable.Repeat(Packet(target, 91), 256).ToArray();
         owner.ReplaceHostedEffectContacts(replacements);
-        Assert.Equal((ushort)91, owner.NativeActionPackets.ReadContact(255).Primary.Amount6);
+        Assert.Equal((ushort)91, owner.NativeActionPackets.ReadContact(new BattleContactOccurrence(255)).Primary.Amount6);
     }
 
     [Fact]
@@ -122,8 +123,8 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         {
             Assert.Null(context.SavedActors);
         }
-        Assert.Equal((byte)2, context.ReadActorOrdinal(1));
-        Assert.Throws<NotSupportedException>(() => context.ReadActorOrdinal(2));
+        Assert.Equal((byte)2, context.ReadActorOrdinal(OriginalOwner(1)));
+        Assert.Throws<NotSupportedException>(() => context.ReadActorOrdinal(OriginalOwner(2)));
         Assert.Equal((byte)0, context.ReadActorOrdinal(24));
     }
 
@@ -244,14 +245,14 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     private static NativeBattleEffectPresentationInputs Inputs(byte source, byte target, NativeBattleScriptedEffectMemory core, int count, bool bindOriginalRows = false, bool hosted = true)
     {
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[source] = new("caster", true);
-        rows[target] = new("target", false);
+        rows[source] = new BattlePartyActorModel(new("caster"));
+        rows[target] = new BattleEnemyActorModel(new("target"));
         NativeBattleGraphicsResource resource = new([0, 0]);
         List<NativeBattleEffectModelBinding> targets = [new("target", Model(target), resource) { IsParty = false }];
         if (bindOriginalRows)
         {
-            rows[1] = new("original-1", true);
-            rows[2] = new("original-2", false);
+            rows[1] = new BattlePartyActorModel(new("original-1"));
+            rows[2] = new BattleEnemyActorModel(new("original-2"));
             targets.Add(new("original-1", Model(1), resource));
             targets.Add(new("original-2", Model(2), resource));
         }
@@ -267,7 +268,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         else
         {
             (packets, ushort mask) = bridge.Prepare(8, 0, 1, 1, source);
-            parameters = new(source, 0, mask, 0, 0, 0);
+            parameters = new(source, 0, mask, new BattleActionHeaderReference(0), 0, 0);
         }
         BattleDefinition definition = new()
         {
@@ -292,7 +293,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     private static NativeBattleGraphicsModel Model(int row)
     {
         NativeBattleVector position = new((short)(100 * row), 0, (short)(100 + row));
-        return new(row, 0)
+        return new(0)
         {
             ModelId4 = 0,
             Flags2 = 0,
@@ -304,7 +305,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         };
     }
 
-    private static ImmutableArray<NativeBattleGraphicsModel> IndexedModels(int count) => [.. Enumerable.Range(0, count).Select(row => new NativeBattleGraphicsModel(row, 0))];
+    private static ImmutableArray<NativeBattleGraphicsModel> IndexedModels(int count) => [.. Enumerable.Range(0, count).Select(row => new NativeBattleGraphicsModel(0))];
 
     private static NativeBattleContactPacket Packet(byte row, ushort amount) => new(new(row, 0, 0, 0, 0, amount, 0), new(255, 0, 0, 0, 0, 0, 0));
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -84,7 +85,7 @@ public sealed class NativeBattleSandStorm176CaptureTests
     private static NativeBattleActionMatrix View => NativeBattleCuragaMatrices.Identity8DD770();
     private static NativeBattleCameraProjection Projection => new(View, 256, 160, 108);
 
-    private static NativeBattleSandStorm176Inputs Inputs(bool drawOnly, bool capture, Func<NativeBattleSandStorm176Frame, NativeBattleSandStorm176Operation, NativeBattleSandStorm176Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), Projection, 0, drawOnly, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), execute) { CapturePresentation = capture };
+    private static NativeBattleSandStorm176Inputs Inputs(bool drawOnly, bool capture, Func<NativeBattleSandStorm176Frame, NativeBattleSandStorm176Operation, NativeBattleSandStorm176Frame> execute) => new(OriginalPackets(), Projection, 0, drawOnly, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), execute) { CapturePresentation = capture };
 
     private static NativeBattleSandStorm176Frame RunFunnels(bool capture, int parity, out List<NativeBattleGfGeometryBatch> batches, out NativeBattleLogicalOrdering ordering)
     {
@@ -130,7 +131,7 @@ public sealed class NativeBattleSandStorm176CaptureTests
                 module = module.Write(offset, BitConverter.GetBytes(0x09000000u)).Write(offset + 4, BitConverter.GetBytes(0x2E808080u));
             }
         }
-        NativeBattleOriginalEffectState effect = new(176, 175, new(176, 0x5D00F0, 0), new(0, 0, 0, 0, 0, 0), 0x2368598) { Pools = [roots, children], ResourcePointers = [new(0x2374554, 0)] };
+        NativeBattleOriginalEffectState effect = new(176, 175, new(176, 0x5D00F0, 0), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), 0x2368598) { Pools = [roots, children], ResourcePointers = [new(0x2374554, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { SandStorm176 = new(module, View, false) };
         resources = new(null!, null!, View, 0, 0);
         return new(memory, effect, new(123));

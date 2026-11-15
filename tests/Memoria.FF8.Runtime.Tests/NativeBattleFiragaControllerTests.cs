@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -28,7 +29,7 @@ public sealed class NativeBattleFiragaControllerTests
             Assert.Null(frame.Effect.Firaga.Positions[2]);
             if (tick == 32)
             {
-                NativeBattleFiragaFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiragaFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleFiragaFrame restored = NativeBattleTestSnapshots.Independent(frame);
                 NativeBattleFiragaFrame expected = NativeBattleFiragaController.Advance61CDA0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
                 NativeBattleFiragaFrame actual = NativeBattleFiragaController.Advance61CDA0(restored, Inputs(fixture.Packets));
                 Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
@@ -213,19 +214,19 @@ public sealed class NativeBattleFiragaControllerTests
         return frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], pool] } };
     }
 
-    private static NativeBattleFiragaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleFiragaFrame, NativeBattleFiragaOperation, NativeBattleFiragaFrame>? execute = null) => new(0, packets, owner => owner switch { 3 => new(100, -200, 300, 777), 4 => new(500, -600, 700, 888), 5 => new(700, -800, 900, 999), _ => throw new NotSupportedException("An explicit graphics owner is required.") }, _ => new(new(0, 0, 0), new(0, 0, 0), 0, 100, 4096), execute ?? ((frame, _) => frame));
+    private static NativeBattleFiragaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleFiragaFrame, NativeBattleFiragaOperation, NativeBattleFiragaFrame>? execute = null) => new(0, packets, owner => OriginalSlot(owner) switch { 3 => new(100, -200, 300, 777), 4 => new(500, -600, 700, 888), 5 => new(700, -800, 900, 999), _ => throw new NotSupportedException("An explicit graphics owner is required.") }, _ => new(new(0, 0, 0), new(0, 0, 0), 0, 100, 4096), execute ?? ((frame, _) => frame));
 
     private static (NativeBattleFiragaFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1, bool initialize = true)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int index = 0; index < headers; index++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 3, 143, null));
-            (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 3, 143, null));
+            (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, (byte)headers);
-        NativeBattleOriginalEffectState effect = new(143, 142, new(143, 0x61BFE0, 0x61BFC0), new(0, 0, 8, 0, 0, 0), null);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
+        NativeBattleOriginalEffectState effect = new(143, 142, new(143, 0x61BFE0, 0x61BFC0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         if (initialize)
         {
             effect = NativeBattleFiragaController.Initialize61BFE0(effect, packets);

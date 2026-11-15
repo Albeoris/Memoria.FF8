@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -206,7 +207,7 @@ public sealed class NativeBattleTonberry90ActorTests
     private static (NativeBattleTonberry90Frame Frame, uint Address) Fixture(int pool, uint callback, int size, byte phase = 0)
     {
         var fixture = NativeBattleTonberry90ControllerTests.Fixture();
-        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(pool, callback, size, NativeBattleTonberry90Controller.MainBank, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(pool, callback, size, NativeBattleTonberry90Controller.MainBank, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleEffectHierarchy hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteByte(0x29, phase));
         return (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }, appended.Address);
     }

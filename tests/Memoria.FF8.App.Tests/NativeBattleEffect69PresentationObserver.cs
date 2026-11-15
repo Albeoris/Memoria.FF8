@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -178,11 +179,11 @@ internal sealed class NativeBattleEffect69PresentationObserver
         {
             return [];
         }
-        NativeBattleGraphicsModel actor = current.NativeGraphics!.Models[4];
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics!, 4);
         Assert.NotEqual(0, actor.Flags0 & 4);
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
         NativeBattleModelCpuReference source = cpu.Rows[actor.ActiveResourceRow100!.Value].Require(16);
-        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == current.NativeGraphics.ActorIds[4]).Resource.PoseSource!;
+        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.NativeGraphics, 4)).Resource.PoseSource!;
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState!.MeshMask124);
         return MatchFaces(current, meshes, 8);
     }

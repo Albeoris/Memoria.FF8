@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -69,20 +70,20 @@ public sealed class NativeBattleTheEnd85ControllerTests
     private static NativeBattleTheEnd85Frame WithRoot(NativeBattleTheEnd85Frame frame, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(NativeBattleTheEnd85Controller.MainBank, task).Pools } };
     private static (NativeBattleTheEnd85Frame Frame, NativeBattleTheEnd85Inputs Inputs) Fixture(byte targets, byte repeats)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 42, 0, 85, 1, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 42, 0, 85, 1, null));
         for (int index = 0; index < Math.Max(1, (int)targets); index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), null));
         }
-        packets = packets.WritePlayerRepeatMode(0, repeats);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeats);
         (packets, _) = packets.Publish(targets);
-        NativeBattleOriginalEffectState effect = new(85, 85, new(85, 0x7844A0, 0x784480), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x25BC390, 0x10000)] };
+        NativeBattleOriginalEffectState effect = new(85, 85, new(85, 0x7844A0, 0x784480), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x25BC390, 0x10000)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), TheEnd85 = NativeBattleTheEnd85State.FromColdProcess() };
         NativeBattleTheEnd85Frame frame = NativeBattleTheEnd85Controller.Initialize784480(new(memory, effect, new(1)));
         frame = NativeBattleTheEnd85Controller.Initialize7844A0(frame, packets);
         NativeBattlePackedMatrix32 camera = new(Enumerable.Range(0, 32).Select(index => (byte)index).ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray().SetItem(18, false).SetItem(19, false));
-        NativeBattleTheEnd85Inputs inputs = new(packets, camera, index => new(index, 0), _ => throw new InvalidOperationException("Unloaded caster cannot query pose resources."), (_, _) => throw new InvalidOperationException("Target boot was not reached."), (_, _) => throw new InvalidOperationException("No leaf was admitted."), (_, _) => throw new InvalidOperationException("Contact was not reached."), (_, _) => throw new InvalidOperationException("Resource request was not reached."), 0x25C1C60);
+        NativeBattleTheEnd85Inputs inputs = new(packets, camera, index => new(0), _ => throw new InvalidOperationException("Unloaded caster cannot query pose resources."), (_, _) => throw new InvalidOperationException("Target boot was not reached."), (_, _) => throw new InvalidOperationException("No leaf was admitted."), (_, _) => throw new InvalidOperationException("Contact was not reached."), (_, _) => throw new InvalidOperationException("Resource request was not reached."), 0x25C1C60);
         return (frame, inputs);
     }
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -38,7 +39,7 @@ public sealed class NativeBattleForeignReadySequenceTests
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "source", Name = "Source", IsPlayer = true }, new() { Id = "target", Name = "Target" }] }, BattleAtbMode.Normal);
         NativeBattleModelTransform transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096);
-        NativeBattleForeignActor actor = new(3, transform, new(100, 200, 300, 0), (_, _) => throw new InvalidOperationException()) { CanReact = canReact, NativeResource = resource };
+        NativeBattleForeignActor actor = new(OriginalOwner(3), transform, new(100, 200, 300, 0), (_, _) => throw new InvalidOperationException()) { CanReact = canReact, NativeResource = resource };
         typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<int, NativeBattleForeignActor> { [3] = actor });
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, new(3, 2) { Transform = transform }), [null, null, null, "target", null, null, null], 0, 0);
         return (battle, graphics);

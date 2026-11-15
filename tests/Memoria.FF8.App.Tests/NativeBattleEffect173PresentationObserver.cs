@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 using static Memoria.FF8.Runtime.NativeBattleEffect173Profile;
@@ -38,7 +39,7 @@ internal sealed class NativeBattleEffect173PresentationObserver
         NativeBattleModulePoolTask? before = previous.Values.FirstOrDefault(task => task.Callback == MainCallback);
         int age = main is null ? -1 : unchecked((short)main.ReadWord(12));
         int oldAge = before is null ? -1 : unchecked((short)before.ReadWord(12));
-        Assert.Equal((byte)29, graphics.Models[3].ModelId4);
+        Assert.Equal((byte)29, ReadOriginalModelCell(graphics, 3).ModelId4);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
             if (pool.DescriptorAddress == CommonDescriptor)

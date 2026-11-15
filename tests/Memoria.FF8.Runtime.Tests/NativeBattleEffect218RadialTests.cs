@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
@@ -75,7 +76,7 @@ public sealed class NativeBattleEffect218RadialTests
 
     private static NativeBattleEffect218Frame Fixture()
     {
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor);
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(0xBEEF), NativeBattleEffect218State.FromColdProcess());
     }
     private static ushort Word(NativeBattleEffectArena row, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(row.Read(offset, 2));

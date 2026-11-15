@@ -122,15 +122,15 @@ public sealed class NativeBattleHostedTriggerWidgetTests
 
     private static BattleModelRoster Roster() => new(Enumerable.Range(0, 25).Select(row => row switch
     {
-        7 => new BattleModelOwner("party", true),
-        24 => new BattleModelOwner("enemy", false),
+        7 => new BattlePartyActorModel(new("party")),
+        24 => new BattleEnemyActorModel(new("enemy")),
         _ => null
     }).ToImmutableArray());
 
     private static NativeBattleGraphicsState Graphics()
     {
         BattleModelRoster roster = Roster();
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, roster.ActorCount).Select(row => new NativeBattleGraphicsModel(row, 0) { ResourceMagicId = roster.ContainsRow(row) ? (ushort)159 : null }).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, roster.ActorCount).Select(row => new NativeBattleGraphicsModel(0) { ResourceMagicId = roster.ContainsRow(row) ? (ushort)159 : null }).ToImmutableArray();
         return new(models, roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
         {
             PresentationRoster = roster,

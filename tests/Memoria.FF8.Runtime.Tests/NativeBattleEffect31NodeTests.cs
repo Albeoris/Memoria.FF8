@@ -78,7 +78,7 @@ public sealed class NativeBattleEffect31NodeTests
         NativeBattleEffect31Frame frame = new(memory, captured.Effect, new(99), state) { Staging = NativeBattleFileStaging.Unknown().Write(directoryAddress, directory) };
         frame = NativeBattleEffect31Controller.Write(frame, 0x200, NativeBattleEffect31Controller.Read(frame, 0x200).WriteByte(0x29, 1).WriteDword(0x30, directoryAddress));
         List<uint> savedEbp = [];
-        NativeBattleEffect31Inputs inputs = new(null!, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => new(null, 100, 160, 108), _ => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleEffect31Inputs inputs = new(null!, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => new(null, 100, 160, 108), _ => 0, (_, _, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             NativeBattleEffect31DrawBatch draw = Assert.IsType<NativeBattleEffect31DrawBatch>(operation);
             Assert.Equal(0, draw.Batch.AllocationBytes);
@@ -166,7 +166,7 @@ public sealed class NativeBattleEffect31NodeTests
         NativeBattleEffect31State state = NativeBattleEffect31State.FromColdProcess().WriteDword(NativeBattleEffect31Profile.EmitterBankGlobal, NativeBattleEffect31Controller.CommonAddress).WriteDword(NativeBattleEffect31Profile.ParticleBankGlobal, NativeBattleEffect31Controller.CommonAddress + 0x438).WriteDword(NativeBattleEffect31Profile.ContextGlobal, 0x234).WriteDword(NativeBattleEffect31Profile.ScratchCursorGlobal, 0x2793E58).WriteDword(NativeBattleEffect31Profile.ViewGlobal, 0x2793E58);
         NativeBattleEffect31Frame frame = new(memory, captured.Effect, new(99), state) { Staging = NativeBattleFileStaging.Unknown().Write(directoryAddress, directory) };
         frame = NativeBattleEffect31Controller.Write(frame, 0x200, NativeBattleEffect31Controller.Read(frame, 0x200).WriteByte(0x29, 1).WriteDword(0x30, directoryAddress));
-        NativeBattleEffect31Inputs inputs = new(null!, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => new(null, 100, 160, 108), _ => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+        NativeBattleEffect31Inputs inputs = new(null!, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => new(null, 100, 160, 108), _ => 0, (_, _, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
         NativeBattleEffect31Step advanced = NativeBattleEffect31Nodes.Advance(frame, 0x200, resources, inputs);
         Assert.Equal(0, advanced.Result);
         Assert.Equal((ushort)2, NativeBattleEffect31Controller.Read(advanced.Frame, 0x200).ReadWord(0x54));

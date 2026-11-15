@@ -8,7 +8,7 @@ public sealed class NativeBattleChoco98DirectorTests
     [Fact]
     public void Context_ingress_reuses_enemy_only_centroid_and_one_complete54_byte_owner()
     {
-        NativeBattleGraphicsModel Model(int index) => new(index, 3)
+        NativeBattleGraphicsModel Model(int index) => new(3)
         {
             Flags0 = index is 0 or 3 or 5 ? (ushort)2 : (ushort)0,
             Transform = new(new(0, 0, 0), index switch { 0 => new(30000, 999, 30000), 3 => new(-100, 999, -301), 5 => new(25, 999, 100), _ => new(0, 0, 0) }, 0, 0, 4096)
@@ -93,7 +93,7 @@ public sealed class NativeBattleChoco98DirectorTests
         operations.Clear();
         for (int callback = 0; callback < 24; callback++)
         {
-            NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97DirectorFrame>(NativeBattleTestSnapshots.Json(frame))!;
+            NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.Independent(frame);
             NativeBattleChoco97DirectorStep actual = NativeBattleChoco98Director.Advance722210(frame, Inputs(operations));
             NativeBattleChoco97DirectorStep cold = NativeBattleChoco98Director.Advance722210(restored, Inputs([]));
             Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(cold));

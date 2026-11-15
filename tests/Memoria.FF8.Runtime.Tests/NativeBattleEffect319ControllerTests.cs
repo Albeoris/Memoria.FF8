@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect319Controller;
@@ -67,7 +68,7 @@ public sealed class NativeBattleEffect319ControllerTests
         (byte[] data, bool[] known) = result.Memory.Arena!.ReadSnapshot(16, 4);
         Assert.Equal(new[] { true, true, false, true }, known);
         Assert.Equal(new byte[] { 1, 2, 4 }, data.Where((_, index) => known[index]).ToArray());
-        NativeBattleEffect319Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect319Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        NativeBattleEffect319Frame restored = NativeBattleTestSnapshots.Independent(result);
         Assert.Equal(known, restored.Memory.Arena!.ReadSnapshot(16, 4).Known);
     }
 
@@ -86,9 +87,16 @@ public sealed class NativeBattleEffect319ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect319Frame frame = Frame(12);
-        harness.Packets = harness.Packets with { Headers = harness.Packets.Headers.SetItem(0, harness.Packets.Headers[0] with { FirstContactIndex = 7 }) };
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        for (int index = 0; index < 7; index++)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
+        }
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 319, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
+        harness.Packets = packets.Publish(1).State;
         EmitMainEvents(frame, 12, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect319Contact506690(7), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect319Contact506690(new BattleContactOccurrence(7)), Assert.Single(harness.Operations));
     }
 
     [Fact]
@@ -96,7 +104,7 @@ public sealed class NativeBattleEffect319ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect319Frame frame = EmitMainEvents(Frame(27), 27, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect319MeshMask(ModelAddress(3), uint.MaxValue, 2), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect319MeshMask(OriginalOwner(3), uint.MaxValue, 2), Assert.Single(harness.Operations));
         Assert.Equal(new[] { 10, 13, 23, 24, 25 }, harness.Bones);
         NativeBattleEffectTaskPool bones = frame.Effect.Pools[2];
         Assert.Equal(5, bones.Slots.Count(task => (task.Flags & 1) != 0));
@@ -183,8 +191,8 @@ public sealed class NativeBattleEffect319ControllerTests
                 pools = pools.Add(pool);
             }
         }
-        NativeBattleEffect319State state = NativeBattleEffect319State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
-        NativeBattleOriginalEffectState effect = new(319, 318, new(319, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleEffect319State state = NativeBattleEffect319State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(3), OriginalAliases);
+        NativeBattleOriginalEffectState effect = new(319, 318, new(319, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);
         NativeBattleEffect319Frame frame = new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -209,7 +217,7 @@ public sealed class NativeBattleEffect319ControllerTests
         public bool Complete { get; init; }
         public int Polls { get; private set; }
         public int LastPollIndex { get; private set; }
-        public NativeBattleActionPacketsState Packets { get; set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; set; } = OriginalPackets();
         public NativeBattleEffect319Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, (_, _) => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, _, _, retained) => new(frame, retained), (frame, _, retained) => new(frame, retained), (_, _, bone) =>
         {
             Bones.Add(bone);

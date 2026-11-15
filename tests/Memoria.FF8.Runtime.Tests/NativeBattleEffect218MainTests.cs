@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
@@ -58,8 +59,8 @@ public sealed class NativeBattleEffect218MainTests
             }
         };
         var actual = AdvanceMain6328A0(frame, address, 0, inputs);
-        Assert.Equal(new NativeBattleEffect218SelectSequence505C00(0x1D97494, 55), operations[0]);
-        Assert.Equal(new NativeBattleEffect218ModelFlags(0x1D97494, 0xFF, 0x20), operations[1]);
+        Assert.Equal(new NativeBattleEffect218SelectSequence505C00(OriginalOwner(3), 55), operations[0]);
+        Assert.Equal(new NativeBattleEffect218ModelFlags(OriginalOwner(3), 0xFF, 0x20), operations[1]);
         Assert.IsType<NativeBattleEffect218CapturePoint571400>(operations[2]);
         Assert.IsType<NativeBattleEffect218Contact506690>(operations[3]);
         Assert.Equal(4, operations.Count);
@@ -96,8 +97,8 @@ public sealed class NativeBattleEffect218MainTests
         NativeBattleModulePoolTask cleanup = Assert.Single(actual.Frame.Effect.Pools[0].Slots.Where(task => task.Callback == 0x633BF0));
         Assert.Equal((ushort)0, cleanup.ReadWord(12));
         Assert.Equal((ushort)0, cleanup.ReadWord(14));
-        Assert.Equal(new NativeBattleEffect218SelectSequence505C00(0x1D97494, 1), operations[0]);
-        Assert.Equal(new NativeBattleEffect218ModelFlags(0x1D97494, 0xFF, 4), operations[1]);
+        Assert.Equal(new NativeBattleEffect218SelectSequence505C00(OriginalOwner(3), 1), operations[0]);
+        Assert.Equal(new NativeBattleEffect218ModelFlags(OriginalOwner(3), 0xFF, 4), operations[1]);
         Assert.Equal(2, operations.Count);
     }
 
@@ -113,7 +114,7 @@ public sealed class NativeBattleEffect218MainTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
         (pool, int slot) = pool.Append(MainCallback);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, unchecked((ushort)age)));
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218State state = NativeBattleEffect218State.FromColdProcess().WriteDword(TargetGlobal, 3).WriteDword(ArenaGlobal, ArenaAddress).WriteView(CameraBasis, PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)), 32).WriteWord(CurrentView + 18, 0x1234);
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), state), checked(pool.BankAddress + (uint)(slot * pool.Stride)));
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleDoom8NodeTests
             Assert.Equal(0u, pointer);
             Assert.Equal((sbyte)0, group);
             Assert.Equal((sbyte)0, target);
-            return new(1, 4);
+            return OriginalTaskActors(1, 4);
         });
         NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(appended.Frame, appended.Address);
         Assert.Equal(0x275DF50u, appended.Address);
@@ -25,7 +26,7 @@ public sealed class NativeBattleDoom8NodeTests
         Assert.Equal((byte)1, task.ReadByte(0x2C));
         Assert.Equal((byte)4, task.ReadByte(0x2D));
         Assert.Equal((byte)1, NativeBattleDoom8Controller.Read(appended.Frame, fixture.Parent).ReadByte(0x28));
-        Assert.Throws<InvalidOperationException>(() => NativeBattleDoom8Nodes.Append8C5810(appended.Frame, fixture.Parent, NativeBattleDoom8Nodes.Callback, NativeBattleDoom8Nodes.SourceAddress, 0, 45, 2, (_, _, _) => new(1, 4)));
+        Assert.Throws<InvalidOperationException>(() => NativeBattleDoom8Nodes.Append8C5810(appended.Frame, fixture.Parent, NativeBattleDoom8Nodes.Callback, NativeBattleDoom8Nodes.SourceAddress, 0, 45, 2, (_, _, _) => OriginalTaskActors(1, 4)));
     }
 
     [Fact]
@@ -113,14 +114,14 @@ public sealed class NativeBattleDoom8NodeTests
 
         public NativeBattleDoom8Frame Append(short delay = 0)
         {
-            NativeBattleDoom8NodeAppend appended = NativeBattleDoom8Nodes.Append8C5810(Frame, Parent, NativeBattleDoom8Nodes.Callback, NativeBattleDoom8Nodes.SourceAddress, delay, 45, 2, (_, _, _) => new(0, 3));
+            NativeBattleDoom8NodeAppend appended = NativeBattleDoom8Nodes.Append8C5810(Frame, Parent, NativeBattleDoom8Nodes.Callback, NativeBattleDoom8Nodes.SourceAddress, delay, 45, 2, (_, _, _) => OriginalTaskActors(0, 3));
             address = appended.Address;
             return appended.Frame;
         }
 
         public NativeBattleModulePoolTask Task(NativeBattleDoom8Frame frame) => NativeBattleDoom8Controller.Read(frame, address);
         public NativeBattleDoom8Frame Write(NativeBattleDoom8Frame frame, NativeBattleModulePoolTask task) => NativeBattleDoom8Controller.Write(frame, address, task);
-        public NativeBattleDoom8Step Step(NativeBattleDoom8Frame frame) => NativeBattleDoom8Nodes.Advance8C88D0(frame, address, new(new byte[NativeBattleDoom8Nodes.SourceLength].ToImmutableArray()) { ResourceAddress = NativeBattleDoom8Nodes.SourceAddress }, new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), _ => throw new InvalidOperationException("Unreached model"), _ => throw new InvalidOperationException("Unreached pose"), new(null, 100, 160, 108), 0, new(0, 0, 1f / 4096, BitConverter.Int64BitsToDouble(0x4330000080000000L)), (_, _) => throw new InvalidOperationException("Unreached draw")));
+        public NativeBattleDoom8Step Step(NativeBattleDoom8Frame frame) => NativeBattleDoom8Nodes.Advance8C88D0(frame, address, new(new byte[NativeBattleDoom8Nodes.SourceLength].ToImmutableArray()) { ResourceAddress = NativeBattleDoom8Nodes.SourceAddress }, new(NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases), _ => throw new InvalidOperationException("Unreached model"), _ => throw new InvalidOperationException("Unreached pose"), new(null, 100, 160, 108), 0, new(0, 0, 1f / 4096, BitConverter.Int64BitsToDouble(0x4330000080000000L)), (_, _) => throw new InvalidOperationException("Unreached draw")));
     }
 
     private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));

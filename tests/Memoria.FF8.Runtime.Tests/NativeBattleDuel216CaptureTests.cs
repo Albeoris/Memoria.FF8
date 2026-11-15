@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleDuel216CaptureTests
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         process = process with { Buffer80 = 0, Software = process.Software! with { EnvironmentBuffers = new(environment.ToImmutableArray(), environment.ToImmutableArray(), null) } };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = process, Arena = NativeBattleEffectArena.Clear().MarkUnknown(12000, 124) };
-        NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(0, 0, 8, 0, 0, 0), NativeBattleDuel216Controller.Root) { DrawArenaOffset = 12000 };
+        NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel216Controller.Root) { DrawArenaOffset = 12000 };
         NativeBattleDuel216Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
         NativeBattleDuel216CameraTransform transform = NativeBattleDuel216Camera.Transform69A790(new(0, 0, 0, 0), new(new(-2560, 0, -5120), new(2560, 0, 5120)), new(null, 288, 160, 108), 288);
         bool reset = false;

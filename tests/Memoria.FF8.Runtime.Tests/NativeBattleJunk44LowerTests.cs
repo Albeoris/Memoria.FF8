@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -56,7 +57,7 @@ public sealed class NativeBattleJunk44LowerTests
             ReadBone502170 = (current, model, selector, distance) =>
             {
                 calls++;
-                Assert.Equal(Model(3), model);
+                Assert.Equal(OriginalOwner(3), model);
                 Assert.Equal(23, selector);
                 Assert.Equal(0, distance);
                 return new(current with { State = current.State.WriteWord(0x2545174, 0x1234) }, PointView(new(100, 200, 300)));
@@ -160,7 +161,7 @@ public sealed class NativeBattleJunk44LowerTests
     {
         var resources = NativeBattleJunk44StateTests.Resources();
         var frame = Frame();
-        (frame, uint address) = SpawnDebris6E8470(frame, 100, 300, Model(0), 6, resources, Inputs());
+        (frame, uint address) = SpawnDebris6E8470(frame, 100, 300, OriginalOwner(0), 6, resources, Inputs());
         frame = Write(frame, address, Read(frame, address).WriteWord(0x0E, unchecked((ushort)-100)).WriteWord(0x16, 800));
         int anchors = 0;
         List<NativeBattleJunk44Operation> operations = [];
@@ -173,7 +174,7 @@ public sealed class NativeBattleJunk44LowerTests
             ReadAnchor571400 = (current, model) =>
             {
                 anchors++;
-                Assert.Equal(Model(0), model);
+                Assert.Equal(OriginalOwner(0), model);
                 return new(current, PointView(new(1000, 1234, 3000), unchecked((short)0xBEEF)));
             }
         };
@@ -243,18 +244,18 @@ public sealed class NativeBattleJunk44LowerTests
     internal static NativeBattleJunk44Frame Frame()
     {
         var pools = Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray();
-        NativeBattleOriginalEffectState effect = new(44, 43, new(44, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(44, 43, new(44, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, 0x128C), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0xCAFE) };
-        return new(memory, effect, new(123), NativeBattleJunk44State.FromColdProcess().WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Model(3)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+        return new(memory, effect, new(123), NativeBattleJunk44State.FromColdProcess().WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
     internal static NativeBattleJunk44Inputs Inputs(Func<NativeBattleJunk44Frame, NativeBattleJunk44Operation, NativeBattleJunk44Frame>? execute = null)
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 226, 44, null));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 226, 44, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0x1234), _ => new(null, 100, 160, 108), (_, model) => new(checked((int)((model - Model(0)) / 156)), 2) { MinimumY146 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 0, 4096) }, (current, _) => new(current, PointView(new(100, 200, 300), 99)), (current, _, _, _) => new(current, PointView(new(100, 200, 300))), _ => packets, current => new(current, false), execute ?? ((current, _) => current));
+        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0x1234), _ => new(null, 100, 160, 108), (_, model) => new(2) { MinimumY146 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 0, 4096) }, (current, _) => new(current, PointView(new(100, 200, 300), 99)), (current, _, _, _) => new(current, PointView(new(100, 200, 300))), _ => packets, current => new(current, false), execute ?? ((current, _) => current));
     }
 
     private static uint Model(int actor) => checked(0x1D972C0u + (uint)actor * 156);

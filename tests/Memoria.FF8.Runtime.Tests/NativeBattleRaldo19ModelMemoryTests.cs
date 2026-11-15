@@ -83,7 +83,7 @@ public sealed class NativeBattleRaldo19ModelMemoryTests
         Assert.Throws<NotSupportedException>(() => NativeBattleRaldo19ModelMemory.Apply(Model(), offset, Bytes(0), 0, length));
     }
 
-    private static NativeBattleGraphicsModel Model() => new(0, 2)
+    private static NativeBattleGraphicsModel Model() => new(2)
     {
         Rotation12 = 1,
         Rotation14 = 2,

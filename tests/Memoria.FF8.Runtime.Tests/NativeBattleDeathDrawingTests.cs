@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -130,7 +131,7 @@ public sealed class NativeBattleDeathDrawingTests
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address + 0x2E, [0xEF, 0xBE]);
         var prepared = NativeBattleDeathSourceMemory.Prepare(memory, staging, resources);
         staging = NativeBattleEffectOwnedModelRendering.PublishDecodedPose(prepared.Staging, state, model);
-        NativeBattleDeathFrame frame = new(prepared.Memory, new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null), new(1)) { Staging = staging };
+        NativeBattleDeathFrame frame = new(prepared.Memory, new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null), new(1)) { Staging = staging };
         frame = NativeBattleDeathModelDark.Initialize(frame, state.TaskAddress, task, resources);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, depth, 4096), 216, 160, 108);
         return (frame, task, state, resources, projection);

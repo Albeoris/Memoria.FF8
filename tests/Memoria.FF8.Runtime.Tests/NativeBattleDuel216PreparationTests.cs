@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -9,7 +10,7 @@ public sealed class NativeBattleDuel216PreparationTests
     public void PrepareAndRestoreKeepOriginalPackedBackupsAndNativeServiceOrder()
     {
         NativeBattleDuel216Frame frame = Frame();
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 6)
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(6)
         {
             Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 11, index == 3 ? (short)2048 : (short)4096),
             Rotation12 = 11,
@@ -22,7 +23,7 @@ public sealed class NativeBattleDuel216PreparationTests
         List<string> operations = [];
         NativeBattleDuel216PreparationServices services = new(index => models[index], (index, model) => models[index] = model, index =>
         {
-            Assert.Equal(3, index);
+            Assert.Equal(OriginalOwner(3), index);
             return new(300, 500, 700, 11);
         }, (current, anchor, bounds) =>
         {
@@ -34,20 +35,20 @@ public sealed class NativeBattleDuel216PreparationTests
         }, (current, actor, row) =>
         {
             operations.Add("bind");
-            Assert.Equal(0, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.Equal(0x20DFAB8u + 16, row);
             models[actor] = models[actor] with { Rotation12 = 100, Rotation14 = 200, Rotation16 = 300, RotationPadding18 = 400 };
             return current;
         }, (current, actor, sequence) =>
         {
             operations.Add("sequence");
-            Assert.Equal(0, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.Equal((byte)1, sequence);
             return current;
         }, (current, target) =>
         {
             operations.Add("bounds");
-            Assert.Equal(3, target);
+            Assert.Equal(OriginalOwner(3), target);
             Assert.Equal((ushort)2, models[0].Flags0);
             Assert.Equal(11408, current.Memory.EffectIo!.BaseOffset);
             return new(current, 30, -20);
@@ -127,7 +128,7 @@ public sealed class NativeBattleDuel216PreparationTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel216Controller.Main, 0x20DFAB8, 6128, 1);
         (pool, int slot) = pool.Append(0x6960E0);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[6116])) });
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), parameters, NativeBattleDuel216Controller.Root) { Pools = [pool] };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x2508880, BitConverter.GetBytes(0x1D972C0u)).Write(0x2508884, BitConverter.GetBytes(0x1D972C0u + 3 * 156));
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel216 = new(true, parameters, resources) }, effect, staging, NativeCrtRandomState.FromColdProcess());

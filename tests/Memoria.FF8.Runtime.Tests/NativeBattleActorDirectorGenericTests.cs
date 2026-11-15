@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -166,15 +167,15 @@ public sealed class NativeBattleActorDirectorGenericTests
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x8AB290), 100);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteWord(0x5A, 1));
-        NativeBattleEffectHierarchyAppend director = hierarchy.Append8DC540(2, profile.Callback(0x8AB600), 72, root.Address, (_, _, _) => new(2, 3));
-        NativeBattleEffectHierarchyAppend node = director.Hierarchy.Append8DC540(3, profile.Callback(0x8AB890), 676, director.Address, (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend director = hierarchy.Append8DC540(2, profile.Callback(0x8AB600), 72, root.Address, (_, _, _) => OriginalTaskActors(2, 3));
+        NativeBattleEffectHierarchyAppend node = director.Hierarchy.Append8DC540(3, profile.Callback(0x8AB890), 676, director.Address, (_, _, _) => OriginalTaskActors(2, 3));
         hierarchy = node.Hierarchy.Write(node.Address, node.Hierarchy.Read(node.Address).WriteDword(0x30, profile.SourceAddress).WriteWord(0x29E, 15));
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 4, 0, 0, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 4, 0, 0, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(2, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
         memory = NativeBattleCuragaFamilyProfile.ForGenericNodes(effect).WithExecutable(memory, NativeBattleCuragaExecutableState.FromColdProcess(effect));
         NativeBattleCuragaState state = new(0, null, null, 0, null) { Auxiliary25F8 = 0x12000, Auxiliary16F80 = 0x12870, Counter26D76C0 = 0, Counter26D82E8 = 0 };
@@ -191,7 +192,7 @@ public sealed class NativeBattleActorDirectorGenericTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        NativeBattleGraphicsModel Model(int index) => new(index, 0) { Transform = new(new(0, 0, 0), index == 2 ? new(0, 100, 0) : new(-10, -200, 30), 0, -3, 4096), GeometryBounds52 = new(new(-10, -20, -30), new(100, 200, 300)) };
+        NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), index == 2 ? new(0, 100, 0) : new(-10, -200, 30), 0, -3, 4096), GeometryBounds52 = new(new(-10, -20, -30), new(100, 200, 300)) };
         return (new(memory, selected, state), node.Address, resources.GenericNodes(), new(packets, NativeBattleCuragaMatrices.Identity8DD770(), Model, _ => pose));
     }
 }

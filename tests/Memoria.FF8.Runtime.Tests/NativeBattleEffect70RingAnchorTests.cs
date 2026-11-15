@@ -10,7 +10,7 @@ public sealed class NativeBattleEffect70RingAnchorTests
     public void Negative_parent_returns_one_without_reading_world_or_overwriting_retained_unknown_translation()
     {
         NativeBattleEffectArena output = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(5, [0xA5]);
-        NativeBattleEffect70RingAnchorStep step = NativeBattleEffect70RingAnchor.Resolve6DFC70(new(0, 2), Source(), 0, output);
+        NativeBattleEffect70RingAnchorStep step = NativeBattleEffect70RingAnchor.Resolve6DFC70(new(2), Source(), 0, output);
         Assert.Equal(1, step.Result);
         Assert.Same(output, step.Output12);
         Assert.Throws<NotSupportedException>(() => step.Output12.Read(0, 4));
@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect70RingAnchorTests
         NativeBattlePoseSource source = Source();
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleActionMatrix bone = identity with { X = 70001, Y = -70003, Z = 70005 };
-        NativeBattleGraphicsModel model = new(0, 2)
+        NativeBattleGraphicsModel model = new(2)
         {
             GeometryWorldMatrix = new([0, 4096, 0, -4096, 0, 0, 0, 0, 4096], 100, -100, 200, 4096),
             CurrentBodyBoneMatrices = new(Convert.ToHexString(SHA256.HashData(source.Skeleton.AsSpan())), [identity, bone])
@@ -43,9 +43,9 @@ public sealed class NativeBattleEffect70RingAnchorTests
     {
         NativeBattlePoseSource source = Source();
         NativeBattleEffectArena output = NativeBattleEffectArena.Clear();
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect70RingAnchor.Resolve6DFC70(new(0, 2), source, 1, output));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffect70RingAnchor.Resolve6DFC70(new(0, 2), source, -1, output));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffect70RingAnchor.Resolve6DFC70(new(0, 2), source, 2, output));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect70RingAnchor.Resolve6DFC70(new(2), source, 1, output));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffect70RingAnchor.Resolve6DFC70(new(2), source, -1, output));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffect70RingAnchor.Resolve6DFC70(new(2), source, 2, output));
     }
 
     private static int Dword(NativeBattleEffectArena bytes, int offset) => BinaryPrimitives.ReadInt32LittleEndian(bytes.Read(offset, 4));

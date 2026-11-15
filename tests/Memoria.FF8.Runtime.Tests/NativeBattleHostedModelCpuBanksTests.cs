@@ -153,11 +153,11 @@ public sealed class NativeBattleHostedModelCpuBanksTests
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new("native", true);
-        rows[3] = new("party-3", true);
-        rows[4] = new("enemy", false);
-        rows[7] = new("party-7", true);
-        rows[24] = new("party-24", true);
+        rows[0] = new BattlePartyActorModel(new("native"));
+        rows[3] = new BattlePartyActorModel(new("party-3"));
+        rows[4] = new BattleEnemyActorModel(new("enemy"));
+        rows[7] = new BattlePartyActorModel(new("party-7"));
+        rows[24] = new BattlePartyActorModel(new("party-24"));
         return new(rows.ToImmutableArray());
     }
 

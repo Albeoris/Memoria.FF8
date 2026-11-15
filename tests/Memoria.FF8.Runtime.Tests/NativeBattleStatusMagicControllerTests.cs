@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -14,7 +15,7 @@ public sealed class NativeBattleStatusMagicControllerTests
     public void Distinct_controllers_keep_native_contact_end_action_capacity_and_JSON_continuation(ushort effect, int actions, int end, int firstContact)
     {
         (NativeBattleStatusMagicFrame frame, NativeBattleStatusMagicResources resources, NativeBattleActionPacketsState packets) = Fixture(effect, actions);
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 1) { Transform = new(new(0, 0, 0), new((short)(index * 100), -100, 0), 0, 0, 4096), Rotation14 = 1024 }).ToArray();
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(1) { Transform = new(new(0, 0, 0), new((short)(index * 100), -100, 0), 0, 0, 4096), Rotation14 = 1024 }).ToArray();
         List<int> contactTicks = [];
         List<int> contactIndices = [];
         List<int> soundTicks = [];
@@ -81,7 +82,7 @@ public sealed class NativeBattleStatusMagicControllerTests
         Assert.Equal(6, NativeBattleStatusMagicController.ModelIndex(0x1D972C0 + 6 * 156));
         Assert.Throws<InvalidDataException>(() => NativeBattleStatusMagicController.ModelIndex(0x1D972C1));
         Assert.Throws<InvalidDataException>(() => NativeBattleStatusMagicController.ModelIndex(0x1D972C0 + 7 * 156));
-        NativeBattleGraphicsModel model = new(3, 1) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, -4096) };
+        NativeBattleGraphicsModel model = new(1) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, -4096) };
         Assert.Equal(64, NativeBattleStatusMagicDrawing.SizeDepth(model));
     }
 
@@ -107,18 +108,18 @@ public sealed class NativeBattleStatusMagicControllerTests
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
         for (int action = 0; action < actions; action++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, effect, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, effect, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, checked((byte)actions));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), checked((byte)actions));
         byte[] source = new byte[16];
         BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 8);
         BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(12), 60);
         NativeBattleStatusMagicResources resources = new(effect, new("animation", []), effect == 120 ? [new(0x1277640, source.ToImmutableArray()), new(0x1279C68, source.ToImmutableArray())] : [new(0x126E4C0, source.ToImmutableArray())], 1);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(resources.RootDescriptor, resources.RootBank, 20, 1);
         (root, _) = root.Append(resources.RootCallback);
-        NativeBattleOriginalEffectState original = new(effect, effect - 1, new(effect, resources.Entry, 1), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = [root] };
+        NativeBattleOriginalEffectState original = new(effect, effect - 1, new(effect, resources.Entry, 1), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), root.DescriptorAddress) { Pools = [root] };
         return (new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, original), resources, packets);
     }
 }

@@ -133,7 +133,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
         NativeBattleGraphicsModel ReadModel(int row)
         {
             reads.Add(row);
-            return new(row, 2)
+            return new(2)
             {
                 HasLinkedModelRing140 = false,
                 Rotation12 = 3,
@@ -172,8 +172,8 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
 
     private static BattleModelRoster Roster() => new(Enumerable.Range(0, 25).Select(row => row switch
     {
-        7 => new BattleModelOwner("party", true),
-        24 => new BattleModelOwner("enemy", false),
+        7 => new BattlePartyActorModel(new("party")),
+        24 => new BattleEnemyActorModel(new("enemy")),
         _ => null
     }).ToImmutableArray());
 
@@ -182,7 +182,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
         {
             7 => native[0] with { Index = row, GeometryWorldMatrix = NativeBattleForeignModelGeometry.Identity },
             24 => native[1] with { Index = row, Flags0 = 2, GeometryWorldMatrix = NativeBattleForeignModelGeometry.Identity },
-            _ => new NativeBattleGraphicsModel(row, 0)
+            _ => new NativeBattleGraphicsModel(0)
         }).ToImmutableArray();
 
     private static (NativeBattleActionPacketsState, BattleModelTargets) Prepare(BattleModelRoster roster, byte caster, ushort effect, params byte[] targets)
@@ -192,7 +192,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
     }
 
     private static NativeBattleEffectParameters Parameters(byte caster, BattleModelTargets targets) =>
-        new(caster, 0, targets.NativePhysicalBits, 0, 0, 0) { PresentationTargets = targets };
+        new(caster, 0, targets.NativePhysicalBits, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = targets };
 
     private static NativeBattleContactPacket Packet(byte target) => new(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
 

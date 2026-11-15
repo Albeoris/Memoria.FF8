@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -67,7 +68,7 @@ public sealed class NativeBattleSiren95ProgrammeTests
             return frame;
         });
 
-    private static NativeBattleSiren95Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess(), new(95, 94, new(95, 0x739DA0, 0x739D80), new(0, 1, 8, 0, 0, 0), null), new(1));
+    private static NativeBattleSiren95Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess(), new(95, 94, new(95, 0x739DA0, 0x739D80), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null), new(1));
     private static NativeBattleSiren95Frame WithProgramme(NativeBattleSiren95Frame frame, byte phase)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x257FA90, 0x257FAA0, 0xE0, 110);

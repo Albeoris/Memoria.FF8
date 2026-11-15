@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -146,7 +147,7 @@ public sealed class NativeBattleShivaControllerTests
             (children, _) = children.Append(0x5C0F30);
         }
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Cursor = 123 };
-        NativeBattleOriginalEffectState effect = new(185, 184, new(185, 0x5C0D50, 0x5C0D30), new(0, 0, 8, 0, 0, 0), 0x22BC180) { Pools = [main, children] };
+        NativeBattleOriginalEffectState effect = new(185, 184, new(185, 0x5C0D50, 0x5C0D30), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0x22BC180) { Pools = [main, children] };
         NativeBattleShivaEntryState state = new(0, 3, new(1, 2, 3), new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), 31);
         return new(new(memory, effect, state), null);
     }

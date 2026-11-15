@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -117,17 +118,17 @@ public sealed class NativeBattleCuragaContextTests
 
     private static (NativeBattleCuragaFrame Frame, uint Address, NativeBattleCuragaControllerInputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 23, 28, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 23, 28, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(2);
-        NativeBattleOriginalEffectState selected = new(28, 27, new(28, 0x87DB10, 0x87DAF0), new(2, 1, 24, 0, 0, 0), null) { ResourcePointers = [new(0x26D75BC, 0)] };
+        NativeBattleOriginalEffectState selected = new(28, 27, new(28, 0x87DB10, 0x87DAF0), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(3), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26D75BC, 0)] };
         NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(NativeBattleEffectMemory.FromColdProcess().BeginLoad(27), selected, packets, Resources());
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, 0x87DF70, 88, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
-        NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(3, 0x87E1A0, 676, first.Address, (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, 0x87DF70, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(2, 3));
+        NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(3, 0x87E1A0, 676, first.Address, (_, _, _) => OriginalTaskActors(2, 3));
         hierarchy = child.Hierarchy;
         hierarchy = hierarchy.Write(child.Address, hierarchy.Read(child.Address).WriteDword(0x30, NativeBattleCuragaExecutableState.Address).WriteWord(0x29E, 45));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
@@ -140,7 +141,7 @@ public sealed class NativeBattleCuragaContextTests
         {
             NativeBattleVector position = index == 2 ? new(0, 100, 0) : index == 3 ? new(-10, -200, 30) : new(20, -400, -50);
             short angle36 = index == 2 ? (short)-3 : index == 3 ? (short)10 : (short)-20;
-            return new(index, 0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
+            return new(0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
         }
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         return (frame, child.Address, new(packets, camera, Model, _ => source));

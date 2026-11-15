@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -17,9 +18,9 @@ public sealed class NativeBattleDuel215TargetsTests
         }
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
-        NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), new(0, 0, 24, 0, 0, 0), NativeBattleDuel215Controller.Root) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel215Controller.Root) { Pools = [pool] };
         NativeBattleDuel215Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 2) { Transform = new(new(0, 0, 0), new(10, 20, 30), 0, 0, 4096) }).ToArray();
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2) { Transform = new(new(0, 0, 0), new(10, 20, 30), 0, 0, 4096) }).ToArray();
         List<int> drawn = [];
         NativeBattleDuel215TargetServices services = new(index => models[index], (index, model) => models[index] = model, ImmutableArray.Create<byte>(3, 4), (_, _) => throw new InvalidOperationException("Existing target bounds must be retained through this phase."), (current, index, angles, pivot) =>
         {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -27,7 +28,7 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, source.NativeEffectMemory!.Active);
-        string casterId = graphics.ActorIds[3]!;
+        string casterId = ReadOriginalModelActorId(graphics, 3)!;
         BattleCombatantDefinition caster = session.GetCombatantDefinition(casterId);
         Assert.Equal(130, caster.ModelId);
         Assert.Equal(0, caster.SceneSlot);
@@ -39,7 +40,7 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         Assert.Equal(130, placement.ModelId);
         Assert.Equal(0, placement.Slot);
         Assert.True(placement.Enabled);
-        NativeBattleGraphicsModel model = graphics.Models[3];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 3);
         Assert.Equal((byte)146, model.ModelId4);
         Assert.NotEqual(0, model.Flags0 & 2);
         Assert.NotNull(model.Transform);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -15,7 +16,7 @@ public sealed class NativeBattleDuel274MachGeometryTests
         BinaryPrimitives.WriteInt16LittleEndian(image.AsSpan(10), 200);
         BinaryPrimitives.WriteInt16LittleEndian(image.AsSpan(12), 4);
         BinaryPrimitives.WriteUInt16LittleEndian(image.AsSpan(14), 0xBEEF);
-        NativeBattleDuel274Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0), NativeBattleFileStaging.Unknown().Write(0x10E9530, image), new(1));
+        NativeBattleDuel274Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0), NativeBattleFileStaging.Unknown().Write(0x10E9530, image), new(1));
         byte[] raw = new byte[checked((int)(NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address))];
         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(checked((int)(0x110D3B4 - NativeBattleDuel274Resources.Address))), 64);
         NativeBattleDuel274Resources resources = new(raw.ToImmutableArray(), []);

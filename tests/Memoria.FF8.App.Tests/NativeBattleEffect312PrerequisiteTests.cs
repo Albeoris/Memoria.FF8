@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -22,9 +23,9 @@ public sealed class NativeBattleEffect312PrerequisiteTests
         Assert.Equal(65, source.Definition.StageId);
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
         Assert.Empty(graphics.Descriptors.Queue);
-        Assert.Equal(new int?[] { 4, 5, 3 }, graphics.Models.Skip(3).Take(3).Select(model => model.ReadLinkedModelIndex140()));
+        Assert.Equal(new int?[] { 4, 5, 3 }, ReadOriginalModelCells(graphics).Skip(3).Take(3).Select(model => model.ReadLinkedModelIndex140()));
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 74 && item.MagicId == 0);
-        BattleCombatantDefinition caster = BattleSession.Restore(source).GetCombatantDefinition(graphics.ActorIds[3]!);
+        BattleCombatantDefinition caster = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(graphics, 3)!);
         NativeBattleAiDefinition ai = assets.ReadEnemyAi(caster.ModelId, caster.Level);
         NativeBattleAiAbility ability = ai.Abilities[ai.LevelBand * 16 + 4];
         Assert.Equal((byte)8, ability.Command);
@@ -32,8 +33,8 @@ public sealed class NativeBattleEffect312PrerequisiteTests
         Assert.Equal((byte)12, ability.Sequence);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        (packets, int header) = packets.Prepare(new(3, 8, 12, unchecked((sbyte)action.RawRecord[4]), 74, 0, null));
-        (packets, _) = packets.AppendContact(new(new(3, action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 12, unchecked((sbyte)action.RawRecord[4]), 74, 0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
@@ -49,8 +50,8 @@ public sealed class NativeBattleEffect312PrerequisiteTests
                 BattleSnapshot current = session.Capture();
                 Assert.Equal(JsonSerializer.Serialize(source.Combatants), JsonSerializer.Serialize(current.Combatants));
                 Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory!.Effect312), JsonSerializer.Serialize(current.NativeEffectMemory!.Effect312));
-                Assert.Equal(new byte?[] { 121, 122, 123 }, current.NativeGraphics!.Models.Skip(3).Take(3).Select(model => model.ModelId4));
-                if (!unlinked && current.NativeGraphics.Models.Skip(3).Take(3).All(model => model.ReadLinkedModelIndex140() is null))
+                Assert.Equal(new byte?[] { 121, 122, 123 }, ReadOriginalModelCells(current.NativeGraphics!).Skip(3).Take(3).Select(model => model.ModelId4));
+                if (!unlinked && ReadOriginalModelCells(current.NativeGraphics).Skip(3).Take(3).All(model => model.ReadLinkedModelIndex140() is null))
                 {
                     unlinked = true;
                     NativeBattleEffect312PresentationTests.VerifyColdNext("native90-unlinked", current, game, assets, output!);

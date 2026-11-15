@@ -55,7 +55,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(arena.ReadSnapshot(record, 32).Known, restored.Memory.Arena!.ReadSnapshot(record, 32).Known);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
 
-        static NativeBattleGraphicsModel Model(int actor) => new(actor, 2)
+        static NativeBattleGraphicsModel Model(int actor) => new(2)
         {
             HasLinkedModelRing140 = false,
             Rotation12 = 3,

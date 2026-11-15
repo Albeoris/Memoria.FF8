@@ -1,4 +1,5 @@
-﻿using Memoria.FF8.Assets;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -21,8 +22,8 @@ public sealed class NativeBattleRaldo19PresentationTests
         Assert.Equal((short)1, state.Word(0x48));
         foreach (int index in new[] { 4, 5, 6 })
         {
-            NativeBattleGraphicsModel before = queued.NativeGraphics!.Models[index];
-            NativeBattleGraphicsModel after = completed.NativeGraphics!.Models[index];
+            NativeBattleGraphicsModel before = ReadOriginalModelCell(queued.NativeGraphics!, index);
+            NativeBattleGraphicsModel after = ReadOriginalModelCell(completed.NativeGraphics!, index);
             Assert.Equal((byte)0x70, after.ModelId4);
             Assert.Equal(before.Transform, after.Transform);
             Assert.Equal(before.Rotation12, after.Rotation12);

@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -69,7 +70,7 @@ public sealed class NativeBattleDispel109Tests
             frame = NativeBattleDispel109Controller.Advance6CF540(frame, Resources(), inputs);
             if (tick == 36)
             {
-                NativeBattleDispel109Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleDispel109Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleDispel109Frame independent = NativeBattleTestSnapshots.Independent(frame);
                 Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDispel109Controller.Advance6CF540(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Resources(), Inputs())), NativeBattleTestSnapshots.Json(NativeBattleDispel109Controller.Advance6CF540(independent, Resources(), Inputs())));
             }
             Assert.Equal(tick == 73, frame.Effect.ReturnedDescriptor == 0);
@@ -180,7 +181,7 @@ public sealed class NativeBattleDispel109Tests
 
     private static NativeBattleDispel109Frame Fixture()
     {
-        NativeBattleOriginalEffectState effect = new(109, 108, new(109, 0x6CF4A0, 0x6CF4B0), new(0, 1, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(109, 108, new(109, 0x6CF4A0, 0x6CF4B0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(108) with { Cursor = 32768 };
         return NativeBattleDispel109Controller.Initialize6CF4D0(new(memory, effect, new(1)));
     }
@@ -195,10 +196,10 @@ public sealed class NativeBattleDispel109Tests
 
     private static NativeBattleDispel109Inputs Inputs()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 28, 109, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 28, 109, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         return new(packets, _ => new(100, 200, 300, 0), _ => 256, (current, _) => current, (current, _, _) => current, (current, _) => current);
     }

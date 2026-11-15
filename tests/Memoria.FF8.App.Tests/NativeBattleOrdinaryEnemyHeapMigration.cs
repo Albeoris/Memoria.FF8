@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -28,7 +29,7 @@ internal static class NativeBattleOrdinaryEnemyHeapMigration
         var models = graphics.Models.ToBuilder();
         var bindings = definition.Bindings.ToBuilder();
         cpu = cpu with { EnemyCursor = 0, EnemyLinkedSlots = 0 };
-        foreach (NativeBattleGraphicsModel model in graphics.Models.Where(model => (model.Flags0 & 2) != 0 && model.ModelId4 >= 16).OrderBy(model => model.Index))
+        foreach (NativeBattleGraphicsModel model in ReadOriginalModelCells(graphics).Where(model => (model.Flags0 & 2) != 0 && model.ModelId4 >= 16).OrderBy(model => model.Index))
         {
             Assert.NotEqual((byte?)143, model.ModelId4);
             Assert.Null(model.ActiveStagedResourceRow100);
@@ -40,7 +41,7 @@ internal static class NativeBattleOrdinaryEnemyHeapMigration
             Assert.Equal(model.BodyTextureSlots!.PaletteRows.ToArray(), cache.Rows[row].Binding!.PaletteRows.ToArray());
             Assert.Equal(model.TextureAllocationMask, cache.Rows[row].TextureMask);
             NativeBattleModelDatSource source = assets.ReadNativeModelDatSource(model.ModelId4!.Value, false, 0);
-            NativeBattleGraphicsBinding binding = definition.Bindings.Single(binding => binding.ActorId == graphics.ActorIds[model.Index]);
+            NativeBattleGraphicsBinding binding = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, model.Index));
             Assert.Equal(binding.ModelId, model.ModelId4);
             // The named component had no nonempty motion table; correcting its section selector cannot change its bytecode PC.
             Assert.Equal(source.Section(3), source.Section(4));

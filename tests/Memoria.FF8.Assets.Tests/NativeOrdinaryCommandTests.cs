@@ -273,16 +273,16 @@ public sealed class NativeOrdinaryCommandTests
         }
         else
         {
-            NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[battle.ActiveAction!.NativeHeaderIndex!.Value];
-            Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.ReadByte(1));
-            Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.ReadByte(2));
-            Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, NativeBattleActionGraphics.Word(header, 4));
-            Assert.Equal(failureMessage is null ? (ushort)96 : (ushort)0, NativeBattleActionGraphics.Word(header, 6));
+            NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(battle.ActiveAction!.NativeHeaderIndex!.Value));
+            Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.Command);
+            Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.Sequence);
+            Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, header.Action);
+            Assert.Equal(failureMessage is null ? (ushort)96 : (ushort)0, header.Effect);
             Assert.Equal(failureMessage is null ? 0x495050u : 0x47EBD0u, header.Data!.ProducerAddress);
             Assert.Equal(failureMessage is null ? dance.Name : binding.Name, header.Data.FormattedText);
             if (failureMessage is not null)
             {
-                Assert.Equal((byte)0, header.ReadByte(16));
+                Assert.Equal((byte)0, header.ReadContactCount());
             }
         }
 

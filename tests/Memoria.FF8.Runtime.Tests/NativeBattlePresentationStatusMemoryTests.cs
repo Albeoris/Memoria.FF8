@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -91,7 +92,7 @@ public sealed class NativeBattlePresentationStatusMemoryTests
         // Effect80's506690 contact reaches this same493D80/493840 status service.
         NativeBattleGraphicsState graphics = new([], ["party"], 0, 0);
         MethodInfo publish = typeof(BattleSession).GetMethod("PublishNativeReadyStatus", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        _ = publish.Invoke(battle, [graphics, new NativeBattleContactHalf(0, 0, 0, 0, 0, 0, 0)]);
+        _ = publish.Invoke(battle, [graphics, new NativeBattleContactHalf(OriginalOwner(0), 0, 0, 0, 0, 0, 0)]);
     }
 
     private static BattleDefinition Definition()

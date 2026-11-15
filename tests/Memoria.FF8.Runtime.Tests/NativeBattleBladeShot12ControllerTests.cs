@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleBladeShot12Controller;
@@ -16,7 +17,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         List<(uint Model, int Bone)> bones = [];
         var inputs = Inputs(operations, bones) with { ReadAnchor571400 = (current, model) =>
         {
-            Assert.Equal(0x1D972C0u, model);
+            Assert.Equal(OriginalOwner(0), model);
             Assert.Equal(7, current.Memory.Active);
             return new(current with { Memory = current.Memory with { Active = 241 } }, PointView(new(900, 1000, 1100), 777));
         } };
@@ -25,7 +26,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         Assert.Equal(0x1D972C0u, actual.State.ReadDword(FirstTargetGlobal));
         Assert.Equal(0x1D99A78u, actual.State.ReadDword(ParametersGlobal));
         Assert.Equal(new[] { (0x1D97494u, 7) }, bones);
-        Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(0x1D97494, 0x80, 0), Assert.Single(operations));
+        Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(OriginalOwner(3), 0x80, 0), Assert.Single(operations));
         Assert.Equal(241, actual.Memory.Active);
         Assert.Equal((ushort)128, Read(actual, RootBank).ReadWord(0x2A));
         Assert.Equal((ushort)0, Read(actual, RootBank).ReadWord(0x62));
@@ -78,7 +79,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         Assert.Equal(next, Read(actual.Frame, RootBank).ReadDword(16));
         Assert.Equal(2, actual.Result);
         Assert.Equal((ushort)65, Read(actual.Frame, RootBank).ReadWord(12));
-        Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(0x1D97494, 0, 0x80), Assert.Single(operations));
+        Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(OriginalOwner(3), 0, 0x80), Assert.Single(operations));
         Assert.Equal(frame.Random, actual.Frame.Random);
     }
 
@@ -108,7 +109,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         {
             if (operation is NativeBattleBladeShot12Contact506690 contact)
             {
-                Assert.Equal(1, contact.ContactIndex);
+                Assert.Equal(new BattleContactOccurrence(1), contact.ContactIndex);
                 Assert.Equal((ushort)241, Read(current, RootBank).ReadWord(0x4C));
                 Assert.Equal(new[] { (0x1D97494u, 7), (0x1D972C0u, 241) }, bones);
             }
@@ -138,7 +139,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
     {
         List<NativeBattleBladeShot12Operation> operations = [];
         var actual = AdvanceMain(Frame(age), RootBank, Resources(), Inputs(operations, []));
-        Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(0x1D97494, clear, set), Assert.Single(operations.OfType<NativeBattleBladeShot12ActorMeshMask124>()));
+        Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(OriginalOwner(3), clear, set), Assert.Single(operations.OfType<NativeBattleBladeShot12ActorMeshMask124>()));
         Assert.Equal(age >= 65 ? 2 : 0, actual.Result);
     }
 
@@ -165,7 +166,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         Assert.NotNull(frame.State.RootBankStorage);
         Assert.NotNull(frame.State.ChildABankStorage);
         Assert.NotNull(frame.State.ChildBBankStorage);
-        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBladeShot12Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        var restored = NativeBattleTestSnapshots.Independent(frame);
         var warm = Initialize(restored, Resources(), inputs);
         Assert.Equal((ushort)0, Read(warm, RootBank).ReadWord(12));
         Assert.Equal(frame.Random, warm.Random);
@@ -196,7 +197,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         var memory = NativeBattleBladeShot12MeshContext88Tests.Memory(2000) with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(12, 11, new(12, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(12, 11, new(12, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleBladeShot12State.FromColdProcess().EnsureVertexSources(Resources())) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -213,12 +214,12 @@ public sealed class NativeBattleBladeShot12ControllerTests
 
     private static NativeBattleActionPacketsState Packets()
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 32, 12, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 32, 12, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 32, 12, null));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(4, 4, 0, 0, 0, 3, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 32, 12, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
         (packets, _) = packets.Publish(1);
         return packets;
     }

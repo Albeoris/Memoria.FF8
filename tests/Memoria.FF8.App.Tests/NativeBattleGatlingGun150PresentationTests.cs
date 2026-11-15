@@ -42,7 +42,7 @@ public sealed class NativeBattleGatlingGun150PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag149.tim", NativeBattleGatlingGun150Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(68128, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeGatlingGun150Resources(), binding.GatlingGun150Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

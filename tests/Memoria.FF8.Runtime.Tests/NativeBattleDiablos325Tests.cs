@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -37,7 +38,7 @@ public sealed class NativeBattleDiablos325Tests
     {
         var fixture = Fixture();
         NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
-        NativeBattleDiablos325Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDiablos325Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleDiablos325Frame restored = NativeBattleTestSnapshots.Independent(frame);
         for (int index = 0; index < 2; index++)
         {
             frame = NativeBattleDiablos325Controller.Advance654350(frame);
@@ -79,15 +80,15 @@ public sealed class NativeBattleDiablos325Tests
     {
         var fixture = Fixture();
         Assert.Throws<NotSupportedException>(() => NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame with { Memory = fixture.Frame.Memory with { Diablos325 = null } }, fixture.Packets, fixture.Models));
-        Assert.Throws<NotSupportedException>(() => NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models.SetItem(1, fixture.Models[1] with { Transform = null })));
-        NativeBattleActionPacketsState empty = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (empty, _) = empty.Prepare(new(0, 240, 0, 0, 3, 325, null));
+        Assert.Throws<NotSupportedException>(() => NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models.Set(OriginalOwner(1), fixture.Models.Get(OriginalOwner(1)) with { Transform = null })));
+        NativeBattleActionPacketsState empty = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (empty, _) = empty.Prepare(new(OriginalOwner(0), 240, 0, 0, 3, 325, null));
         (empty, _) = empty.Publish(0);
         Assert.Throws<DivideByZeroException>(() => NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, empty, fixture.Models));
         Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleDiablos325State>("{}"));
     }
 
-    internal static (NativeBattleDiablos325Frame Frame, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
+    internal static (NativeBattleDiablos325Frame Frame, NativeBattleActionPacketsState Packets, BattleActorModels Models) Fixture()
     {
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 0x10);
@@ -101,18 +102,18 @@ public sealed class NativeBattleDiablos325Tests
         BinaryPrimitives.WriteUInt16LittleEndian(tim.AsSpan(60), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(tim.AsSpan(62), 1);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x100, tim), Diablos325 = NativeBattleDiablos325State.FromColdProcess() };
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 3, 325, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 3, 325, null));
         foreach (byte target in new byte[] { 0, 1 })
         {
-            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
-        NativeBattleOriginalEffectState effect = new(325, 324, new(325, 0x6541E0, 0x6541F0), new(2, 0, 3, 0, 0, 0), null) { ResourcePointers = [new(0x250517C, 0x100)] };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)
+        NativeBattleOriginalEffectState effect = new(325, 324, new(325, 0x6541E0, 0x6541F0), new(OriginalOwner(2), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x250517C, 0x100)] };
+        var (models, _) = OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(0)
         {
             Transform = new(new(0, 0, 0), new(checked((short)(index == 0 ? -103 : 100)), 444, checked((short)(index == 0 ? -105 : 100))), 0, 0, 4096)
-        }).ToImmutableArray();
+        })));
         return (new(memory, effect), packets, models);
     }
 }

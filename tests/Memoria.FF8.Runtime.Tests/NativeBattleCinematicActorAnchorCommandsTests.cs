@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -18,7 +19,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         int updates = 0;
         NativeBattleCinematicActorAnchorServices services = new((current, actor, restore, selectedLinked) =>
         {
-            Assert.Equal(0x1D975CCu, actor);
+            Assert.Equal(OriginalOwner(5), actor);
             Assert.True(restore);
             Assert.Equal(linked, selectedLinked);
             return Pose(current, 7, -8, 9);
@@ -90,7 +91,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         }
         NativeBattleCinematicActorAnchorServices services = new((current, actor, restore, linked) =>
         {
-            Assert.Equal(0x1D972C0u, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.False(restore);
             Assert.False(linked);
             return Pose(current, 7, -8, 9);
@@ -124,7 +125,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         int selected = value * 2 >> 15;
         NativeBattleCinematicActorAnchorServices services = new((current, actor, restore, linked) =>
         {
-            Assert.Equal(0x1D972C0u, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.True(restore);
             Assert.False(linked);
             NativeBattleCinematicBonePose pose = Pose(current, -7, 8, -9);

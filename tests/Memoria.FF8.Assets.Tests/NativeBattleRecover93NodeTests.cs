@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -78,17 +79,17 @@ public sealed class NativeBattleRecover93NodeTests
         NativeBattleRecover93NodeResource resource = profile.Effect == 93 ? game.ReadNativeRecover93NodeResource() : game.ReadNativeReverse94Resources().Nodes;
         NativeBattlePoseSource poseSource = game.ReadNativeSearchModelResources().Model.PoseSource;
         NativeBattleDecodedPose pose = NativeBattlePoseDecoder.DecodeFirst509440(poseSource.Animations.AsSpan(), poseSource.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int index) => NativeBattleBodyBoneMatrices.Publish508C90(new(index, 3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, poseSource);
+        NativeBattleGraphicsModel Model(int index) => NativeBattleBodyBoneMatrices.Publish508C90(new(3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, poseSource);
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 12, 93, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 12, 93, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 100, 1), NativeBattleEffectTaskPool.Initialize(0x3000, 0x4000, 0x2A4, 1)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 1, 100);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteDword(0xC, 0x1D99A78).WriteWord(0x5A, 1).WriteByte(0x2C, 0).WriteByte(0x2D, 3));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(1, profile.Code(NativeBattleRecover93Nodes.ContextCallback), 0x2A4, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(1, profile.Code(NativeBattleRecover93Nodes.ContextCallback), 0x2A4, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteDword(0x30, profile.SourceAddress).WriteWord(0x29E, 30));
-        NativeBattleOriginalEffectState effect = new(profile.Effect, profile.Effect - 1, new(profile.Effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(profile.Effect, profile.Effect - 1, new(profile.Effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() };
         NativeBattleRecover93NodeFrame frame = new(memory, effect, NativeBattleRecover93NodeState.FromColdProcess(), new(1));
         frame = NativeBattleRecover93Nodes.ClearStorage(frame, 0);

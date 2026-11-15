@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -204,7 +205,7 @@ public sealed class NativeBattleHostedActionServicesTests
     private static NativeBattleGraphicsModel Model(int row, bool busy = false, bool loaded = false)
     {
         NativeBattleVector position = new(checked((short)(row * 53)), 0, checked((short)(-row * 71)));
-        return new(row, busy || loaded ? (ushort)2 : (ushort)0)
+        return new(busy || loaded ? (ushort)2 : (ushort)0)
         {
             Flags2 = 0,
             Flags8 = 0,
@@ -234,7 +235,7 @@ public sealed class NativeBattleHostedActionServicesTests
 
     private static void InstallHeader(BattleSession session, BattleModelRoster? roster, byte source, byte command)
     {
-        NativeBattleActionPacketsState storage = roster is null ? NativeBattleActionPacketsState.Fresh() : NativeBattleActionPacketsState.FromPresentationStorage(roster);
+        NativeBattleActionPacketsState storage = roster is null ? OriginalPackets() : NativeBattleActionPacketsState.FromPresentationStorage(roster);
         (NativeBattleActionPacketsState packets, _) = storage.Prepare(new(source, command, 0, -1, 0, 0, null));
         typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session, packets);
     }

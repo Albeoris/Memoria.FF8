@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -100,5 +101,5 @@ public sealed class NativeBattlePartyPresentationTests
         Assert.Throws<InvalidDataException>(() => new NativeBattlePartyPresentation([new(500, 1000, 100, 200), null, null]).Validate());
     }
 
-    private static NativeBattleContactHalf Half(byte hitFlags, ushort amount) => new(0, 4, 0, hitFlags, 0, amount, 0);
+    private static NativeBattleContactHalf Half(byte hitFlags, ushort amount) => new(OriginalOwner(0), 4, 0, hitFlags, 0, amount, 0);
 }

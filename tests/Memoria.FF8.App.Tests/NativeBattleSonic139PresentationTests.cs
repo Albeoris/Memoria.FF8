@@ -42,7 +42,7 @@ public sealed class NativeBattleSonic139PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag138.tim", NativeBattleSonic139Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(99872, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeSonic139Resources(), binding.Sonic139Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

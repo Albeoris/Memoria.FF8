@@ -20,7 +20,7 @@ public sealed class EncounterPolicySessionTests
         Assert.Equal(expectedCasts, battle.NativeActionPackets.ActionCount);
         if (doubleActive)
         {
-            Assert.Equal((byte)1, battle.NativeActionPackets.Headers[0].ReadByte(17));
+            Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         }
         Assert.Empty(battle.Combatants.Single(actor => actor.Id == "enemy").MagicStocks);
         Assert.Single(battle.ScanKnowledge.Observations);
@@ -58,7 +58,7 @@ public sealed class EncounterPolicySessionTests
         Assert.Equal(casts * 2, battle.NativeActionPackets.ActionCount);
         if (doubleActive)
         {
-            Assert.Equal((byte)1, battle.NativeActionPackets.Headers[0].ReadByte(17));
+            Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         }
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
         BattleSession restored = BattleSession.Restore(snapshot);

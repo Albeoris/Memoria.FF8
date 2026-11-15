@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Buffers.Binary;
 using Memoria.FF8.Assets;
@@ -32,22 +33,22 @@ public sealed class NativeBattleEffect290FollowingActionTests
         Assert.Empty(source.QueuedActions);
         Assert.All(source.NativeEffectMemory.Effect290!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        string casterId = originalGraphics.ActorIds[3]!;
+        string casterId = ReadOriginalModelActorId(originalGraphics, 3)!;
         BattleCombatantDefinition caster = BattleSession.Restore(source).GetCombatantDefinition(casterId);
         Assert.Equal(109, caster.ModelId);
-        Assert.Equal((byte)125, originalGraphics.Models[3].ModelId4);
+        Assert.Equal((byte)125, ReadOriginalModelCell(originalGraphics, 3).ModelId4);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 291 && row.MagicId == 290 && row.KernelSection == 3 && row.KernelIndex == 291);
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        string warmVertices = originalGraphics.Models[3].CurrentBodyBoneMatrices!.SkeletonSha256;
+        string warmVertices = ReadOriginalModelCell(originalGraphics, 3).CurrentBodyBoneMatrices!.SkeletonSha256;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(3, 8, 14, cameraChoice, 291, 290, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 14, cameraChoice, 291, 290, null));
         packets = NativeBattleEffect290PresentationTests.PublishDeclaredSelfContact(source, packets);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = originalGraphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(originalGraphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), prepared.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-before-entry", prepared, null);
         BattleSession battle = Restore(prepared);
@@ -104,7 +105,7 @@ public sealed class NativeBattleEffect290FollowingActionTests
                             Assert.Equal(BinaryPrimitives.ReadUInt16LittleEndian(resources.Camera.Data.AsSpan().Slice(4)), control.ModelTableOffset);
                             Assert.Equal(resources.Camera.Data.ToArray(), control.Source.Data.ToArray());
                             Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation));
-                            Assert.Equal(warmVertices, current.NativeGraphics!.Models[3].CurrentBodyBoneMatrices!.SkeletonSha256);
+                            Assert.Equal(warmVertices, ReadOriginalModelCell(current.NativeGraphics!, 3).CurrentBodyBoneMatrices!.SkeletonSha256);
                             Assert.Equal(warmRandom, state.ReadDword(InternalRandomGlobal));
                             internalRandomRetained = true;
                             foreach (uint address in NativeBattleEffect290Resources.ScriptCountAddresses)

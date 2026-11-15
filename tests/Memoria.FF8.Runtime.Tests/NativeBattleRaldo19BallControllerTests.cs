@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -109,7 +110,7 @@ public sealed class NativeBattleRaldo19BallControllerTests
     private static (NativeBattleRaldo19Frame Frame, uint Address, NativeBattleRaldo19Resources Resources, NativeBattleRaldo19BallInputs Inputs, List<NativeBattleRaldo19BallOperation> Operations) Fixture()
     {
         var fixture = NativeBattleRaldo19ControllerTests.Fixture();
-        NativeBattleEffectHierarchyAppend ball = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(4, 0x8A93E0, 184, new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend ball = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(4, 0x8A93E0, 184, new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleRaldo19Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = ball.Hierarchy.Pools } };
         NativeBattleEffectArena actor = SetWord(SetWord(SetWord(NativeBattleEffectArena.Clear(), 0x10, 0x1234), 0x1C, 17), 0x22, 0xBEEF).MarkUnknown(0x12, 2);
         List<NativeBattleRaldo19BallOperation> operations = [];

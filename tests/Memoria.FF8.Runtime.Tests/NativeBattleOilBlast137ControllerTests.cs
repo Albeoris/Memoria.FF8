@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -207,7 +208,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
             (main, _) = main.Append(MainCallback);
             NativeBattleEffectTaskPool secondary = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, Working + SecondaryOffset, SecondaryStride, SecondaryCount);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, Working, ParticleStride, ParticleCount);
-            NativeBattleOriginalEffectState effect = new(137, 136, new(137, Entry, Initializer), new(0, 0, 1, 1, 0, 0), null) { Pools = [root, main, secondary, particles], ReturnedDescriptor = RootDescriptor };
+            NativeBattleOriginalEffectState effect = new(137, 136, new(137, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(1), 0, 0), null) { Pools = [root, main, secondary, particles], ReturnedDescriptor = RootDescriptor };
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             NativeBattleOilBlast137State state = NativeBattleOilBlast137State.FromColdProcess() with { ColdMatrixSourcePending = false, Matrix32 = NativeBattleEffectArena.Clear().Write(0, NativeBattlePackedMatrix32.FromMatrix(identity, 0).Bytes.AsSpan()) };
@@ -219,11 +220,11 @@ public sealed class NativeBattleOilBlast137ControllerTests
             task = NativeBattleOilBlast137Controller.PutVector(task, 0x3C, new(100, 0, -300));
             task = task.WriteBytes(0x44, NativeBattlePackedMatrix32.FromMatrix(identity, 0).Bytes.AsSpan()).WriteBytes(0x64, NativeBattlePackedMatrix32.FromMatrix(identity, 0).Bytes.AsSpan());
             Frame = NativeBattleOilBlast137Controller.Write(Frame, MainAddress, task);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+            NativeBattleActionPacketsState packets = OriginalPackets();
             for (int header = 0; header < 2; header++)
             {
-                (packets, _) = packets.Prepare(new(0, 8, 12, 0, 181, 137, null));
-                (packets, _) = packets.AppendContact(new(new((byte)(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 12, 0, 181, 137, null));
+                (packets, _) = packets.AppendContact(new(new((byte)(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
                 (packets, _) = packets.Publish(1);
             }
             Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, (frame, model, selector, _) =>

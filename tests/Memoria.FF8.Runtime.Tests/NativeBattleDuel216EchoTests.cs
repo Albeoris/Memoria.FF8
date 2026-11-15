@@ -39,7 +39,7 @@ public sealed class NativeBattleDuel216EchoTests
         task = task.MarkPayloadUnknown(offset + 136 + 576 + 18, 2);
         Frame frame = new(task, NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()));
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = identity, Color40 = 0x303030, SequenceState = new() { MeshMask124 = 0 } };
+        NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = identity, Color40 = 0x303030, SequenceState = new() { MeshMask124 = 0 } };
         frame = NativeBattleDuelEchoDrawing.Draw697520(frame, model, checked(0x20DFAB8u + (uint)offset), offset, current => current.Task, (current, updated, _) => current with { Task = updated }, 0x1000, (_, _, length) => new byte[length], 1, identity, new(identity, 256, 160, 112), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), 0x155, 0x100, current => current.Staging, (current, staging) => current with { Staging = staging });
         Assert.Equal(22u, frame.Task.ReadDword(offset + 136 + 17 * 32 + 20));
         Assert.Equal(22u, frame.Task.ReadDword(offset + 136 + 576 + 17 * 32 + 20));

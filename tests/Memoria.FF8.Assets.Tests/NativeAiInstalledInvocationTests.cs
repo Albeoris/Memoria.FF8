@@ -170,7 +170,7 @@ public sealed class NativeAiInstalledInvocationTests
         Assert.Equal((byte)236, queued.NativeQueuedCommand);
         Assert.Equal(id, queued.NativeAction!.ActionId);
         Assert.Equal(assets.NativeActions.Single(action => action.Command == 8 && action.ActionId == id) with { Command = 236 }, queued.NativeAction);
-        Assert.Equal(id, NativeBattleActionGraphics.Word(battle.NativeActionPackets.Headers[0], 4));
+        Assert.Equal(id, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Action);
         string json = JsonSerializer.Serialize(battle.Capture());
         Assert.Equal(json, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!).Capture()));
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -32,7 +33,7 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
             Assert.Null(model.ActiveStagedResourceRow100);
             Assert.Null(model.ResourceMagicId);
             Assert.NotNull(model.SequenceState?.DecodedPose);
-            NativeBattleGraphicsResource resource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == graphics.ActorIds[index]).Resource;
+            NativeBattleGraphicsResource resource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == ReadOriginalModelActorId(graphics, index)).Resource;
             if (model.ModelId4 >= 16)
             {
                 resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
@@ -48,6 +49,6 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
         BattleSnapshot saved = NativeBattleEffectFamilyRunner.LoadSnapshot(output);
         BattleSession battle = BattleSession.Restore(saved);
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(battle.Capture()));
-        Assert.Equal(changed, saved.NativeGraphics!.Models.Count(model => model.CurrentBodyBoneMatrices is not null));
+        Assert.Equal(changed, ReadOriginalModelCells(saved.NativeGraphics!).Count(model => model.CurrentBodyBoneMatrices is not null));
     }
 }

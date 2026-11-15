@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -156,10 +157,10 @@ public sealed class NativeBattleLaserEye71ControllerTests
         {
             byte[] header = new byte[20];
             header[16] = 1;
-            NativeBattleContactHalf half = new(3, 0, 0, 0, 0, 7, 0);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+            NativeBattleContactHalf half = new(OriginalOwner(3), 0, 0, 0, 0, 7, 0);
+            NativeBattleActionPacketsState packets = OriginalPackets();
             packets = packets with { Headers = packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, 0, null)), Contacts = packets.Contacts.SetItem(0, new(half, half)) };
-            Inputs = new(packets, (_, _, _) => new(0, 3), _ => Camera, Execute)
+            Inputs = new(packets, (_, _, _) => OriginalTaskActors(0, 3), _ => Camera, Execute)
             {
                 RefreshRoot = (frame, _) => frame,
                 PrepareTarget = (frame, _) => Service(frame, "target"),
@@ -171,7 +172,7 @@ public sealed class NativeBattleLaserEye71ControllerTests
             };
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, RootCallback, 100);
-            NativeBattleOriginalEffectState effect = new(71, 71, new(71, Entry, Initializer), new(0, 0, 0, 0, 0, 0), Pools[0].Descriptor) { Pools = appended.Hierarchy.Pools, ResourcePointers = [new(InitializerGlobal, 0x800)] };
+            NativeBattleOriginalEffectState effect = new(71, 71, new(71, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), Pools[0].Descriptor) { Pools = appended.Hierarchy.Pools, ResourcePointers = [new(InitializerGlobal, 0x800)] };
             uint start = ArenaAddress + 0x800;
             NativeBattleLaserEye71State state = NativeBattleLaserEye71State.FromColdProcess().WriteDword(0x25FCD84, start).WriteDword(0x25FCD80, start + DrawBankLength).WriteDword(0x25FC17C, start + DrawBankLength).WriteDword(0x25FC178, start + 2 * DrawBankLength).WriteDword(0x25FCDD0, start + 2 * DrawBankLength);
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), state);

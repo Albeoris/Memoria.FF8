@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -37,10 +39,10 @@ public sealed class EncounterNativeModelAllocationTests
             {
                 foreach (string id in batch.ActorIds)
                 {
-                    int physical = battle.NativeGraphics!.ActorIds.IndexOf(id);
-                    if (physical >= 0 && (battle.NativeGraphics.Models[physical].Flags0 & 2) != 0)
+                    int physical = FindOriginalModelSlot(battle.NativeGraphics!, id);
+                    if (physical >= 0 && (ReadOriginalModelCell(battle.NativeGraphics, physical).Flags0 & 2) != 0)
                     {
-                        Assert.NotEqual(0, battle.NativeGraphics.Models[physical].Flags0 & 4);
+                        Assert.NotEqual(0, ReadOriginalModelCell(battle.NativeGraphics, physical).Flags0 & 4);
                         Assert.False(battle.Combatants.Single(actor => actor.Id == id).IsActive);
                     }
                 }
@@ -67,9 +69,9 @@ public sealed class EncounterNativeModelAllocationTests
             Assert.True(copy.Untargetable);
             Assert.Equal(maximumHp, copy.MaximumHp);
             Assert.Equal(maximumHp, copy.CurrentHp);
-            int physical = battle.NativeGraphics!.ActorIds.IndexOf(id);
+            int physical = FindOriginalModelSlot(battle.NativeGraphics!, id);
             Assert.InRange(physical, 3, 6);
-            NativeBattleGraphicsModel model = battle.NativeGraphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics, physical);
             Assert.Equal((ushort)7, (ushort)(model.Flags0 & 7));
             Assert.Equal((byte)2, model.EffectCounter97);
             Assert.NotNull(model.ActiveResourceRow100);
@@ -123,7 +125,7 @@ public sealed class EncounterNativeModelAllocationTests
         BattleCombatant original = battle.Combatants.Single(actor => actor.Id == originalId);
         int originalHp = original.CurrentHp;
         BattleCombatant fourth = Invoke<BattleCombatant>(battle, "AllocateNativeEnemy", original, 1, 6, true);
-        TickUntil(battle, () => fourth.IsActive && battle.NativeGraphics!.Models[6].EffectCounter97 == 2 && Drained(battle), "fourth native model allocation");
+        TickUntil(battle, () => fourth.IsActive && ReadOriginalModelCell(battle.NativeGraphics!, 6).EffectCounter97 == 2 && Drained(battle), "fourth native model allocation");
         Invoke<object?>(battle, "QueueNativeCallback", original, (ushort)1, (byte)0);
         TickUntil(battle, () => battle.EncounterAllocation is { Phase: BattleEncounterAllocationPhase.Complete } && Drained(battle), "source-authored Summon and installed arrival");
         BattleEncounterAllocationState batch = battle.EncounterAllocation!;
@@ -131,7 +133,7 @@ public sealed class EncounterNativeModelAllocationTests
         Assert.Equal(originalHp, original.CurrentHp);
         Assert.Equal(originalContract, JsonSerializer.Serialize(battle.ReadDefinition().Combatants.Single(actor => actor.Id == originalId)));
         Assert.All(batch.ActorIds, id => Assert.True(battle.Combatants.Single(actor => actor.Id == id).IsActive));
-        Assert.Equal(6, battle.NativeGraphics!.ActorIds.IndexOf(fourth.Id));
+        Assert.Equal(6, FindOriginalModelSlot(battle.NativeGraphics!, fourth.Id));
         string player = battle.Combatants.First(actor => actor.IsPlayer && actor.IsAlive && actor.Atb == BattleSession.AtbMaximum).Id;
         int partyHp = battle.Combatants.Where(actor => actor.IsPlayer).Sum(actor => actor.CurrentHp);
         battle.QueueNativePlayerCommand(player, fourth.Id, 1, 0);
@@ -152,10 +154,10 @@ public sealed class EncounterNativeModelAllocationTests
         TickUntil(battle, () => Drained(battle), "fourth next ordinary installed ability");
         Assert.False(fourth.IsBusy);
         Assert.True(battle.Combatants.Where(actor => actor.IsPlayer).Sum(actor => actor.CurrentHp) < counterEndPartyHp);
-        int[] copyRows = batch.ActorIds.Select(id => battle.NativeGraphics.Models[battle.NativeGraphics.ActorIds.IndexOf(id)].TextureResourceIndex!.Value).ToArray();
+        int[] copyRows = batch.ActorIds.Select(id => ReadOriginalModelCell(battle.NativeGraphics, FindOriginalModelSlot(battle.NativeGraphics, id)).TextureResourceIndex!.Value).ToArray();
         int[] privateLengths = copyRows.Select(row => battle.NativeModelCpuResources!.Rows[row].PrivateLength4!.Value).ToArray();
         int heapBefore = battle.NativeModelCpuResources!.EnemyCursor!.Value;
-        int originalRow = battle.NativeGraphics.Models[3].TextureResourceIndex!.Value;
+        int originalRow = ReadOriginalModelCell(battle.NativeGraphics, 3).TextureResourceIndex!.Value;
         int originalPrivateLength = battle.NativeModelCpuResources.Rows[originalRow].PrivateLength4!.Value;
         Invoke<object?>(battle, "QueueNativeGraphicsRemoval", original);
         TickUntil(battle, () => battle.EncounterPolicies?.CleanedUp == true && !battle.HasPendingEncounterRetirements && Drained(battle), "native105 retirement with unrelated fourth alive");
@@ -168,17 +170,17 @@ public sealed class EncounterNativeModelAllocationTests
         {
             NativeBattleEnemyAllocation allocation = battle.Capture().NativeAllocations.Single(allocation => allocation.Id == id);
             Assert.True(allocation.Retirement!.ResourcesReleased);
-            Assert.Equal(0, battle.NativeGraphics.Models[allocation.Retirement.PhysicalIndex].Flags0 & 3);
+            Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, allocation.Retirement.PhysicalIndex).Flags0 & 3);
         }
         Assert.All(copyRows.Append(originalRow), row => Assert.Equal((byte)0, battle.NativeModelTextureCache!.Rows[row].Kind));
-        Assert.Equal((byte)3, battle.NativeModelTextureCache!.Rows[battle.NativeGraphics.Models[6].TextureResourceIndex!.Value].Kind);
+        Assert.Equal((byte)3, battle.NativeModelTextureCache!.Rows[ReadOriginalModelCell(battle.NativeGraphics, 6).TextureResourceIndex!.Value].Kind);
         int removed = battle.Events.Count(entry => entry.Kind == "NativeModelRemoved");
         Invoke<object?>(battle, "QueueNativeCallback", fourth, (ushort)1, (byte)0);
         TickUntil(battle, () => Drained(battle), "fourth ordinary turn after resource compaction");
         Assert.Equal(removed, battle.Events.Count(entry => entry.Kind == "NativeModelRemoved"));
         BattleCombatant reused = Invoke<BattleCombatant>(battle, "AllocateNativeEnemy", fourth, 1, 4, true);
-        TickUntil(battle, () => reused.IsActive && battle.NativeGraphics.Models[4].EffectCounter97 == 2 && Drained(battle), "released physical slot reuse through native loader");
-        Assert.Equal(reused.Id, battle.NativeGraphics.ActorIds[4]);
+        TickUntil(battle, () => reused.IsActive && ReadOriginalModelCell(battle.NativeGraphics, 4).EffectCounter97 == 2 && Drained(battle), "released physical slot reuse through native loader");
+        Assert.Equal(reused.Id, ReadOriginalModelActorId(battle.NativeGraphics, 4));
         Assert.True(fourth.IsActive);
     }
 
@@ -195,7 +197,7 @@ public sealed class EncounterNativeModelAllocationTests
         }
         if (!complete())
         {
-            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = battle.NativeGraphics!.Models.Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), battle.NativeGraphics.ActionActorId, Effect = battle.NativeGraphics.OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, Bound = battle.NativeCommandBanks.BoundCommands, DescriptorQueue = battle.NativeGraphics.Descriptors.Queue, Tasks = battle.NativeGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
+            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), battle.NativeGraphics.ActionActorId, Effect = battle.NativeGraphics.OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, Bound = battle.NativeCommandBanks.BoundCommands, DescriptorQueue = battle.NativeGraphics.Descriptors.Queue, Tasks = battle.NativeGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
             Assert.Fail("Installed graphical integration did not complete: " + boundary + "; " + details);
         }
     }

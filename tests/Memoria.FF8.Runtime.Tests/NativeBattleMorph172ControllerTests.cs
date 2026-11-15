@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleMorph172Controller;
@@ -59,7 +60,7 @@ public sealed class NativeBattleMorph172ControllerTests
         List<NativeBattleMorph172Operation> operations = [];
         NativeBattleMorph172Inputs inputs = Inputs(operations) with { ReadAnchor571400 = (current, actor) =>
         {
-            Assert.Equal(3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             return new(current with { Memory = current.Memory with { Active = 19 } }, PointView(new(101, 202, 303), unchecked((short)0xBEEF)));
         } };
         NativeBattleMorph172Frame result = AdvanceMain(frame, ChildBank, Resources(), inputs).Frame;
@@ -86,7 +87,7 @@ public sealed class NativeBattleMorph172ControllerTests
         List<NativeBattleMorph172Operation> operations = [];
         NativeBattleMorph172Inputs inputs = Inputs(operations) with { ReadAnchor571400 = (current, actor) =>
         {
-            Assert.Equal(3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             Assert.Equal(new uint[] { MainCallback, Callback5D9F20, Callback5DA0F0, Callback5DA2C0 }, current.Effect.Pools[1].Slots.Take(4).Select(task => task.Callback));
             Assert.Equal(5u, current.State.ReadDword(RadiiBase));
             return new(current with { Memory = current.Memory with { Active = 23 } }, PointView(new(40, 50, 60), 0x5678));
@@ -218,17 +219,17 @@ public sealed class NativeBattleMorph172ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) };
-        NativeBattleOriginalEffectState effect = new(172, 171, new(172, Entry, Initializer), new(3, 0, 0x7F, 0, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(172, 171, new(172, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(55), NativeBattleMorph172State.FromColdProcess());
     }
 
     private static NativeBattleMorph172Inputs Inputs(List<NativeBattleMorph172Operation> operations)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 32, 172, null));
-        (packets, _) = packets.AppendContact(new(new(2, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 32, 172, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(2), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(actor, 0x204), (current, _) => new(current, PointView(new(100, 200, 300), 0x7777)), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
+        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(0x204), (current, _) => new(current, PointView(new(100, 200, 300), 0x7777)), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             operations.Add(operation);
             return current;

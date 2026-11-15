@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -65,7 +66,7 @@ public sealed class NativeBattleDrawStock15NodeResourcesTests
             .WriteDword(0x264, Address + 0xC4)
             .WriteWord(0x50, 1);
         hierarchy = appended.Hierarchy.Write(appended.Address, task);
-        NativeBattleOriginalEffectState effect = new(15, 14, new(15, 0x8B0910, 0x8B08F0), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(15, 14, new(15, 0x8B0910, 0x8B08F0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         const int emitters = 0x12000;
         const int geometry = emitters + 0x438;
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), DrawStock15Executable = executable };
@@ -85,7 +86,7 @@ public sealed class NativeBattleDrawStock15NodeResourcesTests
         Assert.Equal(NativeBattleSnapshotJson.Serialize(expected.Frame), NativeBattleSnapshotJson.Serialize(actual.Frame));
     }
 
-    private static NativeBattleGraphicsModel ReadModel(int index) => new(index, 2)
+    private static NativeBattleGraphicsModel ReadModel(int index) => new(2)
     {
         Rotation14 = 0,
         Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096),

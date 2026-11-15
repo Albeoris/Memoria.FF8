@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -52,11 +53,11 @@ public sealed class NativeBattleCinematicGuestReachedCommandsTests
         NativeBattleLinkedModelTransform? written = null;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicLinkedPosition70.Draw(frame, pointer =>
         {
-            Assert.Equal(0x1D975CCu, pointer);
+            Assert.Equal(OriginalOwner(5), pointer);
             return original;
         }, (pointer, linked) =>
         {
-            Assert.Equal(0x1D975CCu, pointer);
+            Assert.Equal(OriginalOwner(5), pointer);
             written = linked;
         });
         Assert.Same(frame, result);

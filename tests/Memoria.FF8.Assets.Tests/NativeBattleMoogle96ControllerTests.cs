@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -218,15 +219,15 @@ public sealed class NativeBattleMoogle96ControllerTests
     private static Fixture Create(NativeBattleMoogle96Resources resources)
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 1, 96, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 96, null));
         foreach (byte actor in new byte[] { 3, 4 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
         NativeBattleDecodedPose pose = NativeBattlePoseDecoder.DecodeFirst509440(resources.Model.PoseSource.Animations.AsSpan(), resources.Model.PoseSource.BoneCount, 0).Pose;
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => NativeBattleBodyBoneMatrices.Publish508C90(new NativeBattleGraphicsModel(actor, actor == 6 ? (ushort)0 : actor == 4 ? (ushort)7 : (ushort)3) { ModelId4 = 0, Flags2 = 0, Color40 = 0x80606060, Color44 = 0xA1445566, Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, 300), 77, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, resources.Model.PoseSource)).ToImmutableArray();
-        NativeBattleOriginalEffectState effect = new(96, 95, new(96, 0x731DE0, 0x731DC0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x257B740, 0)] };
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => NativeBattleBodyBoneMatrices.Publish508C90(new NativeBattleGraphicsModel(actor == 6 ? (ushort)0 : actor == 4 ? (ushort)7 : (ushort)3) { ModelId4 = 0, Flags2 = 0, Color40 = 0x80606060, Color44 = 0xA1445566, Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, 300), 77, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, resources.Model.PoseSource)).ToImmutableArray();
+        NativeBattleOriginalEffectState effect = new(96, 95, new(96, 0x731DE0, 0x731DC0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x257B740, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Moogle96 = NativeBattleMoogle96State.FromColdProcess(), Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() };
         NativeBattleMoogle96Frame frame = NativeBattleMoogle96Controller.Initialize731DE0(memory, effect, packets, resources, new(1));
         return new(new(frame, models, NativeBattleFileIoState.FromColdProcess(), [], [], [], null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), packets);

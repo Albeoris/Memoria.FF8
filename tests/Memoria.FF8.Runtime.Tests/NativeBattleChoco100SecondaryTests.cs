@@ -17,7 +17,7 @@ public sealed class NativeBattleChoco100SecondaryTests
         while (frame.Task.ReadByte(0x29) != 6 && callbacks < 256)
         {
             phases.Add(frame.Task.ReadByte(0x29));
-            NativeBattleChoco100SecondaryFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco100SecondaryFrame>(NativeBattleTestSnapshots.Json(frame))!;
+            NativeBattleChoco100SecondaryFrame cold = NativeBattleTestSnapshots.Independent(frame);
             NativeBattleChoco100SecondaryStep next = Advance(frame, false);
             Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Advance(cold, false)));
             if ((next.Frame.Task.ReadByte(0x26) & 8) != 0)
@@ -103,7 +103,7 @@ public sealed class NativeBattleChoco100SecondaryTests
     {
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x716C20, new byte[0xD0 - 12].ToImmutableArray()).WriteByte(0x29, phase).WriteByte(0x2D, 0).WriteWord(0xCC, timer);
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 4096);
-        NativeBattleGraphicsModel actor = new(0, 0x802) { Rotation12 = 0, GeometryWorldMatrix = world, GeometryBounds52 = new(new(-10, -2048, -10), new(10, 2048, 10)) };
+        NativeBattleGraphicsModel actor = new(0x802) { Rotation12 = 0, GeometryWorldMatrix = world, GeometryBounds52 = new(new(-10, -2048, -10), new(10, 2048, 10)) };
         return new(task, actor, null);
     }
 }

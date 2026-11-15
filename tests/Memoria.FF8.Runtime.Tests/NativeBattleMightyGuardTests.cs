@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -33,7 +34,7 @@ public sealed class NativeBattleMightyGuardTests
         Assert.Equal(bindings, fixture.Operations.OfType<NativeBattleMightyGuardBindCaster>().Count());
         if (bindings != 0)
         {
-            Assert.Equal(new NativeBattleMightyGuardBindCaster(0, 0x25F4F38, 0x1587F4C, 1), Assert.Single(fixture.Operations.OfType<NativeBattleMightyGuardBindCaster>()));
+            Assert.Equal(new NativeBattleMightyGuardBindCaster(OriginalOwner(0), 0x25F4F38, 0x1587F4C, 1), Assert.Single(fixture.Operations.OfType<NativeBattleMightyGuardBindCaster>()));
         }
         Assert.Equal(new NativeBattleMightyGuardStage(0, true), Assert.Single(fixture.Operations.OfType<NativeBattleMightyGuardStage>()));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.SharedEffectView2793E58!.Bytes.AsSpan().Slice(18)));
@@ -68,7 +69,7 @@ public sealed class NativeBattleMightyGuardTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, fixture.Frame.Profile.TargetCallback, 88, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, fixture.Frame.Profile.TargetCallback, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteByte(0x29, 2).WriteWord(0x24, age));
         NativeBattleMightyGuardFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         _ = NativeBattleMightyGuardController.Advance(frame, fixture.Resources, fixture.Inputs);
@@ -88,7 +89,7 @@ public sealed class NativeBattleMightyGuardTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10).WriteByte(0x63, 1));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, fixture.Frame.Profile.TargetCallback, 88, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, fixture.Frame.Profile.TargetCallback, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteByte(0x29, 1).WriteWord(0x24, soundAge));
         NativeBattleMightyGuardFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         frame = NativeBattleMightyGuardController.Advance(frame, fixture.Resources, fixture.Inputs);
@@ -108,7 +109,7 @@ public sealed class NativeBattleMightyGuardTests
         var fixture = Fixture(effect, 2);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
-        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => new(0, 4));
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => OriginalTaskActors(0, 4));
         hierarchy = context.Hierarchy.Write(context.Address, context.Hierarchy.Read(context.Address).WriteByte(0x2B, 1).WriteDword(0x30, fixture.Frame.Profile.SourceAddress).WriteWord(0x29E, 45));
         NativeBattleMightyGuardFrame frame = NativeBattleMightyGuardController.InitializeContext(fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }, context.Address, fixture.Resources, fixture.Inputs.Packets, fixture.Inputs.ReadModel, fixture.Inputs.ReadPoseSource);
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(context.Address);
@@ -134,7 +135,7 @@ public sealed class NativeBattleMightyGuardTests
         NativeBattleMightyGuardState state = fixture.Frame.State with { Executable = source };
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
-        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => new(0, 4));
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => OriginalTaskActors(0, 4));
         hierarchy = context.Hierarchy.Write(context.Address, context.Hierarchy.Read(context.Address).WriteDword(0x30, fixture.Frame.Profile.SourceAddress));
         NativeBattleMightyGuardFrame frame = fixture.Frame with { State = state, Memory = fixture.Frame.Memory.WithMightyGuard(state), Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         int reads = 0;
@@ -170,7 +171,7 @@ public sealed class NativeBattleMightyGuardTests
         NativeBattleMightyGuardState state = fixture.Frame.State with { Executable = source };
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
-        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => new(0, 4));
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => OriginalTaskActors(0, 4));
         hierarchy = context.Hierarchy.Write(context.Address, context.Hierarchy.Read(context.Address).WriteDword(0x30, fixture.Frame.Profile.SourceAddress));
         NativeBattleMightyGuardFrame frame = fixture.Frame with { State = state, Memory = fixture.Frame.Memory.WithMightyGuard(state), Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
@@ -230,7 +231,7 @@ public sealed class NativeBattleMightyGuardTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteByte(0x29, 1).WriteWord(0x34 + 0x20, 1).WriteWord(0x34 + 0x1A, 1).WriteWord(0x34 + 0x14, 1));
         NativeBattleMightyGuardFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         int calls = 0;
@@ -287,16 +288,16 @@ public sealed class NativeBattleMightyGuardTests
     private static (NativeBattleMightyGuardFrame Frame, NativeBattleMightyGuardResources Resources, NativeBattleMightyGuardInputs Inputs, List<NativeBattleMightyGuardOperation> Operations) Fixture(ushort effect, byte targets = 1)
     {
         NativeBattleMightyGuardProfile profile = NativeBattleMightyGuardProfile.ForEffect(effect);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         if (targets == 2)
         {
-            (packets, _) = packets.AppendContact(new(new(4, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 0, 0, 0, 0, 0, 0), null));
         }
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(targets);
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0x1000)] };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0x1000)] };
         byte[] camera = new byte[profile.CameraLength];
         BinaryPrimitives.WriteUInt16LittleEndian(camera, 2);
         BinaryPrimitives.WriteUInt16LittleEndian(camera.AsSpan(6), (ushort)camera.Length);
@@ -318,7 +319,7 @@ public sealed class NativeBattleMightyGuardTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         List<NativeBattleMightyGuardOperation> operations = [];
-        NativeBattleMightyGuardInputs inputs = new(packets, NativeBattleCuragaMatrices.Identity8DD770(), index => new(index, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 }, GeometryBounds52 = new(new(0, -100, 0), new(0, 400, 0)) }, _ => pose, (current, operation) =>
+        NativeBattleMightyGuardInputs inputs = new(packets, NativeBattleCuragaMatrices.Identity8DD770(), index => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 }, GeometryBounds52 = new(new(0, -100, 0), new(0, 400, 0)) }, _ => pose, (current, operation) =>
         {
             operations.Add(operation);
             return current;

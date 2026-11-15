@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -14,14 +15,14 @@ public sealed class NativeBattleGilgameshPresentationTests
         NativeBattleModelCpuReference cpu = new(1, layout.BankLength + 4) { Layout = layout, ResourceOnly = true };
         NativeBattleGraphicsResource resource = new([0, 0]) { PilotGeometryResource = cpu };
         NativeBattlePilotVisualIdentity parent = new(330, 0x1000, 1, 7, 3) { ResourceGeneration = long.MaxValue };
-        NativeBattlePilotVisualIdentity first = NativeBattleGilgameshVisuals.ActorResource(parent, resource, 2)!.Value;
-        Assert.Equal(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource, 2));
+        NativeBattlePilotVisualIdentity first = NativeBattleGilgameshVisuals.ActorResource(parent, resource, OriginalOwner(2))!.Value;
+        Assert.Equal(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource, OriginalOwner(2)));
         Assert.Null(cpu.TryPhysicalAddress());
-        Assert.NotEqual(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource with { PilotGeometryResource = cpu with { Offset = cpu.Offset + 4 } }, 2));
+        Assert.NotEqual(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource with { PilotGeometryResource = cpu with { Offset = cpu.Offset + 4 } }, OriginalOwner(2)));
         NativeBattleModelCpuReference guest = cpu with { Offset = 4, ResourceOnly = false };
         NativeBattleGraphicsResource numeric = resource with { PilotGeometryResource = guest };
         NativeBattlePilotVisualIdentity expected = NativeBattleGilgameshVisuals.Resource(parent, guest, guest.PhysicalAddress, 2)!.Value;
-        Assert.Equal(expected, NativeBattleGilgameshVisuals.ActorResource(parent, numeric, 2));
+        Assert.Equal(expected, NativeBattleGilgameshVisuals.ActorResource(parent, numeric, OriginalOwner(2)));
     }
 
     [Theory]
@@ -179,7 +180,7 @@ public sealed class NativeBattleGilgameshPresentationTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0 };
         BattleSession session = (BattleSession)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
         typeof(BattleSession).GetField("nativeEffectMemory", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(session, memory);
-        NativeBattleGraphicsState graphics = new([], [], 0, 1) { OriginalEffect = finished, ModuleEffects = advanced.State, ModuleDraws = advanced.Draws };
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 1, OriginalEffects()) { OriginalEffect = finished, ModuleEffects = advanced.State, ModuleDraws = advanced.Draws };
         NativeBattleGraphicsState polled = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(session, [graphics])!;
         Assert.Empty(polled.OriginalEffect!.PresentationPackets);
         Assert.Contains(obsolete, finished.PresentationPackets);

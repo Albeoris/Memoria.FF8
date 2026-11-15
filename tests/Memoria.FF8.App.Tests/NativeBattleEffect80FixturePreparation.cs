@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -108,7 +109,7 @@ internal static class NativeBattleEffect80FixturePreparation
             Assert.Equal(originalPlacement.Hidden, participant.Hidden);
             Assert.Equal(originalPlacement.InitiallySuspended, participant.Suspended);
             Assert.Equal(originalPlacement.Untargetable, participant.Untargetable);
-            Assert.Equal(originalPlacement.NativePosition, source.NativeGraphics.Models[participant.ActorIndex].Transform!.Position28);
+            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.NativeGraphics, participant.ActorIndex).Transform!.Position28);
             Assert.Null(originalActor.NativeAi);
         }
         NativeBattleParticipantSnapshot freshCaster = Assert.Single(source.Combatants, actor => actor.Id == casterDefinition.Id).NativeParticipant!;
@@ -123,7 +124,7 @@ internal static class NativeBattleEffect80FixturePreparation
         BattleCombatantDefinition removedDefinition = Assert.Single(originalEnemies, actor => actor.ModelId == 121);
         BattleCombatantSnapshot removedBefore = Assert.Single(source.Combatants, actor => actor.Id == removedDefinition.Id);
         int removedIndex = removedBefore.NativeParticipant!.ActorIndex;
-        int removedResource = source.NativeGraphics!.Models[removedIndex].TextureResourceIndex ?? throw new InvalidDataException("The original participant requires its loaded resource row before removal.");
+        int removedResource = ReadOriginalModelCell(source.NativeGraphics!, removedIndex).TextureResourceIndex ?? throw new InvalidDataException("The original participant requires its loaded resource row before removal.");
         NativeBattleModelTextureCacheRow removedTexture = source.NativeModelTextureCache!.Rows[removedResource];
         bool removalObserved = false;
         BattleCombatant removedActor = Assert.Single(session.Combatants, actor => actor.Id == removedDefinition.Id);
@@ -168,7 +169,7 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.Equal(prototype.InitialUntargetable, targetDefinition.InitialUntargetable);
         int casterBones = AssertCurrentPose(ready, casterDefinition, 4, 2);
         int targetBones = AssertCurrentPose(ready, targetDefinition, actualTarget, 71);
-        Assert.Equal(placement.NativePosition, ready.NativeGraphics!.Models[actualTarget].Transform!.Position28);
+        Assert.Equal(placement.NativePosition, ReadOriginalModelCell(ready.NativeGraphics!, actualTarget).Transform!.Position28);
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(123, casterDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 352 && action.MagicId == 80)));
         NativeBattleGraphicsResource targetResource = assets.ReadNativeGraphicsResource(targetDefinition);
         Assert.True(targetResource.Contains(26));
@@ -182,7 +183,7 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.Equal(original.NativeParticipant.Suspended, retained.NativeParticipant.Suspended);
         Assert.True(retained.NativeParticipant.Untargetable);
         Assert.Equal((ushort)(original.NativeStatus!.Saved | 1), retained.NativeStatus!.Saved);
-        Assert.Equal(source.NativeGraphics!.Models[original.NativeParticipant.ActorIndex].Transform!.Position28, ready.NativeGraphics!.Models[original.NativeParticipant!.ActorIndex].Transform!.Position28);
+        Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, original.NativeParticipant.ActorIndex).Transform!.Position28, ReadOriginalModelCell(ready.NativeGraphics!, original.NativeParticipant!.ActorIndex).Transform!.Position28);
         Assert.Null(ready.NativeGraphics!.OriginalEffect);
         SaveNext("allocation-ready");
         File.WriteAllText(Path.Combine(output, "allocation-receipt.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Controlled original participant105 removal and112 barrier, scene-slot3 allocation and direct actor4 activation; no preceding death AI, effect227, action74, formula or effect80 execution", FormationId = 511, StageId = 142, Allocation = allocation, CasterActorIndex = 4, TargetActorIndex = actualTarget, CasterModel = 123, TargetModel = 124, CasterBones = casterBones, TargetBones = targetBones, CasterSequence = 13, TargetSequence = 26, AllocationCallbacks = allocationCallbacks, ActivationCallbacks = activationCallbacks, Events = session.Events.Where(entry => entry.Kind is "NativeSpawn" or "Activated").ToArray() }, new JsonSerializerOptions { WriteIndented = true }));
@@ -190,8 +191,8 @@ internal static class NativeBattleEffect80FixturePreparation
 
         int AssertCurrentPose(BattleSnapshot snapshot, BattleCombatantDefinition actor, int index, int expected)
         {
-            NativeBattleGraphicsModel model = snapshot.NativeGraphics!.Models[index];
-            Assert.Equal(actor.Id, snapshot.NativeGraphics!.ActorIds[index]);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, index);
+            Assert.Equal(actor.Id, ReadOriginalModelActorId(snapshot.NativeGraphics!, index));
             Assert.Equal(checked((byte)(actor.ModelId + 16)), model.ModelId4);
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actor).PoseSource ?? throw new InvalidDataException("The actual loaded model requires its original skeleton.");
             Assert.Equal(expected, pose.BoneCount);
@@ -207,7 +208,7 @@ internal static class NativeBattleEffect80FixturePreparation
             for (int count = 0; count < 1200; count++)
             {
                 BattleSnapshot current = session.Capture();
-                if (!removalObserved && !Assert.Single(current.Combatants, actor => actor.Id == removedDefinition.Id).NativeParticipant!.Active && (current.NativeGraphics!.Models[removedIndex].Flags0 & 2) == 0)
+                if (!removalObserved && !Assert.Single(current.Combatants, actor => actor.Id == removedDefinition.Id).NativeParticipant!.Active && (ReadOriginalModelCell(current.NativeGraphics!, removedIndex).Flags0 & 2) == 0)
                 {
                     BattleCombatantSnapshot released = Assert.Single(current.Combatants, actor => actor.Id == removedDefinition.Id);
                     Assert.Equal(removedBefore.CurrentHp, released.CurrentHp);

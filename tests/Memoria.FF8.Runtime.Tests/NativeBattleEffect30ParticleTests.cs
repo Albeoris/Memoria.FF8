@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -126,9 +127,9 @@ public sealed class NativeBattleEffect30ParticleTests
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, RootCallback, 100);
             Root = root.Address;
-            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(4, ParticleCallback, 96, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(4, ParticleCallback, 96, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             Address = child.Address;
-            NativeBattleOriginalEffectState effect = new(30, 30, new(30, Entry, Initializer), new(0, 0, 0, 0, 0, 0), Pools[0].Descriptor) { Pools = child.Hierarchy.Pools };
+            NativeBattleOriginalEffectState effect = new(30, 30, new(30, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), Pools[0].Descriptor) { Pools = child.Hierarchy.Pools };
             NativeBattlePackedMatrix32 identity = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = identity, ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             Frame = new(memory, effect, new(1), NativeBattleEffect30State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

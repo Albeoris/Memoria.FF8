@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattlePetrifyStare127Profile;
 
@@ -137,10 +138,10 @@ public sealed class NativeBattlePetrifyStare127ControllerTests
         private NativeBattlePetrifyStare127Resources Resources { get; } = new(Source(FirstActAddress, 0x44C8, 16), Source(SecondActAddress, 0x5828, 36), new("FF8_EN:12414AC", new byte[236].ToImmutableArray()), 0x61AC6);
         public Fixture(ushort age, ushort cycle = 2)
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 8, 11, 0, 29, 127, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 11, 0, 29, 127, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 7, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             Packets = packets;
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
@@ -150,14 +151,14 @@ public sealed class NativeBattlePetrifyStare127ControllerTests
             (targets, int targetSlot) = targets.Append(TargetCallback);
             targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(targetSlot, targets.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(12, age).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteDword(0x20, 0x1D972C0 + 3 * 156)) });
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
-            NativeBattleOriginalEffectState effect = new(127, 126, new(127, Entry, Initializer), new(0, 0, 8, 0, 0, 0), null) { Pools = [root, targets], ReturnedDescriptor = RootDescriptor };
+            NativeBattleOriginalEffectState effect = new(127, 126, new(127, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root, targets], ReturnedDescriptor = RootDescriptor };
             memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
             Frame = new(memory, effect, new(123), NativeBattlePetrifyStare127State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0).WriteDword(StageDepthGlobal, 1234));
         }
         public NativeBattleModulePoolTask Root(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Pools[0].Slots[0];
         public NativeBattleModulePoolTask Target(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Pools[1].Slots[0];
         public NativeBattlePetrifyStare127Frame WithRoot(NativeBattlePetrifyStare127Frame frame, NativeBattleModulePoolTask task) => NativeBattlePetrifyStare127Controller.Write(frame, RootBank, task);
-        public NativeBattlePetrifyStare127Frame Step(NativeBattlePetrifyStare127Frame frame) => NativeBattlePetrifyStare127Controller.Advance(frame, Resources, new(Packets, actor => new(actor, 1) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, actor == 0 ? (short)512 : (short)1024) }, (current, _) =>
+        public NativeBattlePetrifyStare127Frame Step(NativeBattlePetrifyStare127Frame frame) => NativeBattlePetrifyStare127Controller.Advance(frame, Resources, new(Packets, actor => new(1) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, actor == 0 ? (short)512 : (short)1024) }, (current, _) =>
         {
             BoneReads++;
             return new(current, new(100, 200, 300));

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -15,7 +16,7 @@ public sealed class NativeBattleCommonModuleMotionTests
     [InlineData(5, 27, 75)]
     public void Every_casting_selector_has_transient_draw_owners_without_changing_native_payloads_or_random_draws(int selector, int expectedCallbacks, int expectedRandomDraws)
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, (byte)selector);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), (byte)selector, OriginalAliases);
         NativeCrtRandomState initial = new(17);
         NativeCrtRandomState random = initial;
         Dictionary<int, NativeBattlePilotVisualIdentity> liveOwners = [];
@@ -86,7 +87,7 @@ public sealed class NativeBattleCommonModuleMotionTests
     [InlineData(5)]
     public void Reused_geometric_task_slot_receives_a_new_allocation_owner(int selector)
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, (byte)selector);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), (byte)selector, OriginalAliases);
         NativeCrtRandomState random = new(7);
         NativeBattleModuleDraw? selected = null;
         for (int callback = 0; callback < 8 && selected is null; callback++)

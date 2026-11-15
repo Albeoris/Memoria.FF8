@@ -37,8 +37,8 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         CrossoverNativeRenzokukenEntryState state = CrossoverNativeRenzokukenEntry.Begin(game, 4, variant, finisherPending, random);
         Assert.Equal(variant, state.Frame.Effect.Binding.Effect);
         Assert.Equal(4, state.HostTarget);
-        Assert.Equal((byte)3, state.Packets.ReadContact(0).Primary.ActorIndex);
-        Assert.Equal((byte)5, state.Packets.Headers[0].ReadByte(1));
+        Assert.Equal((byte)3, state.Packets.ReadContact(new BattleContactOccurrence(0)).Primary.ActorIndex);
+        Assert.Equal((byte)5, state.Packets.ReadHeader(new BattleActionHeaderReference(0)).Command);
         Assert.Equal(contacts, state.Resources.ActorResource.Timeline.InputThresholds.Length);
         NativeBattleRenzokuken160State native = variant == 141 ? NativeBattleRenzokukenVariantController.ReadState(state.Frame).Core : state.Frame.Memory.Renzokuken160!;
         Assert.Equal(finisherPending, native.InitialControl);

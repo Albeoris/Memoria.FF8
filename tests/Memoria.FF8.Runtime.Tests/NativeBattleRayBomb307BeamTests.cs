@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -149,13 +150,13 @@ public sealed class NativeBattleRayBomb307BeamTests
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, int slot) = children.Append(0x5A1EE0);
             children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, age).WriteWord(16, 2000).WriteWord(18, unchecked((ushort)-500)).WriteWord(20, 4000).WriteWord(24, 70).WriteWord(26, 160).WriteWord(32, 2048)) });
-            NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2), children] };
+            NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2), children] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             NativeBattleEffectArena origin = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)1000)).Write(2, BitConverter.GetBytes((short)-1000)).Write(4, BitConverter.GetBytes((short)1000));
             Frame = new(memory, effect, new(123), NativeBattleRayBomb307State.FromColdProcess().WriteView(0x2242580, origin, 8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address + 8, [0x12, 0x34, 0x56]) };
         }
         public static NativeBattleRayBomb10BeamGeometry Beam(short age) => NativeBattleRayBomb10Geometry.Beam628B00(new(2000, -500, 4000), new(1000, -1000, 1000, 0), Eye, 70, 2048, age);
-        public NativeBattleRayBomb307TaskStep Advance(NativeBattleRayBomb307Frame frame, uint flags = 0) => NativeBattleRayBomb307Controller.AdvanceBeam(frame, ChildBank, null!, new(NativeBattleActionPacketsState.Fresh(), flags, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute) { CapturePresentation = Capture, ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(View, null), ReadCameraEye = _ => Eye });
+        public NativeBattleRayBomb307TaskStep Advance(NativeBattleRayBomb307Frame frame, uint flags = 0) => NativeBattleRayBomb307Controller.AdvanceBeam(frame, ChildBank, null!, new(OriginalPackets(), flags, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute) { CapturePresentation = Capture, ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(View, null), ReadCameraEye = _ => Eye });
         private NativeBattleRayBomb307Frame Execute(NativeBattleRayBomb307Frame frame, NativeBattleRayBomb307Operation operation)
         {
             NativeBattleRayBomb307DrawMesh88 draw = Assert.IsType<NativeBattleRayBomb307DrawMesh88>(operation);

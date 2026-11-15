@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -179,7 +180,7 @@ public sealed class NativeBattleCinematicContactsTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(poolAddress, taskAddress, 36, 100);
         (pool, int slot) = pool.Append(0x5A0BF0);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 28).WriteWord(14, 1).WriteWord(26, 1));
-        NativeBattleOriginalEffectState effect = new(312, 311, new(312, 0x59CB90, 0x59CB70), new(3, 0, 1, 1, 0, 0), null) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(312, 311, new(312, 0x59CB90, 0x59CB70), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(1), 0, 0), null) { Pools = [pool] };
         NativeBattleEffect312Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(83), NativeBattleEffect312State.FromColdProcess().DetachBank(1).WriteDword(0x2240EB8, Parameters))
         {
             ReadPhysical = (address, length) => NativeBattleEffectArena.Clear().Write(0, address == Parameters + 4 ? BitConverter.GetBytes(HeaderBase + 20) : Read(bank, address, length))
@@ -222,7 +223,7 @@ public sealed class NativeBattleCinematicContactsTests
         return frame with { Core = frame.Core with { PresentationActors = NativeBattleCinematicActorContext.FromGraphics(bank.PresentationRoster!, Models()).WithContactCursor(cursor) } };
     }
 
-    private static ImmutableArray<NativeBattleGraphicsModel> Models() => [.. Enumerable.Range(0, 9).Select(row => new NativeBattleGraphicsModel(row, 0))];
+    private static ImmutableArray<NativeBattleGraphicsModel> Models() => [.. Enumerable.Range(0, 9).Select(row => new NativeBattleGraphicsModel(0))];
 
     private static NativeBattleActionPacketsState Bank(params IEnumerable<byte>[] groups)
     {
@@ -231,8 +232,8 @@ public sealed class NativeBattleCinematicContactsTests
         foreach (IEnumerable<byte> group in groups)
         {
             byte[] recipients = group.ToArray();
-            (packets, _) = packets.Prepare(new(0, 2, 5, -1, 6, 7, null));
-            packets = packets.AppendContacts(recipients.Select(actor => new NativeBattleContactPacket(new(actor, 0, 0, 4, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 5, -1, 6, 7, null));
+            packets = packets.AppendContacts(recipients.Select(actor => new NativeBattleContactPacket(new(actor, 0, 0, 4, 0, 0, 0), null)));
             (packets, _) = packets.Publish(recipients.Length);
         }
         return packets;
@@ -251,7 +252,7 @@ public sealed class NativeBattleCinematicContactsTests
         if (address >= HeaderBase && address < NativeBattleContactAddress.Encode(0))
         {
             uint relative = address - HeaderBase;
-            return bank.Headers[(int)(relative / 20)].Payload.AsSpan((int)(relative % 20), length).ToArray();
+            return bank.ExportRetained().Headers[(int)(relative / 20)].Payload.AsSpan((int)(relative % 20), length).ToArray();
         }
         (int row, int offset) = NativeBattleContactAddress.ResolveField(address, length, bank.StorageCapacity);
         return bank.ReadContactBytes(row).AsSpan(offset, length).ToArray();

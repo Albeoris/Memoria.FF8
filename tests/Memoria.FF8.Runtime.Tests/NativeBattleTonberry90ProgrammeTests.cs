@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -171,7 +172,7 @@ public sealed class NativeBattleTonberry90ProgrammeTests
         },
         (_, _, _, _) => throw new InvalidOperationException("Sound was not reached."));
 
-    private static NativeBattleTonberry90Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess(), new(90, 89, new(90, 0x762360, 0x762320), new(0, 1, 8, 0, 0, 0), null), new(1));
+    private static NativeBattleTonberry90Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess(), new(90, 89, new(90, 0x762360, 0x762320), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null), new(1));
     private static NativeBattleTonberry90Frame WithProgramme(NativeBattleTonberry90Frame frame, byte phase)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x259F098, 0x259F0A8, 0x7C, 100);

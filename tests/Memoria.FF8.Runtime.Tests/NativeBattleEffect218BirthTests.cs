@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
@@ -86,7 +87,7 @@ public sealed class NativeBattleEffect218BirthTests
     {
         NativeBattleCureFamilyPool profile = Pools[1];
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = ImmutableArray.Create(pool) };
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = ImmutableArray.Create(pool) };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(0xBEEF), NativeBattleEffect218State.FromColdProcess());
     }
 }

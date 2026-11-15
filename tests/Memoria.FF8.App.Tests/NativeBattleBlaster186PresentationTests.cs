@@ -42,7 +42,7 @@ public sealed class NativeBattleBlaster186PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag185.tim", NativeBattleBlaster186Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(231584, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeBlaster186Resources(), binding.Blaster186Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

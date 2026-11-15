@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -37,12 +38,12 @@ internal sealed class NativeBattleEffect315PresentationObserver
             return;
         }
         NativeBattleEffect315State state = current.NativeEffectMemory!.Effect315!;
-        NativeBattleGraphicsModel caster = current.NativeGraphics.Models[3];
+        NativeBattleGraphicsModel caster = ReadOriginalModelCell(current.NativeGraphics, 3);
         Assert.Equal((byte)91, caster.ModelId4);
-        Assert.Equal((byte)50, current.NativeGraphics.Models[4].ModelId4);
+        Assert.Equal((byte)50, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
-        originalColor ??= prior.NativeGraphics!.Models[3].Color40;
+        originalColor ??= ReadOriginalModelCell(prior.NativeGraphics!, 3).Color40;
         colorChanged |= caster.Color40 != originalColor;
         if (effect.ReturnedDescriptor is > 0)
         {
@@ -94,10 +95,10 @@ internal sealed class NativeBattleEffect315PresentationObserver
                     if ((task.Flags & 1) != 0 && task.Callback == 0x598E70 && unchecked((short)task.ReadWord(0xC)) == 112 && unchecked((short)next.ReadWord(0xC)) == 113)
                     {
                         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
-                        int first = packets.Headers[effect.Parameters!.HeaderIndex7C].FirstContactIndex!.Value;
-                        NativeBattleContactHalf half = packets.ReadContact(first).Primary;
+                        int first = packets.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.HeaderIndex7C)).FirstContactIndex!.Value;
+                        NativeBattleContactHalf half = packets.ReadContact(new BattleContactOccurrence(first)).Primary;
                         Assert.Equal((byte)3, half.ActorIndex);
-                        NativeBattleGraphicsModel beforeCaster = prior.NativeGraphics.Models[3];
+                        NativeBattleGraphicsModel beforeCaster = ReadOriginalModelCell(prior.NativeGraphics, 3);
                         Assert.Null(beforeCaster.ReadLinkedModelIndex140());
                         uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!.Battle;
                         NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, beforeCaster, current.Definition.NativeGraphics!.Rules, battleStatuses);
@@ -163,7 +164,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
         if (!recipient.Hidden && !recipient.Suspended && !recipient.Untargetable)
         {
             activated = true;
-            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == current.NativeGraphics.ActorIds[4]);
+            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.NativeGraphics, 4));
             Mark("effect315-native-recipient-activation", current, cold);
         }
         else

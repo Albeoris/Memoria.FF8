@@ -16,7 +16,7 @@ public sealed class NativeBattleForeignVertexBoundsTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1]);
         NativeBattleActionMatrix world = NativeBattleForeignModelGeometry.Identity with { X = 1000, Y = 2000, Z = 3000 };
-        NativeBattleGraphicsModel native = new(3, 3) { Transform = new(default, new(10, 20, 30), 900, 0, 4096), GeometryWorldMatrix = world, SequenceState = new() { MeshMask124 = 1, DecodedPose = new(default, [new(default, new(1024, 1024, 1024))], false) } };
+        NativeBattleGraphicsModel native = new(3) { Transform = new(default, new(10, 20, 30), 900, 0, 4096), GeometryWorldMatrix = world, SequenceState = new() { MeshMask124 = 1, DecodedPose = new(default, [new(default, new(1024, 1024, 1024))], false) } };
         native = NativeBattleBodyBoneMatrices.Publish508C90(native, source);
         ImmutableArray<NativeBattleVector> vertices = [new(0, -300, 10), new(0, 700, 10), new(0, 1700, 10)];
         NativeBattleRawMesh mesh = new(vertices.Select(vertex => new NativeBattleRawVertex(vertex, 0)).ToImmutableArray(), []);

@@ -20,7 +20,7 @@ public sealed class NativeBattleSharedDrawingTemporaryTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(66), 150);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1]);
         NativeBattleDecodedPose pose = new(new(10, 20, 30), [new(new(0, 128, 0), new(1024, 1024, 1024)), new(new(128, 0, 0), new(1100, 1200, 1300))], scaled);
-        NativeBattleGraphicsModel actor = new(3, 3) { SequenceState = new() { DecodedPose = pose } };
+        NativeBattleGraphicsModel actor = new(3) { SequenceState = new() { DecodedPose = pose } };
         NativeBattleEffectArena original = NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0x4C, [0x55, 0x66, 0x77, 0x88]);
         NativeBattleBodyBonePreparation actualActor = NativeBattleBodyBoneTemporary.Prepare508C90(actor, source, original);
         NativeBattleEffectArena actualStage = NativeBattleBodyBoneTemporary.Prepare508C90(source, pose, NativeBattlePoseMatrices.StageBoneMatrices(source, pose), original);
@@ -36,7 +36,7 @@ public sealed class NativeBattleSharedDrawingTemporaryTests
     public void Shared_shadow_retains_physical_reservation_and_unknown_vector_padding_until_caller_release()
     {
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-        NativeBattleGraphicsModel actor = new(3, 3)
+        NativeBattleGraphicsModel actor = new(3)
         {
             GeometryWorldMatrix = identity with { Z = 2000 },
             Transform = new(new(0, 0, 0), new(0, 0, 2000), 0, 0, 4096),

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -185,7 +186,7 @@ public sealed class NativeBattleFileStagingResourceTests
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(36), bytes.Length);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(60), 8);
         NativeBattleModelDatSource source = new(0, false, 2, 310, "model.dat", bytes.ToImmutableArray());
-        NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, 1, 0, 7, 2).Poll507070(0, [source], NativeBattleFileStaging.Unknown());
+        NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 7, 2).Poll507070(0, [source], NativeBattleFileStaging.Unknown());
         Assert.Equal(source.Bytes, request.Staging.ReadDat(Address));
         Assert.Equal(0, request.Staging.MaterializedPageCount);
         NativeBattleModelLoadStep texture = request.State.Poll507070(source.Bytes.Length, [source], request.Staging);

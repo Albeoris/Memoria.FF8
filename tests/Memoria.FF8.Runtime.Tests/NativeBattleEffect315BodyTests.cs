@@ -121,7 +121,7 @@ public sealed class NativeBattleEffect315BodyTests
     [InlineData(0x200, true, false)]
     public void Outer_keeps_world_bone_basis_conditional_shadow_and_linked_filter(ushort flags, bool shadow, bool linked)
     {
-        NativeBattleGraphicsModel model = new(3, flags) { Color40 = 0x123456, Alpha7 = 77, GeometryWorldMatrix = Identity(100).ReadMatrix(), SequenceState = new() { MeshMask124 = 3 }, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)) };
+        NativeBattleGraphicsModel model = new(flags) { Color40 = 0x123456, Alpha7 = 77, GeometryWorldMatrix = Identity(100).ReadMatrix(), SequenceState = new() { MeshMask124 = 3 }, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)) };
         List<string> calls = [];
         NativeBattleEffect315BodyServices services = new(current =>
         {
@@ -164,7 +164,7 @@ public sealed class NativeBattleEffect315BodyTests
     [Fact]
     public void Outer_copies_unconsumed_renderer_mode_DWORD_with_actual_partial_knownness()
     {
-        NativeBattleGraphicsModel model = new(3, 0x20) { Color40 = 0x123456, Alpha7 = 77, GeometryWorldMatrix = Identity().ReadMatrix(), SequenceState = new() { MeshMask124 = 1 } };
+        NativeBattleGraphicsModel model = new(0x20) { Color40 = 0x123456, Alpha7 = 77, GeometryWorldMatrix = Identity().ReadMatrix(), SequenceState = new() { MeshMask124 = 1 } };
         NativeBattleEffect315BodyFrame frame = new(Memory(), NativeBattleFileStaging.Unknown(), model, Temporary(), 20);
         NativeBattleEffectArena primitiveFlags = NativeBattleEffectArena.Clear().MarkUnknown(0, 4).Write(1, [0x22]);
         NativeBattleEffect315BodyServices services = new(current => current, (current, basis) => current, current => current, current => current);

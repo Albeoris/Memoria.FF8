@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -161,7 +162,7 @@ public sealed class NativeBattleAeroControllerTests
             Assert.Equal(NativeBattleTestSnapshots.Json(normal), NativeBattleTestSnapshots.Json(flagged));
             if (callback is 20 or 51)
             {
-                flagged = NativeBattleTestSnapshots.RestoreJson<NativeBattleAeroFrame>(NativeBattleTestSnapshots.Json(normal))!;
+                flagged = NativeBattleTestSnapshots.Independent(normal);
                 Assert.NotSame(normal.Effect.Pools[1].Slots[0], flagged.Effect.Pools[1].Slots[0]);
             }
         }
@@ -194,20 +195,20 @@ public sealed class NativeBattleAeroControllerTests
     }
 
     private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(offset - 12, 4));
-    private static NativeBattleAeroInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleAeroFrame, NativeBattleAeroOperation, NativeBattleAeroFrame>? execute = null) => new(0, packets, _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new((short)(100 + actor * 20), -200, 300, 123), execute ?? ((frame, _) => frame));
+    private static NativeBattleAeroInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleAeroFrame, NativeBattleAeroOperation, NativeBattleAeroFrame>? execute = null) => new(0, packets, _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new((short)(100 + OriginalSlot(actor) * 20), -200, 300, 123), execute ?? ((frame, _) => frame));
 
     private static (NativeBattleAeroFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1, int durationA = 38, int durationB = 38)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int index = 0; index < headers; index++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 118, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 118, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, (byte)headers);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
         NativeBattleAeroResources resources = new(new("animation", []), Source(0x1287DBC, durationA), Source(0x128C110, durationB), new(1, 1, []), 300110);
-        NativeBattleOriginalEffectState effect = new(118, 117, new(118, 0x6C0C80, 0x6C0C90) { AeroResources = resources }, new(0, 0, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(118, 117, new(118, 0x6C0C80, 0x6C0C90) { AeroResources = resources }, new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleAeroController.Initialize6C0CB0(effect, packets);
         return (new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1)), packets);
     }

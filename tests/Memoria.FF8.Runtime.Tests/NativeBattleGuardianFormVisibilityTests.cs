@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -41,8 +42,8 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         Return(battle);
         Assert.Null(battle.NativeGraphics!.GuardianFormPresentation);
         AssertVisibility(battle.NativeGraphics.Models, presentation);
-        Assert.Equal(presentation.HumanModel.Flags0, battle.NativeGraphics.Models[0].Flags0);
-        Assert.Equal(presentation.HumanModel.Flags2, battle.NativeGraphics.Models[0].Flags2);
+        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0);
+        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags2);
     }
 
     [Fact]
@@ -61,7 +62,7 @@ public sealed class NativeBattleGuardianFormVisibilityTests
     public void InactiveRowsKeepUnknownSecondaryFlags()
     {
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 2);
-        ImmutableArray<NativeBattleGraphicsModel> current = HiddenModels().SetItem(6, new(6, 0xC));
+        ImmutableArray<NativeBattleGraphicsModel> current = HiddenModels().SetItem(6, new(0xC));
         ImmutableArray<NativeBattleGraphicsModel> restored = (ImmutableArray<NativeBattleGraphicsModel>)typeof(BattleSession).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [current, presentation])!;
         Assert.Null(restored[6].Flags2);
         Assert.Equal((ushort)0, restored[6].Flags0);
@@ -106,7 +107,7 @@ public sealed class NativeBattleGuardianFormVisibilityTests
 
     private static ImmutableArray<NativeBattleGraphicsModel> HiddenModels()
     {
-        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, (ushort)(index == 6 ? 0x40C : 0x40E)) { Flags2 = 0x8C, Flags8 = (uint)index }).ToImmutableArray();
+        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((ushort)(index == 6 ? 0x40C : 0x40E)) { Flags2 = 0x8C, Flags8 = (uint)index }).ToImmutableArray();
     }
 
     private static void AssertVisibility(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleGuardianFormPresentation presentation)

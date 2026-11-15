@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -105,8 +106,8 @@ public sealed class NativeBattlePotion51Tests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81C9E0, 88, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
-        NativeBattleEffectHierarchyAppend burst = target.Hierarchy.Append8DC540(3, 0x81CB10, 132, target.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81C9E0, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
+        NativeBattleEffectHierarchyAppend burst = target.Hierarchy.Append8DC540(3, 0x81CB10, 132, target.Address, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleCuraFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = burst.Hierarchy.Pools } };
         List<NativeBattleCuraOperation> operations = [];
         NativeCrtRandomState initial = NativeCrtRandomState.FromColdProcess();
@@ -142,9 +143,9 @@ public sealed class NativeBattlePotion51Tests
 
     private static (NativeBattleCuraFrame Frame, NativeBattleCuraControllerInputs Inputs) Fixture(byte actor = 0)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionPacketsState packets = OriginalPackets();
         (packets, int header) = packets.Prepare(new(actor, 4, 0, 0, 1, 51, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
         packets = packets.WritePlayerRepeatMode(header, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState effect = new(51, 50, new(51, 0x81C800, 0x81C7E0), new(actor, 1, 8, header, 0, 0), null);
@@ -155,7 +156,7 @@ public sealed class NativeBattlePotion51Tests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        return (frame, new(packets, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose));
+        return (frame, new(packets, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose));
     }
 
     private static NativeBattleCuraResources Resources()

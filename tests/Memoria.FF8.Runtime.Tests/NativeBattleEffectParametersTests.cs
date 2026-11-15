@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -29,7 +30,7 @@ public sealed class NativeBattleEffectParametersTests
     [Fact]
     public void Hosted_json_retains_full_selection_and_original_raw_word()
     {
-        NativeBattleEffectParameters parameters = new(3, 8, 0x41, 0, 0, 0) { PresentationTargets = HostedRows.Add(0).Add(6) };
+        NativeBattleEffectParameters parameters = new(OriginalOwner(3), 8, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = HostedRows.Add(OriginalOwner(0)).Add(OriginalOwner(6)) };
         string json = JsonSerializer.Serialize(parameters);
         NativeBattleEffectParameters restored = JsonSerializer.Deserialize<NativeBattleEffectParameters>(json)!;
         Assert.Equal(new[] { 0, 6, 7, 16, 24 }, restored.TargetActors.EnumerateRows());
@@ -41,7 +42,7 @@ public sealed class NativeBattleEffectParametersTests
     [Fact]
     public void Mismatched_native_projection_fails_on_target_access()
     {
-        NativeBattleEffectParameters parameters = new(3, 8, 1, 0, 0, 0) { PresentationTargets = HostedRows };
+        NativeBattleEffectParameters parameters = new(OriginalOwner(3), 8, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = HostedRows };
         Assert.Throws<InvalidDataException>(() => parameters.TargetActors);
     }
 
@@ -50,7 +51,7 @@ public sealed class NativeBattleEffectParametersTests
     [InlineData(true)]
     public void Effect312_centroid_uses_the_full_hosted_selection_or_the_native_raw_word(bool hosted)
     {
-        NativeBattleEffectParameters parameters = new(3, 8, 0, 0, 0, 0) { PresentationTargets = hosted ? HostedRows : null };
+        NativeBattleEffectParameters parameters = new(OriginalOwner(3), 8, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = hosted ? HostedRows : null };
         uint parameterAddress = hosted ? OriginalParameterAddress : 0x1000u;
         int parameterReads = 0;
         int centroidCalls = 0;
@@ -81,7 +82,7 @@ public sealed class NativeBattleEffectParametersTests
     [Fact]
     public void Effect312_rejects_hosted_selection_for_an_unowned_parameter_pointer()
     {
-        NativeBattleEffectParameters parameters = new(3, 8, 0, 0, 0, 0) { PresentationTargets = HostedRows };
+        NativeBattleEffectParameters parameters = new(OriginalOwner(3), 8, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = HostedRows };
         Assert.Throws<InvalidDataException>(() => NativeBattleEffect312Controller.AdvanceMain59CC60(Frame(parameters, OriginalParameterAddress + 2), ChildBank, Resources(), Inputs()));
     }
 

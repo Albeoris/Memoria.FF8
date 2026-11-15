@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Reflection;
 using System.Text.Json;
@@ -54,7 +55,7 @@ public sealed class NativeBattleRinoaProjectileResourceTests
                     Assert.True(sparks);
                     Assert.True(ribbon);
                     Assert.True(battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp < initialHp);
-                    Assert.Equal(0, graphics.Models[0].Flags0 & 0x200);
+                    Assert.Equal(0, ReadOriginalModelCell(graphics, 0).Flags0 & 0x200);
                     CompareNext();
                     completed = true;
                     break;
@@ -78,10 +79,10 @@ public sealed class NativeBattleRinoaProjectileResourceTests
     {
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
         int actor = graphics.ModuleEffects.RinoaPhysicalHit!.Actor;
-        NativeBattleGraphicsModel before = graphics.Models[actor];
+        NativeBattleGraphicsModel before = ReadOriginalModelCell(graphics, actor);
         NativeBattleGraphicsState drawn = Draw(snapshot, graphics);
-        Assert.Same(before.CurrentBodyBoneMatrices, drawn.Models[actor].CurrentBodyBoneMatrices);
-        NativeBattleBodyBoneMatrices linked = drawn.Models[actor].CurrentLinkedBoneMatrices!;
+        Assert.Same(before.CurrentBodyBoneMatrices, ReadOriginalModelCell(drawn, actor).CurrentBodyBoneMatrices);
+        NativeBattleBodyBoneMatrices linked = ReadOriginalModelCell(drawn, actor).CurrentLinkedBoneMatrices!;
         Assert.Equal(before.CurrentLinkedBoneMatrices!.SkeletonSha256, linked.SkeletonSha256);
         Assert.NotEqual(before.CurrentBodyBoneMatrices!.SkeletonSha256, linked.SkeletonSha256);
         Assert.All(linked.Matrices, matrix => Assert.Equal(linked.Matrices[0], matrix));

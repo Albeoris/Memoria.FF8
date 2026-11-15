@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -60,7 +61,7 @@ internal sealed class NativeBattleEffect285PresentationObserver
         if (processed >= 0)
         {
             manualCamera |= JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.NativeCamera!.CapturePackedView1D97778());
-            Assert.Equal(35, graphics.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
+            Assert.Equal(35, ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.Matrices.Length);
             if (processed is >= 8 and <= 127)
             {
                 Assert.Equal(2400u, state.ReadDword(IntensityGlobal));
@@ -74,7 +75,7 @@ internal sealed class NativeBattleEffect285PresentationObserver
         }
         if (processed == 48)
         {
-            Assert.All(graphics.Models, model => Assert.NotEqual(0, model.Flags0 & 4));
+            Assert.All(ReadOriginalModelCells(graphics), model => Assert.NotEqual(0, model.Flags0 & 4));
             Assert.All(current.NativeStage!.Groups, group => Assert.Equal(0, group.Flags & 2));
             hidden = true;
             stageHidden = true;
@@ -84,7 +85,7 @@ internal sealed class NativeBattleEffect285PresentationObserver
         {
             for (int actor = 0; actor < 7; actor++)
             {
-                Assert.Equal(state.ReadDword(SavedFlagsAddress + (uint)(actor * 4)) & 4, (uint)graphics.Models[actor].Flags0 & 4);
+                Assert.Equal(state.ReadDword(SavedFlagsAddress + (uint)(actor * 4)) & 4, (uint)ReadOriginalModelCell(graphics, actor).Flags0 & 4);
             }
             Assert.All(current.NativeStage!.Groups, group => Assert.Equal(2, group.Flags & 2));
             flagsRestored = true;
@@ -96,7 +97,7 @@ internal sealed class NativeBattleEffect285PresentationObserver
         particleBirths += newborn.Length;
         if (processed is >= 1 and <= 15 && newborn.Length == 2)
         {
-            NativeBattleGraphicsModel entering = prior.NativeGraphics!.Models[3];
+            NativeBattleGraphicsModel entering = ReadOriginalModelCell(prior.NativeGraphics!, 3);
             foreach (uint source in new uint[] { 0x108FAB8, 0x108FAB0 })
             {
                 NativeBattleEffectArena local = NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(source, 8));

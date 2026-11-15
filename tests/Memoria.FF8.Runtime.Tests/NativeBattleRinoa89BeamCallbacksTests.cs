@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -104,7 +105,7 @@ public sealed class NativeBattleRinoa89BeamCallbacksTests
     private static (NativeBattleRinoa89Frame Frame, NativeBattleEffectTaskPool Pool) Fixture(bool narrow, ushort age)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleRinoa89Controller.Beams, 0x20DFAB8, 392, 8);
-        NativeBattleOriginalEffectState effect = new(89, 88, new(89, 0x6F9CF0, 0x5755E0), new(0, 0, 8, 0, 0, 0), NativeBattleRinoa89Controller.Beams) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(89, 88, new(89, 0x6F9CF0, 0x5755E0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleRinoa89Controller.Beams) { Pools = [pool] };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x2556600, BitConverter.GetBytes(0x20DFAB8u)).Write(0x2556594, BitConverter.GetBytes(0x20DFAB8u + 16960u)).Write(0x2556590, BitConverter.GetBytes(0x20DFAB8u + 4672u)).Write(0x25565F8, new byte[] { 100, 0, 200, 0, 44, 1 });
         staging = NativeBattleTemporaryMemory.Reset5082F0(staging);
         NativeBattleRinoa89Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, staging, NativeCrtRandomState.FromColdProcess());

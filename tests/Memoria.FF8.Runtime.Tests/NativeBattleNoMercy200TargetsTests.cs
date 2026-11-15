@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -59,7 +60,7 @@ public sealed class NativeBattleNoMercy200TargetsTests
 
     private static (NativeBattleNoMercy200Frame Frame, NativeBattleEffectTaskPool Pool) Fixture(ushort phase, byte locked)
     {
-        NativeBattleEffectParameters parameters = new(2, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(2), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleNoMercy200Controller.Children, 0x24F99A0, 36, 250);
         (pool, _) = pool.Append(0x639FD0);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase).WriteWord(14, 0).WriteWord(32, 3).WriteWord(34, 0)) });

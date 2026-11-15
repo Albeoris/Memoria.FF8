@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -9,19 +10,19 @@ public sealed class NativeBattleHostedModelCompletionTests
     {
         BattleModelRoster roster = Roster();
         ImmutableArray<NativeBattleGraphicsModel> models = Models()
-            .SetItem(7, new(7, 2) { Kind5 = 1, Flags8 = 0 })
-            .SetItem(24, new(24, 2));
+            .SetItem(7, new(2) { Kind5 = 1, Flags8 = 0 })
+            .SetItem(24, new(2));
         Assert.Equal(1, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 0, roster));
         Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 7, roster));
         Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 1, roster));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 0));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, OriginalOwner(0)));
         Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models[..7], 0, roster));
 
-        models = models.SetItem(7, new(7, 0)).SetItem(24, new(24, 2) { Kind5 = 1, Flags8 = 0 });
+        models = models.SetItem(7, new(0)).SetItem(24, new(2) { Kind5 = 1, Flags8 = 0 });
         models = NativeBattleTestSnapshots.RestoreJson<ImmutableArray<NativeBattleGraphicsModel>>(NativeBattleTestSnapshots.Json(models));
         Assert.Equal(1, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 0, roster));
         Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 24, roster));
-        Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models[..7].SetItem(1, new(1, 0)), 0));
+        Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models[..7].SetItem(1, new(0)), OriginalOwner(0)));
     }
 
     [Fact]
@@ -29,8 +30,8 @@ public sealed class NativeBattleHostedModelCompletionTests
     {
         BattleModelRoster roster = Roster();
         ImmutableArray<NativeBattleGraphicsModel> models = Models()
-            .SetItem(7, new(7, 2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 })
-            .SetItem(24, new(24, 2) { Kind5 = 1, Flags8 = 0 });
+            .SetItem(7, new(2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 })
+            .SetItem(24, new(2) { Kind5 = 1, Flags8 = 0 });
         byte completion = 17;
         Assert.Equal(0, NativeBattleGraphicsCompletion.PollHostedTask112(1, null, UnavailableCamera, ref completion, roster));
         Assert.Equal(0, NativeBattleGraphicsCompletion.PollHostedTask112(0, models, UnavailableCamera, ref completion, roster));
@@ -102,15 +103,15 @@ public sealed class NativeBattleHostedModelCompletionTests
 
     private static ImmutableArray<NativeBattleGraphicsModel> Models()
     {
-        return Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, row == 1 ? (ushort)2 : (ushort)0)).ToImmutableArray();
+        return Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row == 1 ? (ushort)2 : (ushort)0)).ToImmutableArray();
     }
 
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[0] = new("native", true);
-        actors[7] = new("extra-ally", true);
-        actors[24] = new("extra-enemy", false);
+        actors[0] = new BattlePartyActorModel(new("native"));
+        actors[7] = new BattlePartyActorModel(new("extra-ally"));
+        actors[24] = new BattleEnemyActorModel(new("extra-enemy"));
         return new(actors.ToImmutableArray());
     }
 }

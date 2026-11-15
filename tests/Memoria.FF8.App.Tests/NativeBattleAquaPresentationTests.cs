@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -56,20 +57,20 @@ public sealed class NativeBattleAquaPresentationTests
             int descriptor = Assert.Single(source.NativeGraphics!.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
             uint headerOffset = checked(source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(headerOffset / 20))];
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
             Assert.Equal(caster, header.ReadByte(0));
-            Assert.Equal(action.Command, header.ReadByte(1));
-            Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-            Assert.Equal(effectId, NativeBattleActionGraphics.Word(header, 6));
+            Assert.Equal(action.Command, header.Command);
+            Assert.Equal(action.ActionId, header.Action);
+            Assert.Equal(effectId, header.Effect);
             Assert.True(exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(action.MagicId, exported.Selection.ShellEffect);
-            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
             Assert.Equal((byte)1, source.NativeActionPackets.ContactCount);
             Assert.Equal(contactActor, contact.Primary.ActorIndex);
             Assert.Equal((ushort)7, contact.Primary.Amount6);
             Assert.Equal((byte)255, contact.Secondary.ActorIndex);
-            NativeBattleEffectTask? expectedText = NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
-            string target = source.NativeGraphics!.ActorIds[contactActor]!;
+            NativeBattleEffectTask? expectedText = OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
+            string target = ReadOriginalModelActorId(source.NativeGraphics!, contactActor)!;
             int logicalHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int initialSounds = source.Events.Count(item => item.NativeModuleSound is not null);
             string initialCamera = JsonSerializer.Serialize(source.NativeCamera);
@@ -95,7 +96,7 @@ public sealed class NativeBattleAquaPresentationTests
                 Assert.NotNull(current.NativeCamera?.Projection?.View);
                 cameraChanged |= JsonSerializer.Serialize(current.NativeCamera) != initialCamera;
                 stageChanged |= StageColors(current) != initialStage;
-                boundCaster72 |= effectId == 72 && current.NativeGraphics!.Models[caster].ActiveStagedResourceRow100 == 0x25FA3D8 && current.NativeGraphics.Models[caster].LinkedStagedResourceRow is not null;
+                boundCaster72 |= effectId == 72 && ReadOriginalModelCell(current.NativeGraphics!, caster).ActiveStagedResourceRow100 == 0x25FA3D8 && ReadOriginalModelCell(current.NativeGraphics, caster).LinkedStagedResourceRow is not null;
                 if (CrossedContactGate(prior, current, effectId))
                 {
                     contacts++;
@@ -264,13 +265,13 @@ public sealed class NativeBattleAquaPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsModel? actor = graphics.Models.FirstOrDefault(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x85) == 0);
-        if (actor is null || graphics.Models.Take(actor.Index).Any(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x84) == 0))
+        NativeBattleGraphicsModel? actor = ReadOriginalModelCells(graphics).FirstOrDefault(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x85) == 0);
+        if (actor is null || ReadOriginalModelCells(graphics).Take(actor.Index).Any(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x84) == 0))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
         NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
-        NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == graphics.ActorIds[actor.Index]).Resource;
+        NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actor.Index)).Resource;
         if (actor.ActiveStagedResourceRow100 is not null)
         {
             resource = resolveResource is null ? NativeBattleVictoryResources.Resolve(current.NativeFileStaging!, current.NativeModelCpuResources!, actor, resource) : resolveResource(actor, resource);
@@ -279,7 +280,7 @@ public sealed class NativeBattleAquaPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsModel beforeActor = prior.NativeGraphics!.Models[actor.Index];
+        NativeBattleGraphicsModel beforeActor = ReadOriginalModelCell(prior.NativeGraphics!, actor.Index);
         if (beforeActor.CurrentBodyBoneMatrices is null || beforeActor.GeometryWorldMatrix is null)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;

@@ -162,7 +162,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 if (packets.ContactCount > 0)
                 {
                     Assert.Equal(revival ? (byte)2 : (byte)1, packets.ContactCount);
-                    NativeBattleContactHalf[] contacts = Enumerable.Range(0, packets.ContactCount).Select(index => packets.ReadContact(index).Primary).ToArray();
+                    NativeBattleContactHalf[] contacts = Enumerable.Range(0, packets.ContactCount).Select(index => packets.ReadContact(new BattleContactOccurrence(index)).Primary).ToArray();
                     NativeBattleContactHalf half = Assert.Single(contacts, item => item.ActorIndex == 1);
                     Assert.Equal(checked((ushort)formulaAmount), half.Amount6);
                     if (statusCure)

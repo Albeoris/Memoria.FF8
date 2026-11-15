@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect210EchoTests
         }
         EchoFrame expected = Draw(Prepare(), frozen);
         EchoFrame initial = Prepare();
-        NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = Identity(), SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x606060 };
+        NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = Identity(), SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x606060 };
         EchoFrame actual = NativeBattleDuelEchoDrawing.Draw7EE0(initial, model, EchoAddress, Header, current => current.Echo, (current, task, writes) => current with { Echo = task, EchoWrites = current.EchoWrites.AddRange(writes) }, source, (_, _, _) => throw new InvalidOperationException("CPU geometry must remain on its selected source."), 3, Identity(), new(Identity(), 256, 160, 108), (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), (current, batch) => current with { Batches = current.Batches.Add(batch) }, 0x155, 0x100, current => current.Staging, (current, staging) => current with { Staging = staging }, frozen, pilotHistoryGeneration: row => 1000 + row);
         Assert.Equal(JsonSerializer.Serialize(expected.Batches), JsonSerializer.Serialize(actual.Batches));
         Assert.Equal(NativeBattleTestSnapshots.Json(expected.Echo), NativeBattleTestSnapshots.Json(actual.Echo));
@@ -192,7 +192,7 @@ public sealed class NativeBattleEffect210EchoTests
     private static EchoFrame Draw(EchoFrame frame, bool frozen, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         byte[] geometry = Geometry();
-        NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = Identity(), SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x606060 };
+        NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = Identity(), SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x606060 };
         return NativeBattleDuelEchoDrawing.Draw7EE0(frame, model, EchoAddress, Header, current => current.Echo, (current, task, writes) => current with { Echo = task, EchoWrites = current.EchoWrites.AddRange(writes) }, 0x1000000, (_, offset, length) => geometry.AsSpan(offset, length).ToArray(), 3, Identity(), new(Identity(), 256, 160, 108), (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), (current, batch) => current with { Batches = current.Batches.Add(batch) }, 0x155, 0x100, current => current.Staging, (current, staging) => current with { Staging = staging }, frozen, pilotIdentity: pilotIdentity, pilotHistoryGeneration: bank => 1000 + bank);
     }
 

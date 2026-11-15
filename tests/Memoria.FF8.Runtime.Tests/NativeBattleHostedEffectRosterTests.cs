@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -8,7 +9,7 @@ public sealed class NativeBattleHostedEffectRosterTests
     [Fact]
     public void Original_effect_keeps_its_native_seven_row_validation_and_json()
     {
-        NativeBattleOriginalEffectState effect = Effect(new(6, 0, 0x4080, 0, 0, 0));
+        NativeBattleOriginalEffectState effect = Effect(new(OriginalOwner(6), 0, 0x4080, new BattleActionHeaderReference(0), 0, 0));
         effect.Validate();
         Assert.Throws<InvalidDataException>((effect with { Parameters = effect.Parameters! with { Actor78 = 7 } }).Validate);
 
@@ -24,7 +25,7 @@ public sealed class NativeBattleHostedEffectRosterTests
     public void Detached_and_inherited_effect_rosters_validate_the_same_bound_parameters()
     {
         BattleModelRoster roster = Roster();
-        NativeBattleOriginalEffectState effect = Effect(new(24, 0, 0x8, 0, 0, 0) { PresentationTargets = Rows(3, 7) }) with { PresentationRoster = roster };
+        NativeBattleOriginalEffectState effect = Effect(new(24, 0, 0x8, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = Rows(3, 7) }) with { PresentationRoster = roster };
         effect.Validate();
         (effect with { Parameters = null }).Validate();
         effect.Validate(Roster());
@@ -49,7 +50,7 @@ public sealed class NativeBattleHostedEffectRosterTests
     public void Hosted_effect_rejects_invalid_projections_holes_and_different_roster_rows()
     {
         BattleModelRoster roster = Roster();
-        NativeBattleEffectParameters parameters = new(24, 0, 0x8, 0, 0, 0) { PresentationTargets = Rows(3, 7) };
+        NativeBattleEffectParameters parameters = new(24, 0, 0x8, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = Rows(3, 7) };
         NativeBattleOriginalEffectState effect = Effect(parameters) with { PresentationRoster = roster };
         Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { Actor78 = 23 } }).Validate);
         Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { PresentationTargets = Rows(3, 23) } }).Validate);
@@ -84,9 +85,9 @@ public sealed class NativeBattleHostedEffectRosterTests
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[3] = new("native-target", false);
-        actors[7] = new("ally", true);
-        actors[24] = new("enemy", false);
+        actors[3] = new BattleEnemyActorModel(new("native-target"));
+        actors[7] = new BattlePartyActorModel(new("ally"));
+        actors[24] = new BattleEnemyActorModel(new("enemy"));
         return new(actors.ToImmutableArray());
     }
 

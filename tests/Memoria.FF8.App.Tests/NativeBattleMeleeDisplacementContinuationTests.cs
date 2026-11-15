@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -56,9 +58,9 @@ public sealed class NativeBattleMeleeDisplacementContinuationTests
 
         void RunAction(string actorId, bool limit)
         {
-            int index = battle.NativeGraphics!.ActorIds.IndexOf(actorId);
-            int target = battle.NativeGraphics.ActorIds.IndexOf(targetId);
-            NativeBattleGraphicsModel initial = battle.NativeGraphics.Models[index];
+            int index = FindOriginalModelSlot(battle.NativeGraphics!, actorId);
+            int target = FindOriginalModelSlot(battle.NativeGraphics, targetId);
+            NativeBattleGraphicsModel initial = ReadOriginalModelCell(battle.NativeGraphics, index);
             double initialDistance = Distance(initial);
             double minimumDistance = initialDistance;
             int events = battle.Events.Count;
@@ -69,7 +71,7 @@ public sealed class NativeBattleMeleeDisplacementContinuationTests
             for (int callback = 0; callback < 4096; callback++)
             {
                 battle.Tick();
-                NativeBattleGraphicsModel model = battle.NativeGraphics!.Models[index];
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, index);
                 NativeBattleSequenceState state = model.SequenceState!;
                 minimumDistance = Math.Min(minimumDistance, Distance(model));
                 trace?.WriteLine(JsonSerializer.Serialize(new { battle.Frame, Callback = battle.NativeGraphics.Callback, model.Sequence, state.Header36, state.Header38, state.Header40, model.GeometryWorldMatrix, model.Transform, Effect = battle.NativeGraphics.OriginalEffect?.Binding.Effect }));
@@ -109,7 +111,7 @@ public sealed class NativeBattleMeleeDisplacementContinuationTests
             double Distance(NativeBattleGraphicsModel model)
             {
                 NativeBattleActionMatrix matrix = model.GeometryWorldMatrix!;
-                NativeBattleVector destination = battle.NativeGraphics!.Models[target].Transform!.Position28;
+                NativeBattleVector destination = ReadOriginalModelCell(battle.NativeGraphics!, target).Transform!.Position28;
                 return Math.Pow(matrix.X - destination.X, 2) + Math.Pow(matrix.Z - destination.Z, 2);
             }
         }

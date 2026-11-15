@@ -104,7 +104,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
         BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
         typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, new([0, 0]) { PoseSource = source })], []));
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
-        NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix]) };
+        NativeBattleGraphicsModel model = new(3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix]) };
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, model), ["party", null, null, "enemy", null, null, null], 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x100, [17]) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
@@ -211,7 +211,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
                 cpu = NativeBattleModelResourceView.WritePartySection(cpu, current.Staging!, pointer, offset, data);
                 return current;
             } : null };
-            frame = NativeBattleEffect314Controller.EmitShards664420(frame, null!, inputs, 0x1D972C0, offsets, main + 0x4728, 30000, 7, 8, 9);
+            frame = NativeBattleEffect314Controller.EmitShards664420(frame, null!, inputs, OriginalOwner(0), offsets, main + 0x4728, 30000, 7, 8, 9);
             if (!typed)
             {
                 Assert.Equal((byte)0x80, (byte)(numeric[face + 15] & 0x80));
@@ -335,7 +335,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
                     NativeBattleEffect314DrawBatch draw => Capture(frame, draw.Batch),
                     _ => frame
                 }) { ReadGeometrySource = source is { } selected ? (_, _) => selected : null, ReadBoneMatrix = (_, _, _) => bone };
-                frame314 = NativeBattleEffect314Body.Draw663590(frame314, inputs, 0x1D972C0, -1024, 0, 0);
+                frame314 = NativeBattleEffect314Body.Draw663590(frame314, inputs, OriginalOwner(0), -1024, 0, 0);
             }
             else
             {
@@ -349,7 +349,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
                     NativeBattleEffect316DrawBatch draw => Capture(frame, draw.Batch),
                     _ => frame
                 }) { ReadGeometrySource = source is { } selected ? (_, _) => selected : null, ReadBoneMatrix = (_, _, _) => bone };
-                frame316 = expanded ? NativeBattleEffect316Body.Draw661CC0(frame316, null!, inputs, 0x20DFAB8, 0x1D972C0, Scratch, -1024, 0, 0) : NativeBattleEffect316Body.Draw661550(frame316, null!, inputs, 0x1D972C0, -1024, 0, 0);
+                frame316 = expanded ? NativeBattleEffect316Body.Draw661CC0(frame316, null!, inputs, 0x20DFAB8, OriginalOwner(0), Scratch, -1024, 0, 0) : NativeBattleEffect316Body.Draw661550(frame316, null!, inputs, OriginalOwner(0), -1024, 0, 0);
             }
         }
 
@@ -385,13 +385,13 @@ public sealed class NativeBattlePrivateMorphResourceTests
                 }
             }) { ReadBody = (_, _) => body, WriteBoneMatrix = (frame, model, bone, packed) =>
             {
-                Assert.Equal(0x1D972C0u, model);
+                Assert.Equal(OriginalOwner(0), model);
                 Assert.Equal(0, bone);
                 Assert.Equal(matrix.ReadMatrix().Rotation, packed.ReadMatrix().Rotation);
                 writes++;
                 return frame;
             } };
-            frame314 = NativeBattleEffect314Morph.Draw663850(frame314, null!, inputs, 0x1D972C0, offsets, 8, 9);
+            frame314 = NativeBattleEffect314Morph.Draw663850(frame314, null!, inputs, OriginalOwner(0), offsets, 8, 9);
             Assert.Equal(1, writes);
             Assert.Equal(2, prepares);
         }

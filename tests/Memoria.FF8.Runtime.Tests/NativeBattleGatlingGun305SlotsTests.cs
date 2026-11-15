@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -246,7 +247,7 @@ public sealed class NativeBattleGatlingGun305SlotsTests
         {
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
-            NativeBattleOriginalEffectState effect = new(305, 305, new(305, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
+            NativeBattleOriginalEffectState effect = new(305, 305, new(305, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = Camera() };
             NativeBattleGatlingGun305Frame frame = new(memory, effect, new(1), NativeBattleGatlingGun305State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             (frame, uint address) = NativeBattleGatlingGun305Controller.Append(frame, callback);
@@ -265,7 +266,7 @@ public sealed class NativeBattleGatlingGun305SlotsTests
             return frame with { State = frame.State.WriteView(row, retained, 24) };
         }
 
-        public NativeBattleGatlingGun305Inputs Inputs(uint flags = 0) => new(flags, NativeBattleActionPacketsState.Fresh(), _ => throw new InvalidOperationException(), _ => Camera(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
+        public NativeBattleGatlingGun305Inputs Inputs(uint flags = 0) => new(flags, OriginalPackets(), _ => throw new InvalidOperationException(), _ => Camera(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
         {
             NativeBattleGatlingGun305DrawSprite180 draw = Assert.IsType<NativeBattleGatlingGun305DrawSprite180>(operation);
             NativeBattleFileStaging staging = frame.Staging!;

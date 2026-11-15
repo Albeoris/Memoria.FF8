@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
@@ -5,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class CrossoverNativeContactOccurrenceTests
 {
-    private static readonly NativeBattleContactHalf Contact = new(3, 4, 0, 0, 0, 10, 0);
+    private static readonly NativeBattleContactHalf Contact = new(OriginalOwner(3), 4, 0, 0, 0, 10, 0);
     private static readonly NativeBattleContactHalf Absent = new(255, 0, 0, 0, 0, 0, 0);
     private static readonly ImmutableArray<CrossoverNativeMagicTarget> Planned = [new(4, Contact), new(4, Contact), new(4, Contact)];
 

@@ -100,7 +100,7 @@ public sealed class NativeBattleEffect283BodyTests
     [Fact]
     public void Outer_composes_before_shadow_and_shares_maximum_with_actual_linked_callback()
     {
-        NativeBattleGraphicsModel model = new(4, 0x20) { Color40 = 0x123456, GeometryWorldMatrix = Identity().ReadMatrix(), SequenceState = new() { MeshMask124 = 3 } };
+        NativeBattleGraphicsModel model = new(0x20) { Color40 = 0x123456, GeometryWorldMatrix = Identity().ReadMatrix(), SequenceState = new() { MeshMask124 = 3 } };
         List<string> calls = [];
         NativeBattleEffect283BodyServices services = new(current =>
         {

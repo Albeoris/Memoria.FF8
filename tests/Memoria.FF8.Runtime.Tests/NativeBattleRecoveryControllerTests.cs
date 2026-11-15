@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -144,12 +145,12 @@ public sealed class NativeBattleRecoveryControllerTests
     internal static (NativeBattleRecoveryFrame Frame, NativeBattleRecoveryControllerInputs Inputs) Fixture(ushort effect, byte targets = 1)
     {
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, (ushort)1, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, (ushort)1, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(targets);
-        NativeBattleOriginalEffectState selected = new(effect, checked((short)(effect - 1)), new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
+        NativeBattleOriginalEffectState selected = new(effect, checked((short)(effect - 1)), new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(effect - 1);
         memory = memory with { Arena = memory.Arena!.Write(256 + 2 * profile.DrawBankBytes, Enumerable.Repeat((byte)0xA5, profile.EmitterBytes + profile.GeometryBytes).ToArray()) };
         NativeBattleRecoveryFrame frame = NativeBattleRecoveryController.Initialize(memory, selected, packets, Resources(effect));
@@ -159,6 +160,6 @@ public sealed class NativeBattleRecoveryControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
+        return (frame, new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
     }
 }

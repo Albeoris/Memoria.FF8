@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Bitmap = SkiaSharp.SKBitmap;
 using Color = SkiaSharp.SKColor;
@@ -73,10 +74,10 @@ public sealed class NativeBattleCurePresentationTests
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, 2, 11, -1, 21, 1, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 21, 1, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
-        (packets, _) = packets.AppendContact(new(new(0, nativeCure.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), nativeCure.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -110,7 +111,7 @@ public sealed class NativeBattleCurePresentationTests
                 NativeBattleGraphicsState currentGraphics = snapshot.NativeGraphics!;
                 selectedCasting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedCure |= currentGraphics.OriginalEffect is { Binding.Entry: 0x8D6A00, Cure: not null };
-                hiddenTarget |= (currentGraphics.Models[0].Flags0 & 4) != 0;
+                hiddenTarget |= (ReadOriginalModelCell(currentGraphics, 0).Flags0 & 4) != 0;
                 ushort previousHp = beforeStep.NativePartyPresentation!.Rows[0]!.HitPoints;
                 ushort presentedHp = snapshot.NativePartyPresentation!.Rows[0]!.HitPoints;
                 Assert.True(presentedHp is 100 or 200, $"Controlled Cure contact changed the presented HP to{presentedHp}.");
@@ -181,7 +182,7 @@ public sealed class NativeBattleCurePresentationTests
         Assert.False(HasActionDescriptor(battle), "Original Cure104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
-        Assert.Equal(0, battle.NativeGraphics.Models[0].Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0 & 4);
         Assert.Equal(before.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(before.Random, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");

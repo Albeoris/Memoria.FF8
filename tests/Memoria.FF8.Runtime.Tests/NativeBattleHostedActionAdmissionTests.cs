@@ -30,10 +30,10 @@ public sealed class NativeBattleHostedActionAdmissionTests
         Assert.Equal(128, descriptor.PriorityState);
         Assert.Equal(0x1D280C4u, descriptor.Argument);
         Assert.Equal(1, session.NativeActionPackets.ActionCount);
-        Assert.Equal(0, session.NativeActionPackets.Headers[0].ReadByte(17));
-        Assert.Equal(2, session.NativeActionPackets.Headers[0].ReadContactCount());
-        Assert.Equal(contact, session.NativeActionPackets.ReadContact(0));
-        Assert.Equal(contact, session.NativeActionPackets.ReadContact(1));
+        Assert.Equal(0, session.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        Assert.Equal(2, session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
+        Assert.Equal(contact, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)));
+        Assert.Equal(contact, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)));
         Assert.Equal(7, Field("presentationSourceIndex").GetValue(session));
         Assert.Same(resource, Field("presentationSourceResource").GetValue(session));
         Assert.Equal(before.Models, session.NativeGraphics.Models);
@@ -231,8 +231,8 @@ public sealed class NativeBattleHostedActionAdmissionTests
             NativeGlobalRandom = new(123)
         }, BattleAtbMode.TurnBased);
         BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[7] = new("ally", true);
-        actors[24] = new("enemy", false);
+        actors[7] = new BattlePartyActorModel(new("ally"));
+        actors[24] = new BattleEnemyActorModel(new("enemy"));
         BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         models[7] = models[7] with { ModelId4 = 1 };

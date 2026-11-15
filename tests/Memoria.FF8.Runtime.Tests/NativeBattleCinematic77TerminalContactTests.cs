@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -42,7 +43,7 @@ public sealed class NativeBattleCinematic77TerminalContactTests
         Assert.Equal(expectedCalls, applied.Count);
         Assert.Equal(new[] { (HeaderAddress + 8, 4), (HeaderAddress + 16, 1), (ContactAddress, 1) }, reads);
         Assert.Equal((byte)0, owner.Packets.ContactCount);
-        Assert.Equal((byte)1, owner.Packets.Headers[0].ReadByte(16));
+        Assert.Equal((byte)1, owner.Packets.ExportRetained().Headers[0].ReadOriginalByte(16));
         Assert.Equal(0x20DFC82u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal((ushort)0x1234, result.ReadTemporaryWord(0x13E));
         Assert.Same(frame.Arena, result.Arena);
@@ -65,7 +66,7 @@ public sealed class NativeBattleCinematic77TerminalContactTests
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), ContactAddress);
         payload[16] = 1;
         NativeBattleContactPacket contact = new(new(recipient, 0, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0));
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionPacketsState packets = OriginalPackets();
         packets = packets with { ActionCount = 1, ContactCount = 0, Headers = packets.Headers.SetItem(0, new(payload.ToImmutableArray(), 0, 0, null)), Contacts = packets.Contacts.SetItem(0, contact), ActiveHeaderIndex = 0 };
         return new(packets);
     }
@@ -77,11 +78,11 @@ public sealed class NativeBattleCinematic77TerminalContactTests
             if (length >= 0 && address >= HeaderAddress && (ulong)address + (uint)length <= HeaderAddress + 20)
             {
                 int offset = checked((int)(address - HeaderAddress));
-                return Enumerable.Range(offset, length).Select(Packets.Headers[0].ReadByte).ToArray();
+                return Enumerable.Range(offset, length).Select(Packets.ExportRetained().Headers[0].ReadOriginalByte).ToArray();
             }
             if (length >= 0 && address >= ContactAddress && (ulong)address + (uint)length <= ContactAddress + 24)
             {
-                return Packets.ReadContact(0).Encode().AsSpan(checked((int)(address - ContactAddress)), length).ToArray();
+                return Packets.ReadContact(new BattleContactOccurrence(0)).Encode().AsSpan(checked((int)(address - ContactAddress)), length).ToArray();
             }
             throw new InvalidDataException("Terminal contact fixture read leaves its typed header and contact owners.");
         }

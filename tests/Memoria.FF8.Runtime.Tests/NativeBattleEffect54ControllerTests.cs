@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect54Controller;
@@ -99,7 +100,7 @@ public sealed class NativeBattleEffect54ControllerTests
         Assert.DoesNotContain(f.Operations, operation => operation is NativeBattleEffect54Contact506690);
         NativeBattleEffect54Step contact = AdvanceTask(first.Frame, driver, f.Resources, f.Inputs);
         Assert.Equal(2, contact.Result);
-        Assert.Equal(new NativeBattleEffect54Contact506690(0), Assert.Single(f.Operations.OfType<NativeBattleEffect54Contact506690>()));
+        Assert.Equal(new NativeBattleEffect54Contact506690(new BattleContactCursor(0)), Assert.Single(f.Operations.OfType<NativeBattleEffect54Contact506690>()));
         Assert.Equal(0, Read(contact.Frame, RootBank).ReadByte(0x28));
     }
 
@@ -231,11 +232,11 @@ public sealed class NativeBattleEffect54ControllerTests
         {
             Resources = SyntheticResources(spawn);
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), SharedEffectView2793E58 = View };
-            NativeBattleOriginalEffectState effect = new(54, 54, new(54, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0)] };
+            NativeBattleOriginalEffectState effect = new(54, 54, new(54, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0)] };
             Inactive = new(memory, effect, new(1), NativeBattleEffect54State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, _) = packets.Prepare(new(3, 8, 11, 0, 223, 54, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, 0, 223, 54, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
             Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, _) => NativeBattleEffectArena.Clear(), _ => View, _ => new(null, 100, 160, 108), _ => 0, (frame, _, _, _, retained) => new(frame, PutPoint(retained, 0, new(0, 0, 2000))), (frame, operation) =>
             {

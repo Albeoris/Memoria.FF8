@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -81,7 +82,7 @@ public sealed class NativeBattleElectrocute275ControllerTests
     public void Cold_JSON_chain_repeats_next_callback_without_replaying_births()
     {
         Fixture fixture = new(2);
-        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
+        NativeBattleElectrocute275Frame restored = NativeBattleTestSnapshots.Independent(fixture.Frame);
         var expected = NativeBattleElectrocute275Controller.AdvanceWorldTrail(fixture.Frame, fixture.TaskAddress, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleElectrocute275Controller.AdvanceWorldTrail(restored, fixture.TaskAddress, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
@@ -134,7 +135,7 @@ public sealed class NativeBattleElectrocute275ControllerTests
                 BinaryPrimitives.WriteUInt32LittleEndian(point.AsSpan(36), index + 1 == count ? 0 : Point(index + 1));
                 arena = arena.Write(WorldPointsOffset + index * PointStride, point);
             }
-            NativeBattleOriginalEffectState effect = new(275, 275, new(275, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(275, 275, new(275, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleScriptedColorRegisters colors = NativeBattleScriptedColorRegisters.Unknown() with { Material = 0xAB123456, Rgb = [0x112233, null, 0x778899] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(1) with { Arena = arena, ScriptedColorRegisters = colors };
             NativeBattleElectrocute275Frame frame = new(memory, effect, new(123), NativeBattleElectrocute275State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
@@ -153,7 +154,7 @@ public sealed class NativeBattleElectrocute275ControllerTests
                 yield return point;
             }
         }
-        public NativeBattleElectrocute275Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
+        public NativeBattleElectrocute275Inputs Inputs() => new(OriginalPackets(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (frame, operation) =>
         {
             Operations.Add(operation);
             return OnExecute?.Invoke(frame, operation) ?? frame;

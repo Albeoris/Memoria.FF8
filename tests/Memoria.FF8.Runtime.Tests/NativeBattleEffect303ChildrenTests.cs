@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect303Controller;
@@ -89,7 +90,7 @@ public sealed class NativeBattleEffect303ChildrenTests
     {
         var frame = Frame();
         var resources = NativeBattleEffect303StateTests.Resources();
-        var model = new NativeBattleGraphicsModel(3, 0) { Rotation14 = 1024, Transform = new(new(0, 0, 0), new(100, 200, 300), 77, 2048, 4096) };
+        var model = new NativeBattleGraphicsModel(0) { Rotation14 = 1024, Transform = new(new(0, 0, 0), new(100, 200, 300), 77, 2048, 4096) };
         var inputs = Inputs((current, operation) =>
         {
             var draw = Assert.IsType<NativeBattleEffect303DrawStaticMesh88>(operation);
@@ -124,7 +125,7 @@ public sealed class NativeBattleEffect303ChildrenTests
             {
                 Assert.Equal(1, order++);
                 Assert.Equal(39, bone);
-                Assert.Equal(0x1D97494u, model);
+                Assert.Equal(OriginalOwner(3), model);
                 return NativeBattlePackedMatrix32.FromMatrix(Identity().ReadMatrix() with { X = 10, Y = 20, Z = 30 }, null);
             },
             ReadModelWorld = (_, _) => NativeBattlePackedMatrix32.FromMatrix(Identity().ReadMatrix() with { X = 100, Y = 200, Z = 300 }, null)
@@ -141,7 +142,7 @@ public sealed class NativeBattleEffect303ChildrenTests
         var effect = new NativeBattleOriginalEffectState(303, 302, new(303, Entry, Initializer), null, 0) { Pools = Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray() };
         return new(memory, effect, new(123), NativeBattleEffect303State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset).WriteDword(CasterGlobal, 0x1D97494) with { RootBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    internal static NativeBattleEffect303Inputs Inputs(Func<NativeBattleEffect303Frame, NativeBattleEffect303Operation, NativeBattleEffect303Frame> execute) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Identity(2000), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => Identity(), (_, _, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+    internal static NativeBattleEffect303Inputs Inputs(Func<NativeBattleEffect303Frame, NativeBattleEffect303Operation, NativeBattleEffect303Frame> execute) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Identity(2000), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => Identity(), (_, _, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
     internal static NativeBattlePackedMatrix32 Identity(int z = 0) => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, z, 4096), null);
     internal static NativeBattleEffectArena Point(short x, short y, short z, short w) => NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z)).Write(6, BitConverter.GetBytes(w));
     internal static short W(NativeBattleEffectArena view, int offset) => BinaryPrimitives.ReadInt16LittleEndian(view.Read(offset, 2));

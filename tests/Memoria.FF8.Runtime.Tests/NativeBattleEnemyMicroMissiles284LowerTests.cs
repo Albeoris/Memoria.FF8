@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEnemyMicroMissiles284Controller;
@@ -292,14 +293,14 @@ public sealed class NativeBattleEnemyMicroMissiles284LowerTests
     {
         var identity = Identity();
         var memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity.ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = identity };
-        var effect = new NativeBattleOriginalEffectState(284, 283, new(284, Entry, Initializer), new(3, 0, 0x7F, 0, 0, 0), null) { Pools = Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray() };
+        var effect = new NativeBattleOriginalEffectState(284, 283, new(284, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray() };
         return new(memory, effect, new(123), NativeBattleEnemyMicroMissiles284State.FromColdProcess().WriteDword(ParametersGlobal, 0x1D99A78)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
     private static NativeBattleEnemyMicroMissiles284Inputs Inputs(Func<NativeBattleEnemyMicroMissiles284Frame, NativeBattleEnemyMicroMissiles284Operation, NativeBattleEnemyMicroMissiles284Frame>? execute = null)
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 12, -1, 201, 284, null));
-        (packets, _) = packets.AppendContact(new(new(3, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 201, 284, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => packets, execute ?? ((current, _) => current));
     }

@@ -14,7 +14,7 @@ public sealed class NativeBattleSiren95ContactTests
         NativeBattleSiren95ContactServices services = new(fixture.Inputs.Packets, _ => model, (current, actor, sequence) =>
         {
             selections++;
-            Assert.Equal((byte)3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             Assert.InRange(sequence, 4, 6);
             return current;
         });
@@ -87,7 +87,7 @@ public sealed class NativeBattleSiren95ContactTests
         Assert.Equal((ushort)0xABCD, task.ReadWord(0x8A));
     }
 
-    private static NativeBattleGraphicsModel Model() => new(3, 3) { GeometryBounds52 = new(new(-100, -200, -300), new(100, 0, 300)), Transform = new(new(0, 0, 0), new(10, 20, -1000), 0, 0, 4096), Flags8 = 0 };
+    private static NativeBattleGraphicsModel Model() => new(3) { GeometryBounds52 = new(new(-100, -200, -300), new(100, 0, 300)), Transform = new(new(0, 0, 0), new(10, 20, -1000), 0, 0, 4096), Flags8 = 0 };
     private static NativeBattleModulePoolTask Read(NativeBattleSiren95Frame frame, uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
     private static NativeBattleSiren95Frame Put(NativeBattleSiren95Frame frame, uint address, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
 }

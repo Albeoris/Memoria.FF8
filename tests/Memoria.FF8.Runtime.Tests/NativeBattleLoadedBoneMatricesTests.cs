@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -37,7 +38,7 @@ public sealed class NativeBattleLoadedBoneMatricesTests
         Assert.Null(model.SequenceState!.Pose);
         NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, false, 0, 0), 0, null, _ => throw new InvalidOperationException(), index =>
         {
-            Assert.Equal(0, index);
+            Assert.Equal(OriginalOwner(0), index);
             return NativeBattlePoseMatrices.ReadBone(model, source, 241, 0);
         }, point =>
         {
@@ -79,7 +80,7 @@ public sealed class NativeBattleLoadedBoneMatricesTests
     private static NativeBattleGraphicsModel Model()
     {
         NativeBattleActionMatrix world = new(ImmutableArray.Create<short>(4096, 0, 0, 0, 4096, 0, 0, 0, 4096), 100, 200, 300, 4096);
-        return new(0, 3) { ModelId4 = 7, SequenceState = new(), Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096), GeometryWorldMatrix = world };
+        return new(3) { ModelId4 = 7, SequenceState = new(), Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096), GeometryWorldMatrix = world };
     }
 
     private static NativeBattlePoseSource Source()

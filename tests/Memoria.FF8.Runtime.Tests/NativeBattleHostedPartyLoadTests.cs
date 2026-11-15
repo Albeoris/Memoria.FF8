@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -120,9 +121,9 @@ public sealed class NativeBattleHostedPartyLoadTests
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
         NativeBattlePartyLoadPlan plan = Plan(0, 24, roster, body, linked);
         Assert.Throws<InvalidDataException>(() => NativeBattleModelLoader.Queue507080(0, 8, 0, 0, 0, roster));
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, 6, 0, 0, 0, roster));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, OriginalOwner(6), 0, 0, 0, roster));
         Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, 24, 0, 0, 0, roster).Task!.Callback);
-        Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, 6, 0, 0, 0, roster).Task!.Callback);
+        Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, OriginalOwner(6), 0, 0, 0, roster).Task!.Callback);
         Assert.Throws<InvalidDataException>((NativeBattleModelLoader.Queue507080(0, 24, 0, 0, 0, other) with { PartyPlan = plan }).Validate);
         NativeBattleModelDatSource changed = TaggedBody(32);
         Assert.Throws<InvalidDataException>(() => Load(0, plan, changed));
@@ -182,10 +183,10 @@ public sealed class NativeBattleHostedPartyLoadTests
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new("native", true);
-        rows[6] = new("enemy", false);
-        rows[7] = new("party-seven", true);
-        rows[24] = new("party-twenty-four", true);
+        rows[0] = new BattlePartyActorModel(new("native"));
+        rows[6] = new BattleEnemyActorModel(new("enemy"));
+        rows[7] = new BattlePartyActorModel(new("party-seven"));
+        rows[24] = new BattlePartyActorModel(new("party-twenty-four"));
         return new(rows.ToImmutableArray());
     }
 

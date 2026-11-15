@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -17,7 +18,7 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
         {
             ReadBone = (actor, bone, fraction) =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 Assert.Equal(240, bone);
                 fractions.Add(fraction);
                 return new(100, -200, (short)(fraction == 0 ? 0 : 1000));
@@ -102,7 +103,7 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
         (pool, int slot) = pool.Append(0x578A00);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 10)) });
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleRenzokuken160Inputs inputs = new(0, [5, 5, 5, 5, 5, 5, 5, 5, 5], _ => new(0, 0) { GeometryWorldMatrix = matrix }, (current, _) => current);
+        NativeBattleRenzokuken160Inputs inputs = new(0, [5, 5, 5, 5, 5, 5, 5, 5, 5], _ => new(0) { GeometryWorldMatrix = matrix }, (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenSpecialController.Advance578A00(frame, pool, slot, inputs, resources);
         Assert.Equal(0x578DF0u, step.Pool.Slots[1].Callback);
         Assert.Equal(0x5790D0u, step.Pool.Slots[2].Callback);

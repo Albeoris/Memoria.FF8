@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -32,16 +33,16 @@ public sealed class NativeBattleTheEnd85PresentationTests
         }
         BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
-        string caster = source.NativeGraphics!.ActorIds[0]!;
-        string target = source.NativeGraphics.ActorIds[3]!;
+        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
+        string target = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(relative / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)85, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal(action.ActionId, header.Action);
+        Assert.Equal((ushort)85, header.Effect);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.NotEqual(0, contact.Primary.SavedStatuses4 & 1);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
@@ -51,7 +52,7 @@ public sealed class NativeBattleTheEnd85PresentationTests
         Assert.Equal(0, source.Combatants.Single(actor => actor.Id == target).CurrentHp);
         uint projected = source.Definition.NativeGraphics!.Rules.Project(contact.Primary.SavedStatuses4, contact.Primary.BattleStatuses8);
         Assert.NotEqual(0u, projected);
-        Assert.Equal(0u, source.NativeGraphics.Models[3].Flags8!.Value & projected);
+        Assert.Equal(0u, ReadOriginalModelCell(source.NativeGraphics, 3).Flags8!.Value & projected);
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         HashSet<string> restored = [];
@@ -87,8 +88,8 @@ public sealed class NativeBattleTheEnd85PresentationTests
                 BattleSnapshot current = battle.Capture();
                 Assert.Equal(1, Stock(current));
                 Assert.Equal(0, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
-                uint oldFlags = prior.NativeGraphics!.Models[3].Flags8!.Value & projected;
-                uint newFlags = current.NativeGraphics!.Models[3].Flags8!.Value & projected;
+                uint oldFlags = ReadOriginalModelCell(prior.NativeGraphics!, 3).Flags8!.Value & projected;
+                uint newFlags = ReadOriginalModelCell(current.NativeGraphics!, 3).Flags8!.Value & projected;
                 if (oldFlags == 0 && newFlags != 0)
                 {
                     contacts++;
@@ -168,7 +169,7 @@ public sealed class NativeBattleTheEnd85PresentationTests
             BattleSnapshot finished = battle.Capture();
             for (int actor = 0; actor < 3; actor++)
             {
-                Assert.Equal(source.NativeGraphics.Models[actor].Flags0 & 4, finished.NativeGraphics!.Models[actor].Flags0 & 4);
+                Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, actor).Flags0 & 4, ReadOriginalModelCell(finished.NativeGraphics!, actor).Flags0 & 4);
             }
             Assert.Equal(source.NativeStage!.Groups.Select(group => group.Flags & 2), finished.NativeStage!.Groups.Select(group => group.Flags & 2));
             Assert.All(Selected(battle.Capture())!.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));

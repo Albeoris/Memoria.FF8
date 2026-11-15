@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -35,7 +36,7 @@ public sealed class NativeBattleActionAtbRestoreTests
     {
         BattleSnapshot snapshot = Snapshot(true);
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         header = header with { Payload = header.Payload.SetItem(0, 3) };
         packets = packets with { Headers = packets.Headers.SetItem(0, header) };
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { NativeActionPackets = packets }));
@@ -80,8 +81,8 @@ public sealed class NativeBattleActionAtbRestoreTests
     {
         BattleSnapshot snapshot = Snapshot(true, BattleAbility.Magic);
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
-        (packets, _) = packets.Prepare(new(0, 1, 0, 0, 0, 0, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 1, 0, 0, 0, 0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         BattleAttackCommand queued = new("party", "enemy") { NativeHeaderIndex = 1, NativeQueuedCommand = 1 };
         snapshot = snapshot with { NativeActionPackets = packets, QueuedActions = [queued] };
@@ -133,8 +134,8 @@ public sealed class NativeBattleActionAtbRestoreTests
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
         byte command = ordinary is null ? (byte)252 : ordinary == BattleAbility.Magic ? (byte)2 : (byte)1;
         int actionId = ordinary == BattleAbility.Magic ? 4 : ordinary is null ? 1 : 0;
-        (packets, _) = packets.Prepare(new(0, command, 0, 0, (ushort)actionId, ordinary == BattleAbility.Magic ? (ushort)144 : (ushort)0, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), command, 0, 0, (ushort)actionId, ordinary == BattleAbility.Magic ? (ushort)144 : (ushort)0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleAtbState gauge = new NativeBattleAtbState(12000, 0).Advance(123, 10, 9, 0, 0);
         BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();

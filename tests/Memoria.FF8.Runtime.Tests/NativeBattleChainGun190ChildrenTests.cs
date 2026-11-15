@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleChainGun190Controller;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleChainGun190Profile;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -144,14 +145,14 @@ public sealed class NativeBattleChainGun190ChildrenTests
         {
             ReadModelWorld = (_, actor) =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 worldReads++;
                 return NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
             },
             ReadModel = (_, actor) =>
             {
-                Assert.Equal(2, actor);
-                return new(actor, 3) { Rotation14 = 700 };
+                Assert.Equal(OriginalOwner(2), actor);
+                return new(3) { Rotation14 = 700 };
             }
         };
         var actual = AdvanceImpact(frame, ChildBank, Resources, input);
@@ -219,7 +220,7 @@ public sealed class NativeBattleChainGun190ChildrenTests
             Assert.Equal((ushort)0, actual.Frame.State.ReadWord(bank + 18));
             Assert.Equal((ushort)200, actual.Frame.State.ReadWord(bank + 10));
         }
-        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChainGun190Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        var restored = NativeBattleTestSnapshots.Independent(actual.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
@@ -344,11 +345,11 @@ public sealed class NativeBattleChainGun190ChildrenTests
         NativeBattleOriginalEffectState effect = new(190, 189, new(190, Entry, Initializer), null, RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
         NativeBattleChainGun190Frame frame = new(memory, effect, new(123), NativeBattleChainGun190State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-        frame = frame with { State = frame.State.WriteDword(FirstTargetGlobal, 3).WriteDword(CasterGlobal, 2).WriteView(BonePointGlobal, PointView(new(1000, 2000, 3000), 55), 8) };
+        frame = frame with { State = frame.State.WriteModelOperand(FirstTargetGlobal, OriginalOwner(3), OriginalAliases).WriteModelOperand(CasterGlobal, OriginalOwner(2), OriginalAliases).WriteView(BonePointGlobal, PointView(new(1000, 2000, 3000), 55), 8) };
         return Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, age).WriteWord(14, 1).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteWord(0x16, 77).WriteWord(0x18, 0).WriteWord(0x1A, 0).WriteWord(0x1C, 4096).WriteWord(0x1E, 128));
     }
 
-    private static NativeBattleChainGun190Inputs Inputs(Func<NativeBattleChainGun190Frame, NativeBattleChainGun190Operation, NativeBattleChainGun190Frame>? execute = null, uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(actor, 3) { Rotation14 = 0 }, (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleChainGun190DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
+    private static NativeBattleChainGun190Inputs Inputs(Func<NativeBattleChainGun190Frame, NativeBattleChainGun190Operation, NativeBattleChainGun190Frame>? execute = null, uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(3) { Rotation14 = 0 }, (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleChainGun190DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current), _ => throw new InvalidOperationException());
     private static NativeBattleChainGun190Frame Feedback(NativeBattleChainGun190Frame frame, uint temporary, short value) => PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0x28, BitConverter.GetBytes(value)), 180);
     private static uint Cursor(NativeBattleChainGun190Frame frame) => BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));

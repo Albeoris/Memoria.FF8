@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -212,12 +213,12 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
             (main, int mainSlot) = main.Append(MainCallback);
             main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteBytes(12, new byte[MainStride - 12]).WriteWord(0x28, 1000).WriteWord(0x2A, 2000).WriteWord(0x2C, 3000).WriteWord(0x2E, 777));
             NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, SpriteStride, SpriteCount);
-            NativeBattleOriginalEffectState effect = new(217, 216, new(217, Entry, Initializer), new(4, 0, 1, 1, 0, 0), null) { Pools = [root, main, sprites], ReturnedDescriptor = RootDescriptor };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+            NativeBattleOriginalEffectState effect = new(217, 216, new(217, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(1), 0, 0), null) { Pools = [root, main, sprites], ReturnedDescriptor = RootDescriptor };
+            NativeBattleActionPacketsState packets = OriginalPackets();
             for (int index = 0; index < 2; index++)
             {
-                (packets, _) = packets.Prepare(new(4, 8, 16, 0, 316, 217, null));
-                (packets, _) = packets.AppendContact(new(new((byte)(index == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 16, 0, 316, 217, null));
+                (packets, _) = packets.AppendContact(new(new((byte)(index == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
                 (packets, _) = packets.Publish(1);
             }
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

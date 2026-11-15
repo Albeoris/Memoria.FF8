@@ -66,12 +66,12 @@ public sealed class NativePlayerDrawMetadataTests
         Assert.Equal(failed, result.Failed);
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
-        Assert.Equal(failed ? (byte)0 : (byte)6, header.ReadByte(1));
-        Assert.Equal(failed ? (byte)10 : game.ReadNativeBattleCommandSequences()[10], header.ReadByte(2));
-        Assert.Equal(failed ? (ushort)9 : checked((ushort)selection), NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal(failed ? (ushort)0 : (ushort)15, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal(failed ? (byte)0 : (byte)1, header.ReadByte(16));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal(failed ? (byte)0 : (byte)6, header.Command);
+        Assert.Equal(failed ? (byte)10 : game.ReadNativeBattleCommandSequences()[10], header.Sequence);
+        Assert.Equal(failed ? (ushort)9 : checked((ushort)selection), header.Action);
+        Assert.Equal(failed ? (ushort)0 : (ushort)15, header.Effect);
+        Assert.Equal(failed ? (byte)0 : (byte)1, header.ReadContactCount());
         Assert.Equal(0x47EBD0u, header.Data!.ProducerAddress);
         Assert.Equal((ushort)6, header.Data.Argument);
         NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;

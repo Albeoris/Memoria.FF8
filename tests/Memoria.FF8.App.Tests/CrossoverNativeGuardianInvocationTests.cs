@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -32,7 +33,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         NativeBattleGraphicsModel source = ReadSource(resource);
         BattleNativeAction action = Assert.Single(battle.NativeActions, action => action.Command == 254 && action.ActionId == ability);
         CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(source, 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
+        CrossoverNativeMagicPresentationState state = presentation.Begin(source, 4, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, new(0), arena);
         Assert.True(state.Cast.GuardianInvocation);
         Assert.Equal((byte)14, state.Cast.Model.Sequence);
         bool hidden = false;
@@ -43,7 +44,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         int callback = 0;
         for (; callback < 4096 && !state.Complete; callback++)
         {
-            CrossoverNativeMagicPresentationStep step = presentation.Advance(state, () => foreign.ToActor(3).Anchor, () => foreign.Transform, camera, () => foreign);
+            CrossoverNativeMagicPresentationStep step = presentation.Advance(state, () => foreign.ToActor(OriginalOwner(3)).Anchor, () => foreign.Transform, camera, () => foreign);
             state = step.State;
             prepared |= state.Effect is { Invoked: false };
             if (state.Effect is { Invoked: true })
@@ -71,7 +72,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         Assert.NotNull(state.Cast.Model.BodyTextureSlots);
         Assert.Equal(state.Cast.Model.ActiveResourceRow100, state.Cast.Model.OriginalResourceRow104);
         Assert.Equal((byte)1, state.Cast.Model.Sequence);
-        Assert.Same(state, presentation.Advance(state, () => foreign.ToActor(3).Anchor, () => foreign.Transform, camera, () => foreign).State);
+        Assert.Same(state, presentation.Advance(state, () => foreign.ToActor(OriginalOwner(3)).Anchor, () => foreign.Transform, camera, () => foreign).State);
         output.WriteLine($"{name}: {callback} callbacks; {visualCallbacks} visual callbacks; {contacts} contact; original source body and linked resources restored.");
     }
 
@@ -113,12 +114,12 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         BattleNativeAction action = Assert.Single(battle.NativeActions, action => action.Command == 254 && action.ActionId == 64);
         CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
+        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 4, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, new(0), arena);
         NativeBattleGraphicsModel before = state.Cast.Model;
         NativeCrtRandomState random = state.Random;
         NativeGlobalRandomState? globalRandom = state.GlobalRandom;
         object texturePublication = state.Textures.VramPublicationIdentity;
-        Assert.True(presentation.TryPreflight(state, () => foreign.ToActor(3).Anchor, () => foreign.Transform, camera, () => foreign, out string? reason), reason);
+        Assert.True(presentation.TryPreflight(state, () => foreign.ToActor(OriginalOwner(3)).Anchor, () => foreign.Transform, camera, () => foreign, out string? reason), reason);
         Assert.Null(reason);
         Assert.Equal(before, state.Cast.Model);
         Assert.Equal(random, state.Random);
@@ -135,7 +136,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
     [Fact]
     public void Guardian_entry_waits_for_disappearance_and_restores_through_sequence_twenty()
     {
-        NativeBattleGraphicsModel model = new(0, 2) { ModelId4 = 0, ResourceFlags44 = 0x20, Flags2 = 0, Flags8 = 0, SequenceState = new() };
+        NativeBattleGraphicsModel model = new(2) { ModelId4 = 0, ResourceFlags44 = 0x20, Flags2 = 0, Flags8 = 0, SequenceState = new() };
         CrossoverNativeCastState state = new(model, 4, false) { GuardianInvocation = true };
         Assert.False(CrossoverNativeCastPresentation.Poll(state, false, false).InvokeEffect);
         state = state with { Model = model with { Flags0 = 6 } };

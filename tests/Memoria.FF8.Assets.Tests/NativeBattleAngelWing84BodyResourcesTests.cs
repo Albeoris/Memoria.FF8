@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -70,7 +71,7 @@ public sealed class NativeBattleAngelWing84BodyResourcesTests
         NativeBattleAngelWing84Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(0, 0, null, null, null, null, null));
         frame = NativeBattleAngelWing84Body.Initialize(frame, append.Address, resources);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
-        NativeBattleAngelWing84Inputs controller = new(NativeBattleActionPacketsState.Fresh(), camera, index => new(index, 3) { Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 4096) }, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+        NativeBattleAngelWing84Inputs controller = new(OriginalPackets(), camera, index => new(3) { Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 4096) }, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
         List<NativeBattleAngelWing84BodyOperation> operations = [];
         NativeBattleAngelWing84BodyInputs inputs = new(resources, controller, (current, operation) =>
         {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -59,7 +60,7 @@ public sealed class NativeBattleOriginalEffectTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24CA828, 0x24CA818, 16, 1);
         (pool, _) = pool.Append(0x62A610);
-        NativeBattleOriginalEffectState state = new(2, 1, new(2, 0x6298A0, 0x629880), new(3, 1, 5, 7, 2, 0), pool.DescriptorAddress) { Pools = [pool] };
+        NativeBattleOriginalEffectState state = new(2, 1, new(2, 0x6298A0, 0x629880), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(2)]), new BattleActionHeaderReference(7), 2, 0), pool.DescriptorAddress) { Pools = [pool] };
         state.Validate();
         string json = NativeBattleTestSnapshots.Json(state);
         NativeBattleOriginalEffectState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(json)!;

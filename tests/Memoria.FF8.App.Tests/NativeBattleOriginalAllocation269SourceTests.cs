@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
@@ -77,7 +78,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         Assert.Equal(allocated.Id, allocation.Id);
         int caster = ready.NativeLastAllocatedIndex;
         Assert.InRange(caster, 3, 6);
-        NativeBattleGraphicsModel loaded = ready.NativeGraphics!.Models[caster];
+        NativeBattleGraphicsModel loaded = ReadOriginalModelCell(ready.NativeGraphics!, caster);
         Assert.Equal((byte)110, loaded.ModelId4);
         Assert.NotNull(loaded.GeometryWorldMatrix);
         BattleCombatantDefinition current = session.GetCombatantDefinition(allocated.Id);
@@ -92,7 +93,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         (packets, int header) = packets.Prepare(new(checked((byte)caster), action.Command, sequence, -1, action.ActionId, action.MagicId, null));
         BattleCombatantSnapshot targetStatusOwner = Assert.Single(ready.Combatants, actor => actor.Id == party.Id);
         NativeBattleStatusSnapshot status = targetStatusOwner.NativeStatus ?? throw new InvalidDataException("The original party target requires its actual status owner.");
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         Save("queued-action104", ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } });
@@ -110,7 +111,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
             {
                 return false;
             }
-            NativeBattleGraphicsModel model = snapshot.NativeGraphics!.Models[participant.ActorIndex];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, participant.ActorIndex);
             return snapshot.NativeGraphics.Descriptors.Queue.IsEmpty && model.CurrentBodyBoneMatrices is not null && model.GeometryWorldMatrix is not null;
         }
 

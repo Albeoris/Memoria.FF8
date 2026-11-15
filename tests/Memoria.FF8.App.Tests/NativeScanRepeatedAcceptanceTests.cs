@@ -100,8 +100,8 @@ public sealed class NativeScanRepeatedAcceptanceTests
                         Assert.Equal((byte)2, current.NativeActionScratch!.Command);
                         Assert.Equal((ushort)50, current.NativeActionScratch.Action);
                         NativeBattleActionPacketsState packets = current.NativeActionPackets ?? throw new InvalidDataException("Repeated Scan requires its actual admitted contact packets.");
-                        NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters!.HeaderIndex7C];
-                        NativeBattleContactPacket packet = packets.ReadContact(header.FirstContactIndex!.Value);
+                        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.HeaderIndex7C));
+                        NativeBattleContactPacket packet = packets.ReadContact(header.FirstContact);
                         Assert.Equal((byte)3, (byte)(packet.Primary.Flags2 & 3));
                         contact = true;
                         Boundary("alternate-primary-contact");

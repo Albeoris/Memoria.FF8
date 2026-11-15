@@ -154,7 +154,7 @@ public sealed class NativeBattleEffect210ParticleTests
     {
         Fixture fixture = new(0x6F7230);
         fixture.Task(task => task.WriteWord(12, 15).WriteWord(0x16, unchecked((ushort)-33)).WriteWord(0x1C, 100));
-        NativeBattleEffect210Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
+        NativeBattleEffect210Frame restored = NativeBattleTestSnapshots.Independent(fixture.Frame);
         NativeBattleEffect210Step direct = fixture.Advance();
         fixture.Frame = restored;
         NativeBattleEffect210Step cold = fixture.Advance();

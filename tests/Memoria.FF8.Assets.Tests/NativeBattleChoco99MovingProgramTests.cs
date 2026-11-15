@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -134,7 +135,7 @@ public sealed class NativeBattleChoco99MovingProgramTests
             Assert.Equal(0x1D99A78u, parameterAddress);
             Assert.Equal((sbyte)0, headerOffset);
             Assert.Equal((sbyte)0, contactOffset);
-            return new(0, 3);
+            return OriginalTaskActors(0, 3);
         }
     }
 

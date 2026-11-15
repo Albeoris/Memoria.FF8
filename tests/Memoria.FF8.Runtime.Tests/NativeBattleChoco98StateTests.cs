@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -63,7 +64,7 @@ public sealed class NativeBattleChoco98StateTests
     {
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(NativeBattleChoco98Controller.MainDescriptor, NativeBattleChoco98Controller.MainBank, 0x64, 2)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x7219D0, 0x64);
-        NativeBattleOriginalEffectState effect = new(98, 97, new(98, 0x721860, 0x721840), new(0, 1, 8, 0, 0, 0), null) { Pools = root.Hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(98, 97, new(98, 0x721860, 0x721840), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = root.Hierarchy.Pools };
         NativeBattleOriginalEffectState before = NativeBattleStorageSnapshots.Capture(effect);
         NativeBattleOriginalEffectState completed = NativeBattleChoco98Controller.WriteCompletionByte(effect, root.Address + 0x62, 1);
         Assert.Equal((byte)0, new NativeBattleEffectHierarchy(before.Pools).Read(root.Address).ReadByte(0x62));

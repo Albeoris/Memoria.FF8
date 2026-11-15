@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Reflection;
 
@@ -8,44 +9,53 @@ public sealed class NativeBattleContactReaderTests
     private const uint RinoaCursor = 0x2556620;
 
     [Theory]
-    [InlineData(false, 47, 0x1D287ACu, 0x1D287C4u, 0x1D287DCu)]
-    [InlineData(true, 48, 0x1D287C4u, 0xF2000000u, 0xF2000018u)]
-    public void RinoaConsumesStoredContactsAndAdvancesItsCursor(bool hosted, int firstRow, uint firstAddress, uint secondAddress, uint endAddress)
+    [InlineData(false, 47)]
+    [InlineData(true, 48)]
+    public void RinoaConsumesStoredOccurrencesAcrossTheOriginalBoundary(bool expanded, int first)
     {
-        NativeBattleActionPacketsState packets = HostedOrNativeBank(hosted, hosted ? 64 : 49);
+        BattleModelOwner final = expanded ? new BattleEnemyActorModel(new("extra")) : OriginalOwner(6);
+        NativeBattleActionPacketsState packets = expanded ? ExpandedPackets(final) : OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 0, -1, 0, 89, null));
+        packets = packets.AppendContacts(Enumerable.Repeat(Packet(OriginalOwner(0), 0), first));
+        (packets, _) = packets.Publish(first);
+        BattleActionHeaderReference header;
+        (packets, header) = packets.Prepare(new(OriginalOwner(0), 8, 0, -1, 0, 89, null));
+        packets = packets.AppendContacts([Packet(OriginalOwner(0), 0x1234), Packet(final, 0x5678)]);
         // The original Rinoa header byte encodes the occurrence count in bits 3 through 7.
-        (packets, _) = packets.Prepare(new(0, 8, 0, -1, 0, 89, null));
-        packets = packets.AppendContacts(Enumerable.Repeat(Packet(0, 0), firstRow));
-        (packets, _) = packets.Publish(firstRow);
-        (packets, _) = packets.Prepare(new(0, 8, 0, -1, 0, 89, null));
-        packets = packets.AppendContacts([Packet(0, 0x1234), Packet(hosted ? (byte)24 : (byte)6, 0x5678)]);
-        if (hosted)
-        {
-            packets = packets.AppendContacts(Enumerable.Repeat(Packet(0, 0), 14));
-        }
         (packets, _) = packets.Publish(16);
-        packets.Validate();
-        NativeBattleEffectParameters parameters = new(0, 0, 1, 1, 0, 0);
+        var parameters = new NativeBattleEffectParameters(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), final]), header, 0, 0);
         NativeBattleOriginalEffectState effect = new(89, 88, new(89, 0x6F9CF0, 0x5755E0), parameters, null);
-        NativeBattleRinoa89Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, NativeBattleFileStaging.Unknown().Write(RinoaCursor, BitConverter.GetBytes(firstAddress)), new(1));
-        List<uint> applied = [];
+        BattleContactCursor cursor = new(first);
+        NativeBattleFileStaging staging = NativeBattleRinoa89Contacts.WriteCursor(NativeBattleFileStaging.Unknown(), cursor);
+        NativeBattleRinoa89Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, staging, new(1));
+        List<BattleContactOccurrence> applied = [];
 
-        NativeBattleRinoa89Frame advanced = NativeBattleRinoa89Contacts.Apply6FC410(frame, packets, (current, address) =>
+        NativeBattleRinoa89Frame advanced = NativeBattleRinoa89Contacts.Apply6FC410(frame, packets, (current, occurrence) =>
         {
-            applied.Add(address);
+            applied.Add(occurrence);
             return current;
         });
 
-        Assert.Equal(new[] { firstAddress, secondAddress }, applied);
-        Assert.Equal(endAddress, BinaryPrimitives.ReadUInt32LittleEndian(advanced.Staging.Read(RinoaCursor, 4)));
+        Assert.Equal(new[] { new BattleContactOccurrence(first), new BattleContactOccurrence(first + 1) }, applied);
+        Assert.Equal(final, packets.ReadContact(applied[1]).Primary.Recipient);
+        Assert.Equal(cursor.Advance(2), advanced.Staging.ReadExecutionReference<BattleExecutionReference.Cursor>(RinoaCursor, 4).Reference);
+        if (expanded)
+        {
+            Assert.Throws<NotSupportedException>(() => advanced.Staging.Read(RinoaCursor, 4));
+        }
+        else
+        {
+            Assert.Equal(NativeBattleContactAddress.EncodeOriginalCursor(cursor.Advance(2)), BinaryPrimitives.ReadUInt32LittleEndian(advanced.Staging.Read(RinoaCursor, 4)));
+        }
     }
 
     [Fact]
     public void Effect312RawReaderUsesTheActualPacketOwnerAndRejectsRowCrossing()
     {
-        NativeBattleActionPacketsState packets = HostedOrNativeBank(true, 51);
-        (packets, _) = packets.Prepare(new(0, 8, 0, -1, 0, 312, null));
-        packets = packets.AppendContacts(Enumerable.Repeat(Packet(0, 0), 48).Concat([Packet(6, 0x1234), Packet(24, 0x5678), Packet(24, 0x9ABC)]));
+        BattleModelOwner extra = new BattleEnemyActorModel(new("extra"));
+        NativeBattleActionPacketsState packets = ExpandedPackets(extra);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 0, -1, 0, 312, null));
+        packets = packets.AppendContacts(Enumerable.Repeat(Packet(OriginalOwner(0), 0), 48).Concat([Packet(OriginalOwner(6), 0x1234), Packet(extra, 0x5678), Packet(extra, 0x9ABC)]));
         (packets, _) = packets.Publish(51);
         BattleSession battle = new(new()
         {
@@ -58,7 +68,7 @@ public sealed class NativeBattleContactReaderTests
         const BindingFlags instancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
         typeof(BattleSession).GetField("nativeActionPackets", instancePrivate)!.SetValue(battle, packets);
         MethodInfo reader = typeof(BattleSession).GetMethod("ReadNativeEffect312Physical", instancePrivate)!;
-        NativeBattleGraphicsState graphics = new([.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 0))], [], 0, 0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([]);
         NativeBattleOriginalEffectState effect = new(312, 311, new(312, 1, 1), null, null);
         NativeBattleEffect312Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect312State.FromColdProcess())
         {
@@ -68,26 +78,21 @@ public sealed class NativeBattleContactReaderTests
         NativeBattleEffectArena Read(uint address, int length) => (NativeBattleEffectArena)reader.Invoke(battle, [graphics, frame, address, length])!;
 
         Assert.Equal(new byte[] { 0x34, 0x12 }, Read(0x1D287CA, 2).Read(0, 2));
-        Assert.Equal(new byte[] { 24, 0 }, Read(0xF2000000, 2).Read(0, 2));
-        Assert.Equal(new byte[] { 0x78, 0x56 }, Read(0xF2000006, 2).Read(0, 2));
+        Assert.Equal(extra, packets.ReadContact(new BattleContactOccurrence(49)).Primary.Recipient);
+        Assert.Throws<NotSupportedException>(() => Read(0xF2000000, 2).Read(0, 2));
         Assert.Equal(new byte[] { 0xA1, 0xB2 }, Read(0x1D287DC, 2).Read(0, 2));
-        TargetInvocationException crossing = Assert.Throws<TargetInvocationException>(() => Read(0xF2000017, 2));
+        TargetInvocationException crossing = Assert.Throws<TargetInvocationException>(() => Read(0x1D287DB, 2));
         InvalidDataException inner = Assert.IsType<InvalidDataException>(crossing.InnerException);
         Assert.Contains("crosses a current contact row", inner.Message);
     }
 
-    private static NativeBattleActionPacketsState HostedOrNativeBank(bool hosted, int capacity)
+    private static NativeBattleActionPacketsState ExpandedPackets(BattleModelOwner extra)
     {
-        if (!hosted)
-        {
-            return NativeBattleActionPacketsState.Fresh();
-        }
-        BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new("party", true);
-        rows[6] = new("enemy-6", false);
-        rows[24] = new("enemy-24", false);
-        return NativeBattleActionPacketsState.FromPresentationStorage(new([.. rows]), capacity);
+        BattleModelOwner[] originals = Enumerable.Range(0, 7).Select(OriginalOwner).ToArray();
+        BattleModelRoster roster = new([.. originals, extra]);
+        NativeBattleModelAliases aliases = new(roster, originals.Select((owner, slot) => (NativeBattleModelSlot.Decode((byte)slot), owner)));
+        return NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
     }
 
-    private static NativeBattleContactPacket Packet(byte row, ushort amount) => new(new(row, 0, 0, 0, 0, amount, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static NativeBattleContactPacket Packet(BattleModelOwner owner, ushort amount) => new(new(owner, 0, 0, 0, 0, amount, 0), null);
 }

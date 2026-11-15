@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleAdditional182Controller;
 using static Memoria.FF8.Runtime.NativeBattleAdditional182Profile;
@@ -24,7 +25,7 @@ public sealed class NativeBattleAdditional182ControllerTests
         Assert.Equal((short)-700, Signed(task, 22));
         Assert.Equal(displayed, task.ReadWord(28));
         Assert.Equal(growth, Signed(task, 30));
-        Assert.Equal(new NativeBattleAdditional182ActorFlags(3, 8, 0), operations[0]);
+        Assert.Equal(new NativeBattleAdditional182ActorFlags(OriginalOwner(3), 8, 0), operations[0]);
         Assert.Equal(new NativeBattleAdditional182Stage5713E0(0, 0), operations[1]);
     }
 
@@ -72,8 +73,8 @@ public sealed class NativeBattleAdditional182ControllerTests
         NativeBattleAdditional182Frame frame = Frame(set ? MainSetCallback : MainClearCallback, age);
         List<NativeBattleAdditional182Operation> operations = [];
         frame = AdvanceMain(frame, ChildBank, Resources(), Inputs(operations)).Frame;
-        Assert.Equal(new NativeBattleAdditional182ActorFlags(3, 0, 8), operations[0]);
-        Assert.Equal(new NativeBattleAdditional182ContactsAll(0), operations[1]);
+        Assert.Equal(new NativeBattleAdditional182ActorFlags(OriginalOwner(3), 0, 8), operations[0]);
+        Assert.Equal(new NativeBattleAdditional182ContactsAll(new BattleActionHeaderReference(0)), operations[1]);
         Assert.Equal((ushort)(age + 1), Read(frame, ChildBank).ReadWord(12));
     }
 
@@ -129,7 +130,7 @@ public sealed class NativeBattleAdditional182ControllerTests
     public void Json_continuation_preserves_random_unknown_suffix_and_root_detaches_only_drained_banks()
     {
         NativeBattleAdditional182Frame frame = Frame(MainClearCallback, 24);
-        NativeBattleAdditional182Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleAdditional182Frame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleAdditional182Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
         NativeBattleAdditional182Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([])).Frame;
         Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
@@ -153,7 +154,7 @@ public sealed class NativeBattleAdditional182ControllerTests
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(3, children.Slots[3].MarkPayloadUnknown(30, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         frame = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
-        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        frame = NativeBattleTestSnapshots.Independent(frame);
         Assert.Throws<NotSupportedException>(() => Read(frame, ChildBank + 108).ReadWord(30));
         Assert.Equal((ushort)160, Read(frame, ChildBank + 108).ReadWord(28));
     }
@@ -164,14 +165,14 @@ public sealed class NativeBattleAdditional182ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(callback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteWord(14, 8).WriteWord(16, 100).WriteWord(18, 200).WriteWord(20, 300).WriteWord(22, unchecked((ushort)-700)).WriteWord(28, 4096).WriteWord(30, 2200)) });
-        NativeBattleOriginalEffectState effect = new(182, 181, new(182, Entry, Initializer), new(0, 0, 8, 0, 0, 0), RootDescriptor) { Pools = [roots, children] };
+        NativeBattleOriginalEffectState effect = new(182, 181, new(182, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattleAdditional182State state = NativeBattleAdditional182State.FromColdProcess().WriteDword(FirstTargetGlobal, 3).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);
     }
 
     private static NativeBattleAdditional182Resources Resources() => new(null!, null!, [], null!, null!, null!, null!, 0x494AB, 0x494C1, []);
 
-    private static NativeBattleAdditional182Inputs Inputs(List<NativeBattleAdditional182Operation> operations, short scale = 4096) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(actor, 0x80B) { GeometryBounds52 = new(new(0, -1000, 0), new(0, -700, 0)), Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 0, scale) }, (current, actor) => new(current, PointView(new(100, 200, 300), 777)), (current, operation) =>
+    private static NativeBattleAdditional182Inputs Inputs(List<NativeBattleAdditional182Operation> operations, short scale = 4096) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(0x80B) { GeometryBounds52 = new(new(0, -1000, 0), new(0, -700, 0)), Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 0, scale) }, (current, actor) => new(current, PointView(new(100, 200, 300), 777)), (current, operation) =>
     {
         operations.Add(operation);
         return current;

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -111,7 +112,7 @@ public sealed class NativeBattleDoom8StageDepthTests
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleDoom8State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8C4B30, 100);
             Parent = root.Address;
-            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(5, callback, 176, Parent, (_, _, _) => new(0, 4));
+            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(5, callback, 176, Parent, (_, _, _) => OriginalTaskActors(0, 4));
             Address = child.Address;
             hierarchy = child.Hierarchy.Write(Address, child.Hierarchy.Read(Address).WriteWord(0x20, 0xA5A5));
             NativeBattleOriginalEffectState effect = new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), null, null) { Pools = hierarchy.Pools };

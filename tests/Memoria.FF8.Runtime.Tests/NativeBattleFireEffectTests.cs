@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -74,13 +75,13 @@ public sealed class NativeBattleFireEffectTests
 
     private static (NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets) Fixture(int targets)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(3, 2, 11, -1, 1, 2, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 1, 2, null));
         for (int index = 0; index < targets; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(4 + index), 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new((byte)(4 + index), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish((byte)targets);
-        return (new(2, 1, new(2, 0x6298A0, 0x629880), new(3, 0, 0x30, 0, 0, 0), null), packets);
+        return (new(2, 1, new(2, 0x6298A0, 0x629880), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null), packets);
     }
 }

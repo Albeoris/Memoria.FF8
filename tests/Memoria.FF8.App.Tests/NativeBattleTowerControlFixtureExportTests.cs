@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
@@ -75,7 +76,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         Assert.True(retained.Suspended);
         Assert.Equal(3, Assert.Single(entered.Combatants, actor => actor.Id == removed.Id).NativeParticipant!.ActorIndex);
         Assert.Equal(4, Assert.Single(entered.Combatants, actor => actor.Id == retained.Id).NativeParticipant!.ActorIndex);
-        int removedRow = entered.NativeGraphics.Models[3].ActiveResourceRow100!.Value;
+        int removedRow = ReadOriginalModelCell(entered.NativeGraphics, 3).ActiveResourceRow100!.Value;
         SaveColdNext("entry-ready", session.Capture());
         Invoke(session, "QueueNativeGraphicsRemoval", removed);
         Invoke(session, "QueueNativeGraphicsBarrier");
@@ -120,10 +121,10 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             NativeBattleEffectBinding binding = ready.Definition.NativeEffectCatalog[effect - 1];
             Assert.Equal(effect, binding.Effect);
             NativeBattleActionPacketsState packets = ready.NativeActionPackets!.ResetCounts();
-            (packets, int header) = packets.Prepare(new(5, 252, 1, -1, 1, effect, null));
+            (packets, int header) = packets.Prepare(new(OriginalOwner(5), 252, 1, -1, 1, effect, null));
             BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.ActorIndex == 0);
             NativeBattleStatusSnapshot status = target.NativeStatus!;
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, status.Saved, 7, status.Battle), null));
             (packets, _) = packets.Publish(1);
             packets.Validate();
             (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -146,9 +147,9 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             Assert.False(participant.Suspended);
             Assert.False(participant.Untargetable);
             Assert.False(participant.AllocationPendingStatistics);
-            NativeBattleGraphicsModel model = snapshot.NativeGraphics!.Models[5];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, 5);
             Assert.Equal((byte)107, model.ModelId4);
-            Assert.Equal(allocated.Id, snapshot.NativeGraphics.ActorIds[5]);
+            Assert.Equal(allocated.Id, ReadOriginalModelActorId(snapshot.NativeGraphics, 5));
             Assert.Equal(prototypePlacement.NativePosition, model.Transform!.Position28);
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(session.GetCombatantDefinition(allocated.Id)).PoseSource!;
             Assert.Equal(pose.BoneCount, NativeBattleBodyBoneMatrices.Require(model, pose).Length);

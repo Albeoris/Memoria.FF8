@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -36,7 +37,7 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
             CrossoverNativeForeignTarget foreign = host.Foreign;
             projection = host.Camera;
             arena = host.Arena;
-            readAnchor = () => foreign.ToActor(3).Anchor;
+            readAnchor = () => foreign.ToActor(OriginalOwner(3)).Anchor;
             readTransform = () => foreign.Transform;
             readForeign = () => foreign;
         }
@@ -80,7 +81,7 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         BattleNativeAction action = battle.NativeActions.Single(action => action.Command == 2 && action.ActionId == 21);
         CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 0, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 1, 0, 83, 0), action, new(0));
+        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 0, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 1, 0, 83, 0), action, new(0));
         bool admitted = presentation.TryPreflight(state, Anchor, Transform, Camera(), null, out string? reason);
         Assert.False(admitted);
         Assert.False(string.IsNullOrWhiteSpace(reason));

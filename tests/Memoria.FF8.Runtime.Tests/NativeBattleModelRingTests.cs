@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -101,8 +102,8 @@ public sealed class NativeBattleModelRingTests
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear();
         state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, 3, sequence: 254).State;
-        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, 6, 0xFFFFFFFF).State;
-        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, 0, 0x200).State;
+        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, OriginalOwner(6), 0xFFFFFFFF).State;
+        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, OriginalOwner(0), 0x200).State;
         state = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(state))!;
         List<(NativeBattleAuxiliaryKind Kind, int Model, uint Argument)> calls = [];
         NativeBattleAuxiliaryInputs inputs = new() { ApplyModelRing = (kind, model, argument) => calls.Add((kind, model, argument)) };

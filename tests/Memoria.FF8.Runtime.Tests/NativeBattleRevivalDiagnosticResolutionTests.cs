@@ -45,7 +45,7 @@ public sealed class NativeBattleRevivalDiagnosticResolutionTests
         Assert.Equal("fallen", healing.TargetId);
         NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
         NativeBattleContactPacket contact = battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
-        Assert.Equal((byte)1, contact.Primary.ActorIndex);
+        Assert.Equal((byte)1, contact.Primary.Recipient);
         Assert.Equal((ushort)restoredHp, contact.Primary.Amount6);
         Assert.Equal(1, contact.Primary.HitFlags3 & 1);
         Assert.Equal(JsonSerializer.Serialize(unobserved.Capture()), JsonSerializer.Serialize(battle.Capture()));

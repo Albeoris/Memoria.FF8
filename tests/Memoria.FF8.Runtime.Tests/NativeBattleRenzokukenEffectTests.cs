@@ -37,7 +37,7 @@ public sealed class NativeBattleRenzokukenEffectTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23D4778, 0x23D4788, 36, 100);
         (pool, int slot) = pool.Append(0x5FFFE0);
         int calls = 0;
-        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0), (current, _) => current)
+        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0), (current, _) => current)
         {
             ReadBoneCount = _ => 0,
             ReadBone = (_, bone, distance) =>
@@ -91,7 +91,7 @@ public sealed class NativeBattleRenzokukenEffectTests
         (pool, int slot) = pool.Append(0x5FF180);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 2)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
-        NativeBattleRenzokuken160Inputs inputs = new(0, [10, 20, 30, 40, 10], _ => new(0, 0), (current, _) => current);
+        NativeBattleRenzokuken160Inputs inputs = new(0, [10, 20, 30, 40, 10], _ => new(0), (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokuken160Controller.Advance5FF180(frame, pool, slot, inputs, resources);
         Assert.Equal(110, step.Frame.Memory.Renzokuken160!.Duration);
         Assert.Equal(1, step.Pool.Slots[0].Next);

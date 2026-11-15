@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -18,14 +19,14 @@ public sealed class NativeBattleCinematicActorResourceABTests
         frame = frame with { Arena = frame.Arena.Write(0x201B, [5]).Write(0x1002, [0xFE, 0xFF]) };
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorResourceAB.Execute(frame, new(0x1000, 4, 0x1000), (current, model, row) =>
         {
-            Assert.Equal(0x1D975CCu, model);
+            Assert.Equal(OriginalOwner(5), model);
             Assert.Equal(0x20E4AB8u, row);
             Assert.Equal(0x20E4AD8u, WaterSchedulerFixture.ReadCoreDword(current, manager + 0x74));
             Assert.Equal(0x1000u, WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
             return current with { Arena = current.Arena.Write(0x1002, [0xFD, 0xFF]) };
         }, (current, model, sequence) =>
         {
-            Assert.Equal(0x1D975CCu, model);
+            Assert.Equal(OriginalOwner(5), model);
             Assert.Equal((short)-3, sequence);
             return current;
         });
@@ -50,7 +51,7 @@ public sealed class NativeBattleCinematicActorResourceABTests
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x5020, [7, 8, 9, 10]);
         NativeBattleModelCpuResources cpu = cold ? NativeBattleModelCpuResources.FromColdProcess() : NativeBattleModelCpuResources.Unknown();
         cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, new(0, 100) { ResourceOnly = resourceOnly }).Set(16, new(0, 200) { ResourceOnly = resourceOnly })).SetItem(1, cpu.Rows[1].Set(12, new(1, 300) { ResourceOnly = resourceOnly }).Set(16, new(1, 400) { ResourceOnly = resourceOnly })) };
-        NativeBattleGraphicsModel model = new(0, 2) { ModelId4 = 8, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = 1, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)), SequenceState = new() { Default2 = 6 } };
+        NativeBattleGraphicsModel model = new(2) { ModelId4 = 8, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = 1, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)), SequenceState = new() { Default2 = 6 } };
         if (stagedSource)
         {
             for (int source = 0; source < 2; source++)

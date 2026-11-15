@@ -64,8 +64,8 @@ public sealed class NativeTrainingDrawIntegrationTests
         battle.Tick();
         BattleNativeDrawContext draw = Assert.IsType<BattleNativeDrawContext>(battle.ActiveAction!.NativeDraw);
         Assert.False(draw.Failed);
-        Assert.Equal((byte)6, battle.NativeActionPackets.Headers[0].ReadByte(1));
-        Assert.Equal((ushort)15, NativeBattleActionGraphics.Word(battle.NativeActionPackets.Headers[0], 6));
+        Assert.Equal((byte)6, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
+        Assert.Equal((ushort)15, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Effect);
         Assert.Equal(beforeStock + draw.Added, caster.MagicStocks.Where(stock => stock.Id == selection).Sum(stock => stock.Count));
         Assert.DoesNotContain(battle.Events, item => item.Kind == "NativeText" && item.ActorId == caster.Id);
         BattleSession fromWindup = Restore(battle);

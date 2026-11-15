@@ -66,7 +66,7 @@ public sealed class NativeBattlePoseAnchorRoundingTests
     [Fact]
     public void Disabled_anchor_exposes_only_current_position_and_requires_no_pose_or_alias_owner()
     {
-        NativeBattleGraphicsModel model = new(0, 0) { Transform = new(new(0, 0, 0), new(1, -2, 3), 123, 456, 4096) };
+        NativeBattleGraphicsModel model = new(0) { Transform = new(new(0, 0, 0), new(1, -2, 3), 123, 456, 4096) };
         NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, new([], []), 255, -32768);
         Assert.False(producer.Enabled);
         Assert.Null(producer.Matrix);
@@ -95,7 +95,7 @@ public sealed class NativeBattlePoseAnchorRoundingTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(84), coefficient);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(90), coefficient);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        NativeBattleGraphicsModel model = new(0, 2) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 8192), SequenceState = new(), GeometryWorldMatrix = Identity() };
+        NativeBattleGraphicsModel model = new(2) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 8192), SequenceState = new(), GeometryWorldMatrix = Identity() };
         model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(model, source);
         return (model, source);
     }

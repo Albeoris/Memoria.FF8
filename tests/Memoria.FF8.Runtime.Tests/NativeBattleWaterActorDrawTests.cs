@@ -207,7 +207,7 @@ public sealed class NativeBattleWaterActorDrawTests
     private static int Resolve(uint address) => 4121;
     private static int UnexpectedTable(uint address) => throw new InvalidOperationException("Culled shadow consumed an ordering-table pointer.");
 
-    private static NativeBattleGraphicsModel Model() => new(0, 3) { Color44 = 0x30112233, Transform = new(new(0, 0, 0), new(100, 200, 300), 17, 19, 4096), GeometryWorldMatrix = Identity with { X = 110, Y = 220, Z = 330 } };
+    private static NativeBattleGraphicsModel Model() => new(3) { Color44 = 0x30112233, Transform = new(new(0, 0, 0), new(100, 200, 300), 17, 19, 4096), GeometryWorldMatrix = Identity with { X = 110, Y = 220, Z = 330 } };
     private static ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(index => Model() with { Index = index }).ToImmutableArray();
 
     private static byte[] Skeleton(int count)

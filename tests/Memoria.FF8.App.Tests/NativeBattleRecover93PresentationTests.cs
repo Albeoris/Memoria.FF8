@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -39,18 +40,18 @@ public sealed class NativeBattleRecover93PresentationTests
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = (int)(offset / 20);
-        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)(revival ? 13 : 12), NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal(effectId, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)(revival ? 13 : 12), header.Action);
+        Assert.Equal(effectId, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
-        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The fixture lacks its explicit contact owner."));
+        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
         Assert.Equal((byte)targetIndex, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)1, (byte)(contact.Primary.HitFlags3 & 1));
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);
-        Assert.Equal((byte)4, graphics.Models[0].ModelId4);
+        Assert.Equal((byte)4, ReadOriginalModelCell(graphics, 0).ModelId4);
         ushort initialHp = source.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
         Assert.Equal((ushort)(revival ? 0 : 100), initialHp);
         ushort expectedHp = (ushort)(initialHp + 7);
@@ -132,7 +133,7 @@ public sealed class NativeBattleRecover93PresentationTests
                     contactTransitions++;
                 }
                 Assert.True(hp == initialHp || hp == expectedHp);
-                Assert.Equal(graphics.Models[targetIndex].ActiveStagedResourceRow100, current.NativeGraphics.Models[targetIndex].ActiveStagedResourceRow100);
+                Assert.Equal(ReadOriginalModelCell(graphics, targetIndex).ActiveStagedResourceRow100, ReadOriginalModelCell(current.NativeGraphics, targetIndex).ActiveStagedResourceRow100);
                 if (revival)
                 {
                     Assert.Equal((ushort)100, current.NativePartyPresentation.Rows[0]!.HitPoints);

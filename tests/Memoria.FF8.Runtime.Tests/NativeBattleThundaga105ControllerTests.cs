@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -160,8 +161,8 @@ public sealed class NativeBattleThundaga105ControllerTests
     private static (NativeBattleThundaga105Frame Frame, NativeBattleActionPacketsState Packets, NativeBattleThundaga105Resources Resources) Fixture(byte flags = 0)
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 105, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 105, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         byte[] source = new byte[16];
         BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 8);
@@ -185,7 +186,7 @@ public sealed class NativeBattleThundaga105ControllerTests
             pairs.Add(new(new(1, address, mesh.ToImmutableArray()), new(address + 84, mesh[..32].ToImmutableArray())));
         }
         NativeBattleThundaga105Resources resources = new(new("animation", []), new(0x13009C0, source.ToImmutableArray()), new(0, 0x131136C, 0, 0, new byte[12].ToImmutableArray()), new(0, 0x13115DC, 0, 0, new byte[12].ToImmutableArray()), new("sound", new byte[4].ToImmutableArray()), new("selector", new byte[32].ToImmutableArray()), pairs.ToImmutable());
-        NativeBattleOriginalEffectState effect = new(105, 104, new(105, 0x6D3DB0, 0x6D3DC0), new(0, flags, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(105, 104, new(105, 0x6D3DB0, 0x6D3DC0), new(OriginalOwner(0), flags, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Thundaga105 = NativeBattleThundaga105State.FromColdProcess() };
         return (new(memory, effect, new(1)), packets, resources);
     }

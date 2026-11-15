@@ -29,7 +29,7 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
             cycle.Observe(Observation(), false);
             NativeBattleActionPacketsState packets = dispatch.ActionId == 65532 ? battle.ObserveDiagnosticDuelClosingPackets(dispatch) : battle.ObserveDiagnosticActionPackets(dispatch);
             BattleDiagnosticEffectInvocation invocation = battle.ObserveDiagnosticEffectInvocation(dispatch);
-            NativeBattleActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(dispatch.NativeHeaderIndex!.Value));
             cycle.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
             {
                 Parameter80 = invocation.Parameter80,

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -142,15 +143,15 @@ public sealed class NativeBattleSiren95ControllerTests
 
     internal static (NativeBattleSiren95Frame Frame, NativeBattleSiren95Inputs Inputs) Fixture(byte targets = 1, byte repeats = 1)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 21, 1, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
         for (int index = 0; index < Math.Max(1, (int)targets); index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), null));
         }
-        packets = packets.WritePlayerRepeatMode(0, repeats);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeats);
         (packets, _) = packets.Publish(targets);
-        NativeBattleEffectParameters parameters = new(0, 1, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(95, 94, new(95, 0x739DA0, 0x739D80), parameters, null)
         {
             ResourcePointers = [new(0x257F8A0, 0x10000)]
@@ -166,7 +167,7 @@ public sealed class NativeBattleSiren95ControllerTests
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         ImmutableArray<bool> known = Enumerable.Repeat(true, 32).ToImmutableArray().SetItem(18, false).SetItem(19, false);
         NativeBattlePackedMatrix32 camera = new(Enumerable.Range(0, 32).Select(index => (byte)index).ToImmutableArray(), known);
-        NativeBattleSiren95Inputs inputs = new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (_, _) => throw new InvalidOperationException("Target boot was not reached."), (_, _) => throw new InvalidOperationException("No leaf was admitted."), (_, _) => throw new InvalidOperationException("Contact was not reached."), (_, _) => throw new InvalidOperationException("Resource request was not reached."));
+        NativeBattleSiren95Inputs inputs = new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (_, _) => throw new InvalidOperationException("Target boot was not reached."), (_, _) => throw new InvalidOperationException("No leaf was admitted."), (_, _) => throw new InvalidOperationException("Contact was not reached."), (_, _) => throw new InvalidOperationException("Resource request was not reached."));
         return (frame, inputs);
     }
 }

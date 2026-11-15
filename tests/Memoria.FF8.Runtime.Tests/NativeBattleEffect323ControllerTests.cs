@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect323Controller;
@@ -44,7 +45,7 @@ public sealed class NativeBattleEffect323ControllerTests
         (byte[] bytes, bool[] known) = result.Memory.Arena!.ReadSnapshot(0xE64, 4);
         Assert.Equal(new[] { true, true, false, true }, known);
         Assert.Equal(new byte[] { 1, 2, 4 }, bytes.Where((_, index) => known[index]).ToArray());
-        NativeBattleEffect323Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect323Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        NativeBattleEffect323Frame restored = NativeBattleTestSnapshots.Independent(result);
         Assert.Equal(known, restored.Memory.Arena!.ReadSnapshot(0xE64, 4).Known);
     }
 
@@ -57,8 +58,8 @@ public sealed class NativeBattleEffect323ControllerTests
         harness.Anchors = [new(100, 30000, 30000), new(100, 30000, 30000), new(200, 30000, 30000)];
         NativeBattleEffect323Frame result = CaptureRecipients(AddMain(Frame(0), 0), Arena, harness.Inputs());
         NativeBattleModulePoolTask task = Read(result, Arena);
-        Assert.Equal(new[] { ModelAddress(2), ModelAddress(1), ModelAddress(0) }, Enumerable.Range(0, 3).Select(index => task.ReadDword(0x20 + index * 4)).ToArray());
-        Assert.Equal(new[] { ModelAddress(2), ModelAddress(1), ModelAddress(0) }, harness.AnchorModels);
+        Assert.Equal(new[] { OriginalAddress(2), OriginalAddress(1), OriginalAddress(0) }, Enumerable.Range(0, 3).Select(index => task.ReadDword(0x20 + index * 4)).ToArray());
+        Assert.Equal(new[] { OriginalOwner(2), OriginalOwner(1), OriginalOwner(0) }, harness.AnchorModels);
         Assert.Equal((short)8154, Signed(task, 0x16));
         Assert.Equal((short)7154, Signed(task, 0x18));
         Assert.Equal((short)-2000, Signed(task, 0x12));
@@ -184,7 +185,7 @@ public sealed class NativeBattleEffect323ControllerTests
         Harness harness = new();
         harness.SetContacts(7, 0, 0, 1);
         NativeBattleEffect323Frame frame = AddMain(Frame(10), 35);
-        frame = Write(frame, Arena, Read(frame, Arena).WriteWord(14, 3).WriteDword(0x20, ModelAddress(0)));
+        frame = Write(frame, Arena, WriteFirstTarget(Read(frame, Arena).WriteWord(14, 3)));
         for (int index = 0; index < 3; index++)
         {
             (frame, _) = Append(frame, ProgrammeDescriptor, 0x65A720);
@@ -194,7 +195,7 @@ public sealed class NativeBattleEffect323ControllerTests
             (frame, _) = Append(frame, ParticleDescriptor, 0x65A660);
         }
         NativeBattleEffect323Frame result = TriggerRecipient(frame, Arena, 35, PointView(new(-1, 0, 0)), null!, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect323Operation[] { new NativeBattleEffect323Contact506690(7), new NativeBattleEffect323Contact506690(8) }, harness.Operations);
+        Assert.Equal(new NativeBattleEffect323Operation[] { new NativeBattleEffect323Contact506690(new BattleContactOccurrence(7)), new NativeBattleEffect323Contact506690(new BattleContactOccurrence(8)) }, harness.Operations);
         Assert.Equal(frame.Random, result.Random);
         Assert.Equal(1, Read(result, Arena).ReadWord(0x10));
         Assert.Empty(harness.AnchorModels);
@@ -205,7 +206,7 @@ public sealed class NativeBattleEffect323ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect323Frame frame = AddMain(Frame(10), 35);
-        frame = Write(frame, Arena, Read(frame, Arena).WriteDword(0x20, ModelAddress(0)));
+        frame = Write(frame, Arena, WriteFirstTarget(Read(frame, Arena)));
         NativeBattleEffect323Frame result = TriggerRecipient(frame, Arena, 35, PointView(new(0, 0, 0)), null!, harness.Inputs());
         Assert.Equal(0, Read(result, Arena).ReadWord(0x10));
         Assert.Equal(frame.Random, result.Random);
@@ -249,10 +250,19 @@ public sealed class NativeBattleEffect323ControllerTests
                 pools = pools.Add(NativeBattleEffectTaskPool.Initialize(shape.Descriptor, Arena + shape.Bank, shape.Stride, shape.Capacity));
             }
         }
-        NativeBattleEffect323State state = NativeBattleEffect323State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(4));
-        NativeBattleOriginalEffectState effect = new(323, 322, new(323, Entry, Initializer), new(4, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleEffect323State state = NativeBattleEffect323State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(4), OriginalAliases);
+        NativeBattleOriginalEffectState effect = new(323, 322, new(323, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+    }
+
+    private static uint OriginalAddress(int slot) => NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode((byte)slot));
+
+    private static NativeBattleModulePoolTask WriteFirstTarget(NativeBattleModulePoolTask task)
+    {
+        BattleModelOwner owner = OriginalOwner(0);
+        task.WriteExecutionReference(0x20, 4, new BattleExecutionReference.Model(owner), OriginalAliases.EncodeAddress(owner));
+        return task;
     }
 
     private sealed class SampleObservedException : Exception
@@ -262,26 +272,29 @@ public sealed class NativeBattleEffect323ControllerTests
     private sealed class Harness
     {
         public List<NativeBattleEffect323Operation> Operations { get; } = [];
-        public List<uint> AnchorModels { get; } = [];
+        public List<BattleModelOwner> AnchorModels { get; } = [];
         public short[] ModelXs { get; set; } = new short[7];
         public NativeBattleVector[] Anchors { get; set; } = new NativeBattleVector[7];
         public int PointQueries { get; private set; }
         public Action<NativeBattleEffect323Frame, NativeBattleEffectArena, int, int>? OnSample { get; set; }
-        public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();
 
         public void SetContacts(int first, params int[] actors)
         {
-            byte[] header = new byte[20];
-            header[16] = (byte)actors.Length;
-            ImmutableArray<NativeBattleContactPacket?> contacts = Packets.Contacts;
-            for (int index = 0; index < actors.Length; index++)
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            for (int index = 0; index < first; index++)
             {
-                contacts = contacts.SetItem(first + index, new(new((byte)actors[index], 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             }
-            Packets = Packets with { Headers = Packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, first, null)), Contacts = contacts };
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 323, null));
+            foreach (int actor in actors)
+            {
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
+            }
+            Packets = packets.Publish(actors.Length).State;
         }
 
-        public NativeBattleEffect323Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes(ModelXs[(model - ModelAddress(0)) / 156])), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, selector, fraction, retained) =>
+        public NativeBattleEffect323Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes(ModelXs[OriginalSlot(model)])), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, selector, fraction, retained) =>
         {
             Assert.Equal(24, selector);
             Assert.Equal(2048, fraction);
@@ -290,7 +303,7 @@ public sealed class NativeBattleEffect323ControllerTests
         }, (frame, model, retained) =>
         {
             AnchorModels.Add(model);
-            return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 777) }, PutPoint(retained, 0, Anchors[(model - ModelAddress(0)) / 156]));
+            return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 777) }, PutPoint(retained, 0, Anchors[OriginalSlot(model)]));
         }, (frame, controls, segment, parameter, retained) =>
         {
             OnSample?.Invoke(frame, controls, segment, parameter);

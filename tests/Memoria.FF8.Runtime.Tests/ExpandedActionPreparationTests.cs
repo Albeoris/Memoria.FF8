@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -198,7 +199,7 @@ public sealed class ExpandedActionPreparationTests
         object? captured = typeof(BattleSession).GetMethod("TakePendingHostedEnemyDraw", privateInstance)!.Invoke(owner, []);
         Assert.Same(original, captured);
         Assert.Null(pending.GetValue(owner));
-        typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!.Invoke(owner, [command, new NativeBattleActionHeaderPreparation(3, 2, 5, -1, 1, 1, null), ImmutableArray.Create(new ExpandedBattleContact("caster", packet)), captured]);
+        typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!.Invoke(owner, [command, new NativeBattleActionHeaderPreparation(OriginalOwner(3), 2, 5, -1, 1, 1, null), ImmutableArray.Create(new ExpandedBattleContact("caster", packet)), captured]);
         object invocation = Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", privateInstance)!.GetValue(owner)!).Cast<object>());
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
@@ -286,7 +287,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
 
         NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
-        services.EmitContact(child.NativeActionPackets.ReadContact(0));
+        services.EmitContact(child.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)));
         MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         acknowledge.Invoke(owner, [services, token]);
         Assert.Null(boundDraw.GetValue(owner));

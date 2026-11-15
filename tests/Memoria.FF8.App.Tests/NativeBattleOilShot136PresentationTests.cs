@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -43,7 +44,7 @@ public sealed class NativeBattleOilShot136PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(99, casterSource.ModelId);
-        Assert.Equal((byte?)115, source.NativeGraphics!.Models[3].ModelId4);
+        Assert.Equal((byte?)115, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([136])[135];
         Assert.Equal(NativeBattleOilShot136Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleOilShot136Profile.Initializer, binding.Initializer);
@@ -51,7 +52,7 @@ public sealed class NativeBattleOilShot136PresentationTests
         Assert.Equal(134176, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeOilShot136Resources(), binding.OilShot136Resources);
         Assert.True(source.NativeEffectMemory!.OilShot136!.PendingColdSources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

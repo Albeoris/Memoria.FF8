@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -60,7 +61,7 @@ public sealed class NativeBattleEffect70ParticleTests
         Assert.Equal((short)0, Word(frame, RingOffset));
         Assert.Equal(short.MinValue, Word(frame, RingOffset + 4));
         Assert.Equal(short.MaxValue, Word(frame, RingOffset + 6));
-        NativeBattleEffect70Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect70Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleEffect70Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect70Particles.AdvanceRings(frame))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect70Particles.AdvanceRings(restored))));
     }
 
@@ -88,7 +89,7 @@ public sealed class NativeBattleEffect70ParticleTests
             if (operation is NativeBattleEffect70QueryBonePoint query)
             {
                 queries++;
-                Assert.Equal(0, query.Actor);
+                Assert.Equal(OriginalOwner(0), query.Actor);
                 Assert.Equal(NativeBattleTemporaryMemory.Address + 0x14, query.Destination);
                 Assert.Equal(queries == 1 ? 10 : 99, BinaryPrimitives.ReadInt32LittleEndian(current.Staging!.Read(query.Destination + 4, 4)));
                 return current;
@@ -134,7 +135,7 @@ public sealed class NativeBattleEffect70ParticleTests
         Assert.Equal(first.Bank, second.Bank);
         Assert.Equal(first.Slot, second.Slot);
         Assert.Null(NativeBattleEffect70Presentation.Row(captured, inputs with { CapturePresentation = false }, offset, 0, 123));
-        NativeBattleEffect70Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect70Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)))!);
+        NativeBattleEffect70Frame restored = NativeBattleTestSnapshots.Independent(captured);
         Assert.NotEqual(second, NativeBattleEffect70Presentation.Row(restored, inputs, offset, 0, 123));
     }
 

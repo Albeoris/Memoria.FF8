@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -164,7 +165,7 @@ public sealed class NativeBattleTonberry90CreatureTests
         var fixture = NativeBattleTonberry90ControllerTests.Fixture();
         int pool = Enumerable.Range(0, fixture.Frame.Effect.Pools.Length).Single(index => fixture.Frame.Effect.Pools[index].DescriptorAddress == 0x259F098);
         Assert.Equal(0x7C, fixture.Frame.Effect.Pools[pool].Stride);
-        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(pool, 0x767C70, 0x7C, NativeBattleTonberry90Controller.MainBank, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(pool, 0x767C70, 0x7C, NativeBattleTonberry90Controller.MainBank, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleTonberry90Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = appended.Hierarchy.Pools } };
         NativeBattleModulePoolTask task = Read(frame, appended.Address).WriteByte(0x29, 1).WriteWord(0x50, 9).WriteWord(0x52, 9).WriteWord(0x6C, unchecked((ushort)-17)).WriteWord(0x6E, unchecked((ushort)-97)).WriteWord(0x70, 32).WriteWord(0x1C, 10).WriteWord(0x20, 20);
         frame = Write(frame, appended.Address, task);
@@ -263,7 +264,7 @@ public sealed class NativeBattleTonberry90CreatureTests
     private static (NativeBattleTonberry90Frame Frame, uint Address) Fixture()
     {
         var fixture = NativeBattleTonberry90ControllerTests.Fixture();
-        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(5, 0x7674E0, 0x148, NativeBattleTonberry90Controller.MainBank, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(5, 0x7674E0, 0x148, NativeBattleTonberry90Controller.MainBank, (_, _, _) => OriginalTaskActors(0, 3));
         return (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = appended.Hierarchy.Pools } }, appended.Address);
     }
 

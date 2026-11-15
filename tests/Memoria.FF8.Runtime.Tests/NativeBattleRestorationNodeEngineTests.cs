@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -83,7 +84,7 @@ public sealed class NativeBattleRestorationNodeEngineTests
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
         NativeBattleEffectHierarchy hierarchy = new(Enumerable.Range(0, 4).Select(index => NativeBattleEffectTaskPool.Initialize(profile.Descriptors[index], profile.Banks[index], new ushort[] { 100, 88, 676, 64 }[index], new ushort[] { 2, 4, 3, 10 }[index])).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.MainCallback, 100);
-        NativeBattleEffectHierarchyAppend context = root.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, root.Address, (_, _, _) => new(0, 0));
+        NativeBattleEffectHierarchyAppend context = root.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, root.Address, (_, _, _) => OriginalTaskActors(0, 0));
         hierarchy = context.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(context.Address).WriteWord(0x34 + 0x20, 0).WriteWord(0x34 + 0x18, 0).WriteWord(0x34 + 0x1A, 1).WriteWord(0x34 + 0x14, 1).WriteWord(0x34 + 0x16, 1);
         hierarchy = hierarchy.Write(context.Address, task);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -14,7 +15,7 @@ public sealed class NativeBattleDoubleControllerTests
         NativeBattleDoubleInputs inputs = fixture.Inputs with
         {
             ReadForeign = _ => geometry,
-            ReadModel = index => new(index, 2) { Transform = new(default, default, 0, 77, 4096) },
+            ReadModel = index => new(2) { Transform = new(default, default, 0, 77, 4096) },
             ReadPoseSource = _ => throw new InvalidOperationException("A host pose must not request a native skeleton or animation bank.")
         };
         NativeBattleDoubleStep first = NativeBattleDoubleController.Advance8D5180(fixture.Frame, fixture.Resources, inputs, NativeCrtRandomState.FromColdProcess());
@@ -22,7 +23,7 @@ public sealed class NativeBattleDoubleControllerTests
         Assert.Equal((ushort)50, root.ReadWord(0x30));
         Assert.Equal((ushort)77, root.ReadWord(0x32));
         Assert.Equal(unchecked((ushort)-500), root.ReadWord(0x3A));
-        NativeBattleDoubleFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleDoubleFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
+        NativeBattleDoubleFrame cold = NativeBattleTestSnapshots.Independent(first.Frame);
         NativeBattleDoubleStep second = NativeBattleDoubleController.Advance8D5180(cold, fixture.Resources, inputs, first.Random);
         NativeBattleModulePoolTask target = second.Frame.Effect.Pools[1].Slots[0];
         Assert.Equal((ushort)13, target.ReadWord(0x32));
@@ -229,8 +230,8 @@ public sealed class NativeBattleDoubleControllerTests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x8D52A0, 92, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
-        NativeBattleEffectHierarchyAppend particle = target.Hierarchy.Append8DC540(4, callback, 108, target.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x8D52A0, 92, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
+        NativeBattleEffectHierarchyAppend particle = target.Hierarchy.Append8DC540(4, callback, 108, target.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = particle.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(particle.Address).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteDword(0x4C, callback == 0x8D5750 ? 0x163FFD0u : 0x163F224u);
         hierarchy = hierarchy.Write(particle.Address, task);
@@ -239,14 +240,14 @@ public sealed class NativeBattleDoubleControllerTests
 
     private static (NativeBattleDoubleFrame Frame, NativeBattleDoubleResources Resources, NativeBattleDoubleInputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 33, 4, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 33, 4, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         ImmutableArray<byte> mesh = Mesh(0).ToImmutableArray();
         NativeBattleDoubleResources resources = new(new("synthetic-unused-animation", []), [Sprite(0x163E930, 13), Sprite(0x163EA90, 8), Sprite(0x163EB6C, 1)], new uint[] { 0x163EB94, 0x163EDF4, 0x163F014, 0x163F224, 0x163FFD0 }.Select(address => new NativeBattleStaticMeshResource(0, address, mesh)).ToImmutableArray(), Shape(0, 0).ToImmutableArray(), Shape(0, 0).ToImmutableArray(), 300027);
-        NativeBattleOriginalEffectState effect = new(4, 3, new(4, 0x8D5080, 0x8D5060) { DoubleResources = resources }, new(0, 1, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(4, 3, new(4, 0x8D5080, 0x8D5060) { DoubleResources = resources }, new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(3) with { Textures = null, DoubleMorph = new(mesh) };
         NativeBattleDoubleFrame frame = NativeBattleDoubleController.Initialize8D5080(memory, effect, packets, resources);
         byte[] skeleton = new byte[64];
@@ -255,7 +256,7 @@ public sealed class NativeBattleDoubleControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 10000 };
-        NativeBattleDoubleInputs inputs = new(packets, new(view, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (current, _) => current);
+        NativeBattleDoubleInputs inputs = new(packets, new(view, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (current, _) => current);
         return (frame, resources, inputs);
     }
 

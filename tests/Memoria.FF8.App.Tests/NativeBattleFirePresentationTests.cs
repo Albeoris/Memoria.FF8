@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Bitmap = SkiaSharp.SKBitmap;
 using Color = SkiaSharp.SKColor;
@@ -75,8 +76,8 @@ public sealed class NativeBattleFirePresentationTests
             AssertNativeFileIoHostPump(before);
         }
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
-        (packets, _) = packets.AppendContact(new(new(3, 5, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -108,7 +109,7 @@ public sealed class NativeBattleFirePresentationTests
             battle.AdvanceNativeGraphicsPresentation(Callback);
             if (castingCompletionPending && !HasActionDescriptor(battle))
             {
-                NativeBattleGraphicsModel actor = battle.NativeGraphics!.Models[0];
+                NativeBattleGraphicsModel actor = ReadOriginalModelCell(battle.NativeGraphics!, 0);
                 //50A9A0 sets WORD44 bit200 before504290; original sequence11 XOR-clears it and selects pose22 in the same callback.
                 Assert.Equal((byte)11, actor.Sequence);
                 Assert.Equal((ushort)0x54, actor.SequenceState!.Offset46);
@@ -121,7 +122,7 @@ public sealed class NativeBattleFirePresentationTests
             selected |= battle.NativeGraphics!.ActionGraphics?.Callback == (casting ? 0x50A9A0 : 0x50B190);
             cameraProgramCompleted |= battle.NativeCamera is { ControlCursor: null, ControlResource.Source.Identity: "FF8_EN:DED5FC" };
             sawCastingLoadWait |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 3);
-            sawCastingReady |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 4) && (battle.NativeGraphics.Models[0].ResourceFlags44 & 0x20) != 0;
+            sawCastingReady |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 4) && (ReadOriginalModelCell(battle.NativeGraphics, 0).ResourceFlags44 & 0x20) != 0;
             if (restored is not null)
             {
                 restored.AdvanceNativeGraphicsPresentation(Callback);

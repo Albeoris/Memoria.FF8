@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -84,11 +85,11 @@ public sealed class NativeBattleDeathFamilyProfileTests
     [InlineData(74, 1, 4)]
     public void Context_initialization_uses_the_actual_contact_selector_only_for_level_death(int effect, int expectedCount, int expectedActor)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, (ushort)effect, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, (ushort)effect, null));
         foreach (byte actor in new byte[] { 3, 4 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(1);
         NativeBattleModulePoolTask root = RootTask().WriteWord(0x5A, 2);
@@ -114,7 +115,7 @@ public sealed class NativeBattleDeathFamilyProfileTests
         NativeBattleGraphicsModel Model(int actor)
         {
             reads.Add(actor);
-            return new(actor, 0) { Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, (short)actor), 0, 0, 4096), GeometryBounds52 = new(new(-1, -2, -3), new(1, 2, 3)) };
+            return new(0) { Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, (short)actor), 0, 0, 4096), GeometryBounds52 = new(new(-1, -2, -3), new(1, 2, 3)) };
         }
     }
 

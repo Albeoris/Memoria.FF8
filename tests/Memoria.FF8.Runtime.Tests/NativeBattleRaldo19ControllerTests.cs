@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -33,9 +34,9 @@ public sealed class NativeBattleRaldo19ControllerTests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(3, 0x8A3A30, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(3, 0x8A3A30, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = generic.Hierarchy.Read(generic.Address).WriteWord(0x29C, 4).WriteWord(0x296, 0x4321);
-        NativeBattleGraphicsModel model = new(0, 0) { Transform = new(new(0, 0, 0), new(-123, 456, -789), unchecked((short)0xABCD), 0, 4096) };
+        NativeBattleGraphicsModel model = new(0) { Transform = new(new(0, 0, 0), new(-123, 456, -789), unchecked((short)0xABCD), 0, 4096) };
         task = NativeBattleRaldo19Controller.PrepareMode4Caster(task, model);
         Assert.Equal((short)-123, unchecked((short)task.ReadWord(0x290)));
         Assert.Equal((short)-768, unchecked((short)task.ReadWord(0x292)));
@@ -106,10 +107,10 @@ public sealed class NativeBattleRaldo19ControllerTests
 
     internal static (NativeBattleRaldo19Frame Frame, NativeBattleRaldo19Resources Resources, NativeBattleRaldo19Inputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 32, 15, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 32, 15, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         byte[] cameraBytes = new byte[0x26C];
         BinaryPrimitives.WriteUInt16LittleEndian(cameraBytes, 2);
@@ -117,7 +118,7 @@ public sealed class NativeBattleRaldo19ControllerTests
         NativeBattleRaldo19Resources resources = new(new("camera", cameraBytes.ToImmutableArray()), new(new byte[0x4760].ToImmutableArray()) { ResourceAddress = 0x17F37BC }, 0x64254, new(0x162A470, [0x404040, 0xFF000000]), Sprite(10), Sprite(12), new byte[84].ToImmutableArray(), new byte[0xC4].ToImmutableArray(), new byte[0x4E30].ToImmutableArray(), new byte[48].ToImmutableArray(), new byte[0x1F40].ToImmutableArray(), 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(18);
         memory = memory with { Arena = memory.Arena!.Write(256 + 0x8000, Enumerable.Repeat((byte)0xA5, 0x438 + 0xB7C0).ToArray()) };
-        NativeBattleOriginalEffectState selected = new(19, 18, new(19, 0x8A32A0, 0x8A3280), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x2726900, 256)] };
+        NativeBattleOriginalEffectState selected = new(19, 18, new(19, 0x8A32A0, 0x8A3280), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2726900, 256)] };
         NativeBattleRaldo19Frame frame = NativeBattleRaldo19Controller.Initialize(memory, selected, new(1), packets, resources, NativeBattleRaldo19State.FromColdProcess(resources));
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
@@ -125,7 +126,7 @@ public sealed class NativeBattleRaldo19ControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        NativeBattleRaldo19Inputs inputs = new(packets, camera, index => new(index, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (current, _) => current, (current, _) => new(current, 0));
+        NativeBattleRaldo19Inputs inputs = new(packets, camera, index => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (current, _) => current, (current, _) => new(current, 0));
         return (frame, resources, inputs);
     }
 

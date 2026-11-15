@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -16,7 +17,7 @@ public sealed class NativeBattleDuel112HierarchyTests
         byte[] raw = new byte[checked((int)(NativeBattleDuel112Resources.EndAddress - NativeBattleDuel112Resources.Address))];
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x200), flags);
         NativeBattleDuel112Resources resources = new(raw.ToImmutableArray(), [], [], []);
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, resources) };
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0);
         NativeBattleDuel112Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));

@@ -57,7 +57,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
     {
         NativeBattleRenzokuken160Frame frame = Frame(effect);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0), (current, _) => current)
+        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0), (current, _) => current)
         {
             ReadBoneCount = _ => 0,
             ReadBone = (_, _, _) => new(100, -200, 4096)
@@ -145,7 +145,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
             pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, 1));
             NativeBattleGfGeometryBatch? batch = null;
-            NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0), (current, operation) =>
+            NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0), (current, operation) =>
             {
                 batch = Assert.IsType<NativeBattleRenzokuken160TrailDraw>(operation).Packets;
                 return current;
@@ -175,7 +175,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
     {
         NativeBattleRenzokuken160Frame owner = Frame(159);
         NativeBattleRenzokuken159Frame frame = new(owner.Memory with { Renzokuken159 = NativeBattleRenzokuken159State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100 } }, owner.Effect, owner.Random);
-        NativeBattleRenzokuken159Inputs inputs = new(0, [], _ => new(0, 0), (current, _) => current) { ReadBoneCount = _ => 0, ReadBone = (_, _, _) => new(100, -200, 4096) };
+        NativeBattleRenzokuken159Inputs inputs = new(0, [], _ => new(0), (current, _) => current) { ReadBoneCount = _ => 0, ReadBone = (_, _, _) => new(100, -200, 4096) };
         NativeBattleRenzokuken159ChildStep first = NativeBattleRenzokuken159Controller.Advance601EC0(frame, frame.Effect.Pools[1], 0, inputs);
         NativeCrtRandomState expected = frame.Random;
         for (int draw = 0; draw < 6; draw++)
@@ -338,7 +338,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
         NativeBattleRenzokuken160Frame frame = Frame(effect);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         NativeBattleGfGeometryBatch? batch = null;
-        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0) { GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() }, (current, operation) =>
+        NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0) { GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() }, (current, operation) =>
         {
             batch = Assert.IsType<NativeBattleRenzokuken160MeshDraw>(operation).Packets;
             return current;
@@ -349,7 +349,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
         if (effect == 159)
         {
             NativeBattleRenzokuken159Frame dedicated = new(frame.Memory with { Renzokuken159 = NativeBattleRenzokuken159State.FromColdProcess() }, frame.Effect, frame.Random);
-            NativeBattleRenzokuken159Inputs special = new(0, [], _ => new(0, 0), (current, operation) =>
+            NativeBattleRenzokuken159Inputs special = new(0, [], _ => new(0), (current, operation) =>
             {
                 batch = Assert.IsType<NativeBattleRenzokuken159MeshDraw>(operation).Packets;
                 return current;

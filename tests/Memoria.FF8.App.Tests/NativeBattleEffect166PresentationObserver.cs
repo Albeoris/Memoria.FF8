@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -41,7 +42,7 @@ internal sealed class NativeBattleEffect166PresentationObserver
         NativeBattleModulePoolTask? before = previous.Values.FirstOrDefault(task => task.Callback == MainCallback);
         int age = main is null ? -1 : unchecked((short)main.ReadWord(12));
         int oldAge = before is null ? -1 : unchecked((short)before.ReadWord(12));
-        Assert.Equal((byte)130, graphics.Models[3].ModelId4);
+        Assert.Equal((byte)130, ReadOriginalModelCell(graphics, 3).ModelId4);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
             NativeBattleCureFamilyPool shape = Pools.Single(item => item.Descriptor == pool.DescriptorAddress);
@@ -95,7 +96,7 @@ internal sealed class NativeBattleEffect166PresentationObserver
                 Mark("effect166-current-contact-glyph", current, cold);
             }
         }
-        if (graphics.Models[0].Sequence == 6)
+        if (ReadOriginalModelCell(graphics, 0).Sequence == 6)
         {
             sequence6 = true;
             Mark("effect166-current-recipient-sequence6", current, cold);

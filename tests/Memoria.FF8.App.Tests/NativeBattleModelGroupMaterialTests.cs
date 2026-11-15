@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -52,7 +54,7 @@ public sealed class NativeBattleModelGroupMaterialTests
         BattleSnapshot initial = battle.Capture();
         NativeBattleGraphicsState graphics = initial.NativeGraphics!;
         bool enemyBody = selection == 0;
-        int actor = graphics.ActorIds.IndexOf(enemyBody ? "enemy" : "party");
+        int actor = FindOriginalModelSlot(graphics, enemyBody ? "enemy" : "party");
         Assert.InRange(actor, 0, 6);
         NativeBattleGraphicsResource resource = Invoke<NativeBattleGraphicsResource>(battle, "NativeGraphicsPoseResource", graphics, actor);
         byte group = selection == 2 ? (byte)1 : (byte)0;
@@ -63,7 +65,7 @@ public sealed class NativeBattleModelGroupMaterialTests
             Assert.True(resource.LinkedGeometryUsesBodySkeleton);
         }
         NativeBattleRawMesh mesh = weapon ? resource.LinkedGeometry!.Value.Single() : resource.Geometry!.Value[group];
-        NativeBattleModelTextureBinding binding = (weapon ? graphics.Models[actor].LinkedTextureSlots : graphics.Models[actor].BodyTextureSlots)!;
+        NativeBattleModelTextureBinding binding = (weapon ? ReadOriginalModelCell(graphics, actor).LinkedTextureSlots : ReadOriginalModelCell(graphics, actor).BodyTextureSlots)!;
         NativeBattleRawMesh relocated = resource.GeometryRelocated507550 && !weapon ? mesh : mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, binding) }).ToImmutableArray() };
         if (enemyBody)
         {
@@ -81,7 +83,7 @@ public sealed class NativeBattleModelGroupMaterialTests
         for (int callback = 0; callback < 15; callback++)
         {
             BattleSnapshot before = battle.Capture();
-            NativeBattleGraphicsModel model = before.NativeGraphics!.Models[actor];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(before.NativeGraphics!, actor);
             NativeBattleCameraProjection projection = before.NativeCamera!.Projection!;
             NativeBattleAuxiliaryTask task = before.NativeGraphics.Auxiliary.Slots[slot];
             ImmutableArray<NativeBattleActionMatrix> matrices;

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -65,12 +66,12 @@ public sealed class NativeBattleEffect65ControllerTests
     public void Contact_uses_the_current_header_pointer_after_vibration_stop()
     {
         NativeBattleEffect65Frame frame = Frame();
-        frame = frame with { Effect = frame.Effect with { Parameters = new(0, 0, 0, 5, 0, 0) } };
+        frame = frame with { Effect = frame.Effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(5), 0, 0) } };
         frame = Write(frame, ArenaAddress, Read(frame, ArenaAddress).WriteWord(12, 548).WriteDword(0x10, 99));
         List<NativeBattleEffect65Operation> operations = [];
         NativeBattleEffect65Step step = AdvanceMain6E07D0(frame, ArenaAddress, Resources(), Inputs(operations));
         Assert.Equal(99, Assert.Single(operations.OfType<NativeBattleEffect65StopVibration4A2940>()).Handle);
-        Assert.Equal(5, Assert.Single(operations.OfType<NativeBattleEffect65Contacts506BA0>()).HeaderIndex);
+        Assert.Equal(new BattleActionHeaderReference(5), Assert.Single(operations.OfType<NativeBattleEffect65Contacts506BA0>()).HeaderIndex);
         Assert.True(operations.FindIndex(item => item is NativeBattleEffect65StopVibration4A2940) < operations.FindIndex(item => item is NativeBattleEffect65Contacts506BA0));
         Assert.Equal(549, Read(step.Frame, ArenaAddress).ReadWord(12));
     }

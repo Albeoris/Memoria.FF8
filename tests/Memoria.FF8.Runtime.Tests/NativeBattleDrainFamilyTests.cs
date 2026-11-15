@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -167,7 +168,7 @@ public sealed class NativeBattleDrainFamilyTests
         var fixture = NativeBattleDrain39ControllerTests.Fixture(effect: effect);
         NativeBattleDrainFamilyProfile profile = NativeBattleDrainFamilyProfile.ForEffect(effect);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend flash = hierarchy.Append8DC540(2, profile.FlashCallback, 60, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend flash = hierarchy.Append8DC540(2, profile.FlashCallback, 60, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(2, 3));
         hierarchy = flash.Hierarchy.Write(flash.Address, flash.Hierarchy.Read(flash.Address).WriteDword(0x30, profile.FirstFlashAddress));
         NativeBattleDrain39Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleDrain39Resources resources = NativeBattleDrain39ControllerTests.Resources(effect) with { FirstFlash = [0x007F7F7F, 0xFF000000] };

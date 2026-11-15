@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -40,14 +41,14 @@ public sealed class NativeBattleQuake38StateTests
         NativeBattleQuake38State live = NativeBattleQuake38State.FromColdProcess();
         live.SetDword(0x278C8E0, 0x12345678);
         live.SetWord(0x2792E5E, -1234);
-        live.SetSavedActor(0, live.SavedActors[0] with { Velocity = 33, RotationPadding18 = null });
+        live.SetSavedActor(OriginalOwner(0), live.SavedActors[OriginalOwner(0)] with { Velocity = 33, RotationPadding18 = null });
         NativeBattleQuake38State first = NativeBattleStorageSnapshots.Capture(live);
         string firstJson = JsonSerializer.Serialize(first);
         string legacyShape = JsonSerializer.Serialize(new { first.Header, first.Middle, first.Pointers, first.Tail, first.End, first.SavedActors });
         Assert.Equal(legacyShape, firstJson);
         Assert.True(((INativeBattleStorageNode)first).IsSnapshot);
         Assert.Throws<InvalidOperationException>(() => first.SetByte(0x278C8E0, 0));
-        Assert.Throws<InvalidOperationException>(() => first.SetSavedActor(0, NativeBattleQuake38SavedActor.FromColdProcess()));
+        Assert.Throws<InvalidOperationException>(() => first.SetSavedActor(OriginalOwner(0), NativeBattleQuake38SavedActor.FromColdProcess()));
         Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize(live));
         Assert.Throws<InvalidOperationException>(() => live with { SavedActors = first.SavedActors });
 
@@ -57,10 +58,10 @@ public sealed class NativeBattleQuake38StateTests
         live.SetDword(0x278C8E0, 9);
         NativeBattleQuake38State second = NativeBattleStorageSnapshots.Capture(live);
         a.SetDword(0x278C8E0, 10);
-        a.SetSavedActor(0, a.SavedActors[0] with { Velocity = 44 });
+        a.SetSavedActor(OriginalOwner(0), a.SavedActors[OriginalOwner(0)] with { Velocity = 44 });
         Assert.Equal(0x12345678u, b.Dword(0x278C8E0));
-        Assert.Equal((short)33, b.SavedActors[0].Velocity);
-        Assert.Null(b.SavedActors[0].RotationPadding18);
+        Assert.Equal((short)33, b.SavedActors[OriginalOwner(0)].Velocity);
+        Assert.Null(b.SavedActors[OriginalOwner(0)].RotationPadding18);
         Assert.Equal((short)-1234, b.Word(0x2792E5E));
         Assert.Equal(9u, second.Dword(0x278C8E0));
         Assert.Equal(firstJson, JsonSerializer.Serialize(first));
@@ -73,25 +74,25 @@ public sealed class NativeBattleQuake38StateTests
     {
         NativeBattleQuake38State state = NativeBattleQuake38State.FromColdProcess();
         state.SetWord(0x278C916, 7);
-        state.SetSavedActor(1, state.SavedActors[1] with { BouncePhase = 9 });
+        state.SetSavedActor(OriginalOwner(1), state.SavedActors[OriginalOwner(1)] with { BouncePhase = 9 });
         string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
         state.BeginCheckpoint();
         Assert.Throws<InvalidOperationException>(state.BeginCheckpoint);
         state.SetWord(0x278C916, 8);
         state.SetDword(0x2792B40, 0x12345678);
         state.SetSavedActors(Enumerable.Range(0, 7).Select(_ => NativeBattleQuake38SavedActor.FromColdProcess() with { Velocity = 12 }).ToImmutableArray());
-        state.SetSavedActor(1, state.SavedActors[1] with { Velocity = 13 });
+        state.SetSavedActor(OriginalOwner(1), state.SavedActors[OriginalOwner(1)] with { Velocity = 13 });
         Assert.Throws<InvalidOperationException>(() => NativeBattleStorageSnapshots.Capture(state));
         state.RollbackCheckpoint();
         Assert.False(state.HasCheckpoint);
         Assert.Equal(original, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)));
         state.BeginCheckpoint();
         state.SetWord(0x278C916, 10);
-        state.SetSavedActor(1, state.SavedActors[1] with { Velocity = 14 });
+        state.SetSavedActor(OriginalOwner(1), state.SavedActors[OriginalOwner(1)] with { Velocity = 14 });
         state.CommitCheckpoint();
         NativeBattleQuake38State accepted = NativeBattleStorageSnapshots.Capture(state);
         Assert.Equal((short)10, accepted.Word(0x278C916));
-        Assert.Equal((short)14, accepted.SavedActors[1].Velocity);
+        Assert.Equal((short)14, accepted.SavedActors[OriginalOwner(1)].Velocity);
         Assert.Throws<InvalidOperationException>(state.RollbackCheckpoint);
     }
 

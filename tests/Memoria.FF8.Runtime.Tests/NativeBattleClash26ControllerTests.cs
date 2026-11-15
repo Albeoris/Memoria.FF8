@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -52,7 +53,7 @@ public sealed class NativeBattleClash26ControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 4));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(3, 0x888BF0, 0x70, root, (_, _, _) => new(3, 0));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(3, 0x888BF0, 0x70, root, (_, _, _) => OriginalTaskActors(3, 0));
         hierarchy = child.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(child.Address).WriteDword(0x20, 0x026E0030).WriteWord(0x1C, 10).WriteWord(0x1E, 20).WriteWord(0x6C, 0x100).WriteWord(0x6A, 0);
         hierarchy = hierarchy.Write(child.Address, task);
@@ -76,12 +77,12 @@ public sealed class NativeBattleClash26ControllerTests
 
     private static (NativeBattleClash26Frame Frame, NativeBattleClash26Inputs Inputs) Create()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 12, -1, 12, 26, null));
-        (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 1, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 12, 26, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 1, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(26, 25, new(26, 0x8885D0, 0x8885B0), new(3, 0, 1, 0, 0, 0), null) { ResourcePointers = [new(0x26D90D8, 0)] };
+        NativeBattleOriginalEffectState effect = new(26, 25, new(26, 0x8885D0, 0x8885B0), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26D90D8, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(25);
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 16);
@@ -96,7 +97,7 @@ public sealed class NativeBattleClash26ControllerTests
         NativeBattleClash26Frame frame = NativeBattleClash26Controller.Initialize8885D0(memory, effect, packets);
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleCameraProjection projection = new(view, 512, 160, 104);
-        NativeBattleClash26Inputs inputs = new(packets, projection, 0, new(0, 0, 1f / 4096, 4503601774854144d), index => new(index, 0), _ => throw new InvalidOperationException("No loaded actor is selected."), (current, _) => throw new InvalidOperationException("A hidden spark or empty controller must not emit."));
+        NativeBattleClash26Inputs inputs = new(packets, projection, 0, new(0, 0, 1f / 4096, 4503601774854144d), index => new(0), _ => throw new InvalidOperationException("No loaded actor is selected."), (current, _) => throw new InvalidOperationException("A hidden spark or empty controller must not emit."));
         return (frame, inputs);
     }
 }

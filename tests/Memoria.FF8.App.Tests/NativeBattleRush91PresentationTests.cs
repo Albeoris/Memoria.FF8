@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -30,23 +31,23 @@ public sealed class NativeBattleRush91PresentationTests
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = (int)(offset / 20);
-        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)11, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)91, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)11, header.Action);
+        Assert.Equal((ushort)91, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
         BattleNativeAction kernel = Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 11);
         Assert.Equal((ushort)91, kernel.MagicId);
-        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The fixture lacks its explicit contact owner."));
+        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal(0, contact.Primary.HitFlags3 & 1);
         Assert.Equal((byte)1, contact.Primary.Flags2);
         Assert.Equal(0, contact.Primary.ContactFlags & 0x1000);
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);
-        Assert.Equal((byte)4, graphics.Models[0].ModelId4);
-        string targetId = graphics.ActorIds[3]!;
+        Assert.Equal((byte)4, ReadOriginalModelCell(graphics, 0).ModelId4);
+        string targetId = ReadOriginalModelActorId(graphics, 3)!;
         int targetPostFormulaHp = source.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([91])[90];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[90]));
@@ -100,7 +101,7 @@ public sealed class NativeBattleRush91PresentationTests
                 {
                     completions++;
                 }
-                bool contactSequence = prior.NativeGraphics.Models[3].Sequence != contact.Primary.Sequence && current.NativeGraphics.Models[3].Sequence == contact.Primary.Sequence;
+                bool contactSequence = ReadOriginalModelCell(prior.NativeGraphics, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.NativeGraphics, 3).Sequence == contact.Primary.Sequence;
                 bool targetAdvanced = Tasks(beforeEffect, 0x759770).Any(task => task.ReadByte(0x29) == 1) && Tasks(afterEffect, 0x759770).Any(task => task.ReadByte(0x29) == 2);
                 Assert.Equal(targetAdvanced, contactSequence);
                 if (contactSequence)
@@ -113,7 +114,7 @@ public sealed class NativeBattleRush91PresentationTests
                 Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == 3);
                 Assert.Equal(targetPostFormulaHp, current.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                 Assert.Equal(JsonSerializer.Serialize(source.NativePartyPresentation), JsonSerializer.Serialize(current.NativePartyPresentation));
-                Assert.Equal(graphics.Models[3].ActiveStagedResourceRow100, current.NativeGraphics.Models[3].ActiveStagedResourceRow100);
+                Assert.Equal(ReadOriginalModelCell(graphics, 3).ActiveStagedResourceRow100, ReadOriginalModelCell(current.NativeGraphics, 3).ActiveStagedResourceRow100);
                 int newbornSprites = Tasks(afterEffect, 0x7611B0).Count(task => task.ReadWord(0x24) == 1);
                 if (newbornSprites > 0)
                 {

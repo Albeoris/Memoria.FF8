@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect308Controller;
@@ -82,7 +83,7 @@ public sealed class NativeBattleEffect308FragmentsTests
         uint pc = ScriptRanges[0].Address + 2;
         short[] words = [1, 22, -1, 3, -400, 1234, 32767];
         fixture.Frame = WriteBytes(fixture.Frame, pc, NativeBattleEffectArena.Clear().Write(0, words.SelectMany(word => BitConverter.GetBytes(word)).ToArray()), words.Length * 2);
-        (NativeBattleEffect308Frame result, uint next) = Birth667DB0(fixture.Frame, pc, 0x1D97494, Fixture.Main + 0x20, null!, fixture.Inputs());
+        (NativeBattleEffect308Frame result, uint next) = Birth667DB0(fixture.Frame, pc, OriginalOwner(3), Fixture.Main + 0x20, null!, fixture.Inputs());
         Assert.Equal(pc + 14, next);
         NativeBattleEffect308SelectFragments667DB0 operation = Assert.IsType<NativeBattleEffect308SelectFragments667DB0>(Assert.Single(fixture.Operations));
         Assert.Equal(new short[] { 1, 22 }, operation.BoneSelectors);

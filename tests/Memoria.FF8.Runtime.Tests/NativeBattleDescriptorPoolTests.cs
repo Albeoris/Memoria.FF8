@@ -28,7 +28,7 @@ public sealed class NativeBattleDescriptorPoolTests
     [Fact]
     public void UnloadedStatusMaskPreservesUnknownDwordBitsAndTheLaterLoaderEstablishesTheWholeDword()
     {
-        NativeBattleGraphicsModel model = new(2, 0);
+        NativeBattleGraphicsModel model = new(0);
         model = model.WriteRetainedStatusMask(0x1000000, 0x1000000);
         Assert.Null(model.Flags8);
         Assert.Equal(0x1000000u, model.Flags8KnownMask);

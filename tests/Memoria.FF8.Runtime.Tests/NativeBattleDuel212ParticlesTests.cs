@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -46,7 +47,7 @@ public sealed class NativeBattleDuel212ParticlesTests
 
     private static NativeBattleDuel212Frame Frame(NativeBattleEffectTaskPool pool)
     {
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(212, 211, new(212, 0x6A0D20, 0x6A0D30), parameters, NativeBattleDuel212Controller.Root) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
     }

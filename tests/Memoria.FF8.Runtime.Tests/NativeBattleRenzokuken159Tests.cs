@@ -78,7 +78,7 @@ public sealed class NativeBattleRenzokuken159Tests
         List<NativeBattleRenzokuken159Operation> operations = [];
         (NativeBattleEffectTaskPool pool, int slot) = Controller(100);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 0x800)) });
-        NativeBattleRenzokuken159Inputs inputs = Inputs() with { ReadModel = _ => new(0, 0x0101), Execute = (frame, operation) =>
+        NativeBattleRenzokuken159Inputs inputs = Inputs() with { ReadModel = _ => new(0x0101), Execute = (frame, operation) =>
             {
                 operations.Add(operation);
                 return frame;
@@ -139,7 +139,7 @@ public sealed class NativeBattleRenzokuken159Tests
         return new(NativeBattleEffectMemory.FromColdProcess() with { Renzokuken159 = state }, new(159, 158, new(159, 0x600BC0, 0x600BA0), null, null), NativeCrtRandomState.FromColdProcess());
     }
 
-    private static NativeBattleRenzokuken159Inputs Inputs() => new(0, [], _ => new(0, 0), (frame, _) => frame);
+    private static NativeBattleRenzokuken159Inputs Inputs() => new(0, [], _ => new(0), (frame, _) => frame);
     private static NativeBattleRenzokuken159Resources Resources() => new(new("animation", []), null!, [], [], [], [], 0, 0x808080);
     private static short Word(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset));
 

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -51,7 +52,7 @@ public sealed class NativeBattleAquaRenderingTests
     {
         List<NativeBattleAquaOperation> operations = [];
         NativeBattleAquaFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Aqua55 = NativeBattleAquaState.FromColdProcess(55), SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(Identity, null) }, new(55, 54, new(55, 0x808820, 0x808800), null, 0), NativeCrtRandomState.FromColdProcess());
-        NativeBattleAquaInputs inputs = new(NativeBattleActionPacketsState.Fresh(), Identity, Projection, 0, new(0, 0, 1f / 4096, 4503601774854144d), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleAquaInputs inputs = new(OriginalPackets(), Identity, Projection, 0, new(0, 0, 1f / 4096, 4503601774854144d), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             operations.Add(operation);
             return current;
@@ -104,7 +105,7 @@ public sealed class NativeBattleAquaRenderingTests
         NativeBattleAquaState retained = NativeBattleAquaState.FromColdProcess(55) with { WaveMesh = mesh.ToImmutableArray() };
         NativeBattleAquaFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Aqua55 = retained }, new(55, 54, new(55, 0x808820, 0x808800), null, 0), NativeCrtRandomState.FromColdProcess());
         List<NativeBattleAquaOperation> operations = [];
-        NativeBattleAquaInputs inputs = new(NativeBattleActionPacketsState.Fresh(), Identity, Projection, 0, new(0, 0, 1f / 4096, 4503601774854144d), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleAquaInputs inputs = new(OriginalPackets(), Identity, Projection, 0, new(0, 0, 1f / 4096, 4503601774854144d), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             operations.Add(operation);
             return current;

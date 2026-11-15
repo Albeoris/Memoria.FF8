@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 
@@ -64,9 +65,9 @@ public sealed class DiagnosticReflectionLineageTests
         BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeStatus1 = 0x80 }] }, BattleAtbMode.TurnBased);
         session.DiagnosticEffectDispatched += static _ => { };
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(3, 2, 0, -1, 31, 106, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 0, -1, 31, 106, null));
         (packets, _) = packets.Publish(0);
-        (packets, _) = packets.Prepare(new(3, 247, 0, -1, 31, 106, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 247, 0, -1, 31, 106, null));
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
         Invoke(session, "ObserveDiagnosticPreparedHeader", 0);
         BattleDiagnosticEffectDispatch source = (BattleDiagnosticEffectDispatch)Invoke(session, "CompleteDiagnosticReflection", Source)!;
@@ -110,8 +111,8 @@ public sealed class DiagnosticReflectionLineageTests
         typeof(BattleSession).GetField("nativeDispatchCommandLocation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, location);
         Invoke(session, "SetNativeActionEvent", session.Combatants[0], (byte)2);
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 0, -1, 31, 106, null));
-        (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0x80), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 0, -1, 31, 106, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0x80), null));
         (packets, _) = packets.Publish(1);
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
         Invoke(session, "ObserveDiagnosticPreparedHeader", 0);

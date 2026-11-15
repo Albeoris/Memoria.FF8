@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -74,7 +75,7 @@ public sealed class NativeBattleShot194Tests
         Assert.Equal(new NativeBattleVector(230, -46, 0), NativeBattleShot194Trail.ReadSample(state, 3, 23));
         Assert.Equal(lanes.AsSpan(0, 3 * 232).ToArray(), state.TrailLanes.AsSpan().Slice(0, 3 * 232).ToArray());
         Assert.Equal((byte)0xA5, state.TrailLanes[3 * 232 + 46]);
-        NativeBattleShot194State after = state.Enter(2);
+        NativeBattleShot194State after = state.Enter(OriginalOwner(2));
         Assert.Equal(state.TrailLanes, after.TrailLanes);
         Assert.Equal(321, after.StopClock);
         Assert.Equal(0, after.LaneSerial);
@@ -87,16 +88,16 @@ public sealed class NativeBattleShot194Tests
 
     private static NativeBattleShot194Frame Fixture()
     {
-        return new(NativeBattleEffectMemory.FromColdProcess() with { Shot194 = NativeBattleShot194State.FromColdProcess() }, new(194, 193, new(194, 0x5B4C60, 0x5B4C40), new(0, 0, 8, 0, 0, 0) { Parameter80 = 0 }, null), new(1));
+        return new(NativeBattleEffectMemory.FromColdProcess() with { Shot194 = NativeBattleShot194State.FromColdProcess() }, new(194, 193, new(194, 0x5B4C60, 0x5B4C40), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 0 }, null), new(1));
     }
 
     private static NativeBattleActionPacketsState Packets()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 14, 2, -1, 0, 194, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 1, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 14, 2, -1, 0, 194, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 1, 0), null));
         (packets, _) = packets.Publish(1);
-        return packets.WritePlayerRepeatMode(0, 1);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
     }
 
     private static NativeBattleShot194Inputs Inputs(NativeBattleActionPacketsState packets, List<NativeBattleShot194Operation> operations)

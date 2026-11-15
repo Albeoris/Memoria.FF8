@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Numerics;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -13,7 +14,7 @@ public sealed class CrossoverForeignSkeletonTests
     [InlineData(4096, 110, -120, 230)]
     public void OrdinarySelectorsUseTheActualHostBoneSegmentAndNativeFraction(short fraction, short x, short y, short z)
     {
-        NativeBattleForeignActor actor = Foreign().ToActor(3);
+        NativeBattleForeignActor actor = Foreign().ToActor(OriginalOwner(3));
         Assert.Equal(1, actor.BoneCount);
         Assert.Equal(new NativeBattleVector(x, y, z), actor.ReadBone(0, fraction));
         Assert.Throws<NotSupportedException>(() => actor.ReadBone(1, 0));

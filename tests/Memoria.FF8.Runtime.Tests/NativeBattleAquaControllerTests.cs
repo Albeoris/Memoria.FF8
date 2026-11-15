@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -44,7 +45,7 @@ public sealed class NativeBattleAquaControllerTests
         models[6] = Model(6, new(200, 0, -300), 2);
         NativeBattleAquaState retained = fixture.Frame.State.WithDword(0x40, -1).WithDword(0x50, -1);
         NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0];
-        NativeBattleAquaState state = NativeBattleAquaController.InitializeShared(retained, task, fixture.Frame.Effect.Parameters!, fixture.Inputs with { ReadModel = index => models[index] });
+        NativeBattleAquaState state = NativeBattleAquaController.InitializeShared(retained, task, fixture.Frame.Effect.Parameters!, fixture.Inputs with { ReadModel = owner => models[OriginalSlot(owner)] });
         Assert.Equal((short)100, state.Word(0));
         Assert.Equal((short)-50, state.Word(2));
         Assert.Equal((short)-100, state.Word(4));
@@ -68,7 +69,7 @@ public sealed class NativeBattleAquaControllerTests
     public void Signed_cardinal_angle_and_captured_contact_distance_keep_native_clamps(int x, int z, int angle, int distance)
     {
         var fixture = Fixture(72);
-        NativeBattleAquaInputs inputs = fixture.Inputs with { ReadModel = index => Model(index, index == 3 ? new(checked((short)x), 0, checked((short)z)) : new(0, 0, 0), index == 3 ? (ushort)2 : (ushort)0) };
+        NativeBattleAquaInputs inputs = fixture.Inputs with { ReadModel = owner => Model(OriginalSlot(owner), owner == OriginalOwner(3) ? new(checked((short)x), 0, checked((short)z)) : new(0, 0, 0), owner == OriginalOwner(3) ? (ushort)2 : (ushort)0) };
         NativeBattleAquaState state = NativeBattleAquaController.InitializeShared(fixture.Frame.State, fixture.Frame.Effect.Pools[0].Slots[0], fixture.Frame.Effect.Parameters!, inputs);
         Assert.Equal((short)angle, state.Word(0x4A));
         Assert.Equal(distance, state.Dword(0x3C));
@@ -79,8 +80,8 @@ public sealed class NativeBattleAquaControllerTests
     {
         var fixture = Fixture(55);
         NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
-        (packets, _) = packets.AppendContact(new(new(4, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        NativeBattleAquaInputs inputs = fixture.Inputs with { Packets = packets, ReadModel = index => Model(index, index == 4 ? new(20000, 0, 20000) : new(0, 0, 0), index is 3 or 4 ? (ushort)2 : (ushort)0) };
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 0, 0, 0, 0, 0, 0), null));
+        NativeBattleAquaInputs inputs = fixture.Inputs with { Packets = packets, ReadModel = owner => Model(OriginalSlot(owner), owner == OriginalOwner(4) ? new(20000, 0, 20000) : new(0, 0, 0), owner == OriginalOwner(3) || owner == OriginalOwner(4) ? (ushort)2 : (ushort)0) };
         NativeBattleAquaState state = NativeBattleAquaController.InitializeShared(fixture.Frame.State, fixture.Frame.Effect.Pools[0].Slots[0], fixture.Frame.Effect.Parameters!, inputs);
         Assert.Equal((short)10000, state.Word(8));
         Assert.Equal((short)10000, state.Word(12));
@@ -146,7 +147,7 @@ public sealed class NativeBattleAquaControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(3, 0x808ED0, 340, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(3, 0x808ED0, 340, root, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleAquaFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = child.Hierarchy.Pools } };
         for (int pass = 0; pass < 4; pass++)
         {
@@ -177,7 +178,7 @@ public sealed class NativeBattleAquaControllerTests
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 2));
         if (childPresent)
         {
-            NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, 0x808DD0, 72, root, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, 0x808DD0, 72, root, (_, _, _) => OriginalTaskActors(0, 3));
             hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteByte(0x29, 6));
         }
         NativeBattleAquaFrame frame = NativeBattleAquaController.Advance(fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }, fixture.Resources, fixture.Inputs);
@@ -194,14 +195,14 @@ public sealed class NativeBattleAquaControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x808B20, 88, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x808B20, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteByte(0x29, 2).WriteByte(0x28, descendants));
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
-        NativeBattleAquaInputs inputs = fixture.Inputs with { ReadModel = index => Model(index, new(0, 0, 0), 0) with { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, ReadPoseSource = _ => source };
+        NativeBattleAquaInputs inputs = fixture.Inputs with { ReadModel = owner => Model(OriginalSlot(owner), new(0, 0, 0), 0) with { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, ReadPoseSource = _ => source };
         NativeBattleAquaFrame frame = (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }).WithState(fixture.Frame.State.WithWord(0x4C, released));
         frame = NativeBattleAquaController.Advance(frame, fixture.Resources, inputs);
         Assert.Equal(expectedPhase, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(target.Address).ReadByte(0x29));
@@ -214,7 +215,7 @@ public sealed class NativeBattleAquaControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, fixture.Frame.Profile.Callback(0x808DD0), 72, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, fixture.Frame.Profile.Callback(0x808DD0), 72, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteByte(0x29, phase).WriteWord(0x44, 1));
         return (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }, fixture.Resources, fixture.Inputs with { Execute = (frame, operation) => { operations.Add(operation); return frame; } }, child.Address, operations);
     }
@@ -222,21 +223,21 @@ public sealed class NativeBattleAquaControllerTests
     private static (NativeBattleAquaFrame Frame, NativeBattleAquaResources Resources, NativeBattleAquaInputs Inputs) Fixture(ushort effect)
     {
         NativeBattleAquaProfile profile = NativeBattleAquaProfile.ForEffect(effect);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 2, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 2, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleAquaResources resources = Resources(effect);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Aqua55 = NativeBattleAquaState.FromColdProcess(55, resources.WaveMesh), Aqua72 = NativeBattleAquaState.FromColdProcess(72, resources.WaveMesh) };
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0x1000)] };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0x1000)] };
         NativeBattleAquaFrame frame = NativeBattleAquaController.Initialize(new(memory, selected, new(1)), resources, packets);
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
-        NativeBattleAquaInputs inputs = new(packets, camera, new(camera, 320, 160, 120), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => Model(index, new(0, 0, 0), 0), _ => throw new InvalidOperationException("Disabled actor rows do not request pose data."), (_, _, _) => throw new InvalidOperationException(), (current, _) => current);
+        NativeBattleAquaInputs inputs = new(packets, camera, new(camera, 320, 160, 120), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, owner => Model(OriginalSlot(owner), new(0, 0, 0), 0), _ => throw new InvalidOperationException("Disabled actor rows do not request pose data."), (_, _, _) => throw new InvalidOperationException(), (current, _) => current);
         return (frame, resources, inputs);
     }
 
-    private static NativeBattleGraphicsModel Model(int index, NativeBattleVector position, ushort flags, short vertical = 0) => new(index, flags) { Transform = new NativeBattleModelTransform(new(0, 0, 0), position, 0, 0, 4096) with { Vertical34 = vertical } };
+    private static NativeBattleGraphicsModel Model(int index, NativeBattleVector position, ushort flags, short vertical = 0) => new(flags) { Transform = new NativeBattleModelTransform(new(0, 0, 0), position, 0, 0, 4096) with { Vertical34 = vertical } };
 
     private static NativeBattleAquaResources Resources(ushort effect)
     {

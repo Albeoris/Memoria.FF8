@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -8,7 +9,7 @@ public sealed class NativeBattleCarbuncle278ReturnParticleTests
     public void Spawn_uses_four_ordered_shared_draws_signed_velocities_and_original_phase_window()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508168, 0x20DFAB8 + 0x22C4, 0x1C, 8);
-        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Carbuncle278 = NativeBattleCarbuncle278State.FromColdProcess() with { Base81CC = -200, Pause8114 = 1 } };
         NativeBattleCarbuncle278Frame frame = new(memory, effect, NativeCrtRandomState.FromColdProcess());
         NativeBattleCarbuncle278Frame spawned = NativeBattleCarbuncle278ReturnParticles.Spawn681C31(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), 231);

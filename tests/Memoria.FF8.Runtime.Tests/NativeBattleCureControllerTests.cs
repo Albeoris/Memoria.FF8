@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -125,15 +126,15 @@ public sealed class NativeBattleCureControllerTests
 
     private static (NativeBattleCureFrame Frame, NativeBattleCureControllerInputs Inputs) Fixture(byte targets = 1, byte repeatMode = 1)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 21, 1, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
         for (int target = 0; target < Math.Max(1, (int)targets); target++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + target), 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new((byte)(3 + target), 1, 0, 0, 0, 100, 0), null));
         }
-        packets = packets.WritePlayerRepeatMode(0, repeatMode);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeatMode);
         (packets, _) = packets.Publish(targets);
-        NativeBattleEffectParameters parameters = new(0, 1, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(1, 0, new(1, 0x8D6A00, 0x8D69E0), parameters, null) { ResourcePointers = [new(0x277AEC0, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0) with { Textures = null };
         NativeBattleCureFrame frame = NativeBattleCureController.Initialize8D6A00(memory, effect, packets, Resources());
@@ -143,7 +144,7 @@ public sealed class NativeBattleCureControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1000, 4096);
-        NativeBattleCureControllerInputs inputs = new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source);
+        NativeBattleCureControllerInputs inputs = new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source);
         return (frame, inputs);
     }
 

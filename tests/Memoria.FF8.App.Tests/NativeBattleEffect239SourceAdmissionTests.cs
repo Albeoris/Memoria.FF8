@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -67,7 +68,7 @@ public sealed class NativeBattleEffect239SourceAdmissionTests
         NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(source.NativeEffectMemory);
         NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.NativeModelCpuResources);
         NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.NativeFileStaging);
-        Assert.Equal(7, graphics.Models.Length);
+        Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, memory.Active);
         Assert.NotNull(memory.ScriptedGraphics);
@@ -106,7 +107,7 @@ public sealed class NativeBattleEffect239SourceAdmissionTests
         }
         foreach (int physical in new[] { 0, 3 })
         {
-            string id = Assert.IsType<string>(graphics.ActorIds[physical]);
+            string id = Assert.IsType<string>(ReadOriginalModelActorId(graphics, physical));
             BattleCombatantDefinition definition = session.GetCombatantDefinition(id);
             BattleCombatantSnapshot actor = Assert.Single(source.Combatants, candidate => candidate.Id == id);
             Assert.True(actor.NativeParticipant!.Active);
@@ -114,7 +115,7 @@ public sealed class NativeBattleEffect239SourceAdmissionTests
             Assert.False(actor.NativeParticipant.Hidden);
             Assert.False(actor.NativeParticipant.Suspended);
             Assert.False(actor.NativeParticipant.Untargetable);
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.NotEqual(0, model.Flags0 & 2);
             Assert.Null(model.ReadLinkedModelIndex140());
             int rowIndex = Assert.IsType<int>(model.ActiveResourceRow100);
@@ -183,8 +184,8 @@ public sealed class NativeBattleEffect239SourceAdmissionTests
         }
         foreach (int physical in new[] { 1, 2, 4, 5, 6 })
         {
-            Assert.Equal(0, graphics.Models[physical].Flags0 & 2);
-            Assert.Null(graphics.Models[physical].HasLinkedModelRing140);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
+            Assert.Null(ReadOriginalModelCell(graphics, physical).HasLinkedModelRing140);
         }
         NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.NativeStage);
         Assert.Equal(4, stage.Groups.Length);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -11,29 +12,29 @@ public sealed class NativeBattleHostedModelPaletteTests
     {
         NativeBattleModelCpuResources original = NativeBattleModelCpuResources.FromColdProcess();
         NativeBattleModelCpuResources written = original.SavePalettes507400(Upload(2, 0x53));
-        AssertFilled(written.ReadPartyStatusPalette(1), 0, 512, 0x53);
-        AssertFilled(written.ReadPartyStatusPalette(1), 512, 512, 0);
-        AssertFilled(original.ReadPartyStatusPalette(1), 0, 1024, 0);
+        AssertFilled(written.ReadPartyStatusPalette(OriginalOwner(1)), 0, 512, 0x53);
+        AssertFilled(written.ReadPartyStatusPalette(OriginalOwner(1)), 512, 512, 0);
+        AssertFilled(original.ReadPartyStatusPalette(OriginalOwner(1)), 0, 1024, 0);
         string json = NativeBattleTestSnapshots.Json(written);
         using JsonDocument document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty(nameof(written.PresentationPalettes), out _));
         NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(json);
-        Assert.Equal(written.ReadPartyStatusPalette(1), restored.ReadPartyStatusPalette(1));
+        Assert.Equal(written.ReadPartyStatusPalette(OriginalOwner(1)), restored.ReadPartyStatusPalette(OriginalOwner(1)));
         Assert.Throws<InvalidDataException>(() => restored.ReadPartyStatusPalette(7));
-        Assert.Throws<InvalidDataException>(() => restored.SavePalettes507400(Upload(0, 0x56), 0));
+        Assert.Throws<InvalidDataException>(() => restored.SavePalettes507400(Upload(0, 0x56), OriginalOwner(0)));
     }
 
     [Fact]
     public void EachActorCanOverwriteTheSameCanonicalSlotWithoutChangingOtherPublications()
     {
         NativeBattleModelCpuResources initial = Hosted();
-        NativeBattleModelCpuResources first = initial.SavePalettes507400(Upload(0, 0x21), 0);
+        NativeBattleModelCpuResources first = initial.SavePalettes507400(Upload(0, 0x21), OriginalOwner(0));
         NativeBattleModelCpuResources second = first.SavePalettes507400(Upload(0, 0x47), 7);
         NativeBattleModelCpuResources third = second.SavePalettes507400(Upload(0, 0x89), 24);
         Assert.Same(initial.Palettes, third.Palettes);
         Assert.Same(first.PresentationPalettes![0], third.PresentationPalettes![0]);
         Assert.Same(second.PresentationPalettes![7], third.PresentationPalettes![7]);
-        AssertFilled(third.ReadPartyStatusPalette(0), 0, 512, 0x21);
+        AssertFilled(third.ReadPartyStatusPalette(OriginalOwner(0)), 0, 512, 0x21);
         AssertFilled(third.ReadPartyStatusPalette(7), 0, 512, 0x47);
         AssertFilled(third.ReadPartyStatusPalette(24), 0, 512, 0x89);
         AssertFilled(second.ReadPartyStatusPalette(24), 0, 1024, 0);
@@ -127,9 +128,9 @@ public sealed class NativeBattleHostedModelPaletteTests
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
         foreach (int row in new[] { 0, 1, 7, 24 })
         {
-            rows[row] = new($"party-{row}", true);
+            rows[row] = new BattlePartyActorModel(new($"party-{row}"));
         }
-        rows[8] = new("enemy", false);
+        rows[8] = new BattleEnemyActorModel(new("enemy"));
         return NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(new(rows.ToImmutableArray()));
     }
 

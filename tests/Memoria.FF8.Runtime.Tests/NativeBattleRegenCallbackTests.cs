@@ -76,7 +76,7 @@ public sealed class NativeBattleRegenCallbackTests
         Assert.Equal(primary, restoredPrimary);
         Assert.Equal(expected, battle.Combatants[0].CurrentHp);
         Assert.Equal(expected, restored.Combatants[0].CurrentHp);
-        Assert.Equal((byte)0, primary.ActorIndex);
+        Assert.Equal((byte)0, primary.Recipient);
         Assert.Equal((ushort)50, primary.Amount6);
         Assert.Equal(zombie ? 0 : 1, primary.HitFlags3 & 1);
         BattleDiagnosticResolution formula = Assert.Single(resolutions, resolution => resolution.ResolvedAmount == 50);
@@ -167,7 +167,7 @@ public sealed class NativeBattleRegenCallbackTests
         TakeAndDispatch(battle);
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)0, battle.NativeActionPackets.Headers[0].ReadByte(1));
-        return battle.NativeActionPackets.ReadContact(0).Primary;
+        return battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
     }
 
     private static void TakeAndDispatch(BattleSession battle)

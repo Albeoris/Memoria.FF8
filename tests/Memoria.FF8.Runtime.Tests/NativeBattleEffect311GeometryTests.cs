@@ -112,7 +112,7 @@ public sealed class NativeBattleEffect311GeometryTests
     [Fact]
     public void TargetBoundsUseNativeScaleOffsetAndSignedDepthAdmission()
     {
-        NativeBattleGraphicsModel model = new(0, 2) { Transform = new(new(0, 0, 0), new(0, 0, 0), 9999, 0, 0) };
+        NativeBattleGraphicsModel model = new(2) { Transform = new(new(0, 0, 0), new(0, 0, 0), 9999, 0, 0) };
         NativeBattleEffect311Bounds bounds = NativeBattleEffect311Geometry.IncludeBounds6661D0(NativeBattleEffect311Bounds.Initial, model, View, Projection);
         Assert.Equal(new NativeBattleEffect311Bounds(157, 94, 163, 108, 4096, true), bounds);
         NativeBattleEffect311Bounds behindSignedDepth = NativeBattleEffect311Geometry.IncludeBounds6661D0(NativeBattleEffect311Bounds.Initial, model, View with { Z = 40000 }, Projection);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect315Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect315Profile;
@@ -49,7 +50,7 @@ public sealed class NativeBattleEffect315ControllerTests
         Assert.Equal((ushort)161, Read(frame, ChildBank).ReadWord(0xC));
         Assert.Equal((byte)7, harness.Models[3].SequenceState!.Default2);
         Assert.Equal(0x20u, harness.Models[3].Flags8);
-        Assert.Equal(new NativeBattleEffect315Activate487670(4), Assert.Single(harness.Operations.OfType<NativeBattleEffect315Activate487670>()));
+        Assert.Equal(new NativeBattleEffect315Activate487670(OriginalOwner(4)), Assert.Single(harness.Operations.OfType<NativeBattleEffect315Activate487670>()));
         Assert.Single(harness.Operations.OfType<NativeBattleEffect315Contact506690>());
         Assert.Equal(new[] { Resources().SoundA, Resources().SoundB }, harness.Operations.OfType<NativeBattleEffect315Sound5013A0>().Select(item => item.Packed));
         Assert.Single(harness.Operations.OfType<NativeBattleEffect315StopVibration4A2940>());
@@ -233,8 +234,8 @@ public sealed class NativeBattleEffect315ControllerTests
         ImmutableArray<NativeBattleEffectTaskPool> pools = Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray();
         (NativeBattleEffectTaskPool root, _) = pools[0].Append(0x59B000);
         (NativeBattleEffectTaskPool child, _) = pools[1].Append(0x598E70);
-        NativeBattleOriginalEffectState effect = new(315, 314, new(315, Entry, Initializer), new(3, 0, 8, 0, 0, 0), null) { Pools = pools.SetItem(0, root).SetItem(1, child), ReturnedDescriptor = RootDescriptor };
-        return new(memory, effect, new(12345), NativeBattleEffect315State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+        NativeBattleOriginalEffectState effect = new(315, 314, new(315, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools.SetItem(0, root).SetItem(1, child), ReturnedDescriptor = RootDescriptor };
+        return new(memory, effect, new(12345), NativeBattleEffect315State.FromColdProcess().WriteModelOperand(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
     private static NativeBattleEffect315Resources Resources() => new([], [], null!, 0x1234, 0x5678, null!, [], [], Enumerable.Repeat(0xA0112233u, 12).SelectMany(BitConverter.GetBytes).ToImmutableArray(), Enumerable.Repeat(0xB0445566u, 24).SelectMany(BitConverter.GetBytes).ToImmutableArray());
@@ -244,9 +245,9 @@ public sealed class NativeBattleEffect315ControllerTests
         public uint Flags { get; init; }
         public List<NativeBattleEffect315Operation> Operations { get; } = [];
         public List<NativeBattleEffectArena> Contexts { get; } = [];
-        public Dictionary<int, NativeBattleGraphicsModel> Models { get; } = Enumerable.Range(0, 7).ToDictionary(index => index, index => new NativeBattleGraphicsModel(index, 6) { Flags8 = 0x20, Transform = new(new(1, 2, 3), new(4, 5, 6), 77, 88, 99), Sequence = 13, SequenceState = new() { Default2 = 7 }, GeometryBounds52 = new(new(-1, -550, -1), new(1, 850, 1)) });
+        public Dictionary<int, NativeBattleGraphicsModel> Models { get; } = Enumerable.Range(0, 7).ToDictionary(index => index, index => new NativeBattleGraphicsModel(6) { Flags8 = 0x20, Transform = new(new(1, 2, 3), new(4, 5, 6), 77, 88, 99), Sequence = 13, SequenceState = new() { Default2 = 7 }, GeometryBounds52 = new(new(-1, -550, -1), new(1, 850, 1)) });
 
-        public NativeBattleEffect315Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => Flags, frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, model) => Models[Index(model)], frame => NativeBattleActionPacketsState.Fresh(), (frame, model, selector, fraction, retained) => new(frame, retained.Write(0, BitConverter.GetBytes((short)100)).Write(2, BitConverter.GetBytes((short)-200)).Write(4, BitConverter.GetBytes((short)300))), frame => 0x00102030, Execute, frame => new(frame, 0x12345678), (frame, handle) => true);
+        public NativeBattleEffect315Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => Flags, frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, model) => Models[OriginalSlot(model)], frame => OriginalPackets(), (frame, model, selector, fraction, retained) => new(frame, retained.Write(0, BitConverter.GetBytes((short)100)).Write(2, BitConverter.GetBytes((short)-200)).Write(4, BitConverter.GetBytes((short)300))), frame => 0x00102030, Execute, frame => new(frame, 0x12345678), (frame, handle) => true, (_, source) => source == OriginalOwner(3) ? OriginalOwner(4) : throw new InvalidOperationException("The fixture binds only the original companion."));
 
         private NativeBattleEffect315Frame Execute(NativeBattleEffect315Frame frame, NativeBattleEffect315Operation operation)
         {
@@ -254,24 +255,24 @@ public sealed class NativeBattleEffect315ControllerTests
             switch (operation)
             {
                 case NativeBattleEffect315ModelFlags flags:
-                    Models[Index(flags.ModelAddress)] = Models[Index(flags.ModelAddress)] with { Flags0 = (ushort)((Models[Index(flags.ModelAddress)].Flags0 & ~flags.ClearFlags0) | flags.SetFlags0) };
+                    Models[OriginalSlot(flags.Actor)] = Models[OriginalSlot(flags.Actor)] with { Flags0 = (ushort)((Models[OriginalSlot(flags.Actor)].Flags0 & ~flags.ClearFlags0) | flags.SetFlags0) };
                     break;
                 case NativeBattleEffect315ModelFlags8 flags8:
-                    Models[Index(flags8.ModelAddress)] = Models[Index(flags8.ModelAddress)] with { Flags8 = (Models[Index(flags8.ModelAddress)].Flags8!.Value & ~flags8.ClearFlags8) | flags8.SetFlags8 };
+                    Models[OriginalSlot(flags8.Actor)] = Models[OriginalSlot(flags8.Actor)] with { Flags8 = (Models[OriginalSlot(flags8.Actor)].Flags8!.Value & ~flags8.ClearFlags8) | flags8.SetFlags8 };
                     break;
                 case NativeBattleEffect315ModelDefaultSequence2 sequence:
-                    Models[Index(sequence.ModelAddress)] = Models[Index(sequence.ModelAddress)] with { SequenceState = Models[Index(sequence.ModelAddress)].SequenceState! with { Default2 = sequence.Value } };
+                    Models[OriginalSlot(sequence.Actor)] = Models[OriginalSlot(sequence.Actor)] with { SequenceState = Models[OriginalSlot(sequence.Actor)].SequenceState! with { Default2 = sequence.Value } };
                     break;
                 case NativeBattleEffect315ModelInitial20XZ initial:
-                    NativeBattleModelTransform transform = Models[Index(initial.ModelAddress)].Transform!;
-                    Models[Index(initial.ModelAddress)] = Models[Index(initial.ModelAddress)] with { Transform = transform with { Initial20 = new(initial.X, transform.Initial20.Y, initial.Z) } };
+                    NativeBattleModelTransform transform = Models[OriginalSlot(initial.Actor)].Transform!;
+                    Models[OriginalSlot(initial.Actor)] = Models[OriginalSlot(initial.Actor)] with { Transform = transform with { Initial20 = new(initial.X, transform.Initial20.Y, initial.Z) } };
                     break;
                 case NativeBattleEffect315ModelPosition28XZ position:
-                    NativeBattleModelTransform current = Models[Index(position.ModelAddress)].Transform!;
-                    Models[Index(position.ModelAddress)] = Models[Index(position.ModelAddress)] with { Transform = current with { Position28 = new(position.X, current.Position28.Y, position.Z) } };
+                    NativeBattleModelTransform current = Models[OriginalSlot(position.Actor)].Transform!;
+                    Models[OriginalSlot(position.Actor)] = Models[OriginalSlot(position.Actor)] with { Transform = current with { Position28 = new(position.X, current.Position28.Y, position.Z) } };
                     break;
                 case NativeBattleEffect315ModelColor40 color:
-                    Models[Index(color.ModelAddress)] = Models[Index(color.ModelAddress)] with { Color40 = color.Value };
+                    Models[OriginalSlot(color.Actor)] = Models[OriginalSlot(color.Actor)] with { Color40 = color.Value };
                     break;
                 case NativeBattleEffect315DrawBody156 body:
                     Contexts.Add(Context(frame, body.TemporaryAddress, 156));
@@ -282,6 +283,5 @@ public sealed class NativeBattleEffect315ControllerTests
             }
             return frame;
         }
-        private static int Index(uint address) => checked((int)((address - 0x1D972C0) / 156));
     }
 }

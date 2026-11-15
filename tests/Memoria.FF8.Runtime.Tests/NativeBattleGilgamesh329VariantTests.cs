@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -103,12 +104,12 @@ public sealed class NativeBattleGilgamesh329VariantTests
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 2, 329, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 2, 329, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(329, 328, new(329, 0x58DB10, 0x58D720), new(0, 0, 1 << 3, 0, 0, 0), null) { ResourcePointers = [new(0x2200F9C, 0x40000)] };
+        NativeBattleOriginalEffectState effect = new(329, 328, new(329, 0x58DB10, 0x58D720), new(OriginalOwner(0), 0, 1 << 3, new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2200F9C, 0x40000)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x40000, Tim()) };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 2)
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2)
         {
             Rotation14 = 0x100,
             Transform = new(new(0, 0, 0), new(checked((short)(index * 100)), 0, checked((short)(index * 200))), 0, 0x600, 4096),

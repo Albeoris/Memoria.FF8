@@ -117,7 +117,7 @@ public sealed class NativeBattleHostedResourceRowAddressTests
     [Fact]
     public void BodyAddressUsesExplicitCapacityAndPrefersTheStagedAlias()
     {
-        NativeBattleGraphicsModel model = new(24, 0) { ActiveResourceRow100 = 11 };
+        NativeBattleGraphicsModel model = new(0) { ActiveResourceRow100 = 11 };
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceRow.Address100(model));
         Assert.Equal(0xF3000000u, NativeBattleModelResourceRow.Address100(model, 51));
         Assert.Equal(0xF30007ECu, NativeBattleModelResourceRow.Address100(model with { ActiveResourceRow100 = 50 }, 51));

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEvilEye282Controller;
@@ -91,7 +92,7 @@ public sealed class NativeBattleEvilEye282ControllerTests
         int reads = 0;
         var inputs = Inputs([]) with { ReadCurrentBoneMatrix = (_, model, bone) =>
         {
-            Assert.Equal(ModelAddressFor(3), model);
+            Assert.Equal(OriginalOwner(3), model);
             Assert.Equal(13, bone);
             reads++;
             return Identity();
@@ -119,7 +120,7 @@ public sealed class NativeBattleEvilEye282ControllerTests
     {
         var frame = Active(Packets(2));
         frame = Write(frame, Pools[3].Bank, Read(frame, Pools[3].Bank).WriteWord(12, 10));
-        List<uint> models = [];
+        List<BattleModelOwner> models = [];
         var published = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 76543 }, null);
         var expectedRandom = frame.Random;
         var inputs = Inputs([], Packets(2)) with { ReadBone502170 = (current, model, selector, distance) =>
@@ -132,7 +133,7 @@ public sealed class NativeBattleEvilEye282ControllerTests
         } };
         var actual = AdvanceTask(frame, Pools[3].Bank, Resources(), inputs).Frame;
         expectedRandom = expectedRandom.Draw(out _).Draw(out _);
-        Assert.Equal(new[] { ModelAddressFor(0), ModelAddressFor(1) }, models);
+        Assert.Equal(new[] { OriginalOwner(0), OriginalOwner(1) }, models);
         Assert.Equal(expectedRandom, actual.Random);
         Assert.Equal(published, actual.Memory.SharedEffectView2793E58);
         foreach (var task in actual.Effect.Pools[2].Slots.Take(2))
@@ -165,7 +166,7 @@ public sealed class NativeBattleEvilEye282ControllerTests
         List<NativeBattleEvilEye282Operation> operations = [];
         var actual = Advance(frame, Resources(), Inputs(operations));
         Assert.Empty(actual.Effect.Pools);
-        Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleEvilEye282ContactsAll506BA0>()).HeaderIndex);
+        Assert.Equal(new BattleActionHeaderReference(1), Assert.Single(operations.OfType<NativeBattleEvilEye282ContactsAll506BA0>()).Header);
         Assert.Equal(new NativeBattleEvilEye282Stage5713E0(0, 0), operations.Last());
         Assert.Equal(frame.Random, actual.Random);
     }
@@ -183,7 +184,7 @@ public sealed class NativeBattleEvilEye282ControllerTests
         Assert.NotEmpty(frame.Effect.Pools);
         Assert.Null(frame.Effect.Pools[3].Head);
         Assert.Throws<NotSupportedException>(() => frame.State.ReadWord(NormalizedViewAddress + 18));
-        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEvilEye282Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        var restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Throws<NotSupportedException>(() => restored.State.ReadWord(NormalizedViewAddress + 18));
     }
@@ -207,7 +208,7 @@ public sealed class NativeBattleEvilEye282ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(282, 281, new(282, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(282, 281, new(282, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleEvilEye282State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -223,35 +224,30 @@ public sealed class NativeBattleEvilEye282ControllerTests
 
     private static NativeBattlePackedMatrix32 Identity() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
 
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner owner)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
-        return new(actor, 2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor * 100), (short)(200 + actor), (short)(1000 - actor * 1000)), (short)(444 + actor), 777, 4096) };
+        int actor = OriginalSlot(owner);
+        return new(2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor * 100), (short)(200 + actor), (short)(1000 - actor * 1000)), (short)(444 + actor), 777, 4096) };
     }
 
     private static uint ModelAddressFor(int actor) => 0x1D972C0u + (uint)(actor * 156);
 
-    private static NativeBattleActionPacketsState Packets(int count)
+    private static NativeBattleActionPacketsState Packets(int count, int? declaredCount = null)
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 12, -1, 152, 282, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 152, 282, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
-        (packets, _) = packets.Prepare(new(3, 8, 12, -1, 152, 282, null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 152, 282, null));
         for (int index = 0; index < count; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)index, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index), 4, 0, 0, 0, 7, 0), null));
         }
-        (packets, _) = packets.Publish(checked((byte)count));
-        return packets.WritePlayerRepeatMode(1, 1);
+        (packets, _) = packets.Publish(declaredCount ?? count);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 
-    private static NativeBattleActionPacketsState SetCount(NativeBattleActionPacketsState packets, byte count)
-    {
-        NativeBattleActionHeaderSlot header = packets.Headers[1];
-        return packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, count), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) }) };
-    }
 
     private static NativeBattleEvilEye282Resources Resources() => NativeBattleEvilEye282StateTests.Resources();
 }

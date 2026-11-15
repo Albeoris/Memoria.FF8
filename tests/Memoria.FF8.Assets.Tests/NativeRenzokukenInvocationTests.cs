@@ -49,11 +49,11 @@ public sealed class NativeRenzokukenInvocationTests
         Assert.Equal(0, process.Input.ContactIndex);
         Assert.Equal(0, battle.Capture().NativeTimedAction!.Contacts);
         Assert.Equal((byte)2, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)5, battle.NativeActionPackets.Headers[0].ReadByte(1));
-        Assert.Equal((byte)250, battle.NativeActionPackets.Headers[1].ReadByte(1));
-        Assert.Equal((byte)255, battle.NativeActionPackets.Headers[1].ReadByte(4));
-        Assert.Equal((byte)255, battle.NativeActionPackets.Headers[1].ReadByte(5));
-        Assert.Equal(action.Name, battle.NativeActionPackets.Headers[1].Data!.FormattedText);
+        Assert.Equal((byte)5, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
+        Assert.Equal((byte)250, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Command);
+        Assert.Equal((byte)255, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).ReadByte(4));
+        Assert.Equal((byte)255, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).ReadByte(5));
+        Assert.Equal(action.Name, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Data!.FormattedText);
         Assert.Equal(action.HitCount, battle.Capture().NativeActionScratch!.LastPublishedTargetCountE05);
         Assert.Equal(action.HitCount, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
         Assert.Equal(1 + 2 * action.HitCount, battle.NativeActionPackets.ContactCount);

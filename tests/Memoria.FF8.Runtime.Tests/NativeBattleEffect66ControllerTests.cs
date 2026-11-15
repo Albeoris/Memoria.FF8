@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -41,7 +42,7 @@ public sealed class NativeBattleEffect66ControllerTests
         if (result == 2)
         {
             Assert.Equal(new NativeBattleEffect66StopSound46B450(-1, 0), Assert.Single(harness.Operations.OfType<NativeBattleEffect66StopSound46B450>()));
-            Assert.Equal(new NativeBattleEffect66Sequence505C00(5, 1), Assert.Single(harness.Operations.OfType<NativeBattleEffect66Sequence505C00>()));
+            Assert.Equal(new NativeBattleEffect66Sequence505C00(OriginalOwner(5), 1), Assert.Single(harness.Operations.OfType<NativeBattleEffect66Sequence505C00>()));
         }
     }
 
@@ -50,7 +51,7 @@ public sealed class NativeBattleEffect66ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect66Step step = AdvanceMain6226E0(Frame(191), ChildBank, Resources(), harness.Inputs());
-        Assert.Equal(new NativeBattleEffect66Text4876F0(5, 5, 40), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect66Text4876F0(OriginalOwner(5), 5, 40), Assert.Single(harness.Operations));
         Assert.Equal(192, Read(step.Frame, ChildBank).ReadWord(12));
     }
 
@@ -70,7 +71,7 @@ public sealed class NativeBattleEffect66ControllerTests
         Harness harness = new();
         NativeBattleEffect66Inputs inputs = harness.Inputs() with { ReadBone502170 = (frame, actor, bone, offset, retained) =>
         {
-            Assert.Equal(5, actor);
+            Assert.Equal(OriginalOwner(5), actor);
             Assert.Equal(2048, offset);
             frame = frame with { State = frame.State.WriteDword(BaseAddress, frame.State.ReadDword(BaseAddress) + 1) };
             return new(frame, PointView(bone == 1 ? new(-3, 5, -7) : new(2, -2, 4)));
@@ -89,7 +90,7 @@ public sealed class NativeBattleEffect66ControllerTests
         Harness harness = new();
         harness.Packets = harness.Packets with { Headers = harness.Packets.Headers.SetItem(0, harness.Packets.Headers[0] with { FirstContactIndex = 1 }) };
         AdvanceMain6226E0(Frame(25), ChildBank, Resources(), harness.Inputs());
-        Assert.Equal(new NativeBattleEffect66Contact506690(1), Assert.Single(harness.Operations.OfType<NativeBattleEffect66Contact506690>()));
+        Assert.Equal(new NativeBattleEffect66Contact506690(new BattleContactOccurrence(1)), Assert.Single(harness.Operations.OfType<NativeBattleEffect66Contact506690>()));
     }
 
     [Theory]
@@ -171,7 +172,7 @@ public sealed class NativeBattleEffect66ControllerTests
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(result.State.ReadBank(0).Read(12, 2)));
         Assert.Equal(0xAABBCCDDu, BinaryPrimitives.ReadUInt32LittleEndian(result.State.ReadBank(1).Read(99 * ChildStride + 16, 4)));
-        NativeBattleEffect66Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect66Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        NativeBattleEffect66Frame restored = NativeBattleTestSnapshots.Independent(result);
         Assert.Equal(result.State.ReadBank(1).Read(0, ChildCount * ChildStride), restored.State.ReadBank(1).Read(0, ChildCount * ChildStride));
     }
 
@@ -274,7 +275,7 @@ public sealed class NativeBattleEffect66ControllerTests
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(MainCallback);
         child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
-        NativeBattleOriginalEffectState effect = new(66, 65, new(66, Entry, Initializer), new(5, 0, 1, 0, 0, 0), null) { Pools = [root, child], ReturnedDescriptor = RootDescriptor };
+        NativeBattleOriginalEffectState effect = new(66, 65, new(66, Entry, Initializer), new(OriginalOwner(5), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root, child], ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect66Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect66State.FromColdProcess().DetachBank(0).DetachBank(1));
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(CasterGlobal, 5) };
         return WriteBytes(frame, CapturedWorldAddress, PackedArena(NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 1, Y = 2, Z = 3 }, 0)), 32);
@@ -292,7 +293,7 @@ public sealed class NativeBattleEffect66ControllerTests
         public int PlayingQueries { get; private set; }
         public List<NativeBattleEffect66Operation> Operations { get; } = [];
         public NativeBattleActionPacketsState Packets { get; set; } = PacketsForTest();
-        public NativeBattleEffect66Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, _ => Flags, current => new(current, StepResult), _ => NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 10, Y = 20, Z = 30 }, 0), null!, _ => 0, _ => new(new(1, 2, 3), new(4, 5, 6), 512, 7), (_, actor) => new(actor, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, -8192) }, null!, (_, _) => throw new InvalidOperationException(), null!, (_, _) =>
+        public NativeBattleEffect66Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, _ => Flags, current => new(current, StepResult), _ => NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 10, Y = 20, Z = 30 }, 0), null!, _ => 0, _ => new(new(1, 2, 3), new(4, 5, 6), 512, 7), (_, actor) => new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, -8192) }, null!, (_, _) => throw new InvalidOperationException(), null!, (_, _) =>
         {
             PlayingQueries++;
             return Playing;
@@ -305,10 +306,10 @@ public sealed class NativeBattleEffect66ControllerTests
 
     private static NativeBattleActionPacketsState PacketsForTest()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (packets, _) = packets.Prepare(new(5, 8, 16, -1, 354, 66, null));
-        (packets, _) = packets.AppendContact(new(new(5, 5, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(0, 5, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(5), 8, 16, -1, 354, 66, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(5), 5, 0, 0, 0, 7, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 5, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(2);
         return packets;
     }

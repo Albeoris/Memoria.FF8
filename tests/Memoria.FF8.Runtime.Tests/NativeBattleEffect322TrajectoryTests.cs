@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect322Profile;
@@ -76,7 +77,7 @@ public sealed class NativeBattleEffect322TrajectoryTests
     private static NativeBattleEffect322Frame Frame()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [0xAA010101u, 0xAA020202u, 0xAA030303u], Material = 0xAA000000 } };
-        NativeBattleOriginalEffectState effect = new(Effect, Effect - 1, new(Effect, Entry, Initializer), new(4, 0, 1, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(Effect, Effect - 1, new(Effect, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null);
         return new(memory, effect, new(123), NativeBattleEffect322State.FromColdProcess());
     }
 }

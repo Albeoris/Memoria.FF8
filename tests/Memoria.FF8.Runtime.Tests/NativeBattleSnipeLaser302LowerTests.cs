@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleSnipeLaser302Controller;
@@ -24,12 +25,12 @@ public sealed class NativeBattleSnipeLaser302LowerTests
         {
             ReadModelWorld = (_, model) =>
             {
-                Assert.Equal(0x1D97494u, model);
+                Assert.Equal(OriginalOwner(3), model);
                 return NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 1000, Y = 2000, Z = 3000 }, null);
             },
             ReadCurrentBoneMatrix = (_, model, bone) =>
             {
-                Assert.Equal(0x1D97494u, model);
+                Assert.Equal(OriginalOwner(3), model);
                 Assert.Equal(11, bone);
                 calls++;
                 return NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 40000, Y = -50000, Z = 60000 }, null);
@@ -251,5 +252,5 @@ public sealed class NativeBattleSnipeLaser302LowerTests
     private static ushort W(NativeBattleEffectArena point, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(point.Read(offset, 2));
     private static NativeBattleEffectArena Caller() => PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 1000, Y = 2000, Z = 3000 }, null)).Write(32, BitConverter.GetBytes(-128)).Write(36, BitConverter.GetBytes(ArenaAddress + ScratchOffset));
     private static NativeBattlePackedMatrix32 Identity() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
-    private static NativeBattleSnipeLaser302Inputs Inputs(Func<NativeBattleSnipeLaser302Frame, NativeBattleSnipeLaser302Operation, NativeBattleSnipeLaser302Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    private static NativeBattleSnipeLaser302Inputs Inputs(Func<NativeBattleSnipeLaser302Frame, NativeBattleSnipeLaser302Operation, NativeBattleSnipeLaser302Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -42,8 +43,8 @@ public sealed class NativeBattleEffect313ControllerTests
         NativeBattleEffect313Frame frame = Frame(0, 0);
         frame = frame with { State = frame.State.WriteView(CenterAddress + 6, NativeBattleEffectArena.Clear().Write(0, new byte[] { 0x34, 0x56 }).MarkUnknown(1, 1), 2) };
         NativeBattleEffect313Frame result = AdvanceMain59B180(frame, ChildBank, null!, harness.Inputs()).Frame;
-        Assert.Equal((ModelAddress(3), 0xF0, 4096), Assert.Single(harness.Points));
-        Assert.Equal(BattleModelTargets.FromNative(0x15), harness.Targets);
+        Assert.Equal((OriginalOwner(3), 0xF0, 4096), Assert.Single(harness.Points));
+        Assert.Equal(BattleModelTargets.From([OriginalOwner(0), OriginalOwner(2), OriginalOwner(4)]), harness.Targets);
         Assert.Equal((ushort)100, result.State.ReadWord(CenterAddress));
         Assert.Equal((ushort)400, result.State.ReadWord(CenterAddress + 2));
         Assert.Equal((ushort)350, result.State.ReadWord(CenterAddress + 4));
@@ -235,8 +236,8 @@ public sealed class NativeBattleEffect313ControllerTests
             (child, _) = child.Append(MainCallback);
             child = child.WriteSlot(0, child.Slots[0].WriteBytes(12, new byte[24]).WriteWord(12, (ushort)age));
         }
-        NativeBattleEffect313State state = NativeBattleEffect313State.FromColdProcess().DetachBank(RootBank).DetachBank(ChildBank).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8);
-        NativeBattleOriginalEffectState effect = new(313, 312, new(313, Entry, Initializer), new(3, 0, 0x15, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
+        NativeBattleEffect313State state = NativeBattleEffect313State.FromColdProcess().DetachBank(RootBank).DetachBank(ChildBank).WriteModelOperand(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(ArenaGlobal, 0x20DFAB8);
+        NativeBattleOriginalEffectState effect = new(313, 312, new(313, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(2), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
         return new(memory, effect, new(1), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
     }
@@ -257,20 +258,23 @@ public sealed class NativeBattleEffect313ControllerTests
     {
         public uint Flags { get; init; }
         public BattleModelTargets Targets;
-        public List<(uint, int, int)> Points = [];
+        public List<(BattleModelOwner, int, int)> Points = [];
         public List<NativeBattleEffect313Operation> Operations = [];
-        public NativeBattleActionPacketsState Packets = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets = OriginalPackets();
 
         public void SetContacts(int first, params int[] actors)
         {
-            byte[] bytes = new byte[20];
-            bytes[16] = (byte)actors.Length;
-            var contacts = Packets.Contacts;
-            for (int index = 0; index < actors.Length; index++)
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            for (int index = 0; index < first; index++)
             {
-                contacts = contacts.SetItem(first + index, new(new((byte)actors[index], 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             }
-            Packets = Packets with { Headers = Packets.Headers.SetItem(0, new(bytes.ToImmutableArray(), 0, first, null)), Contacts = contacts };
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 313, null));
+            foreach (int actor in actors)
+            {
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
+            }
+            Packets = packets.Publish(actors.Length).State;
         }
 
         public NativeBattleEffect313Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets, (_, _) => NativeBattleEffectArena.Clear().Write(0, new byte[] { 2 }).Write(0x40, PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)).ReadSnapshot(0, 32).Data), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, _ => NativeBattleEffectArena.Clear(), (frame, model, selector, fraction, retained) =>

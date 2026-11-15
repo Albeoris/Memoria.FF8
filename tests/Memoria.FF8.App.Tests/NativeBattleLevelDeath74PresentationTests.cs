@@ -56,7 +56,7 @@ public sealed class NativeBattleLevelDeath74PresentationTests
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        NativeBattleContactPacket contact = packets.ReadContact(0);
+        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags3 = hitFlags } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared post-formula presentation input; original command/action/sequence and physical target retained; no level comparison, KO/status result, formula, AI or ordinary command execution claim", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));

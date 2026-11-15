@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -18,7 +19,7 @@ public sealed class NativeBattleDuel274BanksTests
         particles = NativeBattleTaskFixture.EditPool(particles, data => data with { Slots = particles.Slots.SetItem(0, task) });
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root, target, particles];
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pools);
-        NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), root.DescriptorAddress) { Pools = pools };
         NativeBattleDuel274Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));
 
         NativeBattleModulePoolTask preservedTask = NativeBattleStorageSnapshots.Capture(task);
@@ -44,7 +45,7 @@ public sealed class NativeBattleDuel274BanksTests
         (particles, _) = particles.Append(0x68B140);
         particles = NativeBattleTaskFixture.EditPool(particles, data => data with { Slots = particles.Slots.SetItem(0, particles.Slots[0].WriteResourcePointer(16, new(new(0, 0x123), null, 20)).MarkPayloadUnknown(30, 2)) });
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [particles]);
-        NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0x25084B8) { Pools = [particles] };
+        NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0x25084B8) { Pools = [particles] };
         NativeBattleDuel274Frame frame = NativeBattleDuel274Banks.DetachUnscheduledPrivateBanks(new(memory, effect, NativeBattleFileStaging.Unknown(), new(1)));
 
         frame = NativeBattleDuel274Banks.Initialize508300(frame, 0x2508498, particles.BankAddress, 36, 1);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -86,7 +87,7 @@ public sealed class NativeBattleEffectResourceResolverTests
         });
         string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Capture()));
         NativeBattleOriginalEffectState previous = NativeBattleOriginalEffects.Select(2, Catalog());
-        NativeBattleGraphicsState graphics = new([], [], 0, 0) { OriginalEffect = previous };
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { OriginalEffect = previous };
         string requestBefore = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(graphics));
         MethodInfo begin = typeof(BattleSession).GetMethod("BeginNativeOriginalEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => begin.Invoke(session, [graphics, (ushort)144, false]));
@@ -122,10 +123,10 @@ public sealed class NativeBattleEffectResourceResolverTests
         selected = NativeBattleEffectResourceResolver.MaterializeSelected(selected, effect => Catalog()[effect - 1] with { InitializerAsset = new("fixture.tim", [4, 5]) });
         var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 1, 2, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 1, 2, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState active = NativeBattleFireEffect.InitializePools(initialized.Effect with { Parameters = new(0, 0, 8, 0, 0, 0) }, packets);
+        NativeBattleOriginalEffectState active = NativeBattleFireEffect.InitializePools(initialized.Effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) }, packets);
         SavedEffect saved = new(initialized.Memory, active);
         SavedEffect restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<SavedEffect>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(saved)))!);
         Assert.Equal(new byte[] { 4, 5 }, restored.Effect.Binding.InitializerAsset!.Data);
@@ -147,7 +148,7 @@ public sealed class NativeBattleEffectResourceResolverTests
     public void Common_parameter_preparation_uses_cold_bytes_and_retains_current_bytes_across_module_loads_and_restore()
     {
         NativeBattleEffectMemory cold = NativeBattleEffectMemory.FromColdProcess();
-        NativeBattleActionGraphicsState context = new(3, 2, 0, 0x48, 0, null, 3, 0x20, null, 0);
+        NativeBattleActionGraphicsState context = new(new BattleActionHeaderReference(3), OriginalOwner(2), new BattleContactCursor(0), 0x48, 0, null, 3, 0x20, null, 0);
         MethodInfo prepare = typeof(BattleSession).GetMethod("CreateNativeOriginalEffectParameters", BindingFlags.Instance | BindingFlags.NonPublic)!;
         MethodInfo begin = typeof(BattleSession).GetMethod("BeginNativeOriginalEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;
         foreach (NativeBattleEffectMemory current in new[] { cold, cold.SetDirectParameters(0x50BDC0, 0xF1, 65530, 7) })
@@ -156,7 +157,7 @@ public sealed class NativeBattleEffectResourceResolverTests
             session.AttachNativeEffectResourceResolver(effect => Catalog()[effect - 1] with { InitializerAsset = new("fixture.tim", [0xA5]) });
             for (ushort effect = 1; effect <= 400; effect++)
             {
-                NativeBattleGraphicsState graphics = new([], [], 0, 0);
+                NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects());
                 begin.Invoke(session, [graphics, effect, false]);
                 NativeBattleEffectParameters parameters = (NativeBattleEffectParameters)prepare.Invoke(session, [context, (byte)1])!;
                 Assert.Equal((byte)2, parameters.Actor78);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -56,7 +57,7 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
         NativeBattleEffectTaskPool pool = Pool();
         pool = pool.WriteSlot(0, pool.Slots[0].WriteResourceRowReference(36, new(3, null)));
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
-        NativeBattleOriginalEffectState effect = new(126, 125, new(126, NativeBattleElectricDischarge126Profile.Entry, NativeBattleElectricDischarge126Profile.Initializer), new(0, 0, 8, 0, 0, 0), 0) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(126, 125, new(126, NativeBattleElectricDischarge126Profile.Entry, NativeBattleElectricDischarge126Profile.Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0) { Pools = [pool] };
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(memory, effect);
         Assert.Empty(transfer.Effect.Pools);
         Assert.Equal(3, transfer.Memory.Arena!.ReadResourcePointer(0x4024)!.CpuRow);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -21,8 +22,8 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(unobserved, command);
         }
         typeof(BattleSession).GetField("diagnosticDispatchSerial", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, 5L);
-        NativeBattleContactPacket retained = battle.NativeActionPackets.ReadContact(0);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        NativeBattleContactPacket retained = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         List<BattleDiagnosticResolution> resolutions = [];
         battle.DiagnosticResolution += resolutions.Add;
 
@@ -72,8 +73,8 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
         BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "requested", Name = "Requested", MaximumHp = 10000, CurrentHp = 10000 }, new() { Id = "recipient", Name = "Recipient", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
         BattleSnapshot saved = battle.Capture();
         NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
-        (packets, _) = packets.Prepare(new(0, 254, 14, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(4, 5, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 254, 14, -1, 64, 116, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 5, 1, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         return BattleSession.Restore(saved with { NativeActionPackets = packets });
     }

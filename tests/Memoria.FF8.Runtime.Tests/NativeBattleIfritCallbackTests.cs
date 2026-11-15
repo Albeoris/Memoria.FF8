@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -167,7 +168,7 @@ public sealed class NativeBattleIfritCallbackTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = execution.Core, Arena = execution.Arena, Ifrit201 = new(9), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { PacketBank = "off_B6D070" } };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2796E18, 0x2796E28, 0x10, 1);
         (pool, _) = pool.Append(0xB25DF0);
-        NativeBattleOriginalEffectState effect = new(201, 200, new(201, 0xB25780, 0xB25750), new(0, 0, 0x14, 0, 0, 0), null) { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress };
+        NativeBattleOriginalEffectState effect = new(201, 200, new(201, 0xB25780, 0xB25750), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(2), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress };
         return new(memory, effect, execution.Random);
     }
 

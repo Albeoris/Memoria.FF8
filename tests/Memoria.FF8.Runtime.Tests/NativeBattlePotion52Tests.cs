@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -145,7 +146,7 @@ public sealed class NativeBattlePotion52Tests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend flash = hierarchy.Append8DC540(2, 0x817800, 60, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend flash = hierarchy.Append8DC540(2, 0x817800, 60, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = flash.Hierarchy.Write(flash.Address, flash.Hierarchy.Read(flash.Address).WriteDword(0x30, 0x15A9208).WriteWord(0x38, 0));
         NativeBattleCuragaFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleCuragaResources resources = Resources() with { FlashProgram = [0x007F7F7F, 0xFF000000] };
@@ -178,12 +179,12 @@ public sealed class NativeBattlePotion52Tests
 
     private static (NativeBattleCuragaFrame Frame, NativeBattleCuragaControllerInputs Inputs) Fixture(byte targets = 1)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 23, 52, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 23, 52, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(targets);
-        NativeBattleOriginalEffectState selected = new(52, 51, new(52, 0x817410, 0x8173F0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x2619494, 256)] };
+        NativeBattleOriginalEffectState selected = new(52, 51, new(52, 0x817410, 0x8173F0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2619494, 256)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(51);
         memory = memory with { Potion52Executable = NativeBattleCuragaExecutableState.FromColdProcess(52), Arena = memory.Arena!.Write(256 + 0xC000, Enumerable.Repeat((byte)0xA5, 0x25F8 + 0x16F80).ToArray()) };
         NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(memory, selected, packets, Resources());
@@ -193,6 +194,6 @@ public sealed class NativeBattlePotion52Tests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
+        return (frame, new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
     }
 }

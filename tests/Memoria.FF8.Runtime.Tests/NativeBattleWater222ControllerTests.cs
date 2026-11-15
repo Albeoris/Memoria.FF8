@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -147,7 +148,7 @@ public sealed class NativeBattleWater222ControllerTests
         var fixture = NativeBattleWaterInitializationTests.Fixture();
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(221);
         memory = memory with { Arena = fixture.Arena, ScriptedEffects = NativeBattleScriptedEffectMemory.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { PacketBank = "off_B6D070" } };
-        NativeBattleOriginalEffectState effect = new(222, 221, new(222, 0xA9B200, 0xA9B1D0), new(0, 0, 1, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(222, 221, new(222, 0xA9B200, 0xA9B1D0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleWater222Resources resources = new([new("file0", new byte[0x1799C].ToImmutableArray()), new("file1", new byte[0x26258].ToImmutableArray())], fixture.Profile);
         return (new(memory, effect, new(1)), resources, fixture.Inputs);
     }

@@ -11,13 +11,13 @@ public sealed class EncounterPresentationOnlyTests
             battle.Tick();
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary;
         Assert.Equal((byte)1, contact.Flags2);
         Assert.Equal((byte)0, contact.Sequence);
         Assert.Equal(0, contact.PresentedAmount);
         NativeBattleEffectsState effects = NativeBattleEffectsState.Clear();
-        Assert.Same(effects, effects.PrependDamageText(contact.ActorIndex, contact.ContactFlags, contact.PresentedAmount));
+        Assert.Same(effects, effects.PrependDamageText(contact.Recipient, contact.ContactFlags, contact.PresentedAmount));
         Assert.Equal(900, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind is "Damage" or "Defeated");
         Assert.Equal((byte)0, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.PendingReaction!.Stage);

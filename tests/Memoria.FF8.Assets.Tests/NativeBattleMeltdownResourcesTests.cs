@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -15,18 +16,18 @@ public sealed class NativeBattleMeltdownResourcesTests
         NativeBattleMeltdownResources resources = game.ReadNativeMeltdownResources();
         Assert.Same(resources, game.ReadNativeMeltdownResources());
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 148, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 148, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(148, 147, new(148, 0x6120D0, 0x6120B0), new(0, 1, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(148, 147, new(148, 0x6120D0, 0x6120B0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(147);
         Assert.Throws<NotSupportedException>(() => NativeBattleMeltdownController.Initialize(memory with { Meltdown148 = null }, effect, packets, resources, new(1)));
         NativeBattleMeltdownFrame frame = NativeBattleMeltdownController.Initialize(memory, effect, packets, resources, new(1));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 8192, 4096), 216, 160, 108);
         NativeBattlePoseSource pose = new([], []);
         ushort flags = 0;
-        NativeBattleGraphicsModel Model(int index) => new(index, index == 3 ? flags : (ushort)0) { Transform = new(new(0, 0, 0), index == 3 ? new(0, -100, 0) : new(0, -500, -1000), 0, 0, 4096) };
+        NativeBattleGraphicsModel Model(int index) => new(index == 3 ? flags : (ushort)0) { Transform = new(new(0, 0, 0), index == 3 ? new(0, -100, 0) : new(0, -500, -1000), 0, 0, 4096) };
         List<int> contacts = [];
         List<int> sounds = [];
         List<int> fades = [];

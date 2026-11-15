@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -46,9 +47,9 @@ public sealed class NativeBattleAnchor571400PresentationTests
         Assert.Equal((ushort)0, main.ReadWord(12));
         int caster = checked((int)warm.NativeEffectMemory!.Morph172!.ReadDword(NativeBattleMorph172Profile.CasterGlobal));
         Assert.Equal(3, caster);
-        NativeBattleGraphicsModel originalModel = warmGraphics.Models[caster];
+        NativeBattleGraphicsModel originalModel = ReadOriginalModelCell(warmGraphics, caster);
         Assert.Equal(2, originalModel.Flags0 & 2);
-        BattleCombatantDefinition casterDefinition = warm.Definition.Combatants.Single(actor => actor.Id == warmGraphics.ActorIds[caster]);
+        BattleCombatantDefinition casterDefinition = warm.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(warmGraphics, caster));
         Assert.Equal(29, casterDefinition.ModelId);
         NativeBattleGraphicsResource originalResource = assets.ReadNativeGraphicsResource(casterDefinition);
         NativeBattlePoseSource originalPose = originalResource.PoseSource ?? throw new InvalidDataException("The original Morph172 caster requires its skeleton.");
@@ -73,7 +74,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
         List<object> queries = [];
         if (disabled)
         {
-            expectedPoint = warmGraphics.Models[caster].Transform!.Position28;
+            expectedPoint = ReadOriginalModelCell(warmGraphics, caster).Transform!.Position28;
         }
         else
         {
@@ -89,7 +90,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
 
             NativeBattleVector Observe(byte selector)
             {
-                NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(warmGraphics.Models[caster], pose, selector, 0);
+                NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(ReadOriginalModelCell(warmGraphics, caster), pose, selector, 0);
                 Assert.True(producer.Enabled);
                 expectedMemory = Invoke<NativeBattleEffectMemory>(oracle, "ObserveNativeBoneAnchor", expectedMemory, producer);
                 NativeBattleScriptedColorRegisters registers = expectedMemory.ScriptedColorRegisters ?? throw new InvalidDataException("The bone observer lost its canonical full MAC registers.");
@@ -98,7 +99,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
                 return point;
             }
         }
-        short w = warmGraphics.Models[caster].Transform!.Angle36;
+        short w = ReadOriginalModelCell(warmGraphics, caster).Transform!.Angle36;
         NativeBattleEffectArena expectedPoint8 = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(expectedPoint.X)).Write(2, BitConverter.GetBytes(expectedPoint.Y)).Write(4, BitConverter.GetBytes(expectedPoint.Z)).Write(6, BitConverter.GetBytes(w));
         BattleSession actual = BattleSession.Restore(warm);
         NativeBattleGraphicsState result = Run(actual, warmGraphics, false);
@@ -119,7 +120,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
         Assert.Equal(warm.NativeCrtRandom, after.NativeCrtRandom);
         Assert.Equal(warm.NativeGlobalRandom, after.NativeGlobalRandom);
         Assert.Equal(warm.Frame, after.Frame);
-        Assert.Equal(warm.NativeGraphics!.Models, result.Models);
+        Assert.Equal(ReadOriginalModelCells(warm.NativeGraphics!), ReadOriginalModelCells(result));
         Assert.Equal(warm.Events.Length, after.Events.Length);
         if (disabled)
         {

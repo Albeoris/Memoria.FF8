@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -120,7 +121,7 @@ public sealed class NativeBattleRush91ControllerTests
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattlePoseSource actorSource = resources.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(actorSource.Animations.AsSpan(), actorSource.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int actor) => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource);
+        NativeBattleGraphicsModel Model(int actor) => NativeBattleBodyBoneMatrices.Publish508C90(new(3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource);
         return new(0, packets, view, Model, _ => actorSource, (frame, pointer, selector) =>
         {
             uint address = pointer - 0x30;
@@ -172,10 +173,10 @@ public sealed class NativeBattleRush91ControllerTests
     private static (NativeBattleRush91Frame Frame, NativeBattleActionPacketsState Packets) Fixture(NativeBattleRush91Resources resources)
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 15, 91, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 15, 91, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(91, 90, new(91, 0x759370, 0x759350), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x2598F28, 0)] };
+        NativeBattleOriginalEffectState effect = new(91, 90, new(91, 0x759370, 0x759350), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2598F28, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() };
         return (NativeBattleRush91Controller.Initialize759370(memory, effect, packets, resources, new(1)), packets);
     }

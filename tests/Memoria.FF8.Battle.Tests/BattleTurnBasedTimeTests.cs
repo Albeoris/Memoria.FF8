@@ -121,7 +121,7 @@ public sealed class BattleTurnBasedTimeTests
         BattleAttackCommand regen = Assert.Single(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
         Assert.Equal("ally", regen.ActorId);
         Assert.Equal("ally", regen.TargetId);
-        Assert.NotNull(regen.NativeHeaderIndex);
+        Assert.NotNull(regen.NativeHeader);
         Assert.True(regen.NativeAction is { Command: 0, ActionId: 4 });
         // Header production commits the contact before this graphicsless command's presentation completes.
         Assert.Equal(550, battle.Combatants[1].CurrentHp);

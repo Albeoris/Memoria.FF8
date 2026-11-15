@@ -9,7 +9,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
     public void Rebound_target_sequence_uses_the_callback_entry_pointer_as_its_initial_accumulator()
     {
         NativeBattleGraphicsResource resource = new([1, 0, 4, 0, 0xC3, 0x1A, 0xE5, 0x17, 0xA1]) { SequenceSectionAddress = 0xE55D68, AnimationFrames = [1] };
-        NativeBattleGraphicsModel model = new(3, 2)
+        NativeBattleGraphicsModel model = new(2)
         {
             Flags2 = 8,
             Sequence = 1,
@@ -33,7 +33,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         List<NativeBattleRenzokuken160Operation> operations = [];
         NativeBattleRenzokuken160ChildStep first = Controller(frame, 1, operations);
         NativeBattleRenzokukenSpecialTargetSequence sequence = Assert.Single(operations.OfType<NativeBattleRenzokukenSpecialTargetSequence>());
-        Assert.Equal((byte)3, sequence.Target);
+        Assert.Equal(OriginalOwner(3), sequence.Target);
         Assert.Equal((byte)1, sequence.Sequence);
         Assert.Empty(operations.OfType<NativeBattleRenzokukenSpecialTargetResource>());
         Assert.Empty(operations.OfType<NativeBattleRenzokuken160ActorResource>());
@@ -45,11 +45,11 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         NativeBattleRenzokukenSpecialTargetResource[] targets = operations.OfType<NativeBattleRenzokukenSpecialTargetResource>().ToArray();
         Assert.Equal(effect == 339 ? 2 : 1, targets.Length);
         Assert.All(targets, target => Assert.False(target.StartSequence));
-        Assert.Equal((byte)3, targets[0].Target);
+        Assert.Equal(OriginalOwner(3), targets[0].Target);
         Assert.Equal((byte)0, targets[0].Bank);
         if (effect == 339)
         {
-            Assert.Equal((byte)4, targets[1].Target);
+            Assert.Equal(OriginalOwner(4), targets[1].Target);
             Assert.Equal((byte)1, targets[1].Bank);
         }
         Assert.Empty(operations.OfType<NativeBattleRenzokukenSpecialTargetSequence>());
@@ -231,7 +231,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         return NativeBattleRenzokukenSpecialController.AdvanceLateSpecialChild(frame, pool, slot, Inputs([10, 20, 30], operations), NativeBattleRenzokukenSpecialController.ReadState(frame).Resources, _ => new(0, 0, 0, 0), Identity, null!, null, null!, 0);
     }
 
-    private static NativeBattleRenzokuken160Inputs Inputs(ImmutableArray<byte> segments, List<NativeBattleRenzokuken160Operation> operations) => new(0, segments, _ => new(0, 0) { GeometryWorldMatrix = Identity }, (frame, operation) =>
+    private static NativeBattleRenzokuken160Inputs Inputs(ImmutableArray<byte> segments, List<NativeBattleRenzokuken160Operation> operations) => new(0, segments, _ => new(0) { GeometryWorldMatrix = Identity }, (frame, operation) =>
     {
         operations.Add(operation);
         return frame;

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Runtime;
@@ -73,7 +74,7 @@ public sealed class DiagnosticCounterCycleDriverTests
         DiagnosticCounterCycleDriver cycle = Cycle();
         cycle.Submitted(10);
         BattleDiagnosticEffectDispatch dispatch = new(1, 11, "enemy0", BattleAbility.EnemyAbility, 230, 178, 178, 8) { NativeActorIndex = 3, NativeTargetMask = 1, NativeHeaderIndex = 0, NativeHeaderGeneration = 1, NativeAiCallbackStage = 2, NativeAiScriptSha256 = DiagnosticCounterCycleDeclaration.SupportedScriptSha256 };
-        Assert.Throws<InvalidDataException>(() => cycle.ObserveDispatch(dispatch, new(1, 11, 0, 1, NativeBattleActionPacketsState.Fresh())));
+        Assert.Throws<InvalidDataException>(() => cycle.ObserveDispatch(dispatch, new(1, 11, 0, 1, OriginalPackets())));
         Assert.Null(cycle.Receipt.Attempts[0].Dispatch);
     }
 
@@ -108,10 +109,10 @@ public sealed class DiagnosticCounterCycleDriverTests
     {
         // Codec-only ordinary primary receipt; no installed AI/admission or RNG success is claimed.
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-        (packets, _) = packets.Prepare(new(0, 1, 4, -1, 0, 0, null));
-        (packets, _) = packets.AppendContact(new(new(3, 4, 0, 0, 0, 10, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 1, 4, -1, 0, 0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 4, 0, 0, 0, 10, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
         BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 90, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [1, 0, 0, 0, 0, 0, 0, 0]);
         BattleDiagnosticCounterPrimary primary = new(1, 11, "party0", 0, "enemy0", 3, 1, 0, 1, 100, 90, 0, 1, recipient, false);
         return new(primary, 0, false, packets);

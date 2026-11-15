@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleBoomerangSword304Controller;
@@ -314,5 +315,5 @@ public sealed class NativeBattleBoomerangSword304LowerTests
     }
     private static ushort W(NativeBattleEffectArena point, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(point.Read(offset, 2));
     private static uint U(NativeBattleEffectArena point, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(point.Read(offset, 4));
-    private static NativeBattleBoomerangSword304Inputs Inputs(Func<NativeBattleBoomerangSword304Frame, NativeBattleBoomerangSword304Operation, NativeBattleBoomerangSword304Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    private static NativeBattleBoomerangSword304Inputs Inputs(Func<NativeBattleBoomerangSword304Frame, NativeBattleBoomerangSword304Operation, NativeBattleBoomerangSword304Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));
 }

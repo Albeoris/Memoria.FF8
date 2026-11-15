@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -59,7 +60,7 @@ public sealed class NativeBattleDrinkMagic37ParticleTests
 
     private static NativeBattleDrawStock15ParticleInputs Inputs()
     {
-        return new(0, (_, _, _) => new(0, 3), _ => throw new InvalidOperationException("Drink Magic leaves must use their captured anchor."));
+        return new(OriginalOwner(0), (_, _, _) => OriginalTaskActors(0, 3), _ => throw new InvalidOperationException("Drink Magic leaves must use their captured anchor."));
     }
 
     private static (NativeBattleEffectHierarchy Hierarchy, uint Address) Fixture(uint callback)
@@ -67,8 +68,8 @@ public sealed class NativeBattleDrinkMagic37ParticleTests
         NativeBattleEffectHierarchy hierarchy = new(NativeBattleDrinkMagic37Profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleDrinkMagic37Profile.RootCallback, 100);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, NativeBattleDrinkMagic37Profile.TargetCallback, 88, root.Address, (_, _, _) => new(0, 3));
-        NativeBattleEffectHierarchyAppend particle = target.Hierarchy.Append8DC540(3, callback, 304, target.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, NativeBattleDrinkMagic37Profile.TargetCallback, 88, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
+        NativeBattleEffectHierarchyAppend particle = target.Hierarchy.Append8DC540(3, callback, 304, target.Address, (_, _, _) => OriginalTaskActors(0, 3));
         return (particle.Hierarchy, particle.Address);
     }
 }

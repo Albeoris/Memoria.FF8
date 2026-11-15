@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -14,8 +15,8 @@ public sealed class NativeBattleRestorationFadeTests
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(profile.Descriptors[0], profile.Banks[0], 100, 2), NativeBattleEffectTaskPool.Initialize(profile.Descriptors[1], profile.Banks[1], 88, 4), NativeBattleEffectTaskPool.Initialize(profile.Descriptors[2], profile.Banks[2], 676, 3), NativeBattleEffectTaskPool.Initialize(profile.Descriptors[3], profile.Banks[3], 64, 10)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.MainCallback, 100);
-        NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(3, fadeIn ? profile.FadeInCallback : profile.FadeOutCallback, 64, root.Address, (_, _, _) => new(0, 0));
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), profile.Descriptors[0]) { Pools = child.Hierarchy.Pools };
+        NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(3, fadeIn ? profile.FadeInCallback : profile.FadeOutCallback, 64, root.Address, (_, _, _) => OriginalTaskActors(0, 0));
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), profile.Descriptors[0]) { Pools = child.Hierarchy.Pools };
         NativeBattleRestorationFrame frame = new(NativeBattleEffectMemory.FromColdProcess(), selected, new(0, null, null, 0, null));
         List<NativeBattleStageFadeWrite> writes = [];
         for (int callback = 0; callback < 5; callback++)

@@ -57,7 +57,7 @@ public sealed class NativeBattleApocalypse221NextActionAETests
         frame = WaterSchedulerFixture.CoreWord(frame, header + 0x38, 4);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x1B, 5);
         frame = frame with { Core = frame.Core.Write(manager + 0xD0, new byte[] { 2 }).Write(header + 0xCC, Enumerable.Repeat((byte)0xA5, 7).ToArray()).Write(header + 0x84, Enumerable.Repeat((byte)0xA5, 56).ToArray()) };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, (ushort)(0x8100 + index))).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((ushort)(0x8100 + index))).ToImmutableArray();
         Dictionary<uint, byte[]> owners = new()
         {
             [parameters] = new byte[12],

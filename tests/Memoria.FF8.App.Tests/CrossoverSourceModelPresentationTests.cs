@@ -16,7 +16,7 @@ public sealed class CrossoverSourceModelPresentationTests
     [InlineData((byte)1, (byte)93, (byte)93)]
     public void Completed_visible_source_derives_only_missing_neutral_alpha_and_retains_active_or_known_values(byte kind, byte? alpha, byte? expected)
     {
-        NativeBattleGraphicsModel source = new(0, 3)
+        NativeBattleGraphicsModel source = new(3)
         {
             Kind5 = kind,
             Alpha7 = alpha,

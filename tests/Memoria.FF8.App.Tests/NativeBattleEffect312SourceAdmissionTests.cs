@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -50,10 +51,10 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
         int[] weapons = [0, 7, 11];
         for (int physical = 0; physical < 6; physical++)
         {
-            string actorId = graphics.ActorIds[physical]!;
+            string actorId = ReadOriginalModelActorId(graphics, physical)!;
             BattleCombatantDefinition definition = session.GetCombatantDefinition(actorId);
             BattleCombatantSnapshot actor = Assert.Single(source.Combatants, current => current.Id == actorId);
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.True(actor.NativeParticipant!.Active);
             Assert.Equal((byte)physical, actor.NativeParticipant.ActorIndex);
             Assert.False(actor.NativeParticipant.Hidden);

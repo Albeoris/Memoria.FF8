@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -27,8 +28,8 @@ public sealed class NativeBattleEffect290SourceAdmissionTests
         Assert.Null(source.NativeGraphics!.OriginalEffect);
         NativeBattleEffectMemory memory = source.NativeEffectMemory!;
         Assert.Equal(0, memory.Active);
-        NativeBattleGraphicsModel model = source.NativeGraphics.Models[3];
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(source.NativeGraphics.ActorIds[3]!);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 3);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 3)!);
         Assert.Equal(109, caster.ModelId);
         Assert.Equal((byte)125, model.ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new NotSupportedException("The source requires its current skeleton.");

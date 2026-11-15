@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -132,17 +133,17 @@ internal sealed class NativeBattleEffect316PresentationObserver
         {
             terminal = true;
             Assert.Null(main);
-            Assert.Equal(originalColor, graphics.Models[3].Color44);
-            Assert.Equal(0, graphics.Models[3].Flags0 & 8);
-            Assert.All(graphics.Models.Take(3), model => Assert.Equal(0, model.Flags0 & 4));
+            Assert.Equal(originalColor, ReadOriginalModelCell(graphics, 3).Color44);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, 3).Flags0 & 8);
+            Assert.All(ReadOriginalModelCells(graphics).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
         }
         if (oldAge >= 60 && oldAge < 312)
         {
-            Assert.NotEqual(0, graphics.Models[3].Flags0 & 8);
+            Assert.NotEqual(0, ReadOriginalModelCell(graphics, 3).Flags0 & 8);
         }
         if (main is not null)
         {
-            Assert.All(graphics.Models.Take(3), model => Assert.NotEqual(0, model.Flags0 & 4));
+            Assert.All(ReadOriginalModelCells(graphics).Take(3), model => Assert.NotEqual(0, model.Flags0 & 4));
         }
         if (oldAge == 0)
         {
@@ -260,7 +261,7 @@ internal sealed class NativeBattleEffect316PresentationObserver
 
     private void VerifyCurrentTextureCopy(BattleSnapshot prior, BattleSnapshot current)
     {
-        NativeBattleGraphicsModel model = current.NativeGraphics!.Models[3];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, 3);
         if (model.Sequence != 15 || model.SequenceState is not { Offset46: 55 } sequence || sequence.Locals[7] is not short nextVariant)
         {
             return;
@@ -309,7 +310,7 @@ internal sealed class NativeBattleEffect316PresentationObserver
     private static void VerifyMarkers(BattleSnapshot snapshot)
     {
         NativeBattleModelCpuResources cpu = snapshot.NativeModelCpuResources!;
-        NativeBattleModelCpuResourceRow row = cpu.Rows[snapshot.NativeGraphics!.Models[3].ActiveResourceRow100!.Value];
+        NativeBattleModelCpuResourceRow row = cpu.Rows[ReadOriginalModelCell(snapshot.NativeGraphics!, 3).ActiveResourceRow100!.Value];
         byte[] geometry = NativeBattleModelEnemyHeap.Read(cpu, snapshot.NativeFileStaging!, row.Require(16), row.Lengths[16]);
         int markers = 0;
         int objects = BinaryPrimitives.ReadInt32LittleEndian(geometry);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect31Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect31Profile;
@@ -61,7 +62,7 @@ public sealed class NativeBattleEffect31ControllerTests
         Assert.Equal(31, Read(frame, address).ReadWord(0x24));
         NativeBattleEffect31Step result = AdvanceTask(frame, address, fixture.Resources, fixture.Inputs);
         Assert.Equal(2, result.Result);
-        Assert.Equal(fixture.Contact, Assert.Single(fixture.Operations.OfType<NativeBattleEffect31Contact506690>()).AbsoluteIndex);
+        Assert.Equal(fixture.Contact, Assert.Single(fixture.Operations.OfType<NativeBattleEffect31Contact506690>()).Cursor);
         Assert.Equal(32, Read(result.Frame, address).ReadWord(0x24));
     }
 
@@ -191,24 +192,24 @@ public sealed class NativeBattleEffect31ControllerTests
         public NativeBattleEffect31Inputs Inputs { get; }
         public NativeBattleEffect31Resources Resources { get; }
         public List<NativeBattleEffect31Operation> Operations { get; } = [];
-        public int Contact { get; }
+        public BattleContactCursor Contact { get; }
 
         public Fixture()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, _) = packets.Prepare(new(3, 8, 13, 0, 26, 31, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, 0, 26, 31, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
-            Contact = packets.Headers[0].FirstContactIndex!.Value;
+            Contact = packets.ReadHeader(new BattleActionHeaderReference(0)).FirstContact;
             NativeBattlePackedMatrix32 view = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
-            Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, actor) => new(actor, 0), (_, _) => throw new NotSupportedException(), _ => view, _ => new(null, 100, 160, 108), _ => 0, (_, _, length) => NativeBattleEffectArena.Clear().MarkUnknown(0, length), (frame, _, _, _, retained) => new(frame, retained), (frame, operation) =>
+            Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, _) => new(0), (_, _) => throw new NotSupportedException(), _ => view, _ => new(null, 100, 160, 108), _ => 0, (frame, _, _, _, retained) => new(frame, retained), (frame, operation) =>
             {
                 Operations.Add(operation);
                 return frame;
             });
             Resources = new(null!, null!, ImmutableDictionary<uint, NativeBattleGfAnimationSource>.Empty, ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty, ImmutableDictionary<uint, NativeBattleModuleResource>.Empty, ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(0x15F8DC8, new uint[] { 0xFE050000, 0x00654321, 0xFF000000 }.SelectMany(BitConverter.GetBytes).ToImmutableArray()));
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
-            NativeBattleOriginalEffectState effect = new(31, 31, new(31, Entry, Initializer), new(3, 1, 1, 0, 0, 0), null)
+            NativeBattleOriginalEffectState effect = new(31, 31, new(31, Entry, Initializer), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null)
             {
                 Pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray(),
                 ReturnedDescriptor = RootDescriptor

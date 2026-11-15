@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -58,7 +59,7 @@ public sealed class NativeBattleGraphicsEntryTests
             Assert.True(battle.NativeGraphics.EntryReady);
             Assert.True(battle.Capture().NativeGlobalRandomCalls >= 13);
             Assert.Equal((byte)255, battle.NativeGraphics.EntryBarrierCompletion);
-            Assert.All(battle.NativeGraphics.Models.Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
+            Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
             Assert.Equal(0, battle.Frame);
         }
     }

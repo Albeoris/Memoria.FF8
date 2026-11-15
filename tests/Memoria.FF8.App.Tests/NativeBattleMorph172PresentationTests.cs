@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -44,13 +45,13 @@ public sealed class NativeBattleMorph172PresentationTests
         Assert.Same(game.ReadNativeMorph172Resources(), binding.Morph172Resources);
         BattleCombatantDefinition casterDefinition = source.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
         NativeBattleGraphicsResource casterResource = assets.ReadNativeGraphicsResource(casterDefinition);
-        NativeBattleGraphicsModel casterModel = source.NativeGraphics!.Models[3];
+        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.NativeGraphics!, 3);
         Assert.Equal(29, casterDefinition.ModelId);
         Assert.Equal(41, casterResource.PoseSource!.BoneCount);
         Assert.Equal(41, NativeBattleBodyBoneMatrices.Require(casterModel, casterResource.PoseSource).Length);
         Assert.NotNull(casterModel.GeometryWorldMatrix);
         Assert.Equal(3, casterResource.Geometry!.Value.Length);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -194,7 +195,7 @@ public sealed class NativeBattleSigh46LowerTests
         (selected, int slot) = selected.Append(callback);
         pools = pools.SetItem(selectedPool, selected);
         uint address = selected.BankAddress + (uint)(slot * selected.Stride);
-        NativeBattleOriginalEffectState effect = new(46, 45, new(46, Entry, Initializer), new(3, 1, 0x7F, 1, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(46, 45, new(46, Entry, Initializer), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
         NativeBattleSigh46Frame frame = new(memory, effect, new(123), NativeBattleSigh46State.FromColdProcess().EnsureSources(resources).WriteDword(0x26527A0, 0x2793E58)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteDword(0x10, RootBank).WriteDword(0x0C, 0x1D99A78).WriteWord(0x5A, 1));
@@ -204,7 +205,7 @@ public sealed class NativeBattleSigh46LowerTests
         return (Write(frame, address, task), address, resources);
     }
 
-    internal static NativeBattleSigh46Inputs Inputs(List<NativeBattleSigh46Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(actor, 2) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 0, 4096) }, (frame, _, _, _) => new(frame, PointView(new(1, 2, 3))), _ => 0, _ => Packets(), (frame, operation) =>
+    internal static NativeBattleSigh46Inputs Inputs(List<NativeBattleSigh46Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 0, 4096) }, (frame, _, _, _) => new(frame, PointView(new(1, 2, 3))), _ => 0, _ => Packets(), (frame, operation) =>
     {
         operations.Add(operation);
         return frame;
@@ -214,14 +215,14 @@ public sealed class NativeBattleSigh46LowerTests
 
     private static NativeBattleActionPacketsState Packets()
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 85, 46, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 85, 46, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 85, 46, null));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 85, 46, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        return packets.WritePlayerRepeatMode(1, 1);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 }

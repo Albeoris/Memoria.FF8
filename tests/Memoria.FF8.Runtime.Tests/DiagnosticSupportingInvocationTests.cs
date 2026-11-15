@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -142,7 +143,7 @@ public sealed class DiagnosticSupportingInvocationTests
         BattleDiagnosticEffectDispatch? result = null;
         session.DiagnosticEffectDispatched += dispatch => result = dispatch;
         NativeBattleGraphicsState graphics = new(ImmutableArray<NativeBattleGraphicsModel>.Empty, ["party", null, null, "enemy", null, null, null], 0, 42);
-        NativeBattleOriginalEffectState effect = new(154, 153, new(154, 0, 0), new(3, 0, 1, -1, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(154, 153, new(154, 0, 0), new(OriginalOwner(3), 0, 1, -1, 0, 0), null);
         typeof(BattleSession).GetMethod("ObserveDiagnosticEffectDispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, effect]);
         return Assert.IsType<BattleDiagnosticEffectDispatch>(result);
     }

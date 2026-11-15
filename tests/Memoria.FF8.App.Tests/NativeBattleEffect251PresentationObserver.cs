@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -50,13 +51,13 @@ internal sealed class NativeBattleEffect251PresentationObserver
         Assert.Equal(17224, state.ScriptStorage[0x1434430].Read(0, 17224).Length);
         for (int actor = 3; actor <= 4; actor++)
         {
-            BattleCombatantSnapshot combatant = Assert.Single(current.Combatants, item => item.Id == graphics.ActorIds[actor]);
+            BattleCombatantSnapshot combatant = Assert.Single(current.Combatants, item => item.Id == ReadOriginalModelActorId(graphics, actor));
             Assert.Equal(actor == 4, combatant.NativeParticipant!.Suspended);
             Assert.Equal(actor == 4, combatant.NativeParticipant.Untargetable);
             Assert.True(combatant.NativeParticipant.Active);
             Assert.False(combatant.NativeParticipant.Hidden);
-            Assert.Equal(actor == 3 ? 41 : 2, graphics.Models[actor].CurrentBodyBoneMatrices!.Matrices.Length);
-            Assert.NotNull(graphics.Models[actor].GeometryWorldMatrix);
+            Assert.Equal(actor == 3 ? 41 : 2, ReadOriginalModelCell(graphics, actor).CurrentBodyBoneMatrices!.Matrices.Length);
+            Assert.NotNull(ReadOriginalModelCell(graphics, actor).GeometryWorldMatrix);
         }
         uint arena = state.ReadDword(ArenaGlobal);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
@@ -105,19 +106,19 @@ internal sealed class NativeBattleEffect251PresentationObserver
             programmes.Add(child.ReadDword(0x14));
         }
         NativeBattleGraphicsState previousGraphics = prior.NativeGraphics!;
-        bool casterMoved = JsonSerializer.Serialize(previousGraphics.Models[3].Transform!.Position28) != JsonSerializer.Serialize(graphics.Models[3].Transform!.Position28);
-        bool targetMoved = JsonSerializer.Serialize(previousGraphics.Models[0].Transform!.Position28) != JsonSerializer.Serialize(graphics.Models[0].Transform!.Position28);
+        bool casterMoved = JsonSerializer.Serialize(ReadOriginalModelCell(previousGraphics, 3).Transform!.Position28) != JsonSerializer.Serialize(ReadOriginalModelCell(graphics, 3).Transform!.Position28);
+        bool targetMoved = JsonSerializer.Serialize(ReadOriginalModelCell(previousGraphics, 0).Transform!.Position28) != JsonSerializer.Serialize(ReadOriginalModelCell(graphics, 0).Transform!.Position28);
         casterMotion |= casterMoved && oldAge >= 0;
         targetMotion |= targetMoved && oldAge >= 0;
-        worldMotion |= casterMoved && JsonSerializer.Serialize(previousGraphics.Models[3].GeometryWorldMatrix) != JsonSerializer.Serialize(graphics.Models[3].GeometryWorldMatrix);
-        boneMotion |= casterMoved && JsonSerializer.Serialize(previousGraphics.Models[3].CurrentBodyBoneMatrices) != JsonSerializer.Serialize(graphics.Models[3].CurrentBodyBoneMatrices);
+        worldMotion |= casterMoved && JsonSerializer.Serialize(ReadOriginalModelCell(previousGraphics, 3).GeometryWorldMatrix) != JsonSerializer.Serialize(ReadOriginalModelCell(graphics, 3).GeometryWorldMatrix);
+        boneMotion |= casterMoved && JsonSerializer.Serialize(ReadOriginalModelCell(previousGraphics, 3).CurrentBodyBoneMatrices) != JsonSerializer.Serialize(ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices);
         if (before is not null && main is null)
         {
             Assert.Equal(220, oldAge);
-            Assert.Equal((short)BitConverter.ToInt16(casterSaved!, 0), graphics.Models[3].Transform!.Position28.X);
-            Assert.Equal((short)BitConverter.ToInt16(casterSaved!, 2), graphics.Models[3].Transform!.Position28.Y);
-            Assert.Equal((short)BitConverter.ToInt16(casterSaved!, 4), graphics.Models[3].Transform!.Position28.Z);
-            Assert.Equal(0, graphics.Models[0].Flags0 & 4);
+            Assert.Equal((short)BitConverter.ToInt16(casterSaved!, 0), ReadOriginalModelCell(graphics, 3).Transform!.Position28.X);
+            Assert.Equal((short)BitConverter.ToInt16(casterSaved!, 2), ReadOriginalModelCell(graphics, 3).Transform!.Position28.Y);
+            Assert.Equal((short)BitConverter.ToInt16(casterSaved!, 4), ReadOriginalModelCell(graphics, 3).Transform!.Position28.Z);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, 0).Flags0 & 4);
             retired = true;
             Mark("effect251-main220-restored", current, cold);
         }
@@ -186,7 +187,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
         {
             drained = true;
         }
-        observations.Add(new { current.Frame, graphics.Callback, MainAge = age, PreviousMainAge = oldAge, Cursor = state.ReadDword(CursorGlobal), Commands = commands.Length, Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Caster = graphics.Models[3].Transform!.Position28, Target = graphics.Models[0].Transform!.Position28, Companion = graphics.Models[4].Transform!.Position28 });
+        observations.Add(new { current.Frame, graphics.Callback, MainAge = age, PreviousMainAge = oldAge, Cursor = state.ReadDword(CursorGlobal), Commands = commands.Length, Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Caster = ReadOriginalModelCell(graphics, 3).Transform!.Position28, Target = ReadOriginalModelCell(graphics, 0).Transform!.Position28, Companion = ReadOriginalModelCell(graphics, 4).Transform!.Position28 });
     }
 
     public void Accept(BattleSnapshot completed, string output)

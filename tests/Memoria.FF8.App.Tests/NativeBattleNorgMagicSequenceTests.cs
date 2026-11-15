@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -131,8 +133,8 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         void AssertMissingResponses(string actorId, byte nativeModel, ushort count, int animations)
         {
             NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
-            int physical = battle.NativeGraphics!.ActorIds.IndexOf(actorId);
-            Assert.Equal(nativeModel, battle.NativeGraphics.Models[physical].ModelId4);
+            int physical = FindOriginalModelSlot(battle.NativeGraphics!, actorId);
+            Assert.Equal(nativeModel, ReadOriginalModelCell(battle.NativeGraphics, physical).ModelId4);
             Assert.Equal(count, BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan()));
             Assert.Equal(animations, resource.AnimationFrames.Length);
             Assert.False(resource.Contains(4));
@@ -168,9 +170,9 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
     private static object[] Inventory(BattleSession battle, BattleDefinition definition)
     {
         NativeBattleGraphicsState graphics = battle.NativeGraphics!;
-        return graphics.Models.Where(model => graphics.ActorIds[model.Index] is not null).Select(model =>
+        return ReadOriginalModelCells(graphics).Where(model => ReadOriginalModelActorId(graphics, model.Index) is not null).Select(model =>
         {
-            string actorId = graphics.ActorIds[model.Index]!;
+            string actorId = ReadOriginalModelActorId(graphics, model.Index)!;
             NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
             byte? sequence = model.Sequence;
             int? offset = sequence is byte current && current * 2 + 2 <= resource.SequenceSection.Length ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(current * 2, 2)) : null;

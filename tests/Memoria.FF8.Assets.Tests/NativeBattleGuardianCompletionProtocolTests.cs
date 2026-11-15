@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -21,8 +22,8 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(protocol))!);
         AdvanceBoth(ref session, ref clone);
         Assert.Equal((byte)8, ActionTask(session).Phase);
-        NativeBattleGraphicsModel caster = session.NativeGraphics!.Models[0];
-        NativeBattleGraphicsModel neighbor = session.NativeGraphics.Models[1];
+        NativeBattleGraphicsModel caster = ReadOriginalModelCell(session.NativeGraphics!, 0);
+        NativeBattleGraphicsModel neighbor = ReadOriginalModelCell(session.NativeGraphics, 1);
         Assert.Equal(2, caster.Flags0 & 0xE);
         Assert.Equal(4, caster.Flags2 & 4);
         Assert.Equal(4, neighbor.Flags2 & 4);
@@ -137,8 +138,8 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         Assert.True(session.NativeEntryReady);
         BattleSnapshot entry = session.Capture();
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, 0xFE, 14, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(3, 5, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 0xFE, 14, -1, 64, 116, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = entry.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header));
         session = BattleSession.Restore(entry with { NativeActionPackets = packets, NativeGraphics = entry.NativeGraphics with { Descriptors = descriptors } });
@@ -155,13 +156,13 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         int taskSlot = Enumerable.Range(0, 4).Single(index => (graphics.Descriptors.Tasks[index].Flags & 1) != 0 && graphics.Descriptors.Tasks[index].Kind == NativeBattleDescriptorTaskKind.Action104);
         NativeBattleDescriptorTask action = graphics.Descriptors.Tasks[taskSlot];
         descriptors = graphics.Descriptors with { Tasks = graphics.Descriptors.Tasks.SetItem(taskSlot, action with { Payload = action.Payload.SetItem(1, 7) }) };
-        NativeBattleGraphicsModel caster = NativeBattleGraphicsModels.SelectSequence(graphics.Models[0], 11, true);
-        NativeBattleGraphicsModel neighbor = NativeBattleGraphicsModels.SelectSequence(graphics.Models[1], 11, true);
+        NativeBattleGraphicsModel caster = NativeBattleGraphicsModels.SelectSequence(ReadOriginalModelCell(graphics, 0), 11, true);
+        NativeBattleGraphicsModel neighbor = NativeBattleGraphicsModels.SelectSequence(ReadOriginalModelCell(graphics, 1), 11, true);
         caster = caster with { Flags0 = (ushort)((caster.Flags0 & ~0xE) | 8), Flags8 = 0x19, ResourceFlags44 = 0, SequenceState = caster.SequenceState! with { Header40 = 123, Pending3 = 0 } };
         neighbor = neighbor with { Flags0 = (ushort)(neighbor.Flags0 | 4), Flags8 = 0x19, ResourceFlags44 = 0, Kind5 = 0, Phase6 = 0, Color44 = 0 };
         NativeBattleActionGraphicsState context = graphics.ActionGraphics! with { Guardian = graphics.ActionGraphics!.Guardian! with { Neighbor70 = 1 } };
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { Parameters = graphics.OriginalEffect!.Parameters! with { Parameter81 = parameter81 }, ReturnedDescriptor = 0, Pools = [] };
-        graphics = graphics with { Descriptors = descriptors, Models = graphics.Models.SetItem(0, caster).SetItem(1, neighbor), ActionGraphics = context, OriginalEffect = effect, ModuleEffects = NativeBattleModuleState.Clear(), Effects = NativeBattleEffectsState.Clear(), Auxiliary = NativeBattleAuxiliaryState.Clear(), Flags = graphics.Flags | 0x11 };
+        graphics = graphics with { Descriptors = descriptors, Models = graphics.Models.SetItem(0, caster).SetItem(1, neighbor), ActionGraphics = context, OriginalEffect = effect, ModuleEffects = NativeBattleModuleState.Clear(), Effects = OriginalEffects(), Auxiliary = NativeBattleAuxiliaryState.Clear(), Flags = graphics.Flags | 0x11 };
         NativeBattleCameraState camera = prepared.NativeCamera! with { Tasks = [null, null], Order = [], Mask = 0, ControlCursor = null, BlendProgress = 0 };
         return BattleSession.Restore(prepared with { NativeGraphics = graphics, NativeCamera = camera, NativeEffectMemory = prepared.NativeEffectMemory! with { Active = 1 } });
     }

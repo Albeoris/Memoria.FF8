@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -32,7 +33,7 @@ public sealed class NativeBattleGastricJuice128ControllerTests
         Assert.Equal(4, frame.Effect.Pools.Length);
         Assert.Equal(new ushort[] { 20, 616, 80, 32 }, frame.Effect.Pools.Select(pool => pool.Stride));
         Assert.Equal(new[] { 1, 1, 8, 128 }, frame.Effect.Pools.Select(pool => pool.Slots.Length));
-        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleGastricJuice128SnapshotBody(3, ArenaAddress + BodyCacheOffset), operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(3, 4, 0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleGastricJuice128SnapshotBody(OriginalOwner(3), ArenaAddress + BodyCacheOffset), operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(OriginalOwner(3), 4, 0), operation));
         Assert.Equal((ushort)1, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.Equal((ushort)99, frame.Effect.Pools[1].Slots[0].ReadWord(0x1C));
         Assert.Equal((byte)1, NativeBattleGastricJuice128Controller.Read(frame, RootBank).ReadByte(14));
@@ -49,7 +50,7 @@ public sealed class NativeBattleGastricJuice128ControllerTests
         Fixture fixture = new();
         NativeBattleGastricJuice128Frame frame = fixture.TargetPhase(53);
         frame = fixture.Step(frame);
-        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleGastricJuice128AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(3, 0, 4), operation), operation => Assert.Equal(new NativeBattleGastricJuice128DrawBody132(3, unchecked((short)NativeBattleCameraMath.Sine(24 * 2048 / 40))), Assert.IsType<NativeBattleGastricJuice128DrawBody132>(operation) with { PilotIdentity = null }), operation => Assert.Equal(new NativeBattleGastricJuice128Contact(0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleGastricJuice128AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(OriginalOwner(3), 0, 4), operation), operation => Assert.Equal(new NativeBattleGastricJuice128DrawBody132(OriginalOwner(3), unchecked((short)NativeBattleCameraMath.Sine(24 * 2048 / 40))), Assert.IsType<NativeBattleGastricJuice128DrawBody132>(operation) with { PilotIdentity = null }), operation => Assert.Equal(new NativeBattleGastricJuice128Contact(new BattleContactCursor(0)), operation));
         Assert.Equal((ushort)54, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         NativeBattleGastricJuice128DrawBody132 body = Assert.Single(fixture.Operations.OfType<NativeBattleGastricJuice128DrawBody132>());
         Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(128, frame.Effect.Pools[1].Slots[0]), Assert.IsType<NativeBattlePilotVisualIdentity>(body.PilotIdentity));
@@ -61,7 +62,7 @@ public sealed class NativeBattleGastricJuice128ControllerTests
     {
         Fixture fixture = new();
         NativeBattleGastricJuice128Frame frame = fixture.Step(fixture.TargetPhase(69));
-        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleGastricJuice128AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(3, 4, 0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleGastricJuice128AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(OriginalOwner(3), 4, 0), operation));
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)69, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.All(frame.Effect.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
@@ -135,10 +136,10 @@ public sealed class NativeBattleGastricJuice128ControllerTests
         public NativeBattleGastricJuice128Resources Resources { get; }
         public Fixture()
         {
-            packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 128, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 128, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, _) = root.Append(RootCallback);
@@ -146,7 +147,7 @@ public sealed class NativeBattleGastricJuice128ControllerTests
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(MainDescriptor, ArenaAddress + 0x1280, 616, 1);
             (target, _) = target.Append(MainCallback);
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteBytes(12, new byte[604]).WriteWord(12, 10).WriteDword(16, 0x1D97494)) });
-            NativeBattleOriginalEffectState effect = new(128, 128, new(128, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(CurveDescriptor, ArenaAddress + 0x1000, 80, 8), NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, 32, 128)] };
+            NativeBattleOriginalEffectState effect = new(128, 128, new(128, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(CurveDescriptor, ArenaAddress + 0x1000, 80, 8), NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, 32, 128)] };
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
             for (int index = 0; index < PointCount; index++)
             {
@@ -169,7 +170,7 @@ public sealed class NativeBattleGastricJuice128ControllerTests
         }
         public NativeBattleGastricJuice128Frame Step(NativeBattleGastricJuice128Frame frame) => NativeBattleGastricJuice128Controller.Advance(frame, Resources, Inputs());
 
-        public NativeBattleGastricJuice128Inputs Inputs() => new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(actor, 2), _ => 30, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), _ => throw new InvalidOperationException(), (current, _) => new(current, new(100, 200, 300, 99)), (current, _, bone, fraction) =>
+        public NativeBattleGastricJuice128Inputs Inputs() => new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2), _ => 30, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), _ => throw new InvalidOperationException(), (current, _) => new(current, new(100, 200, 300, 99)), (current, _, bone, fraction) =>
         {
             BoneCalls.Add((bone, fraction));
             return new(current, new(200, 250, 400));

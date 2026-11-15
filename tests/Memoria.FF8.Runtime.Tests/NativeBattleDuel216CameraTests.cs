@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -38,7 +39,7 @@ public sealed class NativeBattleDuel216CameraTests
 
     private static NativeBattleDuel216Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(0, 0, 8, 0, 0, 0), NativeBattleDuel216Controller.Root);
+        NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel216Controller.Root);
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25088F8, BitConverter.GetBytes((ushort)100)).Write(0x25088FC, BitConverter.GetBytes((ushort)200)).Write(0x2508900, BitConverter.GetBytes((ushort)300)).Write(0x2508902, BitConverter.GetBytes(unchecked((ushort)-20))).Write(0x2508904, BitConverter.GetBytes((ushort)400)).Write(0x2508908, BitConverter.GetBytes(1249));
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, staging, NativeCrtRandomState.FromColdProcess());
     }

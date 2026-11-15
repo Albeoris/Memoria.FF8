@@ -79,10 +79,7 @@ public static class NativeBattleScanPhysicalModels
         {
             model = model with { Rotation16 = S(0x10) };
         }
-        if (Known(0x12, 2))
-        {
-            model = model with { RotationPadding18 = row.ReadWord(0x12) };
-        }
+        model = model with { RotationPadding18 = Known(0x12, 2) ? row.ReadWord(0x12) : null };
         if (model.Transform is { } transform)
         {
             model = model with { Transform = transform with { Position28 = new(S(0x1C), S(0x1E), S(0x20)), Vertical34 = S(0x22) } };

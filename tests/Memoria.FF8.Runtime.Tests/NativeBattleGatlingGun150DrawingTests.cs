@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleGatlingGun150Controller;
 using static Memoria.FF8.Runtime.NativeBattleGatlingGun150Profile;
@@ -122,6 +123,6 @@ public sealed class NativeBattleGatlingGun150DrawingTests
         return Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, age).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 1000).MarkPayloadUnknown(0x16, 2).WriteWord(0x18, 0).WriteWord(0x1A, 0).WriteWord(0x1C, 4096).WriteWord(0x1E, unchecked((ushort)-9)));
     }
 
-    private static NativeBattleGatlingGun150Inputs Inputs(Func<NativeBattleGatlingGun150Frame, NativeBattleGatlingGun150Operation, NativeBattleGatlingGun150Frame> execute, uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute);
+    private static NativeBattleGatlingGun150Inputs Inputs(Func<NativeBattleGatlingGun150Frame, NativeBattleGatlingGun150Operation, NativeBattleGatlingGun150Frame> execute, uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute);
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
 }

@@ -33,11 +33,11 @@ public sealed class NativeBattleWater222PresentationTests
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(original.NativeActionPackets);
-        NativeBattleActionHeaderSlot header = actionPackets.Headers[headerIndex];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)5, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)100, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = actionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)5, header.Action);
+        Assert.Equal((ushort)100, header.Effect);
+        NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((ushort)100, original.NativePartyPresentation!.Rows[0]!.HitPoints);

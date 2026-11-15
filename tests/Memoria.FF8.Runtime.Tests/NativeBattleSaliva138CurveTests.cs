@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleSaliva138Profile;
@@ -317,7 +318,7 @@ public sealed class NativeBattleSaliva138CurveTests
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         return frame with { Effect = frame.Effect with { Pools = [pool] } };
     }
-    private static NativeBattleSaliva138Inputs Inputs(NativeBattleSaliva138Frame frame, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138Operation, NativeBattleSaliva138Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => throw new InvalidOperationException(), (_, _, _, _, _, _) => throw new InvalidOperationException(), execute);
+    private static NativeBattleSaliva138Inputs Inputs(NativeBattleSaliva138Frame frame, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138Operation, NativeBattleSaliva138Frame> execute) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => throw new InvalidOperationException(), (_, _, _, _, _, _) => throw new InvalidOperationException(), execute);
 
     private static NativeBattleSaliva138Frame Frame(byte[] mesh)
     {

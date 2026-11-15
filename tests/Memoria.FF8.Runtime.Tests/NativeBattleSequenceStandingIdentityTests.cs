@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -24,7 +25,7 @@ public sealed class NativeBattleSequenceStandingIdentityTests
         bytes[38] = 0;
         bytes[40] = 16;
         NativeBattleGraphicsResource resource = new(bytes.ToImmutableArray()) { AnimationFrames = modelId >= 16 ? [4, 5] : Enumerable.Repeat((byte)4, 17).ToImmutableArray() };
-        NativeBattleGraphicsModel model = new(index, 3)
+        NativeBattleGraphicsModel model = new(3)
         {
             ModelId4 = modelId,
             Flags2 = 0,
@@ -34,12 +35,12 @@ public sealed class NativeBattleSequenceStandingIdentityTests
             SequenceState = new() { Default2 = 2, Pose = 0, PoseFrame114 = 1, PoseLimit115 = 4 }
         };
         NativeBattleSequenceInputs inputs = new(null, null) { OriginalResource = resource };
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, inputs);
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(index), model, resource, inputs);
         Assert.Equal(expectedSequence, step.Model.Sequence);
         Assert.Equal(expectedSequence == 2 ? (byte)0 : (byte)16, step.Model.SequenceState!.Pose);
         Assert.Equal(index >= 3 ? (short)2048 : (short)0, step.Model.Rotation14);
         NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(step.Model))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(step.Model, resource, inputs)), JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(restored, resource, inputs)));
-        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(model with { ModelId4 = null }, resource, inputs));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(OriginalOwner(index), step.Model, resource, inputs)), JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(OriginalOwner(index), restored, resource, inputs)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(OriginalOwner(index), model with { ModelId4 = null }, resource, inputs));
     }
 }

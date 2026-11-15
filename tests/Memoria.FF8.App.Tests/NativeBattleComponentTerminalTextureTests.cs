@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -72,7 +73,7 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
         object[] rows = observation?.Textures.Tasks.Select(row =>
         {
             NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[row.Slot];
-            NativeBattleGraphicsModel model = graphics.Models[row.ModelIndex!.Value];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, row.ModelIndex!.Value);
             return (object)new
             {
                 row.Slot,

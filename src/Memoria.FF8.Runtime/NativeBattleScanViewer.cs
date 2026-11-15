@@ -213,7 +213,7 @@ public static class NativeBattleScanViewer
         Add(NativeBattleGfMatrices.RotateShort56C4F0(basis, new(unchecked((short)task.ReadWord(0x40)), unchecked((short)task.ReadWord(0x42)), unchecked((short)task.ReadWord(0x44)))));
         PublishTranslation();
         NativeBattleScanByteOwner source = model;
-        foreach (BattleModelOwner owner in frame.Scan.Effect.ScanSelectedTargets.Enumerate())
+        foreach (BattleModelOwner owner in frame.Models.Owners.Where(owner => frame.Scan.Effect.ScanSelectionValues.GetValueOrDefault(owner) == 1))
         {
             NativeBattleScanByteOwner destination = ReadModel(frame, owner);
             frame = frame with { Models = WriteModel(frame, owner, Copy(Copy(destination, 0x1C, source, 0x1C, 8), 0x40, source, 0x40, 32)) };
@@ -271,7 +271,7 @@ public static class NativeBattleScanViewer
     {
         Validate(frame);
         NativeBattleScanPresentationMemory presentation = frame.Scan.Memory.Scan!.Presentation;
-        foreach (BattleModelOwner owner in frame.Scan.Effect.ScanSelectedTargets.Enumerate())
+        foreach (BattleModelOwner owner in frame.Models.Owners.Where(owner => frame.Scan.Effect.ScanSelectionValues.GetValueOrDefault(owner) == 1))
         {
             NativeBattleScanByteOwner model = Copy(Copy(ReadModel(frame, owner), 0x0C, presentation.Camera269A168, 0x20, 8), 0x1C, presentation.Camera269A168, 0x28, 8).WriteDword(0x30, 0);
             frame = frame with { Models = WriteModel(frame, owner, model) };

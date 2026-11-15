@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -37,7 +38,7 @@ public sealed class NativeBattleCurse47NodeTests
             Assert.Equal(0u, pointer);
             Assert.Equal((sbyte)0, group);
             Assert.Equal((sbyte)0, target);
-            return new(1, 4);
+            return OriginalTaskActors(1, 4);
         });
         NativeBattleModulePoolTask task = NativeBattleCurse47Controller.Read(appended.Frame, appended.Address);
         Assert.Equal(0x264DFE0u, appended.Address);
@@ -48,7 +49,7 @@ public sealed class NativeBattleCurse47NodeTests
         Assert.Equal((byte)1, task.ReadByte(0x2C));
         Assert.Equal((byte)4, task.ReadByte(0x2D));
         Assert.Equal((byte)1, NativeBattleCurse47Controller.Read(appended.Frame, fixture.Parent).ReadByte(0x28));
-        Assert.Throws<InvalidOperationException>(() => NativeBattleCurse47Nodes.Append82B5A0(appended.Frame, fixture.Parent, NativeBattleCurse47Nodes.Callback, NativeBattleCurse47Nodes.SourceAddress, 0, 0, 0, (_, _, _) => new(1, 4)));
+        Assert.Throws<InvalidOperationException>(() => NativeBattleCurse47Nodes.Append82B5A0(appended.Frame, fixture.Parent, NativeBattleCurse47Nodes.Callback, NativeBattleCurse47Nodes.SourceAddress, 0, 0, 0, (_, _, _) => OriginalTaskActors(1, 4)));
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public sealed class NativeBattleCurse47NodeTests
 
         public NativeBattleCurse47Frame Append(short delay = 0)
         {
-            NativeBattleCurse47NodeAppend appended = NativeBattleCurse47Nodes.Append82B5A0(Frame, Parent, NativeBattleCurse47Nodes.Callback, NativeBattleCurse47Nodes.SourceAddress, delay, 0, 0, (_, _, _) => new(0, 3));
+            NativeBattleCurse47NodeAppend appended = NativeBattleCurse47Nodes.Append82B5A0(Frame, Parent, NativeBattleCurse47Nodes.Callback, NativeBattleCurse47Nodes.SourceAddress, delay, 0, 0, (_, _, _) => OriginalTaskActors(0, 3));
             address = appended.Address;
             return appended.Frame;
         }

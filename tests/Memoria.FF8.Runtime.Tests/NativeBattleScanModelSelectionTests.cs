@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -22,14 +23,14 @@ public sealed class NativeBattleScanModelSelectionTests
         ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
         models = models.SetItem(5, models[5].WriteByte(0, 2).WriteDword(0x8C, Address(2))).SetItem(2, models[2].WriteByte(0, 4).WriteDword(0x8C, Address(6))).SetItem(6, models[6].WriteByte(0, 2).WriteDword(0x8C, Address(5)));
         string before = JsonSerializer.Serialize(models);
-        NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(models, 5, _ => throw new InvalidDataException());
+        NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(models, OriginalOwner(5), _ => throw new InvalidDataException());
         Assert.Equal(Address(2), selection.SelectedPhysicalModel);
         Assert.Equal(new uint[] { 0, 0, 0, 0, 0, 1, 1 }, selection.SelectionFlags);
         Assert.Equal(before, JsonSerializer.Serialize(models));
         Assert.False(models[5].Known[0x38]);
         Assert.False(models[5].Known[1]);
         ImmutableArray<NativeBattleScanByteOwner> restored = JsonSerializer.Deserialize<ImmutableArray<NativeBattleScanByteOwner>>(before);
-        Assert.Equal(JsonSerializer.Serialize(selection), JsonSerializer.Serialize(NativeBattleScanModelSelection.Select84D320(restored, 5, _ => throw new InvalidDataException())));
+        Assert.Equal(JsonSerializer.Serialize(selection), JsonSerializer.Serialize(NativeBattleScanModelSelection.Select84D320(restored, OriginalOwner(5), _ => throw new InvalidDataException())));
     }
 
     [Fact]
@@ -37,7 +38,7 @@ public sealed class NativeBattleScanModelSelectionTests
     {
         ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
         models = models.SetItem(0, models[0].WriteByte(4, 0x60)).SetItem(2, models[2].WriteByte(4, 0x54)).SetItem(4, models[4].WriteByte(4, 0x61)).SetItem(6, models[6].WriteByte(4, 0x54));
-        NativeBattleScanModelSelectionResult result = NativeBattleScanModelSelection.Select84D320(models, 2, _ => throw new InvalidDataException());
+        NativeBattleScanModelSelectionResult result = NativeBattleScanModelSelection.Select84D320(models, OriginalOwner(2), _ => throw new InvalidDataException());
         Assert.Equal(new uint[] { 1, 0, 1, 0, 1, 0, 1 }, result.SelectionFlags);
         Assert.Equal(Address(2), result.SelectedPhysicalModel);
     }
@@ -51,7 +52,7 @@ public sealed class NativeBattleScanModelSelectionTests
     {
         ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
         models = models.SetItem(3, models[3].WriteByte(4, category).WriteDword(0x7C, field));
-        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, 3, _ => throw new InvalidDataException()));
+        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, OriginalOwner(3), _ => throw new InvalidDataException()));
     }
 
     [Theory]
@@ -80,7 +81,7 @@ public sealed class NativeBattleScanModelSelectionTests
     {
         ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
         models = models.SetItem(3, models[3].WriteByte(4, 0x3B).WriteWord(0x9A, value));
-        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, 3, _ => throw new InvalidDataException()));
+        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, OriginalOwner(3), _ => throw new InvalidDataException()));
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public sealed class NativeBattleScanModelSelectionTests
         models = models.SetItem(0, models[0].WriteDword(0x8C, Address(0) + 1));
         Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Minimum501FF0(models, Address(0)));
         models = models.SetItem(0, models[0].WriteByte(4, 0x24));
-        Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Category84D410(models, 0, _ => 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Category84D410(models, OriginalOwner(0), _ => 0));
     }
 
     private static uint Address(int index) => NativeBattleScanModelSelection.ModelBase + (uint)(index * NativeBattleScanModelSelection.ModelStride);

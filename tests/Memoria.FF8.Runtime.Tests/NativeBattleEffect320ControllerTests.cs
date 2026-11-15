@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -40,7 +41,7 @@ public sealed class NativeBattleEffect320ControllerTests
         frame = Write(frame, Main, Read(frame, Main).WriteDword(0x340, Programme3Address));
         NativeBattleEffect320Step contacted = AdvanceMain65BE90(frame, Main, EmptyResources(), harness.Inputs());
         Assert.Equal(0, contacted.Result);
-        Assert.Equal(new NativeBattleEffect320AllContacts506BA0(0, 1), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect320AllContacts506BA0(new BattleContactCursor(0), 1), Assert.Single(harness.Operations));
         Assert.Equal(84, Read(contacted.Frame, Main).ReadWord(12));
         frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect320Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(contacted.Frame)))!);
         frame = Write(frame, Main, Read(frame, Main).WriteWord(12, 97));
@@ -139,7 +140,7 @@ public sealed class NativeBattleEffect320ControllerTests
             pools = [root, main, particles];
             state = state.DetachCommonQueue(MainDescriptor).DetachCommonQueue(ParticleDescriptor);
         }
-        NativeBattleOriginalEffectState effect = new(320, 319, new(320, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(320, 319, new(320, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -164,7 +165,7 @@ public sealed class NativeBattleEffect320ControllerTests
 
         public NativeBattleEffect320Inputs Inputs()
         {
-            return new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets(), (_, actor) => new(actor, 2), (_, _) => NativeBattleEffectArena.Clear(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, (frame, actor, retained) => new(frame, retained), (frame, input, retained) =>
+            return new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets(), (_, actor) => new(2), (_, _) => NativeBattleEffectArena.Clear(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, (frame, actor, retained) => new(frame, retained), (frame, input, retained) =>
             {
                 Origins.Add(Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(input.Read(index * 2, 2))).ToArray());
                 return new(frame, CopyBytes(input, 0, retained, 0, 6));
@@ -178,8 +179,8 @@ public sealed class NativeBattleEffect320ControllerTests
         private static NativeBattleActionPacketsState Packets()
         {
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 11, -1, 305, 320, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, -1, 305, 320, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

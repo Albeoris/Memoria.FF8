@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -137,7 +138,7 @@ public sealed class NativeBattleEffect207LowerTests
         NativeBattleEffectArena model = NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes((short)-35)).Write(0x1E, BitConverter.GetBytes((short)-35)).Write(0x20, BitConverter.GetBytes((short)4000)).Write(0x26, BitConverter.GetBytes((short)-256)).Write(0x36, BitConverter.GetBytes((short)477));
         fixture.Model = model;
         NativeBattleEffect207Inputs inputs = fixture.Inputs() with { ReadProjection = _ => new(null, 100, 0, 0) };
-        NativeBattleEffect207BoundsStep result = NativeBattleEffect207Lower.Bounds5F10(fixture.Frame, 0x1D972C0, Rectangle(), 65536, fixture.Resources, inputs);
+        NativeBattleEffect207BoundsStep result = NativeBattleEffect207Lower.Bounds5F10(fixture.Frame, OriginalOwner(0), Rectangle(), 65536, fixture.Resources, inputs);
         Assert.True(result.Included);
         Assert.Equal((short)-7, unchecked((short)result.Frame.Memory.GeometryRegisters!.Sxy[2]!.Value));
         Assert.Equal((short)0, S(result.Rect8, 0));
@@ -150,7 +151,7 @@ public sealed class NativeBattleEffect207LowerTests
     {
         Fixture fixture = new();
         fixture.Model = NativeBattleEffectArena.Clear();
-        Assert.Throws<DivideByZeroException>(() => NativeBattleEffect207Lower.Bounds5F10(fixture.Frame, 0x1D972C0, Rectangle(), 65536, fixture.Resources, fixture.Inputs()));
+        Assert.Throws<DivideByZeroException>(() => NativeBattleEffect207Lower.Bounds5F10(fixture.Frame, OriginalOwner(0), Rectangle(), 65536, fixture.Resources, fixture.Inputs()));
     }
 
     [Fact]

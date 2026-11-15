@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -93,7 +94,7 @@ internal sealed class NativeBattleEffect323PresentationObserver
             positions.Add(Convert.ToHexString(retainedMain!.Payload.AsSpan().Slice(0xA4 - 12, 6)));
             if (oldAge < 63)
             {
-                Assert.Equal(0u, graphics.Models[4].SequenceState!.MeshMask124 & 2);
+                Assert.Equal(0u, ReadOriginalModelCell(graphics, 4).SequenceState!.MeshMask124 & 2);
                 hidden = true;
             }
             int priorRecipient = before.ReadWord(0x10);
@@ -103,9 +104,9 @@ internal sealed class NativeBattleEffect323PresentationObserver
                 Assert.Equal(priorRecipient + 1, retainedMain.ReadWord(0x10));
                 uint model = before.ReadDword(0x20 + priorRecipient * 4);
                 int actor = checked((int)((model - 0x1D972C0) / 156));
-                NativeBattleActionHeaderSlot header = current.NativeActionPackets!.Headers[effect.Parameters!.HeaderIndex7C];
+                NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.HeaderIndex7C));
                 int first = header.FirstContactIndex!.Value;
-                Contacts += Enumerable.Range(first, header.ReadByte(16)).Count(index => current.NativeActionPackets.ReadContact(index).Primary.ActorIndex == actor);
+                Contacts += Enumerable.Range(first, header.ReadContactCount()).Count(index => current.NativeActionPackets.ReadContact(new BattleContactOccurrence(index)).Primary.ActorIndex == actor);
                 Assert.Equal(21, tasks.Values.Count(task => task.Callback == 0x65A660 && task.ReadWord(0x12) == 1));
                 recipientTriggered = true;
                 Mark("effect323-sorted-recipient-all-matching-contact-and-21-particle-births", current, cold);
@@ -113,7 +114,7 @@ internal sealed class NativeBattleEffect323PresentationObserver
         }
         if (oldAge == 63 && main is null)
         {
-            Assert.Equal(2u, graphics.Models[4].SequenceState!.MeshMask124 & 2);
+            Assert.Equal(2u, ReadOriginalModelCell(graphics, 4).SequenceState!.MeshMask124 & 2);
             restored = true;
             retired = true;
             Mark("effect323-main-retired-restored-mask", current, cold);

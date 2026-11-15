@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect30Controller;
@@ -144,11 +145,11 @@ public sealed class NativeBattleEffect30ControllerTests
         {
             byte[] header = new byte[20];
             header[16] = 1;
-            NativeBattleContactHalf half = new(3, 0, 0, 0, 0, 7, 0);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+            NativeBattleContactHalf half = new(OriginalOwner(3), 0, 0, 0, 0, 7, 0);
+            NativeBattleActionPacketsState packets = OriginalPackets();
             packets = packets with { Headers = packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, 0, null)), Contacts = packets.Contacts.SetItem(0, new(half, half)) };
             NativeBattlePackedMatrix32 camera = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
-            Inputs = new(packets, (_, _, _) => new(0, 3), _ => camera, (frame, operation) =>
+            Inputs = new(packets, (_, _, _) => OriginalTaskActors(0, 3), _ => camera, (frame, operation) =>
             {
                 Operations.Add(operation);
                 return frame;
@@ -164,7 +165,7 @@ public sealed class NativeBattleEffect30ControllerTests
             };
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, RootCallback, 100);
-            NativeBattleOriginalEffectState effect = new(30, 30, new(30, Entry, Initializer), new(0, 0, 0, 0, 0, 0), Pools[0].Descriptor) { Pools = root.Hierarchy.Pools, ResourcePointers = [new(InitializerGlobal, 0x800)] };
+            NativeBattleOriginalEffectState effect = new(30, 30, new(30, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), Pools[0].Descriptor) { Pools = root.Hierarchy.Pools, ResourcePointers = [new(InitializerGlobal, 0x800)] };
             uint start = ArenaAddress + 0x800;
             NativeBattleEffect30State state = NativeBattleEffect30State.FromColdProcess().WriteDword(0x26D6A0C, start).WriteDword(0x26D6A08, start + DrawStep).WriteDword(0x26D5E04, start + DrawStep).WriteDword(0x26D5E00, start + 2 * DrawStep).WriteDword(0x26D6A34, start + 2 * DrawStep);
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1), state);

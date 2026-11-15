@@ -48,7 +48,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
     {
         BattleModelRoster roster = Roster();
         BattleSession session = Session(NativeBattleModelCpuResources.Unknown());
-        uint hole = NativeBattleGraphicsModelAddress.Encode(1);
+        uint hole = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1));
         NativeBattleFileStaging staging = NativeBattleFileStaging.FromColdProcess().Write(hole, [0xB3]);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, staging);
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
@@ -74,7 +74,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
         NativeBattleModelCpuReference geometry = new(9, 0x80) { ResourceOnly = true };
         cpu = cpu with { Rows = cpu.Rows.SetItem(alias, NativeBattleModelCpuResourceRow.Unknown().Set(12, skeleton).Set(16, geometry)) };
         cpu.Validate();
-        NativeBattleGraphicsModel model = new(7, 2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = alias, SequenceState = new() { Default2 = 6 } };
+        NativeBattleGraphicsModel model = new(2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = alias, SequenceState = new() { Default2 = 6 } };
 
         NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, cpu, model, destination, directory);
         Assert.Equal(destination, bound.Model.ActiveStagedResourceRow100);
@@ -114,11 +114,11 @@ public sealed class NativeBattleHostedDescriptorResourceTests
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new("ally", true);
-        rows[7] = new("extra", true);
+        rows[0] = new BattlePartyActorModel(new("ally"));
+        rows[7] = new BattlePartyActorModel(new("extra"));
         for (int row = 8; row < rows.Length; row++)
         {
-            rows[row] = new($"enemy-{row}", false);
+            rows[row] = new BattleEnemyActorModel(new($"enemy-{row}"));
         }
         return new(rows.ToImmutableArray());
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -88,7 +89,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         int allocationCallbacks = Pump(session, snapshot =>
         {
             NativeBattleParticipantSnapshot actor = Assert.Single(snapshot.Combatants, row => row.Id == allocated.Id).NativeParticipant!;
-            return !actor.AllocationPendingStatistics && snapshot.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.NativeGraphics.ActorIds[actualIndex] == allocated.Id && snapshot.NativeGraphics.Models[actualIndex].ActiveResourceRow100 is not null;
+            return !actor.AllocationPendingStatistics && snapshot.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelActorId(snapshot.NativeGraphics, actualIndex) == allocated.Id && ReadOriginalModelCell(snapshot.NativeGraphics, actualIndex).ActiveResourceRow100 is not null;
         });
         BattleSnapshot loaded = session.Capture();
         NativeBattleParticipantSnapshot unactivated = Assert.Single(loaded.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
@@ -97,8 +98,8 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.False(unactivated.AllocationPendingStatistics);
         Assert.DoesNotContain(session.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
         Assert.Equal(actualIndex, loaded.NativeLastAllocatedIndex);
-        Assert.Equal(allocated.Id, loaded.NativeGraphics!.ActorIds[actualIndex]);
-        Assert.NotNull(loaded.NativeGraphics.Models[actualIndex].ActiveResourceRow100);
+        Assert.Equal(allocated.Id, ReadOriginalModelActorId(loaded.NativeGraphics!, actualIndex));
+        Assert.NotNull(ReadOriginalModelCell(loaded.NativeGraphics, actualIndex).ActiveResourceRow100);
         Save("allocation-ready-52-false", loaded);
         BattleSnapshot coldLoaded = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "allocation-ready-52-false.battle.json"))).Capture();
         Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(coldLoaded));
@@ -117,7 +118,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.Equal(0, currentDefinition.SceneSlot);
         Assert.True(currentDefinition.InitialHidden && currentDefinition.InitialUntargetable && currentDefinition.InitialSuspended);
         NativeBattleGraphicsState graphics = ready.NativeGraphics!;
-        NativeBattleGraphicsModel model = graphics.Models[actualIndex];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualIndex);
         Assert.Equal((byte)126, model.ModelId4);
         Assert.Equal(placement.NativePosition, model.Transform!.Position28);
         Assert.NotNull(model.GeometryWorldMatrix);
@@ -132,7 +133,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(110, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 293 && action.MagicId == 286)));
         NativeBattleParticipantSnapshot retainedCaller = Assert.Single(ready.Combatants, actor => actor.Id == caller.Id).NativeParticipant!;
         Assert.True(retainedCaller.Active);
-        Assert.Equal(new NativeBattleVector(0, 0, -4600), graphics.Models[retainedCaller.ActorIndex].Transform!.Position28);
+        Assert.Equal(new NativeBattleVector(0, 0, -4600), ReadOriginalModelCell(graphics, retainedCaller.ActorIndex).Transform!.Position28);
         BattleCombatantDefinition otherPrototype = prototypes.Single(actor => actor.SceneSlot == 2);
         NativeBattleParticipantSnapshot dormantOther = Assert.Single(ready.Combatants, actor => actor.Id == otherPrototype.Id).NativeParticipant!;
         Assert.False(dormantOther.Active);
@@ -155,7 +156,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
             callbacks = Pump(owner, snapshot =>
             {
                 NativeBattleParticipantSnapshot actor = Assert.Single(snapshot.Combatants, row => row.Id == allocated.Id).NativeParticipant!;
-                return actor.Active && !actor.Hidden && !actor.Untargetable && !actor.Suspended && !actor.AllocationPendingStatistics && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.NativeGraphics.Models[actualIndex].GeometryWorldMatrix is not null && snapshot.NativeGraphics.Models[actualIndex].CurrentBodyBoneMatrices is not null;
+                return actor.Active && !actor.Hidden && !actor.Untargetable && !actor.Suspended && !actor.AllocationPendingStatistics && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelCell(snapshot.NativeGraphics, actualIndex).GeometryWorldMatrix is not null && ReadOriginalModelCell(snapshot.NativeGraphics, actualIndex).CurrentBodyBoneMatrices is not null;
             });
             BattleSnapshot result = owner.Capture();
             Save(name + "-ready-53", result);

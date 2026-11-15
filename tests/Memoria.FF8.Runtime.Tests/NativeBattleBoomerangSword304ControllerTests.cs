@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -39,7 +40,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         var packets = Packets(0, 1, 2);
         var inputs = Inputs([], packets) with { ReadAnchor571400 = (current, model) =>
         {
-            int actor = Actor(model);
+            int actor = OriginalSlot(model);
             short x = actor == 0 ? (short)1200 : actor == 1 ? (short)-2000 : (short)100;
             return new(current, PointView(new(x, 30000, 30000), (short)(700 + actor)));
         } };
@@ -75,7 +76,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         List<int> selectors = [];
         var inputs = Inputs([]) with { ReadBone502170 = (current, model, selector, displacement) =>
         {
-            Assert.Equal(ModelAddress(3), model);
+            Assert.Equal(OriginalOwner(3), model);
             Assert.Equal(0, displacement);
             selectors.Add(selector);
             return new(current with { Random = current.Random.Draw(out _) }, PointView(new(321, -654, 987)));
@@ -134,8 +135,8 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         var frame = Active();
         List<NativeBattleBoomerangSword304Operation> operations = [];
         var packets = Packets(0, 1, 0);
-        _ = ApplyModelContacts66A2C0(frame, ModelAddress(0), Inputs(operations, packets));
-        Assert.Equal(new[] { 0, 2 }, operations.OfType<NativeBattleBoomerangSword304Contact506690>().Select(operation => operation.ContactIndex));
+        _ = ApplyModelContacts66A2C0(frame, OriginalOwner(0), Inputs(operations, packets));
+        Assert.Equal(new[] { new BattleContactOccurrence(0), new BattleContactOccurrence(2) }, operations.OfType<NativeBattleBoomerangSword304Contact506690>().Select(operation => operation.ContactIndex));
     }
 
     [Fact]
@@ -143,19 +144,18 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
     {
         var frame = Active();
         var packets = Packets(0, 0, 0);
-        List<int> contacts = [];
+        List<BattleContactOccurrence> contacts = [];
         var inputs = Inputs([], packets) with { ReadPackets = _ => packets, Execute = (current, operation) =>
         {
             if (operation is NativeBattleBoomerangSword304Contact506690 contact)
             {
                 contacts.Add(contact.ContactIndex);
-                var header = packets.Headers[0];
-                packets = packets with { Headers = packets.Headers.SetItem(0, header with { Payload = header.Payload.SetItem(16, 1) }) };
+                packets = PacketsWithExtent(0, 1, 0, 0, 0);
             }
             return current;
         } };
-        _ = ApplyModelContacts66A2C0(frame, ModelAddress(0), inputs);
-        Assert.Equal(new[] { 0 }, contacts);
+        _ = ApplyModelContacts66A2C0(frame, OriginalOwner(0), inputs);
+        Assert.Equal([new BattleContactOccurrence(0)], contacts);
     }
 
     [Fact]
@@ -163,22 +163,18 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
     {
         var frame = Active();
         var packets = Packets(0, 0, 1);
-        List<int> contacts = [];
+        List<BattleContactOccurrence> contacts = [];
         var inputs = Inputs([], packets) with { ReadPackets = _ => packets, Execute = (current, operation) =>
         {
             if (operation is NativeBattleBoomerangSword304Contact506690 contact)
             {
                 contacts.Add(contact.ContactIndex);
-                var header = packets.Headers[0];
-                byte[] bytes = header.Payload.ToArray();
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), 0x1D28344 + 24);
-                bytes[16] = 2;
-                packets = packets with { Headers = packets.Headers.SetItem(0, header with { Payload = bytes.ToImmutableArray(), FirstContactIndex = 1 }) };
+                packets = PacketsWithExtent(1, 2, 0, 1);
             }
             return current;
         } };
-        _ = ApplyModelContacts66A2C0(frame, ModelAddress(0), inputs);
-        Assert.Equal(new[] { 0 }, contacts);
+        _ = ApplyModelContacts66A2C0(frame, OriginalOwner(0), inputs);
+        Assert.Equal([new BattleContactOccurrence(0)], contacts);
         packets.Validate();
     }
 
@@ -197,7 +193,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         List<NativeBattleBoomerangSword304Operation> operations = [];
         var inputs = Inputs(operations) with { ReadAnchor571400 = (_, _) => throw new InvalidOperationException("Failed programme must not capture an anchor.") };
         var actual = AdvanceTask(frame, Pools[1].Bank, Resources(), inputs).Frame;
-        Assert.Equal(0, Assert.Single(operations.OfType<NativeBattleBoomerangSword304Contact506690>()).ContactIndex);
+        Assert.Equal(new BattleContactOccurrence(0), Assert.Single(operations.OfType<NativeBattleBoomerangSword304Contact506690>()).ContactIndex);
         Assert.Equal((ushort)1, Read(actual, Pools[1].Bank).ReadWord(16));
         Assert.Equal(frame.Random, actual.Random);
     }
@@ -252,7 +248,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena!.Read(0xC58, 2)) & 1);
         Assert.NotNull(actual.State.RootBankStorage);
-        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleBoomerangSword304Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        var cold = NativeBattleTestSnapshots.Independent(actual);
         Assert.Equal(actual.Memory.Arena!.Read(0xC58, 36), cold.Memory.Arena!.Read(0xC58, 36));
         Assert.Single(Initialize(cold, Resources(), Inputs([])).Effect.Pools);
     }
@@ -289,7 +285,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim).Write(0, new byte[] { 0xA5 }), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(304, 303, new(304, Entry, Initializer), new(3, 0, 0x7F, 0, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(304, 303, new(304, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleBoomerangSword304State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -303,25 +299,30 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         });
     }
 
-    private static NativeBattleActionPacketsState Packets(params byte[] actors)
+    private static NativeBattleActionPacketsState Packets(params byte[] actors) => PacketsWithExtent(0, actors.Length, actors);
+
+    private static NativeBattleActionPacketsState PacketsWithExtent(int first, int count, params byte[] actors)
     {
-        var packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 159, 304, null));
+        var packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]), OriginalAliases);
+        for (int index = 0; index < first; index++)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
+        }
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 159, 304, null));
         foreach (byte actor in actors)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 4, 0, 0, 0, 7, 0), null));
         }
-        (packets, _) = packets.Publish(checked((byte)actors.Length));
+        (packets, _) = packets.Publish(count);
         return packets;
     }
 
     private static NativeBattleBoomerangSword304Resources Resources() => NativeBattleBoomerangSword304StateTests.Resources();
     private static uint ModelAddress(int actor) => 0x1D972C0u + (uint)(actor * 156);
-    private static int Actor(uint model) => checked((int)((model - 0x1D972C0) / 156));
-    private static NativeBattleGraphicsModel Model(uint model)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner model)
     {
-        int actor = Actor(model);
+        int actor = OriginalSlot(model);
         short x = actor == 0 ? (short)100 : actor == 1 ? (short)300 : actor == 2 ? (short)-200 : (short)500;
-        return new(actor, 2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new(x, 0, 1000), 0, 777, 4096) };
+        return new(2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new(x, 0, 1000), 0, 777, 4096) };
     }
 }

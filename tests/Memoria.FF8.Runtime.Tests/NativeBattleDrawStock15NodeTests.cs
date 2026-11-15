@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -98,7 +99,7 @@ public sealed class NativeBattleDrawStock15NodeTests
         Assert.Equal(0x20DFAB8u + Second, task.ReadDword(0x64));
         Assert.Throws<NotSupportedException>(() => geometry.Frame.Memory.Arena!.Read(First - 1, 1));
         Assert.Throws<NotSupportedException>(() => geometry.Frame.Memory.Arena!.Read(Second + 0x6900, 1));
-        NativeBattleCuragaFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuragaFrame>(NativeBattleTestSnapshots.Json(geometry.Frame))!;
+        NativeBattleCuragaFrame clone = NativeBattleTestSnapshots.Independent(geometry.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleCuragaNodes.Unlink882960(geometry.Frame, fixture.Address, First)), NativeBattleTestSnapshots.Json(NativeBattleCuragaNodes.Unlink882960(clone, fixture.Address, First)));
     }
 
@@ -150,7 +151,7 @@ public sealed class NativeBattleDrawStock15NodeTests
     {
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x273AA38, 0x273A248, 676, 3)]);
         NativeBattleEffectHierarchyAppend task = hierarchy.Append8DC540(0, 0x8B0DA0, 676);
-        NativeBattleOriginalEffectState effect = new(15, 14, new(15, 0x8B0910, 0x8B08F0), new(0, 1, 8, 0, 0, 0), null) { Pools = task.Hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(15, 14, new(15, 0x8B0910, 0x8B08F0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = task.Hierarchy.Pools };
         NativeBattleCuragaState state = new(0, null, null, First, null) { Auxiliary25F8 = First, Auxiliary16F80 = Second, Counter26D76C0 = 0, Counter26D82E8 = 0 };
         return (new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, state), task.Address);
     }

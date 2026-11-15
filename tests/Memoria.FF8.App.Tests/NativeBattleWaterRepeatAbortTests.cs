@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -65,7 +66,7 @@ public sealed class NativeBattleWaterRepeatAbortTests
                 {
                     Assert.Equal(2, current.NativeActionPackets.ActionCount);
                     Assert.Equal(1, current.NativeActionPackets.ContactCount);
-                    Assert.Equal(0, current.NativeActionPackets.Headers[0].ReadByte(17));
+                    Assert.Equal(0, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
                     Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
                     produced = true;
                     Save("produced", current);
@@ -85,7 +86,7 @@ public sealed class NativeBattleWaterRepeatAbortTests
                     Assert.True(restoredMidpoint);
                     if (enemyModel is 4 or 5)
                     {
-                        Assert.Equal(0, current.NativeGraphics.Models[3].Flags0 & 2);
+                        Assert.Equal(0, ReadOriginalModelCell(current.NativeGraphics, 3).Flags0 & 2);
                     }
                     CompareNext("completed", current);
                     Console.WriteLine($"Water repeat abort: enemy {enemyModel}, casts {repetitions}, cards {cards}, frame {current.Frame}, native callback {current.NativeGraphics.Callback}.");

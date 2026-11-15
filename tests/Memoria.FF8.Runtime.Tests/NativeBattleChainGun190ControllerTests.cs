@@ -1,4 +1,4 @@
-using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleChainGun190Controller;
 using static Memoria.FF8.Runtime.NativeBattleChainGun190Profile;
 
@@ -45,7 +45,7 @@ public sealed class NativeBattleChainGun190ControllerTests
         }
         if (age == 30)
         {
-            Assert.Equal(new NativeBattleChainGun190Contacts506BA0(0), Assert.Single(operations));
+            Assert.Equal(new NativeBattleChainGun190Contacts506BA0(new(0)), Assert.Single(operations));
         }
     }
 
@@ -58,7 +58,10 @@ public sealed class NativeBattleChainGun190ControllerTests
         NativeBattleChainGun190Frame frame = Frame(3);
         if (recordKind != 0)
         {
-            frame = frame with { State = frame.State.WriteDword(RecordsAddress, 1).WriteDword(RecordsAddress + 4, unchecked((uint)recordKind)).WriteView(RecordsAddress + 8, PointView(new(100, 200, 300), 0x1234), 8) };
+            NativeBattleChainGun190State state = frame.State.WriteDword(RecordsAddress, 1).WriteView(RecordsAddress + 8, PointView(new(100, 200, 300), 0x1234), 8);
+            state = recordKind < 0 ? state.WritePositionedShot(RecordsAddress + 4) : state.WriteShotTarget(RecordsAddress + 4, OriginalOwner(recordKind), OriginalAliases);
+            frame = frame with { State = state };
+            Assert.Equal(unchecked((uint)recordKind), frame.State.ReadDword(RecordsAddress + 4));
         }
         var step = AdvanceMain(frame, ChildBank, Resources(), Inputs([], []));
         Assert.Equal(1 + births, step.Frame.Effect.Pools[1].Slots.Count(task => (task.Flags & 1) != 0));
@@ -88,7 +91,7 @@ public sealed class NativeBattleChainGun190ControllerTests
             frame = frame with { State = frame.State.WriteWord(RecordsAddress + (uint)(index * 16 + 14), 0xBEEF) };
         }
         List<(int Actor, int Selector, int Distance)> bones = [];
-        NativeBattleChainGun190Frame result = FillShots(frame, 0, 4, 2, Inputs([], bones) with { ReadBoneCount = (_, _) => count });
+        NativeBattleChainGun190Frame result = FillShots(frame, 0, 4, OriginalOwner(2), Inputs([], bones) with { ReadBoneCount = (_, _) => count });
         Assert.Equal(new NativeCrtRandomState(seed), result.Random);
         Assert.Equal(uint.MaxValue, result.State.ReadDword(RecordsAddress + 4));
         Assert.Equal((ushort)702, result.State.ReadWord(RecordsAddress + 14));
@@ -121,23 +124,35 @@ public sealed class NativeBattleChainGun190ControllerTests
     public void Pair_setup_falls_through_to_physical_third_contact_after_retaining_pair_rng()
     {
         NativeBattleChainGun190Frame frame = Frame(0);
-        NativeBattleActionPacketsState pair = Packets(2, false);
-        pair = pair with { Contacts = pair.Contacts.SetItem(2, Contact(2)) };
-        NativeBattleChainGun190Inputs inputs = Inputs([], []) with { Packets = pair, ReadBoneCount = (_, _) => 0 };
+        NativeBattleActionPacketsState pair = Packets(2, false, writeThird: true);
+        NativeBattleChainGun190Inputs inputs = Inputs([], [], pair) with { ReadBoneCount = (_, _) => 0 };
         NativeBattleChainGun190Frame pairResult = PrepareShots(frame, inputs);
-        NativeBattleChainGun190Frame tripleResult = PrepareShots(frame, inputs with { Packets = Packets(3, false) });
+        NativeBattleChainGun190Frame tripleResult = PrepareShots(frame, Inputs([], [], Packets(3, false)) with { ReadBoneCount = (_, _) => 0 });
         Assert.Equal(new NativeCrtRandomState(1852780124), pairResult.Random);
         Assert.Equal(new NativeCrtRandomState(4145464656), tripleResult.Random);
         Assert.Equal((ushort)133, pairResult.State.ReadWord(RecordsAddress + 2 * 16 + 8));
         Assert.Equal((ushort)166, pairResult.State.ReadWord(RecordsAddress + 3 * 16 + 8));
         Assert.Equal((ushort)134, pairResult.State.ReadWord(RecordsAddress + 7 * 16 + 8));
-        Assert.Throws<NotSupportedException>(() => PrepareShots(frame, inputs with { Packets = Packets(2, false) }));
-        NativeBattleChainGun190Frame cold = PrepareShots(frame, inputs with { Packets = Packets(2, true) });
+        Assert.Throws<NotSupportedException>(() => PrepareShots(frame, Inputs([], [], Packets(2, false)) with { ReadBoneCount = (_, _) => 0 }));
+        NativeBattleChainGun190Frame cold = PrepareShots(frame, Inputs([], [], Packets(2, true)) with { ReadBoneCount = (_, _) => 0 });
         Assert.Equal((ushort)33, cold.State.ReadWord(RecordsAddress + 2 * 16 + 8));
     }
 
     [Fact]
-    public void Setup_clears_all_forty_eight_heads_only_and_json_continues_identically()
+    public void Original_triple_layout_sorts_aliases_independently_of_roster_order()
+    {
+        NativeBattleActionPacketsState normalPackets = Packets(3, false);
+        BattleModelRoster permuted = new(OriginalRoster.Owners.Reverse());
+        NativeBattleModelAliases aliases = new(permuted, Enumerable.Range(0, 7).Select(slot => (NativeBattleModelSlot.Decode((byte)slot), OriginalOwner(slot))));
+        NativeBattleActionPacketsState permutedPackets = normalPackets.WithRoster(permuted, aliases);
+        NativeBattleChainGun190Frame normal = PrepareShots(Frame(0), Inputs([], [], normalPackets));
+        NativeBattleChainGun190Frame reordered = PrepareShots(Frame(0), Inputs([], [], permutedPackets));
+        Assert.Equal(normal.Random, reordered.Random);
+        Assert.Equal(normal.State.Read(RecordsAddress, RecordsLength), reordered.State.Read(RecordsAddress, RecordsLength));
+    }
+
+    [Fact]
+    public void Setup_clears_all_forty_eight_heads_only_and_private_copy_continues_identically()
     {
         NativeBattleChainGun190Frame frame = Frame(0);
         frame = frame with { State = frame.State.WriteDword(RecordsAddress + 47 * 16, 7).WriteDword(RecordsAddress + 47 * 16 + 4, 0xCAFE).WriteWord(RecordsAddress + 14, 0x5678) };
@@ -145,7 +160,7 @@ public sealed class NativeBattleChainGun190ControllerTests
         Assert.Equal(0u, frame.State.ReadDword(RecordsAddress + 47 * 16));
         Assert.Equal(0xCAFEu, frame.State.ReadDword(RecordsAddress + 47 * 16 + 4));
         frame = Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, 3));
-        NativeBattleChainGun190Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChainGun190Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleChainGun190Frame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleChainGun190Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([], [])).Frame;
         NativeBattleChainGun190Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([], [])).Frame;
         Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
@@ -181,36 +196,51 @@ public sealed class NativeBattleChainGun190ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
-        NativeBattleOriginalEffectState effect = new(190, 189, new(190, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [roots, children] };
-        NativeBattleChainGun190State state = NativeBattleChainGun190State.FromColdProcess().WriteDword(CasterGlobal, 3) with { RootBankStorage = null, ChildBankStorage = null };
+        NativeBattleOriginalEffectState effect = new(190, 189, new(190, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new(0), 0, 0), RootDescriptor) { Pools = [roots, children] };
+        NativeBattleChainGun190State state = NativeBattleChainGun190State.FromColdProcess().WriteModelOperand(CasterGlobal, OriginalOwner(3), OriginalAliases) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);
     }
 
     private static NativeBattleChainGun190Resources Resources() => new(null!, null!, null!, null!, null!, null!, null!, 0x61AD6);
 
-    private static NativeBattleChainGun190Inputs Inputs(List<NativeBattleChainGun190Operation> operations, List<(int Actor, int Selector, int Distance)> bones) => new(Packets(1, true), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(actor, 3) { Rotation14 = 123, Transform = new(new(0, 0, 0), new((short)(actor * 100), 200, (short)(actor * 300)), (short)(700 + actor), 0, 4096) }, (_, _) => throw new InvalidOperationException(), (_, _) => 5, (current, actor, selector, distance) =>
+    private static NativeBattleChainGun190Inputs Inputs(List<NativeBattleChainGun190Operation> operations, List<(int Actor, int Selector, int Distance)> bones, NativeBattleActionPacketsState? packets = null)
     {
-        bones.Add((actor, selector, distance));
-        return new(current, PointView(new((short)selector, (short)actor, (short)distance)));
-    }, (current, operation) =>
-    {
-        operations.Add(operation);
-        return current;
-    });
+        packets ??= Packets(1, true);
+        var (models, bindings) = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, Model(slot))));
+        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, owner) => models.Get(owner), (_, _) => throw new InvalidOperationException(), (_, _) => 5, (current, owner, selector, distance) =>
+        {
+            if (!OriginalAliases.TryEncodeExact(owner, out byte slot))
+            {
+                throw new InvalidOperationException("The synthetic original pose fixture uses an authored slot.");
+            }
+            bones.Add((slot, selector, distance));
+            return new(current, PointView(new((short)selector, slot, (short)distance)));
+        }, (current, operation) =>
+        {
+            operations.Add(operation);
+            return current;
+        }, cursor => NativeBattleActionPacketBoundary.ReadOriginalRecipient(cursor, packets, bindings, models));
+    }
 
-    private static NativeBattleActionPacketsState Packets(byte count, bool cold)
+    private static NativeBattleGraphicsModel Model(int slot) => new(3) { Rotation14 = 123, Transform = new(new(0, 0, 0), new((short)(slot * 100), 200, (short)(slot * 300)), (short)(700 + slot), 0, 4096) };
+
+    private static NativeBattleActionPacketsState Packets(byte count, bool cold, bool writeThird = false)
     {
-        NativeBattleActionPacketsState state = cold ? NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]) : NativeBattleActionPacketsState.Fresh();
-        (state, _) = state.Prepare(new(3, 8, 14, -1, 154, 190, null));
+        NativeBattleActionPacketsState state = cold ? NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases) : OriginalPackets();
+        (state, _) = state.Prepare(new(OriginalOwner(3), 8, 14, -1, 154, 190, null));
         for (byte actor = 0; actor < count; actor++)
         {
             (state, _) = state.AppendContact(Contact(actor));
+        }
+        if (writeThird)
+        {
+            (state, _) = state.AppendContact(Contact(2));
         }
         (state, _) = state.Publish(count);
         return state;
     }
 
-    private static NativeBattleContactPacket Contact(byte actor) => new(new(actor, 4, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static NativeBattleContactPacket Contact(byte actor) => new(new(OriginalOwner(actor), 4, 0, 0, 0, 0, 0), null);
 
     private static NativeCrtRandomState AfterDraws(NativeCrtRandomState random, int count)
     {

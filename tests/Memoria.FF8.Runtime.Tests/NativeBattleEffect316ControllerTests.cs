@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -13,7 +14,7 @@ public sealed class NativeBattleEffect316ControllerTests
     [Fact]
     public void Entry_queues_both_TIMs_transfers_root_and_retains_warm_native_random()
     {
-        NativeBattleOriginalEffectState effect = new(316, 315, new(316, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null)
+        NativeBattleOriginalEffectState effect = new(316, 315, new(316, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null)
         {
             ResourcePointers = [new(InitializerGlobal, 0x40000)]
         };
@@ -207,7 +208,7 @@ public sealed class NativeBattleEffect316ControllerTests
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.Equal(42, BinaryPrimitives.ReadUInt16LittleEndian(result.State.ReadBank(RootBank).Read(12, 2)));
         Assert.Equal(new byte[] { 4, 5, 6 }, result.Memory.Arena!.Read(0x300, 3));
-        result = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect316Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        result = NativeBattleTestSnapshots.Independent(result);
         result.State.Validate();
         Assert.Equal(0x7BEEu, result.State.ReadDword(RandomGlobal));
         Assert.Equal(0xABCD1234u, result.State.ReadDword(ColorGlobal));
@@ -248,7 +249,7 @@ public sealed class NativeBattleEffect316ControllerTests
     private static NativeBattleEffect316Inputs Inputs(List<NativeBattleEffect316Operation>? operations = null) => new(
         Colors: NativeBattleGteColorInterpolation.CodeConstants45F270,
         ReadPackets: null!,
-        ReadModel: (_, _) => new(3, 0xFFFF) { Color44 = 0xAB123456 },
+        ReadModel: (_, _) => new(0xFFFF) { Color44 = 0xAB123456 },
         ReadView: null!,
         ReadProjection: null!,
         ReadCameraRoll: null!,

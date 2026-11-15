@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleLaserEye71Controller;
@@ -15,7 +16,7 @@ public sealed class NativeBattleLaserEye71Smooth60Tests
         Fixture fixture = new();
         NativeBattleLaserEye71Frame frame = Write(fixture.Frame, fixture.Beam, Read(fixture.Frame, fixture.Beam).WriteWord(0x8C, (ushort)ratio).WriteWord(0x8E, 600));
         List<NativeBattleGfGeometryBatch> batches = [];
-        NativeBattleLaserEye71LowerInputs inputs = new((current, _, _, _) => throw new InvalidOperationException(), (_, _) => fixture.Identity, (current, _, _, _) => new(current, fixture.Identity), _ => fixture.Identity, (_, _, _) => new(0, 3), (current, batch) =>
+        NativeBattleLaserEye71LowerInputs inputs = new((current, _, _, _) => throw new InvalidOperationException(), (_, _) => fixture.Identity, (current, _, _, _) => new(current, fixture.Identity), _ => fixture.Identity, (_, _, _) => OriginalTaskActors(0, 3), (current, batch) =>
         {
             batches.Add(batch);
             return current;
@@ -91,11 +92,11 @@ public sealed class NativeBattleLaserEye71Smooth60Tests
         {
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, RootCallback, 100);
-            NativeBattleEffectHierarchyAppend beam = root.Hierarchy.Append8DC540(3, BeamCallback, 148, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend beam = root.Hierarchy.Append8DC540(3, BeamCallback, 148, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             Beam = beam.Address;
-            NativeBattleEffectHierarchyAppend particle = beam.Hierarchy.Append8DC540(4, ParticleCallback, 96, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend particle = beam.Hierarchy.Append8DC540(4, ParticleCallback, 96, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             Particle = particle.Address;
-            NativeBattleOriginalEffectState effect = new(71, 71, new(71, Entry, Initializer), new(0, 0, 0, 0, 0, 0), Pools[0].Descriptor) { Pools = particle.Hierarchy.Pools };
+            NativeBattleOriginalEffectState effect = new(71, 71, new(71, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), Pools[0].Descriptor) { Pools = particle.Hierarchy.Pools };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = Identity, ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             Frame = new(memory, effect, new(1), NativeBattleLaserEye71State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Frame = Write(Frame, Beam, Read(Frame, Beam).WriteBytes(0x54, Identity.Bytes.AsSpan()).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteWord(0x20, 10000).WriteWord(0x7C, 400).WriteWord(0x80, 400));

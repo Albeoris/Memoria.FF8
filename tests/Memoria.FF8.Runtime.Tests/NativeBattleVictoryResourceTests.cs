@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -42,7 +43,7 @@ public sealed class NativeBattleVictoryResourceTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(directory, Nested());
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
         cpu = cpu with { Rows = cpu.Rows.SetItem(0, NativeBattleModelCpuResourceRow.Unknown().Set(12, new(0, 100)).Set(16, new(0, 200))).SetItem(1, NativeBattleModelCpuResourceRow.Unknown().Set(12, new(1, 300)).Set(16, new(1, 400))) };
-        NativeBattleGraphicsModel model = new(0, 2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = linked ? 1 : null, LinkedTransform = linked ? new(new(0, 0, 0), new(0, 0, 0)) : null, SequenceState = new() { Default2 = 6 } };
+        NativeBattleGraphicsModel model = new(2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = linked ? 1 : null, LinkedTransform = linked ? new(new(0, 0, 0), new(0, 0, 0)) : null, SequenceState = new() { Default2 = 6 } };
         NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, cpu, model, row, directory);
         Assert.Equal(row + (uint)advance, bound.NextRow);
         Assert.Equal(row, bound.Model.ActiveStagedResourceRow100);
@@ -121,7 +122,7 @@ public sealed class NativeBattleVictoryResourceTests
         NativeBattleResourcePointer sequencePointer = new(null, row + 0x300, 2);
         NativeBattleGraphicsResource Resolve()
         {
-            return NativeBattleVictoryResources.Resolve(new(0, 2) { ActiveStagedResourceRow100 = row }, original, address =>
+            return NativeBattleVictoryResources.Resolve(new(2) { ActiveStagedResourceRow100 = row }, original, address =>
             {
                 pointerReads++;
                 return address == row ? skeletonPointer : address == row + 8 ? animationPointer : address == row + 12 ? sequencePointer : throw new InvalidOperationException("The native retained geometry path does not look up a geometry pointer.");
@@ -141,19 +142,19 @@ public sealed class NativeBattleVictoryResourceTests
         int pointersBefore = pointerReads;
         int bytesBefore = byteReads;
         NativeBattlePilotVisualIdentity parent = new(327, 0x21FFD68, 0, 19, 0);
-        NativeBattlePilotVisualIdentity a = NativeBattleGilgameshVisuals.ActorResource(parent, first, 0)!.Value;
-        NativeBattlePilotVisualIdentity b = NativeBattleGilgameshVisuals.ActorResource(parent, second, 0)!.Value;
+        NativeBattlePilotVisualIdentity a = NativeBattleGilgameshVisuals.ActorResource(parent, first, OriginalOwner(0))!.Value;
+        NativeBattlePilotVisualIdentity b = NativeBattleGilgameshVisuals.ActorResource(parent, second, OriginalOwner(0))!.Value;
         Assert.Equal(a, b);
         Assert.Equal(pointersBefore, pointerReads);
         Assert.Equal(bytesBefore, byteReads);
         Assert.Equal(staged ? 6 : 0, pointerReads);
         Assert.Equal(staged ? 8 : 0, byteReads);
         NativeBattleGraphicsResource replaced = second with { Geometry = geometry.ToArray().ToImmutableArray() };
-        NativeBattlePilotVisualIdentity c = NativeBattleGilgameshVisuals.ActorResource(parent, replaced, 0)!.Value;
+        NativeBattlePilotVisualIdentity c = NativeBattleGilgameshVisuals.ActorResource(parent, replaced, OriginalOwner(0))!.Value;
         Assert.NotEqual(a.ResourceGeneration, c.ResourceGeneration);
         Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(replaced));
         Assert.Equal(frozen, NativeBattleTestSnapshots.Json(first));
-        Assert.Null(NativeBattleGilgameshVisuals.ActorResource(null, new([0, 0]), 0));
+        Assert.Null(NativeBattleGilgameshVisuals.ActorResource(null, new([0, 0]), OriginalOwner(0)));
     }
 
     [Fact]
@@ -163,13 +164,13 @@ public sealed class NativeBattleVictoryResourceTests
         NativeBattleModelCpuReference cpu = new(3, 128);
         NativeBattleGraphicsResource original = new([0, 0]) { AnimationFrames = [], Geometry = [mesh, mesh], LinkedGeometry = [mesh], LinkedGeometryUsesBodySkeleton = true, PilotGeometryResource = cpu };
         NativeBattlePilotVisualIdentity parent = new(327, 0x21FFD68, 0, 19, 0);
-        NativeBattlePilotVisualIdentity a = NativeBattleGilgameshVisuals.ActorResource(parent, original, 0)!.Value;
+        NativeBattlePilotVisualIdentity a = NativeBattleGilgameshVisuals.ActorResource(parent, original, OriginalOwner(0))!.Value;
         NativeBattleGraphicsResource fresh = original with { Geometry = original.Geometry!.Value.ToArray().ToImmutableArray() };
-        Assert.Equal(a, NativeBattleGilgameshVisuals.ActorResource(parent, fresh, 0));
+        Assert.Equal(a, NativeBattleGilgameshVisuals.ActorResource(parent, fresh, OriginalOwner(0)));
         NativeBattleGraphicsResource replaced = fresh with { LinkedGeometry = original.LinkedGeometry!.Value.ToArray().ToImmutableArray() };
-        Assert.NotEqual(a.ResourceGeneration, NativeBattleGilgameshVisuals.ActorResource(parent, replaced, 0)!.Value.ResourceGeneration);
+        Assert.NotEqual(a.ResourceGeneration, NativeBattleGilgameshVisuals.ActorResource(parent, replaced, OriginalOwner(0))!.Value.ResourceGeneration);
         NativeBattleGraphicsResource unused = original with { LinkedGeometryUsesBodySkeleton = false };
-        Assert.Equal(NativeBattleGilgameshVisuals.ActorResource(parent, unused, 0), NativeBattleGilgameshVisuals.ActorResource(parent, unused with { LinkedGeometry = replaced.LinkedGeometry }, 0));
+        Assert.Equal(NativeBattleGilgameshVisuals.ActorResource(parent, unused, OriginalOwner(0)), NativeBattleGilgameshVisuals.ActorResource(parent, unused with { LinkedGeometry = replaced.LinkedGeometry }, OriginalOwner(0)));
         Assert.Equal(NativeBattleTestSnapshots.Json(original), NativeBattleTestSnapshots.Json(replaced));
     }
 

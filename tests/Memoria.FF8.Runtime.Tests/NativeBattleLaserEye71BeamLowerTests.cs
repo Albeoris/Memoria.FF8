@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -35,7 +36,7 @@ public sealed class NativeBattleLaserEye71BeamLowerTests
     {
         Fixture fixture = new();
         NativeBattleLaserEye71Frame frame = Write(fixture.Frame, fixture.Beam, Read(fixture.Frame, fixture.Beam).WriteWord(0x24, 5));
-        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        frame = NativeBattleTestSnapshots.Independent(frame);
         uint cursor = TemporaryCursor(frame);
         NativeBattleLaserEye71Frame result = NativeBattleLaserEye71BeamLower.Emit(frame, fixture.Beam, fixture.Resources, fixture.Inputs);
         NativeBattleModulePoolTask child = Assert.Single(result.Effect.Pools[4].Slots.Where(slot => slot.Callback == ParticleCallback));
@@ -125,9 +126,9 @@ public sealed class NativeBattleLaserEye71BeamLowerTests
         {
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, RootCallback, 100);
-            NativeBattleEffectHierarchyAppend beam = root.Hierarchy.Append8DC540(3, BeamCallback, 148, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend beam = root.Hierarchy.Append8DC540(3, BeamCallback, 148, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             Beam = beam.Address;
-            NativeBattleOriginalEffectState effect = new(71, 71, new(71, Entry, Initializer), new(0, 0, 0, 0, 0, 0), Pools[0].Descriptor) { Pools = beam.Hierarchy.Pools };
+            NativeBattleOriginalEffectState effect = new(71, 71, new(71, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), Pools[0].Descriptor) { Pools = beam.Hierarchy.Pools };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             Frame = new(memory, effect, new(1), NativeBattleLaserEye71State.FromColdProcess().WriteDword(0x25FCDA0, 0x2793E58)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             NativeBattleModulePoolTask task = Read(Frame, Beam).WriteBytes(0x54, Identity.Bytes.AsSpan()).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteDword(0x40, 0x00112233).WriteWord(0x74, 100).WriteWord(0x76, 200).WriteWord(0x78, 300).WriteWord(0x7C, 500).WriteWord(0x7E, 600).WriteWord(0x80, 700);
@@ -140,7 +141,7 @@ public sealed class NativeBattleLaserEye71BeamLowerTests
                 return new NativeBattleStaticMeshResource(0, address, bytes.ToImmutableArray());
             }).ToImmutableArray();
             Resources = new(new("fixture", []), new([]), new("fixture", []), meshes, new(0, 0, 0, 0, []), rows, 0);
-            Inputs = new(ReadBone, (_, _) => Identity, Look, _ => Identity, (_, _, _) => new(0, 3), Deliver, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+            Inputs = new(ReadBone, (_, _) => Identity, Look, _ => Identity, (_, _, _) => OriginalTaskActors(0, 3), Deliver, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
         }
 
         private NativeBattleLaserEye71PointStep ReadBone(NativeBattleLaserEye71Frame frame, byte actor, byte selector, short distance)

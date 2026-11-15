@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -30,13 +31,13 @@ public sealed class NativeBattleSearchPresentationTests
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = (int)(offset / 20);
-        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)14, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)92, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)14, header.Action);
+        Assert.Equal((ushort)92, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
-        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The fixture lacks its explicit contact owner."));
+        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);
@@ -103,7 +104,7 @@ public sealed class NativeBattleSearchPresentationTests
                     contactTransitions++;
                 }
                 Assert.True(hp == initialHp || hp == expectedHp);
-                sawTargetOverride |= current.NativeGraphics.Models[0].ActiveStagedResourceRow100 is not null;
+                sawTargetOverride |= ReadOriginalModelCell(current.NativeGraphics, 0).ActiveStagedResourceRow100 is not null;
                 sawModelTim |= current.NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelProfile.ModelTim.Identity) == true;
                 if (cold is not null)
                 {

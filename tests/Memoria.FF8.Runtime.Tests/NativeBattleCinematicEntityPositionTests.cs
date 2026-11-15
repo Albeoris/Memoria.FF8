@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using Memoria.FF8.Runtime;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleCinematicEntityPositionTests
         bool updated = false;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicEntityPosition.FromEntityOffset5F(frame, Program(8), actor =>
         {
-            Assert.Equal((byte)5, actor);
+            Assert.Equal(OriginalOwner(5), actor);
             reads++;
             return new(short.MaxValue, 123, short.MinValue);
         }, (current, kind) =>
@@ -41,12 +42,12 @@ public sealed class NativeBattleCinematicEntityPositionTests
         NativeBattleWaterExecutionFrame frame = Create(instruction, -1, -2, 0);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicEntityPosition.FromEntityJoint60(frame, Program(8), (current, actor, selector) =>
         {
-            Assert.Equal(5, actor);
+            Assert.Equal(OriginalOwner(5), actor);
             Assert.Equal((short)-1, selector);
             return new(current, new(65537, -65538, 65539, 0));
         }, actor =>
         {
-            Assert.Equal(5, actor);
+            Assert.Equal(OriginalOwner(5), actor);
             return 256;
         }, (current, kind) =>
         {

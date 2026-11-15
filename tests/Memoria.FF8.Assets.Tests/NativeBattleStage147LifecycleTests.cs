@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -78,9 +79,9 @@ public sealed class NativeBattleStage147LifecycleTests
             }
             if (intro.Subphase == 3)
             {
-                Assert.Equal((byte)26, battle.NativeGraphics!.Models[0].Sequence);
-                Assert.Equal((byte)26, battle.NativeGraphics.Models[2].Sequence);
-                Assert.Equal((short)2048, battle.NativeGraphics.Models[0].Rotation14);
+                Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics!, 0).Sequence);
+                Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics, 2).Sequence);
+                Assert.Equal((short)2048, ReadOriginalModelCell(battle.NativeGraphics, 0).Rotation14);
                 sawPartySequence = true;
             }
             if (intro.Subphase == 4 && intro.Counter == 7 && !restoredDescent)
@@ -102,14 +103,14 @@ public sealed class NativeBattleStage147LifecycleTests
             {
                 if (enemyResource.ContainsNativeIndex505850(16))
                 {
-                    Assert.Equal((byte)16, battle.NativeGraphics!.Models[3].Sequence);
+                    Assert.Equal((byte)16, ReadOriginalModelCell(battle.NativeGraphics!, 3).Sequence);
                 }
                 else
                 {
-                    Assert.NotEqual(0, battle.NativeGraphics!.Models[3].ResourceFlags44!.Value & 0x40);
+                    Assert.NotEqual(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).ResourceFlags44!.Value & 0x40);
                 }
                 Assert.Equal((byte)7, battle.NativeGraphics.UiServices!.Windows!.RequestedVitalsMask);
-                Assert.Equal((short)0, battle.NativeGraphics.Models[0].Rotation14);
+                Assert.Equal((short)0, ReadOriginalModelCell(battle.NativeGraphics, 0).Rotation14);
                 sawEnemySequence = true;
             }
             if (restored is not null)

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -32,10 +33,10 @@ internal sealed class NativeBattleEffect80PresentationObserver
         }
         NativeBattleEffect80State state = current.NativeEffectMemory!.Effect80!;
         state.Validate();
-        Assert.Equal((byte)139, current.NativeGraphics.Models[4].ModelId4);
-        Assert.Equal((byte)140, current.NativeGraphics.Models[5].ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(current.NativeGraphics, 5).ModelId4);
         Assert.Equal((ushort)1448, current.NativeModelCpuResources!.ScratchMaximum);
-        if (current.NativeGraphics.Models[5].Sequence == 26)
+        if (ReadOriginalModelCell(current.NativeGraphics, 5).Sequence == 26)
         {
             sequence26 = true;
             Mark("effect80-target-sequence26", current, cold);
@@ -148,7 +149,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
             Assert.All(state.FixedBanks.Values, bank => Assert.NotNull(bank));
             Mark("effect80-physical-banks-retained", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, DriverPhase = driver?.ReadByte(0x29), Sequence = current.NativeGraphics.Models[5].Sequence, Contacts, ContactGlyphs, BodyPackets = body.Count, TrailPackets = trail.Count, OwnedPackets = CurrentCommands.Length, Cursor = state.ReadDword(CursorGlobal), SecondaryCursor = state.ReadDword(SecondaryCursorGlobal), Random = state.ReadDword(TrailRandomGlobal) });
+        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, DriverPhase = driver?.ReadByte(0x29), Sequence = ReadOriginalModelCell(current.NativeGraphics, 5).Sequence, Contacts, ContactGlyphs, BodyPackets = body.Count, TrailPackets = trail.Count, OwnedPackets = CurrentCommands.Length, Cursor = state.ReadDword(CursorGlobal), SecondaryCursor = state.ReadDword(SecondaryCursorGlobal), Random = state.ReadDword(TrailRandomGlobal) });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -177,11 +178,11 @@ internal sealed class NativeBattleEffect80PresentationObserver
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
         NativeBattleEffect80State state = current.NativeEffectMemory!.Effect80!;
-        NativeBattleGraphicsModel actor = current.NativeGraphics.Models[checked((int)((state.ReadDword(BodyContextAddress + 0x64) - 0x1D972C0u) / 156))];
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics, checked((int)((state.ReadDword(BodyContextAddress + 0x64) - 0x1D972C0u) / 156)));
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources ?? throw new InvalidDataException("The deformed body proof requires its current CPU resource owner.");
         NativeBattleModelCpuResourceRow resource = cpu.Rows[actor.ActiveResourceRow100 ?? throw new InvalidDataException("The deformed body proof requires its current resource row.")];
         NativeBattleModelCpuReference source = resource.Require(16);
-        string actorId = current.NativeGraphics.ActorIds[actor.Index] ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
+        string actorId = ReadOriginalModelActorId(current.NativeGraphics, actor.Index) ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
         NativeBattleGraphicsBinding? binding = current.Definition.NativeGraphics!.Bindings.SingleOrDefault(item => item.ActorId == actorId);
         if (binding is null)
         {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -136,14 +137,14 @@ public sealed class NativeBattleFireCallbackTests
 
     private static (NativeBattleOriginalEffectState Effect, NativeBattleFireInputs Inputs) Fixture(int targets)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(3, 2, 11, -1, 1, 2, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 1, 2, null));
         for (int index = 0; index < targets; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(4 + index), 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new((byte)(4 + index), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish((byte)targets);
-        NativeBattleOriginalEffectState effect = new(2, 1, new(2, 0x6298A0, 0x629880), new(3, 0, 0x30, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(2, 1, new(2, 0x6298A0, 0x629880), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleFireEffect.InitializePools(effect, packets);
         ImmutableArray<NativeBattleModuleResource> resources = [Sprite(0xDEDC2C, 0), Sprite(0xDEDDD8, 0), Sprite(0xDEDF84, 0), Sprite(0x123450, 5)];
         NativeBattleFireInputs inputs = new(0, packets, NativeCrtRandomState.FromColdProcess(), model => new((short)(model * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);

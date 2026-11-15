@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -11,7 +12,7 @@ public sealed class NativeBattleScanAlternateTests
         var fixture = Fixture(0x850B40);
         NativeBattleScanAlternateFrame frame = Alternate(fixture.Scan);
         frame = Tick(frame, fixture);
-        Assert.Equal((ushort)0x7825, frame.Models[4].Flags0);
+        Assert.Equal((ushort)0x7825, frame.Models.Get(OriginalOwner(4)).Flags0);
         Assert.Equal((ushort)1, frame.Highlight269AA90);
         Assert.Equal((ushort)2, frame.Camera.Scan.Effect.Pools[2].Slots[1].ReadWord(0x68));
         for (int index = 0; index < 45; index++)
@@ -45,7 +46,7 @@ public sealed class NativeBattleScanAlternateTests
         scan = scan with { Memory = scan.Memory with { Scan = process with { Presentation = process.Presentation with { Camera269A168 = process.Presentation.Camera269A168.WriteWord(0x40, unchecked((ushort)height)).WriteWord(0x44, unchecked((ushort)radius)).WriteWord(0x46, 333) } } } };
         NativeBattleScanAlternateInputs inputs = new(fixture.Packets, actor =>
         {
-            Assert.Equal(4, actor);
+            Assert.Equal(OriginalOwner(4), actor);
             return new(54, Zero(16).WriteByte(0x0E, permission).WriteWord(4, unchecked((ushort)profileY)));
         });
         NativeBattleScanAlternateStep result = NativeBattleScanAlternate.Advance850B40(Alternate(scan) with { Complete269D93A = 1, Highlight269AA90 = 1 }, fixture.Address, inputs);
@@ -73,9 +74,9 @@ public sealed class NativeBattleScanAlternateTests
         NativeBattleScanProcess process = scan.Memory.Scan!;
         scan = scan with { Effect = scan.Effect with { Pools = hierarchy.Pools }, Memory = scan.Memory with { Scan = process with { Presentation = process.Presentation with { Camera269A168 = process.Presentation.Camera269A168.WriteWord(0x3A, unchecked((ushort)angle)) } } } };
         NativeBattleScanAlternateFrame frame = Alternate(scan);
-        frame = frame with { Models = frame.Models.SetItem(4, frame.Models[4] with { Flags0 = 0xFFFF }) };
+        frame = frame with { Models = frame.Models.Set(OriginalOwner(4), frame.Models.Get(OriginalOwner(4)) with { Flags0 = 0xFFFF }) };
         frame = Tick(frame, fixture);
-        Assert.Equal((ushort)0x87FF, frame.Models[4].Flags0);
+        Assert.Equal((ushort)0x87FF, frame.Models.Get(OriginalOwner(4)).Flags0);
         NativeBattleModulePoolTask[] children = Live(frame.Camera.Scan, 2).Where(task => task.Callback != 0x850B40).ToArray();
         Assert.Equal(expected == 0 ? 0 : 1, children.Length);
         if (expected != 0)
@@ -159,7 +160,7 @@ public sealed class NativeBattleScanAlternateTests
         Assert.Equal((byte)3, Read(final.Frame.Scan, fixture.Address).ReadByte(0x29));
     }
 
-    private static NativeBattleScanAlternateFrame Alternate(NativeBattleScanFrame scan) => new(new(scan, Zero(8), Zero(8), 1), Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0x25)).ToImmutableArray(), 0, 0, 0);
+    private static NativeBattleScanAlternateFrame Alternate(NativeBattleScanFrame scan) => new(new(scan, Zero(8), Zero(8), 1), Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0x25)).ToImmutableArray(), 0, 0, 0);
     private static NativeBattleScanAlternateFrame Tick(NativeBattleScanAlternateFrame frame, (NativeBattleScanFrame Scan, uint Address, NativeBattleActionPacketsState Packets) fixture) => NativeBattleScanAlternate.Advance850B40(frame, fixture.Address, new(fixture.Packets, _ => new(0, Zero(16)))).Frame;
     private static NativeBattleScanByteOwner Zero(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());
     private static NativeBattleModulePoolTask Read(NativeBattleScanFrame scan, uint address) => new NativeBattleEffectHierarchy(scan.Effect.Pools).Read(address);
@@ -173,15 +174,15 @@ public sealed class NativeBattleScanAlternateTests
 
     private static (NativeBattleScanFrame Scan, uint Address, NativeBattleActionPacketsState Packets) Fixture(uint callback, int pool = 2)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 50, 40, null));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 50, 40, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(2, 1, 16, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleScanFrame scan = NativeBattleScanController.Initialize84D030(NativeBattleEffectMemory.FromColdProcess(), effect, packets);
         NativeBattleEffectHierarchy hierarchy = new(scan.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, callback, pool == 2 ? (ushort)0x78 : (ushort)0x6C, hierarchy.Address(0, 0), (_, _, _) => new(2, 4));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, callback, pool == 2 ? (ushort)0x78 : (ushort)0x6C, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(2, 4));
         return (scan with { Effect = scan.Effect with { Pools = appended.Hierarchy.Pools } }, appended.Address, packets);
     }
 }

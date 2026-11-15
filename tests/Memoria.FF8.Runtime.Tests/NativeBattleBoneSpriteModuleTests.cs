@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -10,7 +11,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
     public void Selector4InitializesOnlyItsNativeWordsAndModelPointer()
     {
         NativeBattleModuleState original = RetainedPool();
-        NativeBattleModuleState state = original.AppendModelEffect(6, 4);
+        NativeBattleModuleState state = original.AppendModelEffect(OriginalOwner(6), 4, OriginalAliases);
         Assert.Equal(NativeBattleModuleKind.BoneSpriteSeed573560, state.Slots[0].Kind);
         Assert.Equal((ushort)0, Word(state.Slots[0].Payload, 0));
         Assert.Equal((ushort)0, Word(state.Slots[0].Payload, 2));
@@ -21,11 +22,11 @@ public sealed class NativeBattleBoneSpriteModuleTests
     [Fact]
     public void FirstUnpausedCallbackPublishesBothPositionedSoundsWithoutCrtOrSkeletonReads()
     {
-        NativeBattleModuleStep step = NativeBattleModuleState.Clear().AppendModelEffect(2, 4).Advance(new(0)
+        NativeBattleModuleStep step = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(2), 4, OriginalAliases).Advance(new(0)
         {
             ReadModelAnchor = model =>
             {
-                Assert.Equal(2, model);
+                Assert.Equal(OriginalOwner(2), model);
                 return new(1, -2, 3, 4);
             }
         });
@@ -44,7 +45,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
     [Fact]
     public void PausedSeedReadsNothingAndPreservesRetainedPayload()
     {
-        NativeBattleModuleState state = RetainedPool().AppendModelEffect(0, 4);
+        NativeBattleModuleState state = RetainedPool().AppendModelEffect(OriginalOwner(0), 4, OriginalAliases);
         NativeBattleModuleStep step = state.Advance(new(1));
         Assert.Equal(JsonSerializer.Serialize(state with { PublishedCount = 1 }), JsonSerializer.Serialize(step.State));
         Assert.Empty(step.Draws);
@@ -65,7 +66,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
             ReadModelBoneCount = _ => bones,
             ReadModelBone = (model, bone, fraction) =>
             {
-                Assert.Equal(0, model);
+                Assert.Equal(OriginalOwner(0), model);
                 Assert.Equal((byte)(second % bones), bone);
                 Assert.Equal((short)(first % 4096), fraction);
                 return new(-100, 200, -300);
@@ -102,8 +103,8 @@ public sealed class NativeBattleBoneSpriteModuleTests
                 return new(200, -300, 400);
             }
         };
-        NativeBattleModuleState ordinary = RetainedPool().AppendModelEffect(0, 4).Advance(inputs).State;
-        NativeBattleModuleState large = RetainedPool().AppendModelEffect(0, 5).Advance(inputs).State;
+        NativeBattleModuleState ordinary = RetainedPool().AppendModelEffect(OriginalOwner(0), 4, OriginalAliases).Advance(inputs).State;
+        NativeBattleModuleState large = RetainedPool().AppendModelEffect(OriginalOwner(0), 5, OriginalAliases).Advance(inputs).State;
         NativeBattleModuleStep first = ordinary.Advance(inputs);
         NativeBattleModuleStep second = large.Advance(inputs);
         Assert.Equal(2, points.Count);
@@ -126,7 +127,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
     [Fact]
     public void Selector5PreservesPhaseZeroSoundAndPausedChildContracts()
     {
-        NativeBattleModuleState state = RetainedPool().AppendModelEffect(0, 5);
+        NativeBattleModuleState state = RetainedPool().AppendModelEffect(OriginalOwner(0), 5, OriginalAliases);
         NativeBattleModuleStep pausedSeed = state.Advance(new(1));
         Assert.Equal(JsonSerializer.Serialize(state with { PublishedCount = 1 }), JsonSerializer.Serialize(pausedSeed.State));
         Assert.Empty(pausedSeed.Draws);
@@ -157,7 +158,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
     [InlineData(short.MaxValue, short.MinValue, false)]
     public void SeedUsesSignedWordPhaseAndWrapsBeforeItsReleaseComparison(short phase, short expected, bool released)
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 4);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 4, OriginalAliases);
         byte[] payload = state.Slots[0].Payload.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(payload, phase);
         state = state with { Slots = state.Slots.SetItem(0, state.Slots[0] with { Payload = payload.ToImmutableArray() }) };
@@ -199,7 +200,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
     [InlineData((byte)5)]
     public void CompletePoolLifetimeAndJsonResumePreserveAll75CrtDraws(byte selector)
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, selector);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), selector, OriginalAliases);
         NativeCrtRandomState random = new(12);
         int frames = 0;
         int children = 0;
@@ -225,7 +226,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
         Assert.Equal(expected, random);
     }
 
-    private static NativeBattleModuleState SeedPhase1(NativeBattleModuleState state) => state.AppendModelEffect(0, 4).Advance(Inputs(new(1))).State;
+    private static NativeBattleModuleState SeedPhase1(NativeBattleModuleState state) => state.AppendModelEffect(OriginalOwner(0), 4, OriginalAliases).Advance(Inputs(new(1))).State;
 
     private static NativeBattleModuleInputs Inputs(NativeCrtRandomState random) => new(0) { CrtRandom = random, ReadModelAnchor = _ => new(10, 20, 30, 40), ReadModelBoneCount = _ => 47, ReadModelBone = (_, _, _) => new(100, 200, 300), Resources = [Sprite()] };
 

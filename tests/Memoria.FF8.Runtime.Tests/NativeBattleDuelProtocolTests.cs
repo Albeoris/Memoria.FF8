@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -85,10 +86,10 @@ public sealed class NativeBattleDuelProtocolTests
         Assert.Equal((byte)1, packet.Primary.Flags2);
         Assert.Equal((ushort)0, packet.Primary.Amount6);
         Assert.Equal(0u, target.NativeCombatantFlags & 0x4000u);
-        Assert.Equal(secondary ? (byte)actor.EncodeNativeSlot() : (byte)255, packet.Secondary.ActorIndex);
+        Assert.Equal(secondary ? (byte)actor.EncodeNativeSlot() : (byte)255, packet.Secondary.Recipient);
         Assert.Equal(secondary ? (byte)1 : (byte)0, packet.Secondary.Flags2);
         BattleNativeAction metadata = NativeBattleDuelRules.Control(actionId, actionId == 65530 ? (ushort)6 : (ushort)0);
-        Assert.Equal(packet.Secondary.ActorIndex != 255, metadata.PresentationSecondarySource);
+        Assert.Equal(packet.Secondary.Recipient != 255, metadata.PresentationSecondarySource);
         Assert.Equal(actionId != 65532, session.Capture().NativeActionScratch!.DeferredEffectsE00);
     }
 
@@ -104,13 +105,13 @@ public sealed class NativeBattleDuelProtocolTests
         BattleNativeAction native = (BattleNativeAction)typeof(BattleSession).GetMethod("CreateNativeDuelControl241", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [actionId, effect])!;
         native = JsonSerializer.Deserialize<BattleNativeAction>(JsonSerializer.Serialize(native))!;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, 241, 0, -1, actionId, effect, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 241, 0, -1, actionId, effect, null));
         (packets, _) = packets.Publish(0);
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, packets);
         Validate(native, 0);
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native with { Power = 1 }, 0)).InnerException);
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native, null)).InnerException);
-        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { Payload = packets.Headers[0].Payload.SetItem(6, (byte)(effect + 1)) }) };
+        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { Payload = packets.ExportRetained().Headers[0].Payload.SetItem(6, (byte)(effect + 1)) }) };
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, packets);
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native, 0)).InnerException);
 

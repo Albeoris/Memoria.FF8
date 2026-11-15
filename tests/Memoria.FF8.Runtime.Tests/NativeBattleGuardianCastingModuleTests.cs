@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -10,7 +11,7 @@ public sealed class NativeBattleGuardianCastingModuleTests
     public void Guardian_casting_uses_its_own_sound_pair_and_same_pass_particle_trails()
     {
         NativeCrtRandomState random = new(7);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 1);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 1, OriginalAliases);
         NativeBattleModuleStep paused = state.Advance(Inputs(random) with { GraphicsFlags = 1 });
         // 508420 publishes the surviving list count even when 5742A0 itself is paused.
         Assert.Equal(JsonSerializer.Serialize(state with { PublishedCount = 1 }), JsonSerializer.Serialize(paused.State));
@@ -38,7 +39,7 @@ public sealed class NativeBattleGuardianCastingModuleTests
     {
         NativeCrtRandomState initial = new(17);
         NativeCrtRandomState random = initial;
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 1);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 1, OriginalAliases);
         int callbacks = 0;
         while (state.Head is not null && callbacks < 50)
         {

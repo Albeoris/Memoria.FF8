@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -8,7 +9,7 @@ public sealed class NativeBattleChoco100DirectorTests
     [Fact]
     public void Context_ingress_reuses_proved_enemy_centroid_clamp_in_one54_byte_owner()
     {
-        NativeBattleGraphicsModel Model(int index) => new(index, 3)
+        NativeBattleGraphicsModel Model(int index) => new(3)
         {
             Flags0 = index is 0 or 3 or 5 ? (ushort)2 : (ushort)0,
             Transform = new(new(0, 0, 0), index switch { 0 => new(30000, 999, 30000), 3 => new(-100, 999, -301), 5 => new(25, 999, 100), _ => new(0, 0, 0) }, 0, 0, 4096)
@@ -57,7 +58,7 @@ public sealed class NativeBattleChoco100DirectorTests
             return frame with { Context = frame.Context.WriteWord(0x44, 10) };
         } } };
         NativeBattleChoco97DirectorStep step = NativeBattleChoco100Director.Advance70F370(Mode(Frame(23), 8, 9, 9), inputs);
-        Assert.Equal(new NativeBattleChoco97DirectorOperation[] { new NativeBattleChoco100AppendContactSecondary(3), new NativeBattleChoco100AppendContactSecondary(3), new NativeBattleChoco100AppendContactSecondary(6) }, operations);
+        Assert.Equal(new NativeBattleChoco97DirectorOperation[] { new NativeBattleChoco100AppendContactSecondary(OriginalOwner(3)), new NativeBattleChoco100AppendContactSecondary(OriginalOwner(3)), new NativeBattleChoco100AppendContactSecondary(OriginalOwner(6)) }, operations);
         Assert.Equal((ushort)9, step.Frame.Context.Word(0x40));
         Assert.Equal((ushort)10, step.Frame.Context.Word(0x42));
         Assert.Equal((ushort)0, step.Frame.Context.Word(0x46));
@@ -100,7 +101,7 @@ public sealed class NativeBattleChoco100DirectorTests
         Assert.Equal((ushort)100, step.Frame.Task.ReadWord(0x44));
         for (int callback = 1; callback <= 82; callback++)
         {
-            NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97DirectorFrame>(NativeBattleTestSnapshots.Json(step.Frame))!;
+            NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.Independent(step.Frame);
             NativeBattleChoco97DirectorStep next = Advance(step.Frame, []);
             Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Advance(restored, [])));
             Assert.Equal(callback == 82 ? (ushort)1 : (ushort)0, next.Frame.Context.Word(0x48));
@@ -162,7 +163,7 @@ public sealed class NativeBattleChoco100DirectorTests
         Assert.Throws<NotSupportedException>(() => Advance(Frame(24), []));
     }
 
-    private static NativeBattleContactPacket Contact(byte actor) => new(new(actor, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static NativeBattleContactPacket Contact(byte actor) => new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null);
     private static NativeBattleChoco97DirectorFrame Frame(byte phase) => new(new NativeBattleModulePoolTask(1, 0, null, NativeBattleChoco100Director.Callback, new byte[0x48 - 12].ToImmutableArray()).WriteByte(0x29, phase), NativeBattleChoco100Context.Clear70F290());
     private static NativeBattleChoco97DirectorFrame Mode(NativeBattleChoco97DirectorFrame frame, ushort current, ushort published, ushort requested) => frame with { Context = frame.Context.WriteWord(0x40, current).WriteWord(0x42, published).WriteWord(0x44, requested) };
     private static NativeBattleChoco97DirectorStep Advance(NativeBattleChoco97DirectorFrame frame, List<NativeBattleChoco97DirectorOperation> operations) => NativeBattleChoco100Director.Advance70F370(frame, Inputs(operations));

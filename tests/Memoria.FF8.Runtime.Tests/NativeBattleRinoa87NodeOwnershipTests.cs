@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -75,7 +76,7 @@ public sealed class NativeBattleRinoa87NodeOwnershipTests
         return step;
     }
 
-    private static NativeBattleGraphicsModel Model(int actor) => new(actor, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = new(new(-1, -1, -1), new(1, 1, 1)) };
+    private static NativeBattleGraphicsModel Model(int actor) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = new(new(-1, -1, -1), new(1, 1, 1)) };
 
     private static (NativeBattleRinoa87Frame Frame, uint Address, NativeBattleRinoa87NodeResources Resources, NativeBattleActionPacketsState Packets) Fixture(bool existingSource)
     {
@@ -85,18 +86,18 @@ public sealed class NativeBattleRinoa87NodeOwnershipTests
         BinaryPrimitives.WriteUInt32LittleEndian(resource.AsSpan(8), 0x1158);
         BinaryPrimitives.WriteUInt32LittleEndian(resource.AsSpan(12), 0x12B0);
         NativeBattleRinoa87NodeResources resources = new(resource.ToImmutableArray());
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 19, 0, -1, 1, 87, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 19, 0, -1, 1, 87, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 100, 1), NativeBattleEffectTaskPool.Initialize(0x3000, 0x4000, 676, 1)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x773A10, 100);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteWord(90, 1));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(1, 0x779050, 676, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(1, 0x779050, 676, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteDword(48, NativeBattleRinoa87NodeResources.Address).WriteWord(668, 4));
         NativeBattleRinoa87State state = NativeBattleRinoa87Storage.FromColdProcess() with { Scene = new(NativeBattleEffectArena.CreateUnknown(84).Write(0, new byte[84])), NodeData = existingSource ? new(resources.Data) : null };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Rinoa87 = state };
-        NativeBattleOriginalEffectState effect = new(87, 86, new(87, 1, 0), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(87, 86, new(87, 1, 0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         return (new(memory, effect, state), child.Address, resources, packets);
     }
 }

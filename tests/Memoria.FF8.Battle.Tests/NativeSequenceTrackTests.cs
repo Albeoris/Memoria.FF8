@@ -35,9 +35,9 @@ public sealed class NativeSequenceTrackTests
         if (gameplayWait)
         {
             BattleSnapshot waiting = battle.Capture();
-            battle = RestoreFromJson(waiting with { NativeScriptState = waiting.NativeScriptState with { Tasks = waiting.NativeScriptState.Tasks.AppendWait(5) } });
+            battle = BattleSession.Restore(waiting with { NativeScriptState = waiting.NativeScriptState with { Tasks = waiting.NativeScriptState.Tasks.AppendWait(5) } });
         }
-        BattleSession restored = RestoreFromJson(battle.Capture());
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int index = 0; index < 3; index++)
         {
             battle.Tick();
@@ -65,7 +65,7 @@ public sealed class NativeSequenceTrackTests
     }
 
     [Fact]
-    public void NativeGraphicsPacketKeepsItsMagicByteSequenceAndPreviousTargetMaskAcrossRestore()
+    public void NativeGraphicsPacketKeepsItsMagicByteSequenceAndPreviousTargetAcrossRestore()
     {
         NativeBattleAiDefinition ai = new([[5, 2, 30, 143, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) { SequenceTracks = [new(2, [0xA1, 0xA1, 0xAA, 0xA2], [], 2)] };
         BattleSession battle = new(new BattleDefinition
@@ -81,17 +81,17 @@ public sealed class NativeSequenceTrackTests
         }, BattleAtbMode.Normal);
         battle.Tick();
         BattleSnapshot queued = battle.Capture();
-        BattleAttackCommand packet = Assert.Single(queued.QueuedActions, command => command.NativeHeaderIndex is not null);
+        BattleAttackCommand packet = Assert.Single(queued.QueuedActions, command => command.NativeHeader is not null);
         Assert.Equal((byte)252, packet.NativeQueuedCommand);
         Assert.Equal(1, packet.ActionId);
         Assert.Equal((byte)143, packet.NativeGraphic!.MagicId);
-        Assert.Equal((ushort)0x4000, packet.NativeTargetMask);
-        Assert.Equal((ushort)0, queued.Combatants[1].NativeParticipant!.PreviousTargetMask);
+        Assert.Equal((ushort)0x4000, NativeBattleTargetRequestAdapter.ProjectOriginalWord(packet.TargetRequest, _ => null));
+        Assert.Equal(NativeBattleTargetRequestAdapter.CapturePrevious(0), queued.Combatants[1].NativeParticipant!.PreviousTarget);
         Assert.True(queued.Combatants[1].Atb > 0);
         Assert.Null(queued.Combatants[1].NativeAtb);
-        BattleAttackCommand[] missingHeader = queued.QueuedActions.Select(command => command == packet ? command with { NativeHeaderIndex = null, NativeEventOwner = null } : command).ToArray();
-        Assert.Throws<InvalidDataException>(() => RestoreFromJson(queued with { QueuedActions = missingHeader }));
-        BattleSession restored = RestoreFromJson(queued);
+        BattleAttackCommand[] missingHeader = queued.QueuedActions.Select(command => command == packet ? command with { NativeHeader = null, NativeEventOwner = null } : command).ToArray();
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(queued with { QueuedActions = missingHeader }));
+        BattleSession restored = BattleSession.Restore(queued);
         string random = JsonSerializer.Serialize(queued.Random);
         for (int frame = 0; frame < 3; frame++)
         {
@@ -141,11 +141,6 @@ public sealed class NativeSequenceTrackTests
     private static BattleNativeAction Action(byte type)
     {
         return new(8, 0, 2, 0) { Name = "Control", MagicId = 0, AttackType = type, Power = 0, HitCount = 1, TargetFlags = 0x50, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
-    }
-
-    private static BattleSession RestoreFromJson(BattleSnapshot snapshot)
-    {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
     }
 
     private static void ContinueThroughCompletion(BattleSession battle, BattleSession restored)

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -50,12 +51,12 @@ public sealed class NativeBattleLifeResourcesTests
         NativeBattleLifeResources resources = game.ReadNativeLifeResources(effectId);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effectId, game.ReadNativeEffectCatalogForEffects([effectId]));
         var initialized = NativeBattleOriginalEffects.Initialize(game.ReadColdProcessNativeBattleMemory().EffectMemory!, selected);
-        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(0, flags, 8, 0, 0, 0) };
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(OriginalOwner(0), flags, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) };
+        NativeBattleActionPacketsState packets = OriginalPackets();
         //Controlled physical header exercises entry upload policy, independently of command/formula admission.
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 24, effectId, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 24, effectId, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleLifeFrame frame = NativeBattleLifeController.Initialize8649C0(initialized.Memory, effect, packets, resources);
         NativeBattleLifeProfile profile = NativeBattleLifeProfile.ForEntry(effect.Binding.Entry);

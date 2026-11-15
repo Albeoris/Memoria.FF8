@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -20,7 +21,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(1, cpu.Cpu.Banks[1].Write(0, [11, 22, 33, 44])) } };
         NativeBattleModelCpuBank pinned = cpu.Cpu.Banks[1];
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(0, 1, 0, 0, 0) with { PartyPlan = plan };
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, 0) with { PartyPlan = plan };
         (loader, cpu, staging) = Complete(loader, cpu, staging, body, null);
         Assert.Null(loader.Task);
         Assert.NotNull(loader.PartyPlan);
@@ -33,7 +34,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         Assert.DoesNotContain("Bytes", json);
         loader = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelLoader>(json);
         loader.Validate();
-        loader = NativeBattleModelLoader.Queue507080(0x1000, 1, 0, 0, 0) with { PartyPlan = loader.PartyPlan };
+        loader = NativeBattleModelLoader.Queue507080(0x1000, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, 0) with { PartyPlan = loader.PartyPlan };
         (loader, cpu, staging) = Complete(loader, cpu, staging, linked, 1);
         Assert.Null(loader.PartyPlan);
         Assert.True(cpu.Rows[1].Require(16).ResourceOnly);
@@ -52,7 +53,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
         Assert.Throws<NotSupportedException>(() => NativeBattlePartyLoadPlan.Create(0, 1, 0, 0, NativeBattlePartyCpuLayout.Classic, [body]));
         NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(0, 1, 0, 0, NativeBattlePartyCpuLayout.Classic, [body, linked]);
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(0, 1, 0, 0, 0) with { PartyPlan = plan };
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, 0) with { PartyPlan = plan };
         NativeBattleModelDatSource changed = body with { Bytes = body.Bytes.SetItem(body.Bytes.Length - 1, 42) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         Assert.Throws<InvalidDataException>(() => loader.Poll507070(-1, [changed], staging));
@@ -73,7 +74,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, NativeBattlePartyCpuLayout.Classic.BankLength);
         NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(0, 1, 0, 0, NativeBattlePartyCpuLayout.Classic, [body, linked]);
-        NativeBattleModelLoadTask task = NativeBattleModelLoader.Queue507080(0, 1, 0, 0, 0).Task!;
+        NativeBattleModelLoadTask task = NativeBattleModelLoader.Queue507080(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, 0).Task!;
         Assert.Throws<InvalidDataException>(() => plan.Part(task with { PhysicalIndex = 0 }));
         Assert.Throws<InvalidDataException>(() => plan.Part(task with { Selector = 1 }));
         NativeBattleGraphicsState loading = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(1, new(1, 1)), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
@@ -81,7 +82,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, 1, loading);
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, 1, loading with { Models = loading.Models.SetItem(1, new(1, 3)) }));
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, 1, loading with { Effects = loading.Effects with { PublishedCount = 1 } }));
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(0, 1, 0, 0, 0) with { PartyPlan = plan };
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, 0) with { PartyPlan = plan };
         NativeBattleModelLoadStep request = loader.Poll507070(-1, [body], NativeBattleFileStaging.Unknown());
         NativeBattleModelLoadStep prepared = request.State.Poll507070(body.Bytes.Length, [], request.Staging);
         NativeBattleModelLoadStep loaded = prepared.State.Poll507070(body.Bytes.Length, [], prepared.Staging);
@@ -181,7 +182,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         Assert.Equal(new byte[] { 11, 22, 33, 44 }, held.Read(0, 4));
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelLoader))!.SetValue(battle, loader);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(battle, cpu);
-        graphics = graphics with { Models = graphics.Models.SetItem(1, graphics.Models[1] with { TextureResourceIndex = 0 }) };
+        graphics = graphics with { Models = graphics.Models.SetItem(1, ReadOriginalModelCell(graphics, 1) with { TextureResourceIndex = 0 }) };
         queue.Invoke(battle, [graphics, (ushort)0x1000, (byte)1, 0u]);
         (loader, cpu, staging) = Complete(battle.NativeModelLoader!, cpu, staging, linked, 1);
         Assert.Equal(!active, cpu.Rows[1].Require(16).ResourceOnly);
@@ -198,7 +199,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         else
         {
             typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(battle, cpu);
-            NativeBattleGraphicsState activeLogical = graphics with { Models = graphics.Models.SetItem(1, graphics.Models[1] with { Flags0 = 3 }), Effects = graphics.Effects with { PublishedCount = 1 } };
+            NativeBattleGraphicsState activeLogical = graphics with { Models = graphics.Models.SetItem(1, ReadOriginalModelCell(graphics, 1) with { Flags0 = 3 }), Effects = graphics.Effects with { PublishedCount = 1 } };
             queue.Invoke(battle, [activeLogical, (ushort)0, (byte)1, 0u]);
             Assert.True(battle.NativeModelLoader!.PartyPlan!.UseResourceStorage);
             NativeBattleModelCpuResources beforeReload = cpu;

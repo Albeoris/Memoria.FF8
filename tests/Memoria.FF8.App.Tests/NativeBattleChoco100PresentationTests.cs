@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -28,13 +29,13 @@ public sealed class NativeBattleChoco100PresentationTests
         int queued = Assert.Single(source.NativeGraphics!.Descriptors.Queue, slot => source.NativeGraphics.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(source.NativeGraphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(offset / 20))];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)5, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)100, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)5, header.Action);
+        Assert.Equal((ushort)100, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.Equal((ushort)100, Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 5).MagicId);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
@@ -208,7 +209,7 @@ public sealed class NativeBattleChoco100PresentationTests
                 foreach (NativeBattleModulePoolTask wave in Tasks(after, 0x716C20, false))
                 {
                     wavePhases.Add(wave.ReadByte(0x29));
-                    sawHiddenActor |= (current.NativeGraphics.Models[wave.ReadByte(0x2D)].Flags0 & 4) != 0;
+                    sawHiddenActor |= (ReadOriginalModelCell(current.NativeGraphics, wave.ReadByte(0x2D)).Flags0 & 4) != 0;
                 }
                 foreach (uint callback in new uint[] { 0x70F5F0, 0x7163D0, 0x716840, 0x716950 })
                 {

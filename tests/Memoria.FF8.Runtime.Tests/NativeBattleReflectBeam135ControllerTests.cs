@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleReflectBeam135Profile;
@@ -30,7 +31,7 @@ public sealed class NativeBattleReflectBeam135ControllerTests
         var actual = NativeBattleReflectBeam135Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         Assert.Equal(2, actual.Result);
         Assert.Equal((ushort)90, NativeBattleReflectBeam135Controller.Read(actual.Frame, RootBank).ReadWord(12));
-        Assert.Collection(f.Operations, value => Assert.Equal(new NativeBattleReflectBeam135ComposeCaster(0), value), value => Assert.Equal(new NativeBattleReflectBeam135RestoreCaster(0), value));
+        Assert.Collection(f.Operations, value => Assert.Equal(new NativeBattleReflectBeam135ComposeCaster(OriginalOwner(0)), value), value => Assert.Equal(new NativeBattleReflectBeam135RestoreCaster(OriginalOwner(0)), value));
     }
 
     [Fact]
@@ -153,18 +154,18 @@ public sealed class NativeBattleReflectBeam135ControllerTests
             (pools[1], _) = pools[1].Append(MainCallback);
             pools[0] = NativeBattleTaskFixture.EditPool(pools[0], data => data with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) });
             pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteBytes(12, new byte[724])) });
-            NativeBattleOriginalEffectState effect = new(135, 134, new(135, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(135, 134, new(135, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             Frame = new(memory, effect, new(55), NativeBattleReflectBeam135State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, ModelAddress(0))) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 8, 177, 0, 15, 135, null));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 177, 0, 15, 135, null));
             foreach (byte actor in new byte[] { 3, 4, 3 })
             {
-                (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(3);
-            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(actor, 2) { Transform = new(new(0, 0, 0), new(unchecked((short)(actor == 4 ? -1000 : 1000)), 0, 0), 0, 300, 4096) }, _ => NativeBattlePackedMatrix32.FromMatrix(identity with { X = 10, Y = 20, Z = 30 }, null), (frame, _) => new(frame, new(30000, 30000, 30000, 123)), (frame, _, _, _) => new(frame, new(100, 200, 300)), (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(identity with { Y = 1000 }, null), (frame, _, source, offset, size, context) =>
+            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2) { Transform = new(new(0, 0, 0), new(unchecked((short)(actor == 4 ? -1000 : 1000)), 0, 0), 0, 300, 4096) }, _ => NativeBattlePackedMatrix32.FromMatrix(identity with { X = 10, Y = 20, Z = 30 }, null), (frame, _) => new(frame, new(30000, 30000, 30000, 123)), (frame, _, _, _) => new(frame, new(100, 200, 300)), (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(identity with { Y = 1000 }, null), (frame, _, source, offset, size, context) =>
             {
                 Acts.Add((source.Address, offset, size, context));
                 return new(frame with { State = frame.State.WriteDword(CursorGlobal, frame.State.ReadDword(CursorGlobal) + 1) }, Remaining);

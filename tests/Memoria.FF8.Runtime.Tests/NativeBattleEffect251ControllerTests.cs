@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect251Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect251Profile;
@@ -113,7 +114,7 @@ public sealed class NativeBattleEffect251ControllerTests
         (main, _) = main.Append(MainCallback);
         main = main.WriteSlot(0, main.Slots[0].WriteWord(12, unchecked((ushort)phase)));
         state = state.DetachCommonQueue(MainDescriptor);
-        NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [main] };
+        NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [main] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [main]), effect, new(42), state);
     }

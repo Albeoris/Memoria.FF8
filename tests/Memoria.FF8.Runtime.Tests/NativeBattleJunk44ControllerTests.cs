@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleJunk44Controller;
@@ -53,7 +54,7 @@ public sealed class NativeBattleJunk44ControllerTests
         var packets = Packets(2);
         var frame = Initialize(Inactive(), Resources(), Inputs([], packets));
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(0x0C, 1));
-        List<uint> anchors = [];
+        List<BattleModelOwner> anchors = [];
         var inputs = Inputs([], packets) with
         {
             ReadAnchor571400 = (current, model) =>
@@ -65,7 +66,7 @@ public sealed class NativeBattleJunk44ControllerTests
         var expected = frame.Random.Draw(out ushort seed);
         frame = AdvanceTask(frame, RootBank, Resources(), inputs).Frame;
         uint main = Pools[4].Bank;
-        Assert.Equal(new[] { ModelAddressFor(0), ModelAddressFor(1) }, anchors);
+        Assert.Equal(new[] { OriginalOwner(0), OriginalOwner(1) }, anchors);
         Assert.Equal(unchecked((ushort)-2768), Read(frame, main).ReadWord(0x44));
         Assert.Equal((ushort)2768, Read(frame, main).ReadWord(0x46));
         Assert.Equal((ushort)13, Read(frame, main).ReadWord(0x48));
@@ -80,8 +81,7 @@ public sealed class NativeBattleJunk44ControllerTests
     [Fact]
     public void Setup_rejects_native_zero_divisor_instead_of_inventing_mean_anchor()
     {
-        var packets = Packets(1);
-        packets = SetCount(packets, 0);
+        var packets = Packets(1, declaredCount: 0);
         var frame = Initialize(Inactive(), Resources(), Inputs([], packets));
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(0x0C, 1));
         Assert.Throws<NotSupportedException>(() => AdvanceTask(frame, RootBank, Resources(), Inputs([], packets)));
@@ -178,7 +178,7 @@ public sealed class NativeBattleJunk44ControllerTests
         List<NativeBattleJunk44Operation> operations = [];
         frame = AdvanceTask(frame, Pools[4].Bank, Resources(), Inputs(operations)).Frame;
         var write = Assert.Single(operations.OfType<NativeBattleJunk44ModelPositionY>());
-        Assert.Equal(ModelAddressFor(0), write.ModelAddress);
+        Assert.Equal(OriginalOwner(0), write.Owner);
         Assert.Empty(operations.OfType<NativeBattleJunk44RestoreModelPosition>());
         frame = Write(frame, Pools[4].Bank, Read(frame, Pools[4].Bank).WriteWord(0x0C, 99));
         operations.Clear();
@@ -186,7 +186,7 @@ public sealed class NativeBattleJunk44ControllerTests
         Assert.Equal(2, actual.Result);
         Assert.Equal((ushort)100, Read(actual.Frame, Pools[4].Bank).ReadWord(0x0C));
         var restore = Assert.Single(operations.OfType<NativeBattleJunk44RestoreModelPosition>());
-        Assert.Equal(ModelAddressFor(0), restore.ModelAddress);
+        Assert.Equal(OriginalOwner(0), restore.Owner);
         Assert.Equal(PointView(new(100, 200, 300), 444).Read(0, 8), restore.Point8.Read(0, 8));
     }
 
@@ -225,7 +225,7 @@ public sealed class NativeBattleJunk44ControllerTests
         {
             ReadAnchor571400 = (current, model) =>
             {
-                Assert.Equal(ModelAddressFor(0), model);
+                Assert.Equal(OriginalOwner(0), model);
                 anchors++;
                 return new(current with { Memory = current.Memory with { SharedEffectView2793E58 = view } }, PointView(new(101, -202, 303)));
             }
@@ -255,7 +255,7 @@ public sealed class NativeBattleJunk44ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Equal(BitConverter.GetBytes((ushort)0xA55A), actual.Memory.Arena!.Read(0x1280, 2));
         Assert.Equal(1, actual.Memory.Arena!.Read(0x1240, 1)[0] & 1);
-        actual = NativeBattleTestSnapshots.RestoreJson<NativeBattleJunk44Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        actual = NativeBattleTestSnapshots.Independent(actual);
         actual = Initialize(actual, Resources(), Inputs([]));
         Assert.Single(actual.Effect.Pools);
         Assert.Equal(BitConverter.GetBytes((ushort)0xA55A), actual.Memory.Arena!.Read(0x1280, 2));
@@ -284,7 +284,7 @@ public sealed class NativeBattleJunk44ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) };
-        NativeBattleOriginalEffectState effect = new(44, 43, new(44, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(44, 43, new(44, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleJunk44State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -298,35 +298,30 @@ public sealed class NativeBattleJunk44ControllerTests
         });
     }
 
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner owner)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
-        return new(actor, 2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor), (short)(200 + actor), (short)(300 + actor)), (short)(444 + actor), 777, 4096) };
+        int actor = OriginalSlot(owner);
+        return new(2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor), (short)(200 + actor), (short)(300 + actor)), (short)(444 + actor), 777, 4096) };
     }
 
     private static uint ModelAddressFor(int actor) => 0x1D972C0u + (uint)(actor * 156);
 
-    private static NativeBattleActionPacketsState Packets(int count)
+    private static NativeBattleActionPacketsState Packets(int count, int? declaredCount = null)
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 226, 44, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 226, 44, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
-        (packets, _) = packets.Prepare(new(3, 8, 15, -1, 226, 44, null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 226, 44, null));
         for (int index = 0; index < count; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)index, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index), 4, 0, 0, 0, 7, 0), null));
         }
-        (packets, _) = packets.Publish(checked((byte)count));
-        return packets.WritePlayerRepeatMode(1, 1);
+        (packets, _) = packets.Publish(declaredCount ?? count);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 
-    private static NativeBattleActionPacketsState SetCount(NativeBattleActionPacketsState packets, byte count)
-    {
-        NativeBattleActionHeaderSlot header = packets.Headers[1];
-        return packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, count), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) }) };
-    }
 
     private static NativeBattleJunk44Resources Resources() => NativeBattleJunk44StateTests.Resources();
 }

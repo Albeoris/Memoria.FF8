@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -60,7 +61,7 @@ public static class NativeBattleScanTarget
                     }
                 }
                 uint? primaryPointer = inputs.Packets.ModelAliases.EncodeAddress(selection.Primary) is { } nativeAddress ? BinaryPrimitives.ReadUInt32LittleEndian(nativeAddress.AsSpan()) : null;
-                frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { ScanSelectedModel = selection.Primary, ScanSelectedTargets = selection.Targets }, Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Selection269A1BC = selected, PrimaryModel269CE30 = primaryPointer } } } } };
+                frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { ScanSelectedModel = selection.Primary, ScanSelectionValues = selection.Targets.Enumerate().ToImmutableDictionary(owner => owner, _ => 1u) }, Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Selection269A1BC = selected, PrimaryModel269CE30 = primaryPointer } } } } };
                 BattleContactCursor groupContact = inputs.Packets.ReadHeader(parameters.Header).FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                 uint callback = (inputs.Packets.ReadContact(groupContact).Primary.Flags2 & 2) == 0 ? 0x84D4B0u : 0x850B40u;
                 hierarchy = hierarchy.Append8DC540(2, callback, 0x78, address, (pointer, group, actor) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, actor)).Hierarchy;

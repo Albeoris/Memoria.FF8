@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleMiniPulseCannon286Controller;
@@ -129,7 +130,7 @@ public sealed class NativeBattleMiniPulseCannon286LowerTests
         var frame = Frame();
         var actual = UpdateMuzzle67A770(frame, resources, Inputs() with { ReadCurrentBoneMatrix = (_, model, bone) =>
         {
-            Assert.Equal(0x1D97530u, model);
+            Assert.Equal(OriginalOwner(4), model);
             Assert.Equal(2, bone);
             reads++;
             return NativeBattlePackedMatrix32.FromMatrix(matrix, null);
@@ -196,5 +197,5 @@ public sealed class NativeBattleMiniPulseCannon286LowerTests
         var memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity.ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = identity };
         return new(memory, effect, new(123), NativeBattleMiniPulseCannon286State.FromColdProcess().WriteDword(CasterGlobal, 0x1D97530)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleMiniPulseCannon286Inputs Inputs(Func<NativeBattleMiniPulseCannon286Frame, NativeBattleMiniPulseCannon286Operation, NativeBattleMiniPulseCannon286Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    private static NativeBattleMiniPulseCannon286Inputs Inputs(Func<NativeBattleMiniPulseCannon286Frame, NativeBattleMiniPulseCannon286Operation, NativeBattleMiniPulseCannon286Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));
 }

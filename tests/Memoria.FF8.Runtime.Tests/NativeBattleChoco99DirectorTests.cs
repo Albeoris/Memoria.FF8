@@ -11,7 +11,7 @@ public sealed class NativeBattleChoco99DirectorTests
     [InlineData(100, 201, 150)]
     public void Context_shares_signed_enemy_centroid_then_clamps_only_nonpositive_targetX(short first, short second, ushort expected)
     {
-        NativeBattleGraphicsModel Model(int index) => new(index, 3)
+        NativeBattleGraphicsModel Model(int index) => new(3)
         {
             Flags0 = index is 0 or 3 or 5 ? (ushort)2 : (ushort)0,
             Transform = new(new(0, 0, 0), index switch { 0 => new(30000, 999, 30000), 3 => new(first, 999, -301), 5 => new(second, 999, 100), _ => new(0, 0, 0) }, 0, 0, 4096)
@@ -135,7 +135,7 @@ public sealed class NativeBattleChoco99DirectorTests
         Assert.Empty(operations);
         Assert.Equal((byte)2, held.Frame.Task.ReadByte(0x29));
         frame = Mode(Frame(5), 0, 0, 0);
-        NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97DirectorFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleChoco97DirectorStep advanced = Advance(frame, []);
         Assert.Equal(NativeBattleTestSnapshots.Json(advanced), NativeBattleTestSnapshots.Json(Advance(restored, [])));
         Assert.Equal((ushort)1, advanced.Frame.Context.Word(0x44));

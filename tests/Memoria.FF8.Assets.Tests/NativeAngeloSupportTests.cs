@@ -167,9 +167,9 @@ public sealed class NativeAngeloSupportTests
         Assert.Equal((ushort)0x4001, queued.NativeTargetMask);
         Assert.NotNull(queued.NativeHeaderIndex);
         BattleSnapshot prepared = battle.Capture();
-        NativeBattleActionHeaderSlot header = prepared.NativeActionPackets!.Headers[queued.NativeHeaderIndex!.Value];
-        Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)13, NativeBattleActionGraphics.Word(header, 4));
+        NativeBattleActionHeaderSlot header = prepared.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(queued.NativeHeaderIndex!.Value));
+        Assert.Equal((byte)240, header.Command);
+        Assert.Equal((ushort)13, header.Action);
         NativeBattleContactPacket contact = prepared.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);

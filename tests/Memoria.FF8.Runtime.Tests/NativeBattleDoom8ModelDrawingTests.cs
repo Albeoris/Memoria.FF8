@@ -121,7 +121,7 @@ public sealed class NativeBattleDoom8ModelDrawingTests
     {
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleEffectLocalBounds bounds = new(new(-100, 0, -100), new(100, 0, 100));
-        NativeBattleGraphicsModel actor = new(3, 3) { GeometryWorldMatrix = identity, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = bounds, Color44 = 0x32808080 };
+        NativeBattleGraphicsModel actor = new(3) { GeometryWorldMatrix = identity, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = bounds, Color44 = 0x32808080 };
         NativeBattleShadowSource source = new(identity, new(4096, 0, 4096), Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 10).ToImmutableArray());
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown());
         NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown());

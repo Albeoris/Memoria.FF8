@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -14,9 +15,9 @@ public sealed class NativeBattleCureParticleTests
         NativeBattleCureParticleStep step = Advance(fixture.Frame, fixture.Address, fixture.Inputs, operations);
         Assert.Equal(fixture.Inputs.CrtRandom, step.CrtRandomAfter);
         Assert.Collection(operations,
-            operation => Assert.Equal(new NativeBattleCureActorInitializeOperation(3), operation),
-            operation => Assert.Equal(new NativeBattleCureActorVisibilityOperation(3, true), operation),
-            operation => Assert.Equal(new NativeBattleCureActorDrawOperation(3, new(100, 191, 300), 191), operation),
+            operation => Assert.Equal(new NativeBattleCureActorInitializeOperation(OriginalOwner(3)), operation),
+            operation => Assert.Equal(new NativeBattleCureActorVisibilityOperation(OriginalOwner(3), true), operation),
+            operation => Assert.Equal(new NativeBattleCureActorDrawOperation(OriginalOwner(3), new(100, 191, 300), 191), operation),
             operation => Assert.Equal(0x1641F78u, Assert.IsType<NativeBattleCureSpriteOperation>(operation).Draw.Resource!.Address),
             operation => Assert.Equal(0x1642504u, Assert.IsType<NativeBattleCureSpriteOperation>(operation).Draw.Resource!.Address));
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(fixture.Address);
@@ -56,7 +57,7 @@ public sealed class NativeBattleCureParticleTests
             Assert.Equal((ushort)256, task.ReadWord(0x3C));
         });
         Assert.Equal((byte)7, new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(fixture.Address).ReadByte(0x28));
-        Assert.Equal(new NativeBattleCureActorDrawOperation(3, new(100, 143, 300), 143), Assert.IsType<NativeBattleCureActorDrawOperation>(operations[0]));
+        Assert.Equal(new NativeBattleCureActorDrawOperation(OriginalOwner(3), new(100, 143, 300), 143), Assert.IsType<NativeBattleCureActorDrawOperation>(operations[0]));
     }
 
     [Fact]
@@ -71,7 +72,7 @@ public sealed class NativeBattleCureParticleTests
         NativeBattleCureFrame frame = initialized.Frame with { Effect = initialized.Frame.Effect with { Pools = hierarchy.Pools } };
         List<NativeBattleCureOperation> operations = [];
         NativeBattleCureParticleStep step = Advance(frame, fixture.Address, fixture.Inputs, operations);
-        Assert.Equal(new NativeBattleCureActorVisibilityOperation(3, false), Assert.Single(operations));
+        Assert.Equal(new NativeBattleCureActorVisibilityOperation(OriginalOwner(3), false), Assert.Single(operations));
         Assert.Equal(2, step.Result);
         hierarchy = new(step.Frame.Effect.Pools);
         Assert.Equal((byte)0, hierarchy.Read(root).ReadByte(0x63));
@@ -131,23 +132,23 @@ public sealed class NativeBattleCureParticleTests
 
     private static (NativeBattleCureFrame Frame, uint Address, NativeBattleCureParticleInputs Inputs) Fixture(uint callback)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 21, 1, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(1, 0, new(1, 0x8D6A00, 0x8D69E0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x277AEC0, 0)] };
+        NativeBattleOriginalEffectState selected = new(1, 0, new(1, 0x8D6A00, 0x8D69E0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x277AEC0, 0)] };
         NativeBattleCureFrame frame = NativeBattleCureController.Initialize8D6A00(NativeBattleEffectMemory.FromColdProcess().BeginLoad(0), selected, packets, Resources());
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, 0x8D6CC0, 88, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, 0x8D6CC0, 88, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = first.Hierarchy;
         hierarchy = hierarchy.Write(first.Address, hierarchy.Read(first.Address).WriteWord(0x30, 100).WriteWord(0x34, 300).WriteWord(0x4A, unchecked((ushort)-50)));
-        NativeBattleEffectHierarchyAppend particle = hierarchy.Append8DC540(2, callback, 108, first.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend particle = hierarchy.Append8DC540(2, callback, 108, first.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = particle.Hierarchy;
         hierarchy = hierarchy.Write(particle.Address, hierarchy.Read(particle.Address).WriteWord(0x1C, 100).WriteWord(0x1E, 200).WriteWord(0x20, 300));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1024, 4096);
-        NativeBattleCureControllerInputs controller = new(packets, camera, index => new(index, 0) { Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096) }, _ => throw new InvalidOperationException("Private particles read already-published first-level bounds."));
+        NativeBattleCureControllerInputs controller = new(packets, camera, index => new(0) { Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096) }, _ => throw new InvalidOperationException("Private particles read already-published first-level bounds."));
         return (frame, particle.Address, new(controller, NativeCrtRandomState.FromColdProcess(), (current, _) => current));
     }
 

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -138,13 +139,13 @@ public sealed class NativeBattleBreath235ComponentTests
                 BattleCombatantSnapshot party = source.Combatants.Single(actor => actor.Id == "party");
                 NativeBattleStatusSnapshot status = Assert.IsType<NativeBattleStatusSnapshot>(party.NativeStatus);
                 source = source with { Combatants = source.Combatants.Select(actor => actor.Id == "party" ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray() };
-                contact = new(new(0, 5, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+                contact = new(new(OriginalOwner(0), 5, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
             }
             // A controlled component uses original50B190 with sequence0. It does not claim a reachable enemy bank action or alter the casting handshake.
             (packets, int header) = packets.Prepare(new(caster, 8, 0, -1, 94, 235, null));
             (packets, _) = packets.AppendContact(contact);
             (packets, _) = packets.Publish(1);
-            Assert.Equal(0x50B190u, NativeBattleActionGraphics.SelectService(packets.Headers[header]).Callback);
+            Assert.Equal(0x50B190u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(new BattleActionHeaderReference(header))).Callback);
             (NativeBattleDescriptorState descriptors, _) = NativeBattleDescriptorState.Clear().Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
             return source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors, ActionGraphics = null, OriginalEffect = null } };
         }

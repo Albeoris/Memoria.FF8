@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using Memoria.FF8.Runtime;
 
@@ -53,12 +54,12 @@ public sealed class NativeBattlePotion52ResourcesTests
         Assert.Null(retained.Data);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(52, catalog);
         var initialized = NativeBattleOriginalEffects.Initialize(memory, selected);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 4, 0, 0, 0, 52, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 4, 0, 0, 0, 52, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(initialized.Memory, initialized.Effect with { Parameters = new(0, 0, 8, 0, 0, 0) }, packets, game.ReadNativePotion52Resources());
+        NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(initialized.Memory, initialized.Effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) }, packets, game.ReadNativePotion52Resources());
         Assert.Equal(0x2619588u, frame.Effect.ReturnedDescriptor);
         Assert.Equal(0x817540u, frame.Effect.Pools[0].Slots[0].Callback);
         Assert.Equal(4, frame.Effect.Pools.Length);

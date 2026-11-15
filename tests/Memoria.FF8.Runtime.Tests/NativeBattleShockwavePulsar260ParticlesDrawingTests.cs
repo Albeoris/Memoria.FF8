@@ -285,7 +285,7 @@ public sealed class NativeBattleShockwavePulsar260ParticlesDrawingTests
                 return target;
             }, model =>
             {
-                Assert.Equal(0x1D972C0u, model);
+                Assert.Equal(OriginalOwner(0), model);
                 positionReads++;
                 return new(100, 200, 3000);
             }, (current, batch) =>

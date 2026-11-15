@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleHypnotize133Profile;
@@ -92,7 +93,7 @@ public sealed class NativeBattleHypnotize133ControllerTests
         Assert.Equal(expected, fixture.Operations.OfType<NativeBattleHypnotize133BulkContact>().Count());
         if (expected != 0)
         {
-            Assert.Equal(new NativeBattleHypnotize133BulkContact(0, 1), Assert.Single(fixture.Operations.OfType<NativeBattleHypnotize133BulkContact>()));
+            Assert.Equal(new NativeBattleHypnotize133BulkContact(new BattleContactCursor(0), 1), Assert.Single(fixture.Operations.OfType<NativeBattleHypnotize133BulkContact>()));
         }
         Assert.Equal((ushort)(age + 1), next.Effect.Pools[1].Slots[0].ReadWord(12));
     }
@@ -162,14 +163,14 @@ public sealed class NativeBattleHypnotize133ControllerTests
                 BitConverter.GetBytes((ushort)0x40).CopyTo(sprite, 10 + index * 2);
             }
             Resources = new(new("FF8_EN:1212A30", camera.ToImmutableArray()), Source(0x1207958, 0x12D8), Enumerable.Range(0, 8).Select(index => Source(0x1208C30u + (uint)(index * 0xCB4), 0xCB4)).ToImmutableArray(), Enumerable.Range(0, 8).Select(index => Source(0x120F1D0u + (uint)(index * 0x70C), 0x70C)).ToImmutableArray(), Enumerable.Range(0, 8).Select(index => new NativeBattleModuleAnchor((short)index, 2, 3, (short)index)).ToImmutableArray(), new(0, 0x12077B8, 0, 0, sprite.ToImmutableArray()), 0x64286);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(3, 8, 11, 0, 76, 133, null));
-            (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, 0, 76, 133, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
             root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) });
-            NativeBattleOriginalEffectState effect = new(133, 132, new(133, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
+            NativeBattleOriginalEffectState effect = new(133, 132, new(133, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(123), NativeBattleHypnotize133State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97494)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(packets, _ => 7, (current, actor, bone, distance) =>

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleBadBreath131Profile;
@@ -125,17 +126,17 @@ public sealed class NativeBattleBadBreath131ControllerTests
             pools[0] = NativeBattleTaskFixture.EditPool(pools[0], data => data with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) });
             NativeBattleModulePoolTask main = pools[1].Slots[0].WriteBytes(12, new byte[40]).WriteWord(14, 3).WriteDword(16, ModelAddress(4)).WriteByte(0x1C, 2);
             pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, main) });
-            NativeBattleOriginalEffectState effect = new(131, 131, new(131, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(131, 131, new(131, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleBadBreath131State state = new(NativeBattleEffectArena.Clear(), mesh.ToImmutableArray(), mesh.ToImmutableArray()) { PendingColdSources = false };
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(ScratchOffset, ScratchLength) }, effect, new(11), state.WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, ModelAddress(0))) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 8, 184, 0, 14, 131, null));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 184, 0, 14, 131, null));
             foreach (byte actor in new byte[] { 5, 3, 4 })
             {
-                (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 1, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(3);
-            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(actor, 2) { Color40 = 0x123456, Transform = new(new(0, 0, 0), new(unchecked((short)(actor == 4 ? -2000 : actor == 5 ? 0 : 1000)), 0, 30000), 0, 300, 4096) }, _ => 20, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (frame, _) => new(frame, new(500, 600, 700, 888)), (frame, actor, bone, distance) =>
+            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2) { Color40 = 0x123456, Transform = new(new(0, 0, 0), new(unchecked((short)(actor == 4 ? -2000 : actor == 5 ? 0 : 1000)), 0, 30000), 0, 300, 4096) }, _ => 20, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (frame, _) => new(frame, new(500, 600, 700, 888)), (frame, actor, bone, distance) =>
             {
                 Bones.Add((actor, bone, distance));
                 return new(frame, new(100, 200, 300));

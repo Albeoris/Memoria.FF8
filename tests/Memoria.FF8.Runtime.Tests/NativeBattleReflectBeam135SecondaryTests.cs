@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -108,9 +109,9 @@ public sealed class NativeBattleReflectBeam135SecondaryTests
             NativeBattleReflectBeam135State state = NativeBattleReflectBeam135State.FromColdProcess().WriteDword(CasterGlobal, 0x1D972C0 + 3 * 156).WriteDword(WorkingGlobal, ArenaAddress);
             state = state with { Globals = state.Globals.MarkUnknown(checked((int)(ScaleMatrixGlobal - BaseAddress)) + 18, 14) };
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(44), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
-            Inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, actor, selector) =>
+            Inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, actor, selector) =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 Assert.Equal((short)29, selector);
                 BoneReads++;
                 return Bone;

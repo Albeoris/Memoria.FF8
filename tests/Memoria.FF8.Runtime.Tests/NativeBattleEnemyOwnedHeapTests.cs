@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -82,7 +83,7 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         NativeBattleModelDatSource source = Source(0x70004);
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         staging.WriteByte(NativeBattleFileStaging.Address, 0xA7);
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(16, 0, 0, 0, 0);
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(16, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0);
         NativeBattleModelLoadStep requested = owned ? loader.Poll507070(-1, [source], staging, ownedEnemySource: true) : loader.Poll507070(-1, [source], staging);
         Assert.Equal(owned, requested.State.Task!.ResourceSource is not null);
         Assert.Equal(owned ? 0xA7 : source.Bytes[0], requested.Staging.ReadByte(NativeBattleFileStaging.Address));

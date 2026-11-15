@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -156,7 +157,7 @@ public sealed class NativeBattleDoom8ParticleTests
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleDoom8Controller.RootCallback, 100);
             hierarchy = root.Hierarchy.Write(root.Address, NativeBattleEffectRootTask.Initialize(root.Hierarchy.Read(root.Address), prior.Frame.Effect.Parameters!, Packets));
             int pool = callback is 0x8CD4B0 or 0x8CD670 ? 5 : 6;
-            NativeBattleEffectHierarchyAppend particle = hierarchy.Append8DC540(pool, callback, NativeBattleDoom8State.Pools[pool].Stride, root.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend particle = hierarchy.Append8DC540(pool, callback, NativeBattleDoom8State.Pools[pool].Stride, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
             Address = particle.Address;
             NativeBattleOriginalEffectState effect = new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), prior.Frame.Effect.Parameters, NativeBattleDoom8State.Pools[0].Descriptor) { Pools = particle.Hierarchy.Pools };
             Frame = new(prior.Frame.Memory, effect, new(123), NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray()));

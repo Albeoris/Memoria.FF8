@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect79Controller;
@@ -106,7 +107,7 @@ public sealed class NativeBattleEffect79ParticleTests
 
     private static (NativeBattleEffect79Frame Frame, uint Address) Child(uint callback, Harness harness)
     {
-        NativeBattleOriginalEffectState effect = new(79, 78, new(79, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(79, 78, new(79, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null);
         ImmutableArray<NativeBattleEffectTaskPool> pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray();
         NativeBattleEffectHierarchyAppend root = new NativeBattleEffectHierarchy(pools).Append8DC540(0, RootCallback, 100);
         NativeBattleEffect79Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect with { Pools = root.Hierarchy.Pools }, NativeCrtRandomState.FromColdProcess(), NativeBattleEffect79State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -123,8 +124,8 @@ public sealed class NativeBattleEffect79ParticleTests
     private static NativeBattleActionPacketsState Packets()
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (packets, _) = packets.Prepare(new(4, 8, 16, -1, 351, 79, null));
-        (packets, _) = packets.AppendContact(new(new(3, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 16, -1, 351, 79, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         return packets;
     }
@@ -133,7 +134,7 @@ public sealed class NativeBattleEffect79ParticleTests
     {
         public List<NativeBattleEffect79Operation> Operations { get; } = [];
 
-        public NativeBattleEffect79Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => Packets(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, index) => new(index, 2), (frame, index) => throw new NotSupportedException(), frame => 0, (frame, source) => 0, (frame, operation) =>
+        public NativeBattleEffect79Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => Packets(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, index) => new(2), (frame, index) => throw new NotSupportedException(), frame => 0, (frame, source) => 0, (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;

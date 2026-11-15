@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -50,8 +51,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
             headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
         }
-        Assert.Equal(effect, NativeBattleActionGraphics.Word(source.NativeActionPackets!.Headers[headerIndex], 6));
-        NativeBattleActionHeaderSlot selectedHeader = source.NativeActionPackets.Headers[headerIndex];
+        Assert.Equal(effect, source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex)).Effect);
+        NativeBattleActionHeaderSlot selectedHeader = source.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.NotNull(selectedHeader.FirstContactIndex);
         NativeBattleContactPacket selectedContact = Assert.IsType<NativeBattleContactPacket>(source.NativeActionPackets.Contacts[selectedHeader.FirstContactIndex.Value]);
         Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)7);
@@ -192,11 +193,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.Equal(source.NativeGraphics!.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
                 if (livePartyFollowup)
                 {
-                    for (int actor = 0; actor < source.NativeGraphics.Models.Length; actor++)
+                    for (int actor = 0; actor < ReadOriginalModelCells(source.NativeGraphics).Length; actor++)
                     {
-                        if ((source.NativeGraphics.Models[actor].Flags0 & 8) != 0)
+                        if ((ReadOriginalModelCell(source.NativeGraphics, actor).Flags0 & 8) != 0)
                         {
-                            Assert.NotEqual(0, current.NativeGraphics.Models[actor].Flags0 & 8);
+                            Assert.NotEqual(0, ReadOriginalModelCell(current.NativeGraphics, actor).Flags0 & 8);
                         }
                     }
                 }
@@ -382,7 +383,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             if (effect == 218)
             {
                 Assert.Equal(selectedHeader.ReadByte(0), selectedContact.Primary.ActorIndex);
-                string textActor218 = source.NativeGraphics!.ActorIds[selectedContact.Primary.ActorIndex]!;
+                string textActor218 = ReadOriginalModelActorId(source.NativeGraphics!, selectedContact.Primary.ActorIndex)!;
                 BattleCombatantDefinition textDefinition218 = source.Definition.Combatants.Single(actor => actor.Id == textActor218);
                 Assert.Equal(128, textDefinition218.ModelId);
                 NativeBattleGraphicsResource textResource218 = assets.ReadNativeGraphicsResource(textDefinition218);
@@ -506,8 +507,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
     private static BattleSnapshot QueueLivePartyFollowing(BattleSnapshot current, ushort effect)
     {
         Assert.True(current.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
-        Assert.NotNull(current.NativeGraphics.ActorIds[0]);
-        Assert.Equal(0, current.NativeGraphics.Models[0].Flags0 & 8);
+        Assert.NotNull(ReadOriginalModelActorId(current.NativeGraphics, 0));
+        Assert.Equal(0, ReadOriginalModelCell(current.NativeGraphics, 0).Flags0 & 8);
         BattleNativeAction action = Assert.Single(current.Definition.NativeActions, action => action.Command == 2 && action.ActionId == 1);
         Assert.Equal(effect, checked((ushort)action.MagicId));
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
@@ -515,7 +516,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         Assert.Equal(0, contact.Primary.ActorIndex);
         Assert.Equal(7, contact.Primary.Amount6);
         byte sequence = NativeBattleEffectFixtureExporter.SelectSequence(current.Definition.NativeCommandSequences, action.Command, action.ActionId);
-        (packets, int header) = packets.Prepare(new(0, action.Command, sequence, -1, action.ActionId, effect, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), action.Command, sequence, -1, action.ActionId, effect, null));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -541,13 +542,13 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             originalHeader = checked((int)(offset / 20));
         }
         NativeBattleActionPacketsState original = invocation.NativeActionPackets!;
-        NativeBattleActionHeaderSlot header = original.Headers[originalHeader];
-        Assert.Equal(effect, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal(1, header.ReadByte(0x10));
-        Assert.Equal(0, header.ReadByte(0x11));
+        NativeBattleActionHeaderSlot header = original.ReadHeader(new BattleActionHeaderReference(originalHeader));
+        Assert.Equal(effect, header.Effect);
+        Assert.Equal(1, header.ReadContactCount());
+        Assert.Equal(0, header.ReadRepeatModeMinusOne());
         Assert.Equal(graphics.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
-        (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.ReadByte(1), header.ReadByte(2), unchecked((sbyte)header.ReadByte(3)), NativeBattleActionGraphics.Word(header, 4), effect, header.Data));
+        (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.Command, header.Sequence, unchecked((sbyte)header.ReadByte(3)), header.Action, effect, header.Data));
         Assert.NotNull(header.FirstContactIndex);
         (packets, _) = packets.AppendContact(Assert.IsType<NativeBattleContactPacket>(original.Contacts[header.FirstContactIndex.Value]));
         (packets, _) = packets.Publish(1);

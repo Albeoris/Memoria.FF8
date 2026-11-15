@@ -76,7 +76,7 @@ public sealed class NativeBattleSaliva138MouthTests
         return new(skeleton.ToImmutableArray(), [1]);
     }
 
-    private static NativeBattleGraphicsModel Model() => new(0, 3)
+    private static NativeBattleGraphicsModel Model() => new(3)
     {
         GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = 200, Z = 300 },
         SequenceState = new() { DecodedPose = new(new(10, 20, 30), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 128, 0), new(1024, 1024, 1024))], false) }

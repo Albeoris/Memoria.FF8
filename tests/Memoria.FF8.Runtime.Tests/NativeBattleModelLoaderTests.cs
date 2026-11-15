@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -10,7 +11,7 @@ public sealed class NativeBattleModelLoaderTests
     public void Singleton_queue_keeps_selected_BYTEs_signed_IO_gate_and_resource_only_completion()
     {
         NativeBattleModelDatSource source = Source(0, false, 2);
-        NativeBattleModelLoader queue = NativeBattleModelLoader.Queue507080(0, 1, 0x11223344, 7, 2);
+        NativeBattleModelLoader queue = NativeBattleModelLoader.Queue507080(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0x11223344, 7, 2);
         NativeBattleModelLoadStep request = queue.Poll507070(99, [source], NativeBattleFileStaging.Unknown());
         Assert.Equal(new NativeBattleModelFileRequest(310, "test.dat", 0x508470, source.Bytes.Length), request.FileRequest);
         Assert.Equal((byte)1, request.State.Task!.Phase);
@@ -31,7 +32,7 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal((byte)1, complete.Bind.Task.PhysicalIndex);
         Assert.Null(complete.TextureUpload);
         Assert.Equal(0, complete.State.Poll507070(-1, [], complete.Staging).Remaining);
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 9).Poll507070(0, [source], NativeBattleFileStaging.Unknown()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 9).Poll507070(0, [source], NativeBattleFileStaging.Unknown()));
     }
 
     [Theory]
@@ -44,11 +45,11 @@ public sealed class NativeBattleModelLoaderTests
     [InlineData(0x1009, 0x507E20u)]
     public void Queue_routes_original_callbacks_without_initializing_the_actor(ushort request, uint callback)
     {
-        NativeBattleModelLoader queue = NativeBattleModelLoader.Queue507080(request, 0, 0, 4, 5);
+        NativeBattleModelLoader queue = NativeBattleModelLoader.Queue507080(request, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 4, 5);
         Assert.Equal(callback, queue.Task!.Callback);
         Assert.Equal(request >= 0x1000 ? (byte)4 : request >= 16 ? (byte)0 : (byte)5, queue.Task.Selector);
         queue.Validate();
-        Assert.Null(NativeBattleModelLoader.Queue507080(0x1007, 0, 0, 0, 0).Task);
+        Assert.Null(NativeBattleModelLoader.Queue507080(0x1007, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0).Task);
         Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(request, 7, 0, 0, 0));
     }
 
@@ -94,7 +95,7 @@ public sealed class NativeBattleModelLoaderTests
 
     private static NativeBattleModelResourceBind Complete(ushort request, NativeBattleModelDatSource source)
     {
-        NativeBattleModelLoader state = NativeBattleModelLoader.Queue507080(request, 0, 0, 0, 0);
+        NativeBattleModelLoader state = NativeBattleModelLoader.Queue507080(request, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0);
         NativeBattleModelLoadStep requested = state.Poll507070(-1, [source], NativeBattleFileStaging.Unknown());
         NativeBattleModelLoadStep prepared = requested.State.Poll507070(source.Bytes.Length, [source], requested.Staging);
         return prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging).Bind!;

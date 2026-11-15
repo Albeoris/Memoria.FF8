@@ -340,7 +340,7 @@ public sealed class BattleSessionTests
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Version = 2 }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Outcome = BattleOutcome.Victory }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Combatants = [snapshot.Combatants[0] with { Atb = BattleSession.AtbMaximum + 1 }, snapshot.Combatants[1]] }));
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { QueuedActions = [new BattleAttackCommand("player", "enemy")] }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { QueuedActions = [new BattleAttackCommand("player", "enemy", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None))] }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Events = [new BattleEvent(1, "Damage", "player", "enemy", 1, "Invalid future event")] }));
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
     }
@@ -458,7 +458,7 @@ public sealed class BattleSessionTests
         Assert.Equal(300, actor.StatusEffects[0].RemainingFrames);
         session.QueueAttack("player", "enemy");
         BattleAttackCommand[] exposedQueue = (BattleAttackCommand[])session.QueuedActions;
-        exposedQueue[0] = new BattleAttackCommand("enemy", "player");
+        exposedQueue[0] = new BattleAttackCommand("enemy", "player", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("player")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None));
         Assert.Equal("player", session.QueuedActions[0].ActorId);
         session.Tick();
         BattleActionPresentation altered = session.ActiveAction! with { RemainingFrames = 1 };

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -160,7 +161,7 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
     {
         var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend allocated = hierarchy.Append8DC540(4, NativeBattleDrinkMagic37Profile.OrbCallback, 96, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend allocated = hierarchy.Append8DC540(4, NativeBattleDrinkMagic37Profile.OrbCallback, 96, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = allocated.Hierarchy.Read(allocated.Address).WriteDword(0x4C, NativeBattleDrinkMagic37Profile.OrbAddress).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteWord(0x5E, 120);
         NativeBattleActionMatrix camera = Camera();
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
@@ -212,7 +213,7 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
     {
         var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, callback, 304, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, callback, 304, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         return appended.Hierarchy.Read(appended.Address);
     }
 

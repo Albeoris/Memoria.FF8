@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -37,7 +38,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
         BattleNativeAction action = Assert.Single(kit.Spells, spell => spell.ActionId == ability);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(model, cure ? 0 : 4, NativeCrtRandomState.FromColdProcess(), cure ? new(0, 4, 0, 1, 0, 282, 0) : new(3, 4, 0, 0, 0, 83, 0), action, random);
+        CrossoverNativeMagicPresentationState state = presentation.Begin(model, cure ? 0 : 4, NativeCrtRandomState.FromColdProcess(), cure ? new(OriginalOwner(0), 4, 0, 1, 0, 282, 0) : new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, random);
         Assert.Equal(700, state.Cast.Model.Transform!.Scale38);
         Assert.Equal(model.GeometryWorldMatrix, state.Cast.Model.GeometryWorldMatrix);
         BattleModel body = battle.LoadPlayer(0);
@@ -114,7 +115,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         }
         throw new InvalidOperationException("Embedded original Fire did not return through its source sequence.");
 
-        CrossoverNativeMagicPresentationStep Step(CrossoverNativeMagicPresentationState current) => presentation.Advance(current, () => target.ToActor(3).Anchor, () => target.Transform, camera, () => target);
+        CrossoverNativeMagicPresentationStep Step(CrossoverNativeMagicPresentationState current) => presentation.Advance(current, () => target.ToActor(OriginalOwner(3)).Anchor, () => target.Transform, camera, () => target);
     }
 
     private sealed class OverlayRenderer(ITriangleRenderer inner, Action overlay) : ITriangleRenderer

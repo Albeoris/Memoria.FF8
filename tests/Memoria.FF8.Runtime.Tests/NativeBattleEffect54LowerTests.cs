@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect54Controller;
@@ -266,7 +267,7 @@ public sealed class NativeBattleEffect54LowerTests
             NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
             (state, staging) = state.BindSources(staging, Resources);
             state = state.DetachBank(ModelBank).DetachBank(RootBank);
-            Frame = new(memory, new(54, 54, new(54, Initializer, Entry), new(3, 0, 1, 0, 0, 0), null) { Pools = [models, roots] }, new(1), state) { Staging = staging };
+            Frame = new(memory, new(54, 54, new(54, Initializer, Entry), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [models, roots] }, new(1), state) { Staging = staging };
             if (relocate)
             {
                 Frame = Relocate80D880(Frame, SourceAddress, Resources);
@@ -282,9 +283,9 @@ public sealed class NativeBattleEffect54LowerTests
             Dword(Node + 0x170, FirstSpriteAddress);
             Matrix(Node + 0xC, identity);
             Matrix(Node + 0xAC, identity with { Z = 2000 });
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, _) = packets.Prepare(new(3, 8, 11, 0, 223, 54, null));
-            (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, 0, 223, 54, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
             Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, physical) =>
             {

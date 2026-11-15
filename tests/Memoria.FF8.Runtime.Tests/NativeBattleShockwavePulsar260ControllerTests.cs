@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -125,7 +126,7 @@ public sealed class NativeBattleShockwavePulsar260ControllerTests
     private sealed class Fixture
     {
         public NativeBattleShockwavePulsar260Frame Frame { get; }
-        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index == 3 ? (ushort)14 : (ushort)0)).ToArray();
+        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index == 3 ? (ushort)14 : (ushort)0)).ToArray();
         public List<NativeBattleShockwavePulsar260Operation> Operations { get; } = [];
         public int LastPoll { get; private set; }
         private NativeBattleShockwavePulsar260Resources Resources { get; }
@@ -157,7 +158,7 @@ public sealed class NativeBattleShockwavePulsar260ControllerTests
         public NativeBattleShockwavePulsar260TaskStep Advance(bool busy = false)
         {
             Operations.Clear();
-            return NativeBattleShockwavePulsar260Controller.AdvanceMain(Frame, MainAddress, Resources, new(NativeBattleActionPacketsState.Fresh(), 368, actor => Models[actor], _ => throw new InvalidOperationException(), _ => null, _ => throw new InvalidOperationException(), _ => NativeBattleCameraState.FromColdProcess(), (_, _) => throw new InvalidOperationException(), (frame, index) => { LastPoll = index; return new(frame, busy); }, Execute));
+            return NativeBattleShockwavePulsar260Controller.AdvanceMain(Frame, MainAddress, Resources, new(OriginalPackets(), 368, actor => Models[actor], _ => throw new InvalidOperationException(), _ => null, _ => throw new InvalidOperationException(), _ => NativeBattleCameraState.FromColdProcess(), (_, _) => throw new InvalidOperationException(), (frame, index) => { LastPoll = index; return new(frame, busy); }, Execute));
         }
         private NativeBattleShockwavePulsar260Frame Execute(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Operation operation)
         {

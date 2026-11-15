@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect283Controller;
@@ -170,7 +171,7 @@ public sealed class NativeBattleEffect283ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim).Write(0, [0xA5]).Write(ScratchOffset, [0x5A]), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        NativeBattleOriginalEffectState effect = new(283, 282, new(283, Entry, Initializer), new(3, 0, 0x7F, 0, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(283, 282, new(283, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, NativeBattleEffect283State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -204,10 +205,10 @@ public sealed class NativeBattleEffect283ControllerTests
         public NativeBattleEffect283Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, address) => new((int)((address - Model(0)) / 156), 2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 999, 777, -123), Color44 = 0xA1B2C3D4 }, currentFrame =>
         {
             ContactReads++;
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(3, 8, 12, -1, 261, 283, null));
-            (packets, _) = packets.AppendContact(new(new((byte)Target, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            (packets, _) = packets.AppendContact(new(new(4, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 261, 283, null));
+            (packets, _) = packets.AppendContact(new(new((byte)Target, 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(2);
             return packets;
         }, (frame, _) => new(frame, PointView(new(100, 200, 300), 777)), (frame, operation) =>

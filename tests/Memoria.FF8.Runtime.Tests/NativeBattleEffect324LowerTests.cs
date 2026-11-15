@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -105,11 +106,11 @@ public sealed class NativeBattleEffect324LowerTests
     public void Bone_snapshots_copy_only_actual28_matrices_with_unknown_padding_through_json()
     {
         Fixture fixture = new(0x597520);
-        NativeBattleEffect324Frame saved = NativeBattleEffect324History.Capture597750(fixture.Frame, Fixture.Model, 0x22010A8, fixture.Inputs());
+        NativeBattleEffect324Frame saved = NativeBattleEffect324History.Capture597750(fixture.Frame, OriginalOwner(3), 0x22010A8, fixture.Inputs());
         saved = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect324Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(saved)))!);
         Assert.DoesNotContain(true, saved.State.ReadView(0x22010A8 + 18, 2).ReadSnapshot(0, 2).Known);
         fixture.Bones = fixture.Bones.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix.ReadMatrix() with { X = 999 }, null)).ToImmutableArray();
-        NativeBattleEffect324History.Restore597790(saved, Fixture.Model, 0x22010A8, fixture.Inputs());
+        NativeBattleEffect324History.Restore597790(saved, OriginalOwner(3), 0x22010A8, fixture.Inputs());
         Assert.Equal(28, fixture.Bones.Length);
         Assert.Equal(27, fixture.Bones[27].ReadMatrix().X);
         Assert.False(fixture.Bones[27].Known[18]);
@@ -119,7 +120,7 @@ public sealed class NativeBattleEffect324LowerTests
     public void History_restores_current_world_mask_color_and_bones_but_retains_native_Alpha7_zero()
     {
         Fixture fixture = new(0x597520);
-        NativeBattleEffect324Frame saved = NativeBattleEffect324History.Capture597750(fixture.Frame, Fixture.Model, 0x22010A8, fixture.Inputs());
+        NativeBattleEffect324Frame saved = NativeBattleEffect324History.Capture597750(fixture.Frame, OriginalOwner(3), 0x22010A8, fixture.Inputs());
         saved = saved with { State = saved.State.WriteView(0x2201080, PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 123 }, null)), 32) };
         fixture.Frame = saved;
         fixture.Task(task => task.WriteWord(12, 16));
@@ -286,16 +287,16 @@ public sealed class NativeBattleEffect324LowerTests
         public void Record(int kind, int age, int scale, int velocity) => Frame = Frame with { State = Frame.State.WriteView(0x2201AC8, PutWord324(PutWord324(PutWord324(PutWord324(Put324(NativeBattleEffectArena.Clear(), 0, (uint)kind), 4, age), 6, scale), 12, 4000), 18, velocity), 24) };
         public NativeBattleEffect324Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, null!, (_, model) =>
         {
-            Assert.Equal(Model, model);
+            Assert.Equal(OriginalOwner(3), model);
             return ModelBytes;
         }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(View, 512, 160, 108), _ => 0, (frame, model, _, _, retained) =>
         {
-            Assert.Equal(Model, model);
+            Assert.Equal(OriginalOwner(3), model);
             PointQueries++;
             return new(frame, retained.Write(0, new byte[6]));
         }, (_, model) =>
         {
-            Assert.Equal(Model, model);
+            Assert.Equal(OriginalOwner(3), model);
             return Bones;
         }, (_, _) => 0x123456, null!, (frame, operation) =>
         {

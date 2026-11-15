@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -42,9 +43,9 @@ public sealed class DiagnosticTargetPreparationTests
             Assert.True(target.Alive);
             Assert.True(target.StatisticsReady);
             NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.NativeGraphics);
-            Assert.DoesNotContain(graphics.Models, model => model.ModelId4 == 140);
-            Assert.Equal((byte?)139, graphics.Models[3].ModelId4);
-            Assert.Equal((byte?)138, graphics.Models[4].ModelId4);
+            Assert.DoesNotContain(ReadOriginalModelCells(graphics), model => model.ModelId4 == 140);
+            Assert.Equal((byte?)139, ReadOriginalModelCell(graphics, 3).ModelId4);
+            Assert.Equal((byte?)138, ReadOriginalModelCell(graphics, 4).ModelId4);
             Assert.False(RecreateGame.DiagnosticCommandReady(active, driver));
         }
         finally
@@ -164,7 +165,7 @@ public sealed class DiagnosticTargetPreparationTests
                 AuxiliaryHead = graphics.Auxiliary.Head,
                 ModuleHead = graphics.ModuleEffects.Head,
                 OriginalEffect = graphics.OriginalEffect is { } effect ? new { effect.RequestedEffect, effect.SelectedIndex, effect.Binding.Effect } : null,
-                Models = graphics.Models.Select(model => new { model.Index, Actor = graphics.ActorIds[model.Index], model.ModelId4, model.Flags0, model.Phase6, model.Sequence, model.SequenceFrame, SequenceState = model.SequenceState is { } sequence ? new { sequence.Offset46, sequence.Wait1, sequence.Pending3, sequence.Callback42, sequence.Pose, sequence.PoseFrame114, sequence.PoseLimit115 } : null }).ToArray()
+                Models = ReadOriginalModelCells(graphics).Select(model => new { model.Index, Actor = ReadOriginalModelActorId(graphics, model.Index), model.ModelId4, model.Flags0, model.Phase6, model.Sequence, model.SequenceFrame, SequenceState = model.SequenceState is { } sequence ? new { sequence.Offset46, sequence.Wait1, sequence.Pending3, sequence.Callback42, sequence.Pose, sequence.PoseFrame114, sequence.PoseLimit115 } : null }).ToArray()
             }
         };
         string summary = JsonSerializer.Serialize(observation, new JsonSerializerOptions { WriteIndented = true });

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
@@ -150,6 +151,6 @@ public sealed class NativeBattleEffect218ClosureTests
         return (frame with { Effect = frame.Effect with { Pools = [pool] } }, pool.BankAddress + (uint)(slot * pool.Stride));
     }
 
-    private static NativeBattleEffect218Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor), new(0xBEEF), NativeBattleEffect218State.FromColdProcess());
+    private static NativeBattleEffect218Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor), new(0xBEEF), NativeBattleEffect218State.FromColdProcess());
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
 }

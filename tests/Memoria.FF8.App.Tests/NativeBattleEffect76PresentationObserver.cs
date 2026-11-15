@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -49,7 +50,7 @@ internal sealed class NativeBattleEffect76PresentationObserver
         int oldAge = before is null ? -1 : unchecked((short)before.ReadWord(12));
         int actor = checked((int)state.ReadDword(CasterGlobal));
         Assert.Equal(3, actor);
-        Assert.Equal((byte)142, graphics.Models[actor].ModelId4);
+        Assert.Equal((byte)142, ReadOriginalModelCell(graphics, actor).ModelId4);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
             NativeBattleCureFamilyPool shape = Pools.Single(item => item.Descriptor == pool.DescriptorAddress);
@@ -143,7 +144,7 @@ internal sealed class NativeBattleEffect76PresentationObserver
         {
             if (oldAge == nativeAge && age == nativeAge + 1)
             {
-                Assert.Equal(sequence, graphics.Models[actor].Sequence);
+                Assert.Equal(sequence, ReadOriginalModelCell(graphics, actor).Sequence);
                 sequences.Add(sequence);
                 Mark("effect76-native-sequence-" + sequence, current, cold);
             }
@@ -237,7 +238,7 @@ internal sealed class NativeBattleEffect76PresentationObserver
 
     private void ObserveText(BattleSnapshot current, int actor, Action<string, BattleSnapshot> cold)
     {
-        string id = current.NativeGraphics!.ActorIds[actor]!;
+        string id = ReadOriginalModelActorId(current.NativeGraphics!, actor)!;
         NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == id);
         foreach (int index in new[] { 1, 3, 4 })
         {

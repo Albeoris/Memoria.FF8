@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Buffers.Binary;
 using Memoria.FF8.Assets;
@@ -32,28 +33,28 @@ public sealed class NativeBattleEffect63FollowingActionTests
         Assert.Empty(source.QueuedActions);
         Assert.All(source.NativeEffectMemory.Effect63!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        string casterId = originalGraphics.ActorIds[4]!;
-        string targetId = originalGraphics.ActorIds[0]!;
+        string casterId = ReadOriginalModelActorId(originalGraphics, 4)!;
+        string targetId = ReadOriginalModelActorId(originalGraphics, 0)!;
         BattleCombatantDefinition caster = BattleSession.Restore(source).GetCombatantDefinition(casterId);
         Assert.Equal(125, caster.ModelId);
-        Assert.Equal((byte)141, originalGraphics.Models[4].ModelId4);
+        Assert.Equal((byte)141, ReadOriginalModelCell(originalGraphics, 4).ModelId4);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 361 && row.MagicId == 63 && row.KernelSection == 3 && row.KernelIndex == 361);
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
-        string warmVertices = originalGraphics.Models[4].CurrentBodyBoneMatrices!.SkeletonSha256;
+        string warmVertices = ReadOriginalModelCell(originalGraphics, 4).CurrentBodyBoneMatrices!.SkeletonSha256;
         string warmState = JsonSerializer.Serialize(source.NativeEffectMemory.Effect63);
-        string[] warmSkeletons = originalGraphics.Models.Skip(3).Take(3).Select(model => model.CurrentBodyBoneMatrices!.SkeletonSha256).ToArray();
-        Assert.Equal(new byte?[] { 140, 141, 141 }, originalGraphics.Models.Skip(3).Take(3).Select(model => model.ModelId4).ToArray());
+        string[] warmSkeletons = ReadOriginalModelCells(originalGraphics).Skip(3).Take(3).Select(model => model.CurrentBodyBoneMatrices!.SkeletonSha256).ToArray();
+        Assert.Equal(new byte?[] { 140, 141, 141 }, ReadOriginalModelCells(originalGraphics).Skip(3).Take(3).Select(model => model.ModelId4).ToArray());
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(4, 8, 11, cameraChoice, 361, 63, null));
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 11, cameraChoice, 361, 63, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { Combatants = source.Combatants.Select(actor => actor.Id == targetId ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = originalGraphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(originalGraphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), prepared.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-before-entry", prepared, null);
         BattleSession battle = Restore(prepared);
@@ -77,8 +78,8 @@ public sealed class NativeBattleEffect63FollowingActionTests
             BattleSnapshot current = battle.Capture();
             NativeBattleGraphicsState graphics = current.NativeGraphics!;
             observer.Observe(prior, current, ColdNext);
-            Assert.Equal(new byte?[] { 140, 141, 141 }, graphics.Models.Skip(3).Take(3).Select(model => model.ModelId4).ToArray());
-            Assert.Equal(warmSkeletons, graphics.Models.Skip(3).Take(3).Select(model => model.CurrentBodyBoneMatrices!.SkeletonSha256).ToArray());
+            Assert.Equal(new byte?[] { 140, 141, 141 }, ReadOriginalModelCells(graphics).Skip(3).Take(3).Select(model => model.ModelId4).ToArray());
+            Assert.Equal(warmSkeletons, ReadOriginalModelCells(graphics).Skip(3).Take(3).Select(model => model.CurrentBodyBoneMatrices!.SkeletonSha256).ToArray());
             views.Add(JsonSerializer.Serialize(current.NativeCamera!.CapturePackedView1D97778()));
             if (graphics.OriginalEffect is { Binding.Effect: 63, ReturnedDescriptor: > 0 } active)
             {
@@ -104,7 +105,7 @@ public sealed class NativeBattleEffect63FollowingActionTests
                         Assert.Equal(BinaryPrimitives.ReadUInt16LittleEndian(resources.Camera.Data.AsSpan().Slice(4)), control.ModelTableOffset);
                         Assert.Equal(resources.Camera.Data.ToArray(), control.Source.Data.ToArray());
                         Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation));
-                        Assert.Equal(warmVertices, current.NativeGraphics!.Models[4].CurrentBodyBoneMatrices!.SkeletonSha256);
+                        Assert.Equal(warmVertices, ReadOriginalModelCell(current.NativeGraphics!, 4).CurrentBodyBoneMatrices!.SkeletonSha256);
                         warmRetained = true;
                         ColdNext("following-action-camera-entry-warm-source", current);
                         registered = true;

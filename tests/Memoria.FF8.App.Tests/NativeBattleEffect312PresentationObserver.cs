@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -73,9 +74,9 @@ internal sealed class NativeBattleEffect312PresentationObserver
         }
         for (int actor = 3; actor <= 5; actor++)
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actor);
             Assert.Equal(actor == 3 ? 44 : 6, model.CurrentBodyBoneMatrices!.Matrices.Length);
-            BattleCombatantSnapshot combatant = Assert.Single(current.Combatants, item => item.Id == graphics.ActorIds[actor]);
+            BattleCombatantSnapshot combatant = Assert.Single(current.Combatants, item => item.Id == ReadOriginalModelActorId(graphics, actor));
             Assert.True(combatant.NativeParticipant!.Active);
             Assert.False(combatant.NativeParticipant.Hidden);
             Assert.False(combatant.NativeParticipant.Suspended);
@@ -167,7 +168,7 @@ internal sealed class NativeBattleEffect312PresentationObserver
             {
                 continue;
             }
-            VerifyRestored(state, graphics.Models[actor], actor);
+            VerifyRestored(state, ReadOriginalModelCell(graphics, actor), actor);
             if (task.Callback == 0x5A0AA0)
             {
                 restoredRaise.Add(actor);
@@ -211,7 +212,7 @@ internal sealed class NativeBattleEffect312PresentationObserver
             drained = true;
             Mark("effect312-all-pools-returned", current, cold);
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Commands = commands.Length, Cursor = state.ReadDword(CursorGlobal), Random = current.NativeCrtRandom, Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, pool.BankAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Actors = graphics.Models.Take(3).Select(model => new { model.Index, model.Flags0, model.Rotation12, model.Rotation14, model.Rotation16, model.RotationPadding18, model.Transform }) });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Commands = commands.Length, Cursor = state.ReadDword(CursorGlobal), Random = current.NativeCrtRandom, Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, pool.BankAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Actors = ReadOriginalModelCells(graphics).Take(3).Select(model => new { model.Index, model.Flags0, model.Rotation12, model.Rotation14, model.Rotation16, model.RotationPadding18, model.Transform }) });
     }
 
     public void Accept(BattleSnapshot completed, string output)

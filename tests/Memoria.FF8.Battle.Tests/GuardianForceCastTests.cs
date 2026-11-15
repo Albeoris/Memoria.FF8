@@ -65,7 +65,7 @@ public sealed class GuardianForceCastTests
         Assert.All(session.Combatants.Where(actor => !actor.IsReady), actor => Assert.True(actor.IsBusy));
         Assert.Equal((ushort)40, Assert.Single(session.GuardianForceCasts).RemainingTicks);
         SaveChargeSnapshot(session, windup ? "before-pass-windup" : "before-pass-queued");
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        BattleSession restored = BattleSession.Restore(before);
 
         Assert.Equal(20, session.AdvanceTurn());
         Assert.Equal(20, restored.AdvanceTurn());
@@ -95,7 +95,7 @@ public sealed class GuardianForceCastTests
 
         Assert.Equal((ushort)0, Assert.Single(session.GuardianForceCasts).RemainingTicks);
         Assert.Equal(action, session.ActiveAction);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
+        BattleSession restored = BattleSession.Restore(session.Capture());
         session.Tick();
         restored.Tick();
         Assert.Empty(session.GuardianForceCasts);
@@ -263,7 +263,8 @@ public sealed class GuardianForceCastTests
         Assert.Empty(restored.GuardianForceCasts);
         Assert.Equal((byte)255, restored.Capture().NativeScriptState.Tasks.Tail);
         BattleAttackCommand completed = Assert.Single(restored.QueuedActions);
-        Assert.Equal((ushort)0x80F8, completed.NativeTargetMask);
+        Assert.Equal(BattleTargetSide.Enemies, Assert.IsType<BattleTargetSelection.SideGroup>(completed.TargetRequest.Selection).Side);
+        Assert.Equal((ushort)0x80F8, NativeBattleTargetRequestAdapter.ProjectOriginalWord(completed.TargetRequest, _ => null));
         Assert.Single(restored.Events, item => item.Kind == "GuardianForceReady");
         Assert.Equal(JsonSerializer.Serialize(restored.Capture()), JsonSerializer.Serialize(BattleSession.Restore(restored.Capture()).Capture()));
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Numerics;
 using System.Reflection;
 using Memoria.FF7.Formats;
@@ -24,7 +25,7 @@ public sealed class CrossoverForeignBodyTopologyTests
         ], [a, c]) { Vertices = [a, b, c, d], Bones = [(a, c)], BoneParents = [-1] };
         CrossoverNativeForeignTarget target = new(4, new(default, default, 0, 0, 4096), NativeBattleForeignModelGeometry.Identity, new(default, default, 0, new(default, default)), geometry, Matrix4x4.CreateScale(2));
 
-        NativeBattleForeignModelGeometry bridged = target.ToActor(3).Geometry!;
+        NativeBattleForeignModelGeometry bridged = target.ToActor(OriginalOwner(3)).Geometry!;
 
         Assert.Equal(4, bridged.Vertices.Length);
         Assert.Equal(2, bridged.Faces.Length);

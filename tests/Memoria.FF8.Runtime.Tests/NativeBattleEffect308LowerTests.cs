@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect308Controller;
@@ -28,7 +29,7 @@ public sealed class NativeBattleEffect308LowerTests
     {
         Fixture fixture = new();
         fixture.Operands(1, 2048, 0, 1024, 0, -256);
-        (NativeBattleEffect308Frame frame, uint next) = BirthAct6684C0(fixture.Frame, Fixture.Pc, Fixture.Model, Fixture.Rows, forceYzero, fixture.Resources, fixture.Inputs());
+        (NativeBattleEffect308Frame frame, uint next) = BirthAct6684C0(fixture.Frame, Fixture.Pc, OriginalOwner(3), Fixture.Rows, forceYzero, fixture.Resources, fixture.Inputs());
         Assert.Equal(Fixture.Pc + 12, next);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ActDescriptor);
         NativeBattleModulePoolTask task = pool.Slots[pool.Head!.Value];
@@ -49,7 +50,7 @@ public sealed class NativeBattleEffect308LowerTests
         Fixture fixture = new();
         fixture.Fill(ParticleDescriptor);
         fixture.Operands(0, 1, 2048, 3, 2048, -1, 2, -3, 4, -5, 6);
-        (NativeBattleEffect308Frame frame, uint next) = BirthParticle668970(fixture.Frame, Fixture.Pc, Fixture.Model, Fixture.Rows, fixture.Resources, fixture.Inputs());
+        (NativeBattleEffect308Frame frame, uint next) = BirthParticle668970(fixture.Frame, Fixture.Pc, OriginalOwner(3), Fixture.Rows, fixture.Resources, fixture.Inputs());
         Assert.Equal(Fixture.Pc + 22, next);
         Assert.Empty(fixture.Operations);
         Assert.Empty(fixture.AnchorCalls);
@@ -61,7 +62,7 @@ public sealed class NativeBattleEffect308LowerTests
     {
         Fixture fixture = new();
         fixture.Operands(0, 1, 4096, 0x103, 2048, -1, 2, -3, 4, -5, 6);
-        (NativeBattleEffect308Frame frame, uint next) = BirthParticle668970(fixture.Frame, Fixture.Pc, Fixture.Model, Fixture.Rows, fixture.Resources, fixture.Inputs());
+        (NativeBattleEffect308Frame frame, uint next) = BirthParticle668970(fixture.Frame, Fixture.Pc, OriginalOwner(3), Fixture.Rows, fixture.Resources, fixture.Inputs());
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ParticleDescriptor);
         NativeBattleModulePoolTask task = pool.Slots[pool.Head!.Value];
         Assert.Equal(Fixture.Pc + 22, next);
@@ -105,7 +106,7 @@ public sealed class NativeBattleEffect308LowerTests
             fixture.Fill(ParticleDescriptor);
         }
         fixture.Operands(0, 1, 0, 0, 2048, (short)count, 100, 0, 100, 0, 100, 0, 10, 0, 10, 0, 10, 0, 4);
-        (NativeBattleEffect308Frame frame, uint next) = BirthBurst668B20(fixture.Frame, Fixture.Pc, Fixture.Model, Fixture.Rows, fixture.Resources, fixture.Inputs());
+        (NativeBattleEffect308Frame frame, uint next) = BirthBurst668B20(fixture.Frame, Fixture.Pc, OriginalOwner(3), Fixture.Rows, fixture.Resources, fixture.Inputs());
         Assert.Equal(Fixture.Pc + 38, next);
         Assert.Single(fixture.AnchorCalls);
         Assert.IsType<NativeBattleEffect308ApplyOffsetPose662C00>(Assert.Single(fixture.Operations));
@@ -117,7 +118,7 @@ public sealed class NativeBattleEffect308LowerTests
     {
         Fixture fixture = new();
         fixture.Operands(0, 1, 0, 1, 2048, 1, 0, -2, 0, 3, 0, -4, 1, -1, 0, -128, 0, 127, 8);
-        (NativeBattleEffect308Frame frame, uint next) = BirthBurst668B20(fixture.Frame, Fixture.Pc, Fixture.Model, Fixture.Rows, fixture.Resources, fixture.Inputs());
+        (NativeBattleEffect308Frame frame, uint next) = BirthBurst668B20(fixture.Frame, Fixture.Pc, OriginalOwner(3), Fixture.Rows, fixture.Resources, fixture.Inputs());
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ParticleDescriptor);
         NativeBattleModulePoolTask task = pool.Slots[pool.Head!.Value];
         Assert.Equal(Fixture.Pc + 38, next);
@@ -206,7 +207,7 @@ public sealed class NativeBattleEffect308LowerTests
     {
         Fixture fixture = new();
         fixture.Operands(1, 0, 0, 1024, 0, -256);
-        (fixture.Frame, _) = BirthAct6684C0(fixture.Frame, Fixture.Pc, Fixture.Model, Fixture.Rows, false, fixture.Resources, fixture.Inputs());
+        (fixture.Frame, _) = BirthAct6684C0(fixture.Frame, Fixture.Pc, OriginalOwner(3), Fixture.Rows, false, fixture.Resources, fixture.Inputs());
         NativeBattleEffectTaskPool pool = fixture.Frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ActDescriptor);
         uint address = pool.BankAddress + (uint)(pool.Head!.Value * pool.Stride);
         NativeBattleEffect308Step result = Advance(fixture.Frame, address, fixture.Resources, fixture.Inputs());

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
@@ -24,7 +25,7 @@ public sealed class NativeBattleScanResultsTests
     {
         ScanResultTestSource source = new();
         source.Descriptor = source.Descriptor.WriteDword(0x18, current).WriteDword(0x1C, maximum);
-        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), 0, source.Services);
+        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(0), source.Services);
         Assert.Equal(1u, result.Count);
         Assert.Equal(expected, source.Page(result, 0));
     }
@@ -34,7 +35,7 @@ public sealed class NativeBattleScanResultsTests
     {
         ScanResultTestSource source = new();
         source.Descriptor = ScanResultTestSource.Unknown(208).WriteDword(0x7C, 0x2000).WriteByte(0xBC, 15);
-        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), 0, source.Services);
+        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(0), source.Services);
         Assert.Equal(1u, result.Count);
         Assert.Equal("L 15 H ?/?", source.Page(result, 0));
     }
@@ -47,7 +48,7 @@ public sealed class NativeBattleScanResultsTests
     public void Enemy_flags_use_masks_one_and_two_and_preserve_all_empty_slot_separators(byte flags, string? expected)
     {
         ScanResultTestSource source = new() { InfoFlags = flags };
-        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), 3, source.Services);
+        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(3), source.Services);
         Assert.Equal(3, source.LastInfoActor);
         Assert.False(source.Descriptor.Known[0]);
         Assert.Equal(expected is null ? 1u : 2u, result.Count);
@@ -66,7 +67,7 @@ public sealed class NativeBattleScanResultsTests
         {
             source.Descriptor = source.Descriptor.WriteWord(0x44 + element * 2, values[element]);
         }
-        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), 0, source.Services);
+        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(0), source.Services);
         Assert.Equal(6u, result.Count);
         Assert.Equal("a A       ", source.Page(result, 1));
         Assert.Equal("b B C      ", source.Page(result, 2));
@@ -83,13 +84,13 @@ public sealed class NativeBattleScanResultsTests
         ScanResultTestSource source = new();
         source.Extra = source.Extra.Write(0, new byte[] { (byte)'X', 0 });
         NativeBattleScanResultMemory initial = NativeBattleScanResultMemory.FromColdProcess() with { Cursor = 15 };
-        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(initial, 4, source.Services);
+        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(initial, OriginalOwner(4), source.Services);
         Assert.Equal(2u, result.Count);
         Assert.Equal(NativeBattleScanResults.RingAddress + 15u * 48, NativeBattleScanResults.PageB68810(result, 0, 0));
         Assert.Equal(NativeBattleScanResults.EnemyExtraAddress + 71u, NativeBattleScanResults.PageB68810(result, 255, 1));
         Assert.Equal((byte)16, result.Cursor);
         Assert.Equal("X", source.Page(result, 1));
-        NativeBattleScanResultMemory next = NativeBattleScanResults.BuildB68390(result, 4, source.Services);
+        NativeBattleScanResultMemory next = NativeBattleScanResults.BuildB68390(result, OriginalOwner(4), source.Services);
         Assert.Equal(NativeBattleScanResults.RingAddress, NativeBattleScanResults.PageB68810(next, 4, 0));
         Assert.Equal((byte)1, next.Cursor);
     }
@@ -112,9 +113,9 @@ public sealed class NativeBattleScanResultsTests
     public void Missing_actual_kernel_or_enemy_extra_owner_fails_without_empty_text_replacement()
     {
         ScanResultTestSource source = new();
-        Assert.Throws<NotSupportedException>(() => NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), 0, source.Services with { ReadMiscText = _ => default }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(0), source.Services with { ReadMiscText = _ => default }));
         source.Extra = ScanResultTestSource.Unknown(71);
-        Assert.Throws<NotSupportedException>(() => NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), 3, source.Services));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(3), source.Services));
         Assert.Throws<NotSupportedException>(() => NativeBattleScanResults.Store495280(NativeBattleScanResultMemory.FromColdProcess(), default));
     }
 
@@ -124,8 +125,8 @@ public sealed class NativeBattleScanResultsTests
         ScanResultTestSource source = new() { InfoFlags = 3 };
         NativeBattleScanResultMemory initial = NativeBattleScanResultMemory.FromColdProcess() with { Cursor = 15 };
         NativeBattleScanResultMemory cloned = JsonSerializer.Deserialize<NativeBattleScanResultMemory>(JsonSerializer.Serialize(initial))!;
-        NativeBattleScanResultMemory left = NativeBattleScanResults.BuildB68390(initial, 3, source.Services);
-        NativeBattleScanResultMemory right = NativeBattleScanResults.BuildB68390(cloned, 3, source.Services);
+        NativeBattleScanResultMemory left = NativeBattleScanResults.BuildB68390(initial, OriginalOwner(3), source.Services);
+        NativeBattleScanResultMemory right = NativeBattleScanResults.BuildB68390(cloned, OriginalOwner(3), source.Services);
         Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
         Assert.Equal((byte)1, left.Cursor);
         Assert.Throws<InvalidDataException>(() => NativeBattleScanResults.PageB68810(left, 0, 8));

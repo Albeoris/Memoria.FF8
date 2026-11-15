@@ -10,7 +10,7 @@ public sealed class NativeBattleModelStatusColorsTests
     [Fact]
     public void Unselected_status_does_not_read_model_id_color_or_unknown_timers()
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags8 = 0x80000000 };
+        NativeBattleGraphicsModel model = new(3) { Flags8 = 0x80000000 };
         Assert.Same(model, NativeBattleModelStatusColors.Advance50A1C0(model, Colors));
         Assert.Throws<NotSupportedException>(() => NativeBattleModelStatusColors.Advance50A1C0(model with { Flags8 = null }, Colors));
     }
@@ -104,5 +104,5 @@ public sealed class NativeBattleModelStatusColorsTests
         Assert.Throws<NotSupportedException>(() => NativeBattleModelStatusColors.Advance50A1C0(Model(0x400) with { ModelId4 = null }, Colors));
     }
 
-    private static NativeBattleGraphicsModel Model(uint flags) => new(0, 3) { Flags8 = flags, ModelId4 = 16, Color40 = 0xA5123456 };
+    private static NativeBattleGraphicsModel Model(uint flags) => new(3) { Flags8 = flags, ModelId4 = 16, Color40 = 0xA5123456 };
 }

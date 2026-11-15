@@ -25,7 +25,7 @@ public sealed class NativeBattleGuestBodyCameraTests
         using BattleAssets assets = new(TestResources.GameDirectory);
         var dat = assets.ReadNativeModelDatSource(7, false, 0);
         BattleModel body = assets.LoadPlayer(7);
-        NativeBattleGraphicsModel loaded = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(0, 2), body.NativePoseSource!);
+        NativeBattleGraphicsModel loaded = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(2), body.NativePoseSource!);
         int skeleton = dat.Section(0);
         for (int bone = 0; bone < body.Bones.Count; bone++)
         {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -46,7 +47,7 @@ public sealed class NativeBattleDevour62ControllerTests
         Assert.Equal(256 + secondary, frame.State.SecondaryDrawCursor);
         Assert.Equal((ushort)(parity + 1), new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadWord(0x5C));
         Assert.Empty(fixture.Operations);
-        NativeBattleDevour62Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDevour62Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleDevour62Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
     }
 
@@ -150,7 +151,7 @@ public sealed class NativeBattleDevour62ControllerTests
         Assert.Equal(hidden ? 1 : 0, writes.Length);
         if (hidden)
         {
-            Assert.Equal(new NativeBattleDevour62WriteActorFlags(3, (ushort)(fixture.Models[3].Flags0 | 4)), writes[0]);
+            Assert.Equal(new NativeBattleDevour62WriteActorFlags(OriginalOwner(3), (ushort)(fixture.Models[3].Flags0 | 4)), writes[0]);
         }
         Assert.IsType<NativeBattleDevour62StageFade>(fixture.Operations[0]);
         Assert.IsType<NativeBattleDevour62FadeActors>(fixture.Operations[1]);
@@ -163,7 +164,7 @@ public sealed class NativeBattleDevour62ControllerTests
         NativeBattleDevour62Frame frame = SelectSecondGroup(fixture.Child(NativeBattleDevour62Profile.TargetCallback, 2, 83, out uint address), address);
         NativeBattleDevour62Inputs inputs = fixture.Inputs with { Packets = TwoHeaders(fixture, 8, 0) };
         NativeBattleDevour62Controller.Advance(frame, fixture.Resources, inputs);
-        Assert.Equal(1, Assert.Single(fixture.Operations.OfType<NativeBattleDevour62Contact>()).Index);
+        Assert.Equal(new BattleContactOccurrence(1), Assert.Single(fixture.Operations.OfType<NativeBattleDevour62Contact>()).Index);
         Assert.Empty(fixture.Operations.OfType<NativeBattleDevour62Sound>());
     }
 
@@ -197,7 +198,7 @@ public sealed class NativeBattleDevour62ControllerTests
         Assert.IsType<NativeBattleDevour62StageFade>(fixture.Operations[0]);
         Assert.Equal(new NativeBattleDevour62StageFade(4096, true), fixture.Operations[0]);
         Assert.Equal(new NativeBattleDevour62FadeActors(4096), fixture.Operations[1]);
-        Assert.Equal(new NativeBattleDevour62WriteActorFlags(3, (ushort)(fixture.Models[3].Flags0 | 4)), fixture.Operations[2]);
+        Assert.Equal(new NativeBattleDevour62WriteActorFlags(OriginalOwner(3), (ushort)(fixture.Models[3].Flags0 | 4)), fixture.Operations[2]);
     }
 
     [Fact]
@@ -206,7 +207,7 @@ public sealed class NativeBattleDevour62ControllerTests
         Fixture fixture = new();
         NativeBattleDevour62Frame frame = fixture.Child(NativeBattleDevour62Profile.AuxiliaryCallback, 0, 0, out _);
         frame = fixture.Step(frame);
-        NativeBattleDevour62Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDevour62Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleDevour62Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
         Assert.Null(NativeBattleDevour62State.FromColdProcess(0, 0).PrimaryDrawCursor);
     }
@@ -214,22 +215,24 @@ public sealed class NativeBattleDevour62ControllerTests
     private static NativeBattleDevour62Frame SelectSecondGroup(NativeBattleDevour62Frame frame, uint address)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x2A, 1).WriteByte(0x2B, 0)).Pools } };
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x2A, 1).WriteTraversalPosition(0x2B, 0)).Pools } };
     }
 
     private static NativeBattleActionPacketsState TwoHeaders(Fixture fixture, short first, short second)
     {
         NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
-        int header = fixture.Frame.Effect.Parameters!.HeaderIndex7C;
-        NativeBattleActionHeaderSlot firstHeader = packets.Headers[header] with { FirstContactIndex = 0 };
-        NativeBattleActionHeaderSlot secondHeader = firstHeader with { FirstContactIndex = 1 };
-        NativeBattleContactPacket contact = packets.ReadContact(0);
-        return packets with
+        BattleActionHeaderReference header = fixture.Frame.Effect.Parameters!.Header;
+        NativeBattleActionHeaderSlot prepared = packets.ReadHeader(header);
+        NativeBattleContactPacket contact = packets.ReadContact(prepared.FirstContact);
+        NativeBattleActionHeaderPreparation preparation = new(prepared.Source, prepared.Command, prepared.Sequence, prepared.CameraChoice, prepared.Action, prepared.Effect, prepared.Data);
+        packets = packets.ResetCounts();
+        foreach (short amount in new[] { first, second })
         {
-            ActionCount = 2,
-            Headers = packets.Headers.SetItem(header, firstHeader).SetItem(header + 1, secondHeader),
-            Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { Amount6 = unchecked((ushort)first) } }).SetItem(1, contact with { Primary = contact.Primary with { Amount6 = unchecked((ushort)second) } })
-        };
+            (packets, _) = packets.Prepare(preparation);
+            (packets, _) = packets.AppendContact(contact with { Primary = contact.Primary with { Amount6 = unchecked((ushort)amount) } });
+            (packets, _) = packets.Publish(1);
+        }
+        return packets;
     }
 
     internal sealed class Fixture
@@ -248,16 +251,24 @@ public sealed class NativeBattleDevour62ControllerTests
             uint[] values = [0x494CA, 0x494BD, 0x494B7, 0x494BF, 0x494B1, 0x494AE, 0x494B4, 0x494BA, 0x494DF];
             Resources = new(new("camera", camera.ToImmutableArray()), values.Select((value, index) => new NativeBattleDevour62SoundSource(0x1596290u + (uint)index * 4, value)).ToImmutableArray());
             NativeBattleActionPacketsState packets = prior.Inputs.Packets;
-            NativeBattleContactPacket contact = packets.ReadContact(0);
-            packets = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { Amount6 = unchecked((ushort)outcome) } }) };
+            NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
+            packets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [contact with { Primary = contact.Primary with { Amount6 = unchecked((ushort)outcome) } }]);
             NativeBattleOriginalEffectState effect = new(62, 61, new(62, NativeBattleDevour62Profile.Entry, NativeBattleDevour62Profile.Initializer), prior.Frame.Effect.Parameters, null) { ResourcePointers = [new(NativeBattleDevour62Profile.InitializerGlobal, 256)] };
             Frame = NativeBattleDevour62Controller.Initialize(NativeBattleEffectMemory.FromColdProcess().BeginLoad(61), effect, new(1), packets, Resources, NativeBattleDevour62State.FromColdProcess(123, 456));
-            Models = Enumerable.Range(0, 7).Select(prior.Inputs.ReadModel).ToArray();
-            Inputs = new(packets, NativeBattlePackedMatrix32.FromMatrix(prior.Inputs.Camera, null), index => Models[index], prior.Inputs.ReadPoseSource, (frame, operation) =>
+            Models = Enumerable.Range(0, 7).Select(slot => prior.Inputs.ReadModel(OriginalOwner(slot))).ToArray();
+            Inputs = new(packets, NativeBattlePackedMatrix32.FromMatrix(prior.Inputs.Camera, null), () => ModelFixture().Models, ReadOriginalFlags, owner => Models[OriginalSlot(owner)], prior.Inputs.ReadPoseSource, (frame, operation) =>
             {
                 Operations.Add(operation);
                 return operation is NativeBattleDevour62Contact ? frame with { Random = frame.Random.Draw(out _) } : frame;
             });
+        }
+
+        private (BattleActorModels Models, NativeBattleModelBoundary Boundary) ModelFixture() => OriginalModels(Models.Select((model, slot) => (slot, model)));
+
+        private ushort ReadOriginalFlags(NativeBattleModelSlot slot)
+        {
+            var (models, boundary) = ModelFixture();
+            return boundary.ReadOriginalCell(slot, models).Flags0;
         }
 
         public NativeBattleDevour62Frame Step(NativeBattleDevour62Frame frame) => NativeBattleDevour62Controller.Advance(frame, Resources, Inputs);
@@ -268,7 +279,7 @@ public sealed class NativeBattleDevour62ControllerTests
             uint root = hierarchy.Address(0, 0);
             hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 6).WriteByte(0x63, 1));
             int pool = callback == NativeBattleDevour62Profile.TargetCallback ? 1 : 2;
-            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(pool, callback, pool == 1 ? 88 : 84, root, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(pool, callback, pool == 1 ? 88 : 84, root, (_, _, _) => OriginalTaskActors(0, 3));
             address = append.Address;
             hierarchy = append.Hierarchy.Write(address, append.Hierarchy.Read(address).WriteByte(0x29, phase).WriteWord(0x24, age));
             return Frame with { Effect = Frame.Effect with { Pools = hierarchy.Pools } };

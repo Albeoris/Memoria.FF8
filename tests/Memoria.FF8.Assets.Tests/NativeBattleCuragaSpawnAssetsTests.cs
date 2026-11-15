@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -17,7 +18,7 @@ public sealed class NativeBattleCuragaSpawnAssetsTests
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x87E1A0, 676);
         NativeBattleModulePoolTask task = root.Hierarchy.Read(root.Address).WriteDword(0x34 + 0x224, NativeBattleCuragaExecutableState.Address + 4).WriteWord(0x34 + 0x18, counter).WriteWord(0x34 + 0x1C, 1);
         hierarchy = root.Hierarchy.Write(root.Address, task);
-        NativeBattleOriginalEffectState effect = new(28, 27, new(28, 0x87DB10, 0x87DAF0), new(0, 1, 8, 0, 0, 0), null) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState effect = new(28, 27, new(28, 0x87DB10, 0x87DAF0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(27) with { CuragaExecutable = executable };
         NativeBattleCuragaState state = new(0, null, null, 0xC000 + 0x25F8 + 0x16F80, null) { Auxiliary25F8 = 0xC000, Auxiliary16F80 = 0xC000 + 0x25F8, Counter26D76C0 = 0, Counter26D82E8 = 0 };
         NativeBattleCuragaFrame result = NativeBattleCuragaNodeEngine.Birth882E20(new(memory, effect, state), root.Address);

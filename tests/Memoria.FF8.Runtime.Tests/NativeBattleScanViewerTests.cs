@@ -1,5 +1,5 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -15,10 +15,10 @@ public sealed class NativeBattleScanViewerTests
             ReadBone502170 = (frame, actor, selector, fraction) =>
             {
                 samples++;
-                Assert.Equal(4, actor);
+                Assert.Equal(OriginalOwner(4), actor);
                 Assert.Equal((byte)0xF1, selector);
                 Assert.Equal(0, fraction);
-                Assert.Equal(fixture.Address + 0x30, frame.Models[4].ReadDword(0x30));
+                Assert.Equal(fixture.Address + 0x30, ReadModel(frame, 4).ReadDword(0x30));
                 Assert.Equal(4096u, Task(frame, fixture.Address).ReadDword(0x30));
                 Assert.False(frame.Scan.Memory.Scan!.Presentation.Camera269A168.Known[0x26]);
                 return new(10, 20, 30);
@@ -46,22 +46,22 @@ public sealed class NativeBattleScanViewerTests
     {
         var fixture = Fixture();
         NativeBattleScanProcess process = fixture.Frame.Scan.Memory.Scan!;
-        NativeBattleScanViewerFrame frame = fixture.Frame with { Scan = fixture.Frame.Scan with { Memory = fixture.Frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { PrimaryModel269CE30 = NativeBattleScanModelSelection.ModelBase + 3u * 156 } } } } };
+        NativeBattleScanViewerFrame frame = fixture.Frame with { Scan = fixture.Frame.Scan with { Effect = fixture.Frame.Scan.Effect with { ScanSelectedModel = OriginalOwner(3) }, Memory = fixture.Frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { PrimaryModel269CE30 = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(3)) } } } } };
         frame = NativeBattleScanViewer.Initialize84FCD0(frame, fixture.Address, fixture.Inputs with
         {
             ReadProfile = actor =>
             {
-                Assert.Equal(4, actor);
+                Assert.Equal(OriginalOwner(4), actor);
                 return Profile().WithWord(8, 0);
             },
             ReadBone502170 = (_, actor, _, _) =>
             {
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 return new(999, 999, 999);
             }
         });
-        Assert.Equal(fixture.Address + 0x30, frame.Models[3].ReadDword(0x30));
-        Assert.Equal(0u, frame.Models[4].ReadDword(0x30));
+        Assert.Equal(fixture.Address + 0x30, ReadModel(frame, 3).ReadDword(0x30));
+        Assert.Equal(0u, ReadModel(frame, 4).ReadDword(0x30));
         Assert.Equal((ushort)0, Task(frame, fixture.Address).ReadWord(0x54));
         Assert.Equal((ushort)0, Task(frame, fixture.Address).ReadWord(0x58));
         Assert.False(frame.Scan.Memory.Scan!.Presentation.Camera269A168.Known[0x2E]);
@@ -87,9 +87,9 @@ public sealed class NativeBattleScanViewerTests
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
         frame = Modify(frame, fixture.Address, task => task.WriteWord(0x70, 1).WriteWord(0x72, 50));
-        frame = frame with { Models = frame.Models.SetItem(4, frame.Models[4].WriteWord(0x0E, 0xFFF0)) };
+        frame = WriteModel(frame, 4, ReadModel(frame, 4).WriteWord(0x0E, 0xFFF0));
         frame = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, fixture.Inputs with { Input = Input(0x8000), ReadProfile = _ => Profile().WithByte(0x0D, 1) });
-        Assert.Equal((ushort)0x70, frame.Models[4].ReadWord(0x0E));
+        Assert.Equal((ushort)0x70, ReadModel(frame, 4).ReadWord(0x0E));
     }
 
     [Fact]
@@ -98,11 +98,11 @@ public sealed class NativeBattleScanViewerTests
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
         frame = Modify(frame, fixture.Address, task => task.WriteWord(0x70, 1).WriteWord(0x72, 54).WriteWord(0x40, 1).WriteWord(0x42, 2).WriteWord(0x44, 3).WriteDword(0x30, 7000));
-        frame = frame with { Models = frame.Models.SetItem(4, frame.Models[4].WriteWord(0x0E, 999).WriteWord(0x1C, 999)) };
+        frame = WriteModel(frame, 4, ReadModel(frame, 4).WriteWord(0x0E, 999).WriteWord(0x1C, 999));
         NativeBattleScanViewerFrame reset = NativeBattleScanViewer.Reset850600(frame, fixture.Address);
-        Assert.Equal((ushort)0, reset.Models[4].ReadWord(0x0E));
-        Assert.False(reset.Models[4].Known[0x12]);
-        Assert.Equal((ushort)999, reset.Models[4].ReadWord(0x1C));
+        Assert.Equal((ushort)0, ReadModel(reset, 4).ReadWord(0x0E));
+        Assert.False(ReadModel(reset, 4).Known[0x12]);
+        Assert.Equal((ushort)999, ReadModel(reset, 4).ReadWord(0x1C));
         Assert.Equal((ushort)54, Task(reset, fixture.Address).ReadWord(0x72));
         Assert.Equal((ushort)0, Task(reset, fixture.Address).ReadWord(0x70));
         Assert.Equal(4096u, Task(reset, fixture.Address).ReadDword(0x30));
@@ -121,7 +121,7 @@ public sealed class NativeBattleScanViewerTests
         frame = Modify(frame, fixture.Address, task => task.WriteWord(0x70, 1).WriteWord(0x72, 50));
         NativeBattleScanViewerProfile profile = Profile().WithByte(0x0D, permission);
         NativeBattleScanViewerFrame result = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, fixture.Inputs with { Input = Input(0x8000), ReadProfile = _ => profile });
-        Assert.Equal(expectedYaw, result.Models[4].ReadWord(0x0E));
+        Assert.Equal(expectedYaw, ReadModel(result, 4).ReadWord(0x0E));
         Assert.Equal((ushort)1, Task(result, fixture.Address).ReadWord(0x70));
         Assert.Equal((ushort)75, Task(result, fixture.Address).ReadWord(0x72));
     }
@@ -135,9 +135,9 @@ public sealed class NativeBattleScanViewerTests
         NativeBattleScanViewerInputs inputs = fixture.Inputs with { ReadProfile = _ => Profile().WithByte(0x0D, 1) };
         frame = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs);
         Assert.Equal((ushort)0, Task(frame, fixture.Address).ReadWord(0x70));
-        Assert.Equal((ushort)0, frame.Models[4].ReadWord(0x0E));
+        Assert.Equal((ushort)0, ReadModel(frame, 4).ReadWord(0x0E));
         frame = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs);
-        Assert.Equal((ushort)64, frame.Models[4].ReadWord(0x0E));
+        Assert.Equal((ushort)64, ReadModel(frame, 4).ReadWord(0x0E));
         Assert.Equal((ushort)75, Task(frame, fixture.Address).ReadWord(0x72));
     }
 
@@ -162,9 +162,9 @@ public sealed class NativeBattleScanViewerTests
     {
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
-        ImmutableArray<byte> retainedRotation = frame.Models[4].Bytes.Slice(0x40, 18);
-        NativeBattleScanByteOwner other = frame.Models[5].WriteWord(0x0E, 777).WriteDword(0x30, 0x1234);
-        frame = frame with { Models = frame.Models.SetItem(5, other) };
+        ImmutableArray<byte> retainedRotation = ReadModel(frame, 4).Bytes.Slice(0x40, 18);
+        NativeBattleScanByteOwner other = ReadModel(frame, 5).WriteWord(0x0E, 777).WriteDword(0x30, 0x1234);
+        frame = WriteModel(frame, 5, other);
         NativeBattleScanViewerProfile profile = Profile().WithWord(8, 0).WithWord(2, 5).WithWord(0x0A, 7);
         int samples = 0;
         NativeBattleScanViewerInputs inputs = fixture.Inputs with
@@ -174,27 +174,27 @@ public sealed class NativeBattleScanViewerTests
             ReadBone502170 = (current, actor, _, _) =>
             {
                 samples++;
-                Assert.Equal(4, actor);
-                Assert.Equal(100u, current.Models[4].ReadDword(0x54));
-                Assert.Equal(200u, current.Models[4].ReadDword(0x58));
-                Assert.Equal(300u, current.Models[4].ReadDword(0x5C));
-                Assert.Equal(retainedRotation.ToArray(), current.Models[4].Bytes.Slice(0x40, 18).ToArray());
-                Assert.False(current.Models[4].Known[0x52]);
+                Assert.Equal(OriginalOwner(4), actor);
+                Assert.Equal(100u, ReadModel(current, 4).ReadDword(0x54));
+                Assert.Equal(200u, ReadModel(current, 4).ReadDword(0x58));
+                Assert.Equal(300u, ReadModel(current, 4).ReadDword(0x5C));
+                Assert.Equal(retainedRotation.ToArray(), ReadModel(current, 4).Bytes.Slice(0x40, 18).ToArray());
+                Assert.False(ReadModel(current, 4).Known[0x52]);
                 Assert.Equal(4096u, Task(current, fixture.Address).ReadDword(0x30));
                 return new(10, 20, 30);
             }
         };
         NativeBattleScanViewerFrame result = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs);
         Assert.Equal(1, samples);
-        Assert.Equal((ushort)41, result.Models[4].ReadWord(0x1C));
-        Assert.Equal((ushort)213, result.Models[4].ReadWord(0x1E));
-        Assert.Equal((ushort)330, result.Models[4].ReadWord(0x20));
-        Assert.Equal(retainedRotation.ToArray(), result.Models[5].Bytes.Slice(0x40, 18).ToArray());
-        Assert.False(result.Models[5].Known[0x52]);
-        Assert.False(result.Models[5].Known[0x22]);
-        Assert.Equal((ushort)777, result.Models[5].ReadWord(0x0E));
-        Assert.Equal(0x1234u, result.Models[5].ReadDword(0x30));
-        Assert.Equal(frame.Models[6], result.Models[6]);
+        Assert.Equal((ushort)41, ReadModel(result, 4).ReadWord(0x1C));
+        Assert.Equal((ushort)213, ReadModel(result, 4).ReadWord(0x1E));
+        Assert.Equal((ushort)330, ReadModel(result, 4).ReadWord(0x20));
+        Assert.Equal(retainedRotation.ToArray(), ReadModel(result, 5).Bytes.Slice(0x40, 18).ToArray());
+        Assert.False(ReadModel(result, 5).Known[0x52]);
+        Assert.Equal((ushort)405, ReadModel(result, 5).ReadWord(0x22));
+        Assert.Equal((ushort)777, ReadModel(result, 5).ReadWord(0x0E));
+        Assert.Equal(0x1234u, ReadModel(result, 5).ReadDword(0x30));
+        Assert.Same(frame.Models.Get(OriginalOwner(6)), result.Models.Get(OriginalOwner(6)));
     }
 
     [Fact]
@@ -202,6 +202,8 @@ public sealed class NativeBattleScanViewerTests
     {
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
+        NativeBattleGraphicsModel unchanged = frame.Models.Get(OriginalOwner(6));
+        frame = WriteModel(frame, 5, ReadModel(frame, 5).WriteWord(0x12, 0xABCD));
         frame = Modify(frame, fixture.Address, task => task.WriteByte(0x29, 2));
         frame = NativeBattleScanViewer.Advance84F860(frame, fixture.Address, fixture.Inputs).Frame;
         Assert.Equal((byte)2, Task(frame, fixture.Address).ReadByte(0x29));
@@ -215,24 +217,33 @@ public sealed class NativeBattleScanViewerTests
         Assert.Equal((byte)4, Task(frame, fixture.Address).ReadByte(0x29));
         NativeBattleScanViewerStep closed = NativeBattleScanViewer.Advance84F860(frame, fixture.Address, fixture.Inputs);
         Assert.Equal(2, closed.Result);
-        Assert.Equal(0u, closed.Frame.Models[4].ReadDword(0x30));
-        Assert.Equal(0u, closed.Frame.Models[5].ReadDword(0x30));
-        Assert.False(closed.Frame.Models[4].Known[0x12]);
+        Assert.Equal(0u, ReadModel(closed.Frame, 4).ReadDword(0x30));
+        Assert.Equal(0u, ReadModel(closed.Frame, 5).ReadDword(0x30));
+        Assert.False(ReadModel(closed.Frame, 4).Known[0x12]);
+        Assert.False(ReadModel(closed.Frame, 5).Known[0x12]);
+        Assert.Same(unchanged, closed.Frame.Models.Get(OriginalOwner(6)));
         Assert.Equal(0u, closed.Frame.Text.Windows.Row(2).ReadDword(8));
         Assert.Equal((ushort)0xF000, closed.Frame.Text.Windows.Row(0).ReadWord(0x1E));
     }
 
     [Fact]
-    public void Byte_copy_propagates_unknown_padding_and_independent_interactive_JSON_continuation_matches()
+    public void Byte_copy_propagates_unknown_padding_and_independent_interactive_continuation_matches()
     {
+        NativeBattleScanByteOwner source = Unknown(156).WriteWord(0x1C, 100).WriteWord(0x1E, 200).WriteWord(0x20, 300);
+        NativeBattleScanByteOwner destination = Known(156).WriteWord(0x22, 777);
+        NativeBattleScanByteOwner copied = NativeBattleScanViewer.Copy(destination, 0x1C, source, 0x1C, 8);
+        Assert.Equal((ushort)300, copied.ReadWord(0x20));
+        Assert.False(copied.Known[0x22]);
+        Assert.False(copied.Known[0x23]);
+
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
-        NativeBattleScanViewerFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanViewerFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleScanViewerFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleScanViewerFrame left = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, fixture.Inputs with { Input = Input(0x8001) });
         NativeBattleScanViewerFrame right = NativeBattleScanViewer.Advance84FD90(restored, fixture.Address, fixture.Inputs with { Input = Input(0x8001) });
         Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
-        Assert.False(left.Models[4].Known[0x12]);
-        Assert.False(left.Models[4].Known[0x52]);
+        Assert.False(ReadModel(left, 4).Known[0x12]);
+        Assert.False(ReadModel(left, 4).Known[0x52]);
     }
 
     [Theory]
@@ -246,13 +257,13 @@ public sealed class NativeBattleScanViewerTests
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
         frame = Modify(frame, fixture.Address, task => task.WriteWord(0x70, 1).WriteWord(0x72, 50));
         NativeBattleScanViewerInputs inputs = fixture.Inputs with { Input = Input(held), ReadProfile = _ => Profile().WithByte(0x0C, 2).WithByte(0x0D, 0), UnrestrictedRotation = true };
-        NativeBattleScanViewerFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanViewerFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleScanViewerFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleScanViewerFrame result = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs);
         NativeBattleScanViewerFrame resumed = NativeBattleScanViewer.Advance84FD90(restored, fixture.Address, inputs);
-        Assert.Equal(expected, result.Models[4].ReadWord(angle));
+        Assert.Equal(expected, ReadModel(result, 4).ReadWord(angle));
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(resumed));
         NativeBattleScanViewerFrame restricted = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs with { UnrestrictedRotation = false });
-        Assert.Equal((ushort)0, restricted.Models[4].ReadWord(angle));
+        Assert.Equal((ushort)0, ReadModel(restricted, 4).ReadWord(angle));
     }
 
     [Fact]
@@ -261,8 +272,16 @@ public sealed class NativeBattleScanViewerTests
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
         NativeBattleScanViewerFrame result = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, fixture.Inputs with { UnrestrictedRotation = true });
-        Assert.Equal((ushort)64, result.Models[4].ReadWord(0x0E));
-        Assert.Equal((byte)0, fixture.Inputs.ReadProfile(4).Bytes16.ReadByte(0x0D));
+        Assert.Equal((ushort)64, ReadModel(result, 4).ReadWord(0x0E));
+        Assert.Equal((byte)0, fixture.Inputs.ReadProfile(OriginalOwner(4)).Bytes16.ReadByte(0x0D));
+    }
+
+    private static NativeBattleScanByteOwner ReadModel(NativeBattleScanViewerFrame frame, int slot) => NativeBattleScanPhysicalModels.Capture(frame.Models.Get(OriginalOwner(slot)));
+
+    private static NativeBattleScanViewerFrame WriteModel(NativeBattleScanViewerFrame frame, int slot, NativeBattleScanByteOwner bytes)
+    {
+        BattleModelOwner owner = OriginalOwner(slot);
+        return frame with { Models = frame.Models.Set(owner, NativeBattleScanPhysicalModels.Apply(frame.Models.Get(owner), bytes)) };
     }
 
     private static NativeBattleScanViewerProfile Profile() => new(12, Known(16).WriteWord(8, 1));
@@ -279,28 +298,41 @@ public sealed class NativeBattleScanViewerTests
 
     private static (NativeBattleScanViewerFrame Frame, uint Address, NativeBattleScanViewerInputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 50, 40, null));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 50, 40, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleScanProcess process = NativeBattleScanProcess.FromColdProcess();
         NativeBattleScanByteOwner camera = Unknown(80).WriteWord(0x20, 0).WriteWord(0x22, 0).WriteWord(0x24, 0).WriteWord(0x28, 100).WriteWord(0x2A, 200).WriteWord(0x2C, 300);
-        process = process with { Presentation = process.Presentation with { Camera269A168 = camera, PrimaryModel269CE30 = NativeBattleScanModelSelection.ModelBase + 4u * 156, Selection269A1BC = process.Presentation.Selection269A1BC.WriteDword(16, 1).WriteDword(20, 1).WriteDword(24, 2) } };
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(2, 1, 16, 0, 0, 0), null);
+        process = process with { Presentation = process.Presentation with { Camera269A168 = camera, PrimaryModel269CE30 = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(4)), Selection269A1BC = process.Presentation.Selection269A1BC.WriteDword(16, 1).WriteDword(20, 1).WriteDword(24, 2) } };
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleScanFrame scan = NativeBattleScanController.Initialize84D030(NativeBattleEffectMemory.FromColdProcess() with { Scan = process }, effect, packets);
         NativeBattleEffectHierarchy hierarchy = new(scan.Effect.Pools);
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, 0x84F860, 0x78, hierarchy.Address(0, 0), (_, _, _) => new(2, 4));
-        scan = scan with { Effect = scan.Effect with { Pools = child.Hierarchy.Pools } };
-        ImmutableArray<NativeBattleScanByteOwner> models = Enumerable.Range(0, 7).Select(index =>
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(2, 0x84F860, 0x78, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(2, 4));
+        scan = scan with
         {
-            NativeBattleScanByteOwner model = Unknown(156).WriteWord(0x0C, 0).WriteWord(0x0E, 0).WriteWord(0x10, 0).WriteWord(0x1C, 100).WriteWord(0x1E, 200).WriteWord(0x20, 300).WriteDword(0x30, 0).WriteDword(0x54, 100).WriteDword(0x58, 200).WriteDword(0x5C, 300);
-            for (int lane = 0; lane < 9; lane++)
+            Effect = scan.Effect with
             {
-                model = model.WriteWord(0x40 + lane * 2, (ushort)(100 + index * 10 + lane));
+                Pools = child.Hierarchy.Pools,
+                ScanSelectedModel = OriginalOwner(4),
+                ScanSelectionValues = scan.Effect.ScanSelectionValues.Add(OriginalOwner(4), 1).Add(OriginalOwner(5), 1).Add(OriginalOwner(6), 2)
             }
-            return model;
-        }).ToImmutableArray();
+        };
+        BattleActorModels models = OriginalModels(Enumerable.Range(0, 7).Select(index =>
+        {
+            NativeBattleActionMatrix matrix = new(Enumerable.Range(0, 9).Select(lane => checked((short)(100 + index * 10 + lane))).ToImmutableArray(), 100, 200, 300, 4096);
+            NativeBattleGraphicsModel model = new(0)
+            {
+                Rotation12 = 0,
+                Rotation14 = 0,
+                Rotation16 = 0,
+                Transform = new(new(0, 0, 0), new(100, 200, 300), checked((short)(401 + index)), 0, 4096),
+                ScaleVectorAddress48 = 0,
+                GeometryWorldMatrix = matrix
+            };
+            return (index, model);
+        })).Models;
         NativeBattleScanTextWindows windows = new(Enumerable.Range(0, 8).Select(_ => Known(60)).ToImmutableArray(), Enumerable.Range(0, 8).ToImmutableDictionary(index => (byte)index, _ => Known(64)));
         NativeBattleScanTextInitializationResult initialized = NativeBattleScanTextInitialization.InitializeTextStores4A0880(NativeBattleScanTextInitialization.InitializeBackendStores4B7170(windows), Known(12));
         NativeBattleScanTextFrame text = new(initialized.Windows, Known(128), 0, -1, initialized.Globals1D2B524);

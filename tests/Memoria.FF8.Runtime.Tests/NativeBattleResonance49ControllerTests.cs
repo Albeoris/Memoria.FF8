@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleResonance49Controller;
@@ -159,7 +160,7 @@ public sealed class NativeBattleResonance49ControllerTests
         if (draws != 0)
         {
             random = random.Draw(out value);
-            Assert.Equal(new NativeBattleResonance49SelectSequence505CE0(0, 4 + (value & 1)), Assert.Single(operations));
+            Assert.Equal(new NativeBattleResonance49SelectSequence505CE0(OriginalOwner(0), 4 + (value & 1)), Assert.Single(operations));
         }
         else
         {
@@ -213,7 +214,7 @@ public sealed class NativeBattleResonance49ControllerTests
         Assert.Equal(phase == 2 ? (ushort)6 : (ushort)4, Read(actual.Frame, address).ReadWord(0x78));
         if (phase == 2)
         {
-            Assert.Equal(new NativeBattleResonance49SelectSequence505CE0(0, 6), Assert.Single(operations));
+            Assert.Equal(new NativeBattleResonance49SelectSequence505CE0(OriginalOwner(0), 6), Assert.Single(operations));
         }
         else
         {
@@ -267,7 +268,7 @@ public sealed class NativeBattleResonance49ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim) };
-        NativeBattleOriginalEffectState effect = new(49, 48, new(49, Entry, Initializer), new(3, flags, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(49, 48, new(49, Entry, Initializer), new(OriginalOwner(3), flags, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleResonance49State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -277,20 +278,20 @@ public sealed class NativeBattleResonance49ControllerTests
         return current;
     });
 
-    private static NativeBattleGraphicsModel Model(int actor, byte sequence) => new(actor, 2) { Sequence = sequence, Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 444, 777, 4096) };
+    private static NativeBattleGraphicsModel Model(int actor, byte sequence) => new(2) { Sequence = sequence, Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 444, 777, 4096) };
 
     private static NativeBattleActionPacketsState Packets()
     {
-        var packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 121, 49, null));
-        (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        var packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 121, 49, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 121, 49, null));
-        (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.AppendContact(new(new(1, 4, 0, 0, 0, 7, 0), new(4, 4, 0, 0, 0, 3, 0)));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 121, 49, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
         (packets, _) = packets.Publish(2);
-        return packets.WritePlayerRepeatMode(1, 1);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 
     private static NativeBattleResonance49Resources Resources()

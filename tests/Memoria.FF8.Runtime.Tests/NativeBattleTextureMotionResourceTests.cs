@@ -28,7 +28,7 @@ public sealed class NativeBattleTextureMotionResourceTests
         Set(nameof(BattleSession.NativeModelCpuResources), cpu);
         Set(nameof(BattleSession.NativeModelTextureCache), cache);
         Set(nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.Unknown());
-        NativeBattleGraphicsModel model = new(0, 3) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
+        NativeBattleGraphicsModel model = new(3) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
         ImmutableArray<byte> Read() => (ImmutableArray<byte>)typeof(BattleSession).GetMethod("ReadNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model])!;
         Assert.Equal(logical ? resource : guest, Read().ToArray());
         typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
@@ -60,7 +60,7 @@ public sealed class NativeBattleTextureMotionResourceTests
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelTextureCache))!.SetValue(session, cache);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, NativeBattleFileStaging.Unknown().Write(target.NativePlacementAddress, bytes));
-        NativeBattleGraphicsModel model = new(0, 16) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
+        NativeBattleGraphicsModel model = new(16) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
         typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
         NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
         Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, new NativeBattleResourcePointer(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);

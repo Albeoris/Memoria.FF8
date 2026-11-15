@@ -30,7 +30,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void ReloadResetsByte145AndPartyIdentityIgnoresThePhysicalSlotAndMissingEnemyMetadata()
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel prior = new(6, 3) { SequenceByte145 = 200 };
+        NativeBattleGraphicsModel prior = new(3) { SequenceByte145 = 200 };
         NativeBattleGraphicsModel enemy = NativeBattleGraphicsModels.CompleteLoad(prior, 77, 0, ref random, 2);
         Assert.Equal((byte)1, enemy.SequenceByte145);
         NativeBattleGraphicsModel party = NativeBattleGraphicsModels.CompleteLoad(enemy with { SequenceByte145 = 90 }, 15, 0, ref random);
@@ -42,7 +42,7 @@ public sealed class NativeBattleGraphicsModelTests
     {
         NativeGlobalRandomState random = new(1234);
         NativeGlobalRandomState before = random;
-        NativeBattleGraphicsModel model = new(3, 3) { SequenceByte145 = 5 };
+        NativeBattleGraphicsModel model = new(3) { SequenceByte145 = 5 };
         Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.CompleteLoad(model, 77, 0, ref random));
         Assert.Equal(before, random);
         Assert.Equal((byte)5, model.SequenceByte145);

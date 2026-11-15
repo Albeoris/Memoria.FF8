@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect298Controller;
@@ -56,7 +57,7 @@ public sealed class NativeBattleEffect298ChildrenTests
             (frame, _) = Append(frame, Pools[3].Descriptor, 0x671AB0);
         }
         var resources = Script(0, 2048, 2, 256, 1024, -128);
-        var actual = BirthProgramme671990(frame, ScriptAddress, 0x1D972C0, ArenaAddress + MainOffset + 28, false, resources, Inputs((_, _) => throw new InvalidOperationException()));
+        var actual = BirthProgramme671990(frame, ScriptAddress, OriginalOwner(0), ArenaAddress + MainOffset + 28, false, resources, Inputs((_, _) => throw new InvalidOperationException()));
         Assert.Equal(ScriptAddress + 12, actual.Next);
         Assert.Same(frame, actual.Frame);
     }
@@ -84,12 +85,12 @@ public sealed class NativeBattleEffect298ChildrenTests
             return current;
         }) with { ReadBone502170 = (current, model, bone, distance) =>
         {
-            Assert.Equal(0x1D972C0u, model);
+            Assert.Equal(OriginalOwner(0), model);
             Assert.Equal(1, bone);
             Assert.Equal(2048, distance);
             return new(current, PointView(new(100, 200, 300)));
         } };
-        var actual = BirthSpriteBatch671FF0(frame, ScriptAddress, 0x1D972C0, ArenaAddress + MainOffset + 28, Script(payload), inputs);
+        var actual = BirthSpriteBatch671FF0(frame, ScriptAddress, OriginalOwner(0), ArenaAddress + MainOffset + 28, Script(payload), inputs);
         Assert.Equal(ScriptAddress + 48, actual.Next);
         Assert.Equal(new[] { typeof(NativeBattleEffect298ApplyOffsetPose662C00) }, operations);
         Assert.Equal(14u, actual.Frame.State.ReadDword(SeedGlobal));
@@ -181,10 +182,10 @@ public sealed class NativeBattleEffect298ChildrenTests
             return current;
         }) with
         {
-            ReadModel = (_, _) => new(0, 3) { Color40 = 0x123456, GeometryWorldMatrix = identity.ReadMatrix(), SequenceState = new() { MeshMask124 = 1 } },
+            ReadModel = (_, _) => new(3) { Color40 = 0x123456, GeometryWorldMatrix = identity.ReadMatrix(), SequenceState = new() { MeshMask124 = 1 } },
             ReadBody = (_, _) => body
         };
-        var actual = BirthFragments6710E0(frame, ScriptAddress, 0x1D972C0, main + 28, Script(0, -1, 1, 100, 5000, 32767), inputs);
+        var actual = BirthFragments6710E0(frame, ScriptAddress, OriginalOwner(0), main + 28, Script(0, -1, 1, 100, 5000, 32767), inputs);
         Assert.Equal(ScriptAddress + 12, actual.Next);
         Assert.Equal(new[] { typeof(NativeBattleEffect298ApplyOffsetPose662C00), typeof(NativeBattleEffect298RestorePose508C90) }, operations);
         Assert.Equal(12044u, actual.Frame.State.ReadDword(SeedGlobal));
@@ -238,5 +239,5 @@ public sealed class NativeBattleEffect298ChildrenTests
         return new(memory, effect, NativeBattleEffect298State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleEffect298Inputs Inputs(Func<NativeBattleEffect298Frame, NativeBattleEffect298Operation, NativeBattleEffect298Frame> execute) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), (_, _) => throw new InvalidOperationException(), execute, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+    private static NativeBattleEffect298Inputs Inputs(Func<NativeBattleEffect298Frame, NativeBattleEffect298Operation, NativeBattleEffect298Frame> execute) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => OriginalPackets(), (_, _) => throw new InvalidOperationException(), execute, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
 }

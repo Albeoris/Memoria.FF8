@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -64,9 +66,9 @@ public sealed class NativeBattleModule5707A0PresentationTests
         }
         Assert.True(session.NativeGraphics!.EntryReady);
         BattleSnapshot original = session.Capture();
-        int actor = original.NativeGraphics!.ActorIds.IndexOf("enemy-1");
+        int actor = FindOriginalModelSlot(original.NativeGraphics!, "enemy-1");
         Assert.Equal(4, actor);
-        NativeBattleGraphicsModel model = original.NativeGraphics.Models[actor];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(original.NativeGraphics, actor);
         Assert.Equal((byte)89, model.ModelId4);
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Transform);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -136,7 +137,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
     }
 
     private static NativeBattleCuragaNodeEngineInputs NoLeaves() => new((_, _) => throw new InvalidOperationException());
-    private static NativeBattleCuragaControllerInputs NoControllerInputs() => new(NativeBattleActionPacketsState.Fresh(), new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException());
+    private static NativeBattleCuragaControllerInputs NoControllerInputs() => new(OriginalPackets(), new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException());
     private static NativeBattleModulePoolTask Task(NativeBattleCuragaFrame frame, uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
     private static NativeBattleCuragaFrame Write(NativeBattleCuragaFrame frame, uint address, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> update)
     {
@@ -146,15 +147,15 @@ public sealed class NativeBattleCuragaNodeEngineTests
 
     internal static (NativeBattleCuragaFrame Frame, uint Task) Fixture((byte Mode, sbyte Birth, bool PerTarget)[]? sources = null)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 23, 28, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 23, 28, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(28, 27, new(28, 0x87DB10, 0x87DAF0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x26D75BC, 0)] };
+        NativeBattleOriginalEffectState selected = new(28, 27, new(28, 0x87DB10, 0x87DAF0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26D75BC, 0)] };
         NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(NativeBattleEffectMemory.FromColdProcess().BeginLoad(27), selected, packets, new(new("skipped-registration", []), 0x4946F));
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(3, 0x87E1A0, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(3, 0x87E1A0, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         byte[] bytes = new byte[NativeBattleCuragaExecutableState.Length];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, 1);
         sources ??= [];

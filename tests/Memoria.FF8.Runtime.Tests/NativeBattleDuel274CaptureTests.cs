@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -67,7 +68,7 @@ public sealed class NativeBattleDuel274CaptureTests
         NativeBattleDuel274Frame Run(bool capture)
         {
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0x4000 + 154, 2);
-            NativeBattleDuel274Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0), NativeBattleFileStaging.Unknown(), new(1)) { CapturePresentation = capture };
+            NativeBattleDuel274Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0), NativeBattleFileStaging.Unknown(), new(1)) { CapturePresentation = capture };
             frame = NativeBattleDuel274ArenaEcho.Initialize6A1230(frame, NativeBattleEffectNodeMemory.ArenaAddress + 0x4000, [9]);
             return NativeBattleDuel274ArenaEcho.Capture68ADF0(frame, NativeBattleEffectNodeMemory.ArenaAddress + 0x4000, 10, bone =>
             {
@@ -117,7 +118,7 @@ public sealed class NativeBattleDuel274CaptureTests
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508498, 0x20E3AB8, 36, 1);
             (pool, int slot) = pool.Append(0x68B140);
             NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
-            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), pool.DescriptorAddress) { Pools = [pool] };
+            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), pool.DescriptorAddress) { Pools = [pool] };
             NativeBattlePilotVisualIdentity parent = new(274, 0x2000, 1, 2, 3);
             NativeBattleDuel274Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1)) { CapturePresentation = capture, PilotIdentity = capture ? parent : null };
             NativeBattleDuel274Frame result = NativeBattleDuel274Banks.Advance508420(frame, pool.DescriptorAddress, (current, selected) =>
@@ -151,7 +152,7 @@ public sealed class NativeBattleDuel274CaptureTests
         {
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
             (root, _) = root.Append(0x689990);
-            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = [root] };
+            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), root.DescriptorAddress) { Pools = [root] };
             NativeBattleDuel274Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), new(1)) { CapturePresentation = capture };
             uint echo = NativeBattleEffectNodeMemory.ArenaAddress + 0x4000;
             frame = NativeBattleDuel274ArenaEcho.Initialize6A1230(frame, echo, [0]);
@@ -192,7 +193,7 @@ public sealed class NativeBattleDuel274CaptureTests
             BinaryPrimitives.WriteUInt16LittleEndian(section.AsSpan(46), 1);
             BinaryPrimitives.WriteUInt16LittleEndian(section.AsSpan(48), 2);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-            NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = identity, SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x808080 };
+            NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = identity, SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x808080 };
             List<NativeBattleGfGeometryBatch> batches = [];
             frame = NativeBattleDuel274Echo.Draw68A7B0(frame, model, echo, 0x1000000, (_, offset, length) => section.AsSpan(offset, length).ToArray(), 3, identity, new(identity, 256, 160, 108), (current, batch) =>
             {

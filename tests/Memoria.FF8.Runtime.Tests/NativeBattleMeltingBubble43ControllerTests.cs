@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -85,7 +86,7 @@ public sealed class NativeBattleMeltingBubble43ControllerTests
         hierarchy = hierarchy.Write(target, hierarchy.Read(target).WriteByte(0x2B, selected));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
-        NativeBattleContactPacket packet = packets.ReadContact(0);
+        NativeBattleContactPacket packet = packets.ReadContact(new BattleContactOccurrence(0));
         while (packets.ContactCount < 3)
         {
             (packets, _) = packets.AppendContact(packet);
@@ -167,10 +168,10 @@ public sealed class NativeBattleMeltingBubble43ControllerTests
             NativeBattleEffectHierarchy hierarchy = new(Frame.Effect.Pools);
             root = hierarchy.Address(0, 0);
             hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 4).WriteByte(0x63, 1));
-            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(1, NativeBattleMeltingBubble43Profile.TargetCallback, 88, root, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(1, NativeBattleMeltingBubble43Profile.TargetCallback, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
             target = append.Address;
             hierarchy = append.Hierarchy.Write(target, append.Hierarchy.Read(target).WriteByte(0x29, phase).WriteWord(0x24, age));
-            NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(2, NativeBattleMeltingBubble43Profile.GenericCallback, 676, target, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(2, NativeBattleMeltingBubble43Profile.GenericCallback, 676, target, (_, _, _) => OriginalTaskActors(0, 3));
             return Frame with { Effect = Frame.Effect with { Pools = generic.Hierarchy.Pools } };
         }
         private NativeBattleMeltingBubble43LeafStep AdvanceGeneric(NativeBattleMeltingBubble43Frame frame, uint address)

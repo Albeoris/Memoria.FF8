@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -135,17 +136,17 @@ public sealed class NativeBattleEffect64PresentationTests
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect64State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.NativeEffectMemory.Effect64)));
-        string casterId = graphics.ActorIds[5] ?? throw new InvalidDataException("Effect64 requires its actual allocated caster.");
+        string casterId = ReadOriginalModelActorId(graphics, 5) ?? throw new InvalidDataException("Effect64 requires its actual allocated caster.");
         NativeBattleEnemyAllocation allocation = Assert.Single(original.NativeAllocations, item => item.Id == casterId);
         Assert.Equal(3, allocation.SceneSlot);
         Assert.Equal(1, allocation.Generation);
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
         Assert.Equal(124, caster.ModelId);
-        Assert.Equal((byte)140, graphics.Models[5].ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(graphics, 5).ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new InvalidDataException("Effect64 requires its current allocated skeleton.");
-        Assert.Equal(71, NativeBattleBodyBoneMatrices.Require(graphics.Models[5], pose).Length);
-        Assert.NotNull(graphics.Models[5].GeometryBounds52);
-        Assert.NotNull(graphics.Models[5].GeometryWorldMatrix);
+        Assert.Equal(71, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, 5), pose).Length);
+        Assert.NotNull(ReadOriginalModelCell(graphics, 5).GeometryBounds52);
+        Assert.NotNull(ReadOriginalModelCell(graphics, 5).GeometryWorldMatrix);
         Assert.Equal((ushort)1448, original.NativeModelCpuResources!.ScratchMaximum);
         Assert.NotNull(original.NativeStage!.FinalStage142);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 353 && row.MagicId == 64 && row.KernelSection == 3 && row.KernelIndex == 353);
@@ -153,15 +154,15 @@ public sealed class NativeBattleEffect64PresentationTests
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(5, 8, 16, -1, 353, 64, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(5), 8, 16, -1, 353, 64, null));
         // Original selector200 is SELF; the declared neutral contact carries that physical target without publishing a new status cache.
         NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == casterId).NativeStatus!.Presentation;
-        NativeBattleContactPacket selfContact = new(new(5, 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket selfContact = new(new(OriginalOwner(5), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
         (packets, _) = packets.AppendContact(selfContact);
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
+        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([64])[63];
         Assert.Equal(Entry, binding.Entry);
@@ -169,11 +170,11 @@ public sealed class NativeBattleEffect64PresentationTests
         Assert.Same(game.ReadNativeEffect64Resources(), binding.Effect64Resources);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(63, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared allocated original124 command8/action353/sequence16 zero-damage SELF-contact renderer and lifecycle; reaction/death AI and formula admission excluded", ActualCasterId = casterId, PhysicalCaster = 5, Allocation = allocation, Action = action, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, SourceNativeClock = original.NativeClock, SourceScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceStageRotation = original.NativeStage.Rotation, SourceSavedRotation = original.NativeStage.FinalStage142!.SavedRotation, StatusCache = "Preserved without publication; SELF contact copies current cached statuses" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared allocated original124 command8/action353/sequence16 zero-damage SELF-contact renderer and lifecycle; reaction/death AI and formula admission excluded", ActualCasterId = casterId, PhysicalCaster = 5, Allocation = allocation, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, SourceNativeClock = original.NativeClock, SourceScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceStageRotation = original.NativeStage.Rotation, SourceSavedRotation = original.NativeStage.FinalStage142!.SavedRotation, StatusCache = "Preserved without publication; SELF contact copies current cached statuses" }));
         return source;
     }
 

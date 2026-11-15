@@ -28,18 +28,18 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             battle.Tick();
             BattleSnapshot current = battle.Capture();
-            if (current.NativeActionPackets!.Headers.Any(header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && NativeBattleActionGraphics.Word(header, 4) == 3))
+            if (current.NativeActionPackets!.Headers.Any(header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && header.Action == 3))
             {
                 queued = current;
             }
         }
         Assert.NotNull(queued);
-        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.NativeActionPackets!.Headers, header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && NativeBattleActionGraphics.Word(header, 4) == 3);
+        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.NativeActionPackets!.Headers, header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && header.Action == 3);
         Assert.Equal((byte)3, entrance.ReadByte(0));
-        Assert.Equal((byte)0, entrance.ReadByte(2));
-        Assert.Equal((ushort)0, NativeBattleActionGraphics.Word(entrance, 6));
-        Assert.Equal((byte)1, entrance.ReadByte(16));
-        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(entrance.FirstContactIndex!.Value);
+        Assert.Equal((byte)0, entrance.Sequence);
+        Assert.Equal((ushort)0, entrance.Effect);
+        Assert.Equal((byte)1, entrance.ReadContactCount());
+        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(entrance.FirstContact);
         Assert.Equal((byte)4, contact.Primary.ActorIndex);
         Assert.Equal((byte)0, contact.Primary.Sequence);
         Assert.Equal((ushort)0, contact.Primary.Amount6);

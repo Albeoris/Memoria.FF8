@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -39,7 +40,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
         }
         NativeBattleEffect66State state = current.NativeEffectMemory!.Effect66!;
         state.Validate();
-        Assert.Equal((byte)140, graphics.Models[5].ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(graphics, 5).ModelId4);
         Assert.Equal((ushort)1448, current.NativeModelCpuResources!.ScratchMaximum);
         NativeBattleModulePoolTask? before = ReadMain(prior);
         NativeBattleModulePoolTask? main = ReadMain(current);
@@ -173,7 +174,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
             Assert.Empty(effect.Pools);
             Assert.Empty(state.CameraTasks);
             Assert.All(state.FixedBanks.Values, bank => Assert.NotNull(bank));
-            Assert.Equal((byte)1, graphics.Models[5].Sequence);
+            Assert.Equal((byte)1, ReadOriginalModelCell(graphics, 5).Sequence);
             Assert.Equal(2, current.NativeStage!.Groups[1].Flags & 2);
             Mark("effect66-retained-native-completion", current, cold);
         }
@@ -200,7 +201,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
 
     private void ObserveText(BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        string id = current.NativeGraphics!.ActorIds[5]!;
+        string id = ReadOriginalModelActorId(current.NativeGraphics!, 5)!;
         NativeBattleEnemyAllocation allocation = current.NativeAllocations.Single(item => item.Id == id);
         string prototype = current.Definition.Combatants.Single(item => item.SceneSlot == allocation.SceneSlot).Id;
         string expected = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == prototype).Resource.ReadText91(5);
@@ -245,7 +246,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
     private static NativeBattleLogicalCommand[] BodyCommands(BattleSnapshot current)
     {
         NativeBattleModulePoolTask? task = current.NativeGraphics!.OriginalEffect!.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == 0x6257F0 && unchecked((short)task.ReadWord(12)) > 1);
-        NativeBattleGraphicsModel actor = current.NativeGraphics.Models[5];
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics, 5);
         if (task is null || (actor.Flags0 & 4) == 0)
         {
             return [];
@@ -284,7 +285,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
             ushort uv2 = Word(bytes, polygon.Quad ? 16 : 6);
             faces.Add(new(polygon.Quad, Dword(bytes, 8), uv1, uv2, polygon.Quad ? Word(bytes, 18) : (ushort)0));
         }
-        return Commands(current).Where(command => Common(command) && (!body || (command.Words[0] & 0xFFFFFF) == (current.NativeGraphics!.Models[5].Color40!.Value & 0xFFFFFF)) && (command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E) && command.Words.Length == ((command.Opcode & 8) != 0 ? 9 : 7) && command.VertexPayload4.Length == 4 && command.OrderingBucket is >= 17 && faces.Contains(new((command.Opcode & 8) != 0, command.Words[2], command.Words[4], unchecked((ushort)command.Words[6]), (command.Opcode & 8) != 0 ? unchecked((ushort)command.Words[8]) : (ushort)0))).ToArray();
+        return Commands(current).Where(command => Common(command) && (!body || (command.Words[0] & 0xFFFFFF) == (ReadOriginalModelCell(current.NativeGraphics!, 5).Color40!.Value & 0xFFFFFF)) && (command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E) && command.Words.Length == ((command.Opcode & 8) != 0 ? 9 : 7) && command.VertexPayload4.Length == 4 && command.OrderingBucket is >= 17 && faces.Contains(new((command.Opcode & 8) != 0, command.Words[2], command.Words[4], unchecked((ushort)command.Words[6]), (command.Opcode & 8) != 0 ? unchecked((ushort)command.Words[8]) : (ushort)0))).ToArray();
     }
 
     private static ushort Word(ReadOnlySpan<byte> bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(offset, 2));

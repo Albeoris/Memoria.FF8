@@ -21,11 +21,11 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = graphics.Descriptors.Packets[slot].Argument - 0x1D280C4;
         Assert.Equal(0u, offset % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(offset / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal((ushort)11, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)118, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal((ushort)11, header.Action);
+        Assert.Equal((ushort)118, header.Effect);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         int targetHp = source.Combatants.Single(actor => actor.Id == "enemy").CurrentHp;
         Assert.Equal(contact.Primary.Amount6, beforeInput.Combatants.Single(actor => actor.Id == "enemy").CurrentHp - targetHp);

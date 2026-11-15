@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -165,17 +166,17 @@ public sealed class NativeBattleEffect174PresentationTests
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect174State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect174));
-        string casterId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect174 requires its actual original caster.");
-        string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect174 requires its actual party recipient.");
+        string casterId = ReadOriginalModelActorId(graphics, 3) ?? throw new InvalidDataException("Effect174 requires its actual original caster.");
+        string targetId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect174 requires its actual party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
         Assert.Equal(22, caster.ModelId);
-        Assert.Equal((byte)38, graphics.Models[3].ModelId4);
+        Assert.Equal((byte)38, ReadOriginalModelCell(graphics, 3).ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new InvalidDataException("Effect174 requires its current original skeleton.");
-        Assert.Equal(26, NativeBattleBodyBoneMatrices.Require(graphics.Models[3], pose).Length);
-        Assert.NotNull(graphics.Models[3].GeometryBounds52);
-        Assert.NotNull(graphics.Models[3].GeometryWorldMatrix);
+        Assert.Equal(26, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, 3), pose).Length);
+        Assert.NotNull(ReadOriginalModelCell(graphics, 3).GeometryBounds52);
+        Assert.NotNull(ReadOriginalModelCell(graphics, 3).GeometryWorldMatrix);
         Assert.NotNull(graphics.UiServices);
-        NativeBattleGraphicsModel recipient = graphics.Models[0];
+        NativeBattleGraphicsModel recipient = ReadOriginalModelCell(graphics, 0);
         NativeBattleGraphicsBinding recipientBinding = original.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == targetId);
         NativeBattlePoseSource recipientPose = recipientBinding.Resource.PoseSource!;
         Assert.NotEmpty(NativeBattleBodyBoneMatrices.Require(recipient, recipientPose));
@@ -201,11 +202,11 @@ public sealed class NativeBattleEffect174PresentationTests
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(3, 8, 13, -1, 72, 174, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 72, 174, null));
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect174 requires its current target status.");
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleContactPacket contact = new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
@@ -215,11 +216,11 @@ public sealed class NativeBattleEffect174PresentationTests
         Assert.Same(game.ReadNativeEffect174Resources(), binding.Effect174Resources);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(173, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? preparedTarget : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(original.Combatants.Select(actor => actor.CurrentHp), source.Combatants.Select(actor => actor.CurrentHp));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original22 command8/action72/sequence13 Amount0 party component; ordinary AI and formula excluded", ActualCasterId = casterId, ActualTargetId = targetId, PhysicalCaster = 3, PhysicalTarget = 0, Action = action, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved", Source = "Fresh original formation226/stage71 resource component; no gameplay replay or substituted carrier" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original22 command8/action72/sequence13 Amount0 party component; ordinary AI and formula excluded", ActualCasterId = casterId, ActualTargetId = targetId, PhysicalCaster = 3, PhysicalTarget = 0, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved", Source = "Fresh original formation226/stage71 resource component; no gameplay replay or substituted carrier" }));
         return source;
     }
     private static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 174, ReturnedDescriptor: 0 } effect && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;

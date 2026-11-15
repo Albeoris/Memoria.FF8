@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -140,12 +141,12 @@ public sealed class NativeBattleBlizzaraControllerTests
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
         for (int index = 0; index < headers; index++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 103, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 103, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, (byte)headers);
-        NativeBattleOriginalEffectState effect = new(103, 102, new(103, 0x6DA300, 0x6DA2E0) { BlizzaraResources = NativeBattleBlizzaraFaceTests.Resources() }, new(0, 0, 8, 0, 0, 0), null);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
+        NativeBattleOriginalEffectState effect = new(103, 102, new(103, 0x6DA300, 0x6DA2E0) { BlizzaraResources = NativeBattleBlizzaraFaceTests.Resources() }, new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleBlizzaraController.Initialize6DA310(effect, packets);
         return (new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1)), packets);
     }

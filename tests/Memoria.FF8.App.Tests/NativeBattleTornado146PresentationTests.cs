@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -27,16 +28,16 @@ public sealed class NativeBattleTornado146PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
-        string caster = source.NativeGraphics!.ActorIds[0]!;
-        string target = source.NativeGraphics.ActorIds[3]!;
+        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
+        string target = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(offset / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)146, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("Original Tornado producer omitted its contact pointer."));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal(action.ActionId, header.Action);
+        Assert.Equal((ushort)146, header.Effect);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.True(contact.Primary.Amount6 > 0);
         Assert.Equal(2, Stock(beforeInput));
@@ -44,13 +45,13 @@ public sealed class NativeBattleTornado146PresentationTests
         int expectedHp = Math.Max(0, beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp - contact.Primary.Amount6);
         Assert.Equal(expectedHp, source.Combatants.Single(actor => actor.Id == target).CurrentHp);
         Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
-        NativeBattleEffectTask expectedText = Assert.Single(NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
+        NativeBattleEffectTask expectedText = Assert.Single(OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
         HashSet<string> restored = [];
         bool initialized = false;
         bool privatePackets = false;
         bool targetLifted = false;
         bool groundHidden = false;
-        NativeBattleModelTransform originalTarget = source.NativeGraphics.Models[3].Transform!;
+        NativeBattleModelTransform originalTarget = ReadOriginalModelCell(source.NativeGraphics, 3).Transform!;
         HashSet<string> renderedPhases = [];
         int contacts = 0;
         int completions = 0;
@@ -120,7 +121,7 @@ public sealed class NativeBattleTornado146PresentationTests
                     completions++;
                 }
                 privatePackets |= current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleTornado146State.PacketBank);
-                targetLifted |= current.NativeGraphics.Models[3].Transform!.Position28.Y < originalTarget.Position28.Y - 200;
+                targetLifted |= ReadOriginalModelCell(current.NativeGraphics, 3).Transform!.Position28.Y < originalTarget.Position28.Y - 200;
                 groundHidden |= (current.NativeStage!.Groups[1].Flags & 2) == 0;
                 int currentAge = Age(after);
                 string? phase = currentAge is >= 10 and < 17 ? "funnel" : currentAge is >= 40 and < 65 ? "pieces-ground" : currentAge is >= 90 and < 98 ? "landing" : null;
@@ -156,9 +157,9 @@ public sealed class NativeBattleTornado146PresentationTests
             Assert.True(targetLifted);
             Assert.True(groundHidden);
             Assert.Equal(2, battle.Capture().NativeStage!.Groups[1].Flags & 2);
-            Assert.Equal(originalTarget.Position28, battle.NativeGraphics!.Models[3].Transform!.Position28);
-            Assert.Equal(originalTarget.Vertical34, battle.NativeGraphics.Models[3].Transform!.Vertical34);
-            Assert.Equal(source.NativeGraphics.Models[3].Flags0 & 0x1020, battle.NativeGraphics.Models[3].Flags0 & 0x1020);
+            Assert.Equal(originalTarget.Position28, ReadOriginalModelCell(battle.NativeGraphics!, 3).Transform!.Position28);
+            Assert.Equal(originalTarget.Vertical34, ReadOriginalModelCell(battle.NativeGraphics, 3).Transform!.Vertical34);
+            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.NativeGraphics, 3).Flags0 & 0x1020);
             Assert.Equal(new[] { "funnel", "landing", "pieces-ground" }, renderedPhases.Order().ToArray());
             Assert.True(pixelChanges > 100);
             Assert.Equal(1, contacts);

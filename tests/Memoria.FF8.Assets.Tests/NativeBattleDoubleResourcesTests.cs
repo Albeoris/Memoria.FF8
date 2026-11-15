@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using Memoria.FF8.Runtime;
 
@@ -71,12 +72,12 @@ public sealed class NativeBattleDoubleResourcesTests
         NativeBattleDoubleResources resources = game.ReadNativeDoubleResources();
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(4, game.ReadNativeEffectCatalogForEffects([4]));
         var initialized = NativeBattleOriginalEffects.Initialize(game.ReadColdProcessNativeBattleMemory().EffectMemory!, selected);
-        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(0, flags, 8, 0, 0, 0) };
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(OriginalOwner(0), flags, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) };
+        NativeBattleActionPacketsState packets = OriginalPackets();
         //Controlled physical header tests the original entry independently of formula or menu admission.
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 33, 4, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 33, 4, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleDoubleFrame frame = NativeBattleDoubleController.Initialize8D5080(initialized.Memory, effect, packets, resources);
         Assert.Equal(0x2775058u, frame.Effect.ReturnedDescriptor);

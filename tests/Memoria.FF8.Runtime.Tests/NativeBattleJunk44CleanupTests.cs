@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleJunk44Controller;
@@ -18,13 +19,13 @@ public sealed class NativeBattleJunk44CleanupTests
         Assert.True(Pools.Skip(1).Max(pool => pool.Bank + (uint)(pool.Stride * pool.Capacity)) <= ArenaAddress + PacketOffset);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        NativeBattleOriginalEffectState effect = new(44, 43, new(44, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { Pools = [root] };
+        NativeBattleOriginalEffectState effect = new(44, 43, new(44, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { Pools = [root] };
         NativeBattleJunk44State state = NativeBattleJunk44State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null };
         NativeBattleJunk44Frame frame = new(NativeBattleEffectIo.Initialize534110(NativeBattleEffectMemory.FromColdProcess().BeginLoad(44), 0x128C), effect, new(123), state);
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(0x0C, 115).WriteByte(0x0F, 1));
         List<short> requested = [];
         int advanceCalls = 0;
-        NativeBattleJunk44Inputs inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Poll, Execute);
+        NativeBattleJunk44Inputs inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Poll, Execute);
         frame = AdvanceTask(frame, RootBank, resources, inputs).Frame;
         Assert.Equal(new short[] { 360 }, requested);
         frame = frame with { Memory = NativeBattleEffectIo.Complete534150(frame.Memory).Memory };
@@ -49,7 +50,7 @@ public sealed class NativeBattleJunk44CleanupTests
 
         NativeBattleJunk44Frame Restore(NativeBattleJunk44Frame current)
         {
-            return restoreJson ? NativeBattleTestSnapshots.RestoreJson<NativeBattleJunk44Frame>(NativeBattleTestSnapshots.Json(current)) : current;
+            return restoreJson ? NativeBattleTestSnapshots.Independent(current) : current;
         }
 
         NativeBattleJunk44Frame Queue(NativeBattleJunk44Frame current, NativeBattleEffectFileRequest? request)

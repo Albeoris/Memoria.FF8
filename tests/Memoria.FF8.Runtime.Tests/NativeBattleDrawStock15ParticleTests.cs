@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Collections.Immutable;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -165,7 +166,7 @@ public sealed class NativeBattleDrawStock15ParticleTests
         return bytes.ToImmutableArray();
     }
 
-    private static NativeBattleDrawStock15ParticleInputs Inputs() => new(0, (_, _, _) => new(0, 3), _ => new(120, 240, 360, 0x7777));
+    private static NativeBattleDrawStock15ParticleInputs Inputs() => new(OriginalOwner(0), (_, _, _) => OriginalTaskActors(0, 3), _ => new(120, 240, 360, 0x7777));
 
     private static (NativeBattleEffectHierarchy Hierarchy, uint Address) Fixture(uint callback)
     {
@@ -178,9 +179,9 @@ public sealed class NativeBattleDrawStock15ParticleTests
         ]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8B0A50, 100);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x8B0C70, 88, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x8B0C70, 88, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteWord(0x38, 10).WriteWord(0x3A, 20).WriteWord(0x3C, 30).WriteWord(0x3E, 40));
-        NativeBattleEffectHierarchyAppend particle = hierarchy.Append8DC540(3, callback, 300, target.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend particle = hierarchy.Append8DC540(3, callback, 300, target.Address, (_, _, _) => OriginalTaskActors(0, 3));
         return (particle.Hierarchy, particle.Address);
     }
 }

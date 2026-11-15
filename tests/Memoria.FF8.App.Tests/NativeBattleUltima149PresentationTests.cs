@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -27,16 +28,16 @@ public sealed class NativeBattleUltima149PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
-        string caster = source.NativeGraphics!.ActorIds[0]!;
-        string target = source.NativeGraphics.ActorIds[3]!;
+        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
+        string target = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(offset / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)149, NativeBattleActionGraphics.Word(header, 6));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("Original Ultima producer omitted its contact pointer."));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal(action.ActionId, header.Action);
+        Assert.Equal((ushort)149, header.Effect);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.True(contact.Primary.Amount6 > 0);
         Assert.Equal(2, Stock(beforeInput));
@@ -44,7 +45,7 @@ public sealed class NativeBattleUltima149PresentationTests
         int expectedHp = Math.Max(0, beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp - contact.Primary.Amount6);
         Assert.Equal(expectedHp, source.Combatants.Single(actor => actor.Id == target).CurrentHp);
         Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
-        NativeBattleEffectTask expectedText = Assert.Single(NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
+        NativeBattleEffectTask expectedText = Assert.Single(OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
         HashSet<string> restored = [];
         bool initialized = false;
         bool privatePackets = false;
@@ -117,7 +118,7 @@ public sealed class NativeBattleUltima149PresentationTests
                     completions++;
                 }
                 privatePackets |= current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                sideHidden |= (current.NativeGraphics.Models[0].Flags0 & 4) != 0;
+                sideHidden |= (ReadOriginalModelCell(current.NativeGraphics, 0).Flags0 & 4) != 0;
                 int currentAge = Age(after);
                 string? phase = currentAge is >= 20 and < 35 ? "orbit" : currentAge is >= 50 and < 80 ? "shards" : currentAge is >= 108 and < 140 ? "ring-core" : null;
                 if (phase is not null && !renderedPhases.Contains(phase) && current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
@@ -161,7 +162,7 @@ public sealed class NativeBattleUltima149PresentationTests
             NativeBattleOriginalEffectState finished = Selected(battle.Capture())!;
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(source.NativeGraphics!.Models[0].Flags0 & 0x800, battle.NativeGraphics!.Models[0].Flags0 & 0x804);
+            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, 0).Flags0 & 0x800, ReadOriginalModelCell(battle.NativeGraphics!, 0).Flags0 & 0x804);
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == caster);
             ColdNext("completed");
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == caster);

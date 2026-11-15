@@ -20,7 +20,7 @@ public sealed class NativeBattleModelRetainedFlagsTests
     [Fact]
     public void Bank_clear_changes_only_word0_and_preserves_each_rows_captured_word2()
     {
-        ImmutableArray<NativeBattleModelRetainedFields> retained = Enumerable.Range(0, 7).Select(index => NativeBattleModelRetainedFields.Capture(new(index, 0xFFFF) { Flags2 = (ushort)(0x8000 + 17 * index) })).ToImmutableArray();
+        ImmutableArray<NativeBattleModelRetainedFields> retained = Enumerable.Range(0, 7).Select(index => NativeBattleModelRetainedFields.Capture(new(0xFFFF) { Flags2 = (ushort)(0x8000 + 17 * index) })).ToImmutableArray();
         NativeBattleGraphicsModel[] cleared = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: retained);
         for (int index = 0; index < cleared.Length; index++)
         {
@@ -32,10 +32,10 @@ public sealed class NativeBattleModelRetainedFlagsTests
     [Fact]
     public void Unknown_word2_remains_unknown_through_capture_restore_and_serialization()
     {
-        NativeBattleModelRetainedFields retained = NativeBattleModelRetainedFields.Capture(new(1, 0));
+        NativeBattleModelRetainedFields retained = NativeBattleModelRetainedFields.Capture(new(0));
         NativeBattleModelRetainedFields restored = JsonSerializer.Deserialize<NativeBattleModelRetainedFields>(JsonSerializer.Serialize(retained))!;
         Assert.Null(restored.Flags2);
-        Assert.Null(restored.Restore502340(new(1, 0)).Flags2);
+        Assert.Null(restored.Restore502340(new(0)).Flags2);
     }
 
     [Fact]
@@ -44,6 +44,6 @@ public sealed class NativeBattleModelRetainedFlagsTests
         string json = """{"Rotation12":0,"Rotation14":0,"Rotation16":0,"RotationPadding18":0,"Transform":null,"Color44":0}""";
         NativeBattleModelRetainedFields retained = JsonSerializer.Deserialize<NativeBattleModelRetainedFields>(json)!;
         Assert.Null(retained.Flags2);
-        Assert.Null(retained.Restore502340(new(2, 0) { Flags2 = 0xBEEF }).Flags2);
+        Assert.Null(retained.Restore502340(new(0) { Flags2 = 0xBEEF }).Flags2);
     }
 }

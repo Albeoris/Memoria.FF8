@@ -131,7 +131,7 @@ public sealed class ModelModNativeTests
             AnimationFrames = [1, 2],
             AnimationBankOverrides = [new(bank, directory, false, Convert.ToHexString(SHA256.HashData(source.Animations.AsSpan())), modified.NativePoseSource!.Animations)]
         };
-        NativeBattleGraphicsModel model = new(0, 3) { ActiveStagedResourceRow100 = 100, ActiveAnimationDirectory = directory, ActiveAnimationBank = directory is null ? bank : null };
+        NativeBattleGraphicsModel model = new(3) { ActiveStagedResourceRow100 = 100, ActiveAnimationDirectory = directory, ActiveAnimationBank = directory is null ? bank : null };
         NativeBattleGraphicsResource resolved = NativeBattleVictoryResources.Resolve(model, resource, ReadPointer, Read);
         Assert.Equal(-200, resolved.PoseSource!.Sample(1, 1, 0).Translation.X);
         NativeBattleGraphicsResource unrelated = NativeBattleVictoryResources.Resolve(model with { ActiveAnimationDirectory = 123, ActiveAnimationBank = null }, resource, ReadPointer, Read);

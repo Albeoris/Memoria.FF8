@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -174,10 +175,10 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect301State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect301));
-        string casterId = graphics.ActorIds[casterIndex] ?? throw new InvalidDataException("Effect301 requires its current caster.");
+        string casterId = ReadOriginalModelActorId(graphics, casterIndex) ?? throw new InvalidDataException("Effect301 requires its current caster.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
         Assert.Equal(94, caster.ModelId);
-        Assert.Equal((byte)110, graphics.Models[casterIndex].ModelId4);
+        Assert.Equal((byte)110, ReadOriginalModelCell(graphics, casterIndex).ModelId4);
         Assert.Equal(3, caster.SceneSlot);
         Assert.True(caster.InitialHidden);
         Assert.True(caster.InitialSuspended);
@@ -185,14 +186,14 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.Equal(new[] { 39, 40, 54, 94 }, original.Definition.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.ModelId).Order());
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new InvalidDataException("Effect301 requires its actual current skeleton.");
         Assert.Equal(40, pose.BoneCount);
-        Assert.Equal(40, NativeBattleBodyBoneMatrices.Require(graphics.Models[casterIndex], pose).Length);
-        Assert.NotNull(graphics.Models[casterIndex].GeometryWorldMatrix);
-        Assert.NotNull(graphics.Models[casterIndex].ActiveResourceRow100);
+        Assert.Equal(40, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, casterIndex), pose).Length);
+        Assert.NotNull(ReadOriginalModelCell(graphics, casterIndex).GeometryWorldMatrix);
+        Assert.NotNull(ReadOriginalModelCell(graphics, casterIndex).ActiveResourceRow100);
         Assert.NotNull(original.NativeModelCpuResources);
-        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.NativeModelCpuResources!, original.NativeFileStaging!, original.NativeModelCpuResources.Rows[graphics.Models[casterIndex].ActiveResourceRow100!.Value].Require(12), 4));
+        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.NativeModelCpuResources!, original.NativeFileStaging!, original.NativeModelCpuResources.Rows[ReadOriginalModelCell(graphics, casterIndex).ActiveResourceRow100!.Value].Require(12), 4));
 
         Assert.NotNull(original.NativeFileStaging);
-        Assert.True(graphics.Models[0].Transform!.Scale38 > 0);
+        Assert.True(ReadOriginalModelCell(graphics, 0).Transform!.Scale38 > 0);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 265 && row.MagicId == 301 && row.KernelSection == 3 && row.KernelIndex == 265);
         Assert.Equal((byte)16, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([301])[300];
@@ -203,17 +204,17 @@ public sealed class NativeBattleEffect301PresentationTests
         producer.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
         BattleSnapshot source = NativeBattleLimitComponentSources.AwaitQueued(producer, 301);
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => NativeBattleActionGraphics.Word(packets.Headers[index], 6) == 301);
-        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
+        int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => packets.ReadHeader(new BattleActionHeaderReference(index)).Effect == 301);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(checked((byte)casterIndex), header.ReadByte(0));
-        Assert.Equal((byte)8, header.ReadByte(1));
-        Assert.Equal((byte)16, header.ReadByte(2));
-        Assert.Equal((ushort)265, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((byte)1, header.ReadByte(16));
+        Assert.Equal((byte)8, header.Command);
+        Assert.Equal((byte)16, header.Sequence);
+        Assert.Equal((ushort)265, header.Action);
+        Assert.Equal((byte)1, header.ReadContactCount());
         Assert.Equal((ushort)(1 << casterIndex), NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetMask);
         Assert.True(source.NativeEffectMemory!.Effect301!.ScriptSourcePending);
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Effect301), JsonSerializer.Serialize(source.NativeEffectMemory.Effect301));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Original94 pending INIT produces command8/action265/sequence16 SELF graphics after authentic scene3 allocation/102/113; no manually queued duplicate invocation", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, HeaderIndex = headerIndex, Header = header, ContactCount = header.ReadByte(16), InitPacket = init, AllocationCallback = graphics.Callback, SourceCallback = source.NativeGraphics!.Callback, SourceBoundary = "native-init-before-entry" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Original94 pending INIT produces command8/action265/sequence16 SELF graphics after authentic scene3 allocation/102/113; no manually queued duplicate invocation", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, HeaderIndex = headerIndex, Header = header, ContactCount = header.ReadContactCount(), InitPacket = init, AllocationCallback = graphics.Callback, SourceCallback = source.NativeGraphics!.Callback, SourceBoundary = "native-init-before-entry" }));
         return source;
     }
 

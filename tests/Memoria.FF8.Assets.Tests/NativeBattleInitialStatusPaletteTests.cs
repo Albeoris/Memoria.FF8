@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -42,12 +43,12 @@ public sealed class NativeBattleInitialStatusPaletteTests
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         }, BattleAtbMode.TurnBased);
-        for (int callback = 0; callback < 200 && (session.NativeGraphics!.Models[0].Flags0 & 2) == 0; callback++)
+        for (int callback = 0; callback < 200 && (ReadOriginalModelCell(session.NativeGraphics!, 0).Flags0 & 2) == 0; callback++)
         {
             session.Tick();
         }
 
-        NativeBattleGraphicsModel model = session.NativeGraphics!.Models[0];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(session.NativeGraphics!, 0);
         Assert.NotEqual(0, model.Flags0 & 2);
         Assert.Equal(0x10u, model.Flags8!.Value & 0x410);
         Assert.Equal((byte?)0, model.StatusTimers[4]);

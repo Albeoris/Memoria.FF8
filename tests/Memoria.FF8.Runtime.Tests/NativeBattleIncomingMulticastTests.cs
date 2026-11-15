@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -18,8 +19,8 @@ public sealed class NativeBattleIncomingMulticastTests
         BattleSession battle = CreateAiAction(previousCastCount, recipientStatus);
 
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[0].ReadByte(17));
-        NativeBattleActionGraphicsState graphics = NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, 0);
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        NativeBattleActionGraphicsState graphics = NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(0));
         Assert.Equal((ushort)1, graphics.TargetMask);
         Assert.Equal(3_780, battle.Combatants.Single(actor => actor.Id == "recipient").CurrentHp);
         Assert.Equal(10_000, battle.Combatants.Single(actor => actor.Id == "caster").CurrentHp);
@@ -40,10 +41,10 @@ public sealed class NativeBattleIncomingMulticastTests
     {
         BattleSession battle = CreateAiAction(previousCastCount, 0x80, reflected: true);
         Assert.Equal((byte)2, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[0].ReadByte(17));
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[1].ReadByte(17));
-        Assert.Equal((ushort)1, NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, 0).TargetMask);
-        Assert.Equal((ushort)8, NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, 1).TargetMask);
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[1].ReadOriginalByte(17));
+        Assert.Equal((ushort)1, NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(0)).TargetMask);
+        Assert.Equal((ushort)8, NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(1)).TargetMask);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int frame = 0; frame < 60; frame++)
         {
@@ -73,8 +74,8 @@ public sealed class NativeBattleIncomingMulticastTests
         ImmutableArray<NativeBattleContactPacket> resumed = Resolve(restored, attackType);
 
         NativeBattleContactPacket contact = Assert.Single(actual);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Equal((byte)0, contact.Primary.Recipient);
+        Assert.Equal((byte)255, contact.Secondary.Recipient);
         Assert.Equal(expected.ToArray(), actual.Select(packet => packet with { Primary = packet.Primary with { BattleStatuses8 = packet.Primary.BattleStatuses8 & ~0x60000u } }).ToArray());
         Assert.Equal(actual.ToArray(), resumed.ToArray());
         Assert.Equal(baseline.Combatants.Select(actor => actor.CurrentHp), battle.Combatants.Select(actor => actor.CurrentHp));
@@ -107,16 +108,16 @@ public sealed class NativeBattleIncomingMulticastTests
         BattleNativeAction[] actions = reflected ? [incoming, incoming with { Command = 247 }] : [incoming];
         BattleSession initial = new(definition with { Combatants = actors, NativeActions = actions, NativeCommandSequences = NativeBattleCommandSequenceFixture.Values }, BattleAtbMode.TurnBased);
         NativeBattleActionPacketsState packets = initial.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 11, -1, 1, 0, null));
-        (packets, _) = packets.AppendContact(new(new(0, 5, 0, 0, 0, 77, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 1, 0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 5, 0, 0, 0, 77, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, previousCastCount);
-        (packets, _) = packets.Prepare(new(0, 2, 11, -1, 1, 0, null));
-        (packets, _) = packets.AppendContact(new(new(3, 5, 0, 0, 0, 99, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), previousCastCount);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 1, 0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 0, 0, 0, 99, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(1, previousCastCount).ResetCounts();
-        Assert.Equal(previousCastCount - 1, packets.Headers[0].ReadByte(17));
-        Assert.Equal((ushort)9, NativeBattleActionGraphics.Normalize(packets, 0).TargetMask);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), previousCastCount).ResetCounts();
+        Assert.Equal(previousCastCount - 1, packets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        Assert.Equal((ushort)9, NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(0)).TargetMask);
         BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(initial.Capture() with { NativeActionPackets = packets }))!);
         for (int frame = 0; frame < 20 && battle.NativeActionPackets.ActionCount == 0; frame++)
         {

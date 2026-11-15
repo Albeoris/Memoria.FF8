@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
@@ -118,8 +119,8 @@ internal static class NativeBattleEffect324FixturePreparation
         Assert.Equal(prototype.InitialUntargetable, currentDefinition.InitialUntargetable);
         Assert.Equal(prototype.InitialSuspended, currentDefinition.InitialSuspended);
         NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The activated original actor lost its graphics owner.");
-        Assert.Equal(allocated.Id, graphics.ActorIds[actualIndex]);
-        NativeBattleGraphicsModel model = graphics.Models[actualIndex];
+        Assert.Equal(allocated.Id, ReadOriginalModelActorId(graphics, actualIndex));
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualIndex);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(currentDefinition);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("The activated original model lacks its skeleton.");
         Assert.Equal(28, pose.BoneCount);

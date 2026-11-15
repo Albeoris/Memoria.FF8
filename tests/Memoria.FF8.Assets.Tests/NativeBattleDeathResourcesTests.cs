@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -24,11 +25,11 @@ public sealed class NativeBattleDeathResourcesTests
         Assert.Equal(0x3FCC, resources.Model.Section(3));
         NativeBattleRetainedMemory retained = game.ReadColdProcessNativeBattleMemory();
         NativeBattleActionPacketsState packets = retained.ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 14, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, immune ? (byte)4 : (byte)0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 14, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, immune ? (byte)4 : (byte)0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(14, 13, new(14, 0x8B68C0, 0x8B68A0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x273AE80, 0)] };
+        NativeBattleOriginalEffectState effect = new(14, 13, new(14, 0x8B68C0, 0x8B68A0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x273AE80, 0)] };
         NativeBattleEffectMemory memory = retained.EffectMemory!.BeginLoad(13) with { EffectLight1D99AB0 = new byte[32].ToImmutableArray(), EffectLightKnown1D99AB0 = new bool[32].ToImmutableArray() };
         Assert.Throws<NotSupportedException>(() => NativeBattleDeathController.Initialize(memory with { Death14 = null }, effect, packets, resources, new(1)));
         memory = memory with { ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() };
@@ -41,7 +42,7 @@ public sealed class NativeBattleDeathResourcesTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1]);
         NativeBattleDecodedPose decoded = new(new(0, 0, 0), [new(new(0, 0, 0), new(4096, 4096, 4096))], false);
-        NativeBattleGraphicsModel Model(int index) => new(index, 0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0, GeometryBounds52 = new(new(0, -100, 0), new(0, 0, 0)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = decoded } };
+        NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0, GeometryBounds52 = new(new(0, -100, 0), new(0, 0, 0)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = decoded } };
         List<int> contacts = [];
         List<int> sounds = [];
         List<short> fades = [];

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -48,13 +49,13 @@ public sealed class NativeBattleWhiteWind297ControllerTests
     [InlineData(true, true)]
     public void Real_ACT_workspaces_finish_same_scan_children_and_apply_each_matching_contact(bool capturePresentation, bool foreignBounds)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 297, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 297, null));
         for (int target = 3; target <= 5; target++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)target, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new((byte)target, 1, 0, 0, 0, 7, 0), null));
         }
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(3);
         List<int> contacts = [];
         List<int> anchors = [];
@@ -62,7 +63,7 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         List<NativeBattleWhiteWind297Operation> operations = [];
         int emits = 0;
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
-        NativeBattleWhiteWind297Inputs inputs = new(packets, actor => new(actor, 0)
+        NativeBattleWhiteWind297Inputs inputs = new(packets, actor => new(0)
         {
             MinimumY146 = foreignBounds ? null : (short)-7,
             Transform = new(new(0, 0, 0), new(0, 0, (short)(actor * 100)), 0, 100, 8192)
@@ -153,10 +154,10 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, parity)) });
-        NativeBattleOriginalEffectState effect = new(297, 297, new(297, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root] };
+        NativeBattleOriginalEffectState effect = new(297, 297, new(297, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root] };
         return new(NativeBattleEffectMemory.FromColdProcess().BeginLoad(297), effect, new(1), NativeBattleWhiteWind297State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
     }
 
     private static NativeBattleWhiteWind297Resources Resources() => new(new(0, []), new(0, []), new(0, []), new("fixture", []), 0, new("fixture", []));
-    private static NativeBattleWhiteWind297Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), _ => throw new InvalidOperationException("Root parity must not read actors."), _ => throw new InvalidOperationException("Root parity must not read camera."), (_, _) => throw new InvalidOperationException("Root parity must not read anchors."), (_, _) => throw new InvalidOperationException("Root parity must not invoke services."), (_, _, _, _) => throw new InvalidOperationException("Root parity must not draw."));
+    private static NativeBattleWhiteWind297Inputs Inputs() => new(OriginalPackets(), _ => throw new InvalidOperationException("Root parity must not read actors."), _ => throw new InvalidOperationException("Root parity must not read camera."), (_, _) => throw new InvalidOperationException("Root parity must not read anchors."), (_, _) => throw new InvalidOperationException("Root parity must not invoke services."), (_, _, _, _) => throw new InvalidOperationException("Root parity must not draw."));
 }

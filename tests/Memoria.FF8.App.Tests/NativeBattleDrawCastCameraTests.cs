@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
@@ -47,7 +48,7 @@ public sealed class NativeBattleDrawCastCameraTests
         byte information = resources.ReadEnemyNativeInformation246(target.ModelId);
         Assert.Equal(information, battle.Capture().Definition.Combatants.Single(actor => actor.Id == target.Id).NativeTemplate!.Information246);
         byte expected = (information & 8) != 0 ? (byte)5 : (information & 4) != 0 ? (byte)4 : unchecked((byte)(3 - information));
-        Assert.Equal(expected, Assert.Single(battle.NativeGraphics!.Models, model => model.ModelId4 == target.ModelId + 16).SequenceByte145);
+        Assert.Equal(expected, Assert.Single(ReadOriginalModelCells(battle.NativeGraphics!), model => model.ModelId4 == target.ModelId + 16).SequenceByte145);
         Assert.Contains(target.NativeDrawSlots, slot => slot.Id == 1);
         string stocks = JsonSerializer.Serialize(caster.MagicStocks);
         int initialCompletions = battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect321Controller;
@@ -48,7 +49,7 @@ public sealed class NativeBattleEffect321ControllerTests
         Assert.Equal(0, task.ReadWord(18));
         Assert.Equal(unchecked((short)(300 + (unchecked(-2800 * NativeBattleCameraMath.Cosine(1)) >> 12))), Signed(task, 20));
         Assert.Equal(new[] { true, false }, TaskView(task, 22, 2).ReadSnapshot(0, 2).Known);
-        Assert.Equal(ModelAddress(3), Assert.Single(harness.Anchors));
+        Assert.Equal(OriginalOwner(3), Assert.Single(harness.Anchors));
         Assert.Equal(77u, result.State.ReadDword(VibrationGlobal));
         Assert.Equal(new NativeBattleEffect321VibrationStart4A29A0(VibrationAddress, 1, 128, VibrationGlobal), Assert.Single(harness.Operations));
     }
@@ -73,7 +74,7 @@ public sealed class NativeBattleEffect321ControllerTests
         NativeBattleEffect321Frame result = BirthChildren(frame, ChildBank, harness.Inputs());
         Assert.Equal(expected, result.Random);
         Assert.Equal(11, result.Effect.Pools[1].Slots.Count(task => (task.Flags & 1) != 0));
-        Assert.Equal(new[] { ModelAddress(0), ModelAddress(0) }, harness.Anchors);
+        Assert.Equal(new[] { OriginalOwner(0), OriginalOwner(0) }, harness.Anchors);
         NativeBattleModulePoolTask[] targets = result.Effect.Pools[1].Slots.Where(task => task.Callback == 0x5985C0).ToArray();
         NativeBattleModulePoolTask[] particles = result.Effect.Pools[1].Slots.Where(task => task.Callback == 0x598B90).ToArray();
         for (int index = 0; index < 2; index++)
@@ -111,7 +112,7 @@ public sealed class NativeBattleEffect321ControllerTests
         NativeBattleEffect321Frame result = AdvanceMain597AB0(frame, ChildBank, null!, harness.Inputs()).Frame;
         NativeBattleEffect321PositionalSound5013A0 sound = Assert.IsType<NativeBattleEffect321PositionalSound5013A0>(Assert.Single(harness.Operations));
         Assert.Equal(SecondSoundAddress, sound.SourceAddress);
-        Assert.Equal(BattleModelTargets.FromNative(0x15), harness.Targets);
+        Assert.Equal(BattleModelTargets.From([OriginalOwner(0), OriginalOwner(2), OriginalOwner(4)]), harness.Targets);
         Assert.Equal(new[] { true, true, true, true, true, true, false, false }, sound.Point8.ReadSnapshot(0, 8).Known);
         Assert.Equal(456u, result.State.ReadDword(InitializerGlobal));
     }
@@ -179,7 +180,7 @@ public sealed class NativeBattleEffect321ControllerTests
         frame = Advance(frame, null!, new Harness().Inputs());
         frame = WriteCompletionByte(frame, RootBank + 30, 1);
         frame = Advance(frame, null!, new Harness().Inputs());
-        NativeBattleEffect321Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect321Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleEffect321Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(new[] { true, true, false, true }, restored.State.ReadView(FirstPacketAddress + 100, 4).ReadSnapshot(0, 4).Known);
         Assert.Equal(new byte[] { 1, 2, 4 }, restored.State.ReadView(FirstPacketAddress + 100, 4).ReadSnapshot(0, 4).Data.Where((_, index) => index != 2).ToArray());
         Assert.Empty(restored.Effect.Pools);
@@ -196,8 +197,8 @@ public sealed class NativeBattleEffect321ControllerTests
             (child, _) = child.Append(MainCallback);
             child = child.WriteSlot(0, child.Slots[0].WriteBytes(12, new byte[24]).WriteWord(12, (ushort)age));
         }
-        NativeBattleEffect321State state = NativeBattleEffect321State.FromColdProcess().DetachBank(RootBank).DetachBank(ChildBank).WriteDword(CasterGlobal, 3);
-        NativeBattleOriginalEffectState effect = new(321, 320, new(321, Entry, Initializer), new(3, 0, 0x15, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
+        NativeBattleEffect321State state = NativeBattleEffect321State.FromColdProcess().DetachBank(RootBank).DetachBank(ChildBank).WriteModelOperand(CasterGlobal, OriginalOwner(3), OriginalAliases);
+        NativeBattleOriginalEffectState effect = new(321, 320, new(321, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(2), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -210,20 +211,23 @@ public sealed class NativeBattleEffect321ControllerTests
         public bool VibrationActive { get; init; }
         public int QueriedHandle { get; private set; }
         public BattleModelTargets Targets { get; private set; }
-        public List<uint> Anchors { get; } = [];
+        public List<BattleModelOwner> Anchors { get; } = [];
         public List<NativeBattleEffect321Operation> Operations { get; } = [];
-        public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();
 
         public void SetContacts(int first, params int[] actors)
         {
-            byte[] header = new byte[20];
-            header[16] = (byte)actors.Length;
-            ImmutableArray<NativeBattleContactPacket?> contacts = Packets.Contacts;
-            for (int index = 0; index < actors.Length; index++)
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            for (int index = 0; index < first; index++)
             {
-                contacts = contacts.SetItem(first + index, new(new((byte)actors[index], 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             }
-            Packets = Packets with { Headers = Packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, first, null)), Contacts = contacts };
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 321, null));
+            foreach (int actor in actors)
+            {
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
+            }
+            Packets = packets.Publish(actors.Length).State;
         }
 
         public NativeBattleEffect321Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets, (_, _) => NativeBattleEffectArena.Clear().Write(14, BitConverter.GetBytes(Yaw)), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, retained) =>

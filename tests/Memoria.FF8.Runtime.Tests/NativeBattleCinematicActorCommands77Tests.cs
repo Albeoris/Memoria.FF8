@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCinematicActorCommands77Tests
@@ -22,7 +23,7 @@ public sealed class NativeBattleCinematicActorCommands77Tests
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorCommands77.BranchBE(frame, new(0x1000, 4, basis + 0x1000), pointer =>
         {
             reads++;
-            Assert.Equal(0x1D97494u, pointer);
+            Assert.Equal(OriginalOwner(3), pointer);
             return flags;
         });
         Assert.Equal((instruction & 0xF000) == 0 ? 1 : 0, reads);
@@ -61,7 +62,7 @@ public sealed class NativeBattleCinematicActorCommands77Tests
         }
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorCommands77.ExecuteC1(frame, new(current => Record(current, 0), current => Record(current, 1), (current, pointer) =>
         {
-            Assert.Equal(0x1D97494u, pointer);
+            Assert.Equal(OriginalOwner(3), pointer);
             return Record(current, 2);
         }));
         Assert.Equal(mode <= 2 ? new[] { mode } : [], calls);

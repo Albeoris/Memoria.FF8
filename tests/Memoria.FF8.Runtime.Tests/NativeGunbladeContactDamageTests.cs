@@ -31,7 +31,7 @@ public sealed class NativeGunbladeContactDamageTests
         NativeBattleContactPacket packet = Resolve(session, command, timing, sequence);
         Assert.Equal(expected, packet.Primary.Amount6);
         Assert.Equal(expected, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal(timing >= 20 ? (byte)2 : (byte)0, packet.Primary.HitFlags3);
+        Assert.Equal(timing >= 20 ? (byte)2 : (byte)0, packet.Primary.HitFlags);
         Assert.Equal(sequence == 255 ? (byte)0 : timing >= 20 ? (byte)6 : sequence, packet.Primary.Sequence);
         Assert.Equal(JsonSerializer.Serialize(expectedRandom), JsonSerializer.Serialize(session.Capture().Random));
     }
@@ -45,7 +45,7 @@ public sealed class NativeGunbladeContactDamageTests
         string random = JsonSerializer.Serialize(session.Capture().Random);
         NativeBattleContactPacket packet = Resolve(session, command, 25, 4);
         Assert.Equal((ushort)0, packet.Primary.Amount6);
-        Assert.Equal((byte)2, packet.Primary.HitFlags3);
+        Assert.Equal((byte)2, packet.Primary.HitFlags);
         Assert.Equal((byte)6, packet.Primary.Sequence);
         Assert.Equal(random, JsonSerializer.Serialize(session.Capture().Random));
     }

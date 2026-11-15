@@ -15,7 +15,7 @@ public sealed class NativeBattleRaldo19BallRenderingTests
     {
         NativeBattleEffectArena ball = Word(Ball(), 0xB0, 9);
         NativeBattleRaldo19BallParameters read = NativeBattleRaldo19BallRendering.Read(ball);
-        Assert.Equal((short)3, read.Actor);
+        Assert.Equal(OriginalOwner(3), read.Actor);
         Assert.Equal((short)0, read.Weight);
         Assert.Equal(new NativeBattleVector(400, 400, 400), read.Radii);
         Assert.Throws<InvalidDataException>(() => NativeBattleRaldo19BallRendering.Read(Dword(ball, 0x6C, 0)));

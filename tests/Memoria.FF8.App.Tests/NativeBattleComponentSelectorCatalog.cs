@@ -188,8 +188,8 @@ internal static class NativeBattleComponentSelectorCatalog
             headerIndex = checked((int)(headerOffset / 20));
             boundary = "queued-action104";
         }
-        NativeBattleActionHeaderSlot header = snapshot.NativeActionPackets!.Headers[headerIndex];
-        if (NativeBattleActionGraphics.Word(header, 6) != effect)
+        NativeBattleActionHeaderSlot header = snapshot.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        if (header.Effect != effect)
         {
             throw new InvalidDataException("Component prepared header differs from its selected effect.");
         }

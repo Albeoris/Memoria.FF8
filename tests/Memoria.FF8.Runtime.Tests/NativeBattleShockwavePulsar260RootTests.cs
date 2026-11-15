@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
@@ -52,7 +53,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
         Assert.Equal(new ushort[] { 16, MainStride, ChildStride }, captured.Effect.Pools.Select(pool => pool.Stride));
         Assert.Equal(new[] { RootBank, ArenaAddress + MainOffset, ArenaAddress + ChildrenOffset }, captured.Effect.Pools.Select(pool => pool.BankAddress));
         Assert.Equal(new[] { 3, 4 }, fixture.Anchors);
-        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleShockwavePulsar260BindCaster(0, ArenaAddress + MainOffset + 0x178, 0x111B3CC), operation), operation => Assert.Equal(new NativeBattleShockwavePulsar260RingSequence(0, 1), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleShockwavePulsar260BindCaster(OriginalOwner(0), ArenaAddress + MainOffset + 0x178, 0x111B3CC), operation), operation => Assert.Equal(new NativeBattleShockwavePulsar260RingSequence(OriginalOwner(0), 1), operation));
         Assert.Equal((ushort)2, captured.Effect.Pools[1].Slots[0].ReadWord(0xE));
         uint record = ArenaAddress + MainOffset + 0x10;
         Assert.Equal(0x1D972C0u + 3 * 156u, NativeBattleShockwavePulsar260Controller.ReadDword(captured, record));
@@ -298,16 +299,16 @@ public sealed class NativeBattleShockwavePulsar260RootTests
             NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
             (roots, int slot) = roots.Append(RootCallback);
             roots = NativeBattleTaskFixture.EditPool(roots, data => data with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(0xC, 0)) });
-            NativeBattleOriginalEffectState effect = new(260, 259, new(260, Entry, Initializer), new(0, 0, 0x18, 0, 0, 0), RootDescriptor) { Pools = [roots] };
+            NativeBattleOriginalEffectState effect = new(260, 259, new(260, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [roots] };
             NativeBattleEffectArena euler = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)11)).Write(2, BitConverter.GetBytes((short)-22)).Write(4, BitConverter.GetBytes((short)33));
             NativeBattleShockwavePulsar260State state = NativeBattleShockwavePulsar260State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0).WriteView(0x2508690, euler, 8);
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, effect, new(123), state);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+            NativeBattleActionPacketsState packets = OriginalPackets();
             byte[] header = new byte[20];
             BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), 0x1D28344);
             header[16] = 2;
             packets = packets with { Headers = packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, 0, null)), ContactCount = 2, Contacts = packets.Contacts.SetItem(0, new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))).SetItem(1, new(new(4, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };
-            Inputs = new(packets, sceneContext ?? NativeBattleEffectSceneContext.FromNativeEncounter(formation), actor => new(actor, (ushort)(actor + 2)) { Transform = new(default, default, 0, 0, 4096) }, actor => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)(100 + actor))).Write(2, BitConverter.GetBytes((short)(200 + actor))).Write(4, BitConverter.GetBytes((short)(300 + actor))), _ => null, current =>
+            Inputs = new(packets, sceneContext ?? NativeBattleEffectSceneContext.FromNativeEncounter(formation), actor => new((ushort)(actor + 2)) { Transform = new(default, default, 0, 0, 4096) }, actor => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)(100 + actor))).Write(2, BitConverter.GetBytes((short)(200 + actor))).Write(4, BitConverter.GetBytes((short)(300 + actor))), _ => null, current =>
             {
                 if (CaptureBeforeMain)
                 {

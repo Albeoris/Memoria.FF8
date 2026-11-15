@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -32,7 +33,7 @@ public sealed class NativeBattleRinoa88CameraTests
     {
         var fixture = NativeBattleRinoa88ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend camera = hierarchy.Append8DC540(5, 0x769060, 144, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend camera = hierarchy.Append8DC540(5, 0x769060, 144, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = camera.Hierarchy.Write(camera.Address, camera.Hierarchy.Read(camera.Address).WriteByte(41, phase));
         byte[] bytes = NativeBattleMoogleCamera.Reset732AF0().Data.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(232), 1024);

@@ -160,7 +160,7 @@ public sealed class NativeBattleBodyBoneMatricesTests
     private static NativeBattleGraphicsModel Model(int count)
     {
         ImmutableArray<NativeBattleBonePose> bones = Enumerable.Range(0, count).Select(index => new NativeBattleBonePose(new(0, (short)(index * 128), 0), new(1024, 1024, 1024))).ToImmutableArray();
-        return new(0, 3)
+        return new(3)
         {
             Transform = new(new(1, 2, 3), new(4, 5, 6), 7, 8, 4096),
             GeometryWorldMatrix = Basis,

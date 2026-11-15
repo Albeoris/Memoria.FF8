@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -29,10 +30,10 @@ public sealed class NativeBattleRestorationAdmissionResourcesTests
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, catalog);
         (memory, selected) = NativeBattleOriginalEffects.Initialize(memory, selected);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-        (packets, int header) = packets.Prepare(new(0, 2, 11, -1, checked((ushort)actionId), effect, null));
-        (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, checked((ushort)actionId), effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        selected = selected with { Parameters = new(0, 0, 1, header, 0, 0) };
+        selected = selected with { Parameters = new(OriginalOwner(0), 0, 1, header, 0, 0) };
         NativeBattleRestorationFrame frame = NativeBattleRestorationController.Initialize(memory, selected, packets, resources);
         Assert.Equal(profile.Descriptors[0], frame.Effect.ReturnedDescriptor);
         Assert.Equal(profile.MainCallback, frame.Effect.Pools[0].Slots[0].Callback);

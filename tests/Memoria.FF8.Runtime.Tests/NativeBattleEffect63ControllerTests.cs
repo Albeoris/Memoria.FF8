@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect63Controller;
@@ -127,7 +128,7 @@ public sealed class NativeBattleEffect63ControllerTests
             pools = pools.Add(NativeBattleEffectTaskPool.Initialize(MainDescriptor, Arena + MainOffset, MainStride, 1)).Add(NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, Arena, SpriteStride, SpriteCount));
         }
         NativeBattleEffect63State state = NativeBattleEffect63State.FromColdProcess().DetachBank(0).WriteDword(WorkGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(4)).WriteDword(TargetGlobal, ModelAddress(0));
-        NativeBattleOriginalEffectState effect = new(63, 62, new(63, Entry, Initializer), new(4, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(63, 62, new(63, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -145,7 +146,7 @@ public sealed class NativeBattleEffect63ControllerTests
         public NativeBattleVector Point { get; set; } = new(100, 20, 300);
         public NativeBattleVector Target { get; set; } = new(0, 0, 0);
 
-        public NativeBattleEffect63Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattleActionPacketsState.Fresh(), (_, _) => PutPoint(NativeBattleEffectArena.Clear(), 0x1C, Target), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, retained) => new(frame, PutPoint(retained, 0, default)), (frame, model, local, retained) =>
+        public NativeBattleEffect63Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => OriginalPackets(), (_, _) => PutPoint(NativeBattleEffectArena.Clear(), 0x1C, Target), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, retained) => new(frame, PutPoint(retained, 0, default)), (frame, model, local, retained) =>
         {
             PointModels.Add(model);
             Assert.Equal(1, BitConverter.ToUInt16(local.Read(6, 2)));

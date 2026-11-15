@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleModelStatusMotionTests
 {
-    private static NativeBattleGraphicsModel Model => new(0, 3)
+    private static NativeBattleGraphicsModel Model => new(3)
     {
         ModelId4 = 0,
         Flags2 = 0,
@@ -47,10 +47,10 @@ public sealed class NativeBattleModelStatusMotionTests
     [Fact]
     public void Gated_models_and_player_sequence19_do_not_read_unused_owners()
     {
-        NativeBattleGraphicsModel gated = new(0, 3) { Flags2 = 8 };
+        NativeBattleGraphicsModel gated = new(3) { Flags2 = 8 };
         Assert.Same(gated, NativeBattleModelStatusMotion.Advance50A370(gated));
         Assert.Same(gated, NativeBattleModelStatusMotion.Advance50A5F0(gated));
-        NativeBattleGraphicsModel sequence19 = new(0, 3) { Flags2 = 0, ModelId4 = 15, Sequence = 19 };
+        NativeBattleGraphicsModel sequence19 = new(3) { Flags2 = 0, ModelId4 = 15, Sequence = 19 };
         Assert.Same(sequence19, NativeBattleModelStatusMotion.Advance50A370(sequence19));
         NativeBattleGraphicsModel wrongSequence = Model with { Sequence = 2, Flags8 = null, GeometryWorldMatrix = null, Transform = null };
         Assert.Same(wrongSequence, NativeBattleModelStatusMotion.Advance50A370(wrongSequence));

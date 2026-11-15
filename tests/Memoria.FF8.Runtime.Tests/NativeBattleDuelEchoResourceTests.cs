@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -105,7 +106,7 @@ public sealed class NativeBattleDuelEchoResourceTests
         }
         Frame Draw(Frame frame, NativeBattleModelGeometrySource? selected, int effect, bool mutable)
         {
-            NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = Identity, SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x808080 };
+            NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = Identity, SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x808080 };
             Func<Frame, int, int, byte[]> read = (current, offset, length) =>
             {
                 if (offset >= 52)
@@ -189,7 +190,7 @@ public sealed class NativeBattleDuelEchoResourceTests
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
         NativeBattleResourcePointer pointer = new NativeBattleResourcePointer(new(0, origin) { Layout = layout, ResourceOnly = logical }, null, geometry.Length).Pin(cpu);
         NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), pointer, null!);
-        NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0);
+        NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0);
         NativeBattleDuel274Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), new(1)) { PilotIdentity = new(274, 1, 1, 1, 1) { ResourceGeneration = long.MaxValue } };
         frame = NativeBattleDuel274ArenaEcho.Initialize6A1230(frame, EchoAddress, [0]);
         byte[] matrix = new byte[32];
@@ -198,7 +199,7 @@ public sealed class NativeBattleDuelEchoResourceTests
         BinaryPrimitives.WriteInt16LittleEndian(matrix.AsSpan(16), 4096);
         frame = NativeBattleDuel274ArenaEcho.Capture68ADF0(frame, EchoAddress, 1, _ => (matrix, Enumerable.Repeat(true, 32).ToArray()));
         int emitted = 0;
-        NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = Identity, SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x808080 };
+        NativeBattleGraphicsModel model = new(3) { GeometryWorldMatrix = Identity, SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x808080 };
         frame = NativeBattleDuel274Echo.Draw68A7B0(frame, model, EchoAddress, source, (_, _, _) => throw new InvalidOperationException("Selected CPU source is immutable."), 4, Identity, new(Identity, 256, 160, 108), (current, batch) =>
         {
             NativeBattleGeometryPrimitive primitive = Assert.Single(batch.Attempts).Primitive!;

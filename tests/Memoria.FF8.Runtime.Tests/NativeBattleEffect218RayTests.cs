@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
 
@@ -8,7 +9,7 @@ public sealed class NativeBattleEffect218RayTests
     [Fact]
     public void Billboard_divides_signed_screen_WORDs_toward_zero_and_preserves_retained_matrix_padding()
     {
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         NativeBattleEffect218State state = NativeBattleEffect218State.FromColdProcess().WriteWord(0x24F360A, 0xBEEF);
         NativeBattleEffect218Frame frame = new(memory, effect, new(1), state);

@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -95,14 +96,14 @@ public sealed class NativeBattleDuel274DolphinTests
 
         public Fixture()
         {
-            Models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 1000) }).ToArray();
+            Models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 1000) }).ToArray();
             Models[3] = Models[3] with { Transform = Models[3].Transform! with { Position28 = new(100, 200, 300), Scale38 = 2000 } };
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (targets, _) = targets.Append(0x689AC0);
             NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(14, 2).WriteByte(15, 6).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000);
             targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(0, task) });
-            NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0) { Parameter80 = 6 };
+            NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 6 };
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), parameters, root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
             memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [targets]);

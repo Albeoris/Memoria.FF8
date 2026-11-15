@@ -42,7 +42,7 @@ public sealed class NativeBattleLaserEye71PresentationTests
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         Assert.NotNull(game.ReadNativeEffectCatalogForEffects([71])[70].LaserEye71Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(0);
+        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

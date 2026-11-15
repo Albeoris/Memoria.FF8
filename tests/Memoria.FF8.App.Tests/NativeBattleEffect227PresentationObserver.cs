@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -45,7 +46,7 @@ internal sealed class NativeBattleEffect227PresentationObserver
         NativeBattleEffect227State state = current.NativeEffectMemory!.Effect227!;
         NativeBattleEffect227Resources resources = effect.Binding.Effect227Resources!;
         state.Validate();
-        Assert.Equal((byte)1, current.NativeActionPackets!.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(16));
+        Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.HeaderIndex7C)).ReadContactCount());
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
         NativeBattleModulePoolTask? main = tasks.Values.FirstOrDefault(task => task.Callback == MainCallback);
@@ -53,9 +54,9 @@ internal sealed class NativeBattleEffect227PresentationObserver
         int age = main is null ? -1 : main.ReadWord(12);
         int oldAge = before is null ? -1 : before.ReadWord(12);
         uint arena = state.ReadDword(ArenaGlobal);
-        Assert.Equal((byte)137, graphics.Models[3].ModelId4);
-        Assert.Equal((byte)139, graphics.Models[4].ModelId4);
-        string companion = graphics.ActorIds[4]!;
+        Assert.Equal((byte)137, ReadOriginalModelCell(graphics, 3).ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(graphics, 4).ModelId4);
+        string companion = ReadOriginalModelActorId(graphics, 4)!;
         BattleCombatantSnapshot companionState = current.Combatants.Single(actor => actor.Id == companion);
         Assert.True(companionState.NativeParticipant!.Hidden);
         Assert.True(companionState.NativeParticipant.Suspended);
@@ -77,7 +78,7 @@ internal sealed class NativeBattleEffect227PresentationObserver
         }
         if (!entryFlag && effect.ReturnedDescriptor > 0)
         {
-            Assert.Equal(0, graphics.Models[3].Flags0 & 4);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, 3).Flags0 & 4);
             entryFlag = true;
             Mark("effect227-entry-cleared-model-WORD-bit4", current, cold);
         }
@@ -172,7 +173,7 @@ internal sealed class NativeBattleEffect227PresentationObserver
         }
         if (oldAge == 284 && main is null)
         {
-            Assert.Equal(4, graphics.Models[3].Flags0 & 4);
+            Assert.Equal(4, ReadOriginalModelCell(graphics, 3).Flags0 & 4);
             terminalFlag = true;
             mainRetired = true;
             BattleSnapshot reference = NativeBattleStorageSnapshots.Restore(prior);
@@ -220,12 +221,12 @@ internal sealed class NativeBattleEffect227PresentationObserver
                 Mark("effect227-current-static-particles", current, cold);
             }
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Cursor = cursor, End = end, Commands = CurrentCommands.Length, Geometry = CurrentMeshCommands.Length, Texts = texts.Order(), VibrationHandle = vibrationHandle, NativeFlags = graphics.Models[3].Flags0, TemporaryByte25 = current.NativeFileStaging!.Read(0x1A7725D, 1)[0], Contacts, ContactGlyphs });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Cursor = cursor, End = end, Commands = CurrentCommands.Length, Geometry = CurrentMeshCommands.Length, Texts = texts.Order(), VibrationHandle = vibrationHandle, NativeFlags = ReadOriginalModelCell(graphics, 3).Flags0, TemporaryByte25 = current.NativeFileStaging!.Read(0x1A7725D, 1)[0], Contacts, ContactGlyphs });
     }
 
     private void ObserveTexts(BattleSnapshot current, int oldAge, Action<string, BattleSnapshot> cold)
     {
-        string actorId = current.NativeGraphics!.ActorIds[3]!;
+        string actorId = ReadOriginalModelActorId(current.NativeGraphics!, 3)!;
         NativeBattleGraphicsResource original = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
         foreach ((int index, int age, int duration) in new[] { (0, 38, 42), (1, 85, 30), (2, 115, 30), (3, 165, 15) })
         {

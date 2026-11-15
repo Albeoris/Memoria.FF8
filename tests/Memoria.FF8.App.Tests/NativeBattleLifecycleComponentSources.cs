@@ -110,6 +110,6 @@ internal static class NativeBattleLifecycleComponentSources
         {
             throw new InvalidDataException("The lifecycle descriptor references an unpublished native header.");
         }
-        return NativeBattleActionGraphics.Word(packets.Headers[index], 6);
+        return packets.ReadHeader(new BattleActionHeaderReference(index)).Effect;
     }
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -44,10 +45,10 @@ internal sealed class NativeBattleEffect287PresentationObserver
         NativeBattleEffect287State state = current.NativeEffectMemory!.Effect287!;
         NativeBattleEffect287Resources resources = effect.Binding.Effect287Resources!;
         Assert.Equal(3, effect.Parameters!.Actor78);
-        Assert.Equal((byte)125, graphics.Models[3].ModelId4);
-        NativeBattleBodyBoneMatrices matrices = graphics.Models[3].CurrentBodyBoneMatrices!;
+        Assert.Equal((byte)125, ReadOriginalModelCell(graphics, 3).ModelId4);
+        NativeBattleBodyBoneMatrices matrices = ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!;
         Assert.Equal(28, matrices.Matrices.Length);
-        int row = graphics.Models[3].ActiveResourceRow100 ?? throw new InvalidDataException("Effect287 lost its actual current CPU row.");
+        int row = ReadOriginalModelCell(graphics, 3).ActiveResourceRow100 ?? throw new InvalidDataException("Effect287 lost its actual current CPU row.");
         Assert.NotEqual(0u, current.NativeModelCpuResources!.Rows[row].Require(12).PhysicalAddress);
         currentBones = true;
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
@@ -87,7 +88,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
             Assert.Equal(FirstProgrammeAddress, main.ReadDword(0x2C));
             Assert.Equal(SecondProgrammeAddress, main.ReadDword(0x8F0));
             capturedTargets = true;
-            Assert.Equal(age <= 30 ? 8 : 0, graphics.Models[3].Flags0 & 8);
+            Assert.Equal(age <= 30 ? 8 : 0, ReadOriginalModelCell(graphics, 3).Flags0 & 8);
         }
         targetVisits += tasks.Values.Count(task => task.Callback == 0x6F3D00) + previous.Count(item => item.Value.Callback == 0x6F3D00 && !tasks.ContainsKey(item.Key));
         if (processed == 30)
@@ -166,7 +167,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
         if (effect.ReturnedDescriptor == 0 && effect.Pools.IsEmpty)
         {
             Assert.NotNull(state.MeshQueueStorage);
-            Assert.Equal(0, graphics.Models[3].Flags0 & 8);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, 3).Flags0 & 8);
             drained = true;
         }
         observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, Commands = CurrentCommands.Length, MainVisits = mainVisits, TargetVisits = targetVisits, Intensity = state.ReadDword(IntensityGlobal), Random = current.NativeEffectMemory.SharedEffectRandom?.State, MeshQueueRetained = state.MeshQueueStorage is not null, Contacts, ContactGlyphs });

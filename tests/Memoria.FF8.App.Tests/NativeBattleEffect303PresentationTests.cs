@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -50,8 +51,8 @@ public sealed class NativeBattleEffect303PresentationTests
         List<object> loaded = [];
         foreach ((byte index, int modelId, byte nativeId) in new[] { ((byte)3, 11, (byte)27), ((byte)4, 12, (byte)28) })
         {
-            NativeBattleGraphicsModel model = source.NativeGraphics!.Models[index];
-            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == source.NativeGraphics.ActorIds[index]);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, index);
+            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics, index));
             Assert.Equal(modelId, definition.ModelId);
             Assert.Equal(index - 3, definition.SceneSlot);
             Assert.Equal(nativeId, model.ModelId4);
@@ -89,13 +90,13 @@ public sealed class NativeBattleEffect303PresentationTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)3, header.ReadByte(0));
-        Assert.Equal((byte)8, header.ReadByte(1));
-        Assert.Equal((byte)13, header.ReadByte(2));
-        Assert.Equal((int?)0, header.FirstContactIndex);
+        Assert.Equal((byte)8, header.Command);
+        Assert.Equal((byte)13, header.Sequence);
+        Assert.Equal((int?)0, header.FirstContact.Ordinal);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 258 && action.MagicId == 303).DamagePresentation;
-        NativeBattleContactPacket contact = new(new(4, reaction, 1, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(OriginalOwner(4), reaction, 1, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
         packets = packets with { Contacts = packets.Contacts.SetItem(0, contact) };
         packets.Validate();
         source = source with { NativeActionPackets = packets };

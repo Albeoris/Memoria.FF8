@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -91,7 +92,7 @@ internal sealed class NativeBattleEffect313PresentationObserver
         callbacks.UnionWith(tasks.Values.Select(task => task.Callback));
         if (oldAge == 122)
         {
-            eligibleActors.UnionWith(prior.NativeGraphics!.Models.Take(3).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Index));
+            eligibleActors.UnionWith(ReadOriginalModelCells(prior.NativeGraphics!).Take(3).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Index));
             eligibilityCaptured = true;
             Mark("effect313-current-party-flags-at-birth122", current, cold);
         }
@@ -122,8 +123,8 @@ internal sealed class NativeBattleEffect313PresentationObserver
             }
         }
 
-        Assert.Equal((byte)17, graphics.Models[3].ModelId4);
-        Assert.Equal(36, graphics.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal((byte)17, ReadOriginalModelCell(graphics, 3).ModelId4);
+        Assert.Equal(36, ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.Matrices.Length);
         if (current.NativeCamera?.ControlResource is { } control && control.Source.Identity == resources.Camera.Identity)
         {
             Assert.Equal(8, control.StreamOffset);
@@ -157,10 +158,10 @@ internal sealed class NativeBattleEffect313PresentationObserver
             int actor = unchecked((short)task.ReadWord(14));
             Assert.InRange(actor, 0, 2);
             uint saved = SavedActorsAddress + (uint)(actor * SavedActorStride);
-            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]);
+            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(ReadOriginalModelCell(graphics, actor));
             if (!previous.ContainsKey(address))
             {
-                NativeBattleEffectArena entering = NativeBattleRaldo19ModelMemory.Capture(prior.NativeGraphics!.Models[actor]);
+                NativeBattleEffectArena entering = NativeBattleRaldo19ModelMemory.Capture(ReadOriginalModelCell(prior.NativeGraphics!, actor));
                 Assert.Equal((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(entering.Read(0, 2)) & 0x1020), state.ReadWord(saved));
                 EqualSnapshot(entering, 12, state.ReadView(saved + 4, 8), 0, 8);
                 EqualSnapshot(entering, 28, state.ReadView(saved + 12, 8), 0, 8);
@@ -169,14 +170,14 @@ internal sealed class NativeBattleEffect313PresentationObserver
                 Mark("effect313-target-current-packed-capture", current, cold);
             }
             int targetAge = task.ReadWord(12);
-            if (targetAge >= 32 && graphics.Models[actor].Sequence == 6)
+            if (targetAge >= 32 && ReadOriginalModelCell(graphics, actor).Sequence == 6)
             {
                 sequenceWait = true;
                 Mark("effect313-current-sequence6-wait", current, cold);
             }
             if (targetAge is >= 1 and <= 32)
             {
-                Assert.Equal(0x1020, graphics.Models[actor].Flags0 & 0x1020);
+                Assert.Equal(0x1020, ReadOriginalModelCell(graphics, actor).Flags0 & 0x1020);
                 orbit |= !model.Read(28, 6).SequenceEqual(state.Read(saved + 12, 6));
             }
             if (targetAge is 1 or 24 or 25 or 31 or 32 or 33)
@@ -193,10 +194,10 @@ internal sealed class NativeBattleEffect313PresentationObserver
             Assert.True(task.ReadWord(12) >= 31);
             int actor = unchecked((short)task.ReadWord(14));
             uint saved = SavedActorsAddress + (uint)(actor * SavedActorStride);
-            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]);
+            NativeBattleEffectArena model = NativeBattleRaldo19ModelMemory.Capture(ReadOriginalModelCell(graphics, actor));
             EqualSnapshot(model, 12, state.ReadView(saved + 4, 8), 0, 8);
             EqualSnapshot(model, 28, state.ReadView(saved + 12, 8), 0, 8);
-            Assert.Equal((uint)state.ReadWord(saved), (uint)(graphics.Models[actor].Flags0 & 0x1020));
+            Assert.Equal((uint)state.ReadWord(saved), (uint)(ReadOriginalModelCell(graphics, actor).Flags0 & 0x1020));
             restoredActors.Add(actor);
             restoredActor = true;
             if (unchecked((short)task.ReadWord(0x1A)) >= 0)

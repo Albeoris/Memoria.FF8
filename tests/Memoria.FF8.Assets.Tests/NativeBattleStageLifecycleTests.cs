@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Buffers.Binary;
 using Memoria.FF8.Runtime;
@@ -72,7 +73,7 @@ public sealed class NativeBattleStageLifecycleTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        Assert.All(battle.NativeGraphics!.Models.Where(model => (model.Flags0 & 2) != 0), model =>
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Where(model => (model.Flags0 & 2) != 0), model =>
         {
             Assert.Equal(source.NativeSource!.ModelColors!.Color40, model.Color40);
             Assert.Equal(source.NativeSource.ModelColors.Color44, model.Color44);

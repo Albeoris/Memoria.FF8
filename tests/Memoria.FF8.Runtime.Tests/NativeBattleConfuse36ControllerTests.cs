@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -53,12 +54,12 @@ public sealed class NativeBattleConfuse36ControllerTests
 
     private static (NativeBattleConfuse36Frame Frame, NativeBattleConfuse36Resources Resources) Create()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(3, 2, 11, -1, 39, 36, null));
-        (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 1, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 39, 36, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 1, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(36, 35, new(36, 0x85F4E0, 0x85F4C0), new(3, 1, 1, 0, 0, 0), null) { ResourcePointers = [new(0x26A8E7C, 0)] };
+        NativeBattleOriginalEffectState effect = new(36, 35, new(36, 0x85F4E0, 0x85F4C0), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26A8E7C, 0)] };
         NativeBattleConfuse36Resources resources = new(new("declared-camera", []), 0, [], [0x7F7F7F, 0x3F3F3F, 0xFF000000], [16, -12, 8, -4, 0x7F]);
         NativeBattleConfuse36Frame frame = NativeBattleConfuse36Controller.Initialize(NativeBattleEffectMemory.FromColdProcess().BeginLoad(35), effect, packets, resources);
         return (frame, resources);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -60,8 +61,8 @@ public sealed class NativeBattleDoom8TargetSetupTests
         NativeBattleDoom8Frame before = fixture.Frame with { State = fixture.Frame.State.Write(NativeBattleDoom8State.SharedAddress, Enumerable.Repeat((byte)0xCC, 84).ToArray()), Memory = fixture.Frame.Memory with { EffectLight1D99AB0 = Enumerable.Repeat((byte)0xC3, 32).ToImmutableArray() } };
         NativeBattleDoom8Frame after = NativeBattleDoom8TargetSetup.Initialize8C52C0(before, fixture.Address, actor =>
         {
-            Assert.Equal(3, actor);
-            return new(actor, 0) { Transform = new(new(900, 800, 700), new(0, -300, -100), -1234, 0, 4096) };
+            Assert.Equal(OriginalOwner(3), actor);
+            return new(0) { Transform = new(new(900, 800, 700), new(0, -300, -100), -1234, 0, 4096) };
         });
         Assert.Equal(new byte[8], after.State.Read(NativeBattleDoom8State.SharedAddress, 8));
         Assert.Equal(unchecked((ushort)-300), after.State.SharedWord(10));
@@ -85,7 +86,7 @@ public sealed class NativeBattleDoom8TargetSetupTests
     public void Unknown_light_padding_stays_unknown_after_real_identity_and_rotation_writes()
     {
         var fixture = Fixture();
-        NativeBattleDoom8Frame after = NativeBattleDoom8TargetSetup.Initialize8C52C0(fixture.Frame, fixture.Address, actor => new(actor, 0) { Transform = new(new(0, 0, 0), new(100, 0, 0), 0, 0, 4096) });
+        NativeBattleDoom8Frame after = NativeBattleDoom8TargetSetup.Initialize8C52C0(fixture.Frame, fixture.Address, actor => new(0) { Transform = new(new(0, 0, 0), new(100, 0, 0), 0, 0, 4096) });
         NativeBattlePackedMatrix32 light = after.Memory.CaptureEffectLight1D99AB0();
         Assert.False(light.Known[18]);
         Assert.False(light.Known[19]);
@@ -94,7 +95,7 @@ public sealed class NativeBattleDoom8TargetSetupTests
         Assert.NotEqual(SnapshotJson(light.ReadMatrix().Rotation), SnapshotJson(NativeBattleCuragaMatrices.Identity8DD770().Rotation));
         Assert.Null(after.Memory.GeometryRegisters!.Rotation20[18]);
         Assert.Equal(1u, after.Random.Seed);
-        Assert.Throws<NotSupportedException>(() => NativeBattleDoom8TargetSetup.Initialize8C52C0(fixture.Frame with { Staging = null }, fixture.Address, actor => new(actor, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleDoom8TargetSetup.Initialize8C52C0(fixture.Frame with { Staging = null }, fixture.Address, actor => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }));
     }
 
     [Fact]
@@ -111,7 +112,7 @@ public sealed class NativeBattleDoom8TargetSetupTests
     {
         NativeBattleEffectHierarchy hierarchy = new(NativeBattleDoom8State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8C4B30, 100);
-        NativeBattleEffectHierarchyAppend target = root.Hierarchy.Append8DC540(1, 0x8C4D90, 88, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = root.Hierarchy.Append8DC540(1, 0x8C4D90, 88, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleOriginalEffectState effect = new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), null, null) { Pools = target.Hierarchy.Pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { EffectLight1D99AB0 = null, GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Translation = [11, 22, 33] } };
         NativeBattleDoom8Frame frame = new(memory, effect, new(1), NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray())) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

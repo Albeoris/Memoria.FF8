@@ -28,15 +28,15 @@ public sealed class EffectComponentLoadedSourceTests
             Assert.Empty(module.Pools);
             Assert.Null(module.Parameters);
             NativeBattleActionGraphicsState context = Assert.IsType<NativeBattleActionGraphicsState>(graphics.ActionGraphics);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[context.HeaderIndex];
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.HeaderIndex));
             Assert.Equal(NativeBattleActionGraphics.SelectService(header).Callback, context.Callback);
-            if (header.ReadByte(1) == 252)
+            if (header.Command == 252)
             {
                 Assert.Equal(0x50B190u, context.Callback);
             }
             else
             {
-                Assert.Equal(ushort.MaxValue, NativeBattleActionGraphics.Word(header, 4));
+                Assert.Equal(ushort.MaxValue, header.Action);
                 Assert.Equal(0x50BC20u, context.Callback);
             }
             Assert.Contains(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && (context.Callback == 0x50BC20 && task.Phase is 1 or 2 || context.Callback == 0x50B190 && task.Phase is 2 or 3));
@@ -45,8 +45,8 @@ public sealed class EffectComponentLoadedSourceTests
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozen)!);
             ComponentSourceAdmission admission = Assert.IsType<ComponentSourceAdmission>(GameWorld.ValidateEffectComponentSource(source, restored, effect));
             Assert.Equal(effect, admission.Effect);
-            Assert.Equal(header.ReadByte(1), admission.Command);
-            Assert.Equal(NativeBattleActionGraphics.Word(header, 4), admission.Action);
+            Assert.Equal(header.Command, admission.Command);
+            Assert.Equal(header.Action, admission.Action);
             if (effect != 162)
             {
                 Assert.Equal((byte)252, admission.Command);

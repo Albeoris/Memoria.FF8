@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -12,16 +13,16 @@ public sealed class NativeBattleMoogle96NodeContractsTests
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x64, 1), NativeBattleEffectTaskPool.Initialize(0x3000, 0x4000, 0x2A4, 1)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 1, 0x64);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteWord(0x5A, 1));
-        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(1, NativeBattleMoogle96Nodes.Callback, 0x2A4, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(1, NativeBattleMoogle96Nodes.Callback, 0x2A4, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = child.Hierarchy.Read(child.Address).WriteWord(0x29C, 2).WriteWord(0x29E, 45);
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 1, 96, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 96, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsModel Model(int actor) => new(actor, 3) { Transform = new(new(0, 0, 0), new((short)(actor == 0 ? 100 : 200), 0, 0), 0, (short)(actor == 0 ? 111 : 222), 4096), GeometryBounds52 = new(new(0, 0, 0), new((short)(actor == 0 ? 333 : 444), (short)(actor == 0 ? -555 : -666), (short)(actor == 0 ? 777 : 888))) };
+        NativeBattleGraphicsModel Model(int actor) => new(3) { Transform = new(new(0, 0, 0), new((short)(actor == 0 ? 100 : 200), 0, 0), 0, (short)(actor == 0 ? 111 : 222), 4096), GeometryBounds52 = new(new(0, 0, 0), new((short)(actor == 0 ? 333 : 444), (short)(actor == 0 ? -555 : -666), (short)(actor == 0 ? 777 : 888))) };
         NativeBattlePoseSource Pose(int actor) => throw new InvalidOperationException("Mode2 must not substitute an actor bone read for supplied Dog vectors.");
         NativeBattleEffectNodeDogOrigins dog = new(new(-10, -20, -30), new(40, -50, 60));
-        NativeBattleEffectParameters parameters = new(0, 1, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectNodeContext.Initialize(task, child.Hierarchy.Read(root.Address), parameters, packets, Model, Pose, 0x169227C));
         NativeBattleModulePoolTask actual = NativeBattleEffectNodeContext.Initialize(task, child.Hierarchy.Read(root.Address), parameters, packets, Model, Pose, 0x169227C, dogOrigins: dog);
         Vector(0x1C4, new(-10, 111, -30));

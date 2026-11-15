@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -32,10 +33,10 @@ public sealed class NativeBattleBlizzardControllerTests
     {
         var fixture = Fixture();
         NativeBattleActionPacketsState packets = fixture.Packets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 4, 144, null));
-        (packets, _) = packets.AppendContact(new(new(4, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 4, 144, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 2);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 2);
         NativeBattleBlizzardFrame frame = fixture.Frame;
         for (int tick = 0; tick <= 28; tick++)
         {
@@ -220,13 +221,13 @@ public sealed class NativeBattleBlizzardControllerTests
     private static (NativeBattleBlizzardFrame Frame, NativeBattleActionPacketsState Packets) Fixture()
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 4, 144, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 4, 144, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleModuleResource sprite = new(0, 0xDD82F0, 0, 0, [0, 0, 0, 0]);
         NativeBattleStaticMeshResource mesh = Mesh();
         NativeBattleBlizzardResources resources = new(new("fixture", []), sprite, sprite, mesh, mesh, mesh, 300012);
-        NativeBattleOriginalEffectState effect = new(144, 143, new(144, 0x61ABA0, 0x61AB80) { BlizzardResources = resources }, new(0, 0, 8, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(144, 143, new(144, 0x61ABA0, 0x61AB80) { BlizzardResources = resources }, new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleBlizzardController.Initialize61ABA0(effect, packets);
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1)), packets);
     }

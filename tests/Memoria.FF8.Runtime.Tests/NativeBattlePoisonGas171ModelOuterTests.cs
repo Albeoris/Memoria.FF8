@@ -87,7 +87,7 @@ public sealed class NativeBattlePoisonGas171ModelOuterTests
     }
 
     private static uint Dword(NativeBattlePoisonGas171ModelFrame frame, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Temporary176.Read(offset, 4));
-    private static NativeBattlePoisonGas171ModelFrame Frame(ushort flags) => new(NativeBattleEffectMemory.FromColdProcess(), NativeBattleFileStaging.Unknown(), new(3, flags)
+    private static NativeBattlePoisonGas171ModelFrame Frame(ushort flags) => new(NativeBattleEffectMemory.FromColdProcess(), NativeBattleFileStaging.Unknown(), new(flags)
     {
         GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 100 },
         Color40 = 0x82112233,

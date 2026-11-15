@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -281,7 +282,7 @@ public sealed class NativeBattleRayBomb307ControllerTests
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, _) = children.Append(callback);
             children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
-            NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
+            NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root, children] };
             NativeBattleEffectArena particles = NativeBattleEffectArena.Clear().MarkUnknown(0, ParticlesLength);
             for (int row = 0; row < 100; row++)
             {
@@ -290,7 +291,7 @@ public sealed class NativeBattleRayBomb307ControllerTests
             NativeBattleRayBomb307State state = NativeBattleRayBomb307State.FromUnknown().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(0x2242574, 0).WriteWord(0x2242580, 100).WriteWord(0x2242582, 200).WriteWord(0x2242584, 1000).WriteWord(0x2242568, 111).WriteWord(0x224256A, 0).WriteWord(0x224256C, 333) with { Particles = particles };
             return new(NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = Camera() }, effect, new(1), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         }
-        public NativeBattleRayBomb307Inputs Inputs(uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), flags, actor => new(actor, 0) { GeometryWorldMatrix = Identity() with { X = 10, Y = 20, Z = 30 }, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(Identity(), null), (frame, _) => new(frame, new(111, 0, 333)), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute) { ReadView = _ => Camera() };
+        public NativeBattleRayBomb307Inputs Inputs(uint flags = 0) => new(OriginalPackets(), flags, actor => new(0) { GeometryWorldMatrix = Identity() with { X = 10, Y = 20, Z = 30 }, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(Identity(), null), (frame, _) => new(frame, new(111, 0, 333)), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute) { ReadView = _ => Camera() };
         private NativeBattleRayBomb307Frame Execute(NativeBattleRayBomb307Frame frame, NativeBattleRayBomb307Operation operation)
         {
             Operations.Add(operation);

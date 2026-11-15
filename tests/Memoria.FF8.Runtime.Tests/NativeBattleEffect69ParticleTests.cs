@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect69Profile;
@@ -139,9 +140,9 @@ public sealed class NativeBattleEffect69ParticleTests
         NativeBattleEffect69Inputs inputs = Inputs() with { ReadModel = (current, actor) =>
         {
             modelReads++;
-            Assert.Equal(4, actor);
+            Assert.Equal(OriginalOwner(4), actor);
             Assert.Equal(frame.Random.Draw(out _).Draw(out _), current.Random);
-            return new(4, 3) { Transform = new(new(0, 0, 0), new(100, 0, -200), 0, 0, 4096) };
+            return new(3) { Transform = new(new(0, 0, 0), new(100, 0, -200), 0, 0, 4096) };
         } };
         NativeBattleEffect69Frame result = NativeBattleEffect69Particles.BirthSparks(frame, Resources(), inputs);
         Assert.Equal(expected, result.Random);
@@ -313,7 +314,7 @@ public sealed class NativeBattleEffect69ParticleTests
 
     private static NativeBattleEffect69Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(69, 68, new(69, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(69, 68, new(69, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, NativeCrtRandomState.FromColdProcess(), NativeBattleEffect69State.FromColdProcess().WriteDword(ArenaGlobal, 0x20DFAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }

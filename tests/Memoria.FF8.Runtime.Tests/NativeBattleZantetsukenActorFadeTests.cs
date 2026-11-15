@@ -7,7 +7,7 @@ public sealed class NativeBattleZantetsukenActorFadeTests
     [Fact]
     public void Fade_publishes_actual_far_and_DPCS_then_replaces_Color40_top_byte_without_touching_flags()
     {
-        NativeBattleGraphicsModel model = new(3, 0x010E) { Color40 = 0xABABCDEF, Color44 = 0xFF010203, Alpha7 = 99, Flags2 = 0x1234 };
+        NativeBattleGraphicsModel model = new(0x010E) { Color40 = 0xABABCDEF, Color44 = 0xFF010203, Alpha7 = 99, Flags2 = 0x1234 };
         NativeBattleZantetsukenActorFadeStep step = NativeBattleZantetsukenActorFade.Apply(model, NativeBattleEffectMemory.FromColdProcess(), 2048, Constants());
         Assert.Equal((uint?)0x32404040, step.Model.Color44);
         Assert.Equal((uint?)0x02402010, step.Model.Color40);
@@ -31,9 +31,9 @@ public sealed class NativeBattleZantetsukenActorFadeTests
     [Fact]
     public void Fade_writes_the_actor_color_without_reading_its_previous_value_and_requires_actual_far_controls()
     {
-        NativeBattleZantetsukenActorFadeStep step = NativeBattleZantetsukenActorFade.Apply(new(3, 2), NativeBattleEffectMemory.FromColdProcess(), 4096, Constants());
+        NativeBattleZantetsukenActorFadeStep step = NativeBattleZantetsukenActorFade.Apply(new(2), NativeBattleEffectMemory.FromColdProcess(), 4096, Constants());
         Assert.Equal((uint?)0x02804020, step.Model.Color40);
-        Assert.Throws<NotSupportedException>(() => NativeBattleZantetsukenActorFade.Apply(new(3, 2), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = null }, 4096, Constants()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleZantetsukenActorFade.Apply(new(2), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = null }, 4096, Constants()));
     }
 
     private static NativeBattleSummonColors Constants() => new(0x00804020, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));

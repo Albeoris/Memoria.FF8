@@ -55,7 +55,7 @@ public sealed class NativeBattleGraphicsPresentationClockTests
     [Fact]
     public void Odd_tick_partition_and_json_restore_preserve_fractional_phase()
     {
-        NativeBattleGraphicsState graphics = new([], [], 0, 0);
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects());
         long callbacks = 0;
         for (int index = 0; index < 1000; index++)
         {

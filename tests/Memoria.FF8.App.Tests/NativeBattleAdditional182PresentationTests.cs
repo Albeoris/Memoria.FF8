@@ -49,7 +49,7 @@ public sealed class NativeBattleAdditional182PresentationTests
         Assert.Equal(165504, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeAdditional182Resources(), binding.Additional182Resources);
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        NativeBattleContactPacket contact = packets.ReadContact(0);
+        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;

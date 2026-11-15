@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -168,28 +169,28 @@ public sealed class NativeBattleHoly175ControllerTests
         public NativeBattleHoly175Frame Frame { get; }
         public NativeBattleHoly175Resources Resources { get; }
         public NativeBattleActionPacketsState Packets { get; }
-        public ImmutableArray<NativeBattleGraphicsModel> Models { get; set; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 2) { Color40 = 0x32808080, Color44 = 0x00808080, Alpha7 = 0 }).ToImmutableArray();
+        public ImmutableArray<NativeBattleGraphicsModel> Models { get; set; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2) { Color40 = 0x32808080, Color44 = 0x00808080, Alpha7 = 0 }).ToImmutableArray();
         public List<(int Callback, NativeBattleHoly175Operation Operation)> Operations { get; } = [];
         public List<ushort> Sprite31Frames { get; } = [];
         public int Callback { get; set; }
 
         public Harness(int headers = 1, byte flags = 0)
         {
-            NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
             for (int index = 0; index < headers; index++)
             {
-                (packets, _) = packets.Prepare(new(0, 2, 4, 0, (ushort)(1 << (3 + index)), 175, null));
-                (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, (ushort)(1 << (3 + index)), 175, null));
+                (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 0, 0, 0, 0, 0, 0), null));
                 (packets, _) = packets.Publish(1);
             }
-            Packets = packets.WritePlayerRepeatMode(0, (byte)headers);
+            Packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
             byte[] delays = new byte[48];
             for (int index = 0; index < 12; index++)
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(delays.AsSpan(index * 4), 0xABCD0000u | (uint)index);
             }
             Resources = new(new("declared-animation", []), new("declared-tim", []), [], [], new("declared-sound", new byte[4].ToImmutableArray())) { CaptureBlackPackets = new("declared-black", new byte[48].ToImmutableArray()), DelayTable = new("declared-delays", delays.ToImmutableArray()) };
-            NativeBattleOriginalEffectState effect = new(175, 174, new(175, 0x5D1AD0, 0x5D1AB0), new(0, flags, 8, 0, 0, 0), null);
+            NativeBattleOriginalEffectState effect = new(175, 174, new(175, 0x5D1AD0, 0x5D1AB0), new(OriginalOwner(0), flags, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Holy175 = NativeBattleHoly175State.FromColdProcess() }, effect, new(1));
         }
 

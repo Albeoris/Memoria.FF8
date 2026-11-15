@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
@@ -41,7 +42,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
         Assert.Equal((short)150, Word(fixture.Positions[3], 2));
         Assert.Equal((ushort)30, NativeBattleShockwavePulsar260Controller.Read(step.Frame, TaskAddress).ReadWord(0x10));
         Assert.Equal((ushort)3, fixture.Models[3].Flags0);
-        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(3, 8, 0), fixture.Operations.Last());
+        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(OriginalOwner(3), 8, 0), fixture.Operations.Last());
         Assert.Equal(fixture.Frame.Random, step.Frame.Random);
     }
 
@@ -100,7 +101,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
         Assert.Equal((short)-151, Word(body.Offset8, 2));
         Assert.Throws<NotSupportedException>(() => body.Offset8.Read(6, 2));
         Assert.Throws<NotSupportedException>(() => body.Rotation8.Read(6, 2));
-        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(3, 0, 4), fixture.Operations.Last());
+        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(OriginalOwner(3), 0, 4), fixture.Operations.Last());
         Assert.Equal((ushort)15, fixture.Models[3].Flags0);
         Assert.Equal(0, step.Result);
     }
@@ -122,8 +123,8 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
         NativeBattleShockwavePulsar260Operation[] bodyAndFlags = fixture.Operations.Where(operation => operation is NativeBattleShockwavePulsar260DrawBody or NativeBattleShockwavePulsar260ActorFlags).ToArray();
         Assert.IsType<NativeBattleShockwavePulsar260DrawBody>(bodyAndFlags[0]);
         Assert.IsType<NativeBattleShockwavePulsar260DrawBody>(bodyAndFlags[1]);
-        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(3, 0, 4), bodyAndFlags[2]);
-        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(5, 0, 4), bodyAndFlags[3]);
+        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(OriginalOwner(3), 0, 4), bodyAndFlags[2]);
+        Assert.Equal(new NativeBattleShockwavePulsar260ActorFlags(OriginalOwner(5), 0, 4), bodyAndFlags[3]);
         Assert.Equal((ushort)0, fixture.Models[4].Flags0);
         Assert.Equal(0, step.Result);
     }
@@ -185,7 +186,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
     {
         public NativeBattleShockwavePulsar260Frame Frame { get; }
         public NativeBattleEffectArena[] Positions { get; } = Enumerable.Range(0, 7).Select(_ => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)1000)).Write(2, BitConverter.GetBytes((short)2000)).Write(4, BitConverter.GetBytes((short)3000))).ToArray();
-        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0xB)).ToArray();
+        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0xB)).ToArray();
         public List<NativeBattleShockwavePulsar260Operation> Operations { get; } = [];
         private NativeBattleShockwavePulsar260Resources Resources { get; }
         private bool Linked { get; }
@@ -224,7 +225,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
             Frame = NativeBattleShockwavePulsar260Controller.InitializeAct(frame, TaskAddress, 0x14, size, source, Resources);
         }
 
-        public NativeBattleShockwavePulsar260TaskStep Advance(NativeBattleShockwavePulsar260Frame frame) => NativeBattleShockwavePulsar260Controller.AdvanceTarget(frame, TaskAddress, Resources, new(NativeBattleActionPacketsState.Fresh(), 368, actor => Models[actor], actor => Positions[actor], actor => Linked ? actor switch { 3 => 4, 4 => 5, 5 => 3, _ => null } : null, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), Execute));
+        public NativeBattleShockwavePulsar260TaskStep Advance(NativeBattleShockwavePulsar260Frame frame) => NativeBattleShockwavePulsar260Controller.AdvanceTarget(frame, TaskAddress, Resources, new(OriginalPackets(), 368, actor => Models[actor], actor => Positions[actor], actor => Linked ? actor switch { 3 => 4, 4 => 5, 5 => 3, _ => null } : null, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), Execute));
 
         private NativeBattleShockwavePulsar260Frame Execute(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Operation operation)
         {

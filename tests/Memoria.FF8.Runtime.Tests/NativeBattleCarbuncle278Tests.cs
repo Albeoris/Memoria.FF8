@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -45,46 +46,49 @@ public sealed class NativeBattleCarbuncle278Tests
     }
 
     [Fact]
-    public void Host_clearance_queries_actual_enemy_rows_and_ignores_relocated_foreign_party_rows()
+    public void Host_clearance_queries_actual_enemy_models_and_ignores_foreign_party()
     {
         var fixture = Fixture();
-        ImmutableArray<NativeBattleGraphicsModel> models = fixture.Models.SetItem(1, fixture.Models[1] with { Flags0 = 2, Transform = new(default, new(0, 0, 800), 0, 0, 200) }).SetItem(3, fixture.Models[3] with { Flags0 = 2, Transform = new(default, new(0, 0, 30000), 0, 0, 200) });
+        BattleModelOwner foreignParty = new BattleForeignPartyModel(new("fixture-carbuncle-foreign-party"));
+        NativeBattleModelTransform opposing = new(default, new(0, 0, 800), 0, 0, 200);
+        BattleActorModels models = fixture.Models
+            .Set(OriginalOwner(1), fixture.Models.Get(OriginalOwner(1)) with { Flags0 = 2, Transform = opposing })
+            .Set(OriginalOwner(3), fixture.Models.Get(OriginalOwner(3)) with { Flags0 = 2, Transform = opposing })
+            .Add(foreignParty, new NativeBattleGraphicsModel(2) { Transform = opposing with { Position28 = new(0, 0, 30000) } });
         NativeBattleEffectSceneContext context = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts);
-        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [1]);
+        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context);
         Assert.Equal(349, result.Memory.Carbuncle278!.Centroid81C4);
         Assert.Equal(-1651, result.Memory.Carbuncle278.Base81CC);
         Assert.Equal(-4051, result.Memory.Carbuncle278.Lift81D0);
-        NativeBattleCarbuncle278Frame absentPartyGeometry = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models.SetItem(3, models[3] with { Transform = null }), context, [1]);
+        NativeBattleCarbuncle278Frame absentPartyGeometry = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models.Set(foreignParty, models.Get(foreignParty) with { Transform = null }), context);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(absentPartyGeometry));
-        Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models.SetItem(1, models[1] with { Transform = null }), context, [1]));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models.Set(OriginalOwner(3), models.Get(OriginalOwner(3)) with { Transform = null }), context));
     }
 
     [Fact]
     public void Host_scene_opponents_supply_clearance_without_allocating_physical_target_rows()
     {
         var fixture = Fixture();
-        ImmutableArray<NativeBattleGraphicsModel> models = fixture.Models.SetItem(3, fixture.Models[3] with { Flags0 = 0, Transform = null });
+        BattleActorModels models = fixture.Models.Set(OriginalOwner(3), fixture.Models.Get(OriginalOwner(3)) with { Flags0 = 0, Transform = null });
         NativeBattleEffectSceneContext context = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts)
         {
             ReadOpposingTransforms = () => [new(default, new(0, 0, 800), 0, 0, 200), new(default, new(0, 0, -100), 0, 0, 400)]
         };
-        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [], context.ReadOpposingTransforms!());
+        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, context.ReadOpposingTransforms!());
         Assert.Equal(0, result.Memory.Carbuncle278!.Centroid81C4);
         Assert.Equal(-2000, result.Memory.Carbuncle278.Base81CC);
         Assert.Equal(-4400, result.Memory.Carbuncle278.Lift81D0);
-        NativeBattleCarbuncle278Frame withoutOpponents = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [], []);
+        NativeBattleCarbuncle278Frame withoutOpponents = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, ImmutableArray<NativeBattleModelTransform>.Empty);
         Assert.Equal(0, withoutOpponents.Memory.Carbuncle278!.Lift81D0);
-        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [], default(ImmutableArray<NativeBattleModelTransform>)));
     }
 
     [Fact]
-    public void Host_clearance_rejects_duplicate_or_out_of_bank_enemy_rows()
+    public void Host_clearance_rejects_uninitialized_opposing_transforms()
     {
         var fixture = Fixture();
         NativeBattleEffectSceneContext context = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts);
-        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, [1, 1]));
-        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, [-1]));
-        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, [7]));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, default(ImmutableArray<NativeBattleModelTransform>)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, ImmutableArray.Create((NativeBattleModelTransform)null!)));
     }
 
     [Fact]
@@ -97,7 +101,7 @@ public sealed class NativeBattleCarbuncle278Tests
         Assert.Equal(0, result.Memory.Carbuncle278.Base81CC);
         Assert.Equal(7u, result.Memory.Carbuncle278.Pause8114);
         Assert.Equal((byte)1, result.Memory.Carbuncle278.Done81D8);
-        ImmutableArray<NativeBattleGraphicsModel> unknown = fixture.Models.SetItem(3, fixture.Models[3] with { Transform = null });
+        BattleActorModels unknown = fixture.Models.Set(OriginalOwner(3), fixture.Models.Get(OriginalOwner(3)) with { Transform = null });
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(source, fixture.Packets, unknown, 0x3F));
     }
 
@@ -106,7 +110,7 @@ public sealed class NativeBattleCarbuncle278Tests
     {
         var fixture = Fixture();
         NativeBattleCarbuncle278Frame live = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, 42);
-        NativeBattleCarbuncle278Frame restored = RoundTrip(live);
+        NativeBattleCarbuncle278Frame restored = NativeBattleTestSnapshots.Independent(live);
         List<(uint, int)> stages = [];
         for (int index = 0; index < 2; index++)
         {
@@ -172,13 +176,14 @@ public sealed class NativeBattleCarbuncle278Tests
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Memory = fixture.Frame.Memory with { Carbuncle278 = null } }, fixture.Packets, fixture.Models, 42));
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Effect = fixture.Frame.Effect with { ResourcePointers = [] } }, fixture.Packets, fixture.Models, 42));
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Memory = fixture.Frame.Memory with { Arena = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame.Memory.Arena!)).MarkUnknown(0x100, 8) } }, fixture.Packets, fixture.Models, 42));
-        NativeBattleActionHeaderSlot header = fixture.Packets.Headers[0];
-        NativeBattleActionPacketsState empty = fixture.Packets with { Headers = fixture.Packets.Headers.SetItem(0, header with { Payload = header.Payload.SetItem(0x10, 0) }) };
+        NativeBattleActionPacketsState empty = fixture.Packets.ResetCounts();
+        (empty, _) = empty.Prepare(new(OriginalOwner(0), 240, 0, 0, 3, 278, null));
+        (empty, _) = empty.Publish(0);
         Assert.Throws<DivideByZeroException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, empty, fixture.Models, 42));
         Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278State>("{}"));
     }
 
-    private static (NativeBattleCarbuncle278Frame Frame, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
+    private static (NativeBattleCarbuncle278Frame Frame, NativeBattleActionPacketsState Packets, BattleActorModels Models) Fixture()
     {
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 0x10);
@@ -192,20 +197,19 @@ public sealed class NativeBattleCarbuncle278Tests
         BinaryPrimitives.WriteUInt16LittleEndian(tim.AsSpan(60), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(tim.AsSpan(62), 1);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x100, tim).Write(0x2A120, tim), Carbuncle278 = NativeBattleCarbuncle278State.FromColdProcess() };
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 3, 278, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 3, 278, null));
         foreach (byte target in new byte[] { 0, 1 })
         {
-            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
-        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { ResourcePointers = [new(0x2508110, 0x100)] };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index == 3 ? (ushort)2 : (ushort)0)
+        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2508110, 0x100)] };
+        var (models, _) = OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(index == 3 ? (ushort)2 : (ushort)0)
         {
             Transform = new(new(0, 0, 0), new(0, 0, checked((short)(index == 0 ? -101 : index == 1 ? 100 : 400))), 0, 0, -3)
-        }).ToImmutableArray();
+        })));
         return (new(memory, effect, NativeCrtRandomState.FromColdProcess()), packets, models);
     }
 
-    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 }

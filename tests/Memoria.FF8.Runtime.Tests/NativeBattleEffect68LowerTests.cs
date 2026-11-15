@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -137,7 +138,7 @@ public sealed class NativeBattleEffect68LowerTests
         Assert.Equal(new int?[] { 100, -100, 100 }, frame.Memory.ScriptedColorRegisters!.Ir);
         Assert.Equal(2048u, frame.Memory.ScriptedColorRegisters.Ir0);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect68Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        frame = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleEffect68Frame second = NativeBattleEffect68Lower.MorphVertices(frame, 0x159390C, 0x1593A94, 0x1591C44, 0, resources, harness.Inputs());
         Assert.Equal((ushort)0xCAFE, second.Memory.Scan!.MutableMeshes[0x1591C44].ReadWord(14));
         Assert.True(second.State.MeshSourcesBound);
@@ -205,7 +206,7 @@ public sealed class NativeBattleEffect68LowerTests
     private static (NativeBattleEffect68Frame Frame, uint Address) Frame(Harness harness, uint callback)
     {
         ImmutableArray<NativeBattleEffectTaskPool> pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray();
-        NativeBattleOriginalEffectState effect = new(68, 67, new(68, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { Pools = pools, ReturnedDescriptor = RootDescriptor };
+        NativeBattleOriginalEffectState effect = new(68, 67, new(68, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools, ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect68State state = NativeBattleEffect68State.FromColdProcess();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -231,9 +232,9 @@ public sealed class NativeBattleEffect68LowerTests
 
         private static NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 11, -1, 135, 68, null));
-            (packets, _) = packets.AppendContact(new(new(3, 3, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, -1, 135, 68, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 3, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

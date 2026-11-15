@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -113,7 +114,7 @@ public sealed class NativeBattleEffect287ControllerTests
         harness.SetContacts(1, 0);
         harness.OnAdvance = () => harness.SetContacts(9, 2, 1, 2);
         NativeBattleEffect287Frame frame = AdvanceTail(AddMain(Frame(10), 65), Main, 65, harness.Inputs()).Frame;
-        Assert.Collection(harness.Operations, operation => Assert.IsType<NativeBattleEffect287Advance534210>(operation), operation => Assert.Equal(new NativeBattleEffect287Contacts506BA0(9, 3), operation));
+        Assert.Collection(harness.Operations, operation => Assert.IsType<NativeBattleEffect287Advance534210>(operation), operation => Assert.Equal(new NativeBattleEffect287Contacts506BA0(new BattleContactCursor(9), 3), operation));
         Assert.Equal(66, Read(frame, Main).ReadWord(12));
     }
 
@@ -235,7 +236,7 @@ public sealed class NativeBattleEffect287ControllerTests
         {
             state = state.DetachMeshQueue();
         }
-        NativeBattleOriginalEffectState effect = new(287, 286, new(287, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(287, 286, new(287, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -247,7 +248,7 @@ public sealed class NativeBattleEffect287ControllerTests
         public Action? OnAdvance { get; set; }
         public List<int> Bones { get; } = [];
         public List<NativeBattleEffect287Operation> Operations { get; } = [];
-        public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();
 
         public void SetContacts(int first, params int[] actors)
         {

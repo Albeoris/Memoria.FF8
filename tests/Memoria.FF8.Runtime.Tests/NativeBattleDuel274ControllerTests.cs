@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -147,7 +148,7 @@ public sealed class NativeBattleDuel274ControllerTests
         public Fixture()
         {
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(2352, BitConverter.GetBytes(0x12345678u)).Write(2348, BitConverter.GetBytes(0x87654321u));
-            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0) { Parameter80 = 0 }, null);
+            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 0 }, null);
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel274 = NativeBattleDuel274State.FromColdProcess(), Arena = arena }, effect, NativeBattleFileStaging.Unknown(), new(1));
             Actors = new(index => Flags[index], (index, flags) => Flags[index] = flags, index => index switch { 2 => NativeBattleDuel274Controller.Address(3), 3 => NativeBattleDuel274Controller.Address(2), _ => 0 }, index => index == 3 ? 2 : throw new InvalidOperationException("Unexpected actual target."), index =>
             {

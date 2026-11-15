@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -43,11 +44,11 @@ public sealed class NativeBattlePotion50ResourcesTests
         Assert.Equal((short?)0, memory.Potion50ContextF4);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(50, catalog);
         var initialized = NativeBattleOriginalEffects.Initialize(memory, selected);
-        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(0, 0, 8, 0, 0, 0) };
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 4, 0, 0, 0, 50, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleOriginalEffectState effect = initialized.Effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) };
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 4, 0, 0, 0, 50, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleCureFrame frame = NativeBattleCureController.Initialize8D6A00(initialized.Memory, effect, packets, resources);
         Assert.Equal(0x2634BB8u, frame.Effect.ReturnedDescriptor);

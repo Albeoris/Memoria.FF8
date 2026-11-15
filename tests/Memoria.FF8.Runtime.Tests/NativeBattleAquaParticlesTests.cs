@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -134,24 +135,24 @@ public sealed class NativeBattleAquaParticlesTests
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x808970), 100);
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78));
-        NativeBattleEffectHierarchyAppend emitter = hierarchy.Append8DC540(3, profile.Callback(callback), 340, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend emitter = hierarchy.Append8DC540(3, profile.Callback(callback), 340, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = emitter.Hierarchy;
         NativeBattleModulePoolTask task = NativeBattleReflectController.WriteMatrix(hierarchy.Read(emitter.Address), 0x58, NativeBattleCuragaMatrices.Identity8DD770()).WriteByte(0x29, 1).WriteWord(0x24, callback == 0x80B730 ? (ushort)16 : callback == 0x80C1B0 ? (ushort)18 : (ushort)28);
         hierarchy = hierarchy.Write(emitter.Address, task);
         if (existingChild)
         {
-            NativeBattleEffectHierarchyAppend previous = hierarchy.Append8DC540(3, profile.Callback(0x80C430), 340, emitter.Address, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend previous = hierarchy.Append8DC540(3, profile.Callback(0x80C430), 340, emitter.Address, (_, _, _) => OriginalTaskActors(0, 3));
             hierarchy = previous.Hierarchy.Write(previous.Address, previous.Hierarchy.Read(previous.Address).WriteByte(0x29, 1));
         }
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 8, 0, 0, 0, effect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 0, 0, 0, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Aqua55 = NativeBattleAquaState.FromColdProcess(55), Aqua72 = NativeBattleAquaState.FromColdProcess(72) };
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), profile.Pools[0].Descriptor) { Pools = hierarchy.Pools };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), profile.Pools[0].Descriptor) { Pools = hierarchy.Pools };
         NativeBattleAquaFrame frame = new(memory, selected, NativeCrtRandomState.FromColdProcess());
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
-        NativeBattleAquaInputs inputs = new(packets, camera, new(camera, 256, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(index, 2) { Rotation14 = 0 }, _ => new(new byte[] { 1 }.ToImmutableArray(), []), (_, _, _) => new(0, 0, 0, 0), (current, _) => current);
+        NativeBattleAquaInputs inputs = new(packets, camera, new(camera, 256, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(2) { Rotation14 = 0 }, _ => new(new byte[] { 1 }.ToImmutableArray(), []), (_, _, _) => new(0, 0, 0, 0), (current, _) => current);
         NativeBattleAquaResources resources = new(effect, new("camera", []), ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, [], [], 0, null);
         Advance();
         Assert.Equal((byte)1, hierarchy.Read(root.Address).ReadByte(0x28));

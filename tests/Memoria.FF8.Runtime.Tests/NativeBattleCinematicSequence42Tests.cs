@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -22,12 +23,12 @@ public sealed class NativeBattleCinematicSequence42Tests
         NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame current) => NativeBattleCinematicSequence42.Execute(current, new(0x1000, 4, 0xFFFFFFFC), new((actor, sequence) =>
         {
             selections++;
-            Assert.Equal((byte)3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             Assert.Equal((short)-4, sequence);
         }, actor =>
         {
             polls++;
-            Assert.Equal((byte)3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             return complete;
         }));
         string original = NativeBattleTestSnapshots.Json(frame);

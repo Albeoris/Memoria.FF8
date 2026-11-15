@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -89,7 +90,7 @@ internal sealed class NativeBattleEffect308PresentationObserver
             vibration ??= unchecked((int)main.ReadDword(16));
             for (int index = 0; index < 3; index++)
             {
-                NativeBattleGraphicsModel model = graphics.Models[caster + index];
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, caster + index);
                 Assert.Equal((byte)(121 + index), model.ModelId4);
                 Assert.Equal(index == 0 ? 44 : 6, model.CurrentBodyBoneMatrices!.Matrices.Length);
                 Assert.NotNull(model.Color44);
@@ -117,8 +118,8 @@ internal sealed class NativeBattleEffect308PresentationObserver
             Assert.Equal(110, oldAge);
             foreach ((int actor, uint color) in savedColors)
             {
-                Assert.Equal(color, graphics.Models[actor].Color44);
-                Assert.Equal(0, graphics.Models[actor].Flags0 & 8);
+                Assert.Equal(color, ReadOriginalModelCell(graphics, actor).Color44);
+                Assert.Equal(0, ReadOriginalModelCell(graphics, actor).Flags0 & 8);
             }
             mainRetired = true;
             Mark("effect308-main110-restores-triple-colors", current, cold);
@@ -165,7 +166,7 @@ internal sealed class NativeBattleEffect308PresentationObserver
             drained = true;
             Mark("effect308-all-pools-returned", current, cold);
         }
-        observations.Add(new { current.Frame, graphics.Callback, MainAge = age, PreviousMainAge = oldAge, RootAge = root?.ReadWord(12), Commands = commands.Length, Cursor = state.ReadDword(CursorGlobal), Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, pool.BankAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Colors = graphics.Models.Skip(caster).Take(3).Select(model => model.Color44) });
+        observations.Add(new { current.Frame, graphics.Callback, MainAge = age, PreviousMainAge = oldAge, RootAge = root?.ReadWord(12), Commands = commands.Length, Cursor = state.ReadDword(CursorGlobal), Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, pool.BankAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Colors = ReadOriginalModelCells(graphics).Skip(caster).Take(3).Select(model => model.Color44) });
     }
 
     public void Accept(BattleSnapshot completed, string output)

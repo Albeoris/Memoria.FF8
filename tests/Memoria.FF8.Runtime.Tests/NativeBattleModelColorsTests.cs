@@ -6,7 +6,7 @@ public sealed class NativeBattleModelColorsTests
 {
     private static readonly NativeBattleSummonColors Colors = new(0x00464B6E, 0x32464646, 1f / 4096, 4503601774854144d);
     private static NativeBattleModelColorOverrides Inactive => new([new(255, null), new(255, null)]);
-    private static NativeBattleGraphicsModel Model => new(0, 0x403) { Flags2 = 0, Flags8 = 0, Color40 = 0, Color44 = 0x32040404, Kind5 = 0, Phase6 = 16, Transform = new(new(1, 2, 3), new(4, 5, 6), 1234, 27, 4096) };
+    private static NativeBattleGraphicsModel Model => new(0x403) { Flags2 = 0, Flags8 = 0, Color40 = 0, Color44 = 0x32040404, Kind5 = 0, Phase6 = 16, Transform = new(new(1, 2, 3), new(4, 5, 6), 1234, 27, 4096) };
 
     [Fact]
     public void Ordinary_callback_restores_actual_stage_RGB_and_clears_only_Vertical34_even_under_pause()
@@ -29,7 +29,7 @@ public sealed class NativeBattleModelColorsTests
     [Fact]
     public void Model_gate_returns_without_reading_status_transform_stage_or_pending_owner()
     {
-        NativeBattleGraphicsModel gated = new(0, 3) { Flags2 = 4 };
+        NativeBattleGraphicsModel gated = new(3) { Flags2 = 4 };
         NativeBattleModelColorStep result = NativeBattleModelColors.Advance50A0A0(gated, 0, null!, null);
         Assert.Same(gated, result.Model);
         Assert.Null(result.Overrides);

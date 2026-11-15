@@ -8,7 +8,7 @@ public sealed class NativeBattleResourceOnlyModelCallbackTests
     public void Resource_only_callback_republishes_native_readiness_after_a_ring_sequence_clears_it(int modelFlags, int resourceFlags, int expectedModelFlags, int expectedResourceFlags)
     {
         NativeBattleSequenceState sequence = new() { Offset46 = 2, Pending3 = 0, Default2 = 1 };
-        NativeBattleGraphicsModel original = new(6, (ushort)modelFlags) { ModelId4 = 143, Kind5 = 0, Flags8 = 0, ResourceFlags44 = (ushort)resourceFlags, Sequence = 1, SequenceFrame = 100, SequenceState = sequence };
+        NativeBattleGraphicsModel original = new((ushort)modelFlags) { ModelId4 = 143, Kind5 = 0, Flags8 = 0, ResourceFlags44 = (ushort)resourceFlags, Sequence = 1, SequenceFrame = 100, SequenceState = sequence };
         Assert.True(NativeBattleActionGraphics.IsModelBusy(original, 0x40));
         NativeBattleGraphicsModel ready = NativeBattleGraphicsModels.PublishResourceOnlyReadiness502AB0(original);
         Assert.Equal((ushort)expectedModelFlags, ready.Flags0);
@@ -26,7 +26,7 @@ public sealed class NativeBattleResourceOnlyModelCallbackTests
     [InlineData(144)]
     public void Ordinary_models_retain_their_existing_completion_and_resource_owners(byte modelId)
     {
-        NativeBattleGraphicsModel original = new(3, 3) { ModelId4 = modelId, ResourceFlags44 = 10 };
+        NativeBattleGraphicsModel original = new(3) { ModelId4 = modelId, ResourceFlags44 = 10 };
         Assert.Same(original, NativeBattleGraphicsModels.PublishResourceOnlyReadiness502AB0(original));
     }
 }

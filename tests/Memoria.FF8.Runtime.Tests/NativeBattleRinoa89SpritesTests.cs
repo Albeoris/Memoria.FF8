@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRinoa89SpritesTests
@@ -102,7 +103,7 @@ public sealed class NativeBattleRinoa89SpritesTests
     private static (NativeBattleRinoa89Frame Frame, NativeBattleEffectTaskPool Pool) Fixture()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleRinoa89Controller.Sprites, 0x20DFAB8 + 3136, 48, 32);
-        NativeBattleOriginalEffectState effect = new(89, 88, new(89, 0x6F9CF0, 0x5755E0), new(0, 0, 8, 0, 0, 0), NativeBattleRinoa89Controller.Sprites) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(89, 88, new(89, 0x6F9CF0, 0x5755E0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleRinoa89Controller.Sprites) { Pools = [pool] };
         return (new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess()), pool);
     }
 }

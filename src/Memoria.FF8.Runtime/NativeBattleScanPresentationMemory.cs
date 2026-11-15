@@ -27,7 +27,7 @@ public sealed partial record NativeBattleOriginalEffectState
     internal BattleModelOwner? ScanSelectedModel { get; init; }
 
     [JsonIgnore]
-    internal BattleModelTargets ScanSelectedTargets { get; init; } = BattleModelTargets.Empty;
+    internal ImmutableDictionary<BattleModelOwner, uint> ScanSelectionValues { get; init; } = ImmutableDictionary<BattleModelOwner, uint>.Empty;
 
     [JsonIgnore]
     internal ImmutableDictionary<BattleModelOwner, NativeBattleScanSavedModel> ScanSavedModels { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleScanSavedModel>.Empty;

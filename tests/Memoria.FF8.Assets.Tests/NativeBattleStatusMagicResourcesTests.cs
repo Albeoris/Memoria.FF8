@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -24,7 +25,7 @@ public sealed class NativeBattleStatusMagicResourcesTests
         Assert.Equal(duration, BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(table + 4)));
         NativeBattleGfAnimationWorkspace workspace = new(ImmutableArray.CreateRange(new byte[workspaceBytes]));
         workspace = workspace.Initialize7016B0(source, workspaceBytes);
-        NativeBattleStatusMagicFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(effect, effect - 1, new(effect, resources.Entry, 1), new(0, 0, 8, 0, 0, 0), null));
+        NativeBattleStatusMagicFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(effect, effect - 1, new(effect, resources.Entry, 1), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         int allocations = 0;
         int callbacks = 0;

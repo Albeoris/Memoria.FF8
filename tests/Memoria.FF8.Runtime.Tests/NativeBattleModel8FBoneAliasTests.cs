@@ -66,7 +66,7 @@ public sealed class NativeBattleModel8FBoneAliasTests
     private static NativeBattleGraphicsModel Model(NativeBattlePoseSource source)
     {
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        return new(0, 2)
+        return new(2)
         {
             ModelId4 = 0x8F,
             Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096),

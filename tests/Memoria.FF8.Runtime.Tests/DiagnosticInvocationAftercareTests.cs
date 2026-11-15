@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -245,7 +246,7 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "active-texture")
         {
             NativeBattleGraphicsState graphics = session.NativeGraphics!;
-            Set(session, nameof(BattleSession.NativeGraphics), graphics with { Models = graphics.Models.SetItem(0, graphics.Models[0] with { Sequence = 12 }) });
+            Set(session, nameof(BattleSession.NativeGraphics), graphics with { Models = graphics.Models.SetItem(0, ReadOriginalModelCell(graphics, 0) with { Sequence = 12 }) });
         }
         Call(session, "QueueNativeReaction", session.Combatants[0], fault == "wrong-stage" ? 3 : 2);
         Pump(session);
@@ -338,7 +339,7 @@ public sealed class DiagnosticInvocationAftercareTests
         }
         if (fault == "texture-changed")
         {
-            post = post with { Models = post.Models.SetItem(0, post.Models[0] with { Sequence = 12 }) };
+            post = post with { Models = post.Models.SetItem(0, ReadOriginalModelCell(post, 0) with { Sequence = 12 }) };
         }
         if (fault == "texture-replaced")
         {
@@ -397,14 +398,14 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "header")
         {
             NativeBattleActionPacketsState packets = session.NativeActionPackets;
-            (packets, _) = packets.Prepare(new(0, 252, 0, 0, 1, 1, null));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 252, 0, 0, 1, 1, null));
             (packets, _) = packets.Publish(0);
             Field("nativeActionPackets").SetValue(session, packets);
         }
         if (fault == "contact")
         {
             NativeBattleActionPacketsState packets = session.NativeActionPackets;
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             Field("nativeActionPackets").SetValue(session, packets);
         }
         if (fault == "new-callback")
@@ -460,8 +461,8 @@ public sealed class DiagnosticInvocationAftercareTests
         session.Combatants[0].LastNativeAction = new(0, 0, 2, 1, 0, 0);
         Call(session, "BeginNativeReactionBatch");
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, command, 0, 0, action, effect, null));
-        (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), command, 0, 0, action, effect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
@@ -475,7 +476,7 @@ public sealed class DiagnosticInvocationAftercareTests
         {
             auxiliary = auxiliary.AppendTextureAnimation(0, 11, new([255], 0));
         }
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0)
+        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0)
         {
             EntryReady = prospectiveVictory,
             Auxiliary = auxiliary,

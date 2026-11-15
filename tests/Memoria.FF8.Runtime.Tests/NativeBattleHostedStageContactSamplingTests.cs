@@ -6,17 +6,21 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedStageContactSamplingTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+    private static readonly BattlePartyActorModel Ally = new(new("ally"));
+    private static readonly BattleEnemyActorModel OriginalEnemy = new(new("enemy"));
+    private static readonly BattleEnemyActorModel AddedEnemy = new(new("first-added-enemy"));
+    private static readonly BattleEnemyActorModel LastEnemy = new(new("last-added-enemy"));
 
     [Theory]
-    [InlineData(false, 15)]
-    [InlineData(false, 24)]
-    [InlineData(true, 15)]
-    [InlineData(true, 24)]
-    public void Hosted_stage_samples_the_first_loaded_enemy_after_skipping_holes_and_unloaded_candidates(bool final, int selected)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Hosted_stage_samples_the_first_loaded_enemy_after_skipping_holes_and_unloaded_candidates(bool final, bool selectLast)
     {
         var (session, graphics, services) = Fixture(final);
-        graphics = graphics with { Models = graphics.Models.SetItem(8, Loaded(8)).SetItem(15, selected == 15 ? Loaded(15) : Unloaded(15)).SetItem(24, Loaded(24)) };
-        services = WithHealth(services, selected, 510, 1000);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(AddedEnemy, selectLast ? Unloaded() : Loaded()).Set(LastEnemy, Loaded()) };
+        services = WithHealth(services, selectLast ? LastEnemy : AddedEnemy, 510, 1000);
 
         Update(session, final, graphics, services);
 
@@ -27,13 +31,13 @@ public sealed class NativeBattleHostedStageContactSamplingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Original_row_three_takes_priority_and_matches_native_four_row_math(bool final)
+    public void Original_enemy_takes_priority_and_matches_native_four_row_math(bool final)
     {
         var (hosted, graphics, services) = Fixture(final);
-        graphics = graphics with { Models = graphics.Models.SetItem(3, Loaded(3)).SetItem(15, Loaded(15)).SetItem(24, Loaded(24)) };
-        services = WithHealth(services, 3, 200, 1000);
-        services = WithHealth(services, 15, 800, 1000);
-        services = WithHealth(services, 24, 1, 1000);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(OriginalEnemy, Loaded()).Set(AddedEnemy, Loaded()).Set(LastEnemy, Loaded()) };
+        services = WithHealth(services, OriginalEnemy, 200, 1000);
+        services = WithHealth(services, AddedEnemy, 800, 1000);
+        services = WithHealth(services, LastEnemy, 1, 1000);
 
         Update(hosted, final, graphics, services);
 
@@ -51,7 +55,7 @@ public sealed class NativeBattleHostedStageContactSamplingTests
     public void No_loaded_matching_enemy_leaves_the_stage_unchanged(bool final)
     {
         var (session, graphics, services) = Fixture(final);
-        graphics = graphics with { Models = graphics.Models.SetItem(0, Loaded(0)).SetItem(8, Loaded(8)).SetItem(15, Unloaded(15)).SetItem(24, Loaded(24) with { ModelId4 = 61 }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(Ally, Loaded()).Set(AddedEnemy, Unloaded()).Set(LastEnemy, Loaded() with { ModelId4 = 61 }) };
         NativeBattleStageState before = Stage(session);
 
         Update(session, final, graphics, services);
@@ -67,9 +71,9 @@ public sealed class NativeBattleHostedStageContactSamplingTests
     public void Missing_selected_hp_inside_the_hosted_stage_input_is_rejected(bool final, bool missingMaximum)
     {
         var (session, graphics, services) = Fixture(final);
-        graphics = graphics with { Models = graphics.Models.SetItem(15, Loaded(15)).SetItem(24, Loaded(24)) };
-        services = WithHealth(services, 15, missingMaximum ? 510 : null, missingMaximum ? null : 1000);
-        services = WithHealth(services, 24, 510, 1000);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(AddedEnemy, Loaded()).Set(LastEnemy, Loaded()) };
+        services = WithHealth(services, AddedEnemy, missingMaximum ? 510 : null, missingMaximum ? null : 1000);
+        services = WithHealth(services, LastEnemy, 510, 1000);
         NativeBattleStageState before = Stage(session);
 
         TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => Update(session, final, graphics, services));
@@ -81,11 +85,15 @@ public sealed class NativeBattleHostedStageContactSamplingTests
     private static (BattleSession Session, NativeBattleGraphicsState Graphics, NativeBattleModelLifecycleServices Services) Fixture(bool final)
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        IEnumerable<int> boundRows = [0, 3, 15, 24];
-        BattleModelRoster roster = new(Enumerable.Range(0, 25).Select(row => boundRows.Contains(row) ? new BattleModelOwner($"row-{row}", row == 0) : null).ToImmutableArray());
-        NativeBattleModelLifecycleServices services = new(roster.Rows.Select(actor => actor is null ? null : new NativeBattleModelActorFacts(actor.ActorId, actor.IsParty, 140, 0, 0)).ToImmutableArray());
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
-        NativeBattleGraphicsState graphics = new(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+        BattleModelRoster roster = new([Ally, OriginalEnemy, AddedEnemy, LastEnemy]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), Ally), (NativeBattleModelSlot.Decode(3), OriginalEnemy)]);
+        NativeBattleModelLifecycleServices services = new(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts>.Empty
+            .Add(Ally, new("ally", true, 140, 0, 0))
+            .Add(OriginalEnemy, new("enemy", false, 140, 0, 0))
+            .Add(AddedEnemy, new("first-added-enemy", false, 140, 0, 0))
+            .Add(LastEnemy, new("last-added-enemy", false, 140, 0, 0)));
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => Unloaded());
+        typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session, session.NativeActionPackets.WithRoster(roster, aliases));
         ((List<BattleCombatant>)typeof(BattleSession).GetField("combatants", PrivateInstance)!.GetValue(session)!).Clear();
         ((Dictionary<string, BattleCombatant>)typeof(BattleSession).GetField("byId", PrivateInstance)!.GetValue(session)!).Clear();
         BindStage(session, final);
@@ -97,8 +105,8 @@ public sealed class NativeBattleHostedStageContactSamplingTests
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
         BattleCombatant enemy = session.Combatants.Single(actor => !actor.IsPlayer);
         enemy.CurrentHp = 200;
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, Loaded(3)), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0);
+        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => owner == OriginalEnemy ? Loaded() : Unloaded(), BattleContactTaskStorageContract.OriginalArena);
         BindStage(session, final);
         return (session, graphics);
     }
@@ -120,13 +128,13 @@ public sealed class NativeBattleHostedStageContactSamplingTests
         typeof(BattleSession).GetProperty("NativeStage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session, NativeBattleStageState.FromColdProcess());
     }
 
-    private static NativeBattleGraphicsModel Loaded(int row) => new(row, 2) { ModelId4 = 140 };
+    private static NativeBattleGraphicsModel Loaded() => new(2) { ModelId4 = 140 };
 
-    private static NativeBattleGraphicsModel Unloaded(int row) => Loaded(row) with { Flags0 = 0 };
+    private static NativeBattleGraphicsModel Unloaded() => Loaded() with { Flags0 = 0 };
 
-    private static NativeBattleModelLifecycleServices WithHealth(NativeBattleModelLifecycleServices services, int row, int? hp, int? max)
+    private static NativeBattleModelLifecycleServices WithHealth(NativeBattleModelLifecycleServices services, BattleModelOwner owner, int? hp, int? max)
     {
-        return new(services.Facts.SetItem(row, services.Facts[row]! with { CurrentHp = hp, MaximumHp = max }));
+        return new(services.Facts.SetItem(owner, services.Facts[owner]! with { CurrentHp = hp, MaximumHp = max }));
     }
 
     private static void Update(BattleSession session, bool final, NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices? services)

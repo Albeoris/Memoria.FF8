@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
@@ -36,7 +37,7 @@ public sealed class DemasterBattleModelAnimationTests
         List<object> report = [];
         for (int index = 0; index < graphics.ActorIds.Length; index++)
         {
-            if (graphics.ActorIds[index] is not string actorId || graphics.Models[index].BodyTextureSlots is not { } binding)
+            if (ReadOriginalModelActorId(graphics, index) is not string actorId || ReadOriginalModelCell(graphics, index).BodyTextureSlots is not { } binding)
             {
                 continue;
             }
@@ -51,8 +52,8 @@ public sealed class DemasterBattleModelAnimationTests
             {
                 continue;
             }
-            NativeBattleTextureCopy open = Assert.IsType<NativeBattleTextureCopy>(NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, graphics.Models[index].TextureAllocationMask, 0, 0));
-            NativeBattleTextureCopy closed = Assert.IsType<NativeBattleTextureCopy>(NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, graphics.Models[index].TextureAllocationMask, 0, 1));
+            NativeBattleTextureCopy open = Assert.IsType<NativeBattleTextureCopy>(NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, ReadOriginalModelCell(graphics, index).TextureAllocationMask, 0, 0));
+            NativeBattleTextureCopy closed = Assert.IsType<NativeBattleTextureCopy>(NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, ReadOriginalModelCell(graphics, index).TextureAllocationMask, 0, 1));
             Assert.NotEqual(open, closed);
             NativeBattleEffectTextureState initial = Assert.IsType<NativeBattleEffectTextureState>(battle.NativeEffectMemory?.Textures);
             NativeBattleEffectTextureState opened = Copy(initial, open);
@@ -89,7 +90,7 @@ public sealed class DemasterBattleModelAnimationTests
                 NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(shut))!;
                 Assert.Equal(closedImage.Pixels, Sample(restored, material).Pixels);
                 Assert.Equal(openImage.Pixels, Sample(Copy(restored, open), material).Pixels);
-                Assert.Equal(JsonSerializer.Serialize(binding), JsonSerializer.Serialize(graphics.Models[index].BodyTextureSlots));
+                Assert.Equal(JsonSerializer.Serialize(binding), JsonSerializer.Serialize(ReadOriginalModelCell(graphics, index).BodyTextureSlots));
                 report.Add(new { model = model.Name, open, closed, material.Page, material.Clut, material.U, material.V, changedPixels = changed, openWidth = openImage.Width, openHeight = openImage.Height });
                 observed = true;
                 break;

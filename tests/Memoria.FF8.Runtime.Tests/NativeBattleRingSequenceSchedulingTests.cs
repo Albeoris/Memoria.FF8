@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -5,6 +6,9 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRingSequenceSchedulingTests
 {
+    private static readonly BattlePartyActorModel Party = new(new("party"));
+    private static readonly BattleEnemyActorModel Enemy = new(new("enemy"));
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -12,10 +16,10 @@ public sealed class NativeBattleRingSequenceSchedulingTests
     {
         var fixture = Fixture();
         NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(2, 0, 6, 0, missingSourceSequence ? (byte)0 : (byte)7, 0, 0xA1, 0xA1));
-        NativeBattleGraphicsModel source = fixture.Graphics.Models[0] with { Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
-        source = source.WriteLinkedModelIndex140(3);
-        NativeBattleGraphicsModel companion = (fixture.Graphics.Models[3] with { Flags0 = 2, ModelId4 = 98, ResourceFlags44 = 0x40, Sequence = 1, SequenceState = source.SequenceState! with { Pending3 = 0 } }).WriteLinkedModelIndex140(0);
-        NativeBattleGraphicsState graphics = fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, source).SetItem(3, companion) };
+        NativeBattleGraphicsModel source = fixture.Graphics.ActorModels.Get(Party) with { Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
+        source = source.WriteLinkedModel(Enemy);
+        NativeBattleGraphicsModel companion = (fixture.Graphics.ActorModels.Get(Enemy) with { Flags0 = 2, ModelId4 = 98, ResourceFlags44 = 0x40, Sequence = 1, SequenceState = source.SequenceState! with { Pending3 = 0 } }).WriteLinkedModel(Party);
+        NativeBattleGraphicsState graphics = fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Party, source).Set(Enemy, companion) };
         int requests = 0;
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source, resource, new(null, null)
         {
@@ -24,8 +28,8 @@ public sealed class NativeBattleRingSequenceSchedulingTests
                 requests++;
                 Assert.Equal((byte)2, requested);
                 Assert.Equal((byte)0, current.SequenceState!.Callback42);
-                graphics = Schedule(fixture.Session, graphics with { Models = graphics.Models.SetItem(0, current) }, requested);
-                return graphics.Models[0];
+                graphics = Schedule(fixture.Session, graphics with { ActorModels = graphics.ActorModels.Set(Party, current) }, requested);
+                return graphics.ActorModels.Get(Party);
             }
         });
         Assert.Equal(1, requests);
@@ -33,24 +37,24 @@ public sealed class NativeBattleRingSequenceSchedulingTests
         Assert.Equal((byte)2, step.Model.SequenceState!.Pending3);
         Assert.Equal((byte)1, step.Model.SequenceState.Callback42);
         Assert.Equal(0, step.Model.ResourceFlags44!.Value & 0x40);
-        Assert.Equal(0, graphics.Models[3].ResourceFlags44!.Value & 0x40);
+        Assert.Equal(0, graphics.ActorModels.Get(Enemy).ResourceFlags44!.Value & 0x40);
         NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[graphics.Auxiliary.Head!.Value];
         Assert.Equal(NativeBattleAuxiliaryKind.ModelSequence505C70, task.Kind);
         graphics.Auxiliary.Advance(new()
         {
             ApplyModelRing = (_, model, requested) =>
             {
-                foreach (int member in NativeBattleModelRings.Walk(graphics.Models, model))
+                foreach (BattleModelOwner member in NativeBattleModelRings.Walk(graphics.ActorModels, model))
                 {
-                    NativeBattleGraphicsResource selectedResource = member == 0 ? resource : resource with { SequenceSection = resource.SequenceSection.SetItem(4, 7) };
-                    graphics = graphics with { Models = graphics.Models.SetItem(member, NativeBattleSequenceSelections.SelectResource505BC0(graphics.Models[member], selectedResource, (int)requested)) };
+                    NativeBattleGraphicsResource selectedResource = member == Party ? resource : resource with { SequenceSection = resource.SequenceSection.SetItem(4, 7) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(member, NativeBattleSequenceSelections.SelectResource505BC0(graphics.ActorModels.Get(member), selectedResource, (int)requested)) };
                 }
             }
         });
-        Assert.Equal(missingSourceSequence ? (byte)1 : (byte)2, graphics.Models[0].Sequence);
-        Assert.Equal((byte)2, graphics.Models[3].Sequence);
-        Assert.Equal((ushort)0, graphics.Models[3].SequenceState!.Offset46);
-        Assert.Equal((byte)0, graphics.Models[3].SequenceState!.Callback42);
+        Assert.Equal(missingSourceSequence ? (byte)1 : (byte)2, graphics.ActorModels.Get(Party).Sequence);
+        Assert.Equal((byte)2, graphics.ActorModels.Get(Enemy).Sequence);
+        Assert.Equal((ushort)0, graphics.ActorModels.Get(Enemy).SequenceState!.Offset46);
+        Assert.Equal((byte)0, graphics.ActorModels.Get(Enemy).SequenceState!.Callback42);
     }
 
     [Fact]
@@ -60,10 +64,10 @@ public sealed class NativeBattleRingSequenceSchedulingTests
         NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(3, 0, 8, 0, 9, 0, 10, 0, 0xA1, 0xA1, 0xA1));
         foreach (uint status in new uint[] { 0, 0x18 })
         {
-            NativeBattleGraphicsModel source = fixture.Graphics.Models[0] with { Flags8 = status, Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
+            NativeBattleGraphicsModel source = fixture.Graphics.ActorModels.Get(Party) with { Flags8 = status, Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
             NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source, resource, new(null, null)
             {
-                SchedulePendingSequence = (current, requested) => Schedule(fixture.Session, fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, current) }, requested).Models[0]
+                SchedulePendingSequence = (current, requested) => Schedule(fixture.Session, fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Party, current) }, requested).ActorModels.Get(Party)
             });
             Assert.Equal(status == 0 ? (byte)2 : (byte)1, step.Model.Sequence);
             Assert.Equal(status == 0 ? (byte)0 : (byte)2, step.Model.SequenceState!.Pending3);
@@ -76,11 +80,11 @@ public sealed class NativeBattleRingSequenceSchedulingTests
     {
         var fixture = Fixture();
         NativeBattleGraphicsState result = Schedule(fixture.Session, fixture.Graphics, 1);
-        Assert.Equal((byte)1, result.Models[0].Sequence);
-        Assert.Equal((ushort)1, result.Models[0].ResourceFlags44);
-        Assert.Equal((ushort)0, result.Models[0].SequenceState!.Offset46);
-        Assert.Equal((byte)0, result.Models[0].SequenceState!.Pending3);
-        Assert.Equal((byte)29, result.Models[0].SequenceState!.Pose);
+        Assert.Equal((byte)1, result.ActorModels.Get(Party).Sequence);
+        Assert.Equal((ushort)1, result.ActorModels.Get(Party).ResourceFlags44);
+        Assert.Equal((ushort)0, result.ActorModels.Get(Party).SequenceState!.Offset46);
+        Assert.Equal((byte)0, result.ActorModels.Get(Party).SequenceState!.Pending3);
+        Assert.Equal((byte)29, result.ActorModels.Get(Party).SequenceState!.Pose);
         Assert.Null(result.Auxiliary.Head);
     }
 
@@ -88,13 +92,13 @@ public sealed class NativeBattleRingSequenceSchedulingTests
     public void Actual_ring_defers_selection_and_clears_ready40_on_each_loaded_member()
     {
         var fixture = Fixture();
-        ImmutableArray<NativeBattleGraphicsModel> models = fixture.Graphics.Models;
-        models = models.SetItem(0, models[0].WriteLinkedModelIndex140(3));
-        models = models.SetItem(3, (models[3] with { Flags0 = 2, ResourceFlags44 = 0x45 }).WriteLinkedModelIndex140(0));
-        NativeBattleGraphicsState result = Schedule(fixture.Session, fixture.Graphics with { Models = models }, 0x1001);
-        Assert.Equal((byte)2, result.Models[0].Sequence);
-        Assert.Equal((ushort)2, result.Models[0].ResourceFlags44);
-        Assert.Equal((ushort)5, result.Models[3].ResourceFlags44);
+        BattleActorModels models = fixture.Graphics.ActorModels;
+        models = models.Set(Party, models.Get(Party).WriteLinkedModel(Enemy));
+        models = models.Set(Enemy, (models.Get(Enemy) with { Flags0 = 2, ResourceFlags44 = 0x45 }).WriteLinkedModel(Party));
+        NativeBattleGraphicsState result = Schedule(fixture.Session, fixture.Graphics with { ActorModels = models }, 0x1001);
+        Assert.Equal((byte)2, result.ActorModels.Get(Party).Sequence);
+        Assert.Equal((ushort)2, result.ActorModels.Get(Party).ResourceFlags44);
+        Assert.Equal((ushort)5, result.ActorModels.Get(Enemy).ResourceFlags44);
         NativeBattleAuxiliaryTask task = result.Auxiliary.Slots[result.Auxiliary.Head!.Value];
         Assert.Equal(NativeBattleAuxiliaryKind.ModelSequence505C70, task.Kind);
         List<uint> requested = [];
@@ -111,9 +115,9 @@ public sealed class NativeBattleRingSequenceSchedulingTests
     public void Requested_zero_status_bits_and_override_follow_native505C00(int requested, uint status, bool selected)
     {
         var fixture = Fixture();
-        NativeBattleGraphicsState graphics = fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, fixture.Graphics.Models[0] with { Flags8 = status }) };
+        NativeBattleGraphicsState graphics = fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Party, fixture.Graphics.ActorModels.Get(Party) with { Flags8 = status }) };
         NativeBattleGraphicsState result = Schedule(fixture.Session, graphics, requested);
-        Assert.Equal(selected ? (byte)1 : (byte)2, result.Models[0].Sequence);
+        Assert.Equal(selected ? (byte)1 : (byte)2, result.ActorModels.Get(Party).Sequence);
         Assert.Null(result.Auxiliary.Head);
     }
 
@@ -121,7 +125,7 @@ public sealed class NativeBattleRingSequenceSchedulingTests
     public void Unknown_ring_owner_is_not_treated_as_a_null_ring()
     {
         var fixture = Fixture();
-        NativeBattleGraphicsState graphics = fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, fixture.Graphics.Models[0] with { HasLinkedModelRing140 = null }) };
+        NativeBattleGraphicsState graphics = fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Party, fixture.Graphics.ActorModels.Get(Party) with { HasLinkedModelRing140 = null }) };
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Schedule(fixture.Session, graphics, 1));
         Assert.IsType<NotSupportedException>(error.InnerException);
     }
@@ -136,13 +140,13 @@ public sealed class NativeBattleRingSequenceSchedulingTests
         BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
         NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(3, 0, 8, 0, 9, 0, 10, 0, 0xA1, 0xA1, 0xA1));
         typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, resource)], []));
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray();
-        models = models.SetItem(0, (models[0] with { Flags0 = 3, Flags8 = 1, ModelId4 = 3, ResourceFlags44 = 0x42, Sequence = 2, SequenceState = new() { Offset46 = 7, Pending3 = 2, Pose = 29 } }).WriteLinkedModelIndex140(null));
-        return (session, new(models, ["party", null, null, "enemy", null, null, null], 0, 0));
+        NativeBattleGraphicsModel party = new NativeBattleGraphicsModel(3) { Flags8 = 1, ModelId4 = 3, ResourceFlags44 = 0x42, Sequence = 2, SequenceState = new() { Offset46 = 7, Pending3 = 2, Pose = 29 } }.WriteLinkedModel(null);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, Party, party), (3, Enemy, new(0))]);
+        return (session, graphics);
     }
 
     private static NativeBattleGraphicsState Schedule(BattleSession session, NativeBattleGraphicsState graphics, int requested)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ScheduleNativeRingSequence505C00", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, (byte)0, requested])!;
+        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ScheduleNativeRingSequence505C00", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, Party, requested])!;
     }
 }

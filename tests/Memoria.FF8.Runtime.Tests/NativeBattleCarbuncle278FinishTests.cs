@@ -1,5 +1,4 @@
-using System.Collections.Immutable;
-
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCarbuncle278FinishTests
@@ -22,13 +21,14 @@ public sealed class NativeBattleCarbuncle278FinishTests
     [Fact]
     public void Restoration_changes_only_party_hide_bits_and_loaded_enemy_Z_words()
     {
-        ImmutableArray<NativeBattleGraphicsModel> source = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index < 3 ? (ushort)7 : index == 3 ? (ushort)3 : (ushort)1) { Transform = index == 3 ? new(new(1, 2, 3), new(4, 5, -700), 6, 7, 8) : null }).ToImmutableArray();
-        ImmutableArray<NativeBattleGraphicsModel> restored = NativeBattleCarbuncle278Finish.Restore681199(source, -500);
-        Assert.All(restored.Take(3), model => Assert.Equal((ushort)3, model.Flags0));
-        Assert.Equal((short)-200, restored[3].Transform!.Position28.Z);
-        Assert.Equal((short)4, restored[3].Transform!.Position28.X);
-        Assert.Equal((short)-700, source[3].Transform!.Position28.Z);
-        Assert.Same(source[4], restored[4]);
+        var (source, _) = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, new NativeBattleGraphicsModel(slot < 3 ? (ushort)7 : slot == 3 ? (ushort)3 : (ushort)1) { Transform = slot == 3 ? new(new(1, 2, 3), new(4, 5, -700), 6, 7, 8) : null })));
+        BattleActorModels restored = NativeBattleCarbuncle278Finish.Restore681199(source, -500);
+        Assert.All(restored.Party.Entries, entry => Assert.Equal((ushort)3, entry.State.Flags0));
+        BattleModelOwner enemy = OriginalOwner(3);
+        Assert.Equal((short)-200, restored.Get(enemy).Transform!.Position28.Z);
+        Assert.Equal((short)4, restored.Get(enemy).Transform!.Position28.X);
+        Assert.Equal((short)-700, source.Get(enemy).Transform!.Position28.Z);
+        Assert.Same(source.Get(OriginalOwner(4)), restored.Get(OriginalOwner(4)));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         Assert.Equal((byte)255, NativeBattleCarbuncle278Finish.WriteCompletion508660(memory, 0x25081D8, 255).Carbuncle278!.Done81D8);
         Assert.Equal((byte)0, memory.Carbuncle278!.Done81D8);
@@ -36,15 +36,21 @@ public sealed class NativeBattleCarbuncle278FinishTests
     }
 
     [Fact]
-    public void Host_restoration_clears_relocated_party_hide_bits_and_restores_enemy_rows_below_three()
+    public void Host_restoration_clears_unaliased_party_hide_bits_and_restores_unaliased_enemy_position()
     {
-        ImmutableArray<NativeBattleGraphicsModel> source = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index is 0 or 3 ? (ushort)7 : index == 1 ? (ushort)3 : (ushort)0) { Transform = index == 1 ? new(default, new(4, 5, -700), 0, 0, 4096) : null }).ToImmutableArray();
-        ImmutableArray<NativeBattleGraphicsModel> restored = NativeBattleCarbuncle278Finish.Restore681199(source, -500, [0, 3]);
-        Assert.Equal((ushort)3, restored[0].Flags0);
-        Assert.Equal((ushort)3, restored[3].Flags0);
-        Assert.Equal((short)-200, restored[1].Transform!.Position28.Z);
-        Assert.Equal((short)-700, source[1].Transform!.Position28.Z);
-        Assert.Same(source[2], restored[2]);
+        BattleModelOwner party = new BattlePartyActorModel(new("fixture-carbuncle-added-party"));
+        BattleModelOwner enemy = new BattleEnemyActorModel(new("fixture-carbuncle-added-enemy"));
+        BattleModelOwner inactive = OriginalOwner(4);
+        BattleActorModels source = new([
+            new(party, new(7)),
+            new(enemy, new(3) { Transform = new(default, new(4, 5, -700), 0, 0, 4096) }),
+            new(inactive, new(0))
+        ]);
+        BattleActorModels restored = NativeBattleCarbuncle278Finish.Restore681199(source, -500);
+        Assert.Equal((ushort)3, restored.Get(party).Flags0);
+        Assert.Equal((short)-200, restored.Get(enemy).Transform!.Position28.Z);
+        Assert.Equal((short)-700, source.Get(enemy).Transform!.Position28.Z);
+        Assert.Same(source.Get(inactive), restored.Get(inactive));
     }
 
     [Fact]

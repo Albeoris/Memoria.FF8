@@ -59,7 +59,7 @@ public sealed class NativeBattleGilgameshZantetsukenAnchorsTests
     [Fact]
     public void Disabled_anchor_does_not_allocate_or_touch_GTE_and_average_truncates_signed_words()
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags0 = 0, Transform = new(default, new(-5, 4, -3), 0, 77, 4096) };
+        NativeBattleGraphicsModel model = new(3) { Flags0 = 0, Transform = new(default, new(-5, 4, -3), 0, 77, 4096) };
         NativeBattleBoneAnchorProducer producer = NativeBattleGilgameshZantetsukenAnchors.Resolve58E2E0(model, null, 0xF0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
@@ -84,7 +84,7 @@ public sealed class NativeBattleGilgameshZantetsukenAnchorsTests
 
     private static NativeBattleGraphicsModel Model(NativeBattlePoseSource source)
     {
-        NativeBattleGraphicsModel model = new(0, 3) { Flags0 = 2, Transform = new(default, default, 0, 77, 4096) };
+        NativeBattleGraphicsModel model = new(3) { Flags0 = 2, Transform = new(default, default, 0, 77, 4096) };
         model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(model, source);
         return model with { CurrentBodyBoneMatrices = model.CurrentBodyBoneMatrices! with { Matrices = [Identity(), Identity() with { X = 40000 }] } };
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect76Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect76Profile;
@@ -18,8 +19,8 @@ public sealed class NativeBattleEffect76ControllerTests
         Assert.Equal(0, step.Frame.State.Read(MusicCompletionGlobal, 1)[0]);
         Assert.Collection(harness.Operations,
             operation => Assert.Equal(new NativeBattleEffect76Stage5713E0(4096, 0), operation),
-            operation => Assert.Equal(new NativeBattleEffect76ModelPointY(3, 5000, false), operation),
-            operation => Assert.Equal(new NativeBattleEffect76ModelFlags(3, 255, 4, false), operation),
+            operation => Assert.Equal(new NativeBattleEffect76ModelPointY(OriginalOwner(3), 5000, false), operation),
+            operation => Assert.Equal(new NativeBattleEffect76ModelFlags(OriginalOwner(3), 255, 4, false), operation),
             operation => Assert.Equal(new NativeBattleEffect76SetMode4A8480(0), operation),
             operation => Assert.Equal(new NativeBattleEffect76MusicLoad501A20(MusicAddress, MusicCompletionGlobal), operation));
     }
@@ -119,8 +120,8 @@ public sealed class NativeBattleEffect76ControllerTests
         Harness harness = new();
         NativeBattleEffect76Step step = AdvanceMain61FCD0(Frame(DriverCallback, 160), ChildBank, null!, harness.Inputs());
         Assert.Collection(harness.Operations,
-            operation => Assert.Equal(new NativeBattleEffect76Sequence505C00(3, 16), operation),
-            operation => Assert.Equal(new NativeBattleEffect76ModelPointY(3, -55, true), operation));
+            operation => Assert.Equal(new NativeBattleEffect76Sequence505C00(OriginalOwner(3), 16), operation),
+            operation => Assert.Equal(new NativeBattleEffect76ModelPointY(OriginalOwner(3), -55, true), operation));
         Assert.Equal(161, Read(step.Frame, ChildBank).ReadWord(12));
     }
 
@@ -132,7 +133,7 @@ public sealed class NativeBattleEffect76ControllerTests
     {
         Harness harness = new();
         AdvanceMain61FCD0(Frame(DriverCallback, age), ChildBank, null!, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect76Text4876F0(3, text, 60), Assert.Single(harness.Operations.OfType<NativeBattleEffect76Text4876F0>()));
+        Assert.Equal(new NativeBattleEffect76Text4876F0(OriginalOwner(3), text, 60), Assert.Single(harness.Operations.OfType<NativeBattleEffect76Text4876F0>()));
         Assert.Equal(age == 270 ? 1 : 0, harness.Operations.OfType<NativeBattleEffect76MusicVolume501B10>().Count());
     }
 
@@ -141,7 +142,7 @@ public sealed class NativeBattleEffect76ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect76Step contact = AdvanceMain61FCD0(Frame(DriverCallback, 605), ChildBank, null!, harness.Inputs());
-        Assert.Equal(new NativeBattleEffect76Contact506690(0), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect76Contact506690(new BattleContactOccurrence(0)), Assert.Single(harness.Operations));
         Assert.Equal(0, contact.Result);
         harness.Operations.Clear();
         NativeBattleEffect76Step retired = AdvanceMain61FCD0(Frame(DriverCallback, 665), ChildBank, null!, harness.Inputs());
@@ -189,7 +190,7 @@ public sealed class NativeBattleEffect76ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(callback);
         children = children.WriteSlot(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(14, 95));
-        NativeBattleOriginalEffectState effect = new(76, 75, new(76, Entry, Initializer), new(3, 0, 8, 0, 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor };
+        NativeBattleOriginalEffectState effect = new(76, 75, new(76, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect76Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect76State.FromColdProcess().DetachBank(0).DetachBank(1));
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(CasterGlobal, 3) };
         return WriteBytes(frame, CapturedWorldAddress, PackedArena(NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 1, Y = 2, Z = 3 }, 0)), 32);
@@ -214,8 +215,8 @@ public sealed class NativeBattleEffect76ControllerTests
         private static NativeBattleActionPacketsState Packets()
         {
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-            (packets, _) = packets.Prepare(new(3, 8, 14, -1, 355, 76, null));
-            (packets, _) = packets.AppendContact(new(new(3, 3, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 355, 76, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 3, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }

@@ -93,7 +93,7 @@ public sealed class NativeBattleHeaderDisplacementTests
 
     private static NativeBattleGraphicsModel Model(short yaw)
     {
-        NativeBattleGraphicsModel model = new(0, 3)
+        NativeBattleGraphicsModel model = new(3)
         {
             ScaleVectorAddress48 = 0,
             ModelId4 = 0,

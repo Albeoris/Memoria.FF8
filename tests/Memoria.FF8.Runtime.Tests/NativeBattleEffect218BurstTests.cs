@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
 
@@ -16,7 +17,7 @@ public sealed class NativeBattleEffect218BurstTests
         (pool, int slot) = pool.Append(callback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, age).WriteWord(14, 0xAA55).WriteWord(24, 0x8002).WriteWord(26, unchecked((ushort)-8)).WriteWord(28, 0x8002).WriteWord(30, unchecked((ushort)-31)).WriteWord(32, 0x8002).WriteWord(34, unchecked((ushort)-19));
         pool = pool.WriteSlot(slot, task);
-        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect218State.FromColdProcess());
         uint address = pool.BankAddress + (uint)(slot * pool.Stride);
         List<ushort> ages = [];

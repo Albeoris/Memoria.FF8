@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -28,7 +29,7 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
-        Assert.Equal(7, graphics.Models.Length);
+        Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, source.NativeEffectMemory!.Active);
         Assert.NotNull(source.NativeEffectMemory.ScriptedEffects);
@@ -46,14 +47,14 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
         }
         foreach (int physical in new[] { 0, 3 })
         {
-            string id = graphics.ActorIds[physical]!;
+            string id = ReadOriginalModelActorId(graphics, physical)!;
             BattleCombatantDefinition definition = session.GetCombatantDefinition(id);
             BattleCombatantSnapshot actor = Assert.Single(source.Combatants, candidate => candidate.Id == id);
             Assert.True(actor.NativeParticipant!.Active);
             Assert.False(actor.NativeParticipant.Hidden);
             Assert.False(actor.NativeParticipant.Suspended);
             Assert.False(actor.NativeParticipant.Untargetable);
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.NotEqual(0, model.Flags0 & 2);
             Assert.Null(model.ReadLinkedModelIndex140());
             NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
@@ -80,8 +81,8 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
         }
         foreach (int physical in new[] { 1, 2, 4, 5, 6 })
         {
-            Assert.Equal(0, graphics.Models[physical].Flags0 & 2);
-            Assert.Null(graphics.Models[physical].HasLinkedModelRing140);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
+            Assert.Null(ReadOriginalModelCell(graphics, physical).HasLinkedModelRing140);
         }
         Assert.Equal(4, source.NativeStage!.Groups.Length);
         Assert.All(source.NativeStage.Groups, group =>

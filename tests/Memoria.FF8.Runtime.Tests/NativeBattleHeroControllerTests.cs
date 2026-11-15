@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -153,7 +154,7 @@ public sealed class NativeBattleHeroControllerTests
         Assert.Equal(new NativeBattleHeroSound(300188, 0, 128), sound.Operation);
         var contact = Assert.Single(observed, item => item.Operation is NativeBattleHeroContact);
         Assert.Equal(34, contact.Tick);
-        Assert.Equal(0, ((NativeBattleHeroContact)contact.Operation).Index);
+        Assert.Equal(new BattleContactOccurrence(0), ((NativeBattleHeroContact)contact.Operation).Index);
         Assert.Equal(320, observed.Count(item => item.Operation is NativeBattleHeroFan));
         Assert.Equal(20, observed.Count(item => item.Operation is NativeBattleHeroFanBegin));
         Assert.Equal(20, observed.Count(item => item.Operation is NativeBattleHeroFanEnd));
@@ -267,7 +268,7 @@ public sealed class NativeBattleHeroControllerTests
         {
             ObserveAnchor571400 = (current, actor) =>
             {
-                Assert.Equal((byte)3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 NativeBattleModulePoolTask child = current.Effect.Pools[1].Slots[0];
                 Assert.Equal(current.Profile.Child, child.Callback);
                 Assert.Equal((ushort)0, child.ReadWord(12));
@@ -340,11 +341,11 @@ public sealed class NativeBattleHeroControllerTests
     {
         NativeBattleHeroProfile profile = NativeBattleHeroProfile.ForEffect(effect);
         NativeBattleHeroResources resources = new(effect, Source(profile.MainSource, 0x888, 4, 40), Source(profile.OrbitSource, 0x7BC, 3, 18), Fan(), 300188);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(4, 0, 0, 0, 18, effect, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(4), 0, 0, 0, 18, effect, null));
         foreach (byte actor in actors)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 100, 0), null));
         }
         (packets, _) = packets.Publish(checked((byte)actors.Length));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(effect - 1);
@@ -352,13 +353,13 @@ public sealed class NativeBattleHeroControllerTests
         BinaryPrimitives.WriteInt32LittleEndian(tim.AsSpan(8), 12);
         BinaryPrimitives.WriteInt32LittleEndian(tim.AsSpan(20), 12);
         memory = memory with { Arena = memory.Arena!.Write(256, tim).Write(0x1000, Enumerable.Repeat((byte)0xA5, profile.ChildStride * profile.ChildCapacity).ToArray()) };
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 0, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
         NativeBattleHeroFrame frame = NativeBattleHeroController.Initialize(memory, selected, new(1), resources, 0x1000);
         frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
         NativeBattleExecutionStack execution = new(0x200000, 0x569C3D, NativeFieldRuntimeProfile.FF8EnExecutableHash, new string('A', 64), 1, 2);
         NativeBattleStackBytes word = NativeBattleStackBytes.Unknown("common47CF60:0", -0x88, 4).StoreUInt32(-0x88, 0x1A7904C, 0x4B04C6, "vitals");
         List<NativeBattleHeroOperation> operations = [];
-        NativeBattleHeroInputs inputs = new(packets, actor => new(actor, 2) { MinimumY146 = -101, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, -30, 4096) }, _ => new(100, 200, 300, 0x1234), new(execution, 0, word, null), (current, operation) =>
+        NativeBattleHeroInputs inputs = new(packets, actor => new(2) { MinimumY146 = -101, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, -30, 4096) }, _ => new(100, 200, 300, 0x1234), new(execution, 0, word, null), (current, operation) =>
         {
             operations.Add(operation);
             return current;

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -38,7 +39,7 @@ public sealed class NativeBattleEffect251PresentationTests
         for (int index = 0; index < 2; index++)
         {
             int physical = index + 3;
-            BattleCombatantDefinition actor = session.GetCombatantDefinition(graphics.ActorIds[physical]!);
+            BattleCombatantDefinition actor = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, physical)!);
             Assert.Equal(index == 0 ? 86 : 82, actor.ModelId);
             Assert.Equal(index, actor.SceneSlot);
             BattleCombatantSnapshot combatant = Assert.Single(original.Combatants, item => item.Id == actor.Id);
@@ -46,30 +47,30 @@ public sealed class NativeBattleEffect251PresentationTests
             Assert.False(combatant.NativeParticipant.Hidden);
             Assert.Equal(index == 1, combatant.NativeParticipant.Suspended);
             Assert.Equal(index == 1, combatant.NativeParticipant.Untargetable);
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.Equal((byte)(actor.ModelId + 16), model.ModelId4);
             NativeBattleGraphicsResource current = NativeBattleEnemyResourceView.Resolve(original.NativeModelCpuResources!, original.NativeFileStaging!, model.ActiveResourceRow100!.Value, assets.ReadNativeGraphicsResource(actor));
             Assert.Equal(index == 0 ? 41 : 2, NativeBattleBodyBoneMatrices.Require(model, current.PoseSource!).Length);
             model.GeometryWorldMatrix!.Validate();
         }
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(graphics.ActorIds[3]!);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, 3)!);
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 314 && item.MagicId == 251 && item.KernelSection == 3 && item.KernelIndex == 314);
         Assert.Equal((byte)33, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        (packets, int header) = packets.Prepare(new(3, 8, 33, unchecked((sbyte)action.RawRecord[4]), 314, 251, null));
-        NativeBattleStatusSnapshot status = Assert.Single(original.Combatants, actor => actor.Id == graphics.ActorIds[0]).NativeStatus!;
+        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 33, unchecked((sbyte)action.RawRecord[4]), 314, 251, null));
+        NativeBattleStatusSnapshot status = Assert.Single(original.Combatants, actor => actor.Id == ReadOriginalModelActorId(graphics, 0)).NativeStatus!;
         NativeBattleStatusSnapshot contactStatus = status.Presentation.Saved is null ? status with { Presentation = new(status.Saved, status.Battle) } : status;
-        BattleCombatantSnapshot[] contactActors = original.Combatants.Select(actor => actor.Id == graphics.ActorIds[0] ? actor with { NativeStatus = contactStatus } : actor).ToArray();
-        (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        BattleCombatantSnapshot[] contactActors = original.Combatants.Select(actor => actor.Id == ReadOriginalModelActorId(graphics, 0) ? actor with { NativeStatus = contactStatus } : actor).ToArray();
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([251])[250];
         BattleSnapshot prepared = original with { Combatants = contactActors, Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(250, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
         Assert.Equal(original.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle, actor.NativeParticipant)), prepared.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle, actor.NativeParticipant)));
-        Assert.Equal(JsonSerializer.Serialize(original.Combatants.Where(actor => actor.Id != graphics.ActorIds[0])), JsonSerializer.Serialize(prepared.Combatants.Where(actor => actor.Id != graphics.ActorIds[0])));
+        Assert.Equal(JsonSerializer.Serialize(original.Combatants.Where(actor => actor.Id != ReadOriginalModelActorId(graphics, 0))), JsonSerializer.Serialize(prepared.Combatants.Where(actor => actor.Id != ReadOriginalModelActorId(graphics, 0))));
         Assert.Equal(status.Saved, contactStatus.Presentation.Saved);
         Assert.Equal(status.Battle, contactStatus.Presentation.Battle);
         Assert.Equal(JsonSerializer.Serialize(original.NativeCrtRandom), JsonSerializer.Serialize(prepared.NativeCrtRandom));

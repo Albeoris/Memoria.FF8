@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -39,10 +40,10 @@ public sealed class NativeBattleEvilEye282AllocationTests
         Assert.Null(graphics.OriginalEffect);
         Assert.InRange(actualActor, 3, 6);
         BattleSession session = BattleSession.Restore(ready);
-        BattleCombatantDefinition actualDefinition = session.GetCombatantDefinition(graphics.ActorIds[actualActor] ?? throw new InvalidDataException("The actual allocation requires its physical actor identity."));
+        BattleCombatantDefinition actualDefinition = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, actualActor) ?? throw new InvalidDataException("The actual allocation requires its physical actor identity."));
         Assert.Equal(94, actualDefinition.ModelId);
         Assert.Equal(3, actualDefinition.SceneSlot);
-        NativeBattleGraphicsModel model = graphics.Models[actualActor];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualActor);
         Assert.Equal((byte)110, model.ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actualDefinition).PoseSource ?? throw new InvalidDataException("The allocated original model requires its current skeleton.");
         var matrices = NativeBattleBodyBoneMatrices.Require(model, pose);

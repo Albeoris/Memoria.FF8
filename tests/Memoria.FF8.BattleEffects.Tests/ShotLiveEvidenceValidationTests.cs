@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
@@ -37,12 +38,12 @@ public sealed class ShotLiveEvidenceValidationTests
 
     private static DiagnosticShotDispatchPackets PacketProof(BattleDiagnosticEffectDispatch dispatch)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(dispatch.NativeActorIndex!.Value, dispatch.NativeCommand!.Value, 0, -1, checked((ushort)dispatch.ActionId!.Value), dispatch.RequestedEffect, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(dispatch.NativeActorIndex!.Value), dispatch.NativeCommand!.Value, 0, -1, checked((ushort)dispatch.ActionId!.Value), dispatch.RequestedEffect, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
-        return new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex!.Value, dispatch.NativeHeaderGeneration!.Value, packets);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
+        return new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex!.Value, dispatch.NativeHeaderGeneration!.Value, packets.ExportRetained());
     }
 
     private static JsonObject Report(byte ammo = 0)

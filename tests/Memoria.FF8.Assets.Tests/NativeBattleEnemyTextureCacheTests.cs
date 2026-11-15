@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -165,7 +166,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         }
         Assert.True(battle.NativeEntryReady);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics);
-        NativeBattleGraphicsModel enemy = graphics.Models[3];
+        NativeBattleGraphicsModel enemy = ReadOriginalModelCell(graphics, 3);
         int resourceIndex = Assert.IsType<int>(enemy.TextureResourceIndex);
         NativeBattleModelTextureCache cache = Assert.IsType<NativeBattleModelTextureCache>(battle.NativeModelTextureCache);
         NativeBattleModelTextureCacheRow row = cache.Rows[resourceIndex];
@@ -188,14 +189,14 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         Assert.Equal(0, enemy.Flags2!.Value & 4);
         foreach ((uint soundFlags, int loadCount, bool cleared) in new (uint, int, bool)[] { (0, 1, true), (1, 0, false), (0x80000000, 0, false), (uint.MaxValue, 1, false) })
         {
-            NativeBattleGraphicsModel removing = NativeBattleGraphicsModels.StartRemoval(snapshot.NativeGraphics!.Models[3], 5) with { Phase6 = 1 };
+            NativeBattleGraphicsModel removing = NativeBattleGraphicsModels.StartRemoval(ReadOriginalModelCell(snapshot.NativeGraphics!, 3), 5) with { Phase6 = 1 };
             BattleSession removal = BattleSession.Restore(snapshot with
             {
                 NativeGraphics = snapshot.NativeGraphics with { Models = snapshot.NativeGraphics.Models.SetItem(3, removing), ModelLoadCount = loadCount },
                 NativeEffectMemory = snapshot.NativeEffectMemory! with { SoundPublishedFlags = soundFlags }
             });
             removal.AdvanceNativeGraphicsPresentation(callbackDuration);
-            Assert.Equal(cleared, removal.NativeGraphics!.Models[3].Flags0 == 0);
+            Assert.Equal(cleared, ReadOriginalModelCell(removal.NativeGraphics!, 3).Flags0 == 0);
             Assert.Equal(cleared ? (byte)0 : (byte)3, removal.NativeModelTextureCache!.Rows[resourceIndex].Kind);
             Assert.Equal(cleared ? (ushort)63 : cache.BlockedSlots, removal.NativeModelTextureCache.BlockedSlots);
         }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -34,7 +35,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
             return;
         }
         NativeBattleEffect283State state = current.NativeEffectMemory!.Effect283!;
-        NativeBattleGraphicsModel target = current.NativeGraphics.Models[4];
+        NativeBattleGraphicsModel target = ReadOriginalModelCell(current.NativeGraphics, 4);
         if (effect.ReturnedDescriptor is > 0)
         {
             Assert.Null(state.RootBankStorage);
@@ -128,7 +129,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
         {
             Assert.Contains(marker, markers);
         }
-        Assert.Equal(0, completed.NativeGraphics!.Models[4].Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(completed.NativeGraphics!, 4).Flags0 & 4);
         File.WriteAllText(Path.Combine(output, "effect283-observations.json"), JsonSerializer.Serialize(new { MainAges = mainAges.Order(), MainFrames = mainFrames.Order(), SecondaryFrames = secondaryFrames.Order(), Callbacks = callbacks.Order(), PacketBanks = banks.Order(), Opcodes = opcodes.Order(), Markers = markers.Order(), BodyCommon = bodyCommon, Window = window, Fade = fade, Restored = restored, Detached = detached, Observations = observations }));
     }
 

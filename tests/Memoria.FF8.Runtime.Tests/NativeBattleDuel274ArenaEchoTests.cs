@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -47,5 +48,5 @@ public sealed class NativeBattleDuel274ArenaEchoTests
         Assert.Equal(new byte[32], frame.Memory.Arena.Read(0x4000 + 648, 32));
     }
 
-    private static NativeBattleDuel274Frame Frame(NativeBattleEffectArena arena) => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0), NativeBattleFileStaging.Unknown(), new(1));
+    private static NativeBattleDuel274Frame Frame(NativeBattleEffectArena arena) => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0), NativeBattleFileStaging.Unknown(), new(1));
 }

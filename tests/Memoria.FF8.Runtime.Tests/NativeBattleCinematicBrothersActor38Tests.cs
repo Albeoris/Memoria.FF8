@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -70,7 +71,7 @@ public sealed class NativeBattleCinematicBrothersActor38Tests
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x98, 3000);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2000 + 0xC2, 2) };
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleGraphicsModel actor = new(0, 2) { Transform = new(new(0, 0, 0), new(10, 20, 30), 0, 0, 4096), GeometryWorldMatrix = alreadyCaptured ? null : identity with { X = 110, Y = 20, Z = 30 } };
+        NativeBattleGraphicsModel actor = new(2) { Transform = new(new(0, 0, 0), new(10, 20, 30), 0, 0, 4096), GeometryWorldMatrix = alreadyCaptured ? null : identity with { X = 110, Y = 20, Z = 30 } };
         byte[] skeleton = new byte[112];
         skeleton[0] = 2;
         skeleton[5] = 1;
@@ -79,7 +80,7 @@ public sealed class NativeBattleCinematicBrothersActor38Tests
         List<string> calls = [];
         NativeBattleCinematicBrothersActor38Services services = new((_, address) =>
         {
-            Assert.Equal(0x1D972C0u, address);
+            Assert.Equal(OriginalOwner(0), address);
             return actor;
         }, (current, _, value) =>
         {

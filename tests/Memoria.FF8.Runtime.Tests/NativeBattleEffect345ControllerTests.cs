@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect345Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect345Profile;
@@ -115,7 +116,7 @@ public sealed class NativeBattleEffect345ControllerTests
         frame = Write(frame, target, Read(frame, target).WriteByte(0x29, 1));
         frame = AdvanceTask(frame, target, f.Resources, f.Inputs).Frame;
         Assert.Single(f.Operations.OfType<NativeBattleEffect345Contact506690>());
-        Assert.Equal(f.PacketContact, f.Operations.OfType<NativeBattleEffect345Contact506690>().Single().AbsoluteIndex);
+        Assert.Equal(f.PacketContact, f.Operations.OfType<NativeBattleEffect345Contact506690>().Single().Cursor);
         Assert.Equal(2, Read(frame, target).ReadByte(0x29));
         frame = Write(frame, target, Read(frame, target).WriteByte(0x29, 3));
         NativeBattleEffect345Step complete = AdvanceTask(frame, target, f.Resources, f.Inputs);
@@ -184,31 +185,31 @@ public sealed class NativeBattleEffect345ControllerTests
         public NativeBattleEffect345Resources Resources { get; }
         public NativeBattlePackedMatrix32 View { get; } = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
         public List<NativeBattleEffect345Operation> Operations { get; } = [];
-        public int PacketContact { get; }
+        public BattleContactCursor PacketContact { get; }
 
         public Fixture(int targets = 1)
         {
             ImmutableDictionary<uint, ImmutableArray<byte>> spans = new uint[] { 0x1529720, 0x1529740, 0x1529760, 0x1529780 }.ToImmutableDictionary(address => address, address => Enumerable.Range(0, 15).SelectMany(index => BitConverter.GetBytes((short)index)).ToImmutableArray());
             Resources = new(new("scheduler", []), new("embedded0", []), new("embedded1", []), new("camera", []), new(NativeBattleEffect345Resources.ModelAddress, [], null!, []), [], new(0, NativeBattleEffect345Resources.MeshAddress, []), spans);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, _) = packets.Prepare(new(3, 8, 11, 0, 124, 345, null));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, 0, 124, 345, null));
             for (int target = 0; target < targets; target++)
             {
-                (packets, _) = packets.AppendContact(new(new((byte)target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), 0, 0, 0, 0, 0, 0), null));
             }
             (packets, _) = packets.Publish(1);
-            PacketContact = packets.Headers[0].FirstContactIndex!.Value;
+            PacketContact = packets.ReadHeader(new BattleActionHeaderReference(0)).FirstContact;
             Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, _) => NativeBattleEffectArena.Clear().Write(0x26, BitConverter.GetBytes((short)4096)), _ => View, _ => new(null, 100, 160, 108), _ => 0, _ => new(0x808080, 0x32808080), (_, _, length) => NativeBattleEffectArena.Clear().MarkUnknown(0, length), (frame, _, _, _, retained) => new(frame, PutPoint(retained, 0, new(0, 0, 2000))), (frame, _, _, _) => new(frame, 0), (frame, _, _) => new(frame, 0), (frame, _) => new(frame, 0), _ => throw new NotSupportedException("Rendering is outside these scheduler checks."), (frame, operation) =>
             {
                 Operations.Add(operation);
                 return frame;
             })
             {
-                ReadModel = (_, actor) => new(actor, 0),
+                ReadModel = (_, actor) => new(0),
                 ReadPoseSource = (_, _) => throw new NotSupportedException("Posed particle initialization is outside this branch fixture.")
             };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), SharedEffectView2793E58 = View };
-            NativeBattleOriginalEffectState effect = new(345, 345, new(345, Entry, Initializer), new(3, 1, 1, 0, 0, 0), null)
+            NativeBattleOriginalEffectState effect = new(345, 345, new(345, Entry, Initializer), new(OriginalOwner(3), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null)
             {
                 Pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray(),
                 ReturnedDescriptor = RootDescriptor

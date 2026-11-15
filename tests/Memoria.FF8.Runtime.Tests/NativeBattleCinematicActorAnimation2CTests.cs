@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -299,7 +300,7 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
         return new(actor =>
         {
             capture();
-            Assert.Equal(0x1D97494u, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             NativeBattleEffectArena resources = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x1939018u)).Write(4, BitConverter.GetBytes(0x193F000u)).Write(8, BitConverter.GetBytes(AnimationAddress)).Write(12, BitConverter.GetBytes(0x193F800u));
             return new(NativeBattleEffectArena.Clear().MarkUnknown(0, 12), resources, skeleton, 0x00102030, uint.MaxValue);
         }, frame =>

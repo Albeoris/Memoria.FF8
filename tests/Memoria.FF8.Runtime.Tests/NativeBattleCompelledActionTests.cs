@@ -105,18 +105,18 @@ public sealed class NativeBattleCompelledActionTests
     private static void AssertSilencedMagicAttempt(BattleSession battle)
     {
         int header = battle.ActiveAction!.NativeHeaderIndex!.Value;
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(1));
-        Assert.Equal((byte)10, battle.NativeActionPackets.Headers[header].ReadByte(2));
-        Assert.Equal((byte)9, battle.NativeActionPackets.Headers[header].ReadByte(4));
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(5));
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(6));
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(7));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(1));
+        Assert.Equal((byte)10, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(2));
+        Assert.Equal((byte)9, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(4));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(5));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(6));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(7));
         Assert.Equal(0x47E970u, battle.NativeActionPackets.Headers[header].Data!.ProducerAddress);
         Assert.Equal((ushort)2, battle.NativeActionPackets.Headers[header].Data!.Argument);
         BattleEvent message = Assert.Single(battle.Events, item => item.Kind == "NativeText");
         Assert.Equal("Message100", message.Message);
         Assert.Equal(16, message.Amount);
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(16));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(16));
         Assert.Equal(3, Assert.Single(battle.Combatants[0].MagicStocks).Count);
         Assert.Equal(500, battle.Combatants[1].CurrentHp);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -37,12 +38,12 @@ internal sealed class NativeBattleEffect65PresentationObserver
         }
         NativeBattleEffect65State state = current.NativeEffectMemory!.Effect65!;
         state.Validate();
-        Assert.Equal((byte)140, graphics.Models[5].ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(graphics, 5).ModelId4);
         Assert.Equal((ushort)1448, current.NativeModelCpuResources!.ScratchMaximum);
         NativeBattleModulePoolTask? before = ReadMain(prior);
         NativeBattleModulePoolTask? main = ReadMain(current);
         int age = main is null ? -1 : unchecked((short)main.ReadWord(12));
-        if (graphics.Models[5].Sequence == 13)
+        if (ReadOriginalModelCell(graphics, 5).Sequence == 13)
         {
             sequence13 = true;
             Mark("effect65-sequence13", current, cold);
@@ -161,11 +162,11 @@ internal sealed class NativeBattleEffect65PresentationObserver
             Assert.NotNull(state.RootBankStorage);
             Assert.Equal(0u, state.ReadDword(ChildDescriptor));
             Assert.Equal(0u, state.ReadDword(ChildDescriptor + 4));
-            Assert.Equal(0u, graphics.Models[5].ScaleVectorAddress48);
-            Assert.Equal(0u, graphics.Models[0].ScaleVectorAddress48);
+            Assert.Equal(0u, ReadOriginalModelCell(graphics, 5).ScaleVectorAddress48);
+            Assert.Equal(0u, ReadOriginalModelCell(graphics, 0).ScaleVectorAddress48);
             Mark("effect65-retained-native-completion", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = graphics.Callback, Age = age, Sequence = graphics.Models[5].Sequence, Cursor = state.ReadDword(CursorGlobal), PrivateRandom = state.ReadDword(RandomGlobal), Pools = effect.Pools.Length, OwnedPackets = CurrentCommands.Length, Contacts, ContactGlyphs });
+        observations.Add(new { current.Frame, Callback = graphics.Callback, Age = age, Sequence = ReadOriginalModelCell(graphics, 5).Sequence, Cursor = state.ReadDword(CursorGlobal), PrivateRandom = state.ReadDword(RandomGlobal), Pools = effect.Pools.Length, OwnedPackets = CurrentCommands.Length, Contacts, ContactGlyphs });
     }
 
     public void Accept(BattleSnapshot completed, string output)

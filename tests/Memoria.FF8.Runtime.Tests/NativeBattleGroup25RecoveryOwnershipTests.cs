@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGroup25RecoveryOwnershipTests
@@ -19,7 +20,7 @@ public sealed class NativeBattleGroup25RecoveryOwnershipTests
         {
             var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();
             NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-            NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, NativeBattleDrinkMagic37Profile.GenericCallback, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, NativeBattleDrinkMagic37Profile.GenericCallback, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
             NativeBattleCuragaFrame generic = fixture.Frame.ToGeneric();
             frame = generic with { Effect = generic.Effect with { Pools = context.Hierarchy.Pools }, State = generic.State with { Auxiliary25F8 = 0x12000, Auxiliary16F80 = 0x12438 } };
             address = context.Address;
@@ -55,7 +56,7 @@ public sealed class NativeBattleGroup25RecoveryOwnershipTests
         var fixture = NativeBattleRestorationControllerTests.Fixture(57);
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(57);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, profile.GenericCallback, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, profile.GenericCallback, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleRestorationFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = context.Hierarchy.Pools }, State = fixture.Frame.State with { Emitters = 0x12000, Geometry = 0x12000 + profile.EmitterBytes } };
         string before = NativeBattleTestSnapshots.Json(frame);
         NativeBattleRestorationFrame first = NativeBattleTestSnapshots.RestoreJson<NativeBattleRestorationFrame>(before)!;

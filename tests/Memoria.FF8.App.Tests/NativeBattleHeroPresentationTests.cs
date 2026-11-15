@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -80,30 +81,30 @@ public sealed class NativeBattleHeroPresentationTests
             int descriptor = Assert.Single(source.NativeGraphics!.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
             uint headerOffset = checked(source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(headerOffset / 20))];
-            Assert.Equal(action.Command, header.ReadByte(1));
-            Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-            Assert.Equal(effectId, NativeBattleActionGraphics.Word(header, 6));
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
+            Assert.Equal(action.Command, header.Command);
+            Assert.Equal(action.ActionId, header.Action);
+            Assert.Equal(effectId, header.Effect);
             if (multiTarget)
             {
                 Assert.Equal((ushort)20, action.ActionId);
                 Assert.Equal((byte)4, action.Command);
-                Assert.NotNull(source.NativeGraphics!.ActorIds[3]);
-                Assert.Equal((byte)2, (byte)(source.NativeGraphics.Models[3].Flags0 & 6));
+                Assert.NotNull(ReadOriginalModelActorId(source.NativeGraphics!, 3));
+                Assert.Equal((byte)2, (byte)(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 6));
                 Assert.Null(source.ActiveAction);
                 Assert.Empty(source.QueuedActions);
                 Assert.Null(source.NativeActionPackets.ActiveHeaderIndex);
                 Assert.Equal((byte)1, source.NativeActionPackets.ActionCount);
                 Assert.Equal((byte)1, source.NativeActionPackets.ContactCount);
-                NativeBattleContactPacket firstContact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+                NativeBattleContactPacket firstContact = source.NativeActionPackets.ReadContact(header.FirstContact);
                 BattleCombatantSnapshot enemy = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3);
                 NativeBattleStatusSnapshot status = enemy.NativeStatus ?? throw new InvalidDataException("The second controlled target lacks its native status owner.");
                 byte remainingHits = NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game);
                 enemy = enemy with { NativeParticipant = enemy.NativeParticipant! with { RemainingHits = remainingHits } };
-                NativeBattleContactPacket secondContact = new(new(3, action.DamagePresentation, 1, 0, status.Saved, 7, status.Battle), firstContact.Secondary);
+                NativeBattleContactPacket secondContact = new(new(OriginalOwner(3), action.DamagePresentation, 1, 0, status.Saved, 7, status.Battle), firstContact.Secondary);
                 NativeBattleActionPacketsState packets = source.NativeActionPackets.ResetCounts();
                 int prepared;
-                (packets, prepared) = packets.Prepare(new(header.ReadByte(0), header.ReadByte(1), header.ReadByte(2), unchecked((sbyte)header.ReadByte(3)), NativeBattleActionGraphics.Word(header, 4), NativeBattleActionGraphics.Word(header, 6), header.Data));
+                (packets, prepared) = packets.Prepare(new(header.ReadByte(0), header.Command, header.Sequence, unchecked((sbyte)header.ReadByte(3)), header.Action, header.Effect, header.Data));
                 Assert.Equal(checked((int)(headerOffset / 20)), prepared);
                 (packets, _) = packets.AppendContact(firstContact);
                 (packets, _) = packets.AppendContact(secondContact);
@@ -115,10 +116,10 @@ public sealed class NativeBattleHeroPresentationTests
                     Combatants = source.Combatants.Select(actor => actor.Id == enemy.Id ? enemy : actor).ToArray(),
                     Definition = source.Definition with { NativeRetainedMemory = source.Definition.NativeRetainedMemory! with { ActionPackets = packets } }
                 };
-                header = packets.Headers[prepared];
+                header = packets.ReadHeader(new BattleActionHeaderReference(prepared));
                 prior = source;
             }
-            Assert.Equal(checked((byte)expectedContacts), header.ReadByte(16));
+            Assert.Equal(checked((byte)expectedContacts), header.ReadContactCount());
             NativeBattleContactPacket[] contactPackets = source.NativeActionPackets!.ReadHeaderContacts506BA0(checked((int)(headerOffset / 20))).ToArray();
             Assert.Equal(expectedContacts, contactPackets.Length);
             Assert.Equal(multiTarget ? new byte[] { 0, 3 } : new byte[] { 0 }, contactPackets.Select(packet => packet.Primary.ActorIndex).ToArray());
@@ -126,13 +127,13 @@ public sealed class NativeBattleHeroPresentationTests
             {
                 Assert.Equal((ushort)1, contactPackets[1].Primary.ContactFlags);
             }
-            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
             Assert.Equal(0, contact.Primary.ActorIndex);
             Assert.Equal((ushort)7, contact.Primary.Amount6);
             Dictionary<int, NativeBattleEffectTask> expectedTexts = [];
             foreach (NativeBattleContactPacket packet in contactPackets)
             {
-                NativeBattleEffectTask? text = NativeBattleEffectsState.Clear().PrependDamageText(packet.Primary.ActorIndex, packet.Primary.ContactFlags, packet.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
+                NativeBattleEffectTask? text = OriginalEffects().PrependDamageText(packet.Primary.ActorIndex, packet.Primary.ContactFlags, packet.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
                 if (text is not null)
                 {
                     expectedTexts.Add(packet.Primary.ActorIndex, text);

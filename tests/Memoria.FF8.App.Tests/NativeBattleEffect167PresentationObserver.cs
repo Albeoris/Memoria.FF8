@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -39,7 +40,7 @@ internal sealed class NativeBattleEffect167PresentationObserver
         NativeBattleModulePoolTask? before = previous.Values.FirstOrDefault(task => task.Callback == MainCallback);
         int age = main is null ? -1 : unchecked((short)main.ReadWord(12));
         int oldAge = before is null ? -1 : unchecked((short)before.ReadWord(12));
-        Assert.Equal((byte)86, graphics.Models[3].ModelId4);
+        Assert.Equal((byte)86, ReadOriginalModelCell(graphics, 3).ModelId4);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
             NativeBattleCureFamilyPool shape = Pools.Single(item => item.Descriptor == pool.DescriptorAddress);
@@ -73,7 +74,7 @@ internal sealed class NativeBattleEffect167PresentationObserver
         if (oldAge == 145 && main is null)
         {
             retired = true;
-            Assert.NotEqual(0, (graphics.Models[3].ResourceFlags44 ?? throw new InvalidDataException("Effect167 requires the current caster sequence header.")) & 0x40);
+            Assert.NotEqual(0, (ReadOriginalModelCell(graphics, 3).ResourceFlags44 ?? throw new InvalidDataException("Effect167 requires the current caster sequence header.")) & 0x40);
             Mark("effect167-main-current-resource-retired", current, cold);
         }
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
@@ -153,10 +154,10 @@ internal sealed class NativeBattleEffect167PresentationObserver
             return [];
         }
         int actorIndex = task.ReadWord(14);
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(graphics, actorIndex);
         Assert.NotEqual(0, actor.Flags0 & 4);
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
-        string actorId = graphics.ActorIds[actorIndex]!;
+        string actorId = ReadOriginalModelActorId(graphics, actorIndex)!;
         NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == actorId);
         NativeBattlePoseSource pose = binding.Resource.PoseSource!;
         HashSet<(uint Clut, uint Tpage)> texturePairs = [];

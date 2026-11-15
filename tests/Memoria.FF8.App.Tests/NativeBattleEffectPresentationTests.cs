@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -98,7 +99,7 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleTextureCopy? expectedContactCopy = null;
         if (targetStatus.Presentation.Saved is ushort priorSaved && (priorSaved & 1) != 0 && (targetStatus.Saved & 1) == 0)
         {
-            NativeBattleGraphicsModel model = initial.NativeGraphics.Models[1];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(initial.NativeGraphics, 1);
             NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, model.TextureAllocationMask, 0, 0);
             Assert.NotNull(expectedContactCopy);
@@ -125,7 +126,7 @@ public sealed class NativeBattleEffectPresentationTests
                 {
                     Assert.Equal(expectedStatus, currentStatus);
                     uint projectedStatus = initial.Definition.NativeGraphics!.Rules.Project(targetStatus.Saved, targetStatus.Battle);
-                    Assert.Equal(projectedStatus, graphics.Models[1].Flags8!.Value & projectedStatus);
+                    Assert.Equal(projectedStatus, ReadOriginalModelCell(graphics, 1).Flags8!.Value & projectedStatus);
                     if (expectedContactCopy is { } copy)
                     {
                         NativeBattleEffectVramCopy expected = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
@@ -200,7 +201,7 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.False(HasDescriptor(battle));
         Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
-        Assert.Equal(0, battle.NativeGraphics.Models[1].Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 1).Flags0 & 4);
         Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         if (effect is 5 or 35)
         {

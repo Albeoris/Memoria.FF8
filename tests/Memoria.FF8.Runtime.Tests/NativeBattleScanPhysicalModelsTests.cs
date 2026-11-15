@@ -7,8 +7,8 @@ public sealed class NativeBattleScanPhysicalModelsTests
     [Fact]
     public void Physical_view_reuses_current_flags_rings_yaw_and_position_padding_without_filling_unknown_resource_fields()
     {
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToImmutableArray();
-        models = models.SetItem(4, new NativeBattleGraphicsModel(4, 0xA123)
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray();
+        models = models.SetItem(4, new NativeBattleGraphicsModel(0xA123)
         {
             ModelId4 = 0x36,
             Rotation14 = -200,

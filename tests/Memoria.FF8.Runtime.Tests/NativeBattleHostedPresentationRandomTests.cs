@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -88,7 +89,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
         Assert.Equal(4u, process.Graphics.UiServices!.Counter);
         Assert.False(process.Graphics.UiServices.Frame33);
         Assert.Equal(1, process.Graphics.Callback);
-        Assert.Equal(1, services.Facts[0]!.CurrentHp);
+        Assert.Equal(1, services.Facts[OriginalOwner(0)]!.CurrentHp);
         Assert.Same(services, process.LastFrameServices);
         Assert.Equal((short)childDraw, process.Camera.Variables[0]);
         AssertStreams(owner, process, expected, 2, CrtStart);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -71,7 +72,7 @@ public sealed class NativeBattleBadBreath131TargetsTests
         Assert.Equal(contacts, fixture.Operations.OfType<NativeBattleBadBreath131Contact>().Count());
         if (contacts != 0)
         {
-            Assert.Equal(2, Assert.Single(fixture.Operations.OfType<NativeBattleBadBreath131Contact>()).Index);
+            Assert.Equal(new BattleContactOccurrence(2), Assert.Single(fixture.Operations.OfType<NativeBattleBadBreath131Contact>()).Occurrence);
         }
         Assert.Equal(result == 2 ? 1 : 0, fixture.Operations.OfType<NativeBattleBadBreath131ActorFlags>().Count(operation => operation.ClearMask == 0x800));
         Assert.Equal(fixture.Frame.Random, actual.Frame.Random);
@@ -119,7 +120,7 @@ public sealed class NativeBattleBadBreath131TargetsTests
     public void JSON_target_continuation_preserves_shared_owners_and_unknown_context_W()
     {
         Fixture fixture = new(40);
-        NativeBattleBadBreath131Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath131Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        NativeBattleBadBreath131Frame restored = NativeBattleTestSnapshots.Independent(fixture.Frame);
         var expected = NativeBattleBadBreath131Controller.AdvanceTarget(fixture.Frame, fixture.TargetAddress, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleBadBreath131Controller.AdvanceTarget(restored, fixture.TargetAddress, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
@@ -145,7 +146,7 @@ public sealed class NativeBattleBadBreath131TargetsTests
                 NativeBattleEffectTaskPool.Initialize(TargetDescriptor, TargetAddress, TargetStride, TargetCount),
                 NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, ArenaAddress, ParticleStride, ParticleCount)
             ];
-            NativeBattleOriginalEffectState effect = new(131, 131, new(131, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
+            NativeBattleOriginalEffectState effect = new(131, 131, new(131, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Sxy = [1, 2, 3], Sz = [4, 5, 6, 7] }, ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [8, 9, 10] }, ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
@@ -154,7 +155,7 @@ public sealed class NativeBattleBadBreath131TargetsTests
             NativeBattleModulePoolTask task = NativeBattleBadBreath131Controller.Read(frame, TargetAddress).WriteBytes(12, new byte[312]).WriteWord(12, (ushort)age).WriteByte(14, 2).WriteByte(15, 0).WriteWord(16, 100).WriteWord(18, 200).WriteWord(20, 300).MarkPayloadUnknown(22, 2).WriteDword(24, 0x77102030);
             Frame = NativeBattleBadBreath131Controller.Write(frame, TargetAddress, task);
         }
-        public NativeBattleBadBreath131Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(actor, 1) { Color40 = 0xAB010203 }, _ => 28, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (frame, _, bone, _) =>
+        public NativeBattleBadBreath131Inputs Inputs() => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(1) { Color40 = 0xAB010203 }, _ => 28, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (frame, _, bone, _) =>
         {
             SelectedBones.Add(bone);
             return new(frame, new(10, 20, 30));

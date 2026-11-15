@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Numerics;
 using Memoria.FF8.Rendering;
@@ -45,6 +46,6 @@ public sealed class CrossoverForeignStatusTests
             Bones = [(Vector3.Zero, Vector3.UnitY)]
         };
         CrossoverNativeForeignTarget target = new(4, new(default, default, 0, 0, 4096), NativeBattleForeignModelGeometry.Identity, new(default, default, 0, new(default, default)), geometry, Matrix4x4.Identity) { NativeStatusFlags = flags };
-        Assert.Equal(flags, target.ToActor(3).StatusFlags);
+        Assert.Equal(flags, target.ToActor(OriginalOwner(3)).StatusFlags);
     }
 }

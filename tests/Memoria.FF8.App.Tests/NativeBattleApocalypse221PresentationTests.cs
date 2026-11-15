@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -62,13 +63,13 @@ public sealed class NativeBattleApocalypse221PresentationTests
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(headerOffset / 20))];
-            Assert.Equal((byte)2, header.ReadByte(1));
-            Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-            Assert.Equal((ushort)221, NativeBattleActionGraphics.Word(header, 6));
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
+            Assert.Equal((byte)2, header.Command);
+            Assert.Equal(action.ActionId, header.Action);
+            Assert.Equal((ushort)221, header.Effect);
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[220]));
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Apocalypse's ordinary producer omitted its contact pointer.");
-            contacts = Enumerable.Range(0, header.ReadByte(0x10)).Select(index => source.NativeActionPackets.ReadContact(first + index)).ToArray();
+            contacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => source.NativeActionPackets.ReadContact(first + index)).ToArray();
             Assert.NotEmpty(contacts);
             Assert.All(contacts, contact =>
             {
@@ -76,8 +77,8 @@ public sealed class NativeBattleApocalypse221PresentationTests
                 Assert.Equal((byte)255, contact.Secondary.ActorIndex);
                 Assert.True(contact.Primary.Amount6 > 0);
             });
-            string target = graphics.ActorIds[3]!;
-            string caster = graphics.ActorIds[0]!;
+            string target = ReadOriginalModelActorId(graphics, 3)!;
+            string caster = ReadOriginalModelActorId(graphics, 0)!;
             int hp = beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int maximumHp = source.Definition.Combatants.Single(actor => actor.Id == target).MaximumHp;
             foreach (NativeBattleContactPacket contact in contacts)
@@ -88,7 +89,7 @@ public sealed class NativeBattleApocalypse221PresentationTests
             Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
             Assert.Equal(2, Stock(beforeInput, caster, action.ActionId));
             Assert.Equal(1, Stock(source, caster, action.ActionId));
-            NativeBattleEffectTask[] expectedTexts = contacts.Select(contact => Assert.Single(NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0)).ToArray();
+            NativeBattleEffectTask[] expectedTexts = contacts.Select(contact => Assert.Single(OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0)).ToArray();
             battle = BattleSession.Restore(source);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
             BattleScenePresentation scene = new(assets, source.Definition, true);

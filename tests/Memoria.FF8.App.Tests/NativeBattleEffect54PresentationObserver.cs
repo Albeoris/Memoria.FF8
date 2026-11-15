@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -44,8 +45,8 @@ internal sealed class NativeBattleEffect54PresentationObserver
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> before = Tasks(prior);
         callbacks.UnionWith(tasks.Values.Select(task => task.Callback));
-        Assert.Equal((byte)72, graphics.Models[3].ModelId4);
-        Assert.Equal(26, graphics.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal((byte)72, ReadOriginalModelCell(graphics, 3).ModelId4);
+        Assert.Equal(26, ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.Matrices.Length);
         if (before.Values.Any(task => task.Callback == RootCallback) && tasks.Values.Any(task => task.Callback == RootCallback))
         {
             Assert.Equal(0x2793E58u, state.ReadDword(ViewPointerGlobal));

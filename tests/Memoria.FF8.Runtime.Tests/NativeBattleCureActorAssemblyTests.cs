@@ -123,7 +123,7 @@ public sealed class NativeBattleCureActorAssemblyTests
         byte?[] linked = new byte?[16];
         body[0] = 0;
         linked[0] = 2;
-        NativeBattleGraphicsModel model = new(0, 0)
+        NativeBattleGraphicsModel model = new(0)
         {
             Color40 = 0x808080,
             GeometryWorldMatrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1024, 4096),

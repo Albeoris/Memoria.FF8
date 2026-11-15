@@ -98,7 +98,7 @@ public static class NativeBattleScanModelVisibility
                 foreach (BattleModelOwner owner in frame.Models.Owners)
                 {
                     NativeBattleGraphicsModel model = frame.Models.Get(owner);
-                    model = Selected(owner) ? model with { Color40 = 0x00808080, Flags0 = (ushort)(model.Flags0 | 0x20) } : model with { Flags0 = (ushort)(model.Flags0 | 0x24) };
+                    model = SelectionValue(owner) == 1 ? model with { Color40 = 0x00808080, Flags0 = (ushort)(model.Flags0 | 0x20) } : model with { Flags0 = (ushort)(model.Flags0 | 0x24) };
                     SetModel(owner, model);
                 }
                 Finish();
@@ -135,7 +135,9 @@ public static class NativeBattleScanModelVisibility
         frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools, ScanSavedModels = savedModels }, Memory = frame.Scan.Memory with { Scan = process with { Presentation = memory } } } };
         return new(frame, complete ? 2 : 0);
 
-        bool Selected(BattleModelOwner owner) => frame.Scan.Effect.ScanSelectedTargets.Contains(owner);
+        uint SelectionValue(BattleModelOwner owner) => frame.Scan.Effect.ScanSelectionValues.GetValueOrDefault(owner);
+
+        bool Selected(BattleModelOwner owner) => SelectionValue(owner) != 0;
 
         NativeBattleScanSavedModel ReadSaved(BattleModelOwner owner) => savedModels.TryGetValue(owner, out NativeBattleScanSavedModel? saved) ? saved : throw new InvalidDataException("Native Scan cannot restore flags and color without their captured model owner.");
 

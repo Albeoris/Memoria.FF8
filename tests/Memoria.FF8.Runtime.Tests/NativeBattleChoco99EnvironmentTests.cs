@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -17,7 +18,7 @@ public sealed class NativeBattleChoco99EnvironmentTests
         NativeBattleChoco99EnvironmentStep hidden = NativeBattleChoco99Environment.Advance(source, (current, sound) =>
         {
             Assert.Equal(new byte[] { 5, 4, 1, 0 }, current.Stage.Groups.Select(group => group.Flags));
-            Assert.Equal(0x106, current.Models[3].Flags0);
+            Assert.Equal(0x106, current.Models.Get(OriginalOwner(3)).Flags0);
             Assert.Equal((ushort)0x1234, current.Task.ReadWord(0xAC));
             Assert.Equal(new NativeBattleChoco99EnvironmentSound(0x1529FAC, 0, 128), sound);
             sounds.Add(sound.Descriptor);
@@ -39,8 +40,8 @@ public sealed class NativeBattleChoco99EnvironmentTests
         NativeBattleChoco99EnvironmentStep restored = NativeBattleChoco99Environment.Advance(restore, (current, sound) =>
         {
             Assert.Equal(new byte[] { 7, 6, 1, 0 }, current.Stage.Groups.Select(group => group.Flags));
-            Assert.Equal(0x4102, current.Models[3].Flags0);
-            Assert.Equal(changed[5], current.Models[5]);
+            Assert.Equal(0x4102, current.Models.Get(OriginalOwner(3)).Flags0);
+            Assert.Equal(changed[5], current.Models.Get(OriginalOwner(5)));
             Assert.Equal(new NativeBattleChoco99EnvironmentSound(0x1529FB0, 0, 128), sound);
             sounds.Add(sound.Descriptor);
             return current;
@@ -59,7 +60,7 @@ public sealed class NativeBattleChoco99EnvironmentTests
         NativeBattleChoco99EnvironmentFrame frame = Frame(callback, 0, 0);
         for (int index = 0; index < callbacks; index++)
         {
-            NativeBattleChoco99EnvironmentFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco99EnvironmentFrame>(NativeBattleTestSnapshots.Json(frame))!;
+            NativeBattleChoco99EnvironmentFrame cold = NativeBattleTestSnapshots.Independent(frame);
             NativeBattleChoco99EnvironmentStep step = Advance(frame);
             Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(Advance(cold)));
             Assert.Equal(index == callbacks - 1, step.ReadyToComplete);
@@ -129,6 +130,6 @@ public sealed class NativeBattleChoco99EnvironmentTests
         byte[] flags = [7, 6, 3, 2];
         stage = stage with { Groups = stage.Groups.Select((group, index) => group with { Flags = flags[index], ColorDepth = 99, ColorFlags = 0xAB123456 }).ToImmutableArray() };
         ushort[] actors = [0xF02, 0xA02, 0x402, 0x102, 0xFF04, 0x106, 0x802];
-        return new(Task(callback, phase), NativeBattleChoco99Context.Clear718670().WriteWord(0x40, mode).WriteWord(0x44, mode), stage, actors.Select((actor, index) => new NativeBattleGraphicsModel(index, actor)).ToImmutableArray(), 0, 0);
+        return new(Task(callback, phase), NativeBattleChoco99Context.Clear718670().WriteWord(0x40, mode).WriteWord(0x44, mode), stage, actors.Select((actor, index) => new NativeBattleGraphicsModel(actor)).ToImmutableArray(), 0, 0);
     }
 }

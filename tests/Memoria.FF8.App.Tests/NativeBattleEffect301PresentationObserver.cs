@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -50,8 +51,8 @@ internal sealed class NativeBattleEffect301PresentationObserver
         NativeBattleEffect301Resources resources = effect.Binding.Effect301Resources!;
         int caster = effect.Parameters!.Actor78;
         Assert.InRange(caster, 3, 6);
-        Assert.Equal((byte)110, graphics.Models[caster].ModelId4);
-        Assert.Equal(40, graphics.Models[caster].CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal((byte)110, ReadOriginalModelCell(graphics, caster).ModelId4);
+        Assert.Equal(40, ReadOriginalModelCell(graphics, caster).CurrentBodyBoneMatrices!.Matrices.Length);
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
         NativeBattleModulePoolTask? main = tasks.Values.FirstOrDefault(task => task.Callback == MainCallback);
@@ -85,11 +86,11 @@ internal sealed class NativeBattleEffect301PresentationObserver
             }
             if (age >= 1)
             {
-                Assert.Equal(age <= 121 ? 4u : 0u, (uint)(graphics.Models[caster].Flags0 & 0xC));
+                Assert.Equal(age <= 121 ? 4u : 0u, (uint)(ReadOriginalModelCell(graphics, caster).Flags0 & 0xC));
             }
             for (int actor = 0; actor < 3; actor++)
             {
-                Assert.Equal(4, graphics.Models[actor].Flags0 & 4);
+                Assert.Equal(4, ReadOriginalModelCell(graphics, actor).Flags0 & 4);
             }
             hiddenParty = true;
             if (!vibrationStarted)
@@ -133,7 +134,7 @@ internal sealed class NativeBattleEffect301PresentationObserver
         }
         if (age is >= 122 and <= 141)
         {
-            Assert.Equal(0x32u, graphics.Models[caster].Color44!.Value >> 24);
+            Assert.Equal(0x32u, ReadOriginalModelCell(graphics, caster).Color44!.Value >> 24);
             color44Retained = true;
         }
         uint arena = state.ReadDword(ArenaGlobal);
@@ -175,9 +176,9 @@ internal sealed class NativeBattleEffect301PresentationObserver
             drained = true;
             for (int actor = 0; actor < 3; actor++)
             {
-                Assert.Equal(state.ReadDword(SavedPartyFlagsAddress + (uint)(actor * 4)) & 4, (uint)(graphics.Models[actor].Flags0 & 4));
+                Assert.Equal(state.ReadDword(SavedPartyFlagsAddress + (uint)(actor * 4)) & 4, (uint)(ReadOriginalModelCell(graphics, actor).Flags0 & 4));
             }
-            Assert.Equal(0, graphics.Models[caster].Flags0 & 0xC);
+            Assert.Equal(0, ReadOriginalModelCell(graphics, caster).Flags0 & 0xC);
             Assert.Equal(0x103CFB8u, state.ReadDword(NativeBattleEffect301State.ScriptPointerAddress));
             restoredParty = true;
         }

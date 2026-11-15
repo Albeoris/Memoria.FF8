@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
@@ -19,13 +20,13 @@ public sealed class CounterCycleValidationTests
         long primarySerial = execution;
         long generation = 2 * execution - 1;
         DiagnosticCounterCycleDeclaration declaration = new(new("enemy0", 8, 230, 178, 2, DiagnosticCounterCycleDeclaration.SupportedScriptSha256), 32);
-        NativeBattleActionPacketsState Packets(byte actor, byte command, ushort action, ushort effect, byte sequence, byte target)
+        NativeBattleRetainedActionPackets Packets(byte actor, byte command, ushort action, ushort effect, byte sequence, byte target)
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, _) = packets.Prepare(new(actor, command, sequence, -1, action, effect, null));
-            (packets, _) = packets.AppendContact(new(new(target, sequence, 0, 0, 0, 10, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
+            (packets, _) = packets.Prepare(new(OriginalOwner(actor), command, sequence, -1, action, effect, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), sequence, 0, 0, 0, 10, 0), null));
             (packets, _) = packets.Publish(1);
-            return packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
+            return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0)).ExportRetained();
         }
         BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 100 - execution * 10, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [4, 0, 0, 0, 0, 0, 0, 0]);
         BattleDiagnosticCounterPrimary primary = new(primarySerial, start + 1, "party0", 0, "enemy0", 3, 1, 0, 1, 110 - execution * 10, 100 - execution * 10, 0, generation, recipient, false);
@@ -295,7 +296,7 @@ public sealed class CounterCycleValidationTests
         contact = contact with
         {
             Primary = contact.Primary with { BeforeHp = contact.Primary.AfterHp },
-            Packets = contact.Packets with { Contacts = contact.Packets.Contacts.SetItem(0, contact.Packets.ReadContact(0) with { Primary = contact.Packets.ReadContact(0).Primary with { Amount6 = 0, HitFlags3 = 4 } }) }
+            Packets = contact.Packets with { Contacts = contact.Packets.Contacts.SetItem(0, contact.Packets.Contacts[0]! with { Primary = contact.Packets.Contacts[0]!.Primary with { Amount6 = 0, HitFlags3 = 4 } }) }
         };
         DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [attempt with { Contacts = [contact] }] }, Input);
         Assert.False(contact.Primary.Preliminary);
@@ -346,7 +347,7 @@ public sealed class CounterCycleValidationTests
                 actual = actual with { Primary = actual.Primary with { Recipient = actual.Primary.Recipient with { LastAction = actual.Primary.Recipient.LastAction! with { AttackType = 3 } } } };
                 break;
             case "hidden_preliminary_amount":
-                prior = prior with { Packets = prior.Packets with { Contacts = prior.Packets.Contacts.SetItem(0, prior.Packets.ReadContact(0) with { Primary = prior.Packets.ReadContact(0).Primary with { Amount6 = 1, ExtendedDamageAmount = 0 } }) } };
+                prior = prior with { Packets = prior.Packets with { Contacts = prior.Packets.Contacts.SetItem(0, prior.Packets.Contacts[0]! with { Primary = prior.Packets.Contacts[0]!.Primary with { Amount6 = 1, ExtendedDamageAmount = 0 } }) } };
                 break;
             case "preliminary_damage":
                 prior = prior with { Primary = prior.Primary with { BeforeHp = 51001 } };

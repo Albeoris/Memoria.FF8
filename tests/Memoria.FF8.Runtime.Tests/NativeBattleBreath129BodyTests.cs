@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -47,8 +48,8 @@ public sealed class NativeBattleBreath129BodyTests
         {
             ReadModel = (_, actor) =>
             {
-                Assert.Equal(0x1D972C0u, actor);
-                return new(0, 3) { ActiveStagedResourceRow100 = 0x910000 };
+                Assert.Equal(OriginalOwner(0), actor);
+                return new(3) { ActiveStagedResourceRow100 = 0x910000 };
             },
             PublishBody508C90 = (current, body) =>
             {
@@ -58,7 +59,7 @@ public sealed class NativeBattleBreath129BodyTests
                 return new(current, Source());
             }
         };
-        NativeBattleBreath129Frame actual = NativeBattleBreath129Body.Capture6B73F0(frame, 0x1D972C0, Base + 0x1000, 4, Resources, inputs);
+        NativeBattleBreath129Frame actual = NativeBattleBreath129Body.Capture6B73F0(frame, OriginalOwner(0), Base + 0x1000, 4, Resources, inputs);
         Assert.Equal(1, publications);
         NativeCrtRandomState random = frame.Random;
         for (int draw = 0; draw < 8; draw++)
@@ -97,7 +98,7 @@ public sealed class NativeBattleBreath129BodyTests
         Assert.Equal(new ushort[] { 0, 1, 2 }, Enumerable.Range(0, 3).Select(index => Word(ReadBytes(actual, Scratch + 0x8100, 12), 6 + index * 2)));
         actual = WriteBytes(actual, Scratch + 0x8000, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)128)), 2);
         actual = PublishContext(actual, temporary, Context(actual, temporary, 52).Write(48, BitConverter.GetBytes(Base + 0x1000)), 52);
-        NativeBattleBreath129Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath129Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        NativeBattleBreath129Frame restored = NativeBattleTestSnapshots.Independent(actual);
         Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleBreath129Body.Copy6B7BA0(actual, temporary, 0)), NativeBattleTestSnapshots.Json(NativeBattleBreath129Body.Copy6B7BA0(restored, temporary, 0)));
         NativeBattleBreath129Frame copied = NativeBattleBreath129Body.Copy6B7BA0(actual, temporary, 0);
         Assert.Equal(new ushort[] { 10, 11, 12 }, Enumerable.Range(0, 3).Select(index => Word(ReadBytes(copied, Base + 0x1000, 24), index * 8)));
@@ -168,7 +169,7 @@ public sealed class NativeBattleBreath129BodyTests
         int publications = 0;
         NativeBattleBreath129Inputs inputs = NativeBattleBreath129LowerTests.Inputs() with
         {
-            ReadModel = (_, _) => new(0, 3) { ActiveResourceRow100 = 0 },
+            ReadModel = (_, _) => new(3) { ActiveResourceRow100 = 0 },
             PublishBody508C90 = (current, row) =>
             {
                 Assert.Equal(0x1D99774u, row);
@@ -178,9 +179,9 @@ public sealed class NativeBattleBreath129BodyTests
         };
         NativeBattleBreath129Frame legacyStart = NativeBattleTestSnapshots.Independent(restored.Frame);
         NativeBattleBreath129Frame changedStart = NativeBattleTestSnapshots.Independent(restored.Frame);
-        NativeBattleBreath129Frame actual = NativeBattleBreath129Body.Capture6B73F0(restored.Frame, 0x1D972C0, Base + 0x1000, 4, Resources, inputs);
+        NativeBattleBreath129Frame actual = NativeBattleBreath129Body.Capture6B73F0(restored.Frame, OriginalOwner(0), Base + 0x1000, 4, Resources, inputs);
         NativeBattleBreath129Inputs legacyInputs = inputs with { PublishBody508C90 = (current, row) => new(current, original with { BodyRowAddress = row }) };
-        NativeBattleBreath129Frame legacy = NativeBattleBreath129Body.Capture6B73F0(legacyStart, 0x1D972C0, Base + 0x1000, 4, Resources, legacyInputs);
+        NativeBattleBreath129Frame legacy = NativeBattleBreath129Body.Capture6B73F0(legacyStart, OriginalOwner(0), Base + 0x1000, 4, Resources, legacyInputs);
         Assert.Equal(1, publications);
         Assert.Equal(NativeBattleTestSnapshots.Json(legacy), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal(restored.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4), actual.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
@@ -188,7 +189,7 @@ public sealed class NativeBattleBreath129BodyTests
         NativeBattleModelCpuBank changed = restored.Cpu.Cpu.Banks[0].Write(vertexOffset, BitConverter.GetBytes((short)777));
         BoundBody replacement = restored with { Cpu = restored.Cpu with { Cpu = restored.Cpu.Cpu with { Banks = restored.Cpu.Cpu.Banks.SetItem(0, changed) } } };
         NativeBattleBreath129Inputs changedInputs = inputs with { PublishBody508C90 = (current, row) => new(current, RelativeSource(replacement, row)) };
-        NativeBattleBreath129Frame changedCapture = NativeBattleBreath129Body.Capture6B73F0(changedStart, 0x1D972C0, Base + 0x1000, 4, Resources, changedInputs);
+        NativeBattleBreath129Frame changedCapture = NativeBattleBreath129Body.Capture6B73F0(changedStart, OriginalOwner(0), Base + 0x1000, 4, Resources, changedInputs);
         Assert.Equal((ushort)777, Word(ReadBytes(changedCapture, Scratch, 2), 0));
         Assert.Equal((ushort)100, Word(ReadBytes(actual, Scratch, 2), 0));
         Assert.Equal((ushort)100, Word(RelativeSource(restored, 0x1D99774).ReadGeometry(vertexOffset, 2), 0));

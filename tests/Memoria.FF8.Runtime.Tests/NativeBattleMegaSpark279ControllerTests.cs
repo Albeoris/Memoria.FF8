@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -271,7 +272,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim).Write(0, new byte[] { 0xA5 }), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        NativeBattleOriginalEffectState effect = new(279, 278, new(279, Entry, Initializer), new(3, 0, 0x7F, 0, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(279, 278, new(279, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(123), NativeBattleMegaSpark279State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -281,7 +282,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         (packets, _) = packets.Prepare(new(3, 8, 14, -1, 106, 279, null));
         foreach (byte actor in actors)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), null));
         }
         (packets, _) = packets.Publish(checked((byte)actors.Length));
         return packets;
@@ -289,7 +290,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
 
     private sealed class Harness
     {
-        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel(actor, 2) { ActiveResourceRow100 = actor, Rotation12 = 0, Transform = new(new(0, 0, 0), new(500, 0, 1000), 123, 777, 4096) }).ToArray();
+        public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel(2) { ActiveResourceRow100 = actor, Rotation12 = 0, Transform = new(new(0, 0, 0), new(500, 0, 1000), 123, 777, 4096) }).ToArray();
         public List<NativeBattleMegaSpark279Operation> Operations { get; } = [];
         public List<(uint Row100, int Bone)> Bones { get; } = [];
         private readonly NativeBattleActionPacketsState packets;

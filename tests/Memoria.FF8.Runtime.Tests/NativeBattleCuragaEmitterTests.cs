@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -43,8 +44,8 @@ public sealed class NativeBattleCuragaEmitterTests
         frame = NativeBattleCuragaNodes.AllocateEmitter881700(frame, fixture.Task, 0, 0, 0).Frame;
         frame = NativeBattleCuragaNodeKinematics.InitializeEmitter882990(frame, fixture.Task, First, index =>
         {
-            Assert.Equal(2, index);
-            return new(index, 3) { Rotation14 = 1024 };
+            Assert.Equal(OriginalOwner(2), index);
+            return new(3) { Rotation14 = 1024 };
         });
         Assert.Equal(new uint[] { 100u << 16, 200u << 16, 299u << 16 }, Dwords(frame, First + 0x4C, 3));
     }

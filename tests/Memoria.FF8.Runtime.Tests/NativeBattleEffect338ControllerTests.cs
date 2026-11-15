@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -107,7 +108,7 @@ public sealed class NativeBattleEffect338ControllerTests
             NativeBattleModulePoolTask main = mainPool.Slots[slot].WriteWord(12, age).WriteDword(16, 17).WriteDword(0x78, 100).WriteDword(0x7C, 200).WriteDword(0x80, 300);
             mainPool = mainPool.WriteSlot(slot, main);
             pools = pools.SetItem(1, mainPool);
-            NativeBattleOriginalEffectState effect = new(338, 338, new(338, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools };
+            NativeBattleOriginalEffectState effect = new(338, 338, new(338, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
             NativeBattleEffect338State state = NativeBattleEffect338State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(TargetGlobal, 0x1D972C0 + 3 * 156).WriteDword(0x25561D8, ArenaAddress) with { RootBankStorage = null };
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Resources = new(null!, [], new("unused-camera", [1]), new(new string('0', 64), [0], [0, 0, 0, 0]), 0, ImmutableDictionary<uint, NativeBattleGfAnimationSource>.Empty, ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty, ImmutableDictionary<uint, NativeBattleModuleResource>.Empty, [], new(362, "unused.tim", [1]));

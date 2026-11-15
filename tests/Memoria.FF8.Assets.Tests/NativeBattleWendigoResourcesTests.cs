@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -27,11 +28,11 @@ public sealed class NativeBattleWendigoResourcesTests
         Assert.Throws<NotSupportedException>(() => resources.ReadConstantChannel(channels + (uint)channelBytes, 1));
         Assert.Throws<NotSupportedException>(() => (resources with { ConstantChannels = [] }).ReadConstantChannel(channels, 2));
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, effectId, null));
-        (packets, _) = packets.AppendContact(new(new(1, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, effectId, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 0, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(effectId, selected - 1, new(effectId, shoot ? 0x83ECC0u : 0x8465C0u, shoot ? 0x83ECA0u : 0x8465A0u), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(NativeBattleWendigoController.ModuleBase(shoot), 0)] };
+        NativeBattleOriginalEffectState effect = new(effectId, selected - 1, new(effectId, shoot ? 0x83ECC0u : 0x8465C0u, shoot ? 0x83ECA0u : 0x8465A0u), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(NativeBattleWendigoController.ModuleBase(shoot), 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(selected - 1);
         Assert.Throws<NotSupportedException>(() => NativeBattleWendigoController.Initialize(shoot ? memory with { Shoot42 = null } : memory with { Dribble41 = null }, effect, packets, resources, new(1)));
         NativeBattleWendigoFrame frame = NativeBattleWendigoController.Initialize(memory, effect, packets, resources, new(1));
@@ -48,7 +49,7 @@ public sealed class NativeBattleWendigoResourcesTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1]);
         NativeBattleDecodedPose decoded = new(new(0, 0, 0), [new(new(0, 0, 0), new(4096, 4096, 4096))], false);
-        NativeBattleGraphicsModel Model(int index) => new(index, 0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0, GeometryBounds52 = new(new(0, -100, 0), new(0, 0, 0)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = decoded } };
+        NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0, GeometryBounds52 = new(new(0, -100, 0), new(0, 0, 0)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = decoded } };
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         NativeBattleWendigoInputs inputs = new(packets, projection, 0, game.ReadNativeBattleGraphicsRules().SummonColors!, Model, _ => pose, (current, operation) => throw new InvalidDataException($"Unexpected operation before the ball boundary: {operation.GetType().Name}."));
         for (int callback = 0; callback < 8; callback++)

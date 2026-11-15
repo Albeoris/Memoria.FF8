@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -41,7 +42,7 @@ public sealed class NativeBattleAngelWing84ControllerTests
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(41, 6).WriteWord(94, 1));
         for (int pool = 1; pool < 9; pool++)
         {
-            hierarchy = hierarchy.Append8DC540(pool, checked((uint)(0x1000 + pool)), 36, root, (_, _, _) => new(0, 3)).Hierarchy;
+            hierarchy = hierarchy.Append8DC540(pool, checked((uint)(0x1000 + pool)), 36, root, (_, _, _) => OriginalTaskActors(0, 3)).Hierarchy;
         }
         List<int> order = [];
         NativeBattleAngelWing84Inputs inputs = fixture.Inputs with
@@ -71,7 +72,7 @@ public sealed class NativeBattleAngelWing84ControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(99, 1));
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x78DBA0, 88, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x78DBA0, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy;
         hierarchy = hierarchy.Write(appended.Address, hierarchy.Read(appended.Address).WriteByte(41, 1));
         var poseFixture = NativeBattleRestorationControllerTests.Fixture(24);
@@ -101,17 +102,17 @@ public sealed class NativeBattleAngelWing84ControllerTests
 
     internal static (NativeBattleAngelWing84Frame Frame, NativeBattleAngelWing84Inputs Inputs) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 27, 84, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 27, 84, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(84, 83, new(84, 0x78D7B0, 0x78D790), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x25C2350, 256)] };
+        NativeBattleOriginalEffectState selected = new(84, 83, new(84, 0x78D7B0, 0x78D790), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x25C2350, 256)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(83);
         memory = memory with { Arena = memory.Arena!.Write(256, Enumerable.Repeat((byte)0xA5, 98304 + 27312).ToArray()) };
         NativeBattleAngelWing84Frame frame = NativeBattleAngelWing84Controller.Initialize(memory, selected, packets);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        NativeBattleAngelWing84Inputs inputs = new(packets, camera, index => new(index, 0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
+        NativeBattleAngelWing84Inputs inputs = new(packets, camera, index => new(0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
         return (frame, inputs);
     }
 }

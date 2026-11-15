@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
@@ -239,7 +240,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         {
             Ff7BattleActorState actor = host.Actors.Single(actor => actor.Actor.Slot == 4);
             Ff7BattleActorGeometry geometry = renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, actor])!);
-            return CrossoverNativeForeignTarget.Read(host, 4, geometry, Matrix4x4.Identity, game.ReadNativeBattleGraphicsRules()).ToActor(3);
+            return CrossoverNativeForeignTarget.Read(host, 4, geometry, Matrix4x4.Identity, game.ReadNativeBattleGraphicsRules()).ToActor(OriginalOwner(3));
         }
     }
 }

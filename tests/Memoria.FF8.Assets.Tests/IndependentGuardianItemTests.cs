@@ -173,9 +173,9 @@ public sealed class IndependentGuardianItemTests
         BattleIndependentGuardianInvocation invocation = windup.ActiveAction!.IndependentGuardian!;
         Assert.Equal((byte)244, invocation.Action!.Command);
         Assert.Equal((byte)10, invocation.Level);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[windup.ActiveAction.NativeHeaderIndex!.Value];
-        Assert.Equal((byte)244, header.ReadByte(1));
-        Assert.Equal(invocation.Action.ActionId == 15 ? (byte)11 : (byte)14, header.ReadByte(2));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(windup.ActiveAction.NativeHeaderIndex!.Value));
+        Assert.Equal((byte)244, header.Command);
+        Assert.Equal(invocation.Action.ActionId == 15 ? (byte)11 : (byte)14, header.Sequence);
         Assert.Equal((uint)0x495050, header.Data!.ProducerAddress);
         if (itemId == 30)
         {
@@ -206,11 +206,11 @@ public sealed class IndependentGuardianItemTests
         BattleSession battle = Create(assets, 30, 0);
         battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
         battle.Tick();
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[battle.ActiveAction!.NativeHeaderIndex!.Value];
-        Assert.Equal((byte)0, header.ReadByte(1));
-        Assert.Equal((byte)10, header.ReadByte(2));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(battle.ActiveAction!.NativeHeaderIndex!.Value));
+        Assert.Equal((byte)0, header.Command);
+        Assert.Equal((byte)10, header.Sequence);
         Assert.Equal((byte)9, header.ReadByte(4));
-        Assert.Equal((byte)0, header.ReadByte(16));
+        Assert.Equal((byte)0, header.ReadContactCount());
         Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
         Assert.Equal(0, battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary.Amount6);
         Assert.Equal((uint)0x47EA30, header.Data!.ProducerAddress);

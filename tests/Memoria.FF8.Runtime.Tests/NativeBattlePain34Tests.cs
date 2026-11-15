@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -122,12 +123,12 @@ public sealed class NativeBattlePain34Tests
     [Fact]
     public void Controller_persists_emitter_clocks_releases_its_parent_and_completes_the_physical_root()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 45, 0, 34, 1, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 26, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 45, 0, 34, 1, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 26, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(34, 34, new(34, 0x865600, 0x8655E0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x26BA9E0, 0x10000)] };
+        NativeBattleOriginalEffectState effect = new(34, 34, new(34, 0x865600, 0x8655E0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26BA9E0, 0x10000)] };
         NativeBattlePain34Resources resources = new(new(0x15E7040, []), new(0x15EA2E8, []), new("declared-unused-camera", []), 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Pain34 = NativeBattlePain34State.FromColdProcess() };
         NativeBattlePain34Frame frame = NativeBattlePain34Controller.Initialize865600(new(memory, effect, NativeBattleFileStaging.Unknown()), resources, packets);
@@ -146,9 +147,9 @@ public sealed class NativeBattlePain34Tests
         NativeBattleDecodedPose pose = new(new(0, 0, 0), [new(new(0, 0, 0), new(4096, 4096, 4096))], false);
         NativeBattlePackedMatrix32 camera = new(new byte[32].ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray());
         int contacts = 0;
-        NativeBattlePain34Inputs inputs = new(packets, camera, actor => new(actor, 0) { SequenceState = new() { DecodedPose = pose } }, _ => poseSource, (_, _) => throw new InvalidOperationException("No player is declared in this controller regression."), (current, index) =>
+        NativeBattlePain34Inputs inputs = new(packets, camera, actor => new(0) { SequenceState = new() { DecodedPose = pose } }, _ => poseSource, (_, _) => throw new InvalidOperationException("No player is declared in this controller regression."), (current, index) =>
         {
-            Assert.Equal(0, index);
+            Assert.Equal(new BattleContactOccurrence(0), index);
             contacts++;
             return current;
         }, _ => throw new InvalidOperationException("An emitter at age19 must not replay its first-frame sound."));

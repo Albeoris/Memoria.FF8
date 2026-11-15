@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -111,7 +112,7 @@ public sealed class NativeBattleBlaster186ChildrenTests
         }));
         Assert.Equal(2, actual.Result);
         Assert.Equal(2, changes.Count);
-        Assert.All(changes, change => Assert.Equal(3, change.Actor));
+        Assert.All(changes, change => Assert.Equal(OriginalOwner(3), change.Actor));
         Assert.Equal((short)300, changes[^1].Value);
         Assert.Equal((ushort)24, Read(actual.Frame, ChildBank).ReadWord(12));
     }
@@ -145,7 +146,7 @@ public sealed class NativeBattleBlaster186ChildrenTests
         }
         Assert.Throws<NotSupportedException>(() => actual.Frame.State.ReadWord(ParticleBase + 22));
         Assert.Equal(NativeBattleTemporaryMemory.Address, Cursor(actual.Frame));
-        NativeBattleBlaster186Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlaster186Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        NativeBattleBlaster186Frame restored = NativeBattleTestSnapshots.Independent(actual.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
@@ -240,7 +241,7 @@ public sealed class NativeBattleBlaster186ChildrenTests
         return Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, age).WriteWord(14, 24).WriteWord(0x14, 300).WriteWord(0x18, 0).WriteWord(0x1A, 7).WriteWord(0x1C, 1024).WriteWord(0x20, 2).WriteWord(0x22, 4));
     }
 
-    private static NativeBattleBlaster186Inputs Inputs(Func<NativeBattleBlaster186Frame, NativeBattleBlaster186Operation, NativeBattleBlaster186Frame>? execute = null, uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation switch { NativeBattleBlaster186DrawSprite180 draw => Feedback(current, draw.TemporaryAddress, 0), NativeBattleBlaster186DrawCommonSprite180 draw => Feedback(current, draw.TemporaryAddress, 0), _ => current }));
+    private static NativeBattleBlaster186Inputs Inputs(Func<NativeBattleBlaster186Frame, NativeBattleBlaster186Operation, NativeBattleBlaster186Frame>? execute = null, uint flags = 0) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, flags, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation switch { NativeBattleBlaster186DrawSprite180 draw => Feedback(current, draw.TemporaryAddress, 0), NativeBattleBlaster186DrawCommonSprite180 draw => Feedback(current, draw.TemporaryAddress, 0), _ => current }));
     private static NativeBattleBlaster186Frame Feedback(NativeBattleBlaster186Frame frame, uint temporary, short value) => PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0x28, BitConverter.GetBytes(value)), 180);
     private static uint Cursor(NativeBattleBlaster186Frame frame) => BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));

@@ -13,10 +13,10 @@ public sealed class NativeBattleCardDevourAdmissionTests
     {
         BattleSession battle = Create(type);
         Use(battle, type);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal((ushort)amount, contact.Amount6);
         Assert.Equal(1, contact.Flags2 & 1);
-        Assert.Equal(0, contact.HitFlags3 & 4);
+        Assert.Equal(0, contact.HitFlags & 4);
         Assert.Equal(0x10000u, contact.BattleStatuses8 & 0x10000);
         Assert.Equal(0, battle.Combatants[1].CurrentHp);
         Assert.Equal((byte)(amount == 0 ? 1 : 0), battle.Combatants[1].LastNativeHealing);
@@ -36,9 +36,9 @@ public sealed class NativeBattleCardDevourAdmissionTests
         NativeBattleRandomState before = battle.Capture().Random!;
         NativeBattleRandomState expected = equalHp ? before.Draw(out _) : before;
         Use(battle, 19);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal((ushort)8, contact.Amount6);
-        Assert.Equal(4, contact.HitFlags3 & 4);
+        Assert.Equal(4, contact.HitFlags & 4);
         Assert.Equal(0, contact.Flags2 & 1);
         Assert.Equal(0u, contact.BattleStatuses8 & 0x10000);
         Assert.Equal((equalHp ? 400 : 600) - 8, battle.Combatants[1].CurrentHp);
@@ -71,8 +71,8 @@ public sealed class NativeBattleCardDevourAdmissionTests
         NativeBattleRandomState before = battle.Capture().Random!;
         NativeBattleContactPacket packet = (NativeBattleContactPacket)resolve.Invoke(battle, [actor, target, command, action, native, (byte)0, false, null])!;
         Assert.Equal((ushort)4, packet.Primary.Amount6);
-        Assert.Equal(4, packet.Primary.HitFlags3 & 4);
-        Assert.Equal(0x08, packet.Primary.HitFlags3 & 0x08);
+        Assert.Equal(4, packet.Primary.HitFlags & 4);
+        Assert.Equal(0x08, packet.Primary.HitFlags & 0x08);
         Assert.Equal(596, target.CurrentHp);
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(battle.Capture().Random));
         Assert.Equal(4, Assert.Single(battle.Events, item => item.Kind == "Damage").Amount);
@@ -84,9 +84,9 @@ public sealed class NativeBattleCardDevourAdmissionTests
         BattleSession battle = Create(19, actorHp: 4, targetHp: 8);
         NativeBattleRandomState before = battle.Capture().Random!;
         Use(battle, 19);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal((ushort)8, contact.Amount6);
-        Assert.Equal(4, contact.HitFlags3 & 4);
+        Assert.Equal(4, contact.HitFlags & 4);
         Assert.Equal(0u, contact.BattleStatuses8 & 0x10000);
         Assert.Equal(0, battle.Combatants[1].CurrentHp);
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(battle.Capture().Random));
@@ -101,9 +101,9 @@ public sealed class NativeBattleCardDevourAdmissionTests
         NativeBattleRandomState expected = before.Draw(out byte roll);
         Assert.InRange(roll, (byte)2, byte.MaxValue);
         Use(battle, 17);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal((ushort)0, contact.Amount6);
-        Assert.Equal(4, contact.HitFlags3 & 4);
+        Assert.Equal(4, contact.HitFlags & 4);
         Assert.Equal(1000, battle.Combatants[1].CurrentHp);
         Assert.Equal((ushort)182, NativeBattleActionGraphics.Word(battle.NativeActionPackets.Headers[0], 6));
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(battle.Capture().Random));
@@ -130,7 +130,7 @@ public sealed class NativeBattleCardDevourAdmissionTests
         battle.Combatants[1].LastNativeAction = new(1, 81, 82, 83, 84, 6);
         ImmutableArray<byte?> beforeMemory = battle.NativeActionMemory.Rows[3];
         Use(battle, type);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)0, header.ReadByte(1));
         Assert.Equal((byte)10, header.ReadByte(2));
         Assert.Equal((ushort)9, NativeBattleActionGraphics.Word(header, 4));
@@ -169,7 +169,7 @@ public sealed class NativeBattleCardDevourAdmissionTests
         ImmutableArray<byte?> before = battle.NativeActionMemory.Rows[3];
         bool success = targetHp == 1;
         Use(battle, type);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         ImmutableArray<byte?> after = battle.NativeActionMemory.Rows[3];
         Assert.Equal((byte?)3, after[1]);
         Assert.Equal((byte?)(type == 17 ? 1 : 0), after[6]);
@@ -190,7 +190,7 @@ public sealed class NativeBattleCardDevourAdmissionTests
             }
         }
         Assert.Equal(success ? 0x10000u : 0u, contact.BattleStatuses8 & 0x10000);
-        Assert.Equal(success ? 0 : 4, contact.HitFlags3 & 4);
+        Assert.Equal(success ? 0 : 4, contact.HitFlags & 4);
         Assert.Equal(success || targetHp <= 8 ? 0 : targetHp - 8, target.CurrentHp);
         Assert.Equal(target.CurrentHp == 0 && enemyFlags == 0 ? 8 : 0, contact.Flags2 & 8);
     }

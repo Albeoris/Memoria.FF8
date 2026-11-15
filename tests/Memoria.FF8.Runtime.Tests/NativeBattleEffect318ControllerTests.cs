@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect318Controller;
@@ -72,7 +73,7 @@ public sealed class NativeBattleEffect318ControllerTests
         (byte[] bytes, bool[] known) = result.Memory.Arena!.ReadSnapshot(0xB04, 4);
         Assert.Equal(new[] { true, true, false, true }, known);
         Assert.Equal(new byte[] { 1, 2, 4 }, bytes.Where((_, index) => known[index]).ToArray());
-        NativeBattleEffect318Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect318Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        NativeBattleEffect318Frame restored = NativeBattleTestSnapshots.Independent(result);
         Assert.Equal(known, restored.Memory.Arena!.ReadSnapshot(0xB04, 4).Known);
     }
 
@@ -107,7 +108,7 @@ public sealed class NativeBattleEffect318ControllerTests
         harness.SetContacts(9, 0, 1);
         FinishMain(AddMain(Frame(2), 24), Arena, 24, harness.Inputs());
         Assert.IsType<NativeBattleEffect318Advance534210>(harness.Operations[0]);
-        Assert.Equal(new NativeBattleEffect318Contact506690(9), harness.Operations[1]);
+        Assert.Equal(new NativeBattleEffect318Contact506690(new BattleContactOccurrence(9)), harness.Operations[1]);
         Assert.Equal(2, harness.Operations.Count);
     }
 
@@ -127,7 +128,7 @@ public sealed class NativeBattleEffect318ControllerTests
         Harness harness = new();
         NativeBattleEffect318Step result = FinishMain(AddMain(Frame(2), 39), Arena, 39, harness.Inputs());
         Assert.IsType<NativeBattleEffect318Advance534210>(harness.Operations[0]);
-        Assert.Equal(new NativeBattleEffect318MeshMask(ModelAddress(3), uint.MaxValue, 8), harness.Operations[1]);
+        Assert.Equal(new NativeBattleEffect318MeshMask(OriginalOwner(3), uint.MaxValue, 8), harness.Operations[1]);
         Assert.Equal(new[] { 22, 29, 33, 34, 35 }, harness.Bones);
         NativeBattleEffectTaskPool pool = result.Frame.Effect.Pools.Single(value => value.DescriptorAddress == BoneDescriptor);
         Assert.Equal(new ushort[] { 0, 8, 16, 16, 16 }, pool.Slots.Select(value => value.ReadWord(16)).ToArray());
@@ -225,8 +226,8 @@ public sealed class NativeBattleEffect318ControllerTests
                 pools = pools.Add(NativeBattleEffectTaskPool.Initialize(shape.Descriptor, Arena + shape.Bank, shape.Stride, shape.Capacity));
             }
         }
-        NativeBattleEffect318State state = NativeBattleEffect318State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
-        NativeBattleOriginalEffectState effect = new(318, 317, new(318, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleEffect318State state = NativeBattleEffect318State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(3), OriginalAliases);
+        NativeBattleOriginalEffectState effect = new(318, 317, new(318, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
@@ -237,23 +238,26 @@ public sealed class NativeBattleEffect318ControllerTests
         public int Polls { get; private set; }
         public List<int> Bones { get; } = [];
         public List<NativeBattleEffect318Operation> Operations { get; } = [];
-        public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();
+        public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();
 
         public void SetContacts(int first, params int[] actors)
         {
-            byte[] header = new byte[20];
-            header[16] = (byte)actors.Length;
-            ImmutableArray<NativeBattleContactPacket?> contacts = Packets.Contacts;
-            for (int index = 0; index < actors.Length; index++)
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            for (int index = 0; index < first; index++)
             {
-                contacts = contacts.SetItem(first + index, new(new((byte)actors[index], 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
             }
-            Packets = Packets with { Headers = Packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, first, null)), Contacts = contacts };
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 318, null));
+            foreach (int actor in actors)
+            {
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
+            }
+            Packets = packets.Publish(actors.Length).State;
         }
 
         public NativeBattleEffect318Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, (_, _) => NativeBattleEffectArena.Clear(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, _, _, retained) => new(frame, retained), (frame, _, retained) => new(frame, retained), (_, model, bone) =>
         {
-            Assert.Equal(ModelAddress(3), model);
+            Assert.Equal(OriginalOwner(3), model);
             Bones.Add(bone);
             return checked(0x1930000u + (uint)(bone * 48));
         }, (frame, index) =>

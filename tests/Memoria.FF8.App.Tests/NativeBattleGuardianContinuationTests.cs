@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -19,14 +20,14 @@ public sealed class NativeBattleGuardianContinuationTests
         Assert.Equal(0, snapshot.NativeEffectMemory!.Active);
         BattleSession battle = BattleSession.Restore(snapshot);
         BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        List<string> colors = [$"{snapshot.NativeGraphics.Callback}:{snapshot.NativeGraphics.Models[0].Color40:X8}"];
+        List<string> colors = [$"{snapshot.NativeGraphics.Callback}:{ReadOriginalModelCell(snapshot.NativeGraphics, 0).Color40:X8}"];
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         for (int index = 0; index < 16; index++)
         {
             battle.AdvanceNativeGraphicsPresentation(callback);
             independent.AdvanceNativeGraphicsPresentation(callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-            colors.Add($"{battle.NativeGraphics!.Callback}:{battle.NativeGraphics.Models[0].Color40:X8}");
+            colors.Add($"{battle.NativeGraphics!.Callback}:{ReadOriginalModelCell(battle.NativeGraphics, 0).Color40:X8}");
         }
         BattleSnapshot after = battle.Capture();
         Assert.Equal(snapshot.NativeGraphics.Callback + 16, after.NativeGraphics!.Callback);

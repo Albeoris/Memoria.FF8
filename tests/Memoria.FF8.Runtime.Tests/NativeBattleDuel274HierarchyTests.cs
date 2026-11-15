@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -44,7 +45,7 @@ public sealed class NativeBattleDuel274HierarchyTests
 
     private static NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
-    private static NativeBattleDuel274Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), new(1));
+    private static NativeBattleDuel274Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), new(1));
 
     private static NativeBattleGfAnimationNode Node(short scale, short fade, short secondShape, short ratio)
     {

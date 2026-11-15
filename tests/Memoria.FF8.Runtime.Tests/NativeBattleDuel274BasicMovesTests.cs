@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -80,7 +81,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
         public Fixture(byte selector)
         {
             this.selector = selector;
-            Models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3) { Rotation14 = 0, GeometryWorldMatrix = Identity, Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 1000) }).ToArray();
+            Models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { Rotation14 = 0, GeometryWorldMatrix = Identity, Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 1000) }).ToArray();
             Models[3] = Models[3] with { Transform = Models[3].Transform! with { Position28 = new(100, 200, 300), Scale38 = 2000 } };
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
@@ -88,7 +89,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
             NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(15, selector).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000).WriteWord(48, 100).WriteWord(50, 200).WriteWord(52, 300).WriteWord(54, 40);
             targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(0, task) });
             NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [targets]);
-            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = [root, targets] };
+            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000));
             Frame = new(memory, effect, staging, new(1));
             byte[] data = new byte[checked((int)(NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address))];

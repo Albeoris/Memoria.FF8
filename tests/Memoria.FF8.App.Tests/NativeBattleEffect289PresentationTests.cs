@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -48,8 +49,8 @@ public sealed class NativeBattleEffect289PresentationTests
         List<object> loaded = [];
         foreach ((byte actor, int modelId, byte nativeId) in new[] { ((byte)3, 75, (byte)91), ((byte)4, 34, (byte)50) })
         {
-            NativeBattleGraphicsModel model = graphics.Models[actor];
-            BattleCombatantDefinition definition = original.Definition.Combatants.Single(item => item.Id == graphics.ActorIds[actor]);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actor);
+            BattleCombatantDefinition definition = original.Definition.Combatants.Single(item => item.Id == ReadOriginalModelActorId(graphics, actor));
             Assert.Equal(modelId, definition.ModelId);
             Assert.Null(definition.NativeAi);
             Assert.Equal(nativeId, model.ModelId4);
@@ -79,13 +80,13 @@ public sealed class NativeBattleEffect289PresentationTests
         NativeBattleActionPacketsState packets = original.NativeActionPackets ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
         byte priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(4, 8, 13, -1, 131, 289, null));
+        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 13, -1, 131, 289, null));
         Assert.Equal(priorActions, header);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 131 && action.MagicId == 289).DamagePresentation;
-        NativeBattleContactPacket contact = new(new(0, reaction, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(OriginalOwner(0), reaction, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorContacts, packets.Headers[header].FirstContactIndex);
+        Assert.Equal(priorContacts, packets.ReadHeader(new BattleActionHeaderReference(header)).FirstContact.Ordinal);
         Assert.Equal(JsonSerializer.Serialize(original.NativeActionPackets.Headers.Take(priorActions)), JsonSerializer.Serialize(packets.Headers.Take(priorActions)));
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([289])[288];
@@ -96,10 +97,10 @@ public sealed class NativeBattleEffect289PresentationTests
         Assert.Same(game.ReadNativeEffect289Resources(), binding.Effect289Resources);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(288, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics.Models));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Arena), JsonSerializer.Serialize(source.NativeEffectMemory!.Arena));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect289 renderer and lifecycle from a compatible standalone activated actor pair; caster4/model34/native50, command8/action131/sequence13, explicitly selected party0 first contact compatible with selector201 random-party membership. Declared seven-HP post-formula contact retains logical HP/status and current poses/colors/scales. This component does not claim ordinary AI selection, KO or formula admission.", Loaded = loaded, Header = packets.Headers[header], Contact = contact }));
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect289 renderer and lifecycle from a compatible standalone activated actor pair; caster4/model34/native50, command8/action131/sequence13, explicitly selected party0 first contact compatible with selector201 random-party membership. Declared seven-HP post-formula contact retains logical HP/status and current poses/colors/scales. This component does not claim ordinary AI selection, KO or formula admission.", Loaded = loaded, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = contact }));
         return source;
     }
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleActorLowerPresentationTests
@@ -45,7 +46,7 @@ public sealed class NativeBattleActorLowerPresentationTests
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleNoMercy200Controller.Children, 0x24F99A0, 36, 2);
             (pool, int slot) = pool.Append(0x63AD20);
             pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 3).WriteWord(28, 4096).WriteWord(32, 4096));
-            NativeBattleOriginalEffectState effect = new(200, 199, new(200, 0x6391D0, 0x575530), new(2, 0, 8, 0, 0, 0), NativeBattleNoMercy200Controller.Root) { Pools = [pool] };
+            NativeBattleOriginalEffectState effect = new(200, 199, new(200, 0x6391D0, 0x575530), new(OriginalOwner(2), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleNoMercy200Controller.Root) { Pools = [pool] };
             NativeBattleNoMercy200Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
             NativeBattleNoMercy200MeshDraw? operation = null;
             NativeBattleNoMercy200Inputs inputs = new(0, NativeBattleCuragaMatrices.Identity8DD770(), () => throw new InvalidOperationException(), (current, draw) =>

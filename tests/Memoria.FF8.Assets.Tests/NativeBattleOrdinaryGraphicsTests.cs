@@ -62,10 +62,10 @@ public sealed class NativeBattleOrdinaryGraphicsTests
             battle.Tick();
         }
         Assert.Equal(0x50BB00u, battle.NativeGraphics!.ActionGraphics!.Callback);
-        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.Headers[0];
+        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal(unchecked((byte)action.RawRecord[4]), header.ReadByte(3));
-        Assert.Equal(ability.Sequence, header.ReadByte(2));
-        Assert.Equal(action.MagicId, NativeBattleActionGraphics.Word(header, 6));
+        Assert.Equal(ability.Sequence, header.Sequence);
+        Assert.Equal(action.MagicId, header.Effect);
         Assert.Equal(original.Texts[3], Assert.Single(battle.Events, item => item.Kind == "NativeText").Message);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         int committedDamageEvents = battle.Events.Count(item => item.Kind == "Damage");

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Collections.Immutable;
 using Memoria.FF8.Assets;
@@ -205,7 +206,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                         return;
                     }
                     cameraChanged |= beforeCamera != JsonSerializer.Serialize(current.NativeCamera);
-                    castingHidden |= (graphics.Models[0].Flags0 & (effectId == 278 ? 4 : 8)) != 0;
+                    castingHidden |= (ReadOriginalModelCell(graphics, 0).Flags0 & (effectId == 278 ? 4 : 8)) != 0;
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame!;
                     ImmutableHashSet<NativeBattlePrimitiveReference> effectPackets = visible ? [] : GuardianPacketReferences(prior, current, effectId, game);
                     if (!visible && effectPackets.Count > 0)
@@ -296,7 +297,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 Assert.InRange(completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, 1, 9998);
             }
             Assert.True(Released(completed));
-            Assert.Equal(0, completed.NativeGraphics!.Models[0].Flags0 & 0xC);
+            Assert.Equal(0, ReadOriginalModelCell(completed.NativeGraphics!, 0).Flags0 & 0xC);
             if (effectId == 185)
             {
                 Assert.True(pendingTimPreserved);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -33,7 +34,7 @@ public sealed class NativeBattleDuel212CaptureTests
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         process = process with { Buffer80 = 0, Software = process.Software! with { EnvironmentBuffers = new(environment.ToImmutableArray(), environment.ToImmutableArray(), null) } };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = process, Arena = NativeBattleEffectArena.Clear().MarkUnknown(8192, 112) };
-        NativeBattleOriginalEffectState effect = new(212, 211, new(212, 0x6A0D20, 0x6A0D30), new(0, 0, 8, 0, 0, 0), NativeBattleDuel212Controller.Root) { DrawArenaOffset = 8192 };
+        NativeBattleOriginalEffectState effect = new(212, 211, new(212, 0x6A0D20, 0x6A0D30), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel212Controller.Root) { DrawArenaOffset = 8192 };
         NativeBattleDuel212Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));
         NativeBattleThundaga105CaptureTransform transform = NativeBattleDuel212Capture.Transform6A12B0(new(0, 0, 0), new(new(-2560, 0, -5120), new(2560, 0, 5120)), new(null, 288, 160, 112), 288);
         NativeBattleDuel212CaptureStep result = NativeBattleDuel212Capture.Append6A12B0(frame, NativeBattleLogicalOrdering.Clear(), transform, (current, _, ordering) =>

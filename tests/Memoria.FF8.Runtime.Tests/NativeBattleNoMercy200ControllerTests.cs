@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -67,7 +68,7 @@ public sealed class NativeBattleNoMercy200ControllerTests
         NativeBattleNoMercy200ChildStep clone = NativeBattleNoMercy200Controller.Advance639380(restored, restored.Effect.Pools[1], 0, Inputs(second));
         Assert.Equal(NativeBattleTestSnapshots.Json(original), NativeBattleTestSnapshots.Json(clone));
         Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
-        Assert.Collection(first, operation => Assert.Equal(new NativeBattleNoMercy200Sequence(2, 1), operation), operation => Assert.Equal(new NativeBattleNoMercy200Spawn(0x63A220), operation));
+        Assert.Collection(first, operation => Assert.Equal(new NativeBattleNoMercy200Sequence(OriginalOwner(2), 1), operation), operation => Assert.Equal(new NativeBattleNoMercy200Spawn(0x63A220), operation));
     }
 
     private static NativeBattleNoMercy200Inputs Inputs(List<NativeBattleNoMercy200Operation> operations) => new(0, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 0, 0, 4096), () => 0, (frame, operation) =>
@@ -93,7 +94,7 @@ public sealed class NativeBattleNoMercy200ControllerTests
         }
         BinaryPrimitives.WriteInt32LittleEndian(matrix.AsSpan(20), 55);
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x24F8D90, matrix).Write(0x24F9930, new byte[32]).Write(0x24FBCE0, new byte[] { 2, 0, 0, 0 });
-        NativeBattleOriginalEffectState effect = new(200, 199, new(200, 0x6391D0, 0x575530), new(2, 0, 8, 0, 0, 0), NativeBattleNoMercy200Controller.Root) { Pools = [root, pool] };
+        NativeBattleOriginalEffectState effect = new(200, 199, new(200, 0x6391D0, 0x575530), new(OriginalOwner(2), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleNoMercy200Controller.Root) { Pools = [root, pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { NoMercy200 = new(true) { Resources = resources } };
         return (new(memory, effect, staging, NativeCrtRandomState.FromColdProcess()), pool);
     }

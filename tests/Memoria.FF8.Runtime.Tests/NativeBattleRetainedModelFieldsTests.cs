@@ -91,14 +91,14 @@ public sealed class NativeBattleRetainedModelFieldsTests
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: cold.ModelTransformRows);
         Assert.All(models, model => Assert.Equal(zero, model.GeometryBounds52));
-        NativeBattleModelRetainedFields unknown = NativeBattleModelRetainedFields.Capture(new(4, 0));
+        NativeBattleModelRetainedFields unknown = NativeBattleModelRetainedFields.Capture(new(0));
         Assert.Null(unknown.GeometryBounds52);
         string json = JsonSerializer.Serialize(NativeBattleModelRetainedFields.FromColdProcess());
         System.Text.Json.Nodes.JsonObject legacy = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
         Assert.True(legacy.Remove(nameof(NativeBattleModelRetainedFields.GeometryBounds52)));
         NativeBattleModelRetainedFields imported = JsonSerializer.Deserialize<NativeBattleModelRetainedFields>(legacy.ToJsonString())!;
         Assert.Null(imported.GeometryBounds52);
-        Assert.Null(imported.Restore502340(new(4, 0)).GeometryBounds52);
+        Assert.Null(imported.Restore502340(new(0)).GeometryBounds52);
     }
 
     private static BattleSnapshot Snapshot(NativeBattleRetainedMemory retained) => new BattleSession(new BattleDefinition

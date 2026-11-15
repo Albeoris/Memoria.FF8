@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -34,7 +35,7 @@ public sealed class NativeBattleNorgOrbTests
                 {
                     Assert.Equal(0u, orb.NativeParticipant.Variables[1]);
                     int physical = orb.NativeParticipant.ActorIndex;
-                    NativeBattleGraphicsModel model = battle.NativeGraphics!.Models[physical];
+                    NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, physical);
                     NativeBattleModelCpuResources cpu = battle.NativeModelCpuResources!;
                     NativeBattleModelCpuResourceRow row = cpu.Rows[model.TextureResourceIndex!.Value];
                     byte[] table = NativeBattleModelEnemyHeap.Read(cpu, battle.NativeFileStaging!, row.Require(48), row.Lengths[48]);
@@ -75,8 +76,8 @@ public sealed class NativeBattleNorgOrbTests
                                     Assert.Equal(beforeTextures.ReadVramWord(copy.SourceX + x, copy.SourceY + y), textures.ReadVramWord(copy.DestinationX + x, copy.DestinationY + y));
                                 }
                             }
-                            Assert.Equal((byte)1, battle.NativeGraphics!.Models[physical].Sequence);
-                            Assert.Equal(1, battle.NativeGraphics.Models[physical].SequenceState!.Default2);
+                            Assert.Equal((byte)1, ReadOriginalModelCell(battle.NativeGraphics!, physical).Sequence);
+                            Assert.Equal(1, ReadOriginalModelCell(battle.NativeGraphics, physical).SequenceState!.Default2);
                             Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
                             return;
                         }

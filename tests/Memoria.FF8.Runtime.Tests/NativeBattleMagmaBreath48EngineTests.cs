@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -73,7 +74,7 @@ public sealed class NativeBattleMagmaBreath48EngineTests
         return Write(frame, TaskAddress, Read(frame, TaskAddress).WriteWord(0x54, checked((ushort)phase)).WriteWord(0x52, 3).WriteWord(0x58, 0).WriteWord(0x48, 5).WriteWord(0x4A, 7).WriteDword(0x234, 0xDEADBEEF).WriteDword(0x244, 0xABCDEF01));
     }
 
-    internal static NativeBattleMagmaBreath48Inputs Inputs(Func<NativeBattleMagmaBreath48Frame, int, int, int, NativeBattleMagmaBreath48PointStep>? bone = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException("Unreached model"), bone ?? ((current, _, _, _) => new(current, PointView(new(1, 2, 3)))), _ => 0, (_, _) => throw new InvalidOperationException("Unreached packet"));
+    internal static NativeBattleMagmaBreath48Inputs Inputs(Func<NativeBattleMagmaBreath48Frame, int, int, int, NativeBattleMagmaBreath48PointStep>? bone = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException("Unreached model"), bone ?? ((current, _, _, _) => new(current, PointView(new(1, 2, 3)))), _ => 0, (_, _) => throw new InvalidOperationException("Unreached packet"));
 
     private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

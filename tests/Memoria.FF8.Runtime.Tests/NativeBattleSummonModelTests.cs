@@ -7,7 +7,7 @@ public sealed class NativeBattleSummonModelTests
     [Fact]
     public void Hiding_preserves_the_allocation_and_becomes_ready_only_at_phase_fifteen()
     {
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(1, 3) { Flags2 = 0, Flags8 = 0, Kind5 = 0 }, 11);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(3) { Flags2 = 0, Flags8 = 0, Kind5 = 0 }, 11);
         NativeBattleGraphicsModel frozen = NativeBattleSummonModels.Advance(model, true, Colors);
         Assert.Equal((byte)0, frozen.Phase6);
         Assert.Equal(0x02808080u, frozen.Color40);
@@ -29,7 +29,7 @@ public sealed class NativeBattleSummonModelTests
     [Fact]
     public void Resume_uses_its_original_preincrement_even_while_graphics_are_frozen()
     {
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(1, 7) { Flags2 = 0x80, Flags8 = 0, Kind5 = 0, Color40 = 0 }, 12);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(new(7) { Flags2 = 0x80, Flags8 = 0, Kind5 = 0, Color40 = 0 }, 12);
         Assert.Equal((ushort)3, model.Flags0);
         Assert.Equal((ushort)0, model.Flags2);
         NativeBattleGraphicsModel frozen = NativeBattleSummonModels.Advance(model, true, Colors);

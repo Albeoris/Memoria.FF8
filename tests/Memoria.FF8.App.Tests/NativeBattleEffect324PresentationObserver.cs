@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -44,8 +45,8 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleEffect324Resources resources = effect.Binding.Effect324Resources!;
         int caster = checked((int)state.ReadDword(CasterGlobal));
         Assert.InRange(caster, 3, 6);
-        Assert.Equal((byte)99, graphics.Models[caster].ModelId4);
-        Assert.Equal(28, graphics.Models[caster].CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal((byte)99, ReadOriginalModelCell(graphics, caster).ModelId4);
+        Assert.Equal(28, ReadOriginalModelCell(graphics, caster).CurrentBodyBoneMatrices!.Matrices.Length);
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
         NativeBattleModulePoolTask? main = tasks.Values.FirstOrDefault(task => task.Callback == MainCallback);
@@ -121,7 +122,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleModulePoolTask? currentHistory = tasks.Values.FirstOrDefault(task => task.Callback == 0x597520);
         if (currentHistory is not null)
         {
-            Assert.Equal(0u, graphics.Models[caster].SequenceState!.MeshMask124 & 2);
+            Assert.Equal(0u, ReadOriginalModelCell(graphics, caster).SequenceState!.MeshMask124 & 2);
             modelMask = true;
             var original = state.ReadView(OriginalBonesAddress, BonesLength).ReadSnapshot(0, BonesLength);
             var savedCurrent = state.ReadView(CurrentBonesAddress, BonesLength).ReadSnapshot(0, BonesLength);
@@ -179,8 +180,8 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
     {
         NativeBattleEffect324State state = current.NativeEffectMemory!.Effect324!;
         int actor = checked((int)state.ReadDword(CasterGlobal));
-        NativeBattleGraphicsModel entering = prior.NativeGraphics!.Models[actor];
-        NativeBattleGraphicsModel model = current.NativeGraphics!.Models[actor];
+        NativeBattleGraphicsModel entering = ReadOriginalModelCell(prior.NativeGraphics!, actor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, actor);
         Assert.Equal((byte)99, model.ModelId4);
         Assert.Null(model.ActiveStagedResourceRow100);
         int row = model.ActiveResourceRow100 ?? throw new InvalidDataException("History requires its actual current CPU resource row.");
@@ -241,7 +242,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleSummonColors colors = current.Definition.NativeGraphics.Rules.SummonColors!;
         foreach (NativeBattleRawPolygon polygon in geometry[1].Polygons.Where(polygon => polygon.Quad == quad))
         {
-            ImmutableArray<byte> bytes = resource.GeometryRelocated507550 ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, current.NativeGraphics!.Models[caster].BodyTextureSlots!);
+            ImmutableArray<byte> bytes = resource.GeometryRelocated507550 ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, ReadOriginalModelCell(current.NativeGraphics!, caster).BodyTextureSlots!);
             uint uv0 = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(8, 4));
             uint uv1 = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12, 4));
             uint uv2 = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(quad ? 16 : 6, 2));

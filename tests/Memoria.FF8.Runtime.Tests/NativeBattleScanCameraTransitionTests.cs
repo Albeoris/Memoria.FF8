@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -45,14 +46,14 @@ public sealed class NativeBattleScanCameraTransitionTests
     {
         NativeBattleScanCameraInputs inputs = Inputs();
         inputs = inputs with { Profile = inputs.Profile.WriteWord(8, 0) };
-        NativeBattleScanByteOwner camera = NativeBattleScanCameraTransition.Initialize84E870(Zero(80).WriteWord(0x1E, 0xABCD), 4, 1, 0x1D972C0 + 156, Eye(), Target(), 400, inputs);
+        NativeBattleScanByteOwner camera = NativeBattleScanCameraTransition.Initialize84E870(Zero(80).WriteWord(0x1E, 0xABCD), OriginalOwner(4), 1, OriginalOwner(1), Eye(), Target(), 400, inputs);
         Assert.Equal((ushort)1080, camera.ReadWord(0x18));
         Assert.Equal((ushort)10, camera.ReadWord(0x1A));
         Assert.Equal((ushort)3000, camera.ReadWord(0x1C));
         Assert.Equal((ushort)0xCAFE, camera.ReadWord(0x1E));
         NativeBattleScanByteOwner prior = Zero(80).WriteWord(0x32, 123).WriteWord(0x3E, 456).WriteWord(0x44, 789).WriteDword(0x18, 0x12345678);
         inputs = inputs with { Profile = Unknown(16), ReadBone502170 = (_, _, _) => throw new InvalidOperationException() };
-        NativeBattleScanByteOwner unsupportedMode = NativeBattleScanCameraTransition.Initialize84E870(prior, 4, 0xFFFF, 0x1D972C0 + 156, Eye(), Target(), 400, inputs);
+        NativeBattleScanByteOwner unsupportedMode = NativeBattleScanCameraTransition.Initialize84E870(prior, OriginalOwner(4), 0xFFFF, OriginalOwner(1), Eye(), Target(), 400, inputs);
         Assert.Equal((ushort)123, unsupportedMode.ReadWord(0x32));
         Assert.Equal((ushort)456, unsupportedMode.ReadWord(0x3E));
         Assert.Equal((ushort)789, unsupportedMode.ReadWord(0x44));
@@ -109,8 +110,8 @@ public sealed class NativeBattleScanCameraTransitionTests
     public void Missing_actual_model_profile_or_output_padding_does_not_create_default_camera_values()
     {
         NativeBattleScanCameraInputs inputs = Inputs();
-        Assert.Throws<InvalidDataException>(() => NativeBattleScanCameraTransition.Initialize84E870(Zero(80), 4, 0, 0, Eye(), Target(), 1, inputs));
-        Assert.Throws<NotSupportedException>(() => NativeBattleScanCameraTransition.Initialize84E870(Zero(80), 4, 0, 0x1D972C0, Eye(), Target(), 1, inputs with { Profile = Unknown(16) }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleScanCameraTransition.Initialize84E870(Zero(80), OriginalOwner(4), 0, OriginalOwner(0), Eye(), Target(), 1, inputs));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScanCameraTransition.Initialize84E870(Zero(80), OriginalOwner(4), 0, OriginalOwner(0), Eye(), Target(), 1, inputs with { Profile = Unknown(16) }));
         var fixture = Fixture(0);
         NativeBattleScanByteOwner unknownPadding = new(Camera(fixture.Frame).Bytes, Camera(fixture.Frame).Known.SetItem(6, false));
         Assert.Throws<NotSupportedException>(() => NativeBattleScanCameraTransition.Publish84EC80(fixture.Frame, unknownPadding));
@@ -118,14 +119,14 @@ public sealed class NativeBattleScanCameraTransitionTests
 
     private static (NativeBattleScanCameraFrame Frame, uint Address) Fixture(ushort mode)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 50, 40, null));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 50, 40, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(2, 1, 16, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleScanFrame scan = NativeBattleScanController.Initialize84D030(NativeBattleEffectMemory.FromColdProcess(), effect, packets);
-        NativeBattleEffectHierarchyAppend child = new NativeBattleEffectHierarchy(scan.Effect.Pools).Append8DC540(2, 0x84E810, 0x78, 0x269AAE0, (_, _, _) => new(2, 4));
+        NativeBattleEffectHierarchyAppend child = new NativeBattleEffectHierarchy(scan.Effect.Pools).Append8DC540(2, 0x84E810, 0x78, 0x269AAE0, (_, _, _) => OriginalTaskActors(2, 4));
         NativeBattleEffectHierarchy hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteWord(0x68, mode));
         NativeBattleScanProcess process = scan.Memory.Scan!;
         process = process with { Presentation = process.Presentation with { PrimaryModel269CE30 = 0x1D972C0 + 156, Camera269A168 = Zero(80).WriteWord(6, 0x1234).WriteWord(14, 0x5678).WriteWord(0x1E, 0xABCD) } };

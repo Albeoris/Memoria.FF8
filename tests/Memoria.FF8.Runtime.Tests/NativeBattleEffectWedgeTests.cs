@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -120,10 +121,10 @@ public sealed class NativeBattleEffectWedgeTests
             NativeBattleEffectTaskPool.Initialize(0x26B7160, 0x26B4BE0, 92, 100)
         ]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x864AB0, 100);
-        NativeBattleEffectHierarchyAppend parent = root.Hierarchy.Append8DC540(1, 0x864BC0, 100, root.Address, (_, _, _) => new(0, 2));
+        NativeBattleEffectHierarchyAppend parent = root.Hierarchy.Append8DC540(1, 0x864BC0, 100, root.Address, (_, _, _) => OriginalTaskActors(0, 2));
         hierarchy = parent.Hierarchy;
         hierarchy = hierarchy.Write(parent.Address, hierarchy.Read(parent.Address).WriteWord(0x38, 100).WriteWord(0x3C, 300).WriteWord(0x4A, unchecked((ushort)-100)).WriteWord(0x52, 50));
-        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(4, 0x8DCC20, 92, parent.Address, (_, _, _) => new(0, 2));
+        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(4, 0x8DCC20, 92, parent.Address, (_, _, _) => OriginalTaskActors(0, 2));
         hierarchy = wedge.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(wedge.Address).WriteWord(0x56, 8).WriteByte(0x4C, 16).WriteByte(0x4D, 16).WriteByte(0x4E, 16).WriteByte(0x52, 16).WriteWord(0x3C, 256).WriteWord(0x3E, 16).WriteWord(0x40, 64).WriteWord(0x42, 16).WriteWord(0x58, 64).WriteWord(0x5A, 0xA55A);
         hierarchy = hierarchy.Write(wedge.Address, task);

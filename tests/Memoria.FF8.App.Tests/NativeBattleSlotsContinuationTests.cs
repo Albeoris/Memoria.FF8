@@ -24,7 +24,7 @@ public sealed class NativeBattleSlotsContinuationTests
         battle.Tick();
         BattleSnapshot produced = battle.Capture();
         Assert.Equal(casts, produced.NativeActionPackets!.ActionCount);
-        Assert.Equal(casts - 1, produced.NativeActionPackets.Headers[0].ReadByte(17));
+        Assert.Equal(casts - 1, produced.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
         NativeBattleDescriptorState descriptors = produced.NativeGraphics!.Descriptors;
         Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
         Assert.Equal(JsonSerializer.Serialize(produced), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(produced))!).Capture()));
@@ -67,12 +67,12 @@ public sealed class NativeBattleSlotsContinuationTests
                 if (!produced && current.NativeActionPackets!.ActionCount != 0)
                 {
                     Assert.Equal(3, current.NativeActionPackets.ActionCount);
-                    Assert.Equal(2, current.NativeActionPackets.Headers[0].ReadByte(17));
+                    Assert.Equal(2, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
                     NativeBattleDescriptorState descriptors = current.NativeGraphics!.Descriptors;
                     Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
                     produced = true;
                 }
-                if (current.NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.Headers[context.HeaderIndex].ReadByte(1) == 16)
+                if (current.NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.HeaderIndex)).Command == 16)
                 {
                     Assert.Equal(0, context.HeaderIndex);
                 }

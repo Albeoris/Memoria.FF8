@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -77,19 +78,19 @@ public sealed class NativeBattleHasteFloatPresentationTests
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
             Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
             int headerIndex = checked((int)(offset / 20));
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[headerIndex];
-            Assert.Equal((byte)2, header.ReadByte(1));
-            Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-            Assert.Equal(item.Effect, NativeBattleActionGraphics.Word(header, 6));
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+            Assert.Equal((byte)2, header.Command);
+            Assert.Equal(action.ActionId, header.Action);
+            Assert.Equal(item.Effect, header.Effect);
             Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
             Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
-            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The ordinary producer omitted its contact owner."));
+            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
             Assert.Equal((byte)0, contact.Primary.ActorIndex);
             Assert.Equal((byte)255, contact.Secondary.ActorIndex);
             Assert.NotEqual(0u, action.Statuses1);
             Assert.Equal((ushort)0, contact.Primary.Amount6);
-            string target = graphics.ActorIds[0]!;
-            string caster = graphics.ActorIds[0]!;
+            string target = ReadOriginalModelActorId(graphics, 0)!;
+            string caster = ReadOriginalModelActorId(graphics, 0)!;
             int beforeHp = beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int targetHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             Assert.Equal(beforeHp, targetHp);
@@ -134,7 +135,7 @@ public sealed class NativeBattleHasteFloatPresentationTests
                 BattleSnapshot current = battle.Capture();
                 Assert.Equal(targetHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
-                if (prior.NativeGraphics!.Models[0].Sequence != contact.Primary.Sequence && current.NativeGraphics!.Models[0].Sequence == contact.Primary.Sequence)
+                if (ReadOriginalModelCell(prior.NativeGraphics!, 0).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.NativeGraphics!, 0).Sequence == contact.Primary.Sequence)
                 {
                     contactSequenceTransitions++;
                 }

@@ -20,7 +20,7 @@ public sealed class NativeBattleEffect319BoneCacheTests
     public void Scaling_mutates_only_current_selected_R_retains_T_and_continues_after_JSON()
     {
         NativeBattleActionMatrix matrix = new([1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000], 123456, -234567, 345678, 4096);
-        NativeBattleGraphicsModel original = new(3, 2) { CurrentBodyBoneMatrices = new(new string('A', 64), [matrix, matrix]) };
+        NativeBattleGraphicsModel original = new(2) { CurrentBodyBoneMatrices = new(new string('A', 64), [matrix, matrix]) };
         NativeBattleGraphicsModel result = NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(original, 1, 2048, 1024);
         Assert.Equal(matrix, result.CurrentBodyBoneMatrices!.Matrices[0]);
         NativeBattleActionMatrix scaled = result.CurrentBodyBoneMatrices.Matrices[1];

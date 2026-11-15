@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -65,7 +66,7 @@ public sealed class NativeBattleScanControllerTests
                 Assert.Equal((byte)4, hierarchy.Read(address).ReadByte(0x2D));
                 for (int next = 2; next < 5; next++)
                 {
-                    hierarchy = hierarchy.Append8DC540(next, (uint)(0x1000 + next), hierarchy.Pools[next].Stride, 0x269AAE0, (_, _, _) => new(2, 4)).Hierarchy;
+                    hierarchy = hierarchy.Append8DC540(next, (uint)(0x1000 + next), hierarchy.Pools[next].Stride, 0x269AAE0, (_, _, _) => OriginalTaskActors(2, 4)).Hierarchy;
                 }
             }
             return new(current with { Effect = current.Effect with { Pools = hierarchy.Pools } }, 0);
@@ -138,7 +139,7 @@ public sealed class NativeBattleScanControllerTests
         var fixture = Fixture();
         NativeBattleScanFrame frame = WriteRoot(fixture.Frame, root => root.WriteByte(0x29, 4).WriteByte(0x26, 1));
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        hierarchy = hierarchy.Append8DC540(1, 0x84D230, 0x58, 0x269AAE0, (_, _, _) => new(2, 4)).Hierarchy;
+        hierarchy = hierarchy.Append8DC540(1, 0x84D230, 0x58, 0x269AAE0, (_, _, _) => OriginalTaskActors(2, 4)).Hierarchy;
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         frame = NativeBattleScanController.Advance84D110(frame, fixture.Inputs, (current, _) => new(current, 0));
         Assert.Equal(0x269ABA8u, frame.Effect.ReturnedDescriptor);
@@ -201,15 +202,15 @@ public sealed class NativeBattleScanControllerTests
 
     private static (NativeBattleScanFrame Frame, NativeBattleScanControllerInputs Inputs) Fixture(byte targets = 1, byte repeatMode = 1)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 50, 40, null));
-        (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, repeatMode);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 50, 40, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeatMode);
         (packets, _) = packets.Publish(targets);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(39).LoadIntoArena(new byte[37]) with { Textures = null };
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(2, 1, 16, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(OriginalOwner(2), 1, BattleModelTargets.From([OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleScanFrame frame = NativeBattleScanController.Initialize84D030(memory, effect, packets);
-        NativeBattleScanControllerInputs inputs = new(packets, index => new(index, 0), _ => throw new InvalidOperationException("Inactive models have no posed anchors."), current => current, (current, _) => current);
+        NativeBattleScanControllerInputs inputs = new(packets, index => new(0), _ => throw new InvalidOperationException("Inactive models have no posed anchors."), current => current, (current, _) => current);
         return (frame, inputs);
     }
 }

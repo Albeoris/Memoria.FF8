@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -86,7 +87,7 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         Assert.Equal(new ushort[] { 20, 0x80C, 0x144, 0x24 }, result.Effect.Pools.Select(pool => pool.Stride));
         Assert.Equal(new[] { 1, 6, 6, 96 }, result.Effect.Pools.Select(pool => pool.Slots.Length));
         Assert.Equal(new[] { RootBank, ArenaAddress + 0x1518, ArenaAddress + 0xD80, ArenaAddress }, result.Effect.Pools.Select(pool => pool.BankAddress));
-        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleMicroMissiles299BindCaster(0, ArenaAddress + BindingOffset, 0x1047120), operation), operation => Assert.Equal(new NativeBattleMicroMissiles299RingSequence(0, 2), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.Equal(new NativeBattleMicroMissiles299BindCaster(OriginalOwner(0), ArenaAddress + BindingOffset, 0x1047120), operation), operation => Assert.Equal(new NativeBattleMicroMissiles299RingSequence(OriginalOwner(0), 2), operation));
     }
 
     [Fact]
@@ -174,10 +175,10 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         private NativeBattleGraphicsModel Model { get; }
         public Fixture()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 299, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            NativeBattleActionPacketsState packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 299, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 7, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             Packets = packets;
             byte[] skeleton = new byte[112];
@@ -185,12 +186,12 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
             BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
             Pose = new(skeleton.ToImmutableArray(), [1]);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
-            Model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(3, 2), Pose);
+            Model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(2), Pose);
             Model = Model with { GeometryWorldMatrix = identity, CurrentBodyBoneMatrices = Model.CurrentBodyBoneMatrices! with { Matrices = [identity, identity with { X = 100, Y = 200, Z = 1600 }] }, Rotation14 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 100, 4096) };
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
             root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) });
-            NativeBattleOriginalEffectState effect = new(299, 299, new(299, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root] };
+            NativeBattleOriginalEffectState effect = new(299, 299, new(299, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root] };
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess().BeginLoad(299), effect.Pools), effect, new(1), NativeBattleMicroMissiles299State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Resources = new(Source(0x10490A8, 45), Source(0x104B63C, 12), Source(0x104C910, 16), new(0, 0x1048C94, 0, 0, []), new(1, 0x1048DD8, 0, 0, []), new(2, 0x1048F1C, 0, 0, []), new("fixture", []), new("fixture", []), 0x55787);
         }

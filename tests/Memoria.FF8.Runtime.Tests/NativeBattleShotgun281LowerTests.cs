@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -22,7 +23,7 @@ public sealed class NativeBattleShotgun281LowerTests
         int calls = 0;
         var actual = UpdateMuzzle67E500(frame, resources, Inputs() with { ReadCurrentBoneMatrix = (_, model, bone) =>
         {
-            Assert.Equal(0x1D97494u, model);
+            Assert.Equal(OriginalOwner(3), model);
             Assert.Equal(23, bone);
             calls++;
             return NativeBattlePackedMatrix32.FromMatrix(matrix, null);
@@ -42,7 +43,7 @@ public sealed class NativeBattleShotgun281LowerTests
     {
         var frame = SeedTemporary(Frame());
         var point = NativeBattleEffectArena.Clear().MarkUnknown(0, 6).Write(6, BitConverter.GetBytes((ushort)0xBEEF));
-        var actual = ReadAnchor67E550(frame, 0x1D972C0, 0, point, Inputs() with { ReadBoneParent = (_, _, _) => -1, ReadCurrentBoneMatrix = (_, _, _) => throw new InvalidOperationException(), ReadModelWorld = (_, _) => throw new InvalidOperationException() });
+        var actual = ReadAnchor67E550(frame, OriginalOwner(0), 0, point, Inputs() with { ReadBoneParent = (_, _, _) => -1, ReadCurrentBoneMatrix = (_, _, _) => throw new InvalidOperationException(), ReadModelWorld = (_, _) => throw new InvalidOperationException() });
         Assert.Equal(1, actual.Result);
         Assert.Equal(NativeBattleTestSnapshots.Json(point), NativeBattleTestSnapshots.Json(actual.Point8));
         Assert.Equal(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4), actual.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
@@ -65,7 +66,7 @@ public sealed class NativeBattleShotgun281LowerTests
         {
             ReadBoneAlias = (_, model, selector) =>
             {
-                Assert.Equal(0x1D972C0u, model);
+                Assert.Equal(OriginalOwner(0), model);
                 Assert.Equal(0xF0, selector);
                 aliases++;
                 return 2;
@@ -78,7 +79,7 @@ public sealed class NativeBattleShotgun281LowerTests
             ReadCurrentBoneMatrix = (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 11, Y = -12, Z = 13 }, null),
             ReadModelWorld = (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = 200, Z = 300 }, null)
         };
-        var actual = ReadAnchor67E550(frame, 0x1D972C0, 0xF0, point, inputs);
+        var actual = ReadAnchor67E550(frame, OriginalOwner(0), 0xF0, point, inputs);
         Assert.Equal(0, actual.Result);
         Assert.Equal(1, aliases);
         Assert.Equal(new short[] { 111, 188, 313 }, Enumerable.Range(0, 3).Select(axis => BinaryPrimitives.ReadInt16LittleEndian(actual.Point8.Read(axis * 2, 2))));
@@ -287,5 +288,5 @@ public sealed class NativeBattleShotgun281LowerTests
         state = state.WriteView(BasisAAddress, PackedArena(identity), 32).WriteView(BasisBAddress, PackedArena(identity), 32);
         return new(memory, effect, new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleShotgun281Inputs Inputs(Func<NativeBattleShotgun281Frame, NativeBattleShotgun281Operation, NativeBattleShotgun281Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 24, (_, _, _) => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => NativeBattleActionPacketsState.Fresh(), execute ?? ((current, _) => current));
+    private static NativeBattleShotgun281Inputs Inputs(Func<NativeBattleShotgun281Frame, NativeBattleShotgun281Operation, NativeBattleShotgun281Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 24, (_, _, _) => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));
 }

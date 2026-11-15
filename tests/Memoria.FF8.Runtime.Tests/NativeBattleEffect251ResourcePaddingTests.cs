@@ -41,7 +41,7 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
         NativeBattlePoseSource source = new((logical ? resource : guest).ToImmutableArray(), [1]);
-        NativeBattleGraphicsModel model = new(0, 3) { ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [NativeBattleCuragaMatrices.Identity8DD770()]), SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
+        NativeBattleGraphicsModel model = new(3) { ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [NativeBattleCuragaMatrices.Identity8DD770()]), SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         NativeBattleGraphicsState graphics = new([model], ["party"], 0, 0);
         NativeBattleEffect251Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), new(251, 250, new(251, 1, 1), null, null), new(42), NativeBattleEffect251State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[128]) };
         MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeEffect251BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!;

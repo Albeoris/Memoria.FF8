@@ -196,7 +196,7 @@ public sealed class NativeBattleRenzokukenFinalLateCaptureTests
 
     private static NativeBattleRenzokuken160Inputs Inputs(bool capture, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Operation, NativeBattleRenzokuken160Frame> execute)
     {
-        return new(0, [], _ => new(0, 0) { GeometryWorldMatrix = Identity }, execute)
+        return new(0, [], _ => new(0) { GeometryWorldMatrix = Identity }, execute)
         {
             CapturePresentation = capture,
             ReadBone = (_, _, fraction) => fraction == 0 ? new(0, 0, 4000) : new(0, -300, 6000)

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -17,7 +18,7 @@ public sealed class NativeBattleAuxiliaryMotionTests
             WriteModel = (_, value) => model = value,
             DrawModelGroup50F190 = (index, group, frame, color) =>
             {
-                Assert.Equal(0, index);
+                Assert.Equal(OriginalOwner(0), index);
                 Assert.Equal((byte)33, group);
                 Assert.Equal(255u, color);
                 frames.Add(frame);
@@ -128,6 +129,6 @@ public sealed class NativeBattleAuxiliaryMotionTests
 
     private static NativeBattleGraphicsModel Model(NativeBattleVector position)
     {
-        return new(0, 3) { Flags2 = 0, Transform = new(position, position, 0, 0, 2048), GeometryWorldMatrix = new(ImmutableArray.Create<short>(4096, 0, 0, 0, 4096, 0, 0, 0, 4096), position.X, position.Y, position.Z, 4096) };
+        return new(3) { Flags2 = 0, Transform = new(position, position, 0, 0, 2048), GeometryWorldMatrix = new(ImmutableArray.Create<short>(4096, 0, 0, 0, 4096, 0, 0, 0, 4096), position.X, position.Y, position.Z, 4096) };
     }
 }

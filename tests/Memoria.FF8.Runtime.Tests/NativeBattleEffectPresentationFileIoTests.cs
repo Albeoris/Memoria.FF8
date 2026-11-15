@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -15,7 +16,7 @@ public sealed class NativeBattleEffectPresentationFileIoTests
         NativeBattleEffectHeapAllocation tim = Tim();
         BattleSession owner = Create(incoming, tim, firstAdvance);
         NativeBattleCameraProjection projection = owner.NativeCamera!.Projection!;
-        NativeBattleGraphicsModel source = owner.NativeGraphics!.Models[0];
+        NativeBattleGraphicsModel source = ReadOriginalModelCell(owner.NativeGraphics!, 0);
         Assert.Equal(0, incoming.Count);
         Assert.Equal(0, incoming.ReadVramWord(33, 16));
         Assert.Equal((short)1, owner.NativeFileIo!.ActiveCount);

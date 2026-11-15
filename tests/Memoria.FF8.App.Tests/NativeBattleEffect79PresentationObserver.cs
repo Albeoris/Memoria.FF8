@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -33,8 +34,8 @@ internal sealed class NativeBattleEffect79PresentationObserver
         }
         NativeBattleEffect79State state = current.NativeEffectMemory!.Effect79!;
         state.Validate();
-        Assert.Equal((byte)138, current.NativeGraphics.Models[4].ModelId4);
-        Assert.Equal((byte)139, current.NativeGraphics.Models[3].ModelId4);
+        Assert.Equal((byte)138, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.NativeGraphics, 3).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
         if (effect.ReturnedDescriptor is > 0)
@@ -197,11 +198,11 @@ internal sealed class NativeBattleEffect79PresentationObserver
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
         NativeBattleEffect79State state = current.NativeEffectMemory!.Effect79!;
-        NativeBattleGraphicsModel actor = current.NativeGraphics.Models[body.ReadByte(0x2C)];
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics, body.ReadByte(0x2C));
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources ?? throw new InvalidDataException("The deformed body proof requires its current CPU resource owner.");
         NativeBattleModelCpuResourceRow resource = cpu.Rows[actor.ActiveResourceRow100 ?? throw new InvalidDataException("The deformed body proof requires its current resource row.")];
         NativeBattleModelCpuReference source = resource.Require(16);
-        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == current.NativeGraphics.ActorIds[actor.Index]).Resource.PoseSource ?? throw new InvalidDataException("The deformed body proof requires its selected skeleton.");
+        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.NativeGraphics, actor.Index)).Resource.PoseSource ?? throw new InvalidDataException("The deformed body proof requires its selected skeleton.");
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState?.MeshMask124 ?? throw new InvalidDataException("The deformed body proof requires its actual object mask."));
         uint color = (actor.Color40 ?? throw new InvalidDataException("The deformed body proof requires its current color.")) & 0xFFFFFF;
         short bias = unchecked((short)state.ReadWord(BodyContextAddress + 0xD0));

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -114,7 +115,7 @@ public sealed class NativeBattleGastricJuice128TrailTests
         Assert.Equal((short)64, Word(frame.Memory.Arena!, PointsOffset + 2 * PointStride + 6));
     }
 
-    private static NativeBattleGastricJuice128Inputs Inputs(Func<NativeBattleGastricJuice128Frame, NativeBattleGastricJuice128Operation, NativeBattleGastricJuice128Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute);
+    private static NativeBattleGastricJuice128Inputs Inputs(Func<NativeBattleGastricJuice128Frame, NativeBattleGastricJuice128Operation, NativeBattleGastricJuice128Frame> execute) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute);
 
     private static NativeBattleGastricJuice128Frame ActiveFrame()
     {
@@ -124,7 +125,7 @@ public sealed class NativeBattleGastricJuice128TrailTests
             arena = arena.Write(PointsOffset + index * PointStride + 6, BitConverter.GetBytes(ushort.MaxValue));
         }
         ImmutableArray<NativeBattleEffectTaskPool> pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1), NativeBattleEffectTaskPool.Initialize(MainDescriptor, ArenaAddress + MainOffset, MainStride, MainCount), NativeBattleEffectTaskPool.Initialize(CurveDescriptor, ArenaAddress + CurveOffset, CurveStride, CurveCount), NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, SpriteStride, SpriteCount)];
-        NativeBattleOriginalEffectState effect = new(128, 127, new(128, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools };
+        NativeBattleOriginalEffectState effect = new(128, 127, new(128, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         NativeBattleGastricJuice128Frame frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(1), NativeBattleGastricJuice128State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
         (frame, uint head) = NativeBattleGastricJuice128Controller.AllocatePoint(frame, NativeBattleGastricJuice128Controller.PointView(new(0, 0, 0)), 7);
@@ -179,7 +180,7 @@ public sealed class NativeBattleGastricJuice128TrailTests
 
     private static NativeBattleGastricJuice128Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(128, 127, new(128, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);
+        NativeBattleOriginalEffectState effect = new(128, 127, new(128, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, 0x246E8) };
         return new(memory, effect, new(1), NativeBattleGastricJuice128State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
     }

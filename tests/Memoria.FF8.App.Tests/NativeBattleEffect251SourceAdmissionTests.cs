@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -42,7 +43,7 @@ public sealed class NativeBattleEffect251SourceAdmissionTests
             int physical = index + 3;
             int original = index == 0 ? 86 : 82;
             int bones = index == 0 ? 41 : 2;
-            string actorId = graphics.ActorIds[physical]!;
+            string actorId = ReadOriginalModelActorId(graphics, physical)!;
             BattleCombatantDefinition definition = session.GetCombatantDefinition(actorId);
             BattleCombatantSnapshot actor = Assert.Single(source.Combatants, current => current.Id == actorId);
             Assert.Equal(original, definition.ModelId);
@@ -51,7 +52,7 @@ public sealed class NativeBattleEffect251SourceAdmissionTests
             Assert.False(actor.NativeParticipant.Hidden);
             Assert.Equal(index == 1, actor.NativeParticipant.Suspended);
             Assert.Equal(index == 1, actor.NativeParticipant.Untargetable);
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.Equal((byte)(original + 16), model.ModelId4);
             NativeBattleGraphicsResource resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, assets.ReadNativeGraphicsResource(definition));
             NativeBattlePoseSource pose = resource.PoseSource!;

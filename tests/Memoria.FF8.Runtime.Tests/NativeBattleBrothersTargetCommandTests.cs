@@ -56,7 +56,7 @@ public sealed class NativeBattleBrothersTargetCommandTests
         NativeBattleWaterExecutionFrame frame = Fixture(0xD5);
         frame = frame with { Core = frame.Core.Write(Header, Enumerable.Repeat((byte)0xA5, 0x180).ToArray()), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
         byte flag = 0;
-        NativeBattleGraphicsModel model = new(3, 0x9876) { Transform = new(new(0, 0, 0), new(-123, 32767, -32768), 0, 0, 4096) };
+        NativeBattleGraphicsModel model = new(0x9876) { Transform = new(new(0, 0, 0), new(-123, 32767, -32768), 0, 0, 4096) };
         NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, Services(63) with { WriteFlag = value => flag = value, ReadModel3 = _ => model });
         byte[] expected = frame.Core.Read(Header, 0x180);
         expected[0x41] = 4;

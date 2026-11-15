@@ -93,7 +93,7 @@ public sealed class NativeBattleCurrentSkeletonPublicationTests
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 12), prepared.Temporary58.Read(0x4C, 12));
     }
 
-    private static NativeBattleGraphicsModel Model() => new(6, 15) { ModelId4 = 143, SequenceState = new() };
+    private static NativeBattleGraphicsModel Model() => new(15) { ModelId4 = 143, SequenceState = new() };
 
     private static NativeBattlePoseSource Source(bool scaled)
     {

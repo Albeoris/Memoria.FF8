@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -44,16 +45,16 @@ public sealed class NativeBattleQuake38PresentationTests
         int descriptor = Assert.Single(sourceGraphics.Descriptors.Queue, index => sourceGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = unchecked(sourceGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleActionPacketsState.HeaderCapacity);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(relative / 20))];
-        Assert.Equal((byte)2, header.ReadByte(1));
-        Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal(item.Effect, NativeBattleActionGraphics.Word(header, 6));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal(action.ActionId, header.Action);
+        Assert.Equal(item.Effect, header.Effect);
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.True(contact.Primary.Amount6 > 0);
-        string target = sourceGraphics.ActorIds[3]!;
-        string caster = sourceGraphics.ActorIds[0]!;
+        string target = ReadOriginalModelActorId(sourceGraphics, 3)!;
+        string caster = ReadOriginalModelActorId(sourceGraphics, 0)!;
         Assert.Equal(2, Stock(beforeInput, caster, action.ActionId));
         Assert.Equal(1, Stock(source, caster, action.ActionId));
         int producedHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
@@ -109,7 +110,7 @@ public sealed class NativeBattleQuake38PresentationTests
                     }
                     groundHidden |= (current.NativeStage!.Groups[1].Flags & 2) == 0;
                     NativeBattleModulePoolTask? sequence = after.Pools.SelectMany(pool => pool.Slots).SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == 0x8D8800);
-                    if (sequence?.ReadByte(41) == 7 && state.SavedActors[3].Position28 is { } saved && current.NativeGraphics!.Models[3].Transform is { } transform)
+                    if (sequence?.ReadByte(41) == 7 && state.SavedActors[OriginalOwner(3)].Position28 is { } saved && ReadOriginalModelCell(current.NativeGraphics!, 3).Transform is { } transform)
                     {
                         bounced |= transform.Position28.Y != saved.Y;
                     }

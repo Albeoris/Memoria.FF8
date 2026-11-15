@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDuel212SceneTests
@@ -53,7 +54,7 @@ public sealed class NativeBattleDuel212SceneTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel212Controller.Targets, 0x20DFAB8, 3280, 1);
         (pool, int slot) = pool.Append(0x6A1660);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, counter)) });
-        NativeBattleOriginalEffectState effect = new(212, 211, new(212, 0x6A0D20, 0x6A0D30), new(0, 0, 8, 0, 0, 0), NativeBattleDuel212Controller.Root) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(212, 211, new(212, 0x6A0D20, 0x6A0D30), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel212Controller.Root) { Pools = [pool] };
         NativeBattleDuel212Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
         return (frame, pool);
     }

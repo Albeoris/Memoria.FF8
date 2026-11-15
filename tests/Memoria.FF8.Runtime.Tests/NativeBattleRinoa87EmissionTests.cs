@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -9,7 +10,7 @@ public sealed class NativeBattleRinoa87EmissionTests
     {
         NativeBattleEffectHierarchy hierarchy = new(Enumerable.Range(0, NativeBattleRinoa87Controller.Descriptors.Length).Select(index => NativeBattleEffectTaskPool.Initialize(NativeBattleRinoa87Controller.Descriptors[index], NativeBattleRinoa87Controller.Banks[index], NativeBattleRinoa87Controller.Strides[index], NativeBattleRinoa87Controller.Capacities[index])).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x773A10, 100);
-        NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(6, 0x77E800, 152, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(6, 0x77E800, 152, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = child.Hierarchy;
         hierarchy = hierarchy.Write(child.Address, hierarchy.Read(child.Address).WriteByte(38, 1).WriteByte(41, 1));
         Assert.Equal((byte)1, hierarchy.Read(root.Address).ReadByte(40));

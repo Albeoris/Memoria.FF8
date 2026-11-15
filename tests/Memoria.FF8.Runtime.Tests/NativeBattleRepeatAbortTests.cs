@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleRepeatAbortTests
     {
         BattleSession battle = Create(cards);
         Queue(ref battle, cards, repetitions);
-        NativeBattleContactPacket stale = new(new(3, 3, 8, 0, 1, 323, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket stale = new(new(OriginalOwner(3), 3, 8, 0, 1, 323, 0), new(255, 0, 0, 0, 0, 0, 0));
         BattleSnapshot snapshot = battle.Capture();
         NativeBattleActionPacketsState retained = snapshot.NativeActionPackets!;
         battle = BattleSession.Restore(snapshot with { NativeActionPackets = retained with { Contacts = retained.Contacts.SetItem(1, stale) } });

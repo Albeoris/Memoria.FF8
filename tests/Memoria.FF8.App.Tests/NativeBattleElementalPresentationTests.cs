@@ -28,8 +28,8 @@ public sealed class NativeBattleElementalPresentationTests
         uint offset = unchecked(initialGraphics.Descriptors.Packets[descriptorSlot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = (int)(offset / 20);
-        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
-        ushort effectId = NativeBattleActionGraphics.Word(header, 6);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        ushort effectId = header.Effect;
         EffectCase spec = effectId switch
         {
             142 => new(142, 0x61CE10, 0x24BFB68, 0x24BFB78, 0x61DD90, 0x61CEC0, 45, 300003, 0x100, [9, 11, 14, 20]),
@@ -41,8 +41,8 @@ public sealed class NativeBattleElementalPresentationTests
             _ => throw new NotSupportedException("The fixture needs a proved elemental presentation recipe.")
         };
         Assert.True(initialGraphics.ActionGraphics is null || initialGraphics.ActionGraphics.HeaderIndex == headerIndex);
-        Assert.Equal((byte)0, header.ReadByte(17));
-        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("An explicit contact pointer is required."));
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
+        NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
         int target = contact.Primary.ActorIndex;
         Assert.InRange(target, 0, 2);
         Assert.Equal((ushort)7, contact.Primary.Amount6);

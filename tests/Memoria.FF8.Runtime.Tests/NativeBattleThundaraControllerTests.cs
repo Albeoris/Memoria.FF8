@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -308,12 +309,12 @@ public sealed class NativeBattleThundaraControllerTests
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
         for (int index = 0; index < headers; index++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 102, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 102, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, (byte)headers);
-        NativeBattleOriginalEffectState effect = new(102, 101, new(102, 0x6DC2D0, 0x6DC2B0), new(0, 0, 8, 0, 0, 0), null);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
+        NativeBattleOriginalEffectState effect = new(102, 101, new(102, 0x6DC2D0, 0x6DC2B0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleThundaraController.Initialize6DC2E0(effect, packets);
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1)), packets);
     }

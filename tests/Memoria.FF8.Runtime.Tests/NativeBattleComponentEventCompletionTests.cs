@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 
@@ -22,7 +23,7 @@ public sealed class NativeBattleComponentEventCompletionTests
         Assert.Equal(-1, after.Combatants.Single(actor => actor.Id == "retiring").NativeParticipant!.ActorIndex);
         NativeBattleEnemyAllocation allocation = Assert.Single(after.NativeAllocations);
         Assert.Equal(3, after.Combatants.Single(actor => actor.Id == allocation.Id).NativeParticipant!.ActorIndex);
-        Assert.Equal((byte)3, battle.NativeActionPackets.Headers[0].ReadByte(0));
+        Assert.Equal((byte)3, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(0));
         Assert.Equal((byte)0, battle.NativeActionPackets.ActionCount);
         Assert.DoesNotContain(battle.QueuedActions, command => command.NativeHeaderIndex is not null);
         Assert.Null(battle.ActiveAction);
@@ -76,7 +77,7 @@ public sealed class NativeBattleComponentEventCompletionTests
         BattleSession battle = new(Definition(), BattleAtbMode.Normal);
         battle.Tick();
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(3, 252, 0, -1, 1, 1, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 252, 0, -1, 1, 1, null));
         (packets, _) = packets.Publish(0);
         Field("nativeActionPackets").SetValue(battle, packets);
         Field("nativeActionScratch").SetValue(battle, battle.Capture().NativeActionScratch! with { EventActorB0F = 3, ComponentCompletion = 0x47DDA0 });

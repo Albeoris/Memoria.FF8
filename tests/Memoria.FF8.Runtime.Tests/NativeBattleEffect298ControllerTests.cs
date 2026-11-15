@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -243,7 +244,7 @@ public sealed class NativeBattleEffect298ControllerTests
         var first = AdvanceScript670C60(frame, Pools[1].Bank, resources, harness.Inputs()).Frame;
         Assert.Equal(new byte[2], first.State.ReadStatic(resources, counter, 2));
         Assert.Equal(counter - 2, Read(first, Pools[1].Bank).ReadDword(16));
-        var cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
+        var cold = NativeBattleTestSnapshots.Independent(first);
         var second = AdvanceScript670C60(cold, Pools[1].Bank, resources, harness.Inputs()).Frame;
         Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(second.State.ReadStatic(resources, counter, 2)));
         Assert.Equal(counter + 8, Read(second, Pools[1].Bank).ReadDword(16));
@@ -330,13 +331,13 @@ public sealed class NativeBattleEffect298ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim).Write(0, new byte[] { 0xA5 }) };
-        NativeBattleOriginalEffectState effect = new(298, 297, new(298, Entry, Initializer), new(3, 0, 0x7F, 0, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        NativeBattleOriginalEffectState effect = new(298, 297, new(298, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, NativeBattleEffect298State.FromColdProcess().WriteDword(SeedGlobal, 0xCAFE)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
     private sealed class Harness
     {
-        public NativeBattleGraphicsModel Model { get; set; } = new(3, 2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 400, 0, 4096) };
+        public NativeBattleGraphicsModel Model { get; set; } = new(2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 400, 0, 4096) };
         public List<NativeBattleEffect298Operation> Operations { get; } = [];
         public List<string> Log { get; } = [];
         public bool Busy { get; init; } = true;

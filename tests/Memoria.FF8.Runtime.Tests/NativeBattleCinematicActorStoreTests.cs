@@ -110,7 +110,7 @@ public sealed class NativeBattleCinematicActorStoreTests
         Assert.Throws<NotSupportedException>(() => result.Core.Read(0x27979FA, 2));
     }
 
-    private static NativeBattleGraphicsModel Actor() => new(0, 2) { Rotation12 = 8, Rotation14 = 9, Rotation16 = 10, Transform = new(new(7, 8, 9), new(1, 2, 3), 4, 5, -10) };
+    private static NativeBattleGraphicsModel Actor() => new(2) { Rotation12 = 8, Rotation14 = 9, Rotation16 = 10, Transform = new(new(7, 8, 9), new(1, 2, 3), 4, 5, -10) };
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction)
     {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -57,7 +58,7 @@ public sealed class NativeBattleEffect308SourceAdmissionTests
             int physical = index + 3;
             int original = index + 105;
             int boneCount = index == 0 ? 44 : 6;
-            string actorId = graphics.ActorIds[physical]!;
+            string actorId = ReadOriginalModelActorId(graphics, physical)!;
             BattleCombatantDefinition definition = session.GetCombatantDefinition(actorId);
             BattleCombatantSnapshot actor = Assert.Single(source.Combatants, current => current.Id == actorId);
             Assert.Equal(original, definition.ModelId);
@@ -78,7 +79,7 @@ public sealed class NativeBattleEffect308SourceAdmissionTests
             Assert.False(placement.Untargetable);
             Assert.Equal(141, placement.Level);
             Assert.Equal(new NativeBattleVector(0, 0, -3500), placement.NativePosition);
-            NativeBattleGraphicsModel model = graphics.Models[physical];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.Equal((byte)(original + 16), model.ModelId4);
             Assert.NotEqual(0, model.Flags0 & 2);
             NativeBattleModelTransform transform = model.Transform!;

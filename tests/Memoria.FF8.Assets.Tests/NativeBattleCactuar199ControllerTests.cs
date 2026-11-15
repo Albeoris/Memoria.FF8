@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -200,7 +201,7 @@ public sealed class NativeBattleCactuar199ControllerTests
         Run metrics = current;
         NativeBattlePoseSource source = resources.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(source.Animations.AsSpan(), source.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int actor) => new(actor, 3) { Rotation14 = actor == 3 ? (short)2048 : (short)0, Transform = new(new(0, 0, 0), new(0, 0, 1000), 0, 0, 4096), GeometryWorldMatrix = Identity, SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } };
+        NativeBattleGraphicsModel Model(int actor) => new(3) { Rotation14 = actor == 3 ? (short)2048 : (short)0, Transform = new(new(0, 0, 0), new(0, 0, 1000), 0, 0, 4096), GeometryWorldMatrix = Identity, SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } };
         NativeBattleCactuar199Frame Append(NativeBattleCactuar199Frame frame, NativeBattleGfGeometryBatch batch)
         {
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess!, NativeBattleLogicalOrdering.Clear(), batch);
@@ -233,12 +234,12 @@ public sealed class NativeBattleCactuar199ControllerTests
     private static Fixture Create(GameAssets game, NativeBattleCactuar199Resources resources)
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(0, 240, 0, 0, 1, 199, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 199, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(199, game.ReadNativeEffectCatalogForEffects([199]));
         var loaded = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
-        NativeBattleCactuar199Frame initial = new(loaded.Memory, loaded.Effect with { Parameters = new(0, 1, 8, 0, 0, 0) }, new(1));
+        NativeBattleCactuar199Frame initial = new(loaded.Memory, loaded.Effect with { Parameters = new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) }, new(1));
         Run current = new(initial, new(new(0, -100, 8192), new(0, 0, 0), 216, 0), []);
         NativeBattleCactuar199Frame entered = NativeBattleCactuar199Controller.Initialize5A8750(initial.Memory, initial.Effect, Inputs(current, packets, resources, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => { }), resources, initial.Random);
         NativeBattleEffectTextureDrain drain = entered.Memory.Textures!.Drain505D20(entered.Memory.Arena);

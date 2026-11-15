@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect20ParticlesTests
@@ -10,7 +11,7 @@ public sealed class NativeBattleEffect20ParticlesTests
         uint parent = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(parent, hierarchy.Read(parent).WriteDword(0x1C, 0xFFFE1234).WriteDword(0x20, 0xABCD5678));
         NativeBattleEffect20Frame initial = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
-        NativeBattleEffect20Frame frame = NativeBattleEffect20Particles.Spawn(initial, parent, 1, (_, _, _) => new(0, 3));
+        NativeBattleEffect20Frame frame = NativeBattleEffect20Particles.Spawn(initial, parent, 1, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = Assert.Single(frame.Effect.Pools[3].Slots, slot => slot.Callback == NativeBattleEffect20Profile.ParticleCallback);
         NativeCrtRandomState random = initial.Random;
         for (int point = 0; point < 2; point++)
@@ -32,7 +33,7 @@ public sealed class NativeBattleEffect20ParticlesTests
     {
         NativeBattleEffect20ControllerTests.Fixture fixture = new();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(3, NativeBattleEffect20Profile.ParticleCallback, 152, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(3, NativeBattleEffect20Profile.ParticleCallback, 152, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = append.Hierarchy.Read(append.Address).WriteByte(0x29, 1).WriteWord(0x24, 7).WriteDword(0x38, 768).WriteWord(0x54, 100).WriteWord(0x56, 200).WriteWord(0x58, 32764).WriteWord(0x5A, 0xABCD).WriteWord(0x74, unchecked((ushort)-129)).WriteWord(0x76, unchecked((ushort)-384)).WriteWord(0x78, 129).WriteWord(0x62, 0xFEDC);
         hierarchy = append.Hierarchy.Write(append.Address, task);
         List<NativeBattleModulePoolTask> draws = [];
@@ -63,7 +64,7 @@ public sealed class NativeBattleEffect20ParticlesTests
     {
         NativeBattleEffect20ControllerTests.Fixture fixture = new();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(3, NativeBattleEffect20Profile.ParticleCallback, 152, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(3, NativeBattleEffect20Profile.ParticleCallback, 152, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = append.Hierarchy.Write(append.Address, append.Hierarchy.Read(append.Address).WriteByte(0x29, 1).WriteWord(0x24, 11).WriteDword(0x38, 192));
         int draws = 0;
         NativeBattleEffect20Inputs inputs = fixture.Inputs with { Execute = (frame, operation) =>

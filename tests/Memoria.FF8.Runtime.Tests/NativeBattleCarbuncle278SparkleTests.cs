@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -10,7 +11,7 @@ public sealed class NativeBattleCarbuncle278SparkleTests
     public void Spawning_consumes_four_shared_draws_even_paused_and_writes_actual_bank_xyz_and_age()
     {
         var fixture = Fixture();
-        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Sparkles.Spawn681B3F(NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame)), fixture.Creature);
+        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Sparkles.Spawn681B3F(NativeBattleTestSnapshots.Independent(fixture.Frame), fixture.Creature);
         NativeBattleEffectTaskPool pool = Assert.Single(result.Effect.Pools);
         Assert.Equal(4, pool.Slots.Count(task => (task.Flags & 1) != 0));
         NativeBattleSharedEffectRandomState random = new(0);
@@ -30,7 +31,7 @@ public sealed class NativeBattleCarbuncle278SparkleTests
         Assert.Equal(7u, result.Memory.Carbuncle278!.Pause8114);
         Assert.Equal(0u, fixture.Frame.Memory.SharedEffectRandom!.State);
         Assert.All(fixture.Frame.Effect.Pools[0].Slots, task => Assert.Equal((ushort)0, task.Flags));
-        NativeBattleCarbuncle278Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        NativeBattleCarbuncle278Frame independent = NativeBattleTestSnapshots.Independent(fixture.Frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278Sparkles.Spawn681B3F(independent, fixture.Creature)));
     }
 
@@ -122,7 +123,7 @@ public sealed class NativeBattleCarbuncle278SparkleTests
         NativeBattleModulePoolTask creature = new(1, 0, null, 0x681630, new byte[0x5E0 - 12].ToImmutableArray());
         creature = creature.WriteWord(0x20, 2).WriteWord(0x60, 4096).WriteWord(0x68, 4096).WriteWord(0x70, 4096).WriteDword(0x74, 100).WriteDword(0x78, 200).WriteDword(0x7C, 300);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508178, NativeBattleEffectNodeMemory.ArenaAddress + 0x23A4, 0x14, 64);
-        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), CarbuncleExecutableMemory = executable, Carbuncle278 = NativeBattleCarbuncle278State.FromColdProcess() with { Pause8114 = 7 } };
         return (new(memory, effect, NativeCrtRandomState.FromColdProcess()), creature);
     }

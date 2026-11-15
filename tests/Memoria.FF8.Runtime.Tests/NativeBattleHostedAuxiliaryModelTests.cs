@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -23,7 +24,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
 
         List<(NativeBattleAuxiliaryKind Kind, int Row, uint Value)> rings = [];
         List<(int Row, byte Slot, byte Image)> uploads = [];
-        NativeBattleGraphicsModel model = new(24, 2) { ResourceFlags44 = 0, Sequence = 9 };
+        NativeBattleGraphicsModel model = new(2) { ResourceFlags44 = 0, Sequence = 9 };
         NativeBattleAuxiliaryInputs inputs = new()
         {
             PresentationRoster = roster,
@@ -63,8 +64,8 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         BattleModelRoster roster = Roster();
         var start = new NativeBattleVector(0, 3, 0);
         var finish = new NativeBattleVector(100, 6, 200);
-        NativeBattleGraphicsModel mover = new(7, 2) { Transform = new(start, start, 0, 0, 4096) };
-        NativeBattleGraphicsModel target = new(24, 2) { Transform = new(finish, finish, 0, 0, 4096), Flags2 = 0x20, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleGraphicsModel mover = new(2) { Transform = new(start, start, 0, 0, 4096) };
+        NativeBattleGraphicsModel target = new(2) { Transform = new(finish, finish, 0, 0, 4096), Flags2 = 0x20, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() };
         List<int> writes = [];
         NativeBattleAuxiliaryInputs inputs = new()
         {
@@ -113,8 +114,8 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         NativeGlobalRandomState random = new(5);
         Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, 1, roster: roster));
         Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendModelMotion(0x9E, 7, 25, 0, 0, 0, 2, roster));
-        Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendTextureAnimation(1, 4, program, roster));
-        Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendSoundParticle(1, true, 0, program, random, roster));
+        Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendTextureAnimation(OriginalOwner(1), 4, program, roster));
+        Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendSoundParticle(OriginalOwner(1), true, 0, program, random, roster));
         Assert.Null(empty.Head);
         Assert.Equal(random.Draw(out _), empty.AppendSoundParticle(24, true, 0, program, random, roster).Random);
 
@@ -131,9 +132,9 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         NativeBattleAuxiliaryState motion = empty.AppendModelMotion(0x9E, 7, 24, 0, 0, 0, 2, roster).State;
         NativeBattleAuxiliaryState texture = empty.AppendTextureAnimation(24, 4, program, roster);
         NativeBattleAuxiliaryState sound = empty.AppendSoundParticle(24, true, 0, program, random, roster).State;
-        Assert.Throws<InvalidDataException>(() => ReplacePointer(ring, 0, NativeBattleGraphicsModelAddress.Encode(1)).Advance(inputs));
-        Assert.Throws<NotSupportedException>(() => ReplacePointer(motion, 4, NativeBattleGraphicsModelAddress.Encode(1)).Advance(inputs));
-        Assert.Throws<InvalidDataException>(() => ReplacePointer(texture, 0, NativeBattleGraphicsModelAddress.Encode(1)).Advance(inputs));
+        Assert.Throws<InvalidDataException>(() => ReplacePointer(ring, 0, NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1))).Advance(inputs));
+        Assert.Throws<NotSupportedException>(() => ReplacePointer(motion, 4, NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1))).Advance(inputs));
+        Assert.Throws<InvalidDataException>(() => ReplacePointer(texture, 0, NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1))).Advance(inputs));
         Assert.Throws<InvalidDataException>(() => ReplacePointer(sound, 16, uint.MaxValue).Advance(inputs));
     }
 
@@ -143,7 +144,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         BattleModelRoster roster = new(Enumerable.Range(0, 7).Select(row => (BattleModelOwner?)new BattleModelOwner($"native-{row}", row < 3)).ToImmutableArray());
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear();
         var native = state.AppendModelMotion(0xAE, 2, 6, 2, 3, -1024, 4);
-        var explicitRoster = state.AppendModelMotion(0xAE, 2, 6, 2, 3, -1024, 4, roster);
+        var explicitRoster = state.AppendModelMotion(0xAE, OriginalOwner(2), OriginalOwner(6), 2, 3, -1024, 4, roster);
         Assert.Equal(NativeBattleTestSnapshots.Json(native.State), NativeBattleTestSnapshots.Json(explicitRoster.State));
         Assert.Equal(0x1D972C0u + 2 * 156, BinaryPrimitives.ReadUInt32LittleEndian(native.State.Slots[0].Payload.AsSpan()));
         for (int slot = 0; slot < 16; slot++)
@@ -163,7 +164,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         BattleModelRoster roster = Roster();
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelGroupFade50F0B0(24, 2, roster);
         Assert.Equal(NativeBattleGraphicsModelAddress.Encode(24), BinaryPrimitives.ReadUInt32LittleEndian(state.Slots[0].Payload.AsSpan()));
-        NativeBattleGraphicsModel model = new(24, 2) { SequenceState = new() { MeshMask124 = 0xF } };
+        NativeBattleGraphicsModel model = new(2) { SequenceState = new() { MeshMask124 = 0xF } };
         List<byte> frames = [];
         int mutations = 0;
         NativeBattleAuxiliaryInputs inputs = new()
@@ -192,7 +193,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         Assert.Null(state.Head);
         Assert.Equal(1, mutations);
         Assert.Equal(Enumerable.Range(0, 15).Select(frame => (byte)frame), frames);
-        Assert.Throws<NotSupportedException>(() => ReplacePointer(NativeBattleAuxiliaryState.Clear().AppendModelGroupFade50F0B0(24, 2, roster), 0, NativeBattleGraphicsModelAddress.Encode(1)).Advance(inputs));
+        Assert.Throws<NotSupportedException>(() => ReplacePointer(NativeBattleAuxiliaryState.Clear().AppendModelGroupFade50F0B0(24, 2, roster), 0, NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1))).Advance(inputs));
     }
 
     [Fact]
@@ -212,11 +213,11 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         Assert.Equal(0xABCDEFu, BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(16)));
         Assert.Equal((short)-6, BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(20)));
         Assert.Equal(0xC000u, task.UnknownByteMask);
-        Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendModelDeformation50F250(1, 0, 0, default, 0, 0, roster));
+        Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendModelDeformation50F250(OriginalOwner(1), 0, 0, default, 0, 0, roster));
         Assert.Throws<ArgumentOutOfRangeException>(() => empty.AppendModelGroupFade50F0B0(25, 0, roster));
 
         var native = empty.AppendModelDeformation50F250(0, 2, 5, velocity, -6, 0xABCDEF);
-        var bound = empty.AppendModelDeformation50F250(0, 2, 5, velocity, -6, 0xABCDEF, roster);
+        var bound = empty.AppendModelDeformation50F250(OriginalOwner(0), 2, 5, velocity, -6, 0xABCDEF, roster);
         Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(bound));
         NativeBattleAuxiliaryState full = empty;
         for (int slot = 0; slot < 16; slot++)
@@ -233,7 +234,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         }, BattleAtbMode.TurnBased);
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
         MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeModelDeformation50F2E0", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        foreach (uint pointer in new[] { NativeBattleGraphicsModelAddress.Encode(1), uint.MaxValue })
+        foreach (uint pointer in new[] { NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1)), uint.MaxValue })
         {
             object?[] args = [graphics, ReplacePointer(state, 0, pointer).Slots[0]];
             InvalidDataException error = Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => advance.Invoke(battle, args)).InnerException);
@@ -245,9 +246,9 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     private static BattleModelRoster Roster()
     {
         BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new("native", true);
-        rows[7] = new("extra-ally", true);
-        rows[24] = new("extra-enemy", false);
+        rows[0] = new BattlePartyActorModel(new("native"));
+        rows[7] = new BattlePartyActorModel(new("extra-ally"));
+        rows[24] = new BattleEnemyActorModel(new("extra-enemy"));
         return new(rows.ToImmutableArray());
     }
 

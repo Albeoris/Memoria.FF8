@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -134,8 +135,8 @@ internal sealed class NativeBattleEffect174PresentationObserver
         }
         NativeBattleGraphicsState graphics = current.NativeGraphics!;
         int actorIndex = historical ? 3 : 0;
-        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-        NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == graphics.ActorIds[actorIndex]);
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(graphics, actorIndex);
+        NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == ReadOriginalModelActorId(graphics, actorIndex));
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
         HashSet<Face> faces = [];
         uint[] colors = historical ? graphics.OriginalEffect!.Binding.Effect174Resources!.HistoryColors.ToArray() : [actor.Color40!.Value];

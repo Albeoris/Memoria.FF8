@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -10,11 +11,11 @@ public sealed class NativeBattleDuel215PreparationTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel215Controller.Scene, NativeBattleDuel215Controller.Arena, 5120, 1);
         (pool, int slot) = pool.Append(0x69B070);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[5108])) });
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel215 = new(true, parameters, null) };
         NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), parameters, NativeBattleDuel215Controller.Root) { Pools = [pool] };
         NativeBattleDuel215Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown().Write(0x2508990, new byte[8]), NativeCrtRandomState.FromColdProcess());
-        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 2)
+        NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2)
         {
             Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 0, 100),
             Rotation12 = 11,

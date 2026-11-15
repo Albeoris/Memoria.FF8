@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -6,8 +7,8 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedActionPreparationTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly NativeBattleActionHeaderPreparation Header = new(0, 1, 5, -1, 0, 0, null);
-    private static readonly NativeBattleContactPacket Contact = new(new(3, 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static readonly NativeBattleActionHeaderPreparation Header = new(OriginalOwner(0), 1, 5, -1, 0, 0, null);
+    private static readonly NativeBattleContactPacket Contact = new(new(OriginalOwner(3), 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
 
     [Fact]
     public void PreparationLeavesLiveOwnersUntouchedAndPublishesTheSameAdmissionAsBegin()

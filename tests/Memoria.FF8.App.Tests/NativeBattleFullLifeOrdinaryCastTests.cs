@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -123,7 +124,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 if (actionPackets.ContactCount > 0)
                 {
                     Assert.Equal((byte)1, actionPackets.ContactCount);
-                    NativeBattleContactHalf contact = actionPackets.ReadContact(0).Primary;
+                    NativeBattleContactHalf contact = actionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
                     Assert.Equal((byte)1, contact.ActorIndex);
                     Assert.Equal((ushort)1000, contact.Amount6);
                     Assert.Equal(0, contact.SavedStatuses4 & 1);
@@ -187,7 +188,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.Equal(9999, completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
             Assert.True(Released(completed), "Full-life must release the ordinary action, action pause, descriptor, root and active tasks.");
             Assert.Equal((byte)0, completed.NativeEffectMemory!.Active);
-            Assert.Equal(0, completed.NativeGraphics!.Models[0].Flags0 & 4);
+            Assert.Equal(0, ReadOriginalModelCell(completed.NativeGraphics!, 0).Flags0 & 4);
             uint effectSound = game.ReadNativeRestorationResources(27).Sound;
             NativeBattleModuleSound sound = Assert.Single(heard, item => item.Sound == effectSound);
             Assert.Equal((byte)128, sound.Pan);

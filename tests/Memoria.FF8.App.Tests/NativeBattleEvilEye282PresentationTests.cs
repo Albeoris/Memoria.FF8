@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -49,7 +50,7 @@ public sealed class NativeBattleEvilEye282PresentationTests
         NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
         (packets, int header) = packets.Prepare(new(checked((byte)allocatedActor), 8, 12, -1, 152, 282, null));
-        (packets, _) = packets.AppendContact(new(new(0, assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 152 && row.MagicId == 282).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 152 && row.MagicId == 282).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot source = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } };
@@ -61,10 +62,10 @@ public sealed class NativeBattleEvilEye282PresentationTests
         Assert.True(source.Definition.NativeEffectCatalog.Length > 281);
         source = source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(281, binding) } };
         Assert.Same(binding.EvilEye282Resources, source.Definition.NativeEffectCatalog[281].EvilEye282Resources);
-        BattleCombatantDefinition definition = BattleSession.Restore(source).GetCombatantDefinition(source.NativeGraphics.ActorIds[allocatedActor]!);
+        BattleCombatantDefinition definition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, allocatedActor)!);
         Assert.Equal(94, definition.ModelId);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-        NativeBattleGraphicsModel model = source.NativeGraphics.Models[allocatedActor];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, allocatedActor);
         Assert.NotNull(resource.PoseSource);
         Assert.Equal(resource.PoseSource.BoneCount, NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource).Length);
         Assert.NotNull(model.GeometryWorldMatrix);
@@ -74,10 +75,10 @@ public sealed class NativeBattleEvilEye282PresentationTests
         NativeBattlePackedMatrix32 selected = NativeBattlePackedMatrix32.FromMatrix(NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource)[13], null);
         Assert.False(selected.Known[18]);
         Assert.False(selected.Known[19]);
-        Assert.Equal((byte)allocatedActor, packets.Headers[header].ReadByte(0));
-        Assert.Equal((byte)12, packets.Headers[header].ReadByte(2));
-        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original EvilEye282 command8/action152/sequence12; originalformation436 prototype3 allocated and activated by current native producer; controlled preparation does not claim three ordinary AI deaths; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, Header = packets.Headers[header], Contact = packets.ReadContact(0), OriginalPrototype = assets.LoadEncounter(436).Slots.Single(enemy => enemy.Slot == 3) }));
+        Assert.Equal((byte)allocatedActor, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadByte(0));
+        Assert.Equal((byte)12, packets.ReadHeader(new BattleActionHeaderReference(header)).Sequence);
+        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original EvilEye282 command8/action152/sequence12; originalformation436 prototype3 allocated and activated by current native producer; controlled preparation does not claim three ordinary AI deaths; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(436).Slots.Single(enemy => enemy.Slot == 3) }));
         return source;
     }
 }

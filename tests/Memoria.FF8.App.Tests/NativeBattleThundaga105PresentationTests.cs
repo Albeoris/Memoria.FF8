@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -31,14 +32,14 @@ public sealed class NativeBattleThundaga105PresentationTests
         uint delta = unchecked(initial.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleActionPacketsState.HeaderCapacity);
         int headerIndex = checked((int)(delta / 20));
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[headerIndex];
-        Assert.Equal(kernel.Command, header.ReadByte(1));
-        Assert.Equal(kernel.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)105, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        Assert.Equal(kernel.Command, header.Command);
+        Assert.Equal(kernel.ActionId, header.Action);
+        Assert.Equal((ushort)105, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(initial.ActionGraphics is null || initial.ActionGraphics.HeaderIndex == headerIndex);
         int contactIndex = header.FirstContactIndex ?? throw new InvalidDataException("A physical contact owner is required.");
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(contactIndex);
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
         int target = contact.Primary.ActorIndex;
         Assert.InRange(target, 0, 2);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
@@ -46,7 +47,7 @@ public sealed class NativeBattleThundaga105PresentationTests
         ushort initialHp = source.NativePartyPresentation!.Rows[target]!.HitPoints;
         Assert.True(initialHp >= 7);
         ushort finalHp = (ushort)(initialHp - 7);
-        uint? initialColor = initial.Models[target].Color40;
+        uint? initialColor = ReadOriginalModelCell(initial, target).Color40;
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([105])[104];
         Assert.Equal(0x6D3DB0u, installed.Entry);
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[104]));
@@ -195,7 +196,7 @@ public sealed class NativeBattleThundaga105PresentationTests
             Assert.Equal(1, completions);
             Assert.Equal(1, contacts);
             Assert.Equal(finalHp, battle.Capture().NativePartyPresentation!.Rows[target]!.HitPoints);
-            Assert.Equal(initialColor, battle.NativeGraphics!.Models[target].Color40);
+            Assert.Equal(initialColor, ReadOriginalModelCell(battle.NativeGraphics!, target).Color40);
             Assert.Equal(310, fragmentFaces);
             Assert.True(debrisPeak > 0);
             Assert.Equal(32, movingPeak);

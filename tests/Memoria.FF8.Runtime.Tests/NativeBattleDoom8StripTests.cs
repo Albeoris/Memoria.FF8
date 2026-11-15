@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -21,7 +22,7 @@ public sealed class NativeBattleDoom8StripTests
             calls.Add(operation);
             if (operation is NativeBattleDoom8StripAnchor anchor)
             {
-                Assert.Equal(3, anchor.Actor);
+                Assert.Equal(OriginalOwner(3), anchor.Actor);
                 Assert.Equal(0x275F548u, anchor.Destination);
                 return current with { State = current.State.WriteWord(anchor.Destination, 0).WriteWord(anchor.Destination + 2, 0).WriteWord(anchor.Destination + 4, 4096) };
             }
@@ -118,7 +119,7 @@ public sealed class NativeBattleDoom8StripTests
 
     private static NativeBattleDoom8Frame Initialize(NativeBattleDoom8Frame frame, uint address)
     {
-        return NativeBattleDoom8Strips.InitializeTarget8C8120(frame, address, 3, Tables(), (current, operation) => operation is NativeBattleDoom8StripAnchor anchor ? current with { State = current.State.WriteWord(anchor.Destination, 0).WriteWord(anchor.Destination + 2, 0).WriteWord(anchor.Destination + 4, 4096) } : current);
+        return NativeBattleDoom8Strips.InitializeTarget8C8120(frame, address, OriginalOwner(3), Tables(), (current, operation) => operation is NativeBattleDoom8StripAnchor anchor ? current with { State = current.State.WriteWord(anchor.Destination, 0).WriteWord(anchor.Destination + 2, 0).WriteWord(anchor.Destination + 4, 4096) } : current);
     }
 
     private static (NativeBattleDoom8Frame Frame, uint Address) Fixture()

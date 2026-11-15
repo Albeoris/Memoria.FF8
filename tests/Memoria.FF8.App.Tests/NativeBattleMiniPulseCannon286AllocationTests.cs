@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -31,11 +32,11 @@ public sealed class NativeBattleMiniPulseCannon286AllocationTests
         NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The actual activated allocation requires its graphics owner.");
         Assert.Null(graphics.OriginalEffect);
         BattleSession session = BattleSession.Restore(ready);
-        BattleCombatantDefinition definition = session.GetCombatantDefinition(graphics.ActorIds[actualActor] ?? throw new InvalidDataException("The actual activated allocation requires its actor identity."));
+        BattleCombatantDefinition definition = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, actualActor) ?? throw new InvalidDataException("The actual activated allocation requires its actor identity."));
         Assert.Equal(110, definition.ModelId);
         Assert.Equal(0, definition.SceneSlot);
         Assert.Equal(actualActor, ready.NativeLastAllocatedIndex);
-        NativeBattleGraphicsModel model = graphics.Models[actualActor];
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualActor);
         Assert.Equal((byte)126, model.ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(definition).PoseSource ?? throw new InvalidDataException("The actual activated original model requires its skeleton.");
         var matrices = NativeBattleBodyBoneMatrices.Require(model, pose);

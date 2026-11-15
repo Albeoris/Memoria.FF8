@@ -136,7 +136,7 @@ public sealed class NativeBattleRenzokukenKnownEmptyContactTests
         Assert.Equal(expectedRandom, contact.Frame.Random);
     }
 
-    private static NativeBattleRenzokuken160Inputs Inputs(ImmutableArray<byte> segments, List<NativeBattleRenzokuken160Operation> operations) => new(0, segments, _ => new(0, 0) { GeometryWorldMatrix = Identity }, (frame, operation) =>
+    private static NativeBattleRenzokuken160Inputs Inputs(ImmutableArray<byte> segments, List<NativeBattleRenzokuken160Operation> operations) => new(0, segments, _ => new(0) { GeometryWorldMatrix = Identity }, (frame, operation) =>
     {
         operations.Add(operation);
         return frame;

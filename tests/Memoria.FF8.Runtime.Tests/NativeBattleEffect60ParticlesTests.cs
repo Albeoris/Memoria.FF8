@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect60ParticlesTests
@@ -8,16 +9,16 @@ public sealed class NativeBattleEffect60ParticlesTests
         NativeBattleEffect60ControllerTests.Fixture fixture = new();
         fixture.Rotations[3] = NativeBattleEffect60ControllerTests.Fixture.PutWord(fixture.Rotations[3], 2, 0);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.DebrisEmitterCallback, 140, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.DebrisEmitterCallback, 140, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = append.Hierarchy.Write(append.Address, append.Hierarchy.Read(append.Address).WriteWord(0x24, 36));
         NativeBattleEffect60Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
-        frame = NativeBattleEffect60Particles.AdvanceEmitter(frame, append.Address, fixture.Inputs, (_, _, _) => new(0, 3)).Frame;
+        frame = NativeBattleEffect60Particles.AdvanceEmitter(frame, append.Address, fixture.Inputs, (_, _, _) => OriginalTaskActors(0, 3)).Frame;
         Assert.DoesNotContain(frame.Effect.Pools[5].Slots, task => task.Callback == NativeBattleEffect60Profile.DebrisCallback);
         Assert.Single(fixture.Operations.OfType<NativeBattleEffect60Rotate>());
         NativeCrtRandomState random = frame.Random;
         for (int callback = 0; callback < 8; callback++)
         {
-            frame = NativeBattleEffect60Particles.AdvanceEmitter(frame, append.Address, fixture.Inputs, (_, _, _) => new(0, 3)).Frame;
+            frame = NativeBattleEffect60Particles.AdvanceEmitter(frame, append.Address, fixture.Inputs, (_, _, _) => OriginalTaskActors(0, 3)).Frame;
         }
         NativeBattleModulePoolTask[] children = frame.Effect.Pools[5].Slots.Where(task => task.Callback == NativeBattleEffect60Profile.DebrisCallback).ToArray();
         Assert.Equal(16, children.Length);
@@ -48,7 +49,7 @@ public sealed class NativeBattleEffect60ParticlesTests
     {
         NativeBattleEffect60ControllerTests.Fixture fixture = new();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.DebrisCallback, 140, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.DebrisCallback, 140, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = append.Hierarchy.Read(append.Address).WriteByte(0x29, 1).WriteWord(0x50, 15).WriteWord(0x52, 15).WriteWord(0x1C, 32764).WriteWord(0x1E, 100).WriteWord(0x20, 100).WriteWord(0x22, 0xABCD).WriteWord(0x78, 129).WriteWord(0x7A, 128).WriteWord(0x7C, unchecked((ushort)-129)).WriteWord(0x82, unchecked((ushort)-256));
         hierarchy = append.Hierarchy.Write(append.Address, task);
         int draws = 0;
@@ -75,7 +76,7 @@ public sealed class NativeBattleEffect60ParticlesTests
     {
         NativeBattleEffect60ControllerTests.Fixture fixture = new();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.StageCallback, 140, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.StageCallback, 140, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = append.Hierarchy.Write(append.Address, append.Hierarchy.Read(append.Address).WriteWord(0x24, 5));
         NativeBattleEffect60Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         frame = NativeBattleEffect60Particles.AdvanceStage(frame, append.Address, fixture.Inputs).Frame;

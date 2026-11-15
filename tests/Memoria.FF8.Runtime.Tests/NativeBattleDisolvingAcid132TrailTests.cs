@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -169,7 +170,7 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
         NativeBattleOriginalEffectState effect = new(132, 131, new(132, Entry, Initializer), null, RootDescriptor) { Pools = pools };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(123), NativeBattleDisolvingAcid132State.FromColdProcess().WriteDword(WorkingGlobal, Working)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleDisolvingAcid132Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0), _ => new(null, 100, 160, 108), (_, _, _, _, _, _) => throw new InvalidOperationException(), (frame, _) => frame);
+    private static NativeBattleDisolvingAcid132Inputs Inputs() => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0), _ => new(null, 100, 160, 108), (_, _, _, _, _, _) => throw new InvalidOperationException(), (frame, _) => frame);
     private static NativeBattleDisolvingAcid132Resources Resources()
     {
         byte[] distance = new byte[16384];

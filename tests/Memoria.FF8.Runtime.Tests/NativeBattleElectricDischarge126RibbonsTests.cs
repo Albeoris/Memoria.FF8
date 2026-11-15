@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -101,7 +102,7 @@ public sealed class NativeBattleElectricDischarge126RibbonsTests
         NativeBattleElectricDischarge126Frame frame = Frame();
         frame = Point(frame, BonePointsOffset, 0, 100, 200, 512, 96, true, 2048, Address(frame, BonePointsOffset, 1));
         frame = Point(frame, BonePointsOffset, 1, 116, 200, 512, 96, true, 2048, 0);
-        NativeBattleElectricDischarge126Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleElectricDischarge126Frame restored = NativeBattleTestSnapshots.Independent(frame);
         var expected = NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(frame, Address(frame, BonePointsOffset, 0), 2, Resources());
         var actual = NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(restored, Address(restored, BonePointsOffset, 0), 2, Resources());
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame)));
@@ -115,7 +116,7 @@ public sealed class NativeBattleElectricDischarge126RibbonsTests
 
     private static NativeBattleElectricDischarge126Frame Frame()
     {
-        NativeBattleOriginalEffectState effect = new(126, 126, new(126, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);
+        NativeBattleOriginalEffectState effect = new(126, 126, new(126, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, 0x2C874) };
         return new(memory, effect, new(1), NativeBattleElectricDischarge126State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress + 0x400));
     }

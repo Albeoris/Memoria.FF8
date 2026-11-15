@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -146,15 +147,15 @@ public sealed class NativeBattleScanResultTaskTests
 
     private static (NativeBattleScanResultTaskFrame Frame, uint Address, NativeBattleScanResultServices Services) Fixture(uint callback = 0x84FAF0)
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 50, 40, null));
-        (packets, _) = packets.AppendContact(new(new(0, 1, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 50, 40, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 0, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(0, 1, 1, 0, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleScanFrame scan = NativeBattleScanController.Initialize84D030(NativeBattleEffectMemory.FromColdProcess(), effect, packets);
         NativeBattleEffectHierarchy hierarchy = new(scan.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(2, callback, 0x78, hierarchy.Address(0, 0), (_, _, _) => new(0, 0));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(2, callback, 0x78, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 0));
         scan = scan with { Effect = scan.Effect with { Pools = appended.Hierarchy.Pools } };
         ScanResultTestSource source = new();
         return (new(scan, NativeBattleScanResultMemory.FromColdProcess(), ScanTextFixture.Frame(), 9), appended.Address, source.Services);

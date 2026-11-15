@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -190,13 +191,13 @@ public sealed class NativeBattleDoom8ControllerTests
 
         public Fixture(byte phase)
         {
-            Packets = NativeBattleActionPacketsState.Fresh();
-            (NativeBattleActionPacketsState packets, _) = Packets.Prepare(new(2, 2, 11, 0, 32, 15, null));
-            (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            packets = packets.WritePlayerRepeatMode(0, 1);
+            Packets = OriginalPackets();
+            (NativeBattleActionPacketsState packets, _) = Packets.Prepare(new(OriginalOwner(2), 2, 11, 0, 32, 15, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             (packets, _) = packets.Publish(1);
             Packets = packets;
-            NativeBattleEffectParameters parameters = new(0, 1, 8, 0, 0, 0);
+            NativeBattleEffectParameters parameters = new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleDoom8State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleDoom8Controller.RootCallback, 100);
             RootAddress = root.Address;
@@ -218,7 +219,7 @@ public sealed class NativeBattleDoom8ControllerTests
 
         public NativeBattleDoom8Frame Append(NativeBattleDoom8Frame frame, int pool, uint callback, uint parent, out uint address)
         {
-            NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(pool, callback, NativeBattleDoom8State.Pools[pool].Stride, parent, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(pool, callback, NativeBattleDoom8State.Pools[pool].Stride, parent, (_, _, _) => OriginalTaskActors(0, 3));
             address = appended.Address;
             return frame with { Effect = frame.Effect with { Pools = appended.Hierarchy.Pools } };
         }

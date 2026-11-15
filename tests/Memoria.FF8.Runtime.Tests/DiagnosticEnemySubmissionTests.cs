@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -77,7 +78,7 @@ public sealed class DiagnosticEnemySubmissionTests
         BattleDiagnosticEffectDispatch? observed = null;
         session.DiagnosticEffectDispatched += dispatch => observed = dispatch;
         NativeBattleGraphicsState graphics = new(ImmutableArray<NativeBattleGraphicsModel>.Empty, ["party", null, null, "enemy", null, null, null], 0, 42);
-        NativeBattleOriginalEffectState effect = new(3, 2, new(3, 0, 0), hasParameters ? new(3, 0, 4, -1, 0, 0) : null, null);
+        NativeBattleOriginalEffectState effect = new(3, 2, new(3, 0, 0), hasParameters ? new(OriginalOwner(3), 0, 4, -1, 0, 0) : null, null);
         typeof(BattleSession).GetMethod("ObserveDiagnosticEffectDispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, effect]);
         Assert.Equal(hasParameters ? (ushort?)4 : null, observed!.NativeTargetMask);
     }

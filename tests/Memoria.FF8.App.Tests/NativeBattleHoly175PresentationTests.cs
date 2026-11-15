@@ -29,12 +29,12 @@ public sealed class NativeBattleHoly175PresentationTests
         int descriptor = Assert.Single(graphics.Descriptors.Queue, slot => graphics.Descriptors.Packets[slot].Command == 104);
         uint delta = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleActionPacketsState.HeaderCapacity);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(delta / 20))];
-        Assert.Equal(action.Command, header.ReadByte(1));
-        Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)175, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal((byte)0, header.ReadByte(17));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(delta / 20))));
+        Assert.Equal(action.Command, header.Command);
+        Assert.Equal(action.ActionId, header.Action);
+        Assert.Equal((ushort)175, header.Effect);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         int target = contact.Primary.ActorIndex;
         Assert.InRange(target, 0, 2);

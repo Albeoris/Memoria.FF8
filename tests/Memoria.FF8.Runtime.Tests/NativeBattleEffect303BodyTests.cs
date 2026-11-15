@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect303BodyTests
     [Fact]
     public void Outer_uses_recipient_shadow_composed_basis_dual_cursors_and_actual_restore()
     {
-        NativeBattleGraphicsModel model = new(4, 0x20) { Color40 = 0x123456, GeometryWorldMatrix = Identity().ReadMatrix() with { X = 100, Y = 200, Z = 300 }, SequenceState = new() { MeshMask124 = 7 } };
+        NativeBattleGraphicsModel model = new(0x20) { Color40 = 0x123456, GeometryWorldMatrix = Identity().ReadMatrix() with { X = 100, Y = 200, Z = 300 }, SequenceState = new() { MeshMask124 = 7 } };
         var body = new NativeBattleEffect303BodyFrame(Memory(), NativeBattleFileStaging.Unknown(), model, NativeBattleEffectArena.Clear().MarkUnknown(0, 188), 200, Fx);
         NativeBattleEffectArena rectangle = NativeBattleEffectArena.Clear().Write(0, new byte[] { 0xC0, 2, 0, 1, 128, 0, 128, 0 });
         List<string> calls = [];

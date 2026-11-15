@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -98,7 +99,7 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
         NativeBattleWaterExecutionFrame frame = Fixture(instruction, operand);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797068 + 0x60, 0x1D972C0);
         List<string> order = [];
-        NativeBattleGraphicsModel model = new(0, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale) };
+        NativeBattleGraphicsModel model = new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale) };
         if ((instruction & 0x200) != 0)
         {
             model = model with { GeometryBounds52 = new(new(0, -100, 0), new(0, 1000, 0)) };
@@ -107,7 +108,7 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
         {
             ReadActor = (current, address) =>
             {
-                Assert.Equal(0x1D972C0u, address);
+                Assert.Equal(OriginalOwner(0), address);
                 return model;
             },
             ReadAnchor = (current, address) =>

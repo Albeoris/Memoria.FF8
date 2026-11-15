@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -12,7 +13,7 @@ public sealed class NativeBattleHostedFireEffectTests
         byte[][] groups = [rows, rows.Reverse().ToArray(), [.. rows.Skip(7), .. rows.Take(7)]];
         var fixture = Fixture(groups);
         Assert.Equal(75, fixture.Inputs.Packets.ContactCount);
-        Assert.Equal(2, fixture.Inputs.Packets.Headers[0].ReadByte(17));
+        Assert.Equal(2, fixture.Inputs.Packets.ExportRetained().Headers[0].ReadOriginalByte(17));
         Assert.Equal(1128, NativeBattleFireEffect.RequiredChildCapacity(fixture.Effect, fixture.Inputs.Packets));
         NativeBattleOriginalEffectState effect = Enter(fixture.Effect, fixture.Inputs.Packets);
         NativeBattleEffectTaskPool bank = effect.Pools[1];
@@ -87,7 +88,7 @@ public sealed class NativeBattleHostedFireEffectTests
         NativeBattleFireStep expected = NativeBattleFireEffect.Step(paused.Effect, inputs with { ApplyContact = uninterrupted.Add });
         NativeBattleFireStep actual = NativeBattleFireEffect.Step(restored.Effect, inputs with { Packets = restored.Packets, CrtRandom = restored.Random, ApplyContact = resumed.Add });
 
-        Assert.Equal(0, Assert.Single(expected.Contacts));
+        Assert.Equal(new BattleContactOccurrence(0), Assert.Single(expected.Contacts));
         Assert.Equal(expected.Contacts.ToArray(), actual.Contacts.ToArray());
         Assert.Equal(uninterrupted.ToArray(), resumed.ToArray());
         Assert.Equal(0, Assert.Single(resumed));
@@ -101,7 +102,7 @@ public sealed class NativeBattleHostedFireEffectTests
     {
         byte[] rows = Enumerable.Range(0, 300).Select(index => (byte)((index % 3) switch { 0 => 7, 1 => 16, _ => 24 })).ToArray();
         var fixture = Fixture([rows]);
-        Assert.Equal(300, fixture.Inputs.Packets.Headers[0].ReadContactCount());
+        Assert.Equal(300, fixture.Inputs.Packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
         NativeBattleOriginalEffectState effect = Enter(fixture.Effect, fixture.Inputs.Packets);
         Assert.Equal(4501, effect.Pools[1].Slots.Length);
         List<int> applied = [];
@@ -145,10 +146,10 @@ public sealed class NativeBattleHostedFireEffectTests
     public void NativeFireKeepsItsOriginalPhysicalTaskHeaderAndCompletionBank()
     {
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(3, 2, 11, -1, 1, 2, null));
-        (packets, _) = packets.AppendContact(new(new(4, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 1, 2, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(2, 1, new(2, 0x6298A0, 0x629880), new(3, 0, 0x10, 0, 0, 0), null);
+        NativeBattleOriginalEffectState selected = new(2, 1, new(2, 0x6298A0, 0x629880), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), null);
         NativeBattleOriginalEffectState effect = NativeBattleFireEffect.InitializePools(selected, packets);
         NativeBattleEffectTaskPool bank = effect.Pools[1];
         Assert.Equal(0x24CA838u, bank.DescriptorAddress);
@@ -176,15 +177,15 @@ public sealed class NativeBattleHostedFireEffectTests
         BattleModelTargets targets = default;
         foreach (byte[] group in groups)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 11, -1, 1, 2, null));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 1, 2, null));
             foreach (byte row in group)
             {
                 targets = targets.Add(row);
             }
-            packets = packets.AppendContacts(group.Select(row => new NativeBattleContactPacket(new(row, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))));
+            packets = packets.AppendContacts(group.Select(row => new NativeBattleContactPacket(new(row, 0, 0, 0, 0, 0, 0), null)));
             (packets, _) = packets.Publish(group.Length);
         }
-        packets = packets.WritePlayerRepeatMode(0, checked((byte)groups.Length));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), checked((byte)groups.Length));
         NativeBattleEffectParameters parameters = new(0, 0, targets.NativePhysicalBits, 0, 0, 0) { PresentationTargets = targets };
         NativeBattleOriginalEffectState effect = new(2, 1, new(2, 0x6298A0, 0x629880), parameters, null) { PresentationRoster = roster };
         ImmutableArray<NativeBattleModuleResource> resources = [Sprite(0xDEDC2C, 0), Sprite(0xDEDDD8, 0), Sprite(0xDEDF84, 0), Sprite(0x123450, 5)];

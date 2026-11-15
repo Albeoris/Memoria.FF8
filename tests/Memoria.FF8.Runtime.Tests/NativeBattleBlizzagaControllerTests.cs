@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -84,7 +85,7 @@ public sealed class NativeBattleBlizzagaControllerTests
             Assert.Equal(NativeBattleTestSnapshots.Json(normal), NativeBattleTestSnapshots.Json(flagged));
             if (callback is 34 or 55)
             {
-                flagged = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzagaFrame>(NativeBattleTestSnapshots.Json(normal))!;
+                flagged = NativeBattleTestSnapshots.Independent(normal);
                 Assert.NotSame(normal.Effect.Pools[1].Slots[0], flagged.Effect.Pools[1].Slots[0]);
             }
         }
@@ -150,7 +151,7 @@ public sealed class NativeBattleBlizzagaControllerTests
 
     private static NativeBattleActionMatrix View => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
     private static uint Dword(NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);
-    private static NativeBattleBlizzagaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame>? execute = null, Action<NativeBattleBlizzagaModelBandRequest>? bands = null, Action<int>? ribbonPackets = null) => new(0, packets, 0, View, actor => new(unchecked((short)(100 + actor * 20)), -200, 300), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new(10, 20, 30, (short)actor), (frame, request) =>
+    private static NativeBattleBlizzagaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame>? execute = null, Action<NativeBattleBlizzagaModelBandRequest>? bands = null, Action<int>? ribbonPackets = null) => new(0, packets, 0, View, actor => new(unchecked((short)(100 + actor * 20)), -200, 300), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new(10, 20, 30, (short)OriginalSlot(actor)), (frame, request) =>
     {
         bands?.Invoke(request);
         return new(frame, -100, 200);
@@ -167,15 +168,15 @@ public sealed class NativeBattleBlizzagaControllerTests
 
     private static (NativeBattleBlizzagaFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int index = 0; index < headers; index++)
         {
-            (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 104, null));
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 104, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, (byte)headers);
-        NativeBattleOriginalEffectState effect = new(104, 103, new(104, 0x6D6310, 0x6D62F0) { BlizzagaResources = NativeBattleBlizzagaFaceTests.Resources() }, new(0, 0, 8, 0, 0, 0), null);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
+        NativeBattleOriginalEffectState effect = new(104, 103, new(104, 0x6D6310, 0x6D62F0) { BlizzagaResources = NativeBattleBlizzagaFaceTests.Resources() }, new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleBlizzagaController.Initialize6D6320(effect, packets);
         return (new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1)), packets);
     }

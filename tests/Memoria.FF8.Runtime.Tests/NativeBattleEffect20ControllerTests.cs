@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -39,7 +40,7 @@ public sealed class NativeBattleEffect20ControllerTests
         Assert.Single(fixture.Operations.OfType<NativeBattleEffect20Contact>());
         Assert.Single(fixture.Operations.OfType<NativeBattleEffect20VibrationEnqueue>());
         Assert.Equal((short)7, Assert.Single(fixture.Operations.OfType<NativeBattleEffect20VibrationStop>()).Handle);
-        Assert.Equal(6, Assert.Single(fixture.Operations.OfType<NativeBattleEffect20Activate>()).Actor);
+        Assert.Equal(OriginalOwner(6), Assert.Single(fixture.Operations.OfType<NativeBattleEffect20Activate>()).Actor);
         NativeBattleEffect20RingSequence ring = Assert.Single(fixture.Operations.OfType<NativeBattleEffect20RingSequence>());
         Assert.Equal(0x1D97668u, ring.Address);
         Assert.Equal(12, ring.Count);
@@ -59,7 +60,7 @@ public sealed class NativeBattleEffect20ControllerTests
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 4).WriteByte(0x63, 1));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, NativeBattleEffect20Profile.TargetCallback, 88, root, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, NativeBattleEffect20Profile.TargetCallback, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteByte(0x29, 1).WriteWord(0x24, 29));
         frame = fixture.Step(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } });
         Assert.Equal((byte)1, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(root).ReadByte(0x63));

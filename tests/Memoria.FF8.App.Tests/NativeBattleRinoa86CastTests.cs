@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -59,12 +60,12 @@ public sealed class NativeBattleRinoa86CastTests
             BattleSnapshot snapshot = battle.Capture();
             bool active = snapshot.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0, Binding.Effect: 86 };
             bool killed = snapshot.Combatants.Where(actor => actor.Id != "party").All(actor => actor.CurrentHp == 0);
-            bool released = killed && snapshot.NativeGraphics.Models[3].Flags0 == 0;
+            bool released = killed && ReadOriginalModelCell(snapshot.NativeGraphics, 3).Flags0 == 0;
             if (active && ((!contact && killed) || (!releasedDuringEffect && released)))
             {
                 if (released)
                 {
-                    int row = snapshot.NativeGraphics.Models[3].ActiveResourceRow100!.Value;
+                    int row = ReadOriginalModelCell(snapshot.NativeGraphics, 3).ActiveResourceRow100!.Value;
                     NativeBattleGraphicsResource original = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actors[1].Id).Resource;
                     NativeBattleGraphicsResource retained = NativeBattleEnemyResourceView.Resolve(snapshot.NativeModelCpuResources!, snapshot.NativeFileStaging!, row, original);
                     Assert.NotNull(retained.PoseSource);

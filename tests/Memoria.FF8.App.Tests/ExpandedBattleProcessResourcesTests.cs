@@ -42,8 +42,8 @@ public sealed class ExpandedBattleProcessResourcesTests
             Assert.Equal(world.BattleResources.ReadEnemyNativeInformation246(actor.ModelId), actor.Information246);
         });
 
-        ExpandedBattlePresentationHost host = Assert.IsType<ExpandedBattlePresentationHost>(logical.ExpandedPresentationHost);
-        ExpandedBattlePresentationProcess process = host.CreateProcess(logical);
+        Assert.IsType<ExpandedBattlePresentationHost>(logical.ExpandedPresentationHost);
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(logical.ExpandedPresentationProcess);
         BattleSession presentation = ReadField<BattleSession>(process, "presentation");
         BattleDefinition selected = presentation.ReadDefinition();
         Assert.Equal(logical.NativeEntryAdvantage, presentation.NativeEntryAdvantage);
@@ -61,18 +61,20 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(entry.NativeRetainedMemory.EffectMemory!.SelectedIndex, process.Memory.SelectedIndex);
         Assert.Same(ReadField<Func<ushort, NativeBattleEffectBinding>>(logical, "nativeEffectResourceResolver"), ReadField<Func<ushort, NativeBattleEffectBinding>>(presentation, "nativeEffectResourceResolver"));
         BattleModelRoster roster = AssertBindings(logical, process, selected);
-        Assert.Equal(new[] { 0, 1, 2, 7 }, roster.PartyRows);
-        Assert.Equal(new[] { 3, 4, 5, 6, 15 }, roster.EnemyRows);
+        Assert.Equal(4, roster.Party.Count());
+        Assert.Equal(5, roster.Enemies.Count());
         Assert.Equal(world.BattleResources.ReadNativePcUiIcons().Binding, selected.NativeGraphics!.PcUiIcons);
         Assert.False(process.EntryReady);
 
         NativeExamTimerState timer = session.ExamTimer!;
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
-            process.Advance(logical, timer);
+            world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 1));
             NativeExamTimerState displayed = Assert.IsType<NativeExamTimerState>(process.Timer);
-            Assert.True(displayed.HasSameClock(timer));
-            timer = displayed.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1);
+            Assert.True(displayed.HasSameClock(timer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1)));
+            Assert.True(displayed.HasSameClock(session.ExamTimer!));
+            Assert.Same(process.PreparedPresentation, logical.PreparedPresentation);
+            timer = displayed;
         }
         Assert.True(process.EntryReady, $"Entry stalled at lifecycle {process.Graphics.EntryLifecycle}, callback {process.Graphics.Callback}.");
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
@@ -81,12 +83,15 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(logical.NativeEntryAdvantage, presentation.NativeEntryAdvantage);
         Assert.All(selected.NativeGraphics!.Bindings, binding =>
         {
-            NativeBattleGraphicsModel model = process.Graphics.Models[logical.ReadExpandedPresentationRow(binding.ActorId)];
+            NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(logical.ReadPresentationModelOwner(binding.ActorId));
             Assert.Equal((byte?)binding.ModelId, model.ModelId4);
             Assert.Equal(binding.InitialPosition, model.Transform!.Initial20);
             Assert.NotNull(model.OriginalResourceRow104);
         });
         Assert.Equal(0, logical.Frame);
+        Assert.Equal(process.Graphics.Callback, logical.NativeHostCallbacks);
+        Assert.Null(logical.NativeGraphics);
+        Assert.Same(process, world.Battle!.ExpandedPresentationProcess);
     }
 
     [Fact]
@@ -121,9 +126,8 @@ public sealed class ExpandedBattleProcessResourcesTests
         ExpandedBattlePresentationProcess process = host.CreateProcess(logical);
         BattleDefinition selected = ReadField<BattleSession>(process, "presentation").ReadDefinition();
         BattleModelRoster roster = AssertBindings(logical, process, selected);
-        Assert.False(roster.ContainsRow(5));
-        Assert.False(roster.ContainsRow(6));
-        Assert.True(roster.ContainsRow(15));
+        Assert.DoesNotContain(roster.Enemies, owner => ActorId(owner) is "enemy-2" or "enemy-3");
+        Assert.Contains(roster.Enemies, owner => ActorId(owner) == "enemy-8");
         BattleCombatant[] dormant = logical.Combatants.Where(actor => actor.Slot is null).ToArray();
         Assert.NotEmpty(dormant);
         Assert.All(dormant, actor => Assert.DoesNotContain(selected.NativeGraphics!.Bindings, binding => binding.ActorId == actor.Id));
@@ -140,11 +144,11 @@ public sealed class ExpandedBattleProcessResourcesTests
 
     private static BattleModelRoster AssertBindings(BattleSession logical, ExpandedBattlePresentationProcess process, BattleDefinition selected)
     {
-        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
-        Assert.Equal(roster.Rows.ToArray(), process.Graphics.PresentationRoster!.Rows.ToArray());
+        BattleModelRoster roster = logical.ReadBattlePresentationRoster();
+        Assert.All(process.Graphics.ActorModels.Owners, owner => Assert.Contains(owner, roster.Owners));
         NativeBattleGraphicsDefinition graphics = Assert.IsType<NativeBattleGraphicsDefinition>(selected.NativeGraphics);
-        Assert.Equal(roster.Rows.OfType<BattleModelOwner>().Select(actor => actor.ActorId), graphics.Bindings.Select(binding => binding.ActorId));
-        Assert.Equal(roster.EnemyRows.Concat(roster.PartyRows).Select(row => roster[row].ActorId), graphics.InitialLoadOrder);
+        Assert.Equal(roster.Owners.Select(ActorId), graphics.Bindings.Select(binding => binding.ActorId));
+        Assert.Equal(roster.Enemies.Cast<BattleModelOwner>().Concat(roster.Party).Select(ActorId), graphics.InitialLoadOrder);
         Assert.All(graphics.Bindings, binding =>
         {
             Assert.NotNull(binding.InitialPosition);
@@ -152,6 +156,13 @@ public sealed class ExpandedBattleProcessResourcesTests
         });
         return roster;
     }
+
+    private static string ActorId(BattleModelOwner owner) => owner switch
+    {
+        BattlePartyActorModel party => party.Actor.ActorId,
+        BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+        _ => throw new InvalidDataException("An installed encounter must have canonical battle actors.")
+    };
 
     private static T ReadField<T>(object owner, string name) where T : class
     {

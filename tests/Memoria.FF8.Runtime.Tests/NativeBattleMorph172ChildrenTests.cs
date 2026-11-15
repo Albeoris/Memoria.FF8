@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -104,7 +105,7 @@ public sealed class NativeBattleMorph172ChildrenTests
             operations.Add(operation);
             if (operation is NativeBattleMorph172DrawBody220 draw)
             {
-                Assert.Equal(3, draw.Actor);
+                Assert.Equal(OriginalOwner(3), draw.Actor);
                 var context = Context(current, draw.TemporaryAddress, 220);
                 Assert.Equal(new int[] { 100, 200, 300 }, Enumerable.Range(0, 3).Select(axis => unchecked((int)Dword(context, 0xA8 + axis * 4))));
                 Assert.Equal(1000u, Dword(context, 0xB4));
@@ -122,7 +123,7 @@ public sealed class NativeBattleMorph172ChildrenTests
         Assert.Equal(NativeBattleTemporaryMemory.Address, Cursor(actual.Frame));
         if (age >= 55)
         {
-            Assert.Equal(new NativeBattleMorph172ActorFlags(3, 4, 0), operations[^1]);
+            Assert.Equal(new NativeBattleMorph172ActorFlags(OriginalOwner(3), 4, 0), operations[^1]);
         }
     }
 
@@ -189,7 +190,7 @@ public sealed class NativeBattleMorph172ChildrenTests
             ReadBoneCount = (current, actor) =>
             {
                 Assert.Equal(frame.Random, current.Random);
-                Assert.Equal(3, actor);
+                Assert.Equal(OriginalOwner(3), actor);
                 counts++;
                 return 7;
             },
@@ -265,7 +266,7 @@ public sealed class NativeBattleMorph172ChildrenTests
         }
         return new(0, 0xD6299C, bytes.ToImmutableArray());
     }
-    private static NativeBattleMorph172Inputs Inputs(Func<NativeBattleMorph172Frame, NativeBattleMorph172Operation, NativeBattleMorph172Frame>? execute = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleMorph172DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
+    private static NativeBattleMorph172Inputs Inputs(Func<NativeBattleMorph172Frame, NativeBattleMorph172Operation, NativeBattleMorph172Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), execute ?? ((current, operation) => operation is NativeBattleMorph172DrawSprite180 draw ? Feedback(current, draw.TemporaryAddress, 0) : current));
     private static NativeBattleMorph172Frame Feedback(NativeBattleMorph172Frame frame, uint temporary, short value) => PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0x28, BitConverter.GetBytes(value)), 180);
     private static uint Cursor(NativeBattleMorph172Frame frame) => BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -6,8 +7,8 @@ namespace Memoria.FF8.Runtime.Tests;
 internal sealed class NativeBattleDuel112Fixture
 {
     public NativeBattleDuel112Frame Frame { get; set; }
-    public NativeBattleGraphicsModel Actor { get; set; } = new(0, 0x1003) { Rotation14 = 0, Color40 = 0x11223344, Color44 = 0x55667788, Alpha7 = 0x99, Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 17, 4096) };
-    public NativeBattleGraphicsModel Enemy { get; set; } = new(3, 0x808B) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 1000) };
+    public NativeBattleGraphicsModel Actor { get; set; } = new(0x1003) { Rotation14 = 0, Color40 = 0x11223344, Color44 = 0x55667788, Alpha7 = 0x99, Transform = new(new(0, 0, 0), new(10, 20, 30), 40, 17, 4096) };
+    public NativeBattleGraphicsModel Enemy { get; set; } = new(0x808B) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 1000) };
     public NativeBattleDuel112DrawingInputs Drawing { get; }
 
     public NativeBattleDuel112Fixture(short phase)
@@ -31,7 +32,7 @@ internal sealed class NativeBattleDuel112Fixture
             task = task.WriteWord(140 + word * 2, (ushort)(word % 4 == 0 ? 4096 : 0));
         }
         target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(0x2521940, 0x20E0F40, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, 0x20E0D00, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, 0x20E0A00, 48, 16)], DrawArenaOffset = 0x1E88 };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25218E8, BitConverter.GetBytes(0x20DFAB8u)).Write(0x2521914, BitConverter.GetBytes(0x20E1940u)).Write(0x2521918, new byte[4]);

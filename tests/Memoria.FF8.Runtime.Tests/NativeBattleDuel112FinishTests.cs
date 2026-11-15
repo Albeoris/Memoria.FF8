@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -94,7 +95,7 @@ public sealed class NativeBattleDuel112FinishTests
     private sealed class Fixture
     {
         public NativeBattleDuel112Frame Frame { get; }
-        public NativeBattleGraphicsModel Actor { get; private set; } = new(0, 0x1C0F) { Transform = new(new(1, 2, 3), new(100, 200, 300), -400, 17, 4096) };
+        public NativeBattleGraphicsModel Actor { get; private set; } = new(0x1C0F) { Transform = new(new(1, 2, 3), new(100, 200, 300), -400, 17, 4096) };
         public NativeBattleDuel112ActorServices Services { get; }
 
         public Fixture(short phase)
@@ -104,7 +105,7 @@ public sealed class NativeBattleDuel112FinishTests
             (target, _) = target.Append(0x6CBF90);
             NativeBattleModulePoolTask task = target.Slots[0].WriteWord(12, unchecked((ushort)phase)).WriteDword(48, 0xCC1E3C78).WriteDword(52, 0xAB142850).WriteDword(60, 0x000BFFF6).WriteDword(64, 0x000DFFF4);
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
-            NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+            NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(0x2521940, 0x20E0F40, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, 0x20E0D00, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, 0x20E0A00, 48, 16)] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, null) };
             Frame = new(memory, effect, NativeBattleFileStaging.Unknown().Write(0x2521918, new byte[4]).Write(0x25218E8, BitConverter.GetBytes(0x20DFAB8u)), new(1));

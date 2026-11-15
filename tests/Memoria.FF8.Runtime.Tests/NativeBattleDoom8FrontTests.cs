@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -81,7 +82,7 @@ public sealed class NativeBattleDoom8FrontTests
     public void ACT_constructor_sign_extends_workspace_word_and_writes_only_its_native_arguments_after_allocation()
     {
         var fixture = Fixture(4);
-        NativeBattleDoom8FrontAppend appended = NativeBattleDoom8Fronts.Append8C5860(fixture.Frame, fixture.Director, 0x8C8790, 0x12345678, -1, -2, -3, (_, _, _) => new(0, 3));
+        NativeBattleDoom8FrontAppend appended = NativeBattleDoom8Fronts.Append8C5860(fixture.Frame, fixture.Director, 0x8C8790, 0x12345678, -1, -2, -3, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(appended.Frame, appended.Address);
         Assert.Equal(0x12345678u, task.ReadDword(0x74));
         Assert.Equal(0xFFFFFFFFu, task.ReadDword(0x78));
@@ -90,7 +91,7 @@ public sealed class NativeBattleDoom8FrontTests
         Assert.Equal((byte)0, task.ReadByte(0x29));
         Assert.Equal(0u, task.ReadDword(0x84));
         Assert.Equal((byte)1, NativeBattleDoom8Controller.Read(appended.Frame, fixture.Director).ReadByte(0x28));
-        Assert.Throws<InvalidDataException>(() => NativeBattleDoom8Fronts.Append8C5860(fixture.Frame, fixture.Director, 0xDEADBEEF, 0, 0, 0, 0, (_, _, _) => new(0, 3)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleDoom8Fronts.Append8C5860(fixture.Frame, fixture.Director, 0xDEADBEEF, 0, 0, 0, 0, (_, _, _) => OriginalTaskActors(0, 3)));
     }
 
     private static (NativeBattleDoom8Frame Frame, uint Director, NativeBattleActionPacketsState Packets) Fixture(short mode)
@@ -99,7 +100,7 @@ public sealed class NativeBattleDoom8FrontTests
         NativeBattleEffectHierarchy hierarchy = new(NativeBattleDoom8State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleDoom8Controller.RootCallback, 100);
         hierarchy = root.Hierarchy.Write(root.Address, NativeBattleEffectRootTask.Initialize(root.Hierarchy.Read(root.Address), prior.Frame.Effect.Parameters!, prior.Inputs.Packets));
-        NativeBattleEffectHierarchyAppend director = hierarchy.Append8DC540(2, NativeBattleDoom8Controller.DirectorCallback, 72, root.Address, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend director = hierarchy.Append8DC540(2, NativeBattleDoom8Controller.DirectorCallback, 72, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleOriginalEffectState effect = new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), prior.Frame.Effect.Parameters, NativeBattleDoom8State.Pools[0].Descriptor) { Pools = director.Hierarchy.Pools };
         NativeBattleDoom8Frame frame = new(prior.Frame.Memory, effect, new(123), NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray()).WithSharedWord(0x40, unchecked((ushort)mode)));
         return (frame, director.Address, prior.Inputs.Packets);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -131,14 +132,14 @@ public sealed class NativeBattleEffect3Tests
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
         foreach (byte target in targets)
         {
-            (packets, _) = packets.Prepare(new(3, 2, 11, -1, 2, 3, null));
-            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 2, 3, null));
+            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
-        packets = packets.WritePlayerRepeatMode(0, checked((byte)targets.Length));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), checked((byte)targets.Length));
         ImmutableArray<NativeBattleModuleResource> resources = new uint[] { 0x1522FB0, 0x1523204, 0x1523458, 0x1523578, 0x1523684, 0x15237A4, 0x1523928, 0x1523DE0 }.Select(Sprite).ToImmutableArray();
         NativeBattleEffectBinding binding = new(3, 0x700C10, 0x575610) { InitializerIsRet = true, Effect3Resources = new(new("texture", []), new("animation", []), resources, 0x493E6, 0x808080) };
-        NativeBattleOriginalEffectState effect = NativeBattleEffect3.InitializePools(new(3, 2, binding, new(3, 0, 0x30, 0, 0, 0), null));
+        NativeBattleOriginalEffectState effect = NativeBattleEffect3.InitializePools(new(3, 2, binding, new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null));
         return (effect, new(packets, model => new((short)(model * 100), -600, 200), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 35, 4096)));
     }
 

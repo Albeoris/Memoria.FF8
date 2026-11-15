@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -70,12 +71,12 @@ public sealed class NativeBattleGroup9EnemyPresentationTests
         (children, int slot) = children.Append(0x628870);
         children = children.WriteSlot(slot, children.Slots[slot].WriteWord(28, 4096).WriteWord(32, 4096));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(9) with { RayBomb10 = NativeBattleRayBomb10State.FromColdProcess() with { ArenaBase = 0x20E1AB8 } };
-        NativeBattleOriginalEffectState effect = new(10, 9, new(10, 0x627E60, 0x627E40), new(3, 0, 1, 0, 0, 0), null) { ReturnedDescriptor = 0x24C91F8, Pools = [roots, children] };
+        NativeBattleOriginalEffectState effect = new(10, 9, new(10, 0x627E60, 0x627E40), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ReturnedDescriptor = 0x24C91F8, Pools = [roots, children] };
         NativeBattleRayBomb10Frame frame = new(memory, effect, new(123));
         NativeBattleRayBomb10Resources resources = new(new("camera", []), [], [], [], [], [], [], [], [], 0, 0);
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
         List<NativeBattleRayBomb10Mesh> meshes = [];
-        NativeBattleRayBomb10Inputs inputs = new(0, NativeBattleActionPacketsState.Fresh(), new(view, 256, 160, 108), 0, new(0, 0, 0), index => new(index, 0), _ => view, (_, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleRayBomb10Inputs inputs = new(0, OriginalPackets(), new(view, 256, 160, 108), 0, new(0, 0, 0), index => new(index, 0), _ => view, (_, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (current, operation) =>
         {
             meshes.Add(Assert.IsType<NativeBattleRayBomb10Mesh>(operation));
             return current;

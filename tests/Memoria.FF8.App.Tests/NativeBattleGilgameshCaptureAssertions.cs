@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -31,9 +32,9 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
     {
         Assert.InRange(effect, (ushort)327, (ushort)330);
         Assert.Equal((byte)0, header.ReadByte(0));
-        Assert.Equal((byte)245, header.ReadByte(1));
-        Assert.Equal((byte)0, header.ReadByte(2));
-        Assert.Equal(effect switch { 327 => (ushort)10, 328 => (ushort)9, 329 => (ushort)7, _ => (ushort)8 }, NativeBattleActionGraphics.Word(header, 4));
+        Assert.Equal((byte)245, header.Command);
+        Assert.Equal((byte)0, header.Sequence);
+        Assert.Equal(effect switch { 327 => (ushort)10, 328 => (ushort)9, 329 => (ushort)7, _ => (ushort)8 }, header.Action);
         Assert.Equal((byte)3, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)1, contact.Primary.Flags2);
@@ -42,7 +43,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
 
     internal static void AssertContactTextPublications(NativeBattleContactPacket contact, int publications)
     {
-        NativeBattleEffectsState expected = NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.PresentedAmount);
+        NativeBattleEffectsState expected = OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.PresentedAmount);
         Assert.Equal(expected.Slots.Count(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0), publications);
     }
 

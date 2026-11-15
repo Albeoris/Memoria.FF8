@@ -114,7 +114,7 @@ public sealed class DiagnosticEffectPreviewOwnersTests
         Set(battle, nameof(BattleSession.NativeEffectMemory), memory);
         Set(battle, nameof(BattleSession.NativeCamera), NativeBattleCameraState.Initialize());
         Set(battle, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3)).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), graphicsFlags, 0)
+        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3)).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), graphicsFlags, 0)
         {
             OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0) { Pools = pools.IsDefault ? [] : pools }
         };

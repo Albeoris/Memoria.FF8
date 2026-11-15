@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -44,5 +45,5 @@ public sealed class CrossoverPresentationParticipantTests
         Assert.Throws<NotSupportedException>(() => CrossoverNativeMagicTarget.Bind(0, [1, 4, 5, 6, 7, 8, 9], (_, index) => new(index, 0, 0, 0, 0, 0, 0)));
     }
 
-    private static CrossoverNativeMagicPresentationState State() => new(null!, null!, null!, null!, null!, [], NativeCrtRandomState.FromColdProcess(), 4, new(3, 0, 0, 0, 0, 0, 0));
+    private static CrossoverNativeMagicPresentationState State() => new(null!, null!, null!, null!, null!, [], NativeCrtRandomState.FromColdProcess(), 4, new(OriginalOwner(3), 0, 0, 0, 0, 0, 0));
 }

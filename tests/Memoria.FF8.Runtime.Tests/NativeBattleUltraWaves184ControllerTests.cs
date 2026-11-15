@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleUltraWaves184Profile;
@@ -14,10 +15,10 @@ public sealed class NativeBattleUltraWaves184ControllerTests
         Assert.Collection(fixture.Operations, operation =>
         {
             NativeBattleUltraWaves184BindCaster bind = Assert.IsType<NativeBattleUltraWaves184BindCaster>(operation);
-            Assert.Equal((byte)0, bind.Actor);
+            Assert.Equal(OriginalOwner(0), bind.Actor);
             Assert.Equal(SavedBindingAddress, bind.SaveAddress);
             Assert.Equal(CasterDatAddress, bind.ResourceAddress);
-        }, operation => Assert.Equal(new NativeBattleUltraWaves184RingSequence(0, 1), operation));
+        }, operation => Assert.Equal(new NativeBattleUltraWaves184RingSequence(OriginalOwner(0), 1), operation));
         Assert.Equal(PacketAddress, result.State.ReadCursor());
         Assert.Equal((ushort)2, NativeBattleUltraWaves184Controller.Read(result, ChildBank).ReadWord(12));
         result = NativeBattleUltraWaves184Controller.Advance(result, fixture.Resources, fixture.Inputs());
@@ -121,13 +122,13 @@ public sealed class NativeBattleUltraWaves184ControllerTests
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, int child) = children.Append(callback);
             children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(child, children.Slots[child].WriteWord(12, age).WriteWord(22, 0xBEEF)) });
-            NativeBattleOriginalEffectState effect = new(184, 184, new(184, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [roots, children] };
+            NativeBattleOriginalEffectState effect = new(184, 184, new(184, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [roots, children] };
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleUltraWaves184State.FromColdProcess());
         }
 
-        public NativeBattleUltraWaves184Inputs Inputs(uint flags = 0) => new(NativeBattleActionPacketsState.Fresh(), flags, _ => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), (frame, actor, selector, distance) =>
+        public NativeBattleUltraWaves184Inputs Inputs(uint flags = 0) => new(OriginalPackets(), flags, _ => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), (frame, actor, selector, distance) =>
         {
-            Assert.Equal(0, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Anchors.Add((selector, distance));
             return new(frame, new(-10, -20, -30, 50));
         }, frame => frame with { State = frame.State.WriteDword(0x22BD108, 123) }, (frame, address, _) =>

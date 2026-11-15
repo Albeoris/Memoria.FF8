@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
@@ -32,10 +33,10 @@ public sealed class DiagnosticActionPacketObservationTests
         BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
         battle.DiagnosticEffectDispatched += static _ => { };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, 14, 0, -1, 101, 188, new(0x47E590, 0, "Control")));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 40000, 0) { ExtendedDamageAmount = 40000 }, new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 14, 0, -1, 101, 188, new(0x47E590, 0, "Control")));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 40000, 0) { ExtendedDamageAmount = 40000 }, null));
         (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
         Set(battle, "nativeActionPackets", packets);
         Callback(battle, 10);
         Set(battle, "diagnosticDispatchSerial", 1L);
@@ -69,7 +70,7 @@ public sealed class DiagnosticActionPacketObservationTests
             worker.Start();
             Assert.True(worker.Join(TimeSpan.FromSeconds(5)));
             Assert.IsType<InvalidOperationException>(workerError);
-            Assert.Equal((ushort)8, NativeBattleActionGraphics.Normalize(battle.ObserveDiagnosticActionPackets(current), 0).TargetMask);
+            Assert.Equal((ushort)8, NativeBattleActionGraphics.Normalize(battle.ObserveDiagnosticActionPackets(current), new BattleActionHeaderReference(0)).TargetMask);
         });
         Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(dispatch));
     }
@@ -91,17 +92,17 @@ public sealed class DiagnosticActionPacketObservationTests
         for (int index = 0; index < NativeBattleActionPacketsState.HeaderCapacity; index++)
         {
             Assert.NotSame(source.Headers[index], copy.Headers[index]);
-            Assert.NotSame(ImmutableCollectionsMarshal.AsArray(source.Headers[index].Payload), ImmutableCollectionsMarshal.AsArray(copy.Headers[index].Payload));
-            Assert.Equal(source.Headers[index].UnknownByteMask, copy.Headers[index].UnknownByteMask);
+            Assert.NotSame(ImmutableCollectionsMarshal.AsArray(source.ExportRetained().Headers[index].Payload), ImmutableCollectionsMarshal.AsArray(copy.ExportRetained().Headers[index].Payload));
+            Assert.Equal(source.ExportRetained().Headers[index].UnknownByteMask, copy.ExportRetained().Headers[index].UnknownByteMask);
         }
         Assert.NotSame(source.Headers[0].Data, copy.Headers[0].Data);
-        Assert.NotSame(source.ReadContact(0), copy.ReadContact(0));
-        Assert.NotSame(source.ReadContact(0).Primary, copy.ReadContact(0).Primary);
-        Assert.NotSame(source.ReadContact(0).Secondary, copy.ReadContact(0).Secondary);
-        Assert.Equal(40000, copy.ReadContact(0).Primary.ExtendedDamageAmount);
+        Assert.NotSame(source.ReadContact(new BattleContactOccurrence(0)), copy.ReadContact(new BattleContactOccurrence(0)));
+        Assert.NotSame(source.ReadContact(new BattleContactOccurrence(0)).Primary, copy.ReadContact(new BattleContactOccurrence(0)).Primary);
+        Assert.NotSame(source.ReadContact(new BattleContactOccurrence(0)).Secondary, copy.ReadContact(new BattleContactOccurrence(0)).Secondary);
+        Assert.Equal(40000, copy.ReadContact(new BattleContactOccurrence(0)).Primary.ExtendedDamageAmount);
         Assert.Equal(before, JsonSerializer.Serialize(copy));
-        Assert.Throws<NotSupportedException>(() => copy.Headers[0].ReadByte(12));
-        ImmutableCollectionsMarshal.AsArray(copy.Headers[0].Payload)![0] = 2;
+        Assert.Throws<NotSupportedException>(() => copy.ExportRetained().Headers[0].ReadOriginalByte(12));
+        ImmutableCollectionsMarshal.AsArray(copy.ExportRetained().Headers[0].Payload)![0] = 2;
         ImmutableCollectionsMarshal.AsArray(copy.Contacts)![0] = null;
         Assert.Equal(before, JsonSerializer.Serialize(source));
         Assert.Equal(before, JsonSerializer.Serialize(battle.NativeActionPackets));
@@ -164,7 +165,7 @@ public sealed class DiagnosticActionPacketObservationTests
     {
         var (battle, dispatch) = Fixture();
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        Set(battle, "nativeActionPackets", packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { UnknownByteMask = packets.Headers[0].UnknownByteMask | (1u << 17) }) });
+        Set(battle, "nativeActionPackets", packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { UnknownByteMask = packets.ExportRetained().Headers[0].UnknownByteMask | (1u << 17) }) });
         Publish(battle, dispatch, current => Assert.Throws<NotSupportedException>(() => battle.ObserveDiagnosticActionPackets(current)));
         Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(dispatch));
         Set(battle, "nativeActionPackets", packets);

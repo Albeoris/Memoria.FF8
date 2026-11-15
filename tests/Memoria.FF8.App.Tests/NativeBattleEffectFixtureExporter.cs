@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -364,7 +365,7 @@ internal static class NativeBattleEffectFixtureExporter
                     NativeBattlePartyPresentation party = before.NativePartyPresentation ?? throw new InvalidDataException("The revival fixture requires its initialized party display.");
                     before = before with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) }, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
                     NativeBattleGraphicsState priorGraphics = before.NativeGraphics!;
-                    NativeBattleGraphicsModel targetModel = priorGraphics.Models[1];
+                    NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(priorGraphics, 1);
                     uint flags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
                     uint added = flags & ~(targetModel.Flags8 ?? throw new InvalidDataException("The revival fixture requires its existing graphics status."));
                     ImmutableArray<byte?> timers = targetModel.StatusTimers;
@@ -392,7 +393,7 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 BattleEnemyPlacement selectedEnemy = SelectCasterEnemy(formation, request);
                 BattleCombatantDefinition selectedDefinition = definition.Combatants.Single(actor => actor.Id == selectedCaster.Id);
-                if (selectedDefinition.IsPlayer || selectedDefinition.ModelId != selectedEnemy.ModelId || selectedDefinition.SceneSlot != selectedEnemy.Slot || before.NativeGraphics!.Models[request.CasterActorIndex].ModelId4 != selectedEnemy.NativeModelId)
+                if (selectedDefinition.IsPlayer || selectedDefinition.ModelId != selectedEnemy.ModelId || selectedDefinition.SceneSlot != selectedEnemy.Slot || ReadOriginalModelCell(before.NativeGraphics!, request.CasterActorIndex).ModelId4 != selectedEnemy.NativeModelId)
                 {
                     throw new InvalidDataException("The selected enemy caster's physical row contradicts its original formation model owner.");
                 }

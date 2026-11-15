@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -97,12 +98,12 @@ public sealed class NativeBattleCuraResourcesTests
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(25, game.ReadNativeEffectCatalogForEffects([25]));
         var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 11, 0, 22, 1, null));
-        (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 22, 1, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleCuraFrame frame = NativeBattleCuraController.Initialize889D60(initialized.Memory, initialized.Effect with { Parameters = new(0, 0, 8, 0, 0, 0) }, packets, game.ReadNativeCuraResources());
+        NativeBattleCuraFrame frame = NativeBattleCuraController.Initialize889D60(initialized.Memory, initialized.Effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) }, packets, game.ReadNativeCuraResources());
         Assert.Equal(0x26E5A00u, frame.Effect.ReturnedDescriptor);
         Assert.Equal(0, frame.State.OddDrawBase26FD114);
         Assert.Equal(0x12000, frame.State.EvenDrawBase26FD110);

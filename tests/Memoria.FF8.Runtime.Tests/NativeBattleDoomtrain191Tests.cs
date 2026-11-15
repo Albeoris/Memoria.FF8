@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -84,7 +85,7 @@ public sealed class NativeBattleDoomtrain191Tests
         NativeBattleDoomtrain191Frame result = NativeBattleDoomtrain191Controller.Advance6472C0(initial, inputs, fixture.Resources);
         Assert.Equal(new[] { typeof(NativeBattleDoomtrain191StreamStart), typeof(NativeBattleDoomtrain191StartVibration), typeof(NativeBattleDoomtrain191CameraPublish) }, operations);
         Assert.Equal(new[] { 3, 4 }, result.Memory.Doomtrain191!.Targets);
-        NativeBattleDoomtrain191ActorSnapshot snapshot = result.Memory.Doomtrain191.ActorSnapshots[3]!;
+        NativeBattleDoomtrain191ActorSnapshot snapshot = result.Memory.Doomtrain191.ActorSnapshots[OriginalOwner(3)]!;
         Assert.Equal((short)-31, BinaryPrimitives.ReadInt16LittleEndian(snapshot.Position.AsSpan().Slice(6)));
         Assert.Equal((short)777, BinaryPrimitives.ReadInt16LittleEndian(snapshot.Scale.AsSpan().Slice(6)));
         Assert.False(result.Memory.Doomtrain191.BaseView.Known[18]);
@@ -165,11 +166,11 @@ public sealed class NativeBattleDoomtrain191Tests
 
     internal static TestFixture Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 2, 4, 0, 2, 191, null));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 2, 191, null));
         for (int index = 0; index < 2; index++)
         {
-            (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x2DFFF, Enumerable.Repeat((byte)0xA5, 0x37000 - 0x2DFFF).ToArray()) };
@@ -182,8 +183,8 @@ public sealed class NativeBattleDoomtrain191Tests
         packed[18] = 0x71;
         packed[19] = 0x72;
         memory = memory with { Doomtrain191 = memory.Doomtrain191! with { BaseMatrix = new(packed.ToImmutableArray(), identity.Known.SetItem(18, false).SetItem(19, false)), CameraBackup = identity } };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel(actor, 2) { Rotation14 = 0x100, GeometryWorldMatrix = identity.ReadMatrix(), HasLinkedModelRing140 = actor is 3 or 4, LinkedModelIndex140 = actor == 3 ? 4 : actor == 4 ? 3 : null, Transform = new(new(0, 0, 0), new(1, 2, 3), -31, 0, 4096) { Scale148 = new(100, 200, 300), Scale154 = 777 } }).ToImmutableArray();
-        NativeBattleOriginalEffectState effect = new(191, 190, new(191, 0x63E730, 0x575560), new(0, 0, 8, 0, 0, 0), null);
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel(2) { Rotation14 = 0x100, GeometryWorldMatrix = identity.ReadMatrix(), HasLinkedModelRing140 = actor is 3 or 4, LinkedModelIndex140 = actor == 3 ? 4 : actor == 4 ? 3 : null, Transform = new(new(0, 0, 0), new(1, 2, 3), -31, 0, 4096) { Scale148 = new(100, 200, 300), Scale154 = 777 } }).ToImmutableArray();
+        NativeBattleOriginalEffectState effect = new(191, 190, new(191, 0x63E730, 0x575560), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 16);
         BinaryPrimitives.WriteUInt32LittleEndian(tim.AsSpan(4), 8);

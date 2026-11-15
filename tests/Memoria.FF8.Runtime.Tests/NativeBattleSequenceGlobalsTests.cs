@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -59,14 +60,14 @@ public sealed class NativeBattleSequenceGlobalsTests
         BinaryPrimitives.WriteUInt16LittleEndian(section.AsSpan(2), 4);
         program.CopyTo(section, 4);
         NativeBattleGraphicsResource resource = new(section.ToImmutableArray()) { AnimationFrames = [1] };
-        NativeBattleGraphicsModel model = new(3, 3) { Flags2 = 4, Flags8 = 0, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
+        NativeBattleGraphicsModel model = new(3) { Flags2 = 4, Flags8 = 0, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleSequenceInputs inputs = new(null, null)
         {
             ReadExternal = variable => memory.ReadSequenceGlobal5044B0(variable),
             WriteExternal = (variable, value) => memory = memory.WriteSequenceGlobal5048E0(variable, value)
         };
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, inputs);
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(3), model, resource, inputs);
         Assert.Equal(unchecked((short)NativeBattleCameraMath.Sine(32767 * 32767)), step.Model.SequenceState!.Locals[0]);
         Assert.NotEqual(unchecked((short)NativeBattleCameraMath.Sine(1)), step.Model.SequenceState.Locals[0]);
         Assert.Equal((short)0, step.Model.SequenceState.Locals[1]);

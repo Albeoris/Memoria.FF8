@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -156,16 +157,16 @@ public sealed class NativeBattleShot196Tests
     }
     private static NativeBattleShot196Frame Fixture()
     {
-        return new(NativeBattleEffectMemory.FromColdProcess() with { Shot196 = NativeBattleShot196State.FromColdProcess() }, new(196, 195, new(196, 0x5B1900, 0x5B18E0), new(0, 0, 8, 0, 0, 0) { Parameter80 = 0 }, null), new(1));
+        return new(NativeBattleEffectMemory.FromColdProcess() with { Shot196 = NativeBattleShot196State.FromColdProcess() }, new(196, 195, new(196, 0x5B1900, 0x5B18E0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 0 }, null), new(1));
     }
 
     private static NativeBattleActionPacketsState Packets()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, 14, 5, -1, 0, 196, null));
-        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 1, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 14, 5, -1, 0, 196, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 1, 0), null));
         (packets, _) = packets.Publish(1);
-        return packets.WritePlayerRepeatMode(0, 1);
+        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
     }
 
     private static NativeBattleShot196Inputs Inputs(NativeBattleActionPacketsState packets, List<NativeBattleShot196Operation> operations)

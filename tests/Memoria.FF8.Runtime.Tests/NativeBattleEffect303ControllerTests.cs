@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -261,7 +262,7 @@ public sealed class NativeBattleEffect303ControllerTests
         BitConverter.GetBytes(12).CopyTo(tim, 8);
         BitConverter.GetBytes(12).CopyTo(tim, 20);
         var memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x30000, tim).Write(0, [0xA5]), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        var effect = new NativeBattleOriginalEffectState(303, 302, new(303, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+        var effect = new NativeBattleOriginalEffectState(303, 302, new(303, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6)]), new BattleActionHeaderReference(1), 0, 0), null) { ResourcePointers = [new(InitializerGlobal, 0x30000)] };
         return new(memory, effect, new(12345), NativeBattleEffect303State.FromColdProcess().WriteDword(SeedGlobal, 0xABCD)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -287,7 +288,7 @@ public sealed class NativeBattleEffect303ControllerTests
         public List<int> Bones { get; } = [];
         public bool Busy { get; init; } = true;
         public NativeBattleActionPacketsState Packets { get; set; } = MakePackets();
-        public Dictionary<int, NativeBattleGraphicsModel> Models { get; } = Enumerable.Range(0, 7).ToDictionary(index => index, index => new NativeBattleGraphicsModel(index, 6) { Rotation14 = 0, Transform = new(new(0, 0, 0), new((short)(100 + index * 10), 200, 300), (short)(1717 + index), 999, 4096) });
+        public Dictionary<int, NativeBattleGraphicsModel> Models { get; } = Enumerable.Range(0, 7).ToDictionary(index => index, index => new NativeBattleGraphicsModel(6) { Rotation14 = 0, Transform = new(new(0, 0, 0), new((short)(100 + index * 10), 200, 300), (short)(1717 + index), 999, 4096) });
 
         public NativeBattleEffect303Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, pointer) => Models[Index(pointer)], (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _, bone) =>
         {
@@ -342,13 +343,13 @@ public sealed class NativeBattleEffect303ControllerTests
         private static int Index(uint pointer) => checked((int)((pointer - 0x1D972C0) / 156));
         private static NativeBattleActionPacketsState MakePackets()
         {
-            var packets = NativeBattleActionPacketsState.Fresh();
-            (packets, _) = packets.Prepare(new(3, 8, 13, -1, 258, 303, null));
-            (packets, _) = packets.AppendContact(new(new(6, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            var packets = OriginalPackets();
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 258, 303, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
-            (packets, _) = packets.Prepare(new(3, 8, 13, -1, 258, 303, null));
-            (packets, _) = packets.AppendContact(new(new(4, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
-            (packets, _) = packets.AppendContact(new(new(0, 4, 0, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 258, 303, null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(2);
             return packets;
         }

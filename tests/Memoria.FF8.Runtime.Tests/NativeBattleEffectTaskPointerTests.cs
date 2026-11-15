@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -37,7 +38,7 @@ public sealed class NativeBattleEffectTaskPointerTests
         Assert.Equal(0x196B13Bu, BitConverter.ToUInt32(memory.Arena!.Read(0x4010, 4)));
         Assert.True(NativeBattleEffectTaskMemory.TryReadPointer([pool], Bank + 16, out NativeBattleResourcePointer? pointer));
         Assert.Equal(new NativeBattleModelCpuReference(0, 0x123), pointer!.Cpu);
-        NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), new(0, 0, 8, 0, 0, 0), 0x2521950) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0x2521950) { Pools = [pool] };
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(memory, effect));
         pool = pool.Advance((current, _) => new(current, 2)).Pool;
         effect = effect with { Pools = [pool], ReturnedDescriptor = 0 };
@@ -62,7 +63,7 @@ public sealed class NativeBattleEffectTaskPointerTests
         NativeBattleModulePoolTask task = pool.Slots[0].WriteResourcePointer(16, new(new(0, 0x123), null, 20)).MarkPayloadUnknown(30, 2);
         pool = pool.WriteSlot(0, task);
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
-        NativeBattleOriginalEffectState effect = new(274, 111, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0x25084B8) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(274, 111, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), 0x25084B8) { Pools = [pool] };
         NativeBattleModulePoolTask before = NativeBattleStorageSnapshots.Capture(task);
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.DetachArenaBank(memory, effect, pool.DescriptorAddress);
         Assert.Empty(transfer.Effect.Pools);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -49,7 +50,7 @@ public sealed class NativeBattleLaserEye71NodeTests
         NativeBattleLaserEye71Frame frame = fixture.Set(fixture.Frame, fixture.Task(fixture.Frame).WriteByte(0x29, 1).WriteWord(0x54, 1).WriteWord(0x4E, 1).WriteDword(0x258, SourceAddress + 4));
         frame = frame with { State = frame.State with { ExecutableBytes = bytes.ToImmutableArray() }, Memory = frame.Memory with { Arena = NativeBattleEffectArena.Clear(), SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) } };
         frame = frame with { State = frame.State.WriteDword(0x25FCD8C, ArenaAddress + EmittersOffset).WriteDword(0x25FCDC8, ArenaAddress + GeometryOffset).WriteWord(0x25FAAE0, 0).WriteWord(0x25FCD98, 0) };
-        NativeBattleLaserEye71Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleLaserEye71Frame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleLaserEye71TaskStep next = fixture.Step(frame);
         Assert.Equal((byte)0xA7, next.Frame.State.ExecutableBytes!.ReadByte(SourceLength - 1));
         Assert.Equal(1u, next.Frame.State.ReadSourceFlag());
@@ -79,7 +80,7 @@ public sealed class NativeBattleLaserEye71NodeTests
             NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleLaserEye71Controller.RootCallback, 100);
             Parent = root.Address;
-            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(2, NativeBattleLaserEye71Controller.NodeCallback, 676, Parent, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend child = root.Hierarchy.Append8DC540(2, NativeBattleLaserEye71Controller.NodeCallback, 676, Parent, (_, _, _) => OriginalTaskActors(0, 3));
             Address = child.Address;
             NativeBattleModulePoolTask task = child.Hierarchy.Read(Address).WriteDword(0x30, SourceAddress).WriteWord(0x29C, 0);
             NativeBattleOriginalEffectState effect = new(71, 70, new(71, Entry, Initializer), null, null) { Pools = child.Hierarchy.Write(Address, task).Pools };
@@ -87,6 +88,6 @@ public sealed class NativeBattleLaserEye71NodeTests
         }
         public NativeBattleModulePoolTask Task(NativeBattleLaserEye71Frame frame) => NativeBattleLaserEye71Controller.Read(frame, Address);
         public NativeBattleLaserEye71Frame Set(NativeBattleLaserEye71Frame frame, NativeBattleModulePoolTask task) => NativeBattleLaserEye71Controller.Write(frame, Address, task);
-        public NativeBattleLaserEye71TaskStep Step(NativeBattleLaserEye71Frame frame) => NativeBattleLaserEye71Nodes.Advance(frame, Address, null!, new(NativeBattleActionPacketsState.Fresh(), _ => throw new InvalidOperationException("Unreached model"), _ => throw new InvalidOperationException("Unreached pose"), new(null, 100, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _, _, _) => throw new InvalidOperationException("Unreached basis"), (_, _) => throw new InvalidOperationException("Unreached packet")));
+        public NativeBattleLaserEye71TaskStep Step(NativeBattleLaserEye71Frame frame) => NativeBattleLaserEye71Nodes.Advance(frame, Address, null!, new(OriginalPackets(), _ => throw new InvalidOperationException("Unreached model"), _ => throw new InvalidOperationException("Unreached pose"), new(null, 100, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _, _, _) => throw new InvalidOperationException("Unreached basis"), (_, _) => throw new InvalidOperationException("Unreached packet")));
     }
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -50,9 +51,9 @@ public sealed class NativeBattleMagmaBreath48PresentationTests
         List<object> originalActors = [];
         for (int index = 3; index <= 4; index++)
         {
-            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == source.NativeGraphics!.ActorIds[index]);
+            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics!, index));
             NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-            NativeBattleGraphicsModel model = source.NativeGraphics!.Models[index];
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, index);
             Assert.Equal(93, definition.ModelId);
             Assert.Equal(index - 3, definition.SceneSlot);
             Assert.Equal(2, model.Flags0 & 2);
@@ -68,18 +69,18 @@ public sealed class NativeBattleMagmaBreath48PresentationTests
             Assert.Equal(86, mesh.Polygons.Count(face => face.Quad));
             originalActors.Add(new { Actor = index, Definition = definition.Id, definition.ModelId, definition.SceneSlot, model.Flags0, model.Rotation14, ResourceRow100 = NativeBattleModelResourceRow.Address100(model), Bones = model.CurrentBodyBoneMatrices, World = model.GeometryWorldMatrix });
         }
-        Assert.NotEqual(source.NativeGraphics!.ActorIds[3], source.NativeGraphics.ActorIds[4]);
+        Assert.NotEqual(ReadOriginalModelActorId(source.NativeGraphics!, 3), ReadOriginalModelActorId(source.NativeGraphics, 4));
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
         Assert.Equal((byte)3, header.ReadByte(0));
-        Assert.Equal((byte)8, header.ReadByte(1));
-        Assert.Equal((byte)12, header.ReadByte(2));
-        Assert.Equal((byte)1, header.ReadByte(16));
-        Assert.Equal((byte)0, header.ReadByte(17));
-        Assert.Equal((int?)0, header.FirstContactIndex);
-        NativeBattleContactPacket contact = packets.ReadContact(0);
+        Assert.Equal((byte)8, header.Command);
+        Assert.Equal((byte)12, header.Sequence);
+        Assert.Equal((byte)1, header.ReadContactCount());
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
+        Assert.Equal((int?)0, header.FirstContact.Ordinal);
+        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0).NativeStatus!;

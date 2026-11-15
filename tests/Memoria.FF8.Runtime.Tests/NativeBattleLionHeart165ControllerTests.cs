@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 using Xunit;
@@ -13,7 +14,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
         const uint address = 0x23C6744;
         NativeBattleFileStaging cold = NativeBattleFileStaging.FromColdProcess();
         NativeBattleFileStaging preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(cold));
-        NativeBattleFileStaging result = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(cold, address, new(1, 0));
+        NativeBattleFileStaging result = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(cold, address, new(0));
         Assert.All(result.ReadSnapshot(address, 8).Known, value => Assert.False(value));
         Assert.Throws<NotSupportedException>(() => result.Read(address, 8));
         Assert.Equal(new byte[1], result.Read(address - 1, 1));
@@ -25,10 +26,10 @@ public sealed class NativeBattleLionHeart165ControllerTests
     public void OpeningRawPositionCopyPreservesUnknownInactiveRowsAndCompleteActiveWords()
     {
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x23C6744, Enumerable.Repeat((byte)0xA5, 16).ToArray());
-        staging = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(staging, 0x23C6744, new(1, 0));
+        staging = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(staging, 0x23C6744, new(0));
         Assert.All(NativeBattleTemporaryMemory.ReadView(staging, 0x23C6744, 8).ReadSnapshot(0, 8).Known, known => Assert.False(known));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 8).ToArray(), staging.Read(0x23C674C, 8));
-        NativeBattleGraphicsModel active = new(3, 3) { Transform = new(new(0, 0, 0), new(-32768, 123, 32767), -111, 0, 4096) };
+        NativeBattleGraphicsModel active = new(3) { Transform = new(new(0, 0, 0), new(-32768, 123, 32767), -111, 0, 4096) };
         staging = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(staging, 0x23C6744, active);
         Assert.Equal(-32768, Short(staging, 0x23C6744));
         Assert.Equal(123, Short(staging, 0x23C6746));
@@ -204,7 +205,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
         }
         frame = frame with { Staging = frame.Staging.Write(0xD88718, timing).Write(0xD88758, new byte[120]).Write(0xD887D0, new byte[60]) };
         List<NativeBattleLionHeart165Operation> operations = [];
-        NativeBattleLionHeart165Inputs inputs = Inputs(0, operations) with { ReadModel = actor => new(actor, 3) { HasLinkedModelRing140 = false, GeometryWorldMatrix = Identity() } };
+        NativeBattleLionHeart165Inputs inputs = Inputs(0, operations) with { ReadModel = actor => new(3) { HasLinkedModelRing140 = false, GeometryWorldMatrix = Identity() } };
         NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.Advance5EC140(frame, pool, 0, inputs);
         step.Pool.Validate();
         Assert.Equal(1, step.Pool.Slots[0].Next);
@@ -259,7 +260,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23C5910, 0x23C5920, 36, 100);
         (children, _) = children.Append(callback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
-        NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { LionHeart165 = new(true, parameters, 3, null, null) };
         NativeBattleOriginalEffectState effect = new(165, 164, new(165, 0x5E9470, 0x5E9450), parameters, 0x23C34B0) { Pools = [main, children] };
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(0x23C3278, new byte[0x36D8]).Write(NativeBattleTemporaryMemory.Address, Enumerable.Repeat((byte)0xA5, NativeBattleTemporaryMemory.ReachedLength).ToArray()));

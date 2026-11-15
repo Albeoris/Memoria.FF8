@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -75,7 +76,7 @@ public sealed class NativeBattleRenzokukenCastTests
             const uint transitionColor = 0x00312617;
             battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
             const int actorIndex = 0;
-            uint? shadowColor = battle.NativeGraphics!.Models[actorIndex].Color44;
+            uint? shadowColor = ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44;
             Assert.NotNull(shadowColor);
             uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
             bool interpolatedCurrentStageColor = false;
@@ -91,8 +92,8 @@ public sealed class NativeBattleRenzokukenCastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
-                interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
+                Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
+                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics, actorIndex).Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
                 if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
