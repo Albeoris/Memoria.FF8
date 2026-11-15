@@ -89,6 +89,28 @@ public sealed class NativeBattleEffect213ControllerTests
         Assert.Equal(OriginalOwner(2), Assert.Single(harness.Counts));
     }
 
+    [Fact]
+    public void Expanded_targets_keep_sort_order_and_dispatch_the_final_contact_once_after_private_restore()
+    {
+        Harness harness = new() { Expanded = true, Targets = Enumerable.Range(0, 11).ToArray() };
+        NativeBattleEffect213Inputs inputs = harness.Inputs();
+        NativeBattleEffect213Frame frame = InitializeTargets(Frame(0), Main, inputs);
+        NativeBattleModulePoolTask task = Read(frame, Main);
+        Assert.Equal(new byte[] { 10, 9, 8 }, new[] { task.ReadByte(0x1C), task.ReadByte(0x1D), task.ReadByte(0x1E) });
+        Assert.Equal(harness.Owner(8), task.ReadExecutionReference<BattleExecutionReference.Model>(24, 4).Owner);
+        frame = NativeBattleTestSnapshots.Independent(frame);
+
+        for (int callback = 0; callback < 45; callback++)
+        {
+            (frame, _) = InterpolateTarget(frame, Main, 5 + callback, inputs);
+        }
+
+        Assert.Equal(Enumerable.Range(0, 11).Reverse().Select(ordinal => new NativeBattleEffect213Contact506690(new BattleContactOccurrence(ordinal))), harness.Operations);
+        Assert.Equal(Enumerable.Range(0, 11).Reverse().Select(harness.Owner), harness.Counts);
+        Assert.Contains(harness.Points, point => point.Model == harness.Owner(7));
+        Assert.True(frame.State.FinalContactDispatched);
+    }
+
     [Theory]
     [InlineData(1, 0)]
     [InlineData(2, 1)]
@@ -214,14 +236,15 @@ public sealed class NativeBattleEffect213ControllerTests
     private sealed class Harness
     {
         public uint Flags { get; init; }
+        public bool Expanded { get; init; }
         public int[] Targets { get; init; } = [0];
         public List<NativeBattleEffect213Operation> Operations { get; } = [];
         public List<BattleModelOwner> Counts { get; } = [];
         public List<(BattleModelOwner Model, short Selector, short Fraction)> Points { get; } = [];
-        public NativeBattleEffect213Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes((short)(OriginalSlot(model) * 100))), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, selector, fraction, retained) =>
+        public NativeBattleEffect213Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes(Position(model))), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, selector, fraction, retained) =>
         {
             Points.Add((model, selector, fraction));
-            return new(frame, PutPoint(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(retained)), 0, new(unchecked((short)(OriginalSlot(model) * 100)), 0, 0)));
+            return new(frame, PutPoint(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(retained)), 0, new(Position(model), 0, 0)));
         }, (frame, model) =>
         {
             Counts.Add(model);
@@ -232,13 +255,23 @@ public sealed class NativeBattleEffect213ControllerTests
             return frame;
         });
 
+        public BattleModelOwner Owner(int ordinal) => Expanded && ordinal >= 3 ? new BattlePartyActorModel(new($"extra-{ordinal}")) : OriginalOwner(ordinal);
+
+        private short Position(BattleModelOwner owner)
+        {
+            int ordinal = Expanded ? Targets.First(target => Owner(target) == owner) : OriginalSlot(owner);
+            return checked((short)(ordinal * 100));
+        }
+
         private NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+            BattleModelRoster roster = Expanded ? new(OriginalRoster.Owners.Concat(Targets.Where(ordinal => ordinal >= 3).Select(Owner))) : OriginalRoster;
+            NativeBattleModelAliases aliases = Expanded ? new(roster, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index)))) : OriginalAliases;
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), aliases);
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 233, 213, null));
             foreach (int actor in Targets)
             {
-                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 7, 0), null));
+                (packets, _) = packets.AppendContact(new(new(Owner(actor), 0, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish((byte)Targets.Length);
             return packets;

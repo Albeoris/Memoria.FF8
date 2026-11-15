@@ -7,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect213State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, bool? MutableStreamPending = null)
 {
+    internal ImmutableArray<int> ExtendedTargetOrder { get; init; }
+    internal bool FinalContactDispatched { get; init; }
+
     public static NativeBattleEffect213State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), true);
 
     public static NativeBattleEffect213State FromUnknown()

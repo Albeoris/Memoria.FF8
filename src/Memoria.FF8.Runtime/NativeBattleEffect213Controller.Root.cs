@@ -1,10 +1,13 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect213Profile;
 
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect213Controller
 {
+    private const int PhysicalTargetCount = 3;
+
     public static NativeBattleEffect213Step AdvanceRoot69EB70(NativeBattleEffect213Frame frame, uint address, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs)
     {
         NativeBattleModulePoolTask root = Read(frame, address);
@@ -75,34 +78,59 @@ public static partial class NativeBattleEffect213Controller
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         int count = header.ReadContactCount();
-        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(14, (ushort)count);
+        if (count == 0)
+        {
+            throw new NotSupportedException("Effect213 requires actual captured targets.");
+        }
+        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(14, checked((ushort)count));
+        BattleModelOwner[] recipients = new BattleModelOwner[count];
+        short[] positions = new short[count];
+        int[] order = new int[count];
         for (int index = 0; index < count; index++)
         {
-            task = task.WriteByte(0x1C + index, (byte)index);
             BattleModelOwner recipient = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-            task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeAddress(recipient));
+            recipients[index] = recipient;
+            positions[index] = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, recipient).Read(0x1C, 2));
+            order[index] = index;
         }
         for (int outer = 0; outer < count - 1; outer++)
         {
             for (int inner = outer + 1; inner < count; inner++)
             {
-                BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + outer * 4, 4).Owner;
-                BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + inner * 4, 4).Owner;
-                short xA = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, a).Read(0x1C, 2));
-                short xB = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, b).Read(0x1C, 2));
-                if (xA >= xB)
+                if (positions[order[outer]] < positions[order[inner]])
                 {
-                    continue;
+                    (order[outer], order[inner]) = (order[inner], order[outer]);
                 }
-                byte original = task.ReadByte(0x1C + outer);
-                task.WriteExecutionReference(16 + outer * 4, 4, new BattleExecutionReference.Model(b), packets.ModelAliases.EncodeAddress(b));
-                task.WriteExecutionReference(16 + inner * 4, 4, new BattleExecutionReference.Model(a), packets.ModelAliases.EncodeAddress(a));
-                task = task.WriteByte(0x1C + outer, task.ReadByte(0x1C + inner)).WriteByte(0x1C + inner, original);
             }
+        }
+        for (int index = 0; index < Math.Min(count, PhysicalTargetCount); index++)
+        {
+            int ordinal = order[index];
+            BattleModelOwner recipient = recipients[ordinal];
+            task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeAddress(recipient));
+            task = task.WriteByte(0x1C + index, checked((byte)ordinal));
         }
         task = task.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, unchecked((ushort)((count << 12) / 40)));
         frame = Write(frame, address, task);
-        NativeBattleEffect213CountStep counted = inputs.CountVertices69EE80(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner);
+        frame = frame with { State = frame.State with { ExtendedTargetOrder = count > PhysicalTargetCount ? order.ToImmutableArray() : default, FinalContactDispatched = false } };
+        NativeBattleEffect213CountStep counted = inputs.CountVertices69EE80(frame, recipients[order[0]]);
         return Write(counted.Frame, address, Read(counted.Frame, address).WriteWord(0x2C, unchecked((ushort)counted.Count)));
+    }
+
+    private static int TargetOrdinal(NativeBattleEffect213Frame frame, NativeBattleModulePoolTask task, int index)
+    {
+        return index < PhysicalTargetCount ? task.ReadByte(0x1C + index) : frame.State.ExtendedTargetOrder[index];
+    }
+
+    private static BattleModelOwner TargetOwner(NativeBattleEffect213Frame frame, NativeBattleModulePoolTask task, int index, NativeBattleEffect213Inputs inputs)
+    {
+        if (index < PhysicalTargetCount)
+        {
+            return task.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
+        }
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect213 requires its actual contact header.");
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        BattleContactCursor cursor = packets.ReadHeader(parameters.Header).FirstContact.Advance(TargetOrdinal(frame, task, index));
+        return packets.ReadContact(cursor).Primary.Recipient;
     }
 }
