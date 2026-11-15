@@ -150,17 +150,22 @@ public sealed class NativeNormalFootObjectTests
         Assert.Null(foot.TrainDismount);
         Assert.Equal(9, foot.NormalObjects!.Allocation.Objects.Length);
         Assert.Equal(uint.MaxValue, foot.NormalObjects.PrimaryDistanceSquared);
-        Assert.Equal(320 * 224 * 4, world.Render(320, 224).Length);
+        Assert.True(world.IsPresentationDeferred);
+        Assert.Throws<NativeWorldPresentationDeferredException>(() => world.Render(320, 224));
         GameState independentState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession independentSession = new(independentState);
         using WorldMapScene independent = new(independentSession, TestResources.GameDirectory);
-        Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
+        Assert.True(independent.IsPresentationDeferred);
+        Assert.Throws<NativeWorldPresentationDeferredException>(() => independent.Render(320, 224));
         PlayerAction wait = new(PlayerActionKind.Wait);
         Assert.Equal(world.Apply(wait), independent.Apply(wait));
         Assert.Equal(JsonSerializer.Serialize(session.State.World), JsonSerializer.Serialize(independentSession.State.World));
         Assert.Equal(1, world.State.NativeFootRuntime!.NormalObjects!.Callback);
         Assert.Equal(29, world.State.NativeFootRuntime.NormalObjects.Primary!.Pause);
         Assert.All(world.State.NativeFootRuntime.NormalObjects.Primary!.Presentation, pose => Assert.NotNull(pose.Projection));
+        Assert.False(world.IsPresentationDeferred);
+        Assert.False(independent.IsPresentationDeferred);
+        Assert.Equal(320 * 224 * 4, world.Render(320, 224).Length);
         Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
     }
 

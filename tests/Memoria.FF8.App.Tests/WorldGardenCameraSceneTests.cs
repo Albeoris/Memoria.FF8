@@ -19,8 +19,16 @@ public sealed partial class WorldGardenCameraSceneTests
         Assert.True(projection.IsNear(default));
         Assert.True(projection.ProjectNode(default) is { Visible: true });
 
+        Assert.True(scene.IsPresentationDeferred);
+        Assert.Equal(0, garden.BackgroundRails!.Callback);
+        Assert.Throws<NativeWorldPresentationDeferredException>(() => scene.Render(160, 112));
+        PlayerActionResult first = scene.Apply(new(PlayerActionKind.Wait));
+        Assert.True(first.Accepted);
+        Assert.Equal(1, first.FramesAdvanced);
+        Assert.Equal(1, scene.State.NativeGardenRuntime!.BackgroundRails!.Callback);
+        Assert.False(scene.IsPresentationDeferred);
         Assert.NotEmpty(scene.Render(160, 112));
-        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 6)).Accepted);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 5)).Accepted);
         Assert.NotEmpty(scene.Render(160, 112, interpolation: 0.5f));
     }
 

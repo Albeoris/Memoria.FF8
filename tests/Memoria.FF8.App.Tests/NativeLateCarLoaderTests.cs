@@ -65,17 +65,36 @@ public sealed class NativeLateCarLoaderTests
         using WorldMapScene scene = ticket.Adopt(session);
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         using WorldMapScene replay = new(restored, directory);
+        Assert.Equal(flags265 == 0, scene.IsPresentationDeferred);
+        Assert.Equal(scene.IsPresentationDeferred, replay.IsPresentationDeferred);
+        string beforeDraw = JsonSerializer.Serialize(session.State);
+        if (scene.IsPresentationDeferred)
+        {
+            Assert.Throws<NativeWorldPresentationDeferredException>(() => scene.Render(160, 120));
+            Assert.Throws<NativeWorldPresentationDeferredException>(() => replay.Render(160, 120));
+        }
+        else
+        {
+            Assert.Equal(scene.Render(160, 120), replay.Render(160, 120));
+        }
+        Assert.Equal(beforeDraw, JsonSerializer.Serialize(session.State));
+        PlayerAction firstCallback = new(PlayerActionKind.Wait);
+        Assert.Equal(scene.Apply(firstCallback), replay.Apply(firstCallback));
+        Assert.Equal(1, scene.State.Frame);
+        Assert.False(scene.IsPresentationDeferred);
+        Assert.False(replay.IsPresentationDeferred);
+        Assert.Equal(scene.Render(160, 120), replay.Render(160, 120));
         PlayerAction move = new(PlayerActionKind.Move, Vertical: -1, Frames: 2);
         Assert.Equal(scene.Apply(move), replay.Apply(move));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
         Assert.Equal(scene.Render(160, 120), replay.Render(160, 120));
         Assert.Equal((byte)38, scene.State.NativeCarRuntime!.EntityType);
         NativeWorldBackgroundRailState continuedRails = scene.State.NativeCarRuntime.GardenObjects?.BackgroundRails ?? scene.State.NativeCarRuntime.RagnarokObjects!.BackgroundRails!;
-        Assert.Equal(2, continuedRails.Callback);
+        Assert.Equal(3, continuedRails.Callback);
         Assert.NotNull(continuedRails.DistancePosition);
         foreach (NativeTrainRailBank bank in continuedRails.Banks)
         {
-            Assert.Equal(28, bank.Pause);
+            Assert.Equal(27, bank.Pause);
             Assert.All(bank.Presentation, pose => Assert.NotNull(pose.Projection));
         }
         Assert.NotEqual((0, 0), (scene.State.X - ticket.InitialState.X, scene.State.Z - ticket.InitialState.Z));

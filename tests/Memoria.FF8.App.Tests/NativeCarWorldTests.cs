@@ -195,8 +195,11 @@ public sealed class NativeCarWorldTests
         Assert.Equal(8, assets.ExamCar.Faces.Count(face => face.Palette == 0));
         Assert.Equal(50, assets.ExamCar.Faces.Count(face => face.Palette == 1));
         GameState before = session.State;
-        byte[] first = scene.Render(320, 224).ToArray();
+        Assert.True(scene.IsPresentationDeferred);
+        Assert.Throws<NativeWorldPresentationDeferredException>(() => scene.Render(320, 224));
+        Assert.Same(before, session.State);
         Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1)).Accepted);
+        Assert.False(scene.IsPresentationDeferred);
         Assert.Equal(2, scene.State.NativeCarRuntime!.Speed);
         Assert.Equal(2287, scene.State.BodyYaw);
         NativeWorldGroundAlternative cache = Assert.Single(scene.State.NativeCarRuntime.GroundCache!.Alternatives);
@@ -210,7 +213,6 @@ public sealed class NativeCarWorldTests
         GameState endpoint = session.State;
         using var restored = new WorldMapScene(new GameSession(endpoint), directory);
         Assert.Equal(scene.Render(320, 224), restored.Render(320, 224));
-        Assert.NotEqual(first, scene.Render(320, 224));
         var next = new PlayerAction(PlayerActionKind.Wait);
         Assert.Equal(scene.Apply(next), restored.Apply(next));
         Assert.Equal(0, scene.State.NativeCarRuntime.Speed);
