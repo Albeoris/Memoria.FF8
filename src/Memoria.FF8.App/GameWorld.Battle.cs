@@ -398,10 +398,6 @@ internal sealed partial class GameWorld
         {
             unsupported.Add("routed damage through deferred native contacts");
         }
-        if (mod.Camera is { ElevationDegrees: not 0 })
-        {
-            unsupported.Add("encounter camera elevation");
-        }
         if (unsupported.Count != 0)
         {
             throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires {string.Join(", ", unsupported)}, which are unavailable for an expanded roster.");
