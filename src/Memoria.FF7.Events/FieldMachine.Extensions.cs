@@ -170,6 +170,13 @@ public sealed partial class FieldMachine
                 Advance(id, 4);
                 return false;
             }
+            case 0x77:
+            {
+                int value = Math.Min(short.MaxValue, R16(id, 1, 2) + R16(id, 2, 3));
+                Variables.WriteWord(Bank(id, 1), B(id, 2), unchecked((short)value));
+                Advance(id, 5);
+                return false;
+            }
             case >= 0x82 and <= 0x84:
             {
                 int bit = R8(id, 2, 3);

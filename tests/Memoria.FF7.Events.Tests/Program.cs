@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--saturated-word-add-only", StringComparer.Ordinal))
+{
+    SaturatedByteAddTests.RunWordAdd();
+    return 0;
+}
+
 if (args.Contains("--window-number-only", StringComparer.Ordinal))
 {
     NativeWindowNumberOpcodeTests.Run();
@@ -154,6 +160,7 @@ var tests = new (string Name, Action Run)[]
     ("native SLIP raw operands and cold continuation", ExtendedTests.LineSlipOperandsAndContinuation),
     ("typed bank aliases and widths", BankWidths),
     ("native saturated byte addition and cold continuation", SaturatedByteAddTests.Run),
+    ("native saturated word addition and cold continuation", SaturatedByteAddTests.RunWordAdd),
     ("native saturated byte subtraction and cold continuation", SaturatedByteAddTests.RunSubtract),
     ("native SPECIAL arrow suppression operands", ExtendedTests.SpecialArrowOperandsAndContinuation),
     ("native turn wait operands and cold continuation", ExtendedTests.TurnWaitOperandsAndContinuation),
