@@ -8,6 +8,7 @@ public sealed record NativeBattleBadBreath300Frame(NativeBattleEffectMemory Memo
 {
     public NativeBattleFileStaging? Staging { get; init; }
     [JsonIgnore] public NativeBattleStackBytes? TargetScaleStack { get; init; }
+    internal short? ExtendedTargetMouthX { get; init; }
 }
 
 public sealed record NativeBattleBadBreath300State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] ImmutableArray<byte>? MeshA, [property: JsonRequired] ImmutableArray<byte>? MeshB)
@@ -15,6 +16,7 @@ public sealed record NativeBattleBadBreath300State([property: JsonRequired] Nati
     public const uint BaseAddress = 0x2507758;
     public const int Length = 0xB8;
     [JsonRequired] public bool PendingColdSources { get; init; }
+    internal ImmutableArray<int> ExtendedTargetOrder { get; init; }
     public static NativeBattleBadBreath300State FromColdProcess() => new(NativeBattleEffectArena.Clear(), null, null) { PendingColdSources = true };
     public static NativeBattleBadBreath300State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, Length), null, null);
     public static NativeBattleBadBreath300State FromColdProcess(NativeBattleBadBreath300Resources resources) => FromColdProcess().SeedColdSources(resources);

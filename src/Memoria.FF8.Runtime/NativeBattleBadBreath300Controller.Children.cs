@@ -20,6 +20,10 @@ public static partial class NativeBattleBadBreath300Controller
         {
             context = WriteDword(context, 20, stack.ReadUInt32(-0x4C));
         }
+        else if (frame.ExtendedTargetMouthX is short mouthX)
+        {
+            context = WriteDword(context, 20, unchecked((uint)(int)mouthX));
+        }
         context = WriteDword(context, 24, frame.State.ReadDword(WorkingGlobal) + ScratchOffset);
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x18, 0x128);
         NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Target, 0, (current, node) =>

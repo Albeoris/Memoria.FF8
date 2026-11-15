@@ -39,6 +39,10 @@ public static partial class NativeBattleBadBreath300Controller
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(0x34, unchecked((ushort)mouth.Position.X)).WriteWord(0x36, unchecked((ushort)mouth.Position.Y)).WriteWord(0x38, unchecked((ushort)mouth.Position.Z));
         frame = Write(frame, address, task);
         int age = unchecked((short)task.ReadWord(12));
+        if (age > 58 && !frame.State.ExtendedTargetOrder.IsDefault)
+        {
+            return AdvanceExpandedTail(frame, address, mouth.Position.X, resources, inputs);
+        }
         int phase = age - 8;
         if ((uint)phase < 50)
         {
@@ -48,28 +52,8 @@ public static partial class NativeBattleBadBreath300Controller
             frame = LoadRotationZeroTranslation(frame, RotationZ7012C0(unchecked((short)task.ReadWord(0x2A))));
             frame = Deform66FBB0(frame, MeshAAddress, unchecked((short)task.ReadWord(0x2C)), resources);
             short sweep = unchecked((short)(NativeBattleCameraMath.Cosine(phase * 2048 / 50) * unchecked((short)task.ReadWord(0x24)) >> 12));
-            int selected = unchecked((short)task.ReadWord(0x2E));
-            if (selected < unchecked((short)task.ReadWord(14)))
-            {
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10 + selected * 4, 4).Owner;
-                if (sweep - 300 <= Transform(inputs.ReadModel(actor)).Position28.X)
-                {
-                    (frame, uint childAddress) = Append(frame, 2, TargetCallback);
-                    if (childAddress != 0)
-                    {
-                        NativeBattleBadBreath300AnchorStep anchor = inputs.ReadAnchor571400(frame, actor);
-                        frame = anchor.Frame;
-                        NativeBattleGraphicsModel model = inputs.ReadModel(actor);
-                        short y = inputs.ReadTargetCenterY?.Invoke(actor) ?? unchecked((short)(Transform(model).Position28.Y + (model.MinimumY146 ?? throw new NotSupportedException("Bad Breath requires its actual target height.")) / 2));
-                        NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x20 + selected)).WriteWord(0x10, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x12, unchecked((ushort)y)).WriteWord(0x14, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)anchor.Anchor.W));
-                        child.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
-                        child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x18, NativeBattleGfAnimationWorkspace.Borrow(child, 0x18, 0x128).Initialize7016B0(resources.Target, 0x128));
-                        frame = Write(frame, childAddress, child);
-                    }
-                    task = Read(frame, address).WriteWord(0x2E, unchecked((ushort)(selected + 1)));
-                    frame = Write(frame, address, task);
-                }
-            }
+            frame = AdmitTarget(frame, address, sweep, resources, inputs);
+            task = Read(frame, address);
             int dx = sweep - unchecked((short)task.ReadWord(0x34));
             int dy = unchecked((short)task.ReadWord(0x28)) - unchecked((short)task.ReadWord(0x36));
             int dz = unchecked((short)task.ReadWord(0x26)) - unchecked((short)task.ReadWord(0x38));
@@ -137,7 +121,68 @@ public static partial class NativeBattleBadBreath300Controller
         }
         task = Read(frame, address).WriteWord(0x2A, unchecked((ushort)(Read(frame, address).ReadWord(0x2A) - 50))).WriteWord(0x2C, unchecked((ushort)(Read(frame, address).ReadWord(0x2C) + 200)));
         frame = Write(frame, address, task);
-        return age == 58 ? (frame, 2) : (Write(frame, address, task.WriteWord(12, unchecked((ushort)(age + 1)))), 0);
+        if (age == 58)
+        {
+            if (frame.State.ExtendedTargetOrder.IsDefault)
+            {
+                return (frame, 2);
+            }
+            (frame, int result) = AdvanceExpandedTail(frame, address, mouth.Position.X, resources, inputs);
+            return (result == 2 ? frame : Write(frame, address, Read(frame, address).WriteWord(12, 59)), result);
+        }
+        return (Write(frame, address, task.WriteWord(12, unchecked((ushort)(age + 1)))), 0);
+    }
+
+    private static (NativeBattleBadBreath300Frame Frame, int Result) AdvanceExpandedTail(NativeBattleBadBreath300Frame frame, uint address, short mouthX, NativeBattleBadBreath300Resources resources, NativeBattleBadBreath300Inputs inputs)
+    {
+        frame = AdmitTarget(frame, address, null, resources, inputs);
+        NativeBattleModulePoolTask task = Read(frame, address);
+        if (task.ReadWord(0x2E) == task.ReadWord(14) && frame.Effect.Pools[2].Head is null)
+        {
+            return (frame, 2);
+        }
+        // Extra target work uses this callback's actual mouth position after the native strip has stopped.
+        return (frame with { ExtendedTargetMouthX = mouthX }, 0);
+    }
+
+    private static NativeBattleBadBreath300Frame AdmitTarget(NativeBattleBadBreath300Frame frame, uint address, short? sweep, NativeBattleBadBreath300Resources resources, NativeBattleBadBreath300Inputs inputs)
+    {
+        NativeBattleModulePoolTask task = Read(frame, address);
+        int selected = task.ReadWord(0x2E);
+        if (selected >= task.ReadWord(14))
+        {
+            return frame;
+        }
+        int ordinal;
+        BattleModelOwner actor;
+        if (selected < PhysicalTargetCount)
+        {
+            ordinal = task.ReadByte(0x20 + selected);
+            actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10 + selected * 4, 4).Owner;
+        }
+        else
+        {
+            ordinal = frame.State.ExtendedTargetOrder[selected];
+            actor = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(ordinal)).Primary.Recipient;
+        }
+        if (sweep is short sweepX && sweepX - 300 > Transform(inputs.ReadModel(actor)).Position28.X)
+        {
+            return frame;
+        }
+        (frame, uint childAddress) = Append(frame, 2, TargetCallback);
+        if (childAddress == 0)
+        {
+            return frame;
+        }
+        NativeBattleBadBreath300AnchorStep anchor = inputs.ReadAnchor571400(frame, actor);
+        frame = anchor.Frame;
+        NativeBattleGraphicsModel model = inputs.ReadModel(actor);
+        short y = inputs.ReadTargetCenterY?.Invoke(actor) ?? unchecked((short)(Transform(model).Position28.Y + (model.MinimumY146 ?? throw new NotSupportedException("Bad Breath requires its actual target height.")) / 2));
+        NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, checked((byte)ordinal)).WriteWord(0x10, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x12, unchecked((ushort)y)).WriteWord(0x14, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)anchor.Anchor.W));
+        child.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
+        child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x18, NativeBattleGfAnimationWorkspace.Borrow(child, 0x18, 0x128).Initialize7016B0(resources.Target, 0x128));
+        frame = Write(frame, childAddress, child);
+        return Write(frame, address, Read(frame, address).WriteWord(0x2E, checked((ushort)(selected + 1))));
     }
 
     private static NativeBattleBadBreath300Frame React(NativeBattleBadBreath300Frame frame, byte sequence, NativeBattleBadBreath300Inputs inputs)

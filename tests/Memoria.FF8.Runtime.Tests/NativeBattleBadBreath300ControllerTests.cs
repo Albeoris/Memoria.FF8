@@ -51,6 +51,37 @@ public sealed class NativeBattleBadBreath300ControllerTests
     }
 
     [Fact]
+    public void Expanded_targets_restore_pending_birth_and_continue_visible_acts_after_the_strip()
+    {
+        Fixture fixture = new(expanded: true);
+        NativeBattleBadBreath300Frame frame = fixture.Frame;
+        int callbacks = 0;
+        while (callbacks++ < 70)
+        {
+            frame = fixture.Step(frame);
+            if (frame.Effect.Pools.Length == 4 && frame.Effect.Pools[1].Slots[0].ReadWord(12) == 59)
+            {
+                break;
+            }
+        }
+        Assert.Equal(59, frame.Effect.Pools[1].Slots[0].ReadWord(12));
+        Assert.Equal(4, frame.Effect.Pools[1].Slots[0].ReadWord(0x2E));
+        Assert.Equal(4, frame.Effect.Pools[2].Slots.Count(task => (task.Flags & 1) != 0));
+        Assert.Null(frame.ExtendedTargetMouthX);
+        int knownInStrip = fixture.ScaleGates.Count;
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        while (frame.Effect.ReturnedDescriptor != 0 && callbacks++ < 160)
+        {
+            frame = fixture.Step(frame);
+        }
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Equal(100, fixture.Operations.OfType<NativeBattleBadBreath300DrawStrip>().Count());
+        Assert.Equal(Enumerable.Range(0, 5).Select(index => new BattleContactOccurrence(index)), fixture.Operations.OfType<NativeBattleBadBreath300Contact>().Select(operation => operation.Occurrence));
+        Assert.True(fixture.ScaleGates.Count > knownInStrip);
+        Assert.All(fixture.ScaleGates.Skip(knownInStrip), gate => Assert.Equal(17u, gate));
+    }
+
+    [Fact]
     public void Target_particles_select_actual_host_segments_without_reading_a_native_animation_bank()
     {
         Fixture fixture = new();
@@ -152,24 +183,37 @@ public sealed class NativeBattleBadBreath300ControllerTests
         private NativeBattleGraphicsModel Model { get; }
         private long callback;
 
-        public Fixture()
+        public Fixture(bool expanded = false)
         {
             NativeBattleActionPacketsState packets = OriginalPackets();
+            BattleModelOwner[] targets = [OriginalOwner(3)];
+            if (expanded)
+            {
+                BattleModelOwner extra = new BattleEnemyActorModel(new("extra-target"));
+                targets = [OriginalOwner(3), OriginalOwner(4), OriginalOwner(5), OriginalOwner(6), extra];
+                BattleModelRoster roster = new(OriginalRoster.Owners.Append(extra));
+                NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+                packets = packets.WithRoster(roster, aliases);
+            }
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 300, null));
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 0, 4), null));
+            foreach (BattleModelOwner target in targets)
+            {
+                (packets, _) = packets.AppendContact(new(new(target, 1, 0, 0, 0, 0, 4), null));
+            }
             packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
-            (packets, _) = packets.Publish(1);
+            (packets, _) = packets.Publish(targets.Length);
             Packets = packets;
             byte[] skeleton = new byte[112];
             skeleton[0] = 2;
             Pose = new(skeleton.ToImmutableArray(), [1]);
             Model = new(2) { Flags8 = 0, MinimumY146 = 40, Transform = new(new(0, 0, 0), new(0, 100, 100), 0, 0, 4096) };
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
-            (root, _) = root.Append(RootCallback);
-            NativeBattleOriginalEffectState effect = new(300, 300, new(300, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root] };
+            (root, int slot) = root.Append(RootCallback);
+            root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
+            NativeBattleOriginalEffectState effect = new(300, 300, new(300, Entry, Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From(targets), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [root] };
             ImmutableArray<byte> mesh = Mesh();
             NativeBattleBadBreath300State state = new(NativeBattleEffectArena.Clear(), mesh, mesh);
-            Frame = new(NativeBattleEffectMemory.FromColdProcess().BeginLoad(300), effect, new(1), state.WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(NativeBattleEffectMemory.FromColdProcess().BeginLoad(300), effect, new(1), state.WriteDword(WorkingGlobal, ArenaAddress).WriteModel(CasterGlobal, OriginalOwner(0), OriginalAliases)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             byte[] source = new byte[80];
             BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 32);
             BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(32), 1);
