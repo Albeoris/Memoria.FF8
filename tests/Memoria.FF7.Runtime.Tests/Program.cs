@@ -54,6 +54,7 @@ if (args.Contains("--autoplay-physical-only", StringComparer.Ordinal))
 if (args.Contains("--autoplay-planning-only", StringComparer.Ordinal))
 {
     NativeAutoPlayPolicyPlanningTests.Run();
+    NativeAutoPlayDestinationPreferenceTests.Run();
     return 0;
 }
 
@@ -557,6 +558,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay host read dependencies", NativeAutoPlayHostReadTests.Run),
     ("native autoplay physical availability guards", NativeAutoPlayPhysicalAvailabilityTests.Run),
     ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
+    ("native autoplay destination novelty", NativeAutoPlayDestinationPreferenceTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),
     ("native autoplay world navigation", AutoPlayWorldNavigationTests.Run),

@@ -13,6 +13,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Ff7AutoPlayScriptedInput scriptedInput;
     private readonly Action<Ff7SessionSave>? checkpointBeforeWorldBattle;
     private readonly Queue<(int X, int Y, int Z, int Triangle)> recentPositions = new();
+    private readonly Dictionary<(string Visit, string Event), int> nativeDestinationHints = [];
     private string? movementEvent;
 
     public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
@@ -22,7 +23,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         State = session.AutoPlayState?.Clone() ?? new();
         State.Validate();
         RestoreUnscopedMovementFailures(State);
-        planner = CreatePlanner(State);
+        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null));
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
         scriptedInput = new(session);
@@ -37,9 +38,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     public Ff7AutoPlayState State { get; }
     public string Status => State.Status ?? "Discovering native events";
 
-    internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state)
+    internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null)
     {
-        return new(state.Coverage, progressionOrder: (visit, target) =>
+        return new(state.Coverage, phaseOrder: phaseOrder, progressionOrder: (visit, target) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
             if (target.ChangesStory && coverage?.Completed != true)
@@ -48,6 +49,16 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             return coverage is not { Completed: true, RouteNeedsRediscovery: false } ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
         }, observationsCoverWholeVisit: true);
+    }
+
+    internal static int NativeDestinationPhase(Ff7AutoPlayState state, int? destination)
+    {
+        if (destination is null or <= 64 or short.MaxValue)
+        {
+            return 0;
+        }
+        string prefix = $"ff7:{destination}:";
+        return state.Coverage.Visits.Any(visit => visit.Visit.Key.StartsWith(prefix, StringComparison.Ordinal)) ? 1 : 0;
     }
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
@@ -308,6 +319,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return ObserveWorldPlanner(world);
         }
         Ff7AutoPlayObservation observation = discovery.Observe();
+        foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField is not null))
+        {
+            nativeDestinationHints[(observation.VisitId, target.Id)] = target.DestinationField!.Value;
+        }
         AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint)).ToArray();
         planner.Observe(new(observation.VisitId, observation.ProgramIdentity), events);
         ObserveNavigationProbes(State, observation);
