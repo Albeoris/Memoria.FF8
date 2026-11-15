@@ -126,6 +126,8 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Assert.Throws<InvalidOperationException>(() => child.RefreshHostedPreparedPresentation(owner, new(services.Facts)));
         Assert.Same(previous, child.PreparedPresentation);
         owner.Combatants.Single(actor => actor.Id == "enemy-4").BindRosterSlot(null, bindNative: false);
+        var (nextRoster, nextAliases) = owner.ReadBattlePresentationPacketBindings();
+        Field(child, "nativeActionPackets", child.NativeActionPackets.WithRoster(nextRoster, nextAliases));
         Assert.Throws<InvalidDataException>(() => child.RefreshHostedPreparedPresentation(owner, services));
         Assert.Same(previous, child.PreparedPresentation);
     }
@@ -148,6 +150,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Set(child, "NativeStage", NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
         Set(child, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         var (roster, aliases) = owner.ReadBattlePresentationPacketBindings();
+        Field(child, "nativeActionPackets", child.NativeActionPackets.WithRoster(roster, aliases));
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray().SetItem(0, 1));
         NativeBattleModelTextureBinding linked = new(new byte?[16].ToImmutableArray().SetItem(0, 2));
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, modelOwner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with
