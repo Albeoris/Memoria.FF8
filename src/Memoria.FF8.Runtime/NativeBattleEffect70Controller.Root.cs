@@ -10,16 +10,22 @@ public static partial class NativeBattleEffect70Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         bool alternate = task.ReadByte(14) != 0;
         uint arena = frame.State.ReadDword(ArenaGlobal);
-        frame = frame with { State = frame.State.WriteDword(CursorGlobal, arena + (alternate ? 0xAE9Cu : 0x1AE9Cu)).WriteDword(SecondaryCursorGlobal, arena + (alternate ? 0x1AE9Cu : 0x2AE9Cu)).WriteDword(DepthGlobal, 0) };
+        bool starting = task.ReadWord(12) == 1 && task.ReadByte(15) == 0;
+        if (starting)
+        {
+            frame = PrepareRecipientBank(frame, inputs.ReadPackets(frame));
+        }
+        uint packetLength = checked((uint)PacketBankLength(frame.State));
+        uint packetStart = checked(arena + FirstPacketOffset + (alternate ? 0 : packetLength));
+        frame = frame with { State = frame.State.WriteDword(CursorGlobal, packetStart).WriteDword(SecondaryCursorGlobal, checked(packetStart + packetLength)).WriteDword(DepthGlobal, 0) };
         frame = Write(frame, address, task.WriteByte(14, alternate ? (byte)0 : (byte)1));
-        if (task.ReadWord(12) == 1 && task.ReadByte(15) == 0)
+        if (starting)
         {
             frame = Write(frame, address, Read(frame, address).WriteByte(15, 1));
             frame = CaptureFlags(frame, inputs);
             frame = NativeBattleEffect70Particles.InitializeSparks(frame);
             frame = NativeBattleEffect70Particles.InitializeRings(frame);
             frame = inputs.Execute(frame, new NativeBattleEffect70IoInitialize534110(arena + 0x678));
-            frame = PrepareRecipientBank(frame, inputs.ReadPackets(frame));
             frame = InitializeCommonPool(frame, 1);
             frame = InitializeCommonPool(frame, 2);
             (frame, uint main) = Append(frame, 1, 0x6DDD50);

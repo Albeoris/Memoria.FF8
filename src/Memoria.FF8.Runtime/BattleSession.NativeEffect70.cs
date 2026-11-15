@@ -74,9 +74,10 @@ public sealed partial class BattleSession
             }
             uint cursor = current.State.ReadDword(cursorGlobal.Value);
             uint end = current.State.ReadDword(SecondaryCursorGlobal);
-            uint start = checked(end - 0x10000);
+            uint length = checked((uint)PacketBankLength(current.State));
+            uint start = checked(end - length);
             uint arenaAddress = current.State.ReadDword(ArenaGlobal);
-            if (start != arenaAddress + FirstPacketOffset && start != arenaAddress + SecondPacketOffset || cursor < start || cursor > end || batch.AllocationBytes < 0 || batch.AllocationBytes > end - cursor)
+            if (start != arenaAddress + FirstPacketOffset && start != arenaAddress + FirstPacketOffset + length || cursor < start || cursor > end || batch.AllocationBytes < 0 || batch.AllocationBytes > end - cursor)
             {
                 throw new InvalidDataException("Effect70 drawing leaves its actual current private packet bank.");
             }

@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleBoomerangSword304Controller
 {
+    private const int OriginalTargetCapacity304 = 3;
+
     private static (NativeBattleBoomerangSword304Frame Frame, int Result) AdvanceRoot(NativeBattleBoomerangSword304Frame frame, uint address, NativeBattleBoomerangSword304Resources resources, NativeBattleBoomerangSword304Inputs inputs)
     {
         NativeBattleModulePoolTask root = Read(frame, address);
@@ -21,41 +23,40 @@ public static partial class NativeBattleBoomerangSword304Controller
             {
                 frame = ClearDwords701200(frame, main + 12, 40);
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                int count = Header(frame, packets).ReadContactCount();
-                frame = Write(frame, main, Read(frame, main).WriteWord(14, checked((ushort)count)));
-                for (int index = 0; index < count; index++)
-                {
-                    packets = inputs.ReadPackets(frame);
-                    BattleContactCursor first = Header(frame, packets).FirstContact;
-                    BattleModelOwner target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                    NativeBattleModulePoolTask task = Read(frame, main);
-                    task.WriteExecutionReference(32 + index * 4, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
-                    frame = Write(frame, main, task);
-                }
+                NativeBattleActionHeaderSlot header = Header(frame, packets);
+                int count = header.ReadContactCount();
+                int[] sorted = Enumerable.Range(0, count).ToArray();
                 for (int left = 0; left < count - 1; left++)
                 {
                     for (int right = left + 1; right < count; right++)
                     {
-                        NativeBattleModulePoolTask task = Read(frame, main);
-                        BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(32 + left * 4, 4).Owner;
-                        BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(32 + right * 4, 4).Owner;
+                        BattleModelOwner a = packets.ReadContact(header.FirstContact.Advance(sorted[left])).Primary.Recipient;
+                        BattleModelOwner b = packets.ReadContact(header.FirstContact.Advance(sorted[right])).Primary.Recipient;
                         if (ModelTransform304(inputs.ReadModel(frame, a)).Position28.X < ModelTransform304(inputs.ReadModel(frame, b)).Position28.X)
                         {
-                            task.WriteExecutionReference(32 + left * 4, 4, new BattleExecutionReference.Model(b), packets.ModelAliases.EncodeAddress(b));
-                            task.WriteExecutionReference(32 + right * 4, 4, new BattleExecutionReference.Model(a), packets.ModelAliases.EncodeAddress(a));
-                            frame = Write(frame, main, task);
+                            (sorted[left], sorted[right]) = (sorted[right], sorted[left]);
                         }
                     }
                 }
-                frame = Write(frame, main, Read(frame, main).WriteWord(18, unchecked((ushort)-1000)).WriteWord(20, 1000).WriteWord(22, 0).WriteWord(24, 0));
+                if (count > OriginalTargetCapacity304)
+                {
+                    frame = frame with { State = frame.State with { ExtendedPath = NativeBattleEffectArena.Clear() } };
+                }
+                NativeBattleModulePoolTask director = Read(frame, main).WriteContactCount(14, count).WriteOrderedContactRecipients(32, OriginalTargetCapacity304, packets, header, sorted);
+                frame = Write(frame, main, director.WriteWord(18, unchecked((ushort)-1000)).WriteWord(20, 1000));
+                int sumY = 0;
+                int sumZ = 0;
                 for (int index = 0; index < count; index++)
                 {
-                    BattleModelOwner target = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(32 + index * 4, 4).Owner;
+                    BattleModelOwner target = ReadTarget304(Read(frame, main), index);
                     NativeBattleBoomerangSword304PointStep anchor = inputs.ReadAnchor571400(frame, target);
-                    frame = WriteBytes(anchor.Frame, main + 44 + (uint)(index * 8), anchor.Point8, 8);
+                    frame = frame.State.ExtendedPath is null
+                        ? WriteBytes(anchor.Frame, main + 44 + (uint)(index * 8), anchor.Point8, 8)
+                        : WritePathRow304(anchor.Frame, main, index + 3, anchor.Point8);
                     NativeBattleVector point = Point304(anchor.Point8);
                     NativeBattleModulePoolTask task = Read(frame, main);
-                    task = task.WriteWord(22, unchecked((ushort)(task.ReadWord(22) + point.Y))).WriteWord(24, unchecked((ushort)(task.ReadWord(24) + point.Z)));
+                    sumY += point.Y;
+                    sumZ += point.Z;
                     if (Signed(task, 18) > point.X)
                     {
                         task = task.WriteWord(18, unchecked((ushort)point.X));
@@ -67,8 +68,8 @@ public static partial class NativeBattleBoomerangSword304Controller
                     frame = Write(frame, main, task);
                 }
                 NativeBattleModulePoolTask current = Read(frame, main);
-                int meanY = Signed(current, 22) / count;
-                int meanZ = Signed(current, 24) / count;
+                int meanY = (count <= OriginalTargetCapacity304 ? unchecked((short)sumY) : sumY) / count;
+                int meanZ = (count <= OriginalTargetCapacity304 ? unchecked((short)sumZ) : sumZ) / count;
                 frame = Write(frame, main, current.WriteWord(18, unchecked((ushort)(current.ReadWord(18) - 500))).WriteWord(20, unchecked((ushort)(current.ReadWord(20) + 500))).WriteWord(22, unchecked((ushort)meanY)).WriteWord(24, unchecked((ushort)(meanZ - 1000))));
             }
         }
@@ -171,9 +172,9 @@ public static partial class NativeBattleBoomerangSword304Controller
             }
             task = Read(frame, address);
             int targetIndex = Signed(task, 16);
-            if (age >= 25 && age < 40 && targetIndex < Signed(task, 14))
+            if (age >= 25 && (age < 40 || frame.State.ExtendedPath is not null) && targetIndex < Signed(task, 14))
             {
-                BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(32 + targetIndex * 4, 4).Owner;
+                BattleModelOwner target = ReadTarget304(task, targetIndex);
                 if (point.X < ModelTransform304(inputs.ReadModel(frame, target)).Position28.X)
                 {
                     (frame, uint programme) = Append(frame, 0x2507590, 0x66A3F0);
@@ -209,28 +210,31 @@ public static partial class NativeBattleBoomerangSword304Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleEffectArena start = TaskView(task, 140, 8);
-        frame = WriteBytes(frame, address + 68, start, 8);
-        frame = WriteBytes(frame, address + 76, start, 8);
+        frame = WritePathRow304(frame, address, 0, start);
+        frame = WritePathRow304(frame, address, 1, start);
         task = Read(frame, address);
-        frame = WritePathPoint304(frame, address + 84, new(Signed(task, 20), unchecked((short)(Signed(task, 22) - 1000)), Signed(task, 24)));
+        frame = WritePathPoint304(frame, address, 2, new(Signed(task, 20), unchecked((short)(Signed(task, 22) - 1000)), Signed(task, 24)));
         int count = Signed(task, 14);
-        for (int index = 0; index < count; index++)
+        if (frame.State.ExtendedPath is null)
         {
-            frame = WriteBytes(frame, address + 92 + (uint)(index * 8), TaskView(Read(frame, address), 44 + index * 8, 8), 8);
+            for (int index = 0; index < count; index++)
+            {
+                frame = WritePathRow304(frame, address, index + 3, TaskView(Read(frame, address), 44 + index * 8, 8));
+            }
         }
         task = Read(frame, address);
-        frame = WritePathPoint304(frame, address + 92 + (uint)(count * 8), new(Signed(task, 18), Signed(task, 22), Signed(task, 24)));
+        frame = WritePathPoint304(frame, address, count + 3, new(Signed(task, 18), Signed(task, 22), Signed(task, 24)));
         NativeBattleVector end = new(unchecked((short)(Signed(task, 18) - 1000)), unchecked((short)(Signed(task, 22) - 3000)), Signed(task, 24));
-        frame = WritePathPoint304(frame, address + 100 + (uint)(count * 8), end);
-        return WritePathPoint304(frame, address + 108 + (uint)(count * 8), end);
+        frame = WritePathPoint304(frame, address, count + 4, end);
+        return WritePathPoint304(frame, address, count + 5, end);
     }
 
     public static NativeBattleBoomerangSword304PointStep SamplePath304(NativeBattleBoomerangSword304Frame frame, uint address, int segment, int parameter, NativeBattleSummonColors colors)
     {
-        NativeBattleEffectArena a = TaskView(Read(frame, address), 68 + segment * 8, 8);
-        NativeBattleEffectArena b = TaskView(Read(frame, address), 76 + segment * 8, 8);
-        NativeBattleEffectArena c = TaskView(Read(frame, address), 84 + segment * 8, 8);
-        NativeBattleEffectArena d = TaskView(Read(frame, address), 92 + segment * 8, 8);
+        NativeBattleEffectArena a = ReadPathRow304(frame, address, segment);
+        NativeBattleEffectArena b = ReadPathRow304(frame, address, segment + 1);
+        NativeBattleEffectArena c = ReadPathRow304(frame, address, segment + 2);
+        NativeBattleEffectArena d = ReadPathRow304(frame, address, segment + 3);
         (frame, int length) = Distance304(frame, Point304(b), Point304(c));
         NativeBattleVector delta = Difference304(Point304(b), Point304(a));
         (frame, int firstLength) = Distance304(frame, delta, new(0, 0, 0));
@@ -332,7 +336,34 @@ public static partial class NativeBattleBoomerangSword304Controller
     private static NativeBattleModelTransform ModelTransform304(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Boomerang Sword requires its actual model transform.");
     private static NativeBattleVector Point304(NativeBattleEffectArena point) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2)));
     private static NativeBattleEffectArena WithPoint304(NativeBattleEffectArena retained, NativeBattleVector point) => retained.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));
-    private static NativeBattleBoomerangSword304Frame WritePathPoint304(NativeBattleBoomerangSword304Frame frame, uint address, NativeBattleVector point) => WriteBytes(frame, address, WithPoint304(ReadBytes(frame, address, 8), point), 8);
+    private static BattleModelOwner ReadTarget304(NativeBattleModulePoolTask task, int index)
+    {
+        return task.TryReadExecutionReference(32, 4, out BattleExecutionReference.OrderedContactRecipients? targets)
+            ? targets.Recipients[index].Owner
+            : task.ReadExecutionReference<BattleExecutionReference.Model>(32 + index * 4, 4).Owner;
+    }
+
+    private static NativeBattleEffectArena ReadPathRow304(NativeBattleBoomerangSword304Frame frame, uint address, int index)
+    {
+        return frame.State.ExtendedPath is { } path
+            ? NativeBattleEffectNodeContextMemory.Copy(path, checked(index * 8), NativeBattleEffectArena.Clear(), 0, 8)
+            : TaskView(Read(frame, address), checked(68 + index * 8), 8);
+    }
+
+    private static NativeBattleBoomerangSword304Frame WritePathRow304(NativeBattleBoomerangSword304Frame frame, uint address, int index, NativeBattleEffectArena point)
+    {
+        if (frame.State.ExtendedPath is not { } path)
+        {
+            return WriteBytes(frame, checked(address + 68 + (uint)index * 8), point, 8);
+        }
+        NativeBattleEffectArena updated = NativeBattleEffectNodeContextMemory.Copy(point, 0, path, checked(index * 8), 8);
+        return frame with { State = frame.State with { ExtendedPath = updated } };
+    }
+
+    private static NativeBattleBoomerangSword304Frame WritePathPoint304(NativeBattleBoomerangSword304Frame frame, uint address, int index, NativeBattleVector point)
+    {
+        return WritePathRow304(frame, address, index, WithPoint304(ReadPathRow304(frame, address, index), point));
+    }
 
     public static NativeBattleActionHeaderSlot Header(NativeBattleBoomerangSword304Frame frame, NativeBattleActionPacketsState packets)
     {

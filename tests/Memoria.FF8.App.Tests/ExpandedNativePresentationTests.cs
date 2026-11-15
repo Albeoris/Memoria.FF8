@@ -40,6 +40,12 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(273, MadRushScenario, requireQuiescence: false);
     }
 
+    [Fact]
+    public void Installed_boomerang_sword_crosses_every_prepared_actor()
+    {
+        VerifyScenario(304, world => EnemyFanOutScenario(world, 304));
+    }
+
     [Theory]
     [InlineData(71, 1)]
     [InlineData(72, 5)]
@@ -227,6 +233,7 @@ public sealed class ExpandedNativePresentationTests
             129 => (553, 105, 53, 3, 102, 12, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
             130 => (662, 105, 48, 2, 185, 13, 204, [(579, 1), (671, 1), (360, 1), (551, 1), (716, 0)]),
             226 => (548, 107, 46, 6, 276, 11, 205, [(408, 0), (574, 1), (370, 2), (527, 1), (36, 0)]),
+            304 => (133, 75, 79, 3, 159, 13, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
         };
         var (formation, stage, model, abilitySlot, action, sequence, selector, donorSlots) = scenario;

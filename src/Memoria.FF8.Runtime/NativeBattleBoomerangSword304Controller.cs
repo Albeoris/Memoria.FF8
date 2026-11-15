@@ -47,7 +47,7 @@ public static partial class NativeBattleBoomerangSword304Controller
         }
         (frame, int survivors) = AdvancePool(frame, 0, resources, inputs);
         frame = frame with { Effect = frame.Effect with { ReturnedDescriptor = survivors == 0 ? 0u : RootDescriptor } };
-        return survivors == 0 ? DetachBanks(frame) : frame;
+        return survivors == 0 ? DetachBanks(frame with { State = frame.State with { ExtendedPath = null } }) : frame;
     }
 
     private static (NativeBattleBoomerangSword304Frame Frame, int Survivors) AdvancePool(NativeBattleBoomerangSword304Frame frame, int index, NativeBattleBoomerangSword304Resources resources, NativeBattleBoomerangSword304Inputs inputs)

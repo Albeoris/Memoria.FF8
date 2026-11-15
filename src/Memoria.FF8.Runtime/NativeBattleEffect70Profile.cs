@@ -49,7 +49,19 @@ public static class NativeBattleEffect70Profile
     public const int FirstPacketOffset = 0xAE9C;
     public const int SecondPacketOffset = 0x1AE9C;
     public const int ThirdPacketOffset = 0x2AE9C;
+    internal const int OriginalPacketBankLength = 0x10000;
     public const int MainWorkspaceOffset = 0x5C;
+
+    internal static int PacketBankLength(NativeBattleEffect70State state)
+    {
+        int count = state.ExtendedRecipients?.Count ?? NativeBattleEffect70RecipientBank.OriginalCapacity;
+        int capacity = checked((count + NativeBattleEffect70RecipientBank.OriginalCapacity - 1) / NativeBattleEffect70RecipientBank.OriginalCapacity * OriginalPacketBankLength);
+        if (checked(FirstPacketOffset + capacity * 2) > NativeBattleEffectArena.Length)
+        {
+            throw new InvalidDataException("The expanded Effect70 packet banks exceed the current effect arena.");
+        }
+        return capacity;
+    }
     public const int MainWorkspaceLength = 0x1100;
     public const int SecondaryWorkspaceOffset = 0x14;
     public const int SecondaryWorkspaceLength = 0x100;

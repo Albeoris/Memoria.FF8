@@ -9,6 +9,9 @@ public sealed record NativeBattleBoomerangSword304State([property: JsonRequired]
 {
     private static readonly (uint Address, int Length)[] GlobalRanges = [(BaseAddress, 16), (CursorGlobal, 4)];
 
+    [JsonIgnore]
+    internal NativeBattleEffectArena? ExtendedPath { get; init; }
+
     public static NativeBattleBoomerangSword304State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear());
 
     public static NativeBattleBoomerangSword304State FromUnknown()
