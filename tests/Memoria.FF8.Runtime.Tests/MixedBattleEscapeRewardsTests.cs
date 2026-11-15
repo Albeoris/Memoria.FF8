@@ -31,7 +31,7 @@ public sealed class MixedBattleEscapeRewardsTests
             ]
         }, BattleAtbMode.TurnBased);
 
-        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.Combatants.Count(actor => actor.Id.StartsWith("native-allocation-", StringComparison.Ordinal)) == 2, "Stage-zero AI should allocate both reserve enemies.");
         BattleCombatant first = battle.Combatants.Single(actor => actor.Id == "native-allocation-1");
         BattleCombatant second = battle.Combatants.Single(actor => actor.Id == "native-allocation-2");
         first.CurrentHp = 75;
