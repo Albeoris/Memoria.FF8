@@ -59,17 +59,17 @@ public sealed class NativeBattleRecoveryControllerTests
     [InlineData((ushort)53)]
     [InlineData((ushort)58)]
     [InlineData((ushort)59)]
-    public void Root_repeats_signed_target_not_header_group_and_wait_decrements_before_fade(ushort effect)
+    public void Root_advances_target_occurrence_without_advancing_header_group_and_decrements_wait_before_fade(ushort effect)
     {
-        var fixture = Fixture(effect);
+        var fixture = Fixture(effect, targets: 2);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint address = hierarchy.Address(0, 0);
-        hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x29, 4).WriteByte(0x63, 0).WriteByte(0x2B, 255).WriteByte(0x2A, 0));
+        hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x29, 4).WriteByte(0x63, 0).WriteByte(0x2A, 0));
         NativeBattleRecoveryFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         frame = NativeBattleRecoveryController.Advance(frame, fixture.Inputs, Resources(effect)).Frame;
         NativeBattleModulePoolTask root = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        Assert.Equal((byte)0, root.ReadByte(0x2B));
+        Assert.Equal(1, root.ReadTraversalPosition(0x2B));
         Assert.Equal((byte)0, root.ReadByte(0x2A));
         Assert.Equal((byte)3, root.ReadByte(0x29));
         hierarchy = new(frame.Effect.Pools);
@@ -147,7 +147,10 @@ public sealed class NativeBattleRecoveryControllerTests
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
         NativeBattleActionPacketsState packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(2), 2, 11, 0, (ushort)1, effect, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        for (int target = 0; target < targets; target++)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
+        }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(targets);
         NativeBattleOriginalEffectState selected = new(effect, checked((short)(effect - 1)), new(effect, profile.Entry, profile.Initializer), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
