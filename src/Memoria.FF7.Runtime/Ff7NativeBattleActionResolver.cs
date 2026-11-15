@@ -294,7 +294,7 @@ public static class Ff7NativeBattleActionResolver
         bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 } or { AdditionalEffect: 0x19 or 0x1B });
         if ((mask & ~supportedStatuses) != 0 || unsupportedEffect)
         {
-            throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
+            throw new NotSupportedException($"FFVII attack has unsupported additional effect 0x{record?.AdditionalEffect ?? byte.MaxValue:X2} (modifier 0x{record?.AdditionalEffectModifier ?? byte.MaxValue:X2}, formula 0x{action.Formula:X2}) or status mask 0x{mask:X8}.");
         }
         bool admittedStatus = mask != 0 && RollStatus(record!, action, random);
         bool targetEffect = record is { AdditionalEffect: 0x19 };

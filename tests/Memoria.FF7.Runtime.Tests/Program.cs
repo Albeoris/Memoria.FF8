@@ -136,6 +136,12 @@ if (args.Contains("--window-number-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--battle-inventory-only", StringComparer.Ordinal))
+{
+    NativeBattleInventoryTests.Run();
+    return 0;
+}
+
 if (args.Contains("--window-defaults-only", StringComparer.Ordinal))
 {
     NativeWindowDefaultsTests.Run();
@@ -629,6 +635,7 @@ var tests = new (string Name, Action Run)[]
     ("native optional-area frontier and initialized field ownership", NativeTourFrontierTests.Run),
     ("native window parameter binding and numeric cursor", NativeWindowParameterTests.Run),
     ("native window defaults and legacy ownership", NativeWindowDefaultsTests.Run),
+    ("native ordered battle inventory", NativeBattleInventoryTests.Run),
     ("native post-initialization party presentation", NativePartyPresentationTests.Run),
     ("native shop autoplay cadence and clock ownership", NativeShopAutoPlayTests.Run),
     ("native optional inn production tour and return receipts", NativeOptionalInnTourTests.Run),
