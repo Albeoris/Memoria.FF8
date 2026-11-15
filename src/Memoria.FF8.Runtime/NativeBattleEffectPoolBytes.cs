@@ -45,6 +45,16 @@ public static class NativeBattleEffectPoolBytes
 
     public static bool Contains(NativeBattleEffectTaskPool pool, uint address) => address >= pool.DescriptorAddress && address - pool.DescriptorAddress < 16 || address >= pool.BankAddress && (ulong)address - pool.BankAddress < (ulong)pool.Stride * (uint)pool.Slots.Length;
 
+    internal static bool IsModelAddressDword(NativeBattleEffectTaskPool pool, uint address)
+    {
+        if (address < pool.BankAddress || (ulong)(address - pool.BankAddress) >= (ulong)pool.Stride * (uint)pool.Slots.Length)
+        {
+            return false;
+        }
+        (int slot, int offset) = Locate(pool, address);
+        return offset >= 12 && pool.Stride - offset >= 4 && pool.Slots[slot].TryReadExecutionReference<BattleExecutionReference.ModelAddress>(offset, 4, out _);
+    }
+
     public static byte[] Read(NativeBattleEffectTaskPool pool, uint address, int length)
     {
         if (length < 0)

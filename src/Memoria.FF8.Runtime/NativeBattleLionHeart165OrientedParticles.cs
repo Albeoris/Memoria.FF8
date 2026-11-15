@@ -15,7 +15,7 @@ public static partial class NativeBattleLionHeart165Controller
         bool fan = callback == 0x5ECE60;
         bool paused = (inputs.GraphicsFlags & 0x201) != 0;
         short counter = Word(task, 12);
-        int marker = Word(task, 14);
+        short marker = Word(task, 14);
         int localLength = fan ? 104 : 120;
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, localLength);
         uint temporary = allocation.Address;
@@ -108,7 +108,7 @@ public static partial class NativeBattleLionHeart165Controller
         for (int index = 0; index < count; index++)
         {
             uint row = 0x23C4780u + (uint)index * 32;
-            if (NativeBattleEffectPoolBytes.Contains(pool, row) ? !NativeBattleEffectPoolBytes.EqualDword(pool, row, unchecked((uint)marker)) : ReadMemoryDword(frame.Staging, row) != marker)
+            if (NativeBattleEffectPoolBytes.Contains(pool, row) ? !MatchesOrientedParticleMarker(pool, row, marker) : ReadMemoryDword(frame.Staging, row) != marker)
             {
                 continue;
             }
@@ -205,5 +205,11 @@ public static partial class NativeBattleLionHeart165Controller
             frame = frame with { Random = frame.Random.Draw(out ushort value) };
             return value;
         }
+    }
+
+    internal static bool MatchesOrientedParticleMarker(NativeBattleEffectTaskPool pool, uint address, short marker)
+    {
+        // The original scan reaches the task bank. A complete model pointer cannot be a sign-extended WORD marker.
+        return !NativeBattleEffectPoolBytes.IsModelAddressDword(pool, address) && NativeBattleEffectPoolBytes.EqualDword(pool, address, unchecked((uint)marker));
     }
 }

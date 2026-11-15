@@ -52,15 +52,28 @@ public sealed class ExpandedBattleNativeGraphicTests
         int contextCount = 0;
         bool drewEffect = false;
         bool reserveContext = false;
-        bool reserveInit = false;
-        string? reserveId = null;
+        HashSet<string> reserveInitOwners = [];
+        Dictionary<BattleModelOwner, byte> reserveStatistics = [];
         for (int callback = 0; callback < 1600 && (actionToken is null || !process.IsActionComplete(actionToken.Value)); callback++)
         {
             Advance();
             if (effectId == 248)
             {
-                reserveId ??= battle.Combatants.SingleOrDefault(actor => actor.ModelId == 71 && actor.Slot is not null)?.Id;
-                reserveInit |= reserveId is not null && HasSeparateInit(reserveId);
+                if (battle.ActiveAction?.ExpandedAiCallback is { Stage: 0 } active)
+                {
+                    reserveInitOwners.Add(active.Actor.ActorId);
+                }
+                foreach (BattleAttackCommand command in battle.QueuedActions)
+                {
+                    if (command.ExpandedAiCallback is { Stage: 0 } queued)
+                    {
+                        reserveInitOwners.Add(queued.Actor.ActorId);
+                    }
+                }
+                foreach (NativeBattleAllocationStatisticsRequested statistics in (process.LastFrameServices?.ReadOrderedReceipts() ?? []).OfType<NativeBattleAllocationStatisticsRequested>())
+                {
+                    reserveStatistics[statistics.Owner] = statistics.SceneSlot;
+                }
                 if (process.Graphics.OriginalEffect is { Binding.Effect: 243, Parameters: { } context, ReturnedDescriptor: > 0 } && !reserveContext)
                 {
                     NativeBattleActionHeaderSlot contextHeader = presentation.NativeActionPackets.ReadHeader(context.Header);
@@ -110,13 +123,20 @@ public sealed class ExpandedBattleNativeGraphicTests
         if (effectId == 248)
         {
             Assert.True(reserveContext);
-            Assert.True(reserveInit);
-            Assert.Equal(casterId, reserveId);
-            BattleCombatant reserve = battle.Combatants.Single(actor => actor.Id == reserveId);
+            Assert.Contains(casterId, reserveInitOwners);
+            BattleCombatant reserve = battle.Combatants.Single(actor => actor.Id == casterId);
+            BattleModelOwner reserveOwner = battle.ReadPresentationModelOwner(reserve.Id);
+            BattleEvent spawn = Assert.Single(battle.Events, entry => entry.Kind == "NativeSpawn" && entry.TargetId == reserve.Id);
+            Assert.Equal(reserve.SceneSlot, spawn.Amount);
+            Assert.True(reserveStatistics.TryGetValue(reserveOwner, out byte statisticsScene));
+            Assert.Equal(reserve.SceneSlot, statisticsScene);
             Assert.False(reserve.NativeAllocationPendingStatistics);
             Assert.False(reserve.Suspended);
             Assert.True(reserve.IsActive);
-            Assert.Equal(battle.ReadPresentationModelOwner(reserve.Id), presentation.NativeActionPackets.ModelAliases.DecodeLiteral(5));
+            int physicalSlot = Assert.IsType<int>(reserve.NativeActorIndex);
+            Assert.Contains($"into physical slot {physicalSlot}.", spawn.Message);
+            Assert.Equal(reserveOwner, presentation.NativeActionPackets.ModelAliases.DecodeLiteral(checked((byte)physicalSlot)));
+            Assert.Equal(reserveOwner, process.Graphics.NativeBindings.DecodeLiteral(checked((byte)physicalSlot), process.Graphics.ActorModels));
         }
 
         if (effectId == 110)
@@ -180,22 +200,7 @@ public sealed class ExpandedBattleNativeGraphicTests
 
         void Advance()
         {
-            try
-            {
-                world.ApplyBattleInput(new(BattleInputKind.Tick));
-            }
-            catch (InvalidDataException error) when (formation == 164 && error.Message.Contains("all prepared contacts", StringComparison.Ordinal))
-            {
-                const BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-                Type ownerType = typeof(BattleSession);
-                object? current = ownerType.GetProperty("CurrentExpandedHostedInvocation", instance)!.GetValue(battle);
-                object? header = current?.GetType().GetProperty("Header", instance)?.GetValue(current);
-                object? expected = ownerType.GetField("expandedExpectedContacts", instance)!.GetValue(battle);
-                IEnumerable<int> observed = (IEnumerable<int>)ownerType.GetField("expandedPresentedOccurrences", instance)!.GetValue(battle)!;
-                string queue = string.Join(", ", process.Graphics.Descriptors.Queue.Select(slot => process.Graphics.Descriptors.Packets[slot].Command));
-                string events = string.Join(", ", battle.Events.TakeLast(8).Select(entry => $"{entry.Kind}/{entry.ActorId}/{entry.TargetId}/{entry.Amount}"));
-                throw new InvalidDataException($"Reserve contact completion: header [{header}], expected={expected}, observed=[{string.Join(", ", observed)}], active={presentation.NativeActionPackets.ActiveHeader}, cursor={presentation.NativeActionPackets.ActiveContact}, controlRetired={process.IsControlPrefixRetired}, queue=[{queue}], events=[{events}].", error);
-            }
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
             Assert.Same(process, battle.ExpandedPresentationProcess);
         }
     }

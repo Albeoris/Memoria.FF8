@@ -1,11 +1,51 @@
 using System.Buffers.Binary;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Tests;
 using Xunit;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectPoolBytesTests
 {
+    [Fact]
+    public void Lion_Heart_marker_scan_distinguishes_complete_model_addresses_from_signed_scalar_words()
+    {
+        BattleModelOwner original = NativeBattleTypedFixture.OriginalOwner(0);
+        BattleModelOwner extra = new BattlePartyActorModel(new("additional-party"));
+        NativeBattleModelAliases aliases = new(new([original, extra]), [(NativeBattleModelSlot.Decode(0), original)]);
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23C5910, 0x23C5920, 36, 2);
+        (pool, _) = pool.Append(0x63E9C0);
+        (pool, _) = pool.Append(0x63E9C0);
+        NativeBattleModulePoolTask projected = pool.Slots[0];
+        NativeBattleModulePoolTask opaque = pool.Slots[1];
+        projected.WriteExecutionReference(28, 4, new BattleExecutionReference.ModelAddress(original), aliases.EncodeAddress(original));
+        opaque.WriteExecutionReference(28, 4, new BattleExecutionReference.ModelAddress(extra), aliases.EncodeAddress(extra));
+        uint projectedAddress = pool.BankAddress + 28;
+        uint opaqueAddress = pool.BankAddress + 36 + 28;
+
+        Assert.Equal(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(0)), projected.ReadDword(28));
+        Assert.False(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, projectedAddress, 54));
+        Assert.False(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, projectedAddress, -54));
+        Assert.False(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, opaqueAddress, 54));
+        Assert.False(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, opaqueAddress, -54));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectPoolBytes.EqualDword(pool, opaqueAddress, 54));
+        Assert.Throws<NotSupportedException>(() => NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, opaqueAddress + 1, 0));
+        Assert.Throws<ArgumentException>(() => opaque.WriteExecutionReference(20, 2, new BattleExecutionReference.ModelAddress(extra)));
+
+        uint scalarAddress = pool.BankAddress + 36 + 20;
+        opaque.WriteDword(20, unchecked((uint)-54));
+        Assert.True(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, scalarAddress, -54));
+        opaque.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(extra));
+        Assert.Throws<NotSupportedException>(() => NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, scalarAddress, -54));
+
+        NativeBattleEffectTaskPool copy = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(pool));
+        Assert.Equal(extra, copy.Slots[1].ReadExecutionReference<BattleExecutionReference.ModelAddress>(28, 4).Owner);
+        Assert.False(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(copy, opaqueAddress, 54));
+        copy.Slots[1].WriteByte(28, 54);
+        Assert.Throws<NotSupportedException>(() => NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(copy, opaqueAddress, 54));
+        Assert.False(NativeBattleLionHeart165Controller.MatchesOrientedParticleMarker(pool, opaqueAddress, 54));
+    }
+
     [Fact]
     public void DwordEqualityUsesKnownMismatchWithoutResolvingPaddingButRejectsAmbiguousMatches()
     {

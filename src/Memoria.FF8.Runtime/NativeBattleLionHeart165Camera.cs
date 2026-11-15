@@ -13,7 +13,7 @@ public static partial class NativeBattleLionHeart165Controller
         (pool, int slot) = pool.Append(0x63E9C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
         task = TaskDword(TaskDword(task, 20, 0xD88930), 24, 0x23C58E0);
-        task.WriteExecutionReference(28, 4, new BattleExecutionReference.Model(frame.Parameters.Source), aliases.EncodeAddress(frame.Parameters.Source));
+        task.WriteExecutionReference(28, 4, new BattleExecutionReference.ModelAddress(frame.Parameters.Source), aliases.EncodeAddress(frame.Parameters.Source));
         pool = pool.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { LionHeart165 = state with { CameraTask = camera }, GuardianCameraProcess = camera.Process } };
         return new(frame, pool, 0);
@@ -24,7 +24,7 @@ public static partial class NativeBattleLionHeart165Controller
         NativeBattleLionHeart165State state = frame.Memory.LionHeart165 ?? throw new InvalidDataException("Native Lion Heart camera requires its entered owner.");
         NativeBattleGuardianCameraTask camera = state.CameraTask ?? throw new NotSupportedException("Native Lion Heart camera requires its actually appended program task.");
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xD88930u + camera.Offset || TaskDword(task, 24) != 0x23C58E0 || task.ReadExecutionReference<BattleExecutionReference.Model>(28, 4).Owner != frame.Parameters.Source)
+        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xD88930u + camera.Offset || TaskDword(task, 24) != 0x23C58E0 || task.ReadExecutionReference<BattleExecutionReference.ModelAddress>(28, 4).Owner != frame.Parameters.Source)
         {
             throw new InvalidDataException("Native Lion Heart camera lost its physical task operands.");
         }

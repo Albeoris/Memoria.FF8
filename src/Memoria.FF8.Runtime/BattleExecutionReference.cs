@@ -19,6 +19,17 @@ internal abstract partial record BattleExecutionReference
         internal BattleModelOwner Owner { get; }
     }
 
+    internal sealed record ModelAddress : BattleExecutionReference
+    {
+        internal ModelAddress(BattleModelOwner owner)
+        {
+            ArgumentNullException.ThrowIfNull(owner);
+            Owner = owner;
+        }
+
+        internal BattleModelOwner Owner { get; }
+    }
+
     internal sealed record Targets : BattleExecutionReference
     {
         internal Targets(BattleModelTargets selection)
@@ -100,6 +111,10 @@ internal sealed record BattleExecutionReferenceEntry
             throw new ArgumentOutOfRangeException(nameof(width));
         }
         ArgumentNullException.ThrowIfNull(reference);
+        if (reference is BattleExecutionReference.ModelAddress && width != 4)
+        {
+            throw new ArgumentException("A model address requires its full DWORD field.", nameof(width));
+        }
         Width = width;
         Reference = reference;
     }
