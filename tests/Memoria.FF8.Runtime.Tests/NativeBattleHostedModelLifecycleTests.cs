@@ -17,6 +17,24 @@ public sealed class NativeBattleHostedModelLifecycleTests
     private static readonly NativeBattleGraphicsResource EnemySequence = new([1, 0, 4, 0, 0xB8, 12, 4, 0x91, 0, 19, 0x9D, 0xA0, 0, 0xA1]) { AnimationFrames = [2], TextBank = ["Original enemy text"] };
 
     [Fact]
+    public void Bomb_director_and_source_sequence_share_one_logical_contact_in_the_current_frame()
+    {
+        NativeBattleContactPacket bomb = new(new(FifthEnemy, 0, 0, 0, 0, 0, 0), null) { Occurrence = new(4) };
+        NativeBattleContactPacket other = bomb with { Occurrence = new(5) };
+        NativeBattleModelLifecycleServices services = new([]);
+        services.EmitContact(bomb, origin: NativeBattleContactOrigin.BombGlowDirector);
+        services.EmitContact(other, origin: NativeBattleContactOrigin.SourceModelSequence);
+        services.EmitContact(bomb with { }, origin: NativeBattleContactOrigin.SourceModelSequence);
+        Assert.Equal(new[] { bomb, other }, services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Packet));
+
+        services.EmitContact(bomb, origin: NativeBattleContactOrigin.SourceModelSequence);
+        Assert.Equal(3, services.ReadOrderedReceipts().Length);
+        NativeBattleModelLifecycleServices next = new([]);
+        next.EmitContact(bomb, origin: NativeBattleContactOrigin.SourceModelSequence);
+        Assert.Equal(bomb, Assert.IsType<NativeBattlePresentationContactReceived>(Assert.Single(next.ReadOrderedReceipts())).Packet);
+    }
+
+    [Fact]
     public void Shared_loop_visits_extended_bound_rows_and_emits_ordered_receipts_without_mutating_actors()
     {
         BattleSession session = Session(expanded: true);

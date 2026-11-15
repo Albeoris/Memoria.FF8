@@ -175,7 +175,7 @@ public sealed class NativeBattleHostedContactGraphicsTests
 
     private static NativeBattleGraphicsState Consume(BattleSession session, NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session, [graphics, services])!;
+        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
     }
 
     private static List<NativeBattleContactPacket> Contacts(BattleSession session) => (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session)!;

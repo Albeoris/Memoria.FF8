@@ -86,7 +86,7 @@ public sealed partial class BattleSession
             {
                 BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
+                graphics = ConsumeNativeGraphicsContactsFrom(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] }, NativeBattleContactOrigin.BombGlowDirector);
                 graphics = graphics with { PendingContacts = pending };
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));

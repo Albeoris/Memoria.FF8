@@ -4,17 +4,18 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState ApplyNativeActiveHeaderContacts(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState ApplyNativeActiveHeaderContacts(NativeBattleGraphicsState graphics, BattleModelOwner? sequenceOwner = null)
     {
         BattleActionHeaderReference index = nativeActionPackets.ActiveHeader ?? throw new InvalidDataException("Native50A670 requires its actual active header pointer.");
-        return ApplyNativeHeaderContacts(graphics, index);
+        NativeBattleContactOrigin origin = sequenceOwner is not null && sequenceOwner == nativeActionPackets.ReadHeader(index).Source ? NativeBattleContactOrigin.SourceModelSequence : NativeBattleContactOrigin.Ordinary;
+        return ApplyNativeHeaderContacts(graphics, index, origin);
     }
 
-    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, BattleActionHeaderReference header)
+    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, BattleActionHeaderReference header, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary)
     {
         //506BA0 reads this physical header range. The temporary projection is consumed here, never persisted as another contact owner.
         var contacts = nativeActionPackets.ReadHeaderContacts(header);
-        NativeBattleGraphicsState applied = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = contacts });
+        NativeBattleGraphicsState applied = ConsumeNativeGraphicsContactsFrom(graphics with { PendingContacts = contacts }, origin);
         return applied with { PendingContacts = graphics.PendingContacts };
     }
 

@@ -295,10 +295,15 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ConsumeNativeGraphicsContacts(NativeBattleGraphicsState graphics)
     {
+        return ConsumeNativeGraphicsContactsFrom(graphics, NativeBattleContactOrigin.Ordinary);
+    }
+
+    private NativeBattleGraphicsState ConsumeNativeGraphicsContactsFrom(NativeBattleGraphicsState graphics, NativeBattleContactOrigin origin)
+    {
         if (hostedBattlePresentation)
         {
             NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted graphics contacts require the current frame's actor facts.");
-            return ConsumeHostedNativeGraphicsContacts(graphics, services);
+            return ConsumeHostedNativeGraphicsContacts(graphics, services, origin);
         }
         if (presentationForeignActors is not null)
         {
@@ -327,7 +332,7 @@ public sealed partial class BattleSession
         return graphics with { PendingContacts = [] };
     }
 
-    private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
+    private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, NativeBattleContactOrigin origin)
     {
         BattleModelRoster roster = HostedPlannedModelRoster;
         services.ValidateCurrentModels(roster, graphics);
@@ -370,7 +375,7 @@ public sealed partial class BattleSession
             NativeBattleContactHalf primary = packet.Primary;
             uint rawStatus = services.Facts[primary.Recipient]!.RawBattleStatuses!.Value;
             NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels, rules, rawStatus);
-            services.EmitContact(packet, ReadHostedRenzokukenContact());
+            services.EmitContact(packet, ReadHostedRenzokukenContact(), origin);
             graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
             if (plan.Loaded && packet.Secondary is { } half)
             {

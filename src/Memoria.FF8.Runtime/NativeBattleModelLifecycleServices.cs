@@ -14,6 +14,13 @@ internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty,
 
 internal sealed record HostedNativeAllocationFrame(BattleEnemyActorModel Owner, byte SceneSlot, bool Hidden);
 internal sealed record HostedShotFrameOwner(BattleModelOwner Owner, string ActorId, long ActionToken, uint Callback, BattleNativeShotPhase? Phase);
+internal enum NativeBattleContactOrigin
+{
+    Ordinary,
+    SourceModelSequence,
+    BombGlowDirector
+}
+
 internal abstract record NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet, HostedRenzokukenContact? Renzokuken = null) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
@@ -43,6 +50,7 @@ internal sealed record NativeBattleGuardianFormLanded(BattleSession.HostedGuardi
 internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)
 {
     private readonly ImmutableArray<NativeBattlePresentationReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattlePresentationReceipt>();
+    private NativeBattleContactPacket? bombDirectorContact;
 
     internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
     internal HostedNativeAllocationFrame? Allocation { get; init; }
@@ -62,7 +70,21 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal void EmitAllocationGate() => receipts.Add(new NativeBattleAllocationGateReached());
 
-    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null) => receipts.Add(new NativeBattlePresentationContactReceived(packet, renzokuken));
+    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary)
+    {
+        // Bomb's director and the caster's AA both run the same physical contact in one frame.
+        if (origin == NativeBattleContactOrigin.SourceModelSequence && packet.Occurrence is not null && packet == bombDirectorContact)
+        {
+            bombDirectorContact = null;
+            return;
+        }
+        if (origin == NativeBattleContactOrigin.BombGlowDirector)
+        {
+            bombDirectorContact = packet;
+        }
+        receipts.Add(new NativeBattlePresentationContactReceived(packet, renzokuken));
+    }
+
     internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);
     internal void EmitSound(NativeBattleModuleSound sound, string? actorId, NativeBattleSequenceSound? sequence) => receipts.Add(new NativeBattlePresentationSoundCommitted(sound, actorId, sequence));
     internal void EmitStopAllSounds(string message) => receipts.Add(new NativeBattlePresentationStopAllSoundsRequested(message));

@@ -219,7 +219,7 @@ public sealed partial class BattleSession
                     ApplyActionContacts = current =>
                     {
                         models = models.Set(owner, current);
-                        graphics = ApplyNativeActiveHeaderContacts(graphics with { ActorModels = models });
+                        graphics = ApplyNativeActiveHeaderContacts(graphics with { ActorModels = models }, owner);
                         models = graphics.ActorModels;
                         //TODO(TD-009): the component presentation phase observes the original AA publication while104 owns native completion.
                         graphics = graphics with { ActionCallbackReady = true };
