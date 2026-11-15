@@ -26,6 +26,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         scriptedInput = new(session);
         session.InteractionScriptRequested += ObserveInteraction;
         session.NativeTickCompleted += ObserveTick;
+        ObserveWorldAllocation();
         Publish();
     }
 
@@ -62,13 +63,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
-        if (session.World is { } world)
+        ObserveWorldAllocation();
+        if (session.World is not null)
         {
-            if (!world.Process.MovementEnabled || world.Process.ControlLock != 0 || world.Process.MainState != 1)
-            {
-                return default;
-            }
-            throw new NotSupportedException("Automatic world exploration requires a native world frontier observation adapter.");
+            return ChooseWorldInput(driver);
         }
         if (session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { Ladder.Completed: false } climbing)
         {
@@ -121,7 +119,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
-            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId);
+            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind != Ff7AutoPlayTargetKind.WorldMesh || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
                 CompleteActive(observation, active, changedField);
@@ -289,6 +287,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private Ff7AutoPlayObservation ObservePlanner()
     {
+        if (session.World is { } world)
+        {
+            return ObserveWorldPlanner(world);
+        }
         Ff7AutoPlayObservation observation = discovery.Observe();
         AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint)).ToArray();
         planner.Observe(new(observation.VisitId, observation.ProgramIdentity), events);
@@ -373,7 +375,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     }
 
     private static int TargetOrder(Ff7AutoPlayTarget target) => target.Kind == Ff7AutoPlayTargetKind.Gateway ? 10000 + target.GatewayIndex!.Value : target.Entity * 8 + target.Script;
-    private short Story() => session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+    private short Story() => session.World is { } world ? unchecked((short)(world.ReadPersistentByte(0) | world.ReadPersistentByte(1) << 8)) : session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
 
     private void Publish()
     {
@@ -384,5 +386,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     {
         session.InteractionScriptRequested -= ObserveInteraction;
         session.NativeTickCompleted -= ObserveTick;
+        if (observedWorld is not null)
+        {
+            observedWorld.NativeMeshDispatched -= ObserveWorldDispatch;
+            observedWorld.NativeHostOperationObserved -= ObserveWorldHostOperation;
+        }
     }
 }

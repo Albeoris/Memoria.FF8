@@ -29,14 +29,16 @@ public sealed partial class Ff7WorldRuntime
         PcWorldMesh mesh = GetWorldCollisionMesh(chunkX, chunkZ);
         WorldSnapshot execution = Machine.Capture() with { Tick = 0, NextRequestId = 1 };
         string executionFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(execution)));
+        int controlledOwner = ControlledModel;
+        int? ReadHost(WorldHostDependency dependency) => ProjectAutoPlayHostDependency(dependency, controlledOwner);
         WorldScriptAnalysis Analyze(int script)
         {
             var key = (chunkX, chunkZ, script, instructionBudget);
-            if (autoPlayMeshAnalyses.TryGetValue(key, out AutoPlayMeshAnalysis? known) && known.ExecutionFingerprint == executionFingerprint && Machine.ReadPredicateFingerprint(known.Analysis.Reads) == known.PredicateFingerprint)
+            if (autoPlayMeshAnalyses.TryGetValue(key, out AutoPlayMeshAnalysis? known) && known.ExecutionFingerprint == executionFingerprint && Machine.ReadPredicateFingerprint(known.Analysis.Reads) == known.PredicateFingerprint && known.Analysis.HostValues.All(value => ReadHost(value.Dependency) == value.Value))
             {
                 return known.Analysis;
             }
-            WorldScriptAnalysis analysis = Machine.AnalyzeMeshDispatch(chunkX, chunkZ, script, instructionBudget);
+            WorldScriptAnalysis analysis = Machine.AnalyzeMeshDispatch(chunkX, chunkZ, script, instructionBudget, ReadHost);
             if (analysis.Complete)
             {
                 if (!autoPlayMeshAnalyses.ContainsKey(key))
@@ -52,6 +54,11 @@ public sealed partial class Ff7WorldRuntime
             return analysis;
         }
         return BuildAutoPlayFrontierCatalog(Resources.World, execution.ProgramIdentity, chunkX, chunkZ, mesh, Analyze, Machine.ReadPredicateFingerprint, selector => (fieldTable ??= Resources.ReadFieldTable()).Select(selector));
+    }
+
+    internal static int? ProjectAutoPlayHostDependency(WorldHostDependency dependency, int controlledModel)
+    {
+        return dependency.Kind == WorldHostDependencyKind.Special && dependency.Selector == 8 ? Math.Max(0, controlledModel) : null;
     }
 
     internal static Ff7AutoPlayWorldFrontierCatalog BuildAutoPlayFrontierCatalog(int worldId, string programIdentity, int chunkX, int chunkZ, PcWorldMesh mesh, Func<int, WorldScriptAnalysis> analyze, Func<IReadOnlyList<WorldVariableRead>, string> readPredicate, Func<ushort, PcWorldFieldEntry> selectField)
@@ -101,7 +108,12 @@ public sealed partial class Ff7WorldRuntime
                     face.Location
                 }).ToArray()
             })));
-            scripts.Add(new($"mesh:{chunkX}:{chunkZ}:script:{group.Key}", group.Key, faces, analysis, readPredicate(analysis.Reads), geometry, entries.ToArray(), analysis.Complete && reason is null, reason));
+            string predicate = readPredicate(analysis.Reads);
+            if (analysis.HostValues.Length != 0)
+            {
+                predicate = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Variables = predicate, Host = analysis.HostValues })));
+            }
+            scripts.Add(new($"mesh:{chunkX}:{chunkZ}:script:{group.Key}", group.Key, faces, analysis, predicate, geometry, entries.ToArray(), analysis.Complete && reason is null, reason));
         }
         return new(worldId, programIdentity, chunkX, chunkZ, scripts.ToArray());
     }

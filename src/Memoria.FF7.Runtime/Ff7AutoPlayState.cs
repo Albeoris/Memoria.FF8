@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Memoria.AutoPlay;
+using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -21,6 +22,9 @@ public sealed class Ff7AutoPlayState
     public HashSet<string> NavigationProbes { get; set; } = new(StringComparer.Ordinal);
     public AutoPlayTravelGoal? NavigationGoal { get; set; }
     public Dictionary<string, Ff7AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Ff7AutoPlayWorldVisitState> WorldVisits { get; set; } = new(StringComparer.Ordinal);
+    public Ff7AutoPlayWorldDispatchReceipt? WorldDispatch { get; set; }
+    public WorldHostRequest? WorldDialogueOwner { get; set; }
     public string? Status { get; set; }
 
     public Ff7AutoPlayState Clone()

@@ -61,7 +61,7 @@ public sealed class Ff7AutoPlayChoiceWorkflow
         Ff7AutoPlayChoiceState? current = state.Choice;
         if (current?.OwnerIdentity != owner)
         {
-            string key = Hash(new { Owner = owner, before.Vm.PersistentVariables, before.Vm.MapVariables, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
+            string key = before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : Hash(new { Owner = owner, before.Vm.PersistentVariables, before.Vm.MapVariables, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
             planner.ObserveChoice(key, checked(last - first + 1), first);
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
@@ -144,8 +144,22 @@ public sealed class Ff7AutoPlayChoiceWorkflow
         return path;
     }
 
-    private static string ReadOwnerIdentity(Ff7SessionSave snapshot, Ff7Dialogue dialogue, int first, int last)
+    private string ReadOwnerIdentity(Ff7SessionSave snapshot, Ff7Dialogue dialogue, int first, int last)
     {
+        if (snapshot.World is { } world)
+        {
+            if (state.WorldDialogueOwner is { Command.Operation: WorldOperation.Choice } owner && owner.Id == dialogue.RequestId)
+            {
+                return Hash(new { world.Vm.ProgramIdentity, owner.ExecutingModel, owner.ActiveModel, owner.ProgramCounter, First = first, Last = last });
+            }
+            if (state.Active?.Kind == Ff7AutoPlayTargetKind.WorldMesh && state.Choice?.OwnerIdentity is string retained)
+            {
+                return retained;
+            }
+            // Older native saves retain a live window without the optional observed host packet.
+            // Establish a neutral observation identity from those saved facts; never replay its script.
+            return Hash(new { world.Vm.ProgramIdentity, Request = dialogue.RequestId, dialogue.Window, First = first, Last = last, System = world.Vm.System.ProgramCounter });
+        }
         FieldHostRequest? request = (snapshot.Vm.PendingRequests ?? []).SingleOrDefault(request => request.Id == dialogue.RequestId && request.Command is FieldDialogueCommand);
         request ??= snapshot.Process.Receipts.Select(receipt => receipt.Request).SingleOrDefault(request => request.Id == dialogue.RequestId && request.Command is FieldDialogueCommand);
         if (request is null)

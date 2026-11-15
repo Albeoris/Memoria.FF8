@@ -413,7 +413,12 @@ public sealed partial class WorldMachine
             return operand.Value;
         }
         inspection?.Reads.Add(new(operand.Opcode, operand.Value));
-        (byte[] bank, int index) = Locate(operand);
+        return ReadBankValue(operand, persistent, local);
+    }
+
+    private static int ReadBankValue(WorldStackValue operand, byte[] persistent, byte[] local)
+    {
+        (byte[] bank, int index) = Locate(operand, persistent, local);
         return (operand.Opcode & ~3) switch
         {
             0x114 => bank[index] >> (operand.Value & 7) & 1,
@@ -424,6 +429,11 @@ public sealed partial class WorldMachine
     }
 
     private (byte[] Bank, int Index) Locate(WorldStackValue operand)
+    {
+        return Locate(operand, persistent, local);
+    }
+
+    private static (byte[] Bank, int Index) Locate(WorldStackValue operand, byte[] persistent, byte[] local)
     {
         byte[] bank = (operand.Opcode & 3) == 0 ? persistent : local;
         int address = (operand.Opcode & ~3) == 0x114 ? operand.Value >> 3 : operand.Value;

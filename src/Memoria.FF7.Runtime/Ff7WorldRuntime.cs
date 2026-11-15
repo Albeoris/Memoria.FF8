@@ -360,6 +360,13 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
 
     public WorldHostReply Execute(WorldHostRequest request)
     {
+        WorldHostReply reply = ExecuteCommand(request);
+        NativeHostOperationObserved?.Invoke(request);
+        return reply;
+    }
+
+    private WorldHostReply ExecuteCommand(WorldHostRequest request)
+    {
         int[] values = request.Command.Arguments;
         WorldOperation operation = request.Command.Operation;
         WorldHostReply? pathReply = ExecuteChocoboPathControl(request);

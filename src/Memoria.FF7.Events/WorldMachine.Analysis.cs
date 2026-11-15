@@ -15,9 +15,11 @@ public enum WorldHostDependencyKind
 }
 
 public sealed record WorldHostDependency(WorldHostDependencyKind Kind, int Model, int Selector, int? FreeModelIndex = null);
+public sealed record WorldHostReadValue(WorldHostDependency Dependency, int? Value);
 public sealed record WorldTransitionObservation(int ProgramCounter, WorldOperation Operation, ushort? Selector);
 public sealed record WorldScriptAnalysis(bool Complete, string? Reason, int Header, int Entry, WorldVariableRead[] Reads, WorldHostDependency[] HostReads, WorldTransitionObservation[] Transitions, int[] ProgramCounters)
 {
+    public WorldHostReadValue[] HostValues { get; init; } = [];
     public bool MayEnterField => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition);
     public bool MayReloadWorld => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransitionSelector);
 }
@@ -32,18 +34,21 @@ public sealed partial class WorldMachine
         public HashSet<WorldHostDependency> HostReads { get; } = [];
         public List<WorldHostRequest> Commands { get; } = [];
         public List<WorldInspectionRequest> Requests { get; } = [];
+        public Dictionary<WorldHostDependency, int?> HostValues { get; } = [];
+        public Func<WorldHostDependency, int?>? ReadHost { get; set; }
         public bool Unresolved { get; set; }
         public string? Reason { get; set; }
 
         public WorldInspection Fork()
         {
-            return new() { Unresolved = Unresolved, Reason = Reason };
+            return new() { Unresolved = Unresolved, Reason = Reason, ReadHost = ReadHost };
         }
 
         public void BeginInstruction()
         {
             Reads.Clear();
             HostReads.Clear();
+            HostValues.Clear();
             Commands.Clear();
             Requests.Clear();
         }
@@ -51,6 +56,12 @@ public sealed partial class WorldMachine
         public int Unknown(WorldHostDependency dependency)
         {
             HostReads.Add(dependency);
+            int? projected = ReadHost?.Invoke(dependency);
+            HostValues[dependency] = projected;
+            if (projected is int value)
+            {
+                return value;
+            }
             Unresolved = true;
             Reason ??= $"Native world host dependency {dependency.Kind}/{dependency.Selector} requires a read-only snapshot projection.";
             return 0;
@@ -84,7 +95,7 @@ public sealed partial class WorldMachine
     private WorldInspection? inspection;
 
     /// <summary>Inspects potential native mesh-script paths using detached execution of the same single-instruction decoder. No live host, VM, persistent byte or RNG is advanced.</summary>
-    public WorldScriptAnalysis AnalyzeMeshDispatch(int chunkX, int chunkZ, int terrainScript, int instructionBudget = 2048)
+    public WorldScriptAnalysis AnalyzeMeshDispatch(int chunkX, int chunkZ, int terrainScript, int instructionBudget = 2048, Func<WorldHostDependency, int?>? readHost = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(terrainScript, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(terrainScript, 7);
@@ -97,6 +108,7 @@ public sealed partial class WorldMachine
             return new(true, null, header, 0, [], [], [], []);
         }
         WorldMachine initial = ForkInspection();
+        initial.inspection!.ReadHost = readHost;
         initial.system.Pc = entry;
         initial.system.Priority = 3;
         initial.system.MoveCounter = 0;
@@ -107,6 +119,7 @@ public sealed partial class WorldMachine
         HashSet<string> visited = new(StringComparer.Ordinal);
         HashSet<WorldVariableRead> reads = [];
         HashSet<WorldHostDependency> hostReads = [];
+        Dictionary<WorldHostDependency, int?> hostValues = [];
         HashSet<WorldTransitionObservation> transitions = [];
         HashSet<int> counters = [];
         string? reason = null;
@@ -136,6 +149,10 @@ public sealed partial class WorldMachine
                 bool yielded = machine.ExecuteInstruction(owner);
                 reads.UnionWith(observation.Reads);
                 hostReads.UnionWith(observation.HostReads);
+                foreach (var value in observation.HostValues)
+                {
+                    hostValues[value.Key] = value.Value;
+                }
                 reason ??= observation.Reason;
                 bool handoff = false;
                 foreach (WorldHostRequest command in observation.Commands.Where(command => command.Command.Operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector))
@@ -195,11 +212,30 @@ public sealed partial class WorldMachine
                 reason ??= error.Message;
             }
         }
-        return new(reason is null, reason, header, entry, reads.OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray(), hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Model).ThenBy(read => read.Selector).ThenBy(read => read.FreeModelIndex).ToArray(), transitions.OrderBy(transition => transition.ProgramCounter).ThenBy(transition => transition.Operation).ThenBy(transition => transition.Selector).ToArray(), counters.Order().ToArray());
+        return new(reason is null, reason, header, entry, reads.OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray(), hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Model).ThenBy(read => read.Selector).ThenBy(read => read.FreeModelIndex).ToArray(), transitions.OrderBy(transition => transition.ProgramCounter).ThenBy(transition => transition.Operation).ThenBy(transition => transition.Selector).ToArray(), counters.Order().ToArray()) { HostValues = hostValues.OrderBy(value => value.Key.Kind).ThenBy(value => value.Key.Model).ThenBy(value => value.Key.Selector).ThenBy(value => value.Key.FreeModelIndex).Select(value => new WorldHostReadValue(value.Key, value.Value)).ToArray() };
     }
 
     /// <summary>Reads exact typed native bank dependencies without evaluating host or stochastic selectors.</summary>
     public string ReadPredicateFingerprint(IReadOnlyList<WorldVariableRead> reads)
+    {
+        return PredicateFingerprint(program.Identity, reads, read => ReadValue(new(read.Opcode, read.Operand)));
+    }
+
+    /// <summary>Projects only native global bank dependencies from current canonical storage, without restoring a foreign scene or supplying local memory.</summary>
+    public static string ReadGlobalPredicateFingerprint(string programIdentity, byte[] persistent, IReadOnlyList<WorldVariableRead> reads)
+    {
+        if (persistent.Length != 1280)
+        {
+            throw new ArgumentException("World predicate storage must contain the canonical 1280 persistent bytes.", nameof(persistent));
+        }
+        if (reads.Any(read => (read.Opcode & 3) != 0))
+        {
+            throw new ArgumentException("A remote world predicate accepts only global native bank dependencies.", nameof(reads));
+        }
+        return PredicateFingerprint(programIdentity, reads, read => ReadBankValue(new(read.Opcode, read.Operand), persistent, []));
+    }
+
+    private static string PredicateFingerprint(string programIdentity, IReadOnlyList<WorldVariableRead> reads, Func<WorldVariableRead, int> readValue)
     {
         var facts = reads.Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).Select(read =>
         {
@@ -207,9 +243,9 @@ public sealed partial class WorldMachine
             {
                 throw new ArgumentException("World predicate dependencies must identify native typed bank reads.", nameof(reads));
             }
-            return new { Read = read, Value = ReadValue(new(read.Opcode, read.Operand)) };
+            return new { Read = read, Value = readValue(read) };
         }).ToArray();
-        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { program.Identity, Values = facts })));
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Identity = programIdentity, Values = facts })));
     }
 
     private WorldMachine ForkInspection()

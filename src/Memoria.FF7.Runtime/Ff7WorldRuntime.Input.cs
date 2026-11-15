@@ -269,7 +269,7 @@ public sealed partial class Ff7WorldRuntime
                 }
                 else
                 {
-                    Machine.StartMesh(player.X >> 13, player.Z >> 13, script - 3);
+                    StartObservedTerrainScript(player.X >> 13, player.Z >> 13, script - 3);
                 }
             }
             input = input with { TerrainScript = script >= 3 ? script : 0 };
