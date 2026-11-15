@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleDrawCastCameraTests
 {
     [Fact]
-    public void Saved_before_entry_Ifrit_runs_Draw_Cast_Fire_with_native_camera_and_JSON_continuation()
+    public void Saved_before_entry_Ifrit_runs_Draw_Cast_Fire_with_native_camera_and_checkpoint_continuation()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_DRAW_CAST_ENTRY_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A standalone before-entry Ifrit component is required.");
@@ -18,6 +18,13 @@ public sealed class NativeBattleDrawCastCameraTests
         string id = "draw-cast-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         GameSession session = new(GameSession.Load(source!));
         Assert.Null(session.State.Battle);
+        using GameAssets game = new(directory);
+        if (session.State.FieldId == 999)
+        {
+            // The synthetic field fixture supplies the before-entry script and party.
+            // Allocate this independent battle component with current process state.
+            session.Restore(session.State with { NativeBattleMemory = game.ReadColdProcessNativeBattleMemory() });
+        }
         NativeCharacterVitals vitals = session.CharacterVitals!;
         int drawAbility = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)6) + 20;
         Assert.True(drawAbility >= 20);
@@ -52,35 +59,37 @@ public sealed class NativeBattleDrawCastCameraTests
         Assert.Contains(target.NativeDrawSlots, slot => slot.Id == 1);
         string stocks = JsonSerializer.Serialize(caster.MagicStocks);
         int initialCompletions = battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id);
-        Save(world, session, evidence, id + "-before-draw");
         world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: caster.Id, TargetId: target.Id, Ability: BattleAbility.Draw, ActionId: 1, DrawCast: true) { DrawCastTargetId = target.Id });
-        bool restored = false;
         bool fire = false;
         bool draw = false;
-        GameWorld? clone = null;
+        BattleSession? restored = null;
+        BattleScenePresentation presentation = new(resources, battle.Capture().Definition, true);
         try
         {
             for (int callback = 0; callback < 2000; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                clone?.ApplyBattleInput(new(BattleInputKind.Tick));
+                restored?.Tick();
                 if (battle.ActiveAction is { Ability: BattleAbility.Draw } action)
                 {
                     draw = true;
                     Assert.False(action.NativeDraw!.Failed);
-                    if (!restored)
+                    if (restored is null)
                     {
-                        Save(world, session, evidence, id + "-mid-draw");
-                        GameSession independent = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!);
-                        clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
-                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
-                        Assert.Equal(NativeBattleProductionEffectAdmissionTests.RenderBattle(world), NativeBattleProductionEffectAdmissionTests.RenderBattle(clone));
-                        restored = true;
+                        BattleSnapshot checkpoint = battle.Capture();
+                        BattleActionHeaderReference header = Assert.IsType<BattleActionHeaderReference>(action.NativeHeader);
+                        Assert.Equal((byte)0, checkpoint.NativeActionPackets!.ReadHeader(header).ReadRepeatModeMinusOne());
+                        Assert.Equal(new BattleEnemyActorModel(new(target.Id)), Assert.Single(checkpoint.NativeActionPackets.ReadHeaderContacts(header)).Primary.Recipient);
+                        NativeBattleRestorationPresentationTests.Publish(evidence, id + "-mid-draw", checkpoint, null);
+                        restored = BattleSession.Restore(checkpoint);
+                        restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+                        Assert.Equal(JsonSerializer.Serialize(checkpoint), JsonSerializer.Serialize(restored.Capture()));
+                        Assert.Equal(presentation.Render(battle, 320, 224).ToArray(), presentation.Render(restored, 320, 224).ToArray());
                     }
                 }
-                if (clone is not null && callback % 8 == 0)
+                if (restored is not null && callback % 8 == 0)
                 {
-                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
                 }
                 fire |= battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 2 };
                 if (battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id) > initialCompletions)
@@ -89,31 +98,19 @@ public sealed class NativeBattleDrawCastCameraTests
                 }
             }
             Assert.True(draw);
-            Assert.True(restored);
+            Assert.NotNull(restored);
             Assert.True(fire);
             Assert.Equal(initialCompletions + 1, battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id));
             Assert.Equal(stocks, JsonSerializer.Serialize(caster.MagicStocks));
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone!.Battle!.Capture()));
-            Assert.Equal(NativeBattleProductionEffectAdmissionTests.RenderBattle(world), NativeBattleProductionEffectAdmissionTests.RenderBattle(clone));
-            Save(world, session, evidence, id + "-after");
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            byte[] pixels = presentation.Render(battle, 320, 224).ToArray();
+            Assert.Equal(pixels, presentation.Render(restored, 320, 224).ToArray());
+            NativeBattleRestorationPresentationTests.Publish(evidence, id + "-after", battle.Capture(), pixels);
         }
         catch
         {
-            Save(world, session, evidence, id + "-unsupported");
+            NativeBattleRestorationPresentationTests.Publish(evidence, id + "-unsupported", battle.Capture(), null);
             throw;
-        }
-        finally
-        {
-            clone?.Dispose();
-        }
-    }
-
-    private static void Save(GameWorld world, GameSession session, string? evidence, string name)
-    {
-        session.SetEventState(world.Events.Capture());
-        if (!string.IsNullOrWhiteSpace(evidence))
-        {
-            NativeBattleProductionEffectAdmissionTests.Publish(evidence, name, session.PrepareSnapshot());
         }
     }
 }

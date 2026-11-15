@@ -135,12 +135,7 @@ public sealed partial class BattleSession
             (nativeActionPackets, BattleContactOccurrence occurrence) = nativeActionPackets.AppendContact(packet);
             ObserveDiagnosticCounterAppend(packet, occurrence);
         }
-        (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
-        if (command.NativeAiCallbackStage is not null && context.MultiCastMode == 0)
-        {
-            //487DF0 and483EF0 clear BYTE17 for each single AI header, including synchronous reflection and Return Damage.
-            nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(headerIndex, 1);
-        }
+        PublishNativeSingleActionHeader(produced.PublishedTargetCount);
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);
         RecordPublishedNativeTargetCount(produced.PublishedTargetCount);
         if (queueGraphics && NativeGraphics is { } graphics)

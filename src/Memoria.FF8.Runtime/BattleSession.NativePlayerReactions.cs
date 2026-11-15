@@ -79,13 +79,11 @@ public sealed partial class BattleSession
         BattleAbility ability = reaction == BattleNativePlayerReaction.Counter ? BattleAbility.Attack : reaction == BattleNativePlayerReaction.AutoPotion ? BattleAbility.Item : BattleAbility.EnemyAbility;
         BattleAttackCommand queued = new(actor.Id, target.Id, request, ability, id) { NativePlayerReaction = reaction, NativeQueuedCommand = command, NativeAction = native, ReservedNativeItemSlot = command == 4 ? ConsumeNativeItem(id) : null };
         queued = PrepareNativeEventCommand(actor, queued);
-        if (nativeProductionContext is not null && queued.NativeHeader is BattleActionHeaderReference headerIndex)
+        if (nativeProductionContext is not null && queued.NativeHeader is not null)
         {
             byte lane = nativeActionScratch.EventLane ?? throw new NotSupportedException("Native483400 requires its current event batch BYTE B0E.");
             if (lane == 0)
             {
-                //483400 clears the last published header's BYTE17 before queuing its intermediate48D1F0 callback.
-                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(headerIndex, 1);
                 if (NativeGraphics is { } graphics)
                 {
                     NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);

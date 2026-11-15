@@ -25,10 +25,8 @@ public sealed partial class BattleSession
         nativeProductionContext = new(0, 1, false, 0x47DE70);
         try
         {
-            BattleActionHeaderReference header = nativeActionPackets.NextHeader;
             BattleActionDefinition action = new(command.Ability, command.ActionId, selected.Name ?? "Renzokuken finisher", BattleActionEffect.Native, 0, false) { NativeAction = preliminary };
             ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, action);
-            nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, nativeProductionContext.RepeatMode);
         }
         finally
         {

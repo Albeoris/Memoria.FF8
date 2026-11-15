@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         // 487DF0 selects command 0/id 3. 48FE20 writes ADC from the second operand and suppresses action memory with DF5.
         (nativeActionPackets, BattleActionHeaderReference header) = nativeActionPackets.Prepare(PrepareNativeEntranceHeader(actor));
         (nativeActionPackets, _) = nativeActionPackets.AppendContact(PrepareNativeEntranceContact(target, targetOwner, sequence));
-        (nativeActionPackets, _) = nativeActionPackets.Publish(1);
+        PublishNativeSingleActionHeader(1);
         RecordPublishedNativeTargetCount(1);
         BeginNativeBattleActionPause();
         graphics = QueueNativeDescriptor(graphics, 112, 0);
@@ -111,7 +111,7 @@ public sealed partial class BattleSession
             }
         }
         int count = targets.Length;
-        (nativeActionPackets, _) = nativeActionPackets.Publish(count);
+        PublishNativeSingleActionHeader(count);
         RecordPublishedNativeTargetCount(count);
         if (NativeGraphics is { } graphics)
         {

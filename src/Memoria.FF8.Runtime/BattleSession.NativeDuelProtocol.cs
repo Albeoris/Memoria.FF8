@@ -101,7 +101,6 @@ public sealed partial class BattleSession
             if (!unavailable)
             {
                 BeginNativeBattleActionPause();
-                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
                 NativeGraphics = QueueNativeActionDescriptor(NativeGraphics!, header);
                 NativeGraphics = QueueNativeDescriptor(NativeGraphics, 10, 0x47DD90);
                 actions.Enqueue(queued with { NativeHeader = header, NativeSequence = nativeActionPackets.ReadHeader(header).Sequence, NativeLimitCallback = actionId == 65532 ? NativeLimitCallback.DuelFinisher : callback });

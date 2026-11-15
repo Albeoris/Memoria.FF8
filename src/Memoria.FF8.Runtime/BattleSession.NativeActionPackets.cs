@@ -63,6 +63,14 @@ public sealed partial class BattleSession
         nativeScriptState = nativeScriptState with { AllocationControl = memory.AllocationControl };
     }
 
+    private void PublishNativeSingleActionHeader(int targetCount)
+    {
+        (nativeActionPackets, BattleActionHeaderReference header) = nativeActionPackets.Publish(targetCount);
+        // The native arena retains BYTE17 on Prepare. Every session publisher starts with one
+        // dispatchable header; an explicit group may extend it after preparing further casts.
+        nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
+    }
+
     private void RefreshNativePacketBindings()
     {
         var (roster, aliases) = ReadBattlePresentationPacketBindings();

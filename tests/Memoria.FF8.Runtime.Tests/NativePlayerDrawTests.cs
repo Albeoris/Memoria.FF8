@@ -24,7 +24,7 @@ public sealed class NativePlayerDrawTests
         BattleNativeDrawContext draw = prepared.ActiveAction!.NativeDraw!;
         int total = Math.Min(100, initialStock + draw.Quantity);
         Assert.Equal(total - initialStock, draw.Added);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(prepared))!);
+        BattleSession restored = BattleSession.Restore(prepared);
 
         Complete(battle);
         Complete(restored);
@@ -38,6 +38,97 @@ public sealed class NativePlayerDrawTests
             Assert.Equal(expected, Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
             Assert.Equal(expected, Assert.Single(restored.Events, entry => entry.Kind == "NativeText").Message);
         }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void Draw_publishes_exactly_one_header_after_reusing_a_multicast_slot(bool cast, bool failed)
+    {
+        BattleDefinition definition = Create().Capture().Definition;
+        BattleActionDefinition spell = definition.ActionDefinitions[0];
+        BattleNativeAction native = new(2, 1, 1, 1)
+        {
+            Name = "Fire",
+            MagicId = 2,
+            AttackType = 2,
+            Power = 20,
+            HitCount = 1,
+            TargetFlags = 0x50,
+            AttackFlags = 1,
+            DamagePresentation = 0,
+            Element = 0,
+            ElementPercent = null,
+            StatusAttack = 0,
+            Hit = null,
+            Critical = null,
+            PowerModifier = null,
+            LevelModifier = null,
+            Statuses0 = 0,
+            Statuses1 = 0,
+            RawRecord = [],
+            SupplementalRecord = []
+        };
+        definition.ActionDefinitions[0] = spell with { NativeAction = native };
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(1, failed ? byte.MaxValue : (byte)0), new(0, 0), new(0, 0), new(0, 0)] };
+        BattleSession initial = new(definition with
+        {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeActions = [native],
+            NativeKnownMagic = new(NativeInputConfiguration.OriginalInitHash, [0, 0])
+        }, BattleAtbMode.TurnBased);
+        BattleSnapshot before = initial.Capture();
+        NativeBattleActionPacketsState packets = before.NativeActionPackets!;
+        (packets, BattleActionHeaderReference retained) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 11, -1, 1, 2, null));
+        (packets, _) = packets.Publish(0);
+        packets = packets.WritePlayerRepeatMode(retained, 3).ResetCounts();
+        Assert.Equal((byte)2, packets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        BattleSession battle = BattleSession.Restore(before with { NativeActionPackets = packets });
+
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1, cast, drawCastTargetId: cast ? "source2" : null);
+        battle.Tick();
+
+        BattleActionPresentation active = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
+        Assert.Equal(failed, active.NativeDraw!.Failed);
+        BattleActionHeaderReference reference = Assert.IsType<BattleActionHeaderReference>(active.NativeHeader);
+        Assert.Equal(retained, reference);
+        packets = battle.NativeActionPackets;
+        Assert.Equal(1, packets.ActionCount);
+        NativeBattleActionGraphicsState graphics = NativeBattleActionGraphics.Normalize(packets, reference);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(reference);
+        Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
+        if (failed)
+        {
+            Assert.Equal((byte)0, header.Command);
+            Assert.Equal((ushort)9, header.Action);
+            Assert.Equal((ushort)0, header.Effect);
+            Assert.Empty(packets.ReadHeaderContacts(reference));
+            Assert.Empty(graphics.TargetActors.Resolve(packets.ModelAliases).Enumerate());
+        }
+        else
+        {
+            Assert.Equal((byte)6, header.Command);
+            Assert.Equal((ushort)1, header.Action);
+            Assert.Equal(cast ? (ushort)2 : (ushort)15, header.Effect);
+            BattleModelOwner target = new BattleEnemyActorModel(new(cast ? "source2" : "source"));
+            NativeBattleContactHalf contact = Assert.Single(packets.ReadHeaderContacts(reference)).Primary;
+            Assert.Equal(target, contact.Recipient);
+            Assert.Equal(target, Assert.Single(graphics.TargetActors.Resolve(packets.ModelAliases).Enumerate()));
+            if (!cast)
+            {
+                Assert.Equal((ushort)0, contact.Amount6);
+            }
+        }
+
+        Assert.Equal(2 + (cast || failed ? 0 : active.NativeDraw.Added), Assert.Single(battle.Combatants[0].MagicStocks).Count);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        Complete(battle);
+        Complete(restored);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Single(restored.Events, entry => entry.Kind == "Draw");
+        Assert.Single(restored.Events, entry => entry.Kind == "ActionComplete" && entry.ActorId == "party");
     }
 
     [Fact]
@@ -115,7 +206,7 @@ public sealed class NativePlayerDrawTests
         BattleAttackCommand command = Assert.Single(battle.QueuedActions);
         Assert.Equal("source", command.TargetId);
         Assert.Equal("source", command.DrawCastTargetId);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.Equal("source", Assert.Single(restored.QueuedActions).DrawCastTargetId);
     }
 
@@ -235,7 +326,7 @@ public sealed class NativePlayerDrawTests
         Assert.Equal(0, battle.ActiveAction.NativeDraw.Quantity);
         Assert.Empty(source.DrawnMagicIds);
         Assert.Equal(2, source.NativeDrawSlots[0].Id);
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle = BattleSession.Restore(battle.Capture());
         Complete(battle);
         source = battle.Combatants.Single(actor => actor.Id == "source");
         Assert.Empty(source.DrawnMagicIds);
@@ -250,7 +341,7 @@ public sealed class NativePlayerDrawTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void StockWithoutInventoryCapacityLeavesSpellAvailableAfterJsonRestore(bool fullInventory)
+    public void StockWithoutInventoryCapacityLeavesSpellAvailableAfterRestore(bool fullInventory)
     {
         BattleDefinition definition = CreateWithSecondCaster().Capture().Definition;
         BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
@@ -270,7 +361,7 @@ public sealed class NativePlayerDrawTests
         Assert.Empty(source.DrawnMagicIds);
         Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 1);
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(restored);
         source = restored.Combatants.Single(actor => actor.Id == "source");
         Assert.Empty(source.DrawnMagicIds);
@@ -327,7 +418,7 @@ public sealed class NativePlayerDrawTests
         Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
         Assert.Equal(!oncePerSpell, battle.Combatants.Single(actor => actor.Id == "source").NativeDrawSlots.Any(slot => slot.Id == 3));
         Assert.Equal(3, battle.QueuedActions.Single(command => command.ActorId == "ally").ActionId);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         foreach (BattleSession current in new[] { battle, restored })
         {
             Dictionary<string, BattleNativeDrawContext> results = new();
@@ -374,7 +465,7 @@ public sealed class NativePlayerDrawTests
         {
             Complete(battle);
         }
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(restored);
         BattleCombatant source = restored.Combatants.Single(actor => actor.Id == "source");
         Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
@@ -389,17 +480,13 @@ public sealed class NativePlayerDrawTests
     }
 
     [Fact]
-    public void OlderSnapshotWithoutDepletionTrackingStartsTrackingAtLoadWithoutInferringPriorDraws()
+    public void Checkpoint_without_tracked_depletion_preserves_source_slots_without_inferring_prior_draws()
     {
         BattleSession battle = Create();
         battle.QueueAction("party", "source", BattleAbility.Draw, 1);
         Complete(battle);
-        System.Text.Json.Nodes.JsonNode snapshot = JsonSerializer.SerializeToNode(battle.Capture())!;
-        foreach (System.Text.Json.Nodes.JsonNode? actor in snapshot["Combatants"]!.AsArray())
-        {
-            actor!.AsObject().Remove("DrawnMagicIds");
-        }
-        BattleSession restored = BattleSession.Restore(snapshot.Deserialize<BattleSnapshot>()!);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleSession restored = BattleSession.Restore(snapshot with { Combatants = snapshot.Combatants.Select(actor => actor with { DrawnMagicIds = [] }).ToArray() });
         BattleCombatant source = restored.Combatants.Single(actor => actor.Id == "source");
         Assert.Empty(source.DrawnMagicIds);
         Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 1);
@@ -414,7 +501,7 @@ public sealed class NativePlayerDrawTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DefaultRuleAllowsRepeatedDrawByDifferentCastersAfterJsonRestore(bool cast)
+    public void DefaultRuleAllowsRepeatedDrawByDifferentCastersAfterRestore(bool cast)
     {
         BattleDefinition definition = CreateWithSecondCaster().Capture().Definition with { DrawOncePerSpell = false };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
@@ -422,7 +509,7 @@ public sealed class NativePlayerDrawTests
         battle.QueueAction("ally", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "party" : null);
         battle.Tick();
         Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.False(restored.Capture().Definition.DrawOncePerSpell);
         bool secondSucceeded = false;
         for (int frame = 0; frame < 80; frame++)
@@ -445,9 +532,8 @@ public sealed class NativePlayerDrawTests
     {
         Assert.False(new BattleDefinition().DrawOncePerSpell);
         BattleSession battle = Create();
-        System.Text.Json.Nodes.JsonNode snapshot = JsonSerializer.SerializeToNode(battle.Capture())!;
-        snapshot["Definition"]!.AsObject().Remove("DrawOncePerSpell");
-        BattleSession restored = BattleSession.Restore(snapshot.Deserialize<BattleSnapshot>()!);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleSession restored = BattleSession.Restore(snapshot with { Definition = snapshot.Definition with { DrawOncePerSpell = new BattleDefinition().DrawOncePerSpell } });
         Assert.False(restored.Capture().Definition.DrawOncePerSpell);
         restored.QueueAction("party", "source", BattleAbility.Draw, 1);
         Complete(restored);
@@ -463,7 +549,7 @@ public sealed class NativePlayerDrawTests
     [InlineData(0, 100)]
     [InlineData(98, 5)]
     [InlineData(100, 100)]
-    public void SuccessfulDrawAddsConfiguredBonusOnceAndClampsStockAfterJsonRestore(int stock, int bonus)
+    public void SuccessfulDrawAddsConfiguredBonusOnceAndClampsStockAfterRestore(int stock, int bonus)
     {
         BattleSession baseline = Create(stock);
         BattleDefinition definition = baseline.Capture().Definition;
@@ -475,7 +561,7 @@ public sealed class NativePlayerDrawTests
         int expected = Math.Min(100, baseline.ActiveAction!.NativeDraw!.Quantity + bonus);
         Assert.Equal(expected, battle.ActiveAction!.NativeDraw!.Quantity);
         Assert.Equal(Math.Min(100 - stock, expected), battle.ActiveAction.NativeDraw.Added);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(battle);
         Complete(restored);
         Assert.Equal(Math.Min(100, stock + expected), Assert.Single(restored.Combatants[0].MagicStocks).Count);

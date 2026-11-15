@@ -126,7 +126,6 @@ public sealed partial class BattleSession
             BattleActionDefinition definition = new(command.Ability, command.ActionId, "Renzokuken", BattleActionEffect.Native, 0, false) { NativeAction = control };
             BattleActionHeaderReference header = nativeActionPackets.NextHeader;
             ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, definition);
-            nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
             nativeTimedAction = nativeTimedAction! with { Command = command with { NativeHeader = header } };
             if (finisher is byte selected)
             {

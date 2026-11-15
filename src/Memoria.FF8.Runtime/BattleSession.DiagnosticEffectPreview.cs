@@ -65,8 +65,7 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderPreparation header = new(source, command, sequence, -1, action, effect, null);
         (nativeActionPackets, BattleActionHeaderReference index) = nativeActionPackets.Prepare(header);
         (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(target, 0, 1, 0, 0, 0, 0), null));
-        (nativeActionPackets, _) = nativeActionPackets.Publish(1);
-        nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(index, 1);
+        PublishNativeSingleActionHeader(1);
         ObserveDiagnosticPreparedHeader(index);
         NativeGraphics = QueueNativeActionDescriptor(graphics, index);
         diagnosticEffectPreviewPublished = true;

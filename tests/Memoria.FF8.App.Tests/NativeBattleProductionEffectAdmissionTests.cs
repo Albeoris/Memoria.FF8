@@ -493,6 +493,8 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         }
         byte[] controlledProgram = Program(initializeBattleMode: true);
         bool explicitMode = events.GetProperty("ProgramHash").GetString() == Convert.ToHexString(SHA256.HashData(controlledProgram));
+        // The test program has no field-table row from which to load particles.
+        world.Events.ReadNativeFieldParticleDefinition = null;
         world.Events.LoadField(999, explicitMode ? controlledProgram : Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         world.Events.Restore(events);
         return world;

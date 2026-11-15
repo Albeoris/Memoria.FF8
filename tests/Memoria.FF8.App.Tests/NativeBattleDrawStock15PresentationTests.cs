@@ -9,14 +9,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleDrawStock15PresentationTests
 {
     [Fact]
-    public void Original_Draw_stock_command_adds_magic_once_and_completes_native_visual_and_cold_boundaries()
+    public void Original_Draw_stock_command_adds_magic_once_and_completes_native_visual_and_checkpoint_boundaries()
     {
-        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string directory = TestResources.GameDirectory;
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_DRAWSTOCK15_EVIDENCE");
-        Assert.SkipUnless(directory is not null && output is not null, "Select installed resources and a distinct Draw Stock evidence directory.");
-        Assert.True(Directory.Exists(directory));
-        Assert.False(Directory.Exists(output));
-        Directory.CreateDirectory(output!);
+        if (output is not null)
+        {
+            Assert.False(Directory.Exists(output));
+            Directory.CreateDirectory(output);
+        }
         BattleSession? battle = null;
         BattleSnapshot? prior = null;
         int callbacks = 0;
@@ -32,7 +33,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
         bool cameraChanged = false;
         int peakChangedRgb = 0;
         string boundary = "original-resources";
-        List<string> coldBoundaries = [];
+        List<string> checkpointBoundaries = [];
         try
         {
             using GameAssets game = new(directory!);
@@ -103,7 +104,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
             battle = new(definition, BattleAtbMode.TurnBased);
             BattleScenePresentation scene = new(assets, definition, true);
             prior = battle.Capture();
-            ColdNext("before-entry", prior);
+            CheckNext("before-entry", prior);
             for (int callback = 0; callback < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
             {
                 prior = battle.Capture();
@@ -121,10 +122,13 @@ public sealed class NativeBattleDrawStock15PresentationTests
             int initialEnemyHp = enemy.CurrentHp;
             int initialSounds = battle.Events.Count(item => item.NativeModuleSound is not null);
             string initialCamera = JsonSerializer.Serialize(battle.Capture().NativeCamera);
-            File.WriteAllText(Path.Combine(output!, "fixture-selection.json"), JsonSerializer.Serialize(new { Scenario = "Fresh ordinary Draw Stock; module15 is executable-owned command6, not item32 Friendship", Formation = formation.Id, formation.StageId, EnemyModel = 61, EnemyLevel = enemy.Level, sourceSlot, Spell = spell.Id, spell.DrawResist, CasterLevel = caster.Level, caster.Magic, InitialInventory = initialInventory, InitialKnownMagic = battle.Capture().NativeKnownMagic }));
-            ColdNext("before-command", battle.Capture());
+            if (output is not null)
+            {
+                File.WriteAllText(Path.Combine(output, "fixture-selection.json"), JsonSerializer.Serialize(new { Scenario = "Fresh ordinary Draw Stock; module15 is executable-owned command6, not item32 Friendship", Formation = formation.Id, formation.StageId, EnemyModel = 61, EnemyLevel = enemy.Level, sourceSlot, Spell = spell.Id, spell.DrawResist, CasterLevel = caster.Level, caster.Magic, InitialInventory = initialInventory, InitialKnownMagic = battle.Capture().NativeKnownMagic }));
+            }
+            CheckNext("before-command", battle.Capture());
             battle.QueueAction("party", "enemy", BattleAbility.Draw, selectedSpell);
-            ColdNext("queued", battle.Capture());
+            CheckNext("queued", battle.Capture());
             // This bound detects a stalled command; only its actual producer and native task release establish completion.
             for (; callbacks < 4096; callbacks++)
             {
@@ -147,7 +151,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     Assert.Equal(expectedAdded, result.Added);
                     Assert.Equal(JsonSerializer.Serialize(candidateRandom), JsonSerializer.Serialize(current.Random));
                     prepared = true;
-                    ColdNext("stock-produced", current);
+                    CheckNext("stock-produced", current);
                 }
                 NativeMagicStock[] inventory = current.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!;
                 Assert.Equal(initialCount + (prepared ? expectedAdded : 0), inventory.Where(stock => stock.SpellId == selectedSpell).Sum(stock => stock.Count));
@@ -172,7 +176,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     Assert.NotEqual(0, half.ContactFlags & 1);
                     Assert.Equal(JsonSerializer.Serialize(game.ReadNativeDrawStock15Resources().Animation), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation!.Source));
                     initialized = true;
-                    ColdNext("initialized", current);
+                    CheckNext("initialized", current);
                 }
                 if (CrossedContactGate(prior, current))
                 {
@@ -181,7 +185,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     BattleContactCursor contactIndex = current.NativeActionPackets!.ReadHeader(current.NativeGraphics.OriginalEffect.Parameters!.Header.Advance(unchecked((sbyte)target.ReadByte(0x2A)))).FirstContact.Advance(target.ReadTraversalPosition(0x2B));
                     NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(contactIndex).Primary;
                     Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner == half.Recipient);
-                    ColdNext("contact", current);
+                    CheckNext("contact", current);
                 }
                 if (after?.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 })
                 {
@@ -205,9 +209,9 @@ public sealed class NativeBattleDrawStock15PresentationTests
                         peakChangedRgb = CountRgbChanges(pixels, plain);
                         if (peakChangedRgb > 0)
                         {
-                            NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
-                            NativeBattleRestorationPresentationTests.Publish(output!, "without-effect", without, plain);
-                            ColdNext("live", current);
+                            NativeBattleRestorationPresentationTests.Publish(output, "visible", current, pixels);
+                            NativeBattleRestorationPresentationTests.Publish(output, "without-effect", without, plain);
+                            CheckNext("live", current);
                             liveRestored = true;
                         }
                     }
@@ -241,27 +245,33 @@ public sealed class NativeBattleDrawStock15PresentationTests
             }
             Assert.Equal(initialCount + expectedAdded, completed.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!.Where(stock => stock.SpellId == selectedSpell).Sum(stock => stock.Count));
             Assert.Equal(initialEnemyHp, completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-            ColdNext("completed", completed);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Ordinary original Draw Stock command6, quantity formula, inventory gain and module15 physical contact", selectedSpell, sourceSlot, expectedQuantity, expectedAdded, callbacks, DiagnosticMaximumCallbacks = 4096, contactTransitions, completions, peakChangedRgb, initialized, liveRestored, cameraChanged, RestoredBoundaries = coldBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
-
-            void ColdNext(string name, BattleSnapshot snapshot)
+            CheckNext("completed", completed);
+            if (output is not null)
             {
-                boundary = "cold-" + name;
+                File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Ordinary original Draw Stock command6, quantity formula, inventory gain and module15 physical contact", selectedSpell, sourceSlot, expectedQuantity, expectedAdded, callbacks, DiagnosticMaximumCallbacks = 4096, contactTransitions, completions, peakChangedRgb, initialized, liveRestored, cameraChanged, RestoredBoundaries = checkpointBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            }
+
+            void CheckNext(string name, BattleSnapshot snapshot)
+            {
+                boundary = "checkpoint-" + name;
                 BattleSnapshot? previous = prior;
                 prior = snapshot;
-                NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, new BattleScenePresentation(assets, definition, true).Render(BattleSession.Restore(snapshot), 320, 224).ToArray());
-                BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
-                BattleSession direct = BattleSession.Restore(snapshot);
-                cold.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-                direct.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-                Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-                cold.Tick();
-                direct.Tick();
-                Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-                byte[] pixels = new BattleScenePresentation(assets, definition, true).Render(cold, 320, 224).ToArray();
-                Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(direct, 320, 224).ToArray(), pixels);
-                NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
-                coldBoundaries.Add(name);
+                BattleSession restored = BattleSession.Restore(snapshot);
+                restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+                Assert.Equal(snapshot.NativeActionPackets!.PublishedHeaders().ToArray(), restored.NativeActionPackets.PublishedHeaders().ToArray());
+                Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+                byte[] checkpointPixels = scene.Render(restored, 320, 224).ToArray();
+                Assert.Equal(scene.Render(battle!, 320, 224).ToArray(), checkpointPixels);
+                NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, checkpointPixels);
+                restored.Tick();
+                BattleSession independent = BattleSession.Restore(snapshot);
+                independent.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+                independent.Tick();
+                Assert.Equal(JsonSerializer.Serialize(independent.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                byte[] nextPixels = scene.Render(restored, 320, 224).ToArray();
+                Assert.Equal(scene.Render(independent, 320, 224).ToArray(), nextPixels);
+                NativeBattleRestorationPresentationTests.Publish(output, name + "-next", restored.Capture(), nextPixels);
+                checkpointBoundaries.Add(name);
                 prior = previous;
             }
         }
@@ -269,13 +279,16 @@ public sealed class NativeBattleDrawStock15PresentationTests
         {
             if (prior is not null)
             {
-                NativeBattleRestorationPresentationTests.Publish(output!, "before-boundary", prior, null);
+                NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", prior, null);
             }
             if (battle is not null)
             {
-                NativeBattleRestorationPresentationTests.Publish(output!, "failed-live", battle.Capture(), null);
+                NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
             }
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", boundary, callbacks, selectedSpell, expectedQuantity, expectedAdded, initialized, prepared, liveRestored, contactTransitions, peakChangedRgb, Error = error.ToString() }));
+            if (output is not null)
+            {
+                File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", boundary, callbacks, selectedSpell, expectedQuantity, expectedAdded, initialized, prepared, liveRestored, contactTransitions, peakChangedRgb, Error = error.ToString() }));
+            }
             throw;
         }
     }

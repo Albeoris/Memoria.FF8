@@ -115,7 +115,7 @@ public sealed partial class BattleSession
         }
         BattleNativeDrawContext result = new(checked((byte)command.ActionId), checked((byte)quantity), checked((byte)added), failed);
         RecordOriginalStockDraw(actor, command, result);
-        return command with { NativeDraw = result, NativeAction = native, TargetRequest = command.DrawCast && !failed ? command.TargetRequest : BattleTargetRequest.None };
+        return command with { NativeDraw = result, NativeAction = native, TargetRequest = failed ? BattleTargetRequest.None : command.TargetRequest };
     }
 
     public int PreviewDrawQuantity(BattleCombatant actor, BattleCombatant source, int selection, int random)
@@ -260,9 +260,9 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Saved Draw Cast effect disagrees with its prepared native spell and separate recipient.");
             }
         }
-        else if (native is not null || dispatched && request.Selection is not BattleTargetSelection.None)
+        else if (native is not null || dispatched && result is not null && result.Failed != (request.Selection is BattleTargetSelection.None))
         {
-            throw new InvalidDataException("Stock Draw has no spell damage metadata or spell recipient selection.");
+            throw new InvalidDataException("Prepared Stock Draw requires its selected source on success and no contacts on failure.");
         }
         if (result is not null && (result.Selection != selection || result.Quantity > Math.Min(100, 9 + definition.Tuning.DrawBonus) || result.Added > result.Quantity || cast && result.Added != 0 || selection >= 64 && (result.Quantity != 0 || result.Added != 0) || selection < 64 && result.Failed != (result.Quantity == 0)))
         {
