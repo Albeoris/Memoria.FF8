@@ -6,7 +6,7 @@ public sealed partial class Ff7AutoplayDriver
 {
     public Ff7AutoplayInput Contact(int entity, bool run = true)
     {
-        return ChooseActorInput(() => ChooseContactInput(entity, run));
+        return ChooseBoundaryInput(() => ChooseContactInput(entity, run));
     }
 
     private Ff7AutoplayInput ChooseContactInput(int entity, bool run)
@@ -33,10 +33,15 @@ public sealed partial class Ff7AutoplayDriver
         return Approach(position, target.Triangle, run);
     }
 
-    private Ff7AutoplayInput ChooseActorInput(Func<Ff7AutoplayInput> choose)
+    internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, Func<Ff7AutoplayInput> choose)
     {
-        bool previous = approachingActor;
-        approachingActor = true;
+        return ChooseBoundaryInput(choose, ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways));
+    }
+
+    private Ff7AutoplayInput ChooseBoundaryInput(Func<Ff7AutoplayInput> choose, IReadOnlySet<int>? gateways = null)
+    {
+        IReadOnlySet<int>? previous = admittedGateways;
+        admittedGateways = gateways ?? previous;
         try
         {
             Ff7AutoplayInput input = choose();
@@ -44,7 +49,8 @@ public sealed partial class Ff7AutoplayDriver
             {
                 var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
                 Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
-                Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+                int rotation = (input.Held & 8) != 0 ? 224 : (input.Held & 4) != 0 ? 32 : 0;
+                Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection + rotation)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
                 if (!AllowsPlannedMove(controlled, probe))
                 {
                     return default;
@@ -54,7 +60,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         finally
         {
-            approachingActor = previous;
+            admittedGateways = previous;
         }
     }
 }

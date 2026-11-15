@@ -195,14 +195,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         try
         {
-            Ff7AutoplayInput input = selectedTarget.Kind switch
+            return driver.ChooseTargetInput(selectedTarget, () =>
             {
-                Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(selectedTarget.Entity),
-                Ff7AutoPlayTargetKind.ActorContact => driver.Contact(selectedTarget.Entity),
-                Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(selectedTarget.GatewayIndex!.Value),
-                _ => ChooseLineInput(driver, selectedTarget)
-            };
-            return PrepareEntryInput(selectedTarget, input);
+                Ff7AutoplayInput input = selectedTarget.Kind switch
+                {
+                    Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(selectedTarget.Entity),
+                    Ff7AutoPlayTargetKind.ActorContact => driver.Contact(selectedTarget.Entity),
+                    Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(selectedTarget.GatewayIndex!.Value),
+                    _ => ChooseLineInput(driver, selectedTarget)
+                };
+                return PrepareEntryInput(selectedTarget, input);
+            });
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {

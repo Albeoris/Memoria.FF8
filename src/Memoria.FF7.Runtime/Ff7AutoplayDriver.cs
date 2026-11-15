@@ -19,15 +19,18 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         if (target.Kind is Ff7AutoPlayTargetKind.ActorTalk or Ff7AutoPlayTargetKind.ActorContact)
         {
-            return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.GetActor(target.Entity), blockingEntities, session.Host.Process.Actors);
+            string actor = ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.GetActor(target.Entity), blockingEntities, session.Host.Process.Actors, session.Host.Process.MapJumpDisabled, session.Field.Triggers.Gateways);
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{actor}|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}")));
         }
-        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways);
+        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled);
     }
 
-    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways)
+    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways, bool mapJumpDisabled = false)
     {
         int component = ReachableTriangles(walkmesh, blockedTriangles, player.Triangle).Min();
         StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Id}:{target.Kind}|contact-search:1");
+        facts.Append($"|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}");
+        AppendGatewayAvailability(facts, mapJumpDisabled, gateways);
         if (target.Kind == Ff7AutoPlayTargetKind.Gateway)
         {
             if (target.GatewayIndex is int index && (uint)index < gateways.Count)
@@ -50,6 +53,16 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts.ToString())));
     }
 
+    private static void AppendGatewayAvailability(StringBuilder facts, bool mapJumpDisabled, IReadOnlyList<PcFieldGateway>? gateways)
+    {
+        facts.Append($"|map-jump-disabled:{mapJumpDisabled}");
+        for (int index = 0; index < (gateways?.Count ?? 0); index++)
+        {
+            PcFieldGateway gateway = gateways![index];
+            facts.Append($"|native-gateway:{index}:{BitConverter.SingleToInt32Bits(gateway.A.X)}:{BitConverter.SingleToInt32Bits(gateway.A.Y)}:{BitConverter.SingleToInt32Bits(gateway.A.Z)}:{BitConverter.SingleToInt32Bits(gateway.B.X)}:{BitConverter.SingleToInt32Bits(gateway.B.Y)}:{BitConverter.SingleToInt32Bits(gateway.B.Z)}:{gateway.DestinationField}:{gateway.DestinationTriangle}:{gateway.DestinationX}:{gateway.DestinationY}:{gateway.Direction}");
+        }
+    }
+
     private long waypointGeneration = -1;
     private int waypointDestination = -1;
     private Vector3? committedWaypoint;
@@ -60,8 +73,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private long gatewayGeneration = -1;
     private PcFieldGateway? gatewayTarget;
     private Vector3? gatewayCrossingTarget;
-    private PcFieldGateway? plannedGateway;
-    private bool approachingActor;
+    private IReadOnlySet<int>? admittedGateways;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
     public void Apply(Ff7AutoplayInput input)
@@ -116,15 +128,8 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     internal Ff7AutoplayInput Gateway(PcFieldGateway gateway, bool run)
     {
-        plannedGateway = gateway;
-        try
-        {
-            return ApproachGateway(gateway, run);
-        }
-        finally
-        {
-            plannedGateway = null;
-        }
+        int index = Enumerable.Range(0, session.Field.Triggers.Gateways.Count).Single(index => ReferenceEquals(session.Field.Triggers.Gateways[index], gateway));
+        return ChooseBoundaryInput(() => ApproachGateway(gateway, run), new HashSet<int> { index });
     }
 
     private Ff7AutoplayInput ApproachGateway(PcFieldGateway gateway, bool run)
@@ -179,7 +184,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     public Ff7AutoplayInput TalkTo(int entity, bool run = true)
     {
-        return ChooseActorInput(() => ChooseTalkInput(entity, run));
+        return ChooseBoundaryInput(() => ChooseTalkInput(entity, run));
     }
 
     private Ff7AutoplayInput ChooseTalkInput(int entity, bool run)

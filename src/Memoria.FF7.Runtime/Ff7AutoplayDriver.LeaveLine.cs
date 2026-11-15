@@ -7,6 +7,11 @@ public sealed partial class Ff7AutoplayDriver
 {
     public Ff7AutoplayInput LeaveLine(int entity, bool run = true)
     {
+        return ChooseBoundaryInput(() => ChooseLineLeaveInput(entity, run));
+    }
+
+    private Ff7AutoplayInput ChooseLineLeaveInput(int entity, bool run)
+    {
         Ff7FieldProcess process = session.Host.Process;
         Ff7Actor player = process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Line line = process.Lines.Single(value => value.Entity == entity);
@@ -43,7 +48,7 @@ public sealed partial class Ff7AutoplayDriver
             Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
             Vector2 after = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
             Vector2 destination = new(goal.X, goal.Y);
-            return probe.Moved && Vector2.DistanceSquared(after, destination) < Vector2.DistanceSquared(position, destination);
+            return probe.Moved && AllowsPlannedMove(controlled, probe) && Vector2.DistanceSquared(after, destination) < Vector2.DistanceSquared(position, destination);
         }
         if (directTriangles.Count > 0 && MakesNativeProgress(direct))
         {

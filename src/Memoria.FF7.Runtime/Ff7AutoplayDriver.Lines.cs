@@ -7,6 +7,11 @@ public sealed partial class Ff7AutoplayDriver
 {
     public Ff7AutoplayInput ApproachLine(int entity, Ff7AutoPlayTargetKind kind, bool run = true)
     {
+        return ChooseBoundaryInput(() => ChooseLineApproachInput(entity, kind, run));
+    }
+
+    private Ff7AutoplayInput ChooseLineApproachInput(int entity, Ff7AutoPlayTargetKind kind, bool run)
+    {
         Ff7FieldProcess process = session.Host.Process;
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         Ff7Line line = process.Lines.Last(line => line.Entity == entity);
@@ -111,6 +116,11 @@ public sealed partial class Ff7AutoplayDriver
 
     public Ff7AutoplayInput TalkToLine(int entity, bool run = true)
     {
+        return ChooseBoundaryInput(() => ChooseLineTalkInput(entity, run));
+    }
+
+    private Ff7AutoplayInput ChooseLineTalkInput(int entity, bool run)
+    {
         Ff7FieldProcess process = session.Host.Process;
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         Ff7Line line = process.Lines.Last(line => line.Entity == entity);
@@ -134,7 +144,7 @@ public sealed partial class Ff7AutoplayDriver
 
     private bool AllowsPlannedMove(Ff7Actor from, Ff7NativeMoveResult move)
     {
-        if (!session.Host.Process.MapJumpDisabled && !AllowsGatewayMove(session.Field.Triggers.Gateways, from, move.Actor, plannedGateway, approachingActor))
+        if (!session.Host.Process.MapJumpDisabled && !AllowsGatewayMove(session.Field.Triggers.Gateways, from, move.Actor, admittedGateways))
         {
             return false;
         }
@@ -169,8 +179,19 @@ public sealed partial class Ff7AutoplayDriver
         return true;
     }
 
-    internal static bool AllowsGatewayMove(IReadOnlyList<PcFieldGateway> gateways, Ff7Actor from, Ff7Actor to, PcFieldGateway? intendedGateway, bool approachingActor)
+    internal static bool AllowsGatewayMove(IReadOnlyList<PcFieldGateway> gateways, Ff7Actor from, Ff7Actor to, IReadOnlySet<int>? admitted)
     {
-        return intendedGateway is null && !approachingActor || !gateways.Any(gateway => gateway != intendedGateway && Ff7Session.CrossesGateway(gateway, from, to));
+        return !Enumerable.Range(0, gateways.Count).Any(index => admitted?.Contains(index) != true && Ff7Session.CrossesGateway(gateways[index], from, to));
+    }
+
+    internal static IReadOnlySet<int> ReadTargetGatewayIndices(Ff7AutoPlayTarget target, IReadOnlyList<PcFieldGateway> gateways)
+    {
+        if (target.GatewayIndex is int index)
+        {
+            return new HashSet<int> { index };
+        }
+        return target.AnalysisComplete && target.ChangesField && target.DestinationField is int destination
+            ? Enumerable.Range(0, gateways.Count).Where(index => gateways[index].DestinationField == destination).ToHashSet()
+            : new HashSet<int>();
     }
 }

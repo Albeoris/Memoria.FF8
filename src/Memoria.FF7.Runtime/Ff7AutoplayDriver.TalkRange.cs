@@ -51,13 +51,14 @@ public sealed partial class Ff7AutoplayDriver
             player = player with { Triangle = triangle };
         }
         Ff7Actor target = session.Host.GetActor(entity);
-        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, blockingEntities, session.Host.Process.Actors);
+        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, blockingEntities, session.Host.Process.Actors, session.Host.Process.MapJumpDisabled, session.Field.Triggers.Gateways);
     }
 
-    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7Actor target, IReadOnlyList<int>? blockingEntities = null, IReadOnlyList<Ff7Actor>? actors = null)
+    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7Actor target, IReadOnlyList<int>? blockingEntities = null, IReadOnlyList<Ff7Actor>? actors = null, bool mapJumpDisabled = false, IReadOnlyList<PcFieldGateway>? gateways = null)
     {
         int component = ReachableTriangles(walkmesh, blockedTriangles, player.Triangle).Min();
         StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Entity}:{target.Slot}:{target.Model}:{target.EntityBound}:{target.X4096}:{target.Y4096}:{target.Z4096}:{target.Triangle}:{target.TalkEnabled}:{target.TalkRadius}:{target.CollisionEnabled}:{target.CollisionRadius}");
+        AppendGatewayAvailability(facts, mapJumpDisabled, gateways);
         foreach (int entity in (blockingEntities ?? []).Distinct().Order())
         {
             Ff7Actor? blocker = actors?.SingleOrDefault(actor => actor.Entity == entity && actor.EntityBound);

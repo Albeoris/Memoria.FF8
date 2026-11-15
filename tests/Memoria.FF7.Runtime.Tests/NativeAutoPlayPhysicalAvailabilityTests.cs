@@ -49,6 +49,12 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         string gatewayGuard = Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, gatewayTarget, [], [gateway]);
         Check(gatewayGuard != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, [2], player, gatewayTarget, [], [gateway]), "Changed native blocking failed to refresh a gateway path absence.");
         Check(gatewayGuard != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, gatewayTarget, [], [gateway with { A = new(1, 0, 300) }]), "A changed native gateway segment failed to refresh its absence.");
+        string lineBoundary = Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, lineTarget, [line], [gateway]);
+        Check(lineBoundary != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, lineTarget, [line], [gateway], mapJumpDisabled: true), "Native map-jump admission changed without expiring LINE physical absence.");
+        Check(lineBoundary != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, lineTarget, [line], [gateway with { A = new(1, 0, 300) }]), "An unselected native gateway moved without expiring LINE physical absence.");
+        string actorBoundary = Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, target, gateways: [gateway]);
+        Check(actorBoundary != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, target, mapJumpDisabled: true, gateways: [gateway]), "Native map-jump admission changed without expiring actor physical absence.");
+        Check(actorBoundary != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, target, gateways: [gateway with { B = new(101, 100, 300) }]), "An unselected native gateway moved without expiring actor physical absence.");
         Ff7AutoPlayNavigationUnavailableException pathAbsence = new(-1, "absent authored path", destination: lineTarget.Position, destinationTriangle: 2);
         Check(pathAbsence is { Entity: -1, DestinationTriangle: 2 } && pathAbsence.Destination == lineTarget.Position && pathAbsence.BlockingEntities.Count == 0, "A nonactor path absence lost its exact destination proof.");
         PcWalkmeshTriangle[] stacked =
@@ -67,6 +73,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Enabled = 0 }).Count == 0, "A disabled LINE was advertised as a native contact candidate.");
         CheckNativeGoalPreview();
         CheckGatewayAdmission();
+        CheckOriginalTargetBoundary();
         CheckNativeOcclusionPredicate();
 
         string Fingerprint(Ff7Actor source, Ff7Actor destination, byte[] blocking)
@@ -82,11 +89,55 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Ff7Actor source = new() { Slot = 0, Entity = 0, Model = 0, X4096 = -4096, CollisionRadius = 30 };
         Ff7Actor to = source with { X4096 = 4096 };
         Check(Ff7Session.CrossesGateway(exit, source, to), "The authored actor approach did not cross its native exit.");
-        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, null, true), "An actor approach admitted an unintended native gateway.");
-        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, exit, false), "Explicit travel rejected its selected native gateway.");
-        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, selected, false), "Explicit travel admitted an unselected native gateway.");
-        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, source with { X4096 = -8192 }, null, true), "An actor approach rejected a native step remaining on the same exit side.");
-        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, null, false), "Actor-only gateway admission changed existing coupled LINE entry behavior.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, null), "An interaction without a boundary contract admitted an unintended native gateway.");
+        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, new HashSet<int> { 0 }), "Explicit travel rejected its selected native gateway.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, new HashSet<int> { 1 }), "Explicit travel admitted an unselected native gateway.");
+        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, source with { X4096 = -8192 }, null), "An interaction rejected a native step remaining on the same exit side.");
+        Ff7AutoPlayTarget line = new("authored-line", 1, 4, Ff7AutoPlayTargetKind.LineTouch, "conditions", false, Vector3.Zero);
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(line, [exit])), "A local LINE handler admitted an unrelated native exit.");
+        Ff7AutoPlayTarget coupled = line with { ChangesField = true, DestinationField = exit.DestinationField };
+        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled, [exit])), "A decoded unique-destination LINE lost its coupled native gateway.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { DestinationField = selected.DestinationField }, [exit])), "A decoded LINE admitted a different-destination native exit.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { DestinationField = null }, [exit])), "A multi-destination LINE fabricated unique native gateway admission.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { AnalysisComplete = false }, [exit])), "An incomplete handler analysis authorized a coupled native exit.");
+        Ff7AutoPlayTarget explicitGate = line with { GatewayIndex = 1, ChangesField = true, DestinationField = exit.DestinationField };
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(explicitGate, [exit, selected])), "Unique-destination coupling overrode an explicitly selected gateway index.");
+    }
+
+    private static void CheckOriginalTargetBoundary()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_DISCOVERY_SAVE");
+        string? targetId = Environment.GetEnvironmentVariable("MEMORIA_FF7_PHYSICAL_BOUNDARY_TARGET");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(targetId))
+        {
+            Console.WriteLine("SKIP native selected-target boundary: configure original resources, a standalone field and its target identity.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(stream).Ff7!);
+        string before = JsonSerializer.Serialize(session.Capture());
+        Ff7AutoPlayTarget target = new Ff7AutoPlayDiscovery(session).Observe().Events.Single(target => target.Id == targetId);
+        Ff7AutoplayDriver driver = new(session);
+        Ff7AutoplayInput input = driver.ChooseTargetInput(target, () => target.Kind switch
+        {
+            Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(target.Entity),
+            Ff7AutoPlayTargetKind.ActorContact => driver.Contact(target.Entity),
+            Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(target.GatewayIndex!.Value),
+            Ff7AutoPlayTargetKind.LineTalk => driver.TalkToLine(target.Entity),
+            Ff7AutoPlayTargetKind.LineLeave => driver.LeaveLine(target.Entity),
+            _ => driver.ApproachLine(target.Entity, target.Kind)
+        });
+        if (input.Horizontal != 0 || input.Vertical != 0)
+        {
+            Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled) with { MoveSpeed = checked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
+            int direction = input.Vertical < 0 ? input.Horizontal < 0 ? 32 : input.Horizontal > 0 ? 224 : 0 : input.Vertical > 0 ? input.Horizontal < 0 ? 96 : input.Horizontal > 0 ? 160 : 128 : input.Horizontal < 0 ? 64 : 192;
+            int rotation = (input.Held & 8) != 0 ? 224 : (input.Held & 4) != 0 ? 32 : 0;
+            Ff7NativeMoveResult preview = session.Host.Movement!.StepDirection(player, unchecked((byte)(direction + session.Field.Triggers.ControlDirection + rotation)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+            Check(session.Host.Process.MapJumpDisabled || Ff7AutoplayDriver.AllowsGatewayMove(session.Field.Triggers.Gateways, player, preview.Actor, Ff7AutoplayDriver.ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways)), "The native selected-target dry run crossed an unadmitted gateway.");
+        }
+        Check(before == JsonSerializer.Serialize(session.Capture()) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The native selected-target dry run changed its live snapshot or standalone source.");
     }
 
     private static void CheckNativeGoalPreview()
