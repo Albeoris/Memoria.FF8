@@ -10,8 +10,6 @@ internal sealed record EffectPreviewRequest([property: JsonRequired] int EnemyId
 {
     public int? AbilityId { get; init; }
     public byte? CommandId { get; init; }
-    public string? SourceSnapshot { get; init; }
-    public string? SourceSha256 { get; init; }
     internal byte AbilityCommand => CommandId ?? 3;
     public int StageId { get; init; }
     public byte Seed { get; init; }
@@ -29,13 +27,6 @@ internal sealed record EffectPreviewRequest([property: JsonRequired] int EnemyId
             throw new NotSupportedException("Whole ability preview currently supports native Magic command2 and GF command3.");
         }
         Presentation?.Validate();
-        if (SourceSnapshot is not null || SourceSha256 is not null)
-        {
-            if (string.IsNullOrWhiteSpace(SourceSnapshot) || !Path.IsPathFullyQualified(SourceSnapshot) || SourceSha256 is not { Length: 64 } || SourceSha256.Any(character => !Uri.IsHexDigit(character)) || EffectId is null || AbilityId is not null || CommandId is not null)
-            {
-                throw new InvalidDataException("A component preview requires an absolute standalone source, its SHA256 and expected native effect without an ability override.");
-            }
-        }
     }
 
     internal BattleEncounter CreateArena()
@@ -49,12 +40,12 @@ internal sealed partial class GameWorld
 {
     private EffectPreviewRequest? effectPreviewRequest;
 
-    internal BattleSession StartEffectPreview(EffectPreviewRequest request)
+    internal BattleSession StartEffectPreview(EffectPreviewRequest request, EffectComponentPreviewSource? source = null)
     {
         request.Validate();
-        if (request.SourceSnapshot is not null)
+        if (source is not null)
         {
-            return StartEffectComponentPreview(request);
+            return StartEffectComponentPreview(request, source);
         }
         effectPreviewRequest = request;
         DiagnosticBattlePreparation fixture = new([], [new(0, request.AllyId, [], [])], true) { CombatParty = [0, 255, 255] };

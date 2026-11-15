@@ -74,10 +74,11 @@ internal sealed partial class RecreateGame : Game
     private bool userPaused;
     private readonly UpdateSaveHandoff updateSave;
 
-    public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false, Memoria.FF7.Runtime.CombinedSessionSave? initialCrossover = null)
+    public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false, Memoria.FF7.Runtime.CombinedSessionSave? initialCrossover = null, EffectComponentPreviewSource? effectComponentSource = null)
     {
         this.options = options;
         this.initialCrossover = initialCrossover;
+        this.effectComponentSource = effectComponentSource;
         ff7InstallationIssue = new(() => GetFf7InstallationIssue(options.Ff7GameDirectory));
         physicalInput = new(options.AcceptsPhysicalInput, HasPhysicalInputFocus, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);

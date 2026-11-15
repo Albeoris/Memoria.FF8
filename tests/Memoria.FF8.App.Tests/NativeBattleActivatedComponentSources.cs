@@ -43,12 +43,7 @@ internal static class NativeBattleActivatedComponentSources
         else
         {
             string fixture = Path.Combine(carrierOutput, "fixture");
-            NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(carrierRequest, gameDirectory, fixture);
-            if (exported.Status == "blocked")
-            {
-                throw new InvalidDataException($"Original activation carrier failed at {exported.Boundary}: {exported.FirstBlocker}");
-            }
-            carrier = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+            carrier = NativeBattleEffectFixtureExporter.Prepare(carrierRequest, gameDirectory, fixture).Snapshot;
         }
         BattleSession active = BattleSession.Restore(carrier);
         active.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);

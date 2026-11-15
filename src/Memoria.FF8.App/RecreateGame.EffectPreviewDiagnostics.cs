@@ -9,7 +9,7 @@ internal sealed partial class RecreateGame
 
     private void ObserveEffectPreviewDrain(BattleSession active, bool blocked, bool timeout)
     {
-        if (effectPreview?.SourceSnapshot is null || !EffectPreviewDrainObservationBudget.Supports(effectPreviewExpectedEffect))
+        if (effectComponentSource is null || !EffectPreviewDrainObservationBudget.Supports(effectPreviewExpectedEffect))
         {
             return;
         }
@@ -21,8 +21,8 @@ internal sealed partial class RecreateGame
         }
         try
         {
-            string directory = effectPreview.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
-            object observation = new { schema_version = 1, boundary, effect = effectPreviewExpectedEffect, source_sha256 = effectPreview.SourceSha256, drain_blockers = active.ObserveDiagnosticDrainBlockers(), owners = active.ObserveDiagnosticEffectPreviewOwners() };
+            string directory = effectPreview!.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
+            object observation = new { schema_version = 1, boundary, effect = effectPreviewExpectedEffect, source_sha256 = effectComponentSource.Sha256, drain_blockers = active.ObserveDiagnosticDrainBlockers(), owners = active.ObserveDiagnosticEffectPreviewOwners() };
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(observation, DiagnosticBattleJson);
             if (bytes.Length > 32768)
             {

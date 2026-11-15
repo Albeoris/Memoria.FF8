@@ -68,10 +68,8 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 Assert.Equal(action.Command, request.Command);
                 Assert.Equal(action.ActionId, request.ActionId);
             }
-            NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
+            (NativeEffectFixtureExportResult exported, BattleSnapshot source) = NativeBattleEffectFixtureExporter.Prepare(request, directory!, fixture);
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
-            Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-            BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
             prior = source;
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
             int descriptor = Assert.Single(source.NativeGraphics!.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);

@@ -695,10 +695,9 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             else
             {
-                exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
+                (exported, source) = NativeBattleEffectFixtureExporter.Prepare(request, directory!, fixture);
                 File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
                 Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-                source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
             }
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);

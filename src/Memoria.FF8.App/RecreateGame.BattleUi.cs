@@ -104,7 +104,7 @@ internal sealed partial class RecreateGame
             if (effectPreviewSubmitted)
             {
                 active.AdvanceNativeGraphicsPresentation(elapsed);
-                if (effectPreview.SourceSnapshot is not null)
+                if (effectComponentSource is not null)
                 {
                     world!.SynchronizeBattlePresentation();
                 }

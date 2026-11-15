@@ -108,7 +108,7 @@ public sealed class AdditionalEnemyRosterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void WorldRosterRestoresAgainstTheFrozenTerrainEncounterTable(bool hasSuspendedField)
+    public void WorldRosterRebuildsAgainstTheFrozenTerrainEncounterTable(bool hasSuspendedField)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
@@ -150,20 +150,26 @@ public sealed class AdditionalEnemyRosterTests
         }
         Assert.NotNull(session.State.RandomEncounters?.Pending);
         NativeWorldEncounterDefinition terrain = Assert.IsType<NativeWorldEncounterDefinition>(scene.ReadRandomEncounterDefinition(scene.State));
+        GameState sourceWorld = session.PrepareSnapshot();
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 0));
         BattleDefinition definition = world.Battle!.ReadDefinition();
         Assert.True(definition.AddedEnemySources is { Count: 1 }, $"Terrain {scene.State.GroundType}, formations {string.Join(", ", terrain.Formations)}, encounter {definition.EncounterId}.");
         Assert.Contains((ushort)Assert.Single(definition.AddedEnemySources).Value.Formation, terrain.Formations);
 
-        GameState snapshot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
-        Assert.Equal(hasSuspendedField, snapshot.EventState.HasValue);
+        Assert.Equal(hasSuspendedField, sourceWorld.EventState.HasValue);
         if (!hasSuspendedField)
         {
-            Assert.Null(snapshot.DepartingFieldState);
-            Assert.NotNull(snapshot.WorldEventState);
+            Assert.Null(sourceWorld.DepartingFieldState);
+            Assert.NotNull(sourceWorld.WorldEventState);
         }
-        AssertRestoredRoster(snapshot, directory, definition);
-        AssertNonlocalDonorRejected(snapshot, directory, world.BattleResources, terrain.Formations);
+        using GameWorld restored = new(new GameSession(sourceWorld), directory, validateWorldPresentation: false);
+        restored.EnsureField();
+        ushort encounter = checked((ushort)definition.EncounterId!.Value);
+        BattleDefinition rebuilt = restored.CreateEncounterBattle(encounter, restoredDefinition: definition);
+        Assert.Equal(definition.AddedEnemySources, rebuilt.AddedEnemySources);
+        BattleDefinition altered = ReplaceDonorWithNonlocal(definition, world.BattleResources, terrain.Formations);
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => restored.CreateEncounterBattle(encounter, restoredDefinition: altered));
+        Assert.Contains("outside the suspended exploration encounter table", error.Message);
     }
 
     private static GameState LoadBalambWorldSave(GameAssets assets)
@@ -179,22 +185,6 @@ public sealed class AdditionalEnemyRosterTests
             .First(point => point.Surface?.Ground.Triangle.GroundType == 4);
         document = document with { Resume = document.Resume with { World = document.Resume.World! with { X = ground.X, Z = ground.Z, Height = checked((short)-ground.Surface!.Ground.Height) } } };
         return GameplaySaveSessionLoader.Restore(document, assets.GameDirectory, sharedAssets: assets);
-    }
-
-    private static void AssertRestoredRoster(GameState snapshot, string directory, BattleDefinition expected)
-    {
-        using GameWorld restored = new(new GameSession(snapshot), directory, validateWorldPresentation: false);
-        restored.EnsureField();
-        Assert.Equal(expected.AddedEnemySources, restored.Battle!.ReadDefinition().AddedEnemySources);
-    }
-
-    private static void AssertNonlocalDonorRejected(GameState snapshot, string directory, BattleAssets assets, IReadOnlyCollection<ushort> localFormations)
-    {
-        BattleSnapshot battle = snapshot.Battle!;
-        BattleDefinition altered = ReplaceDonorWithNonlocal(battle.Definition, assets, localFormations);
-        using GameWorld restored = new(new GameSession(snapshot with { Battle = battle with { Definition = altered } }), directory, validateWorldPresentation: false);
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => restored.EnsureField());
-        Assert.Contains("outside the suspended exploration encounter table", error.Message);
     }
 
     private static BattleDefinition ReplaceDonorWithNonlocal(BattleDefinition definition, BattleAssets assets, IReadOnlyCollection<ushort> localFormations)

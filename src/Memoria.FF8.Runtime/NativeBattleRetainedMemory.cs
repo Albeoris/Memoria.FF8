@@ -80,15 +80,43 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner.");
-        NativeBattleRetainedActionPackets actionPackets = packets.ExportRetained();
-        ImmutableArray<NativeBattleGraphicsModel>? originalCells = snapshot.NativeGraphics is { } graphics ? graphics.NativeBindings.CaptureOriginalCells(graphics.ActorModels) : null;
-        NativeBattleRetainedMemory result = new(actionPackets, snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { PresentationStatusMemory = snapshot.NativePresentationStatusMemory, FieldTexturePlaneCacheFresh = snapshot.Definition.NativeRetainedMemory?.FieldTexturePlaneCacheFresh, ModelSequenceLocals = originalCells?.Select(model => model.SequenceState?.Locals ?? ImmutableArray.CreateRange(new short?[8])).ToImmutableArray() ?? snapshot.Definition.NativeRetainedMemory?.ModelSequenceLocals, ModelTransformRows = originalCells?.Select(NativeBattleModelRetainedFields.Capture).ToImmutableArray() ?? snapshot.Definition.NativeRetainedMemory?.ModelTransformRows, ModelStatusTimers = originalCells?.Select(model => model.StatusTimers).ToImmutableArray() ?? snapshot.Definition.NativeRetainedMemory?.ModelStatusTimers, ModelColors40 = snapshot.Definition.NativeRetainedMemory?.ModelColors40 is null ? null : originalCells?.Select(model => model.Color40).ToImmutableArray() ?? snapshot.Definition.NativeRetainedMemory.ModelColors40, ModelWorldMatrices64 = snapshot.Definition.NativeRetainedMemory?.ModelWorldMatrices64 is null ? null : originalCells?.Select(model => model.GeometryWorldMatrix).ToImmutableArray() ?? snapshot.Definition.NativeRetainedMemory.ModelWorldMatrices64, FieldTextureAnimations = snapshot.Definition.NativeRetainedMemory?.FieldTextureAnimations, ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, SceneReplaySources = snapshot.NativeGraphics?.PrimitiveFrame?.SceneReplaySources ?? snapshot.Definition.NativeRetainedMemory?.SceneReplaySources, Stage = snapshot.NativeStage, ModelTextureCache = snapshot.NativeModelTextureCache, ModelLoader = snapshot.NativeModelLoader, FileStaging = snapshot.NativeFileStaging, ModelCpuResources = snapshot.NativeModelCpuResources, Camera = snapshot.NativeCamera, FileIo = snapshot.NativeFileIo, VibrationProcess = snapshot.NativeVibrationProcess, MusicProcess = snapshot.NativeMusicProcess, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
-        if (snapshot.Outcome != BattleOutcome.Active)
+        NativeBattleRetainedMemory result = new(packets.ExportRetained(), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256)
         {
-            result = result with { EffectMemory = result.EffectMemory?.ReleaseReturnedTask() };
-        }
-        result.Validate();
+            PresentationStatusMemory = snapshot.NativePresentationStatusMemory,
+            ElementAttack = snapshot.NativeElementAttack,
+            EffectMemory = snapshot.NativeEffectMemory,
+            Stage = snapshot.NativeStage,
+            ModelTextureCache = snapshot.NativeModelTextureCache,
+            ModelLoader = snapshot.NativeModelLoader,
+            FileStaging = snapshot.NativeFileStaging,
+            ModelCpuResources = snapshot.NativeModelCpuResources,
+            Camera = snapshot.NativeCamera,
+            FileIo = snapshot.NativeFileIo,
+            VibrationProcess = snapshot.NativeVibrationProcess,
+            MusicProcess = snapshot.NativeMusicProcess,
+            ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.")
+        };
+        result = result.WithEntryState(snapshot.Definition.NativeRetainedMemory, snapshot.NativeGraphics, snapshot.Outcome);
         return result with { StorageGraph = NativeBattleStorageGraphProjection.Retained(result, snapshot) };
+    }
+
+    internal NativeBattleRetainedMemory WithEntryState(NativeBattleRetainedMemory? previous, NativeBattleGraphicsState? graphics, BattleOutcome outcome)
+    {
+        ImmutableArray<NativeBattleGraphicsModel>? originalCells = graphics?.NativeBindings.CaptureOriginalCells(graphics.ActorModels);
+        NativeBattleRetainedMemory result = this with
+        {
+            FieldTexturePlaneCacheFresh = previous?.FieldTexturePlaneCacheFresh,
+            FieldTextureAnimations = previous?.FieldTextureAnimations,
+            SceneReplaySources = graphics?.PrimitiveFrame?.SceneReplaySources ?? previous?.SceneReplaySources,
+            ModelSequenceLocals = originalCells?.Select(model => model.SequenceState?.Locals ?? ImmutableArray.CreateRange(new short?[8])).ToImmutableArray() ?? previous?.ModelSequenceLocals,
+            ModelTransformRows = originalCells?.Select(NativeBattleModelRetainedFields.Capture).ToImmutableArray() ?? previous?.ModelTransformRows,
+            ModelStatusTimers = originalCells?.Select(model => model.StatusTimers).ToImmutableArray() ?? previous?.ModelStatusTimers,
+            ModelColors40 = previous?.ModelColors40 is null ? null : originalCells?.Select(model => model.Color40).ToImmutableArray() ?? previous.ModelColors40,
+            ModelWorldMatrices64 = previous?.ModelWorldMatrices64 is null ? null : originalCells?.Select(model => model.GeometryWorldMatrix).ToImmutableArray() ?? previous.ModelWorldMatrices64,
+            EffectMemory = outcome == BattleOutcome.Active ? EffectMemory : EffectMemory?.ReleaseReturnedTask()
+        };
+        result.Validate();
+        return result;
     }
 
     public void Validate()

@@ -1,64 +1,49 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
+internal sealed record EffectComponentPreviewSource(BattleSnapshot Snapshot, string Sha256);
+
 internal sealed record ComponentSourceAdmission(ushort Effect, byte Command, ushort Action, byte Actor, int HeaderIndex, long Callback);
 
 internal sealed partial class GameWorld
 {
-    internal bool IsEffectComponentPreview => effectPreviewRequest?.SourceSnapshot is not null;
+    internal bool IsEffectComponentPreview { get; private set; }
     internal ComponentSourceAdmission? ComponentSourceAdmission { get; private set; }
 
-    private BattleSession StartEffectComponentPreview(EffectPreviewRequest request)
+    private BattleSession StartEffectComponentPreview(EffectPreviewRequest request, EffectComponentPreviewSource component)
     {
         if (battle is not null || session.State.PendingBattleEncounter is not null || diagnosticBattle is not null)
         {
             throw new InvalidOperationException("A component preview requires an unallocated standalone host.");
         }
-        BattleSnapshot source = ReadEffectComponentSource(request);
+        if (request.EffectId is not ushort effect || component.Sha256 is not { Length: 64 } || !component.Sha256.All(Uri.IsHexDigit))
+        {
+            throw new InvalidDataException("A private component preview requires its native effect and scenario input SHA256.");
+        }
+        BattleSnapshot source = component.Snapshot;
         string executable = source.Definition.NativeRetainedMemory?.ColdExecutableSha256 ?? throw new InvalidDataException("The component source lacks its authenticated executable owner.");
         if (!string.Equals(executable, assets.NativeExecutableHash, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("The component source executable differs from the installed resources.");
         }
-        NativeBattleEffectBinding installed = assets.ReadNativeEffectCatalogForEffects([request.EffectId!.Value]).Single(binding => binding.Effect == request.EffectId);
-        NativeBattleEffectBinding supplied = source.Definition.NativeEffectCatalog.Single(binding => binding.Effect == request.EffectId);
+        NativeBattleEffectBinding installed = assets.ReadNativeEffectCatalogForEffects([effect]).Single(binding => binding.Effect == effect);
+        NativeBattleEffectBinding supplied = source.Definition.NativeEffectCatalog.Single(binding => binding.Effect == effect);
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(installed), JsonSerializer.SerializeToElement(supplied)))
         {
             throw new InvalidDataException("The component source differs from the installed native effect binding and resources.");
         }
         BattleSession active = AttachNativeEffectResources(BattleSession.Restore(source));
-        ComponentSourceAdmission? admission = ValidateEffectComponentSource(source, active, request.EffectId.Value);
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source), JsonSerializer.SerializeToElement(active.Capture())))
-        {
-            throw new InvalidDataException("Component restore changed the standalone source state.");
-        }
+        ComponentSourceAdmission? admission = ValidateEffectComponentSource(source, active, effect);
         long callbacks = active.NativeHostCallbacks ?? throw new NotSupportedException("Component preview requires its restored native callback ledger.");
-        effectPreviewRequest = request;
+        IsEffectComponentPreview = true;
         ComponentSourceAdmission = admission;
         battle = active;
         synchronizedNativeBattleCallbacks = callbacks;
         session.SetLiveBattle(active);
         Events.SynchronizeNativeBattleMusicProcess(active.NativeMusicProcess);
         return active;
-    }
-
-    internal static BattleSnapshot ReadEffectComponentSource(EffectPreviewRequest request)
-    {
-        request.Validate();
-        if (request.SourceSnapshot is null)
-        {
-            throw new InvalidDataException("A component preview requires its declared standalone source.");
-        }
-        byte[] bytes = File.ReadAllBytes(request.SourceSnapshot);
-        string actual = Convert.ToHexString(SHA256.HashData(bytes));
-        if (!string.Equals(actual, request.SourceSha256, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("The component source SHA256 differs from the declared file.");
-        }
-        return JsonSerializer.Deserialize<BattleSnapshot>(bytes) ?? throw new InvalidDataException("The component source snapshot is null.");
     }
 
     internal static ComponentSourceAdmission? ValidateEffectComponentSource(BattleSnapshot source, BattleSession active, ushort expectedEffect)

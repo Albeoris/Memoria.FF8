@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -152,61 +150,15 @@ internal static class NativeBattleComponentSelectorCatalog
 
     internal static NativeBattleComponentSelectorEntry Require(ushort effect) => Entries.Single(entry => entry.Effect == effect);
 
+    internal static AsyncLocal<Action<ushort, BattleSnapshot>?> PreparedSource { get; } = new();
+
     internal static bool PublishPreparedSource(ushort effect, BattleSnapshot snapshot)
     {
-        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_COMPONENT_SOURCE_OUTPUT");
-        bool sourceOnly = Environment.GetEnvironmentVariable("MEMORIA_FF8_COMPONENT_SOURCE_ONLY") == "1";
-        if (string.IsNullOrWhiteSpace(output))
+        if (PreparedSource.Value is not { } receive)
         {
-            if (sourceOnly)
-            {
-                throw new InvalidDataException("Component source-only preparation requires its explicit output file.");
-            }
             return false;
         }
-        if (!Path.IsPathFullyQualified(output))
-        {
-            throw new InvalidDataException("Component source output requires an absolute path.");
-        }
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics ?? throw new InvalidDataException("Component preparation requires its current native graphics owner.");
-        ComponentSourceAdmission? admission = GameWorld.ValidateEffectComponentSource(snapshot, BattleSession.Restore(snapshot), effect);
-        string boundary;
-        int headerIndex;
-        if (admission is not null)
-        {
-            headerIndex = admission.HeaderIndex;
-            boundary = graphics.OriginalEffect!.Parameters is null ? "module-loaded-before-entry" : "admitted-before-entry";
-        }
-        else
-        {
-            int descriptor = graphics.Descriptors.Queue.Single(index => graphics.Descriptors.Packets[index].Command == 104);
-            uint headerOffset = checked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-            if (headerOffset % 20 != 0)
-            {
-                throw new InvalidDataException("Component preparation requires its actual queued header slot.");
-            }
-            headerIndex = checked((int)(headerOffset / 20));
-            boundary = "queued-action104";
-        }
-        NativeBattleActionHeaderSlot header = snapshot.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
-        if (header.Effect != effect)
-        {
-            throw new InvalidDataException("Component prepared header differs from its selected effect.");
-        }
-        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        using (FileStream stream = new(output, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-        {
-            JsonSerializer.Serialize(stream, NativeBattleStorageSnapshots.Capture(snapshot));
-        }
-        string hash;
-        using (FileStream stream = File.OpenRead(output))
-        {
-            hash = Convert.ToHexStringLower(SHA256.HashData(stream));
-        }
-        using (FileStream receipt = new(output + ".preparation.json", FileMode.CreateNew, FileAccess.Write, FileShare.None))
-        {
-            JsonSerializer.Serialize(receipt, new { Phase = "prepared", Boundary = boundary, Scope = "native-effect-component", Effect = effect, SourceFile = Path.GetFileName(output), Sha256 = hash, snapshot.Frame, NativeCallback = graphics.Callback, OrdinaryAdmissionCertified = false, FunctionalCompletionCertified = false, SourceOnly = sourceOnly });
-        }
-        return sourceOnly;
+        receive(effect, snapshot);
+        return true;
     }
 }

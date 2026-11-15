@@ -9,34 +9,19 @@ namespace Memoria.FF8.Tests;
 public sealed class EffectComponentPreviewTests
 {
     [Fact]
-    public void Source_request_requires_its_exact_hash_effect_and_no_ability_override()
+    public void Effect_preview_json_rejects_legacy_live_source_fields()
     {
-        EffectPreviewRequest request = new(1, 0, 219) { SourceSnapshot = Path.Combine(Path.GetTempPath(), "component.battle.json"), SourceSha256 = new('A', 64) };
-        request.Validate();
-        foreach (EffectPreviewRequest invalid in new[] { request with { SourceSha256 = null }, request with { SourceSha256 = "invalid" }, request with { SourceSnapshot = null }, request with { SourceSnapshot = "relative.json" }, request with { EffectId = null }, request with { AbilityId = 1 }, request with { CommandId = 2 } })
-        {
-            Assert.Throws<InvalidDataException>(invalid.Validate);
-        }
+        const string legacy = """
+            {"EnemyId":1,"AllyId":0,"EffectId":219,"SourceSnapshot":"battle.json","SourceSha256":"ignored"}
+            """;
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<EffectPreviewRequest>(legacy));
     }
 
     [Fact]
-    public void File_hash_is_checked_before_any_snapshot_is_accepted()
+    public void Battle_preview_rejects_legacy_snapshot_argument()
     {
-        string path = Path.Combine(Path.GetTempPath(), "component-hash-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, "null");
-            EffectPreviewRequest request = new(1, 0, 219) { SourceSnapshot = path, SourceSha256 = new('A', 64) };
-            InvalidDataException mismatch = Assert.Throws<InvalidDataException>(() => GameWorld.ReadEffectComponentSource(request));
-            Assert.Contains("SHA256", mismatch.Message);
-            string hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
-            InvalidDataException empty = Assert.Throws<InvalidDataException>(() => GameWorld.ReadEffectComponentSource(request with { SourceSha256 = hash }));
-            Assert.Contains("snapshot is null", empty.Message);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        ArgumentException error = Assert.Throws<ArgumentException>(() => BattlePreview.Run(["--snapshot", "battle.json", "--output", "battle.png"]));
+        Assert.Contains("Unknown battle preview argument '--snapshot'", error.Message);
     }
 
     [Fact]
@@ -55,18 +40,14 @@ public sealed class EffectComponentPreviewTests
             NativeBattleAiDefinition ai = battleAssets.ReadEnemyAi(caster.ModelId, caster.Level);
             BattleNativeAction action = Assert.Single(battleAssets.NativeActions, row => row.Command == 8 && row.MagicId == 219 && ai.Abilities.Any(ability => ability.Command == row.Command && ability.Id == row.ActionId));
             NativeEffectFixtureRequest input = new("original-enemy-component", 219, action.Command, action.ActionId, 0, 800, 240) { EncounterId = formation.Id, CasterActorIndex = 3 };
-            NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(input, directory!, output);
-            Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-            string path = Path.Combine(output, "queued-action104.battle.json");
-            byte[] bytes = File.ReadAllBytes(path);
-            string hash = Convert.ToHexString(SHA256.HashData(bytes));
-            EffectPreviewRequest request = new(1, 0, 219) { SourceSnapshot = path, SourceSha256 = hash };
-            BattleSnapshot source = GameWorld.ReadEffectComponentSource(request);
+            (_, BattleSnapshot source) = NativeBattleEffectFixtureExporter.Prepare(input, directory!, output);
+            string hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(input)));
+            EffectPreviewRequest request = new(1, 0, 219);
             string frozen = JsonSerializer.Serialize(source);
             GameSession session = GameWorld.CreateColdProcess(directory!);
             session.StartNewGame();
             using GameWorld world = new(session, directory!);
-            BattleSession active = world.StartEffectPreview(request);
+            BattleSession active = world.StartEffectPreview(request, new(source, hash));
             Assert.True(world.IsEffectComponentPreview);
             Assert.Same(active, world.Battle);
             Assert.Equal(462, active.Capture().Definition.EncounterId);
@@ -89,13 +70,16 @@ public sealed class EffectComponentPreviewTests
             world.SynchronizeBattlePresentation();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(active.Capture()));
             Assert.Equal(frozen, JsonSerializer.Serialize(source));
-            Assert.Equal(hash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))));
             Assert.Null(session.State.PendingBattleEncounter);
             Assert.Null(world.LastBattleRewards);
         }
         finally
         {
-            Directory.Delete(output, true);
+            foreach (string file in Directory.EnumerateFiles(output))
+            {
+                File.Delete(file);
+            }
+            Directory.Delete(output);
         }
     }
 }

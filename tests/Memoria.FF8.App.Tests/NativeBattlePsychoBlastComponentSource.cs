@@ -25,12 +25,8 @@ internal static class NativeBattlePsychoBlastComponentSource
         using BattleAssets assets = new(gameDirectory);
         NativeEffectFixtureRequest carrierRequest = (NativeEffectFixtureRequest)Invoke(typeof(NativeBattleEffect20PresentationTests), "SelectOriginalFixture", assets, (ushort)20)!;
         string fixture = Path.Combine(output, "carrier");
-        NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(carrierRequest, gameDirectory, fixture);
-        if (exported.Status == "blocked")
-        {
-            throw new InvalidDataException($"Original activation carrier failed at {exported.Boundary}: {exported.FirstBlocker}");
-        }
-        BattleSession active = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json")));
+        BattleSnapshot carrier = NativeBattleEffectFixtureExporter.Prepare(carrierRequest, gameDirectory, fixture).Snapshot;
+        BattleSession active = BattleSession.Restore(carrier);
         active.AttachNativeEffectResourceResolver(selected => game.ReadNativeEffectCatalogForEffects([selected])[selected - 1]);
         BattleSnapshot? completed = null;
         int callbacks = 0;

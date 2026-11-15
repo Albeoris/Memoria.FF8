@@ -27,6 +27,14 @@ function Write-Json([string]$Path, [object]$Value) {
     $Value | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $Path -Encoding utf8
 }
 
+function Read-ComponentPreparation([string]$Path, [int]$Effect) {
+    $receipt = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 100
+    if ($receipt.Phase -ne 'prepared' -or $receipt.Scope -ne 'native-effect-component' -or $receipt.Boundary -notin @('queued-action104', 'admitted-before-entry', 'module-loaded-before-entry') -or $receipt.Effect -ne $Effect -or $receipt.Inputs.Effect -ne $Effect -or $receipt.InputsSha256 -cnotmatch '^[0-9a-f]{64}$' -or $receipt.OrdinaryAdmissionCertified -or $receipt.FunctionalCompletionCertified) {
+        throw 'Component preparation receipt is inconsistent.'
+    }
+    return $receipt
+}
+
 function Get-GpuProcessContext([string]$Stage, [int]$OwnedRoot = 0) {
     $observation = [ordered]@{ utc=[DateTimeOffset]::UtcNow.ToString('O'); stage=$Stage; status='observed'; foreign_processes=@(); error=$null }
     try {
@@ -227,7 +235,7 @@ $preflightContext = Get-GpuProcessContext 'preflight'
 Write-Json (Join-Path $OutputRoot 'inputs.json') @{ performance_requested=$performanceRequested; functional_only=[bool]$FunctionalOnly; process_context=$preflightContext; process_context_policy='Metadata-only pre/post case and five-second owned-GPU wait sampling; no foreign process control; gaps remain unsampled.'; prepare_sources_only=[bool]$PrepareSourcesOnly; disable_v_sync=[bool]$DisableVSync; execution_stack_profile=$profileIdentity; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; executable_sha256=$catalog.executable_sha256; kernel_sha256=$catalog.kernel_sha256; binaries=$binaryHashes; tool_sha256=(Get-FileHash -LiteralPath $ToolAssembly -Algorithm SHA256).Hash.ToLowerInvariant(); source_test_sha256=(Get-FileHash -LiteralPath $TestExecutable -Algorithm SHA256).Hash.ToLowerInvariant(); pacing='normal-real-time'; presentation_v_sync=$presentationVSync; resolution='1920x1080'; target_fps=60; below_fps=$BelowFps }
 Assert-GpuProcessContext $preflightContext
 $oldEnvironment = @{}
-foreach ($name in @('MEMORIA_FF8_GAME_DIR', 'MEMORIA_FF8_COMPONENT_EFFECT_ID', 'MEMORIA_FF8_COMPONENT_SOURCE_OUTPUT', 'MEMORIA_FF8_COMPONENT_SOURCE_ONLY', 'MEMORIA_FF8_EXECUTION_STACK_PROFILE')) {
+foreach ($name in @('MEMORIA_FF8_GAME_DIR', 'MEMORIA_FF8_COMPONENT_EFFECT_ID', 'MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT', 'MEMORIA_FF8_COMPONENT_PREVIEW_PATH', 'MEMORIA_FF8_EXECUTION_STACK_PROFILE')) {
     $oldEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 try {
@@ -291,28 +299,39 @@ try {
                     $failure.Data['StopCatalog'] = $true
                     throw $failure
                 }
-                $sourceRoot = Join-Path $caseRoot 'source'
-                $sourcePath = Join-Path $sourceRoot 'queued.battle.json'
                 $env:MEMORIA_FF8_COMPONENT_EFFECT_ID = $effect.ToString([Globalization.CultureInfo]::InvariantCulture)
-                $env:MEMORIA_FF8_COMPONENT_SOURCE_OUTPUT = $sourcePath
-                $env:MEMORIA_FF8_COMPONENT_SOURCE_ONLY = '1'
-                $prepareExit = Invoke-OwnedProcess $TestExecutable @('--filter-class','*NativeBattleComponentSourceTests','--show-test-results','failed,skipped') (Join-Path $caseRoot 'source-log') 300
-                if ($prepareExit -ne 0 -or -not (Test-Path -LiteralPath $sourcePath)) { throw "Exact existing component source preparation failed ($prepareExit)." }
-                $receipt = Get-Content -LiteralPath ($sourcePath+'.preparation.json') -Raw | ConvertFrom-Json -Depth 100
-                $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
-                if ($receipt.Phase -ne 'prepared' -or $receipt.Scope -ne 'native-effect-component' -or $receipt.Boundary -notin @('queued-action104', 'admitted-before-entry', 'module-loaded-before-entry') -or -not $receipt.SourceOnly -or $receipt.SourceFile -ne [IO.Path]::GetFileName($sourcePath) -or $receipt.Effect -ne $effect -or $receipt.Sha256 -ne $sourceHash -or $receipt.OrdinaryAdmissionCertified -or $receipt.FunctionalCompletionCertified) { throw 'Component preparation receipt is inconsistent.' }
-                $result.source = $receipt
-                $result.prepared = $true
-                if (-not $PrepareSourcesOnly) {
+                $env:MEMORIA_FF8_COMPONENT_PREVIEW_PATH = $null
+                $sourceHash = $null
+                if ($PrepareSourcesOnly) {
+                    $env:MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT = Join-Path $caseRoot 'preparation.json'
+                    $prepareExit = Invoke-OwnedProcess $TestExecutable @('--filter-class','*NativeBattleComponentSourceTests','--show-test-results','failed,skipped') (Join-Path $caseRoot 'source-log') 300
+                    if ($prepareExit -ne 0) { throw "Component source preparation failed ($prepareExit)." }
+                    $result.source = Read-ComponentPreparation $env:MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT $effect
+                    $result.prepared = $true
+                    Remove-OwnedDirectory (Join-Path $caseRoot 'selector-evidence')
+                }
+                else {
                     $entries = [Collections.Generic.List[object]]::new()
                     foreach ($entry in 1..2) {
                         $entryRoot = Join-Path $caseRoot "entry-$entry"
                         [IO.Directory]::CreateDirectory((Join-Path $entryRoot 'settings')) | Out-Null
                         Write-Json (Join-Path $entryRoot 'settings/ui-settings.json') @{ MusicVolume=0; SoundVolume=0; VoiceVolume=0; VSync=$presentationVSync }
                         $requestPath = Join-Path $entryRoot 'request.json'
-                        Write-Json $requestPath @{ enemy_id=0; ally_id=0; effect_id=$effect; source_snapshot=$sourcePath; source_sha256=$sourceHash; duration_seconds=300 }
+                        Write-Json $requestPath @{ enemy_id=0; ally_id=0; effect_id=$effect; duration_seconds=300 }
                         $control = Join-Path $entryRoot 'control'
-                        $entryExit = Invoke-OwnedProcess $HostExecutable @('--game-dir',$GameDirectory,'--effect-preview',$requestPath,'--resolution','1920x1080','--settings-dir',(Join-Path $entryRoot 'settings'),'--control-dir',$control,'--save-state',(Join-Path $entryRoot 'saves/checkpoint.json')) (Join-Path $entryRoot 'host-log') 360 -GpuWork
+                        $env:MEMORIA_FF8_COMPONENT_PREVIEW_PATH = $requestPath
+                        $env:MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT = Join-Path $entryRoot 'preparation.json'
+                        $entryExit = Invoke-OwnedProcess $TestExecutable @('--filter-class','*NativeBattleComponentSourceTests','--show-test-results','failed,skipped') (Join-Path $entryRoot 'host-log') 660 -GpuWork
+                        $preparation = Read-ComponentPreparation $env:MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT $effect
+                        Remove-OwnedDirectory (Join-Path $entryRoot 'selector-evidence')
+                        if ($null -eq $sourceHash) {
+                            $sourceHash = $preparation.InputsSha256
+                            $result.source = $preparation
+                            $result.prepared = $true
+                        }
+                        elseif ($sourceHash -ne $preparation.InputsSha256) {
+                            throw 'The two component entries differ in their declared input identity.'
+                        }
                         $measurementPath = Join-Path $control 'component-measurements.json'
                         if ($entryExit -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $control 'completed.json')) -or (Test-Path -LiteralPath (Join-Path $control 'blocked.json')) -or -not (Test-Path -LiteralPath $measurementPath)) { throw "Controlled component entry $entry failed ($entryExit)." }
                         $completedReceipt = Get-Content -LiteralPath (Join-Path $control 'completed.json') -Raw | ConvertFrom-Json -Depth 100
@@ -345,7 +364,6 @@ try {
                         })
                     }
                 }
-                Remove-OwnedDirectory $sourceRoot
             }
             if ($null -ne $result.minimum_cast_fps) { $result.below_threshold = $result.minimum_cast_fps -lt $BelowFps }
         }
@@ -378,7 +396,7 @@ try {
         $prepared = @($results | Where-Object { $_.prepared -and $null -eq $_.error } | ForEach-Object effect_id)
         $unprepared = @($selected | Where-Object { $_ -notin $prepared })
         $missing = @($selected | Where-Object { $_ -notin $completed })
-        $summary = @{ schema_version=1; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; completed_effect_ids=$completed; missing_effect_ids=$missing; full_catalog_requested=($EffectId.Count -eq 0); full_execution_complete=($EffectId.Count -eq 0 -and $missing.Count -eq 0); fps_available_count=@($results | Where-Object { $null -ne $_.minimum_cast_fps }).Count; below_threshold_effect_ids=@($results | Where-Object below_threshold | ForEach-Object effect_id); ordinary_admission_count=@($results | Where-Object { $_.completed -and $_.route -eq 'ordinary-native-invocation' }).Count; controlled_component_count=@($results | Where-Object { $_.completed -and $_.route -eq 'controlled-original-component' }).Count; raw_retirement='Closed ordinary telemetry and successful component preparation snapshots are retired after authentication and compact measurement extraction; inputs, hashes and measurements remain.'; results=$results.ToArray() }
+        $summary = @{ schema_version=1; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; completed_effect_ids=$completed; missing_effect_ids=$missing; full_catalog_requested=($EffectId.Count -eq 0); full_execution_complete=($EffectId.Count -eq 0 -and $missing.Count -eq 0); fps_available_count=@($results | Where-Object { $null -ne $_.minimum_cast_fps }).Count; below_threshold_effect_ids=@($results | Where-Object below_threshold | ForEach-Object effect_id); ordinary_admission_count=@($results | Where-Object { $_.completed -and $_.route -eq 'ordinary-native-invocation' }).Count; controlled_component_count=@($results | Where-Object { $_.completed -and $_.route -eq 'controlled-original-component' }).Count; raw_retirement='Closed ordinary telemetry and successful component preparation scratch are retired after authentication and compact measurement extraction; inputs, hashes and measurements remain.'; results=$results.ToArray() }
         $summary.prepared_effect_ids = $prepared
         $summary.unprepared_effect_ids = $unprepared
         $summary.prepare_sources_only = [bool]$PrepareSourcesOnly

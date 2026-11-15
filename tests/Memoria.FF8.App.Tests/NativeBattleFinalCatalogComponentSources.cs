@@ -12,9 +12,7 @@ internal static class NativeBattleFinalCatalogComponentSources
         if (effect == 331)
         {
             NativeEffectFixtureRequest request = new("component331", 331, 8, 313, 0, 800, 240) { EncounterId = 749, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true };
-            NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, gameDirectory, Path.Combine(outputDirectory, "fixture"));
-            Assert.NotEqual("blocked", exported.Status);
-            return NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(outputDirectory, "fixture", "queued-action104.battle.json"));
+            return NativeBattleEffectFixtureExporter.Prepare(request, gameDirectory, Path.Combine(outputDirectory, "fixture")).Snapshot;
         }
         int model = effect switch
         {

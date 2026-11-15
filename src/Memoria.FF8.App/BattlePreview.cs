@@ -26,7 +26,6 @@ internal static class BattlePreview
     public static int Run(string[] args)
     {
         string? scenarioPath = null;
-        string? snapshotPath = null;
         string? outputPath = null;
         string gameDirectory = LaunchOptions.ConfiguredGameDirectory;
         int width = 960;
@@ -47,7 +46,7 @@ internal static class BattlePreview
                 selectTarget = true;
                 continue;
             }
-            if (argument is not ("--scenario" or "--snapshot" or "--output" or "--game-dir" or "--resolution" or "--frames"))
+            if (argument is not ("--scenario" or "--output" or "--game-dir" or "--resolution" or "--frames"))
             {
                 throw new ArgumentException($"Unknown battle preview argument '{argument}'.");
             }
@@ -60,9 +59,6 @@ internal static class BattlePreview
             {
                 case "--scenario":
                     scenarioPath = Path.GetFullPath(value);
-                    break;
-                case "--snapshot":
-                    snapshotPath = Path.GetFullPath(value);
                     break;
                 case "--output":
                     outputPath = Path.GetFullPath(value);
@@ -84,21 +80,20 @@ internal static class BattlePreview
                     break;
             }
         }
-        if ((scenarioPath is null) == (snapshotPath is null) || outputPath is null || frames is < 0 or > 30_000 || width is < 320 or > 4096 || height is < 240 or > 4096)
+        if (scenarioPath is null || outputPath is null || frames is < 0 or > 30_000 || width is < 320 or > 4096 || height is < 240 or > 4096)
         {
-            throw new ArgumentException("Battle preview requires --scenario <JSON> or --snapshot <JSON>, --output <PNG>, and optional --resolution WxH, --frames 0..30000, --advance-turn, --select-target, --game-dir <directory>.");
+            throw new ArgumentException("Battle preview requires --scenario <JSON>, --output <PNG>, and optional --resolution WxH, --frames 0..30000, --advance-turn, --select-target, --game-dir <directory>.");
         }
-        string sourcePath = scenarioPath ?? snapshotPath!;
-        if (string.Equals(sourcePath, outputPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(scenarioPath, outputPath, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException("Battle preview output must differ from its source JSON.");
         }
-        BattlePreviewScenario? scenario = scenarioPath is null ? null : JsonSerializer.Deserialize<BattlePreviewScenario>(File.ReadAllText(scenarioPath), JsonOptions) ?? throw new InvalidDataException("Empty battle preview scenario.");
-        BattleSession session = scenario is null ? BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(snapshotPath!), JsonOptions) ?? throw new InvalidDataException("Empty battle snapshot.")) : new BattleSession(scenario.Definition, scenario.Mode);
-        if (scenario is { TextScale: not (100 or 125 or 150) })
+        BattlePreviewScenario scenario = JsonSerializer.Deserialize<BattlePreviewScenario>(File.ReadAllText(scenarioPath), JsonOptions) ?? throw new InvalidDataException("Empty battle preview scenario.");
+        if (scenario.TextScale is not (100 or 125 or 150))
         {
             throw new InvalidDataException("Battle preview text scale requires 100, 125 or 150.");
         }
+        BattleSession session = new(scenario.Definition, scenario.Mode);
         PixelBounds sceneProjection = ViewportLayout.Fit(320, 240, width, height);
         using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, sceneProjection.X, sceneProjection.Y, sceneProjection.Width, sceneProjection.Height));
         if (advanceTurn)
@@ -111,7 +106,7 @@ internal static class BattlePreview
         }
         BattleDefinition definition = session.ReadDefinition();
         using BattleAssets assets = new(gameDirectory);
-        BattleScenePresentation scene = new(assets, definition, scenario?.UseEncounter ?? (definition.EncounterId is not null));
+        BattleScenePresentation scene = new(assets, definition, scenario.UseEncounter);
         using SKBitmap output = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(output, gameDirectory))
         {
@@ -120,13 +115,13 @@ internal static class BattlePreview
             scene.DrawEffects(session, canvas, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
             BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn())
             {
-                TextScale = (scenario?.TextScale ?? 100) / 100f
+                TextScale = scenario.TextScale / 100f
             };
             if (selectTarget)
             {
                 hud.Navigate(MenuInput.Confirm);
             }
-            foreach (MenuInput input in scenario?.HudInputs ?? [])
+            foreach (MenuInput input in scenario.HudInputs)
             {
                 hud.Navigate(input);
             }

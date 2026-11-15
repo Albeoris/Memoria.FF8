@@ -182,12 +182,12 @@ This host advances through queue commands rather than a timed simulation loop. I
 
 ## Battle preview
 
-`--battle-preview` renders battle assets and the shared HUD to PNG without a graphics device. Supply exactly one of `--scenario JSON` (a `BattlePreviewScenario`) or `--snapshot JSON` (a `BattleSnapshot`), plus required `--output PNG`. A battle snapshot is not a whole-game `GameState` snapshot.
+`--battle-preview` renders battle assets and the shared HUD to PNG without a graphics device. Supply `--scenario JSON` (a `BattlePreviewScenario`) and `--output PNG`.
 
 Optional arguments: `--game-dir DIRECTORY`, `--resolution WIDTHxHEIGHT` (default `960x672`, width `320..4096`, height `240..4096`), `--frames 0..30000` (default `0`), `--advance-turn` and `--select-target`. The turn advance happens before frame ticks; target selection happens before scenario HUD inputs. Output must differ from source JSON.
 
 ```powershell
-./Data/Memoria.FF8.exe --battle-preview --snapshot ./input/battle.json --output ./output/battle.png --frames 1
+./Data/Memoria.FF8.exe --battle-preview --scenario ./input/battle-scenario.json --output ./output/battle.png --frames 1
 ```
 
 ## Triple Triad practice

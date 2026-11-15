@@ -64,12 +64,7 @@ internal static class NativeBattleLifecycleComponentSources
             180 => new("original180", 180, 8, 62, 0, 1200, 240) { EncounterId = 36, CasterActorIndex = 4, PreserveOriginalFormationEnemies = true },
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
         };
-        NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, gameDirectory, output);
-        if (exported.Status == "blocked")
-        {
-            throw new InvalidDataException($"Original lifecycle component failed at {exported.Boundary}: {exported.FirstBlocker}");
-        }
-        return NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "queued-action104.battle.json"));
+        return NativeBattleEffectFixtureExporter.Prepare(request, gameDirectory, output).Snapshot;
     }
 
     private static BattleSnapshot PrepareControl(ushort effect, string gameDirectory)

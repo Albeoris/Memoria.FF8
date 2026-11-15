@@ -15,14 +15,14 @@ internal sealed partial class RecreateGame
         }
         EffectPreviewRequest request = effectPreview!;
         BattleComponentAdmissionIdentity? admission = effectPreviewSourceAdmission is { } source ? new(source.Effect, source.Command, source.Action, source.Actor, source.HeaderIndex, source.Callback) : null;
-        BattleComponentTerminalTextureCertificate certificate = effectComponentTerminalTextures.Certificate(effectPreviewExpectedEffect, request.SourceSha256!, effectPreviewDispatch, admission);
-        BattleComponentTerminalTextureCertificateValidation.Validate(certificate, effectPreviewExpectedEffect, request.SourceSha256!);
+        BattleComponentTerminalTextureCertificate certificate = effectComponentTerminalTextures.Certificate(effectPreviewExpectedEffect, effectComponentSource!.Sha256, effectPreviewDispatch, admission);
+        BattleComponentTerminalTextureCertificateValidation.Validate(certificate, effectPreviewExpectedEffect, effectComponentSource!.Sha256);
         EffectComponentFrameReport measurements = effectComponentMeasurements!.Complete(effectComponentTerminalTextures.BoundaryTimestamp);
         string output = request.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
         bool written = WriteDiagnosticJson(Path.Combine(output, "component-measurements.json"), new
         {
             scope = "installed-source-controlled-component-gpu-presentation",
-            source_sha256 = request.SourceSha256,
+            source_sha256 = effectComponentSource.Sha256,
             effect = effectPreviewExpectedEffect,
             native_dispatch = effectPreviewDispatch,
             native_admission = effectPreviewSourceAdmission,

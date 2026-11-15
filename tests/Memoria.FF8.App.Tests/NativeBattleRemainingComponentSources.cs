@@ -77,12 +77,7 @@ internal static class NativeBattleRemainingComponentSources
 
     private static BattleSnapshot Export(NativeEffectFixtureRequest request, string gameDirectory, string output, string boundary)
     {
-        NativeEffectFixtureExportResult result = NativeBattleEffectFixtureExporter.Export(request, gameDirectory, output);
-        if (result.Status == "blocked")
-        {
-            throw new InvalidDataException($"Original component preparation failed at {result.Boundary}: {result.FirstBlocker}");
-        }
-        return NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + ".battle.json"));
+        return NativeBattleEffectFixtureExporter.Prepare(request, gameDirectory, output, boundary).Snapshot;
     }
 
     private static BattleSnapshot PrepareAllocation(string gameDirectory, string output)

@@ -186,7 +186,24 @@ internal static class NativeBattleEffectFixtureExporter
         return command is 244 or 254 && action is 15 or 70 ? (byte)11 : sequence;
     }
 
-    internal static NativeEffectFixtureExportResult Export(NativeEffectFixtureRequest request, string gameDirectory, string outputDirectory)
+    internal static (NativeEffectFixtureExportResult Result, BattleSnapshot Snapshot) Prepare(NativeEffectFixtureRequest request, string gameDirectory, string outputDirectory, string boundary = "queued-action104")
+    {
+        BattleSnapshot? prepared = null;
+        NativeEffectFixtureExportResult result = Export(request, gameDirectory, outputDirectory, (name, snapshot) =>
+        {
+            if (name == boundary)
+            {
+                prepared = snapshot;
+            }
+        });
+        if (result.Status == "blocked" || prepared is null)
+        {
+            throw new InvalidDataException($"Component preparation failed at {result.Boundary}: {result.FirstBlocker}");
+        }
+        return (result, prepared);
+    }
+
+    internal static NativeEffectFixtureExportResult Export(NativeEffectFixtureRequest request, string gameDirectory, string outputDirectory, Action<string, BattleSnapshot>? capture = null)
     {
         string boundary = "request";
         List<NativeEffectFixtureArtifact> artifacts = [];
@@ -475,6 +492,11 @@ internal static class NativeBattleEffectFixtureExporter
 
         void Save(string name, BattleSnapshot snapshot)
         {
+            if (capture is not null)
+            {
+                capture(name, snapshot);
+                return;
+            }
             string filename = name + ".battle.json";
             string path = Path.Combine(outputDirectory, filename);
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot);

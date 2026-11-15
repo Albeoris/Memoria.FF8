@@ -15,20 +15,23 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Retained field memory requires the idle hosted graphics owner.");
         }
-        BattleSnapshot input = logicalOwner.CaptureState() with
+        NativeBattleRetainedMemory retained = new(nativeActionPackets.ExportRetained(), logicalOwner.NativeScriptState.AllocationControl, logicalOwner.nativePartyStatusMirrors, logicalOwner.nativeActionScratch with { ComponentCompletion = null }, NativeEffectIoResult, coldExecutableSha256)
         {
-            NativeGraphics = graphics,
-            NativeActionPackets = nativeActionPackets,
-            NativeEffectMemory = NativeEffectMemory,
-            NativeStage = NativeStage,
-            NativeModelCpuResources = NativeModelCpuResources,
-            NativeModelTextureCache = NativeModelTextureCache,
-            NativeModelLoader = NativeModelLoader,
-            NativeFileStaging = NativeFileStaging,
-            NativeCamera = NativeCamera,
-            NativeFileIo = NativeFileIo,
-            NativeEffectIoResult = NativeEffectIoResult
+            PresentationStatusMemory = logicalOwner.nativePresentationStatusMemory.State,
+            ElementAttack = logicalOwner.nativeElementAttack,
+            EffectMemory = NativeEffectMemory,
+            Stage = NativeStage,
+            ModelTextureCache = NativeModelTextureCache,
+            ModelLoader = NativeModelLoader,
+            FileStaging = NativeFileStaging,
+            ModelCpuResources = NativeModelCpuResources,
+            Camera = NativeCamera,
+            FileIo = NativeFileIo,
+            VibrationProcess = logicalOwner.NativeVibrationProcess,
+            MusicProcess = logicalOwner.NativeMusicProcess,
+            ActionMemory = logicalOwner.nativeActionMemory.State
         };
-        return NativeBattleRetainedMemory.Capture(NativeBattleStorageSnapshots.Capture(input), coldExecutableSha256);
+        retained = retained.WithEntryState(logicalOwner.definition.NativeRetainedMemory, graphics, logicalOwner.Outcome);
+        return NativeBattleStorageSnapshots.Capture(retained);
     }
 }

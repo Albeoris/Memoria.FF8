@@ -129,21 +129,8 @@ internal static class NativeBattleLimitComponentSources
         };
         // These are explicit installed-row post-formula components, not support or ordinary command admission.
         string fixture = Path.GetFullPath(Path.Combine(outputDirectory, "limit-component-fixture-" + effect));
-        NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, gameDirectory, fixture);
-        try
-        {
-            if (exported.Status != "fixture-only" || exported.Boundary != "queued-action104")
-            {
-                throw new InvalidDataException($"The original guardian component was not prepared: {exported.Status}: {exported.FirstBlocker}");
-            }
-            BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
-            BattleSession restored = BattleSession.Restore(snapshot);
-            return AwaitQueued(restored, effect);
-        }
-        finally
-        {
-            NativeBattleOrdinaryMagicFixtureFlagTests.DeleteFixtureSnapshots(fixture, exported);
-        }
+        (_, BattleSnapshot snapshot) = NativeBattleEffectFixtureExporter.Prepare(request, gameDirectory, fixture);
+        return AwaitQueued(BattleSession.Restore(snapshot), effect);
     }
 
     private static BattleSession Ready(GameAssets game, BattleDefinition definition)
