@@ -130,6 +130,16 @@ if (args.Contains("--window-number-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--window-defaults-only", StringComparer.Ordinal))
+{
+    NativeWindowDefaultsTests.Run();
+    NativeWindowParameterTests.Run();
+    NativeWindowNumberTests.Run();
+    NativeProcessTests.RunWindowSizeWhenFree();
+    NativeProcessTests.RunSpecialWindow();
+    return 0;
+}
+
 if (args.Contains("--movement-animation-only", StringComparer.Ordinal))
 {
     NativeMovementAnimationTests.Run();
@@ -612,6 +622,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay event observations and coverage ledger", NativeEventCoverageTests.Run),
     ("native optional-area frontier and initialized field ownership", NativeTourFrontierTests.Run),
     ("native window parameter binding and numeric cursor", NativeWindowParameterTests.Run),
+    ("native window defaults and legacy ownership", NativeWindowDefaultsTests.Run),
     ("native shop autoplay cadence and clock ownership", NativeShopAutoPlayTests.Run),
     ("native optional inn production tour and return receipts", NativeOptionalInnTourTests.Run),
     ("native optional item shop production tour and return receipts", NativeOptionalInnTourTests.RunItemShop),

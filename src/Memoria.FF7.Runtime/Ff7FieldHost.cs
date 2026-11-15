@@ -18,6 +18,15 @@ public sealed partial class Ff7FieldHost : IFieldHost
         this.fieldId = fieldId;
         this.animationLength = animationLength ?? throw new ArgumentNullException(nameof(animationLength));
         Process = process ?? new Ff7FieldProcess();
+        if (Process.Windows is null || Process.Windows.Any(window => window is null))
+        {
+            throw new InvalidDataException("FFVII window state contains an absent slot record.");
+        }
+        Ff7Window[] missingWindows = Enumerable.Range(0, 4).Where(id => Process.Windows.All(window => window.Id != id)).Select(Ff7Window.CreateDefault).ToArray();
+        if (missingWindows.Length != 0)
+        {
+            Process = Process with { Windows = [.. Process.Windows, .. missingWindows] };
+        }
         InitializeBackgroundScroll();
         if (Process.CameraFollowPlayer is null)
         {
@@ -541,7 +550,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             throw new InvalidDataException("FFVII window references an absent native window slot.");
         }
-        Ff7Window current = Process.Windows.SingleOrDefault(item => item.Id == window.Window) ?? new Ff7Window(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
+        Ff7Window current = Process.Windows.Single(item => item.Id == window.Window);
         Ff7Dialogue? active = Process.Dialogues.SingleOrDefault(dialogue => dialogue.Window == window.Window && !dialogue.Completed && (dialogue.Presentation?.NativeState ?? 2) != 0);
         if (active is not null && window.Operation is (FieldWindowOperation.CloseAndWait or FieldWindowOperation.SizeWhenFree))
         {
@@ -600,7 +609,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     _ = WindowOwner(active);
                     ResetDialoguePresentation(active);
                 }
-                Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74) { NativeNumber = current.NativeNumber };
+                Ff7Window reset = Ff7Window.CreateDefault(window.Window) with { NativeNumber = current.NativeNumber };
                 Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), reset] };
                 break;
             case FieldWindowOperation.Style:

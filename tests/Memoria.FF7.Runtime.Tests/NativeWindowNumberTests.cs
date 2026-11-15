@@ -21,12 +21,12 @@ internal static class NativeWindowNumberTests
         Ff7Window configured = legacy with { Style = 1, Flags = 2, SpecialType = 2, SpecialX = 101, SpecialY = 102, Parameters = new Ff7WindowParameters().Set(0, new(FieldBank.MapWord, 29)) };
         Ff7FieldHost host = new(field, (_, _) => 1, new Ff7FieldProcess { Windows = [configured] });
         Check(host.Execute(new(1, 9, 7, 0x0C7D, new FieldWindowCommand(FieldWindowOperation.Number, 2, Flags: 2, Parameter: 123456))).Completed, "37's global number write must complete without an allocated caller model.");
-        Ff7Window numbered = host.Process.Windows.Single();
+        Ff7Window numbered = host.Process.Windows.Single(window => window.Id == 2);
         Check(numbered == (configured with { NativeNumber = 123456, NativeNumberDigits = 2 }), "A number write must preserve the existing geometry, style, special-display and text-parameter owners.");
         Ff7FieldHost cold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         Check(JsonSerializer.Serialize(host.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Window numeric state changed after an independent cold restore.");
         host.Execute(new(2, 9, 7, 0, new FieldWindowCommand(FieldWindowOperation.Reset, 2)));
-        Ff7Window reset = host.Process.Windows.Single();
+        Ff7Window reset = host.Process.Windows.Single(window => window.Id == 2);
         Check(reset.NativeNumber == 123456 && reset.NativeNumberDigits == 6 && reset.SpecialType == 0 && reset.Parameters is null, "Native window reset must restore width6 and ordinary defaults while retaining the32bit number.");
         RunCheckpoint(installation);
         Console.WriteLine("PASS native37 window ownership, numeric persistence, reset, old defaults and cold continuation");

@@ -71,6 +71,15 @@ public sealed record Ff7Actor
 
 public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0)
 {
+    public static Ff7Window CreateDefault(int id)
+    {
+        if (id is < 0 or > 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(id));
+        }
+        return new(id, 8, id == 1 ? 8 : 149, 304, 74);
+    }
+
     public Ff7WindowParameters? Parameters { get; init; }
     public byte SpecialType { get; init; }
     public byte SpecialX { get; init; }
@@ -144,7 +153,7 @@ public sealed record Ff7FieldProcess
     public int NativeRunAnimation { get; init; } = 2;
     public Ff7NativeWaterSplash[] NativeWaterSplashes { get; init; } = [];
     public int NativeWaterSplashCursor { get; init; }
-    public Ff7Window[] Windows { get; init; } = [];
+    public Ff7Window[] Windows { get; init; } = [Ff7Window.CreateDefault(0), Ff7Window.CreateDefault(1), Ff7Window.CreateDefault(2), Ff7Window.CreateDefault(3)];
     public Ff7Dialogue[] Dialogues { get; init; } = [];
     public Ff7HostReceipt[] Receipts { get; init; } = [];
     public Ff7Motion[] Motions { get; init; } = [];

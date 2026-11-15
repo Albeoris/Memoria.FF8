@@ -12,7 +12,7 @@ internal static class NativeProcessTests
         var command = new FieldWindowCommand(FieldWindowOperation.SizeWhenFree, 0, 145, 8, 136, 41);
         Ff7FieldHost host = Host(new() { Windows = [new(0, 8, 149, 304, 74) { Style = 1, SpecialType = 1, SpecialX = 10 }] });
         Equal(true, host.Execute(Request(1600, command)).Completed);
-        Equal(new Ff7Window(0, 145, 8, 136, 41) { Style = 1, SpecialType = 1, SpecialX = 10 }, host.Process.Windows.Single());
+        Equal(new Ff7Window(0, 145, 8, 136, 41) { Style = 1, SpecialType = 1, SpecialX = 10 }, host.Process.Windows.Single(window => window.Id == 0));
         FieldHostRequest dialogue = Request(1601, new FieldDialogueCommand(0, 0));
         Ff7FieldResources dialogueField = NativeDialogueTests.Field([0x21, 255]);
         host = new(dialogueField, (_, _) => 1, new()
@@ -23,7 +23,7 @@ internal static class NativeProcessTests
         });
         FieldHostRequest foreign = new(1602, 1, 7, 16, command);
         Equal(false, host.Execute(foreign).Completed);
-        Equal(8, host.Process.Windows.Single().X);
+        Equal(8, host.Process.Windows.Single(window => window.Id == 0).X);
         Equal(false, host.Process.Dialogues.Single().Completed);
         Ff7FieldHost cold = new(dialogueField, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         foreach (Ff7FieldHost current in new[] { host, cold })
@@ -34,8 +34,8 @@ internal static class NativeProcessTests
                 current.Execute(dialogue);
             }
             Equal(true, current.Execute(foreign).Completed);
-            Equal(145, current.Process.Windows.Single().X);
-            Equal(136, current.Process.Windows.Single().Width);
+            Equal(145, current.Process.Windows.Single(window => window.Id == 0).X);
+            Equal(136, current.Process.Windows.Single(window => window.Id == 0).Width);
         }
         Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
 
@@ -100,14 +100,14 @@ internal static class NativeProcessTests
                 {
                     Equal(false, live.Execute(control).Completed);
                     Equal(false, restored.Execute(control).Completed);
-                    Equal(old, live.Process.Windows.Single());
+                    Equal(old, live.Process.Windows.Single(window => window.Id == 0));
                     Equal(Json(live), Json(restored));
                 }
                 Equal(0, live.Process.Dialogues.Single().Presentation!.NativeState);
                 Equal(false, live.Process.Dialogues.Single().Completed);
                 Equal(true, live.Execute(control).Completed);
                 Equal(true, restored.Execute(control).Completed);
-                Equal(command == resize ? resized : old, live.Process.Windows.Single());
+                Equal(command == resize ? resized : old, live.Process.Windows.Single(window => window.Id == 0));
                 Equal(Json(live), Json(restored));
                 Equal(false, live.Execute(message).Completed);
                 Equal(1, live.Process.Dialogues.Single().Presentation!.NativeState);
@@ -116,7 +116,7 @@ internal static class NativeProcessTests
             Ff7FieldHost resetHost = Make(phase);
             FieldHostRequest resetRequest = new(1701, 1, 7, 16, reset);
             Equal(true, resetHost.Execute(resetRequest).Completed);
-            Equal(new Ff7Window(0, 8, 149, 304, 74), resetHost.Process.Windows.Single());
+            Equal(new Ff7Window(0, 8, 149, 304, 74), resetHost.Process.Windows.Single(window => window.Id == 0));
             Ff7Dialogue cleared = resetHost.Process.Dialogues.Single();
             Equal(0, cleared.Presentation!.NativeState);
             Equal(1, cleared.Selected);
@@ -177,7 +177,7 @@ internal static class NativeProcessTests
         Ff7FieldHost idle = new(field, (_, _) => 1);
         Equal(true, idle.Execute(Request(1701, closeWait)).Completed);
         Equal(true, idle.Execute(Request(1702, reset)).Completed);
-        Equal(new Ff7Window(0, 8, 149, 304, 74), idle.Process.Windows.Single());
+        Equal(new Ff7Window(0, 8, 149, 304, 74), idle.Process.Windows.Single(window => window.Id == 0));
 
         Ff7FieldHost Make(int phase) => new(field, (_, _) => 1, new()
         {
@@ -574,24 +574,24 @@ internal static class NativeProcessTests
         Ff7FieldHost host = Host();
         host.Execute(Request(799, new FieldWindowCommand(FieldWindowOperation.Style, 1, Style: 1, Flags: 1)));
         host.Execute(Request(800, new FieldWindowCommand(FieldWindowOperation.Special, 1, 250, 255, Style: 1)));
-        Ff7Window initial = host.Process.Windows.Single();
+        Ff7Window initial = host.Process.Windows.Single(window => window.Id == 1);
         Equal((byte)1, initial.SpecialType);
         Equal((byte)250, initial.SpecialX);
         Equal((byte)255, initial.SpecialY);
         Equal(8, initial.Y);
         host.Execute(Request(801, new FieldWindowCommand(FieldWindowOperation.Size, 1, 16, 24, 120, 40)));
-        Equal((byte)1, host.Process.Windows.Single().SpecialType);
-        Equal((byte)250, host.Process.Windows.Single().SpecialX);
-        Equal(1, host.Process.Windows.Single().Flags);
-        Equal(1, host.Process.Windows.Single().Style);
+        Equal((byte)1, host.Process.Windows.Single(window => window.Id == 1).SpecialType);
+        Equal((byte)250, host.Process.Windows.Single(window => window.Id == 1).SpecialX);
+        Equal(1, host.Process.Windows.Single(window => window.Id == 1).Flags);
+        Equal(1, host.Process.Windows.Single(window => window.Id == 1).Style);
         host.Execute(Request(802, new FieldWindowCommand(FieldWindowOperation.Close, 1)));
-        Equal((byte)1, host.Process.Windows.Single().SpecialType);
+        Equal((byte)1, host.Process.Windows.Single(window => window.Id == 1).SpecialType);
         Ff7FieldHost restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
         restored.Execute(Request(803, new FieldWindowCommand(FieldWindowOperation.Reset, 1)));
-        Equal((byte)0, restored.Process.Windows.Single().SpecialType);
-        Equal((byte)0, restored.Process.Windows.Single().SpecialX);
-        Equal((byte)0, restored.Process.Windows.Single().SpecialY);
+        Equal((byte)0, restored.Process.Windows.Single(window => window.Id == 1).SpecialType);
+        Equal((byte)0, restored.Process.Windows.Single(window => window.Id == 1).SpecialX);
+        Equal((byte)0, restored.Process.Windows.Single(window => window.Id == 1).SpecialY);
         Ff7Window counter = initial with { Flags = 1 };
         Ff7Dialogue persistent = new(900, 1, 0, null, null, 0, AwaitingInput: true, Presentation: new(6, counter.Width, counter.Height));
         Ff7FieldHost active = new(NativeDialogueTests.Field([255]), (_, _) => 1, new() { Windows = [counter], Dialogues = [persistent] });
