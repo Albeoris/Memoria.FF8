@@ -12,7 +12,7 @@ public sealed class NativeBattleRetainedModelFieldsAssetsTests
         NativeExecutableMemory image = new(game.ReadNativeExecutable());
         NativeBattleRetainedMemory memory = game.ReadColdProcessNativeBattleMemory();
         ImmutableArray<NativeBattleModelRetainedFields> fields = memory.ModelTransformRows ?? throw new InvalidDataException("The retained physical model fields are required.");
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: fields);
+        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleModelBoundary.FromRetainedMemory(memory).CaptureOriginalCells(new BattleActorModels([]));
         Assert.Equal(7, fields.Length);
         for (int index = 0; index < 7; index++)
         {

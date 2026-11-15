@@ -28,7 +28,7 @@ public sealed class EffectComponentLoadedSourceTests
             Assert.Empty(module.Pools);
             Assert.Null(module.Parameters);
             NativeBattleActionGraphicsState context = Assert.IsType<NativeBattleActionGraphicsState>(graphics.ActionGraphics);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.HeaderIndex));
+            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal));
             Assert.Equal(NativeBattleActionGraphics.SelectService(header).Callback, context.Callback);
             if (header.Command == 252)
             {
@@ -52,7 +52,7 @@ public sealed class EffectComponentLoadedSourceTests
                 Assert.Equal((byte)252, admission.Command);
                 Assert.Equal((ushort)1, admission.Action);
             }
-            Assert.Equal(context.HeaderIndex, admission.HeaderIndex);
+            Assert.Equal(context.Header.Ordinal, admission.HeaderIndex);
             Assert.Equal(frozen, JsonSerializer.Serialize(restored.Capture()));
             Assert.Throws<InvalidDataException>(() => GameWorld.ValidateEffectComponentSource(source, restored, checked((ushort)(effect + 1))));
             NativeBattleGraphicsState invalidGraphics = graphics with { ActionGraphics = context with { Callback = 0x50BD00 } };

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -76,17 +77,17 @@ public sealed class NativeBattleHasteFloatPresentationTests
             sourceCallback = graphics.Callback;
             int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
-            Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+            Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
             int headerIndex = checked((int)(offset / 20));
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
             Assert.Equal((byte)2, header.Command);
             Assert.Equal(action.ActionId, header.Action);
             Assert.Equal(item.Effect, header.Effect);
-            Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
+            Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.Header.Ordinal == headerIndex);
             Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-            Assert.Equal((byte)0, contact.Primary.ActorIndex);
-            Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+            Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+            Assert.Null(contact.Secondary);
             Assert.NotEqual(0u, action.Statuses1);
             Assert.Equal((ushort)0, contact.Primary.Amount6);
             string target = ReadOriginalModelActorId(graphics, 0)!;

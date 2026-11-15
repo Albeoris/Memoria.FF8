@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -24,7 +25,7 @@ public sealed class NativeBattleGroup30PublicationTests
         NativeBattleOriginalEffectState coldSelected = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(frozen)!;
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
         string frozenMemory = NativeBattleTestSnapshots.Json(memory);
-        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 28, 329, OriginalEffects()) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 28, 329, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalEffects()) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
         typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
         MethodInfo poll = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;

@@ -148,7 +148,7 @@ public sealed class DiagnosticCounterObservationTests
             // The single-contact component declares the same BD9 count that its native hit plan initializes.
             typeof(BattleCombatant).GetProperty("NativeRemainingHits", Instance)!.SetValue(target, (byte)1);
             BattleNativeAction native = new(253, 0, -1, -1) { MagicId = 0, AttackType = 10, Power = 20, HitCount = 1, AttackFlags = 0, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
-            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeaderIndex = 0, GunbladeTriggerTiming = 1 };
+            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeader = new BattleActionHeaderReference(0), GunbladeTriggerTiming = 1 };
             BattleActionDefinition action = new(BattleAbility.Attack, 0, "Component contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
             (NativeBattleActionPacketsState prepared, _) = battle.NativeActionPackets.Prepare(new(OriginalOwner(0), 1, 13, -1, 0, 0, null));
             Set(battle, "nativeActionPackets", prepared);

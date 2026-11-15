@@ -14,7 +14,7 @@ public sealed class NativeBattleRetainedModelColorAssetsTests
         NativeBattleRetainedMemory memory = game.ReadColdProcessNativeBattleMemory();
         ImmutableArray<uint?> colors = memory.ModelColors40 ?? throw new InvalidDataException("The cold model-color owner is required.");
         Assert.Equal(7, colors.Length);
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank(memory.ModelColors40);
+        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleModelBoundary.FromRetainedMemory(memory).CaptureOriginalCells(new BattleActorModels([]));
         for (int index = 0; index < 7; index++)
         {
             uint expected = BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(checked(0x1D972E8u + (uint)(index * 156)), 4));

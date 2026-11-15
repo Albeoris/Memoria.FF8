@@ -48,7 +48,7 @@ public sealed class NativeBattleCoverTests
         BattleSession battle = Create(game, assets, Attack(assets), 0, 1);
         BattleSnapshot snapshot = battle.Capture();
         BattleAttackCommand command = Assert.Single(snapshot.QueuedActions);
-        battle = BattleSession.Restore(snapshot with { QueuedActions = [command with { NativeTargetMask = 0x8001 }] });
+        battle = BattleSession.Restore(snapshot with { QueuedActions = [command with { TargetRequest = NativeBattleTargetRequestAdapter.Decode(0x8001, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true) }] });
         int originalHp = battle.Combatants[0].CurrentHp;
         Complete(battle);
         Assert.True(battle.Combatants[0].CurrentHp < originalHp);
@@ -72,7 +72,7 @@ public sealed class NativeBattleCoverTests
         }
         actors.Add(new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Attack = 10, Speed = 1, NativeStatusResistances = new byte[40] });
         BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
-        BattleAttackCommand command = new("enemy", $"party{target}", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = checked((ushort)(1 << target)) };
+        BattleAttackCommand command = new("enemy", $"party{target}", NativeBattleTargetRequestAdapter.Decode(checked((ushort)(1 << target)), BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack };
         return BattleSession.Restore(battle.Capture() with { QueuedActions = [command] });
     }
 

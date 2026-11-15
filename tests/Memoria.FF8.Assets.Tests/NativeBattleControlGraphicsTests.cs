@@ -52,15 +52,15 @@ public sealed class NativeBattleControlGraphicsTests
         }
         Assert.True(battle.NativeEntryReady);
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 0, sequence, -1, 9, 0, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0, sequence, -1, 9, 0, null));
         if (contact)
         {
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 1, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 1, 0, 0, 7, 0), null));
         }
         (packets, _) = packets.Publish(contact ? (byte)1 : (byte)0);
         BattleSnapshot boundary = battle.Capture();
         NativeBattleGraphicsState graphics = boundary.NativeGraphics!;
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         battle = BattleSession.Restore(boundary with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(battle.Capture()))!);
         bool selected = false;

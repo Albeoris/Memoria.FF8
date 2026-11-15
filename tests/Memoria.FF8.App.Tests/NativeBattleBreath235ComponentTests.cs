@@ -142,11 +142,11 @@ public sealed class NativeBattleBreath235ComponentTests
                 contact = new(new(OriginalOwner(0), 5, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
             }
             // A controlled component uses original50B190 with sequence0. It does not claim a reachable enemy bank action or alter the casting handshake.
-            (packets, int header) = packets.Prepare(new(caster, 8, 0, -1, 94, 235, null));
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)(caster))), 8, 0, -1, 94, 235, null));
             (packets, _) = packets.AppendContact(contact);
             (packets, _) = packets.Publish(1);
-            Assert.Equal(0x50B190u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(new BattleActionHeaderReference(header))).Callback);
-            (NativeBattleDescriptorState descriptors, _) = NativeBattleDescriptorState.Clear().Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+            Assert.Equal(0x50B190u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(header)).Callback);
+            (NativeBattleDescriptorState descriptors, _) = NativeBattleDescriptorState.Clear().EnqueueAction(128, header);
             return source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors, ActionGraphics = null, OriginalEffect = null } };
         }
 

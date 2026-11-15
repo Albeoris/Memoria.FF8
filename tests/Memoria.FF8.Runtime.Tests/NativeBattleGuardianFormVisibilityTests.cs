@@ -2,7 +2,6 @@ using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -16,16 +15,17 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 2);
         if (roundTrip)
         {
-            presentation = NativeBattleTestSnapshots.RestoreJson<NativeBattleGuardianFormPresentation>(NativeBattleTestSnapshots.Json(presentation))!;
+            presentation = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(presentation));
         }
-        ImmutableArray<NativeBattleGraphicsModel> current = HiddenModels();
-        ImmutableArray<NativeBattleGraphicsModel> restored = (ImmutableArray<NativeBattleGraphicsModel>)typeof(BattleSession).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [current, presentation])!;
+        NativeBattleGraphicsState current = HiddenGraphics();
+        NativeBattleGraphicsState restored = RestoreVisibility(current, presentation);
         AssertVisibility(restored, presentation);
-        for (int index = 0; index < restored.Length; index++)
+        foreach (BattleModelEntry<BattleModelOwner> entry in restored.ActorModels.Entries)
         {
-            Assert.Equal(current[index].Flags0 & ~0xC, restored[index].Flags0 & ~0xC);
-            Assert.Equal(current[index].Flags2!.Value & ~4, restored[index].Flags2!.Value & ~4);
-            Assert.Equal(current[index].Flags8, restored[index].Flags8);
+            NativeBattleGraphicsModel before = current.ActorModels.Get(entry.Owner);
+            Assert.Equal(before.Flags0 & ~0xC, entry.State.Flags0 & ~0xC);
+            Assert.Equal(before.Flags2!.Value & ~4, entry.State.Flags2!.Value & ~4);
+            Assert.Equal(before.Flags8, entry.State.Flags8);
         }
     }
 
@@ -37,11 +37,11 @@ public sealed class NativeBattleGuardianFormVisibilityTests
     {
         BattleSession battle = Session();
         NativeBattleGuardianFormPresentation presentation = Presentation(mode, phase) with { SkipRequested = skip };
-        NativeBattleGraphicsState graphics = new(HiddenModels(), ["actor", "other", null, "enemy", null, null, null], 0x10, 0) { GuardianFormPresentation = presentation };
+        NativeBattleGraphicsState graphics = HiddenGraphics() with { Flags = 0x10, GuardianFormPresentation = presentation };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
         Return(battle);
         Assert.Null(battle.NativeGraphics!.GuardianFormPresentation);
-        AssertVisibility(battle.NativeGraphics.Models, presentation);
+        AssertVisibility(battle.NativeGraphics, presentation);
         Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0);
         Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags2);
     }
@@ -51,21 +51,22 @@ public sealed class NativeBattleGuardianFormVisibilityTests
     {
         BattleSession battle = Session();
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 3);
-        ImmutableArray<NativeBattleGraphicsModel> current = HiddenModels();
-        NativeBattleGraphicsState graphics = new(current, ["actor", "other", null, "enemy", null, null, null], 0, 0) { GuardianFormPresentation = presentation };
+        NativeBattleGraphicsState current = HiddenGraphics();
+        NativeBattleGraphicsState graphics = current with { GuardianFormPresentation = presentation };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
         Return(battle);
-        Assert.Equal(current.Skip(1), battle.NativeGraphics!.Models.Skip(1));
+        Assert.Equal(current.ActorModels.Entries.Where(entry => entry.Owner != Actor), battle.NativeGraphics!.ActorModels.Entries.Where(entry => entry.Owner != Actor));
     }
 
     [Fact]
     public void InactiveRowsKeepUnknownSecondaryFlags()
     {
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 2);
-        ImmutableArray<NativeBattleGraphicsModel> current = HiddenModels().SetItem(6, new(0xC));
-        ImmutableArray<NativeBattleGraphicsModel> restored = (ImmutableArray<NativeBattleGraphicsModel>)typeof(BattleSession).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [current, presentation])!;
-        Assert.Null(restored[6].Flags2);
-        Assert.Equal((ushort)0, restored[6].Flags0);
+        NativeBattleGraphicsState current = HiddenGraphics();
+        current = current with { NativeBindings = current.NativeBindings.WriteUnboundCell(NativeBattleModelSlot.Decode(6), new(0xC)) };
+        NativeBattleGraphicsState restored = RestoreVisibility(current, presentation);
+        Assert.Null(ReadOriginalModelCell(restored, 6).Flags2);
+        Assert.Equal((ushort)0, ReadOriginalModelCell(restored, 6).Flags0);
     }
 
     private static BattleSession Session()
@@ -96,31 +97,47 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         return new("common.tim", data.ToImmutableArray());
     }
 
+    private static readonly BattlePartyActorModel Actor = new(new("actor"));
+    private static readonly BattlePartyActorModel Other = new(new("other"));
+    private static readonly BattleEnemyActorModel Enemy = new(new("enemy"));
+    private static readonly BattlePartyActorModel Extra = new(new("extra"));
+
     private static NativeBattleGuardianFormPresentation Presentation(GuardianFormInvocationMode mode, byte phase)
     {
-        return new("actor", 1, mode, 0, phase, new(0, 6) { ModelId4 = 0, Flags2 = 4 }, NativeBattleCameraState.FromColdProcess(), NativeBattleStageState.FromColdProcess(), [6, 2, 10, 2, 6, 14, 0], 0)
+        ImmutableDictionary<BattleModelOwner, NativeBattleGuardianModelVisibility> saved = ImmutableDictionary<BattleModelOwner, NativeBattleGuardianModelVisibility>.Empty
+            .Add(Actor, new(6, 4)).Add(Other, new(2, 0)).Add(Enemy, new(2, 0)).Add(Extra, new(10, 0));
+        return new("actor", 1, mode, Actor, phase, new(6) { ModelId4 = 0, Flags2 = 4 }, NativeBattleCameraState.FromColdProcess(), NativeBattleStageState.FromColdProcess(), saved, 0)
         {
-            ModelVisibilityFlags2 = [4, 0, 0, 0, 4, 4, null],
+            UnboundVisibility = ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility>.Empty.Add(NativeBattleModelSlot.Decode(6), new(0, null)),
             HumanFocalLength = 512
         };
     }
 
-    private static ImmutableArray<NativeBattleGraphicsModel> HiddenModels()
+    private static NativeBattleGraphicsState HiddenGraphics()
     {
-        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((ushort)(index == 6 ? 0x40C : 0x40E)) { Flags2 = 0x8C, Flags8 = (uint)index }).ToImmutableArray();
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, Actor, Model(0)), (1, Other, Model(1)), (3, Enemy, Model(3))]);
+        return graphics with { ActorModels = graphics.ActorModels.Add(Extra, Model(7)) };
+
+        static NativeBattleGraphicsModel Model(uint flags) => new(0x40E) { Flags2 = 0x8C, Flags8 = flags };
     }
 
-    private static void AssertVisibility(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleGuardianFormPresentation presentation)
+    private static NativeBattleGraphicsState RestoreVisibility(NativeBattleGraphicsState graphics, NativeBattleGuardianFormPresentation presentation)
     {
-        for (int index = 0; index < models.Length; index++)
+        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, presentation])!;
+    }
+
+    private static void AssertVisibility(NativeBattleGraphicsState graphics, NativeBattleGuardianFormPresentation presentation)
+    {
+        foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
         {
-            Assert.Equal(presentation.ModelVisibility[index] & 0xC, models[index].Flags0 & 0xC);
-            Assert.Equal((presentation.ModelVisibilityFlags2[index] ?? 0) & 4, (models[index].Flags2 ?? 0) & 4);
+            NativeBattleGuardianModelVisibility saved = presentation.ModelVisibility[entry.Owner];
+            Assert.Equal(saved.Flags0 & 0xC, entry.State.Flags0 & 0xC);
+            Assert.Equal((saved.Flags2 ?? 0) & 4, (entry.State.Flags2 ?? 0) & 4);
         }
-        Assert.Equal(2, models[1].Flags0 & 6);
-        Assert.Equal(2, models[3].Flags0 & 6);
-        Assert.Equal(6, models[4].Flags0 & 6);
-        Assert.Equal(0, models[6].Flags0 & 2);
+        Assert.Equal(2, graphics.ActorModels.Get(Other).Flags0 & 6);
+        Assert.Equal(2, graphics.ActorModels.Get(Enemy).Flags0 & 6);
+        Assert.Equal(2, graphics.ActorModels.Get(Extra).Flags0 & 6);
+        Assert.Equal(0, ReadOriginalModelCell(graphics, 6).Flags0 & 2);
     }
 
     private static void Return(BattleSession battle)

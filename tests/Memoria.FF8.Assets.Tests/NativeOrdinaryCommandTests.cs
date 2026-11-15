@@ -115,7 +115,7 @@ public sealed class NativeOrdinaryCommandTests
         Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.TargetId == "enemy");
         Assert.Equal(1000, battle.Combatants[0].CurrentHp);
         Assert.DoesNotContain(battle.Events, entry => entry.Message.StartsWith("Darkside cost:", StringComparison.Ordinal) || entry.Message.StartsWith("Poison:", StringComparison.Ordinal));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
@@ -252,10 +252,10 @@ public sealed class NativeOrdinaryCommandTests
         Assert.Equal(gil, battle.Capture().NativeGil);
         if (expanded)
         {
-            Assert.Equal(0, queued.NativeTargetMask);
+            Assert.Null(queued.TargetRequest.OriginalProjection);
         }
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         battle.Tick();
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -273,7 +273,7 @@ public sealed class NativeOrdinaryCommandTests
         }
         else
         {
-            NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(battle.ActiveAction!.NativeHeaderIndex!.Value));
+            NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(battle.ActiveAction!.NativeHeader!.Value);
             Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.Command);
             Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.Sequence);
             Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, header.Action);
@@ -286,7 +286,7 @@ public sealed class NativeOrdinaryCommandTests
             }
         }
 
-        restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
@@ -363,9 +363,9 @@ public sealed class NativeOrdinaryCommandTests
         battle.QueueAction(caster.Id, targetId, BattleAbility.NativeCommand, action.Id);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(targetId, queued.TargetId);
-        Assert.Equal((ushort)0, queued.NativeTargetMask);
+        Assert.Null(queued.TargetRequest.OriginalProjection);
         Assert.Equal(command, queued.NativeQueuedCommand);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
         {
             battle.Tick();
@@ -404,7 +404,7 @@ public sealed class NativeOrdinaryCommandTests
                 Assert.Equal(0, sacrificed.CurrentHp);
                 Assert.Equal((ushort)1, sacrificed.PersistentStatus);
                 Assert.Equal((ushort)1, sacrificed.NativeDeathCount);
-                BattleSession completed = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+                BattleSession completed = BattleSession.Restore(battle.Capture());
                 completed.Tick();
                 Assert.Equal((ushort)1, completed.Combatants.Single(actor => actor.Id == caster.Id).NativeDeathCount);
                 break;
@@ -495,7 +495,7 @@ public sealed class NativeOrdinaryCommandTests
         BattleActionDefinition action = Assert.Single(battle.GetNativePlayerActionChoices(caster.Id, limits: false));
         battle.QueueAction(caster.Id, "enemy-5", BattleAbility.NativeCommand, action.Id);
         battle.Tick();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();

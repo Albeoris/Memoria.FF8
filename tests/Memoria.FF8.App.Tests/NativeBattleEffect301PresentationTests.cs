@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -206,7 +207,7 @@ public sealed class NativeBattleEffect301PresentationTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => packets.ReadHeader(new BattleActionHeaderReference(index)).Effect == 301);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
-        Assert.Equal(checked((byte)casterIndex), header.ReadByte(0));
+        Assert.Equal(checked((byte)casterIndex), ReadOriginalModelOperand(packets.ModelAliases, header.Source));
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)16, header.Sequence);
         Assert.Equal((ushort)265, header.Action);

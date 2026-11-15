@@ -28,15 +28,15 @@ public sealed class NativeBattleActionCatalogTests
         }, BattleAtbMode.Normal);
         BattleCombatant actor = battle.Combatants[0];
         BattleCombatant target = battle.Combatants[1];
-        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.LimitBreak, actionId) { NativeAction = native, NativeQueuedCommand = native.Command };
+        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None), BattleAbility.LimitBreak, actionId) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.LimitBreak, actionId, native.Name!, BattleActionEffect.Native, native.Power, false) { NativeAction = native };
 
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, (byte)255, false, null])!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, null, false])!;
 
         Assert.True(packet.Primary.Amount6 > 0);
         Assert.Equal(10000 - packet.Primary.Amount6, target.CurrentHp);
         Assert.Equal(100, actor.CurrentHp);
-        Assert.Equal((byte)255, packet.Secondary.ActorIndex);
+        Assert.Null(packet.Secondary);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Healing");
     }
 

@@ -49,10 +49,10 @@ public sealed class NativeBattleEvilEye282PresentationTests
         Assert.Equal(status.Battle, target.NativeStatus!.Presentation.Battle);
         NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
-        (packets, int header) = packets.Prepare(new(checked((byte)allocatedActor), 8, 12, -1, 152, 282, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 152 && row.MagicId == 282).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)allocatedActor)), 8, 12, -1, 152, 282, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 152 && row.MagicId == 282).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.EnqueueAction(128, header);
         BattleSnapshot source = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } };
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([282])[281];
         Assert.Equal(NativeBattleEvilEye282Profile.Entry, binding.Entry);
@@ -75,10 +75,10 @@ public sealed class NativeBattleEvilEye282PresentationTests
         NativeBattlePackedMatrix32 selected = NativeBattlePackedMatrix32.FromMatrix(NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource)[13], null);
         Assert.False(selected.Known[18]);
         Assert.False(selected.Known[19]);
-        Assert.Equal((byte)allocatedActor, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadByte(0));
-        Assert.Equal((byte)12, packets.ReadHeader(new BattleActionHeaderReference(header)).Sequence);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original EvilEye282 command8/action152/sequence12; originalformation436 prototype3 allocated and activated by current native producer; controlled preparation does not claim three ordinary AI deaths; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(436).Slots.Single(enemy => enemy.Slot == 3) }));
+        Assert.Equal((byte)allocatedActor, packets.ReadHeader(header).ReadByte(0));
+        Assert.Equal((byte)12, packets.ReadHeader(header).Sequence);
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original EvilEye282 command8/action152/sequence12; originalformation436 prototype3 allocated and activated by current native producer; controlled preparation does not claim three ordinary AI deaths; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, header = packets.ReadHeader(header), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(436).Slots.Single(enemy => enemy.Slot == 3) }));
         return source;
     }
 }

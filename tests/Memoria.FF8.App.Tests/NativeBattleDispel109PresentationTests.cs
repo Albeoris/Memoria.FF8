@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -34,7 +35,7 @@ public sealed class NativeBattleDispel109PresentationTests
         BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
-        string target = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
+        string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
@@ -43,8 +44,8 @@ public sealed class NativeBattleDispel109PresentationTests
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal((ushort)109, header.Effect);
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        Assert.Null(contact.Secondary);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         Assert.Equal(2, Stock(beforeInput));
         Assert.Equal(1, Stock(source));

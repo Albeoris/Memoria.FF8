@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -7,6 +6,13 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedModelLifecycleTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+    private static readonly BattlePartyActorModel LeadAlly = new(new("ally-0"));
+    private static readonly BattlePartyActorModel FourthAlly = new(new("ally-3"));
+    private static readonly BattlePartyActorModel MissingAlly = new(new("ally-4"));
+    private static readonly BattlePartyActorModel LastAlly = new(new("ally-10"));
+    private static readonly BattleEnemyActorModel FifthEnemy = new(new("enemy-4"));
+    private static readonly BattleEnemyActorModel LastEnemy = new(new("enemy-13"));
+    private static readonly BattleEnemyActorModel ForeignEnemy = new(new("wrong-enemy"));
     private static readonly NativeBattleGraphicsResource PartySequence = new([1, 0, 4, 0, 0x91, 0, 17, 0xA0, 0, 0xA1]) { AnimationFrames = [2], TextBank = ["Party text"] };
     private static readonly NativeBattleGraphicsResource EnemySequence = new([1, 0, 4, 0, 0xB8, 12, 4, 0x91, 0, 19, 0x9D, 0xA0, 0, 0xA1]) { AnimationFrames = [2], TextBank = ["Original enemy text"] };
 
@@ -14,13 +20,13 @@ public sealed class NativeBattleHostedModelLifecycleTests
     public void Shared_loop_visits_extended_bound_rows_and_emits_ordered_receipts_without_mutating_actors()
     {
         BattleSession session = Session(expanded: true);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
-        NativeBattleGraphicsState graphics = Graphics(roster);
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
+        NativeBattleGraphicsState graphics = Graphics(session);
         graphics = graphics with
         {
-            Models = graphics.Models.SetItem(7, Sequenced(7, 0)).SetItem(14, Sequenced(14, 0)).SetItem(15, Removing(15)).SetItem(24, Sequenced(24, 20))
+            ActorModels = graphics.ActorModels.Set(FourthAlly, Sequenced(0)).Set(LastAlly, Sequenced(0)).Set(FifthEnemy, Removing()).Set(LastEnemy, Sequenced(20))
         };
-        NativeBattleModelLifecycleServices services = session.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(roster);
         var before = ObserveActors(session);
         var logicalIndex = (Dictionary<string, BattleCombatant>)typeof(BattleSession).GetField("byId", PrivateInstance)!.GetValue(session)!;
         logicalIndex.Clear();
@@ -28,16 +34,16 @@ public sealed class NativeBattleHostedModelLifecycleTests
         NativeBattleGraphicsState advanced = Advance(session, graphics, services);
 
         Assert.Equal(before, ObserveActors(session));
-        Assert.Equal(1, advanced.Models[7].SequenceFrame);
-        Assert.Equal(1, advanced.Models[14].SequenceFrame);
-        Assert.Equal(0, advanced.Models[15].Flags0);
-        Assert.Equal(1, advanced.Models[24].SequenceFrame);
+        Assert.Equal(1, advanced.ActorModels.Get(FourthAlly).SequenceFrame);
+        Assert.Equal(1, advanced.ActorModels.Get(LastAlly).SequenceFrame);
+        Assert.Equal(0, advanced.ActorModels.Get(FifthEnemy).Flags0);
+        Assert.Equal(1, advanced.ActorModels.Get(LastEnemy).SequenceFrame);
         Assert.Collection(services.ReadReceipts(),
-            item => Assert.Equal(new NativeBattleModelTextPublished(7, "ally-3", "Party text", 17, null), item),
-            item => Assert.Equal(new NativeBattleModelTextPublished(14, "ally-10", "Party text", 17, null), item),
-            item => Assert.Equal(new NativeBattleModelParticipantReleased(15, "enemy-4"), item),
-            item => Assert.Equal(new NativeBattleModelTextPublished(24, "enemy-13", "Original enemy text", 19, BattleTextIdentity.Enemy(43, 0)), item),
-            item => Assert.Equal(new NativeBattleModelParticipantSuspended(24, "enemy-13", 1), item));
+            item => Assert.Equal(new NativeBattleModelTextPublished(FourthAlly, "ally-3", "Party text", 17, null), item),
+            item => Assert.Equal(new NativeBattleModelTextPublished(LastAlly, "ally-10", "Party text", 17, null), item),
+            item => Assert.Equal(new NativeBattleModelParticipantReleased(FifthEnemy, "enemy-4"), item),
+            item => Assert.Equal(new NativeBattleModelTextPublished(LastEnemy, "enemy-13", "Original enemy text", 19, BattleTextIdentity.Enemy(43, 0)), item),
+            item => Assert.Equal(new NativeBattleModelParticipantSuspended(LastEnemy, "enemy-13", 1), item));
         BattleEvent sound = Assert.Single(session.Events);
         Assert.Equal("NativeSequenceSound", sound.Kind);
         Assert.Equal("enemy-13", sound.ActorId);
@@ -45,20 +51,20 @@ public sealed class NativeBattleHostedModelLifecycleTests
     }
 
     [Fact]
-    public void Sparse_roster_skips_its_placeholder_even_if_its_flags_claim_loaded()
+    public void Sparse_roster_visits_only_bound_owners()
     {
         BattleSession session = Session(expanded: true);
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
-        NativeBattleGraphicsState graphics = Graphics(roster);
-        NativeBattleGraphicsModel placeholder = new(2);
-        graphics = graphics with { Models = graphics.Models.SetItem(8, placeholder).SetItem(14, Sequenced(14, 0)) };
-        NativeBattleModelLifecycleServices services = session.CaptureExpandedModelLifecycleServices(roster);
+        typeof(BattleSession).GetMethod("RefreshNativePacketBindings", PrivateInstance)!.Invoke(session, null);
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
+        NativeBattleGraphicsState graphics = Graphics(session);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(LastAlly, Sequenced(0)) };
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(roster);
 
         NativeBattleGraphicsState advanced = Advance(session, graphics, services);
 
-        Assert.Null(services.Facts[8]);
-        Assert.Same(placeholder, advanced.Models[8]);
+        Assert.False(services.Facts.ContainsKey(MissingAlly));
+        Assert.False(advanced.ActorModels.Contains(MissingAlly));
         Assert.Equal("ally-10", Assert.Single(services.ReadReceipts()).ActorId);
     }
 
@@ -67,22 +73,22 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession native = Session(expanded: false, partyResource: EnemySequence);
         BattleSession hosted = Session(expanded: false, partyResource: EnemySequence);
-        BattleModelRoster roster = hosted.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = hosted.ReadBattlePresentationRoster();
         BindPresentationResources(hosted, roster, partyResource: EnemySequence);
-        NativeBattleGraphicsState graphics = Graphics(roster);
-        graphics = graphics with { Models = graphics.Models.SetItem(0, Sequenced(0, 0)) };
-        NativeBattleModelLifecycleServices services = hosted.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleGraphicsState graphics = Graphics(hosted);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(LeadAlly, Sequenced(0)) };
+        NativeBattleModelLifecycleServices services = hosted.CaptureModelLifecycleServices(roster);
         var before = ObserveActors(hosted);
         BattleCombatant nativeActor = native.Combatants.Single(actor => actor.Id == "ally-0");
         uint initialFlags = nativeActor.NativeCombatantFlags;
         ushort initialStatus = nativeActor.NativeStatus0;
 
-        NativeBattleGraphicsState nativeResult = Advance(native, graphics with { PresentationRoster = null }, null);
+        NativeBattleGraphicsState nativeResult = Advance(native, graphics, null);
         NativeBattleGraphicsState hostedResult = Advance(hosted, graphics, services);
 
-        Assert.Equal(7, nativeResult.Models.Length);
-        Assert.Equal(1, nativeResult.Models[0].SequenceFrame);
-        Assert.Equal(NativeBattleTestSnapshots.Json(nativeResult), NativeBattleTestSnapshots.Json(hostedResult with { PresentationRoster = null }));
+        Assert.Equal(2, nativeResult.ActorModels.Roster.Count);
+        Assert.Equal(1, nativeResult.ActorModels.Get(LeadAlly).SequenceFrame);
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativeResult), NativeBattleTestSnapshots.Json(hostedResult));
         Assert.Equal(initialFlags | 0x40u, nativeActor.NativeCombatantFlags);
         Assert.Equal((ushort)(initialStatus | 1), nativeActor.NativeStatus0);
         Assert.Equal(before, ObserveActors(hosted));
@@ -91,20 +97,20 @@ public sealed class NativeBattleHostedModelLifecycleTests
         BattleEvent text = native.Events[1];
         Assert.Null(text.NativeTextIdentity);
         Assert.Collection(services.ReadReceipts(),
-            item => Assert.Equal(new NativeBattleModelTextPublished(OriginalOwner(0), text.ActorId!, text.Message, text.Amount, text.NativeTextIdentity), item),
-            item => Assert.Equal(new NativeBattleModelParticipantSuspended(OriginalOwner(0), "ally-0", 1), item));
+            item => Assert.Equal(new NativeBattleModelTextPublished(LeadAlly, text.ActorId!, text.Message, text.Amount, text.NativeTextIdentity), item),
+            item => Assert.Equal(new NativeBattleModelParticipantSuspended(LeadAlly, "ally-0", 1), item));
     }
 
     [Fact]
     public void Shared_loop_parses_AB_and_emits_the_registered_process_widget_without_changing_logical_state()
     {
         BattleSession session = Session(expanded: true);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         NativeBattleGraphicsResource ab = new([1, 0, 4, 0, 0xAB, 1, 0, 0xA0, 1, 0xA1, 0xA0, 0, 0xA1]) { AnimationFrames = [15, 9] };
         BindPresentationResources(session, roster, ab);
-        NativeBattleGraphicsState graphics = Graphics(roster);
-        graphics = graphics with { Models = graphics.Models.SetItem(7, Sequenced(7, 0)), UiServices = NativeBattleUiServices.Initialize() };
-        NativeBattleModelLifecycleServices services = session.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleGraphicsState graphics = Graphics(session);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(FourthAlly, Sequenced(0)), UiServices = NativeBattleUiServices.Initialize() };
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(roster);
         var before = ObserveActors(session);
         MethodInfo captureLimits = typeof(BattleSession).GetMethod("CaptureNativeLimits", PrivateInstance)!;
         string limits = NativeBattleTestSnapshots.Json((BattleNativeLimitState[])captureLimits.Invoke(session, null)!);
@@ -112,12 +118,12 @@ public sealed class NativeBattleHostedModelLifecycleTests
         NativeBattleGraphicsState advanced = Advance(session, graphics, services);
 
         NativeBattleTriggerWidget widget = Assert.IsType<NativeBattleTriggerWidget>(advanced.TriggerWidget);
-        Assert.Equal((byte)7, widget.ActorIndex);
+        Assert.Equal(FourthAlly, widget.Actor);
         Assert.Equal((byte?)1, widget.SourceSequence);
         Assert.Equal(0, widget.SourceAbOffset);
         Assert.True(widget.Visible);
         Assert.Equal((sbyte)6, advanced.UiServices!.Menu957);
-        Assert.Equal(new NativeBattleModelTriggerRegistered(7, "ally-3", widget), Assert.Single(services.ReadReceipts()));
+        Assert.Equal(new NativeBattleModelTriggerRegistered(FourthAlly, "ally-3", widget), Assert.Single(services.ReadReceipts()));
         Assert.Equal(before, ObserveActors(session));
         Assert.Equal(limits, NativeBattleTestSnapshots.Json((BattleNativeLimitState[])captureLimits.Invoke(session, null)!));
         Assert.Null(session.NativeGraphics);
@@ -131,11 +137,11 @@ public sealed class NativeBattleHostedModelLifecycleTests
         BattleCombatant actor = session.Combatants.Single(actor => actor.Id == "ally-3");
         actor.NativeStatusTimers[12] = -1111;
         actor.NativeStatusTimers[10] = -23;
-        NativeBattleModelLifecycleServices services = session.CaptureExpandedModelLifecycleServices(session.ReadExpandedPresentationRoster());
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(session.ReadBattlePresentationRoster());
         actor.NativeStatusTimers[12] = 290;
         MethodInfo timers = typeof(BattleSession).GetMethod("ReadModelCountdownTimers", PrivateInstance)!;
 
-        var (doom, petrify) = ((short, short))timers.Invoke(session, [7, services.Facts[7]])!;
+        var (doom, petrify) = ((short, short))timers.Invoke(session, [Graphics(session), FourthAlly, services.Facts[FourthAlly]])!;
 
         Assert.Equal((short)-1111, doom);
         Assert.Equal((short)-23, petrify);
@@ -145,10 +151,9 @@ public sealed class NativeBattleHostedModelLifecycleTests
     }
 
     [Theory]
-    [InlineData("missing services")]
-    [InlineData("missing roster")]
-    [InlineData("short bank")]
-    [InlineData("wrong late row")]
+    [InlineData("missing facts")]
+    [InlineData("wrong fact identity")]
+    [InlineData("unplanned model")]
     [InlineData("wrong late identity")]
     [InlineData("wrong late side")]
     [InlineData("extra hole facts")]
@@ -156,32 +161,30 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession session = Session(expanded: true);
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
-        NativeBattleGraphicsState graphics = Graphics(roster);
-        graphics = graphics with { Models = graphics.Models.SetItem(0, Sequenced(0, 0)) };
-        NativeBattleModelLifecycleServices? services = session.CaptureExpandedModelLifecycleServices(roster);
+        typeof(BattleSession).GetMethod("RefreshNativePacketBindings", PrivateInstance)!.Invoke(session, null);
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
+        NativeBattleGraphicsState graphics = Graphics(session);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(LeadAlly, Sequenced(0)) };
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(roster);
         switch (malformed)
         {
-            case "missing services":
-                services = null;
+            case "missing facts":
+                services = new(services.Facts.Remove(LastEnemy));
                 break;
-            case "missing roster":
-                graphics = graphics with { PresentationRoster = null };
+            case "wrong fact identity":
+                services = new(services.Facts.SetItem(LastEnemy, services.Facts[LastEnemy] with { ActorId = "wrong" }));
                 break;
-            case "short bank":
-                graphics = graphics with { Models = graphics.Models.RemoveAt(24) };
-                break;
-            case "wrong late row":
-                graphics = graphics with { Models = graphics.Models.SetItem(24, new(23, 0)) };
+            case "unplanned model":
+                graphics = graphics with { ActorModels = graphics.ActorModels.Add(ForeignEnemy, new(0)) };
                 break;
             case "wrong late identity":
-                graphics = graphics with { ActorIds = graphics.ActorIds.SetItem(24, "other") };
+                graphics = graphics with { ActorModels = graphics.ActorModels.ReplaceOwner(LastEnemy, ForeignEnemy, new(0)) };
                 break;
             case "wrong late side":
-                services = new(services.Facts.SetItem(24, services.Facts[24]! with { IsParty = true }));
+                services = new(services.Facts.SetItem(LastEnemy, services.Facts[LastEnemy] with { IsParty = true }));
                 break;
             case "extra hole facts":
-                services = new(services.Facts.SetItem(8, new("other", true, 0, 0, 0)));
+                services = new(services.Facts.Add(MissingAlly, new("ally-4", true, 0, 0, 0)));
                 break;
         }
         NativeBattleEffectMemory memory = session.NativeEffectMemory!;
@@ -215,7 +218,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
         typeof(BattleSession).GetField("definition", PrivateInstance)!.SetValue(session, definition with { NativeGraphics = new(rules, bindings, []) });
         if (expanded)
         {
-            BindPresentationResources(session, session.ReadExpandedPresentationRoster());
+            BindPresentationResources(session, session.ReadBattlePresentationRoster());
         }
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { ModelColorOverrides = NativeBattleModelColorOverrides.FromColdProcess() });
         Set(session, nameof(BattleSession.NativeStage), NativeBattleStageState.FromColdProcess());
@@ -224,21 +227,22 @@ public sealed class NativeBattleHostedModelLifecycleTests
 
     private static void BindPresentationResources(BattleSession session, BattleModelRoster roster, NativeBattleGraphicsResource? extendedPartyResource = null, NativeBattleGraphicsResource? partyResource = null)
     {
-        Dictionary<int, NativeBattleEffectModelBinding> presentationBindings = roster.PartyRows.Concat(roster.EnemyRows).ToDictionary(row => row, row =>
+        Dictionary<BattleModelOwner, NativeBattleEffectModelBinding> presentationBindings = roster.Owners.ToDictionary(owner => owner, owner =>
         {
-            BattleModelOwner actor = roster[row];
-            NativeBattleGraphicsResource resource = actor.IsParty ? (row == 7 ? extendedPartyResource : null) ?? partyResource ?? PartySequence : EnemySequence;
-            return new NativeBattleEffectModelBinding(actor.ActorId, new(row, 0), resource) { IsParty = actor.IsParty };
+            bool ally = owner.Side == BattleSide.Allies;
+            NativeBattleGraphicsResource resource = ally ? (owner == FourthAlly ? extendedPartyResource : null) ?? partyResource ?? PartySequence : EnemySequence;
+            return new NativeBattleEffectModelBinding(owner, new(0), resource);
         });
         typeof(BattleSession).GetField("presentationNativeTargets", PrivateInstance)!.SetValue(session, presentationBindings);
     }
 
-    private static NativeBattleGraphicsState Graphics(BattleModelRoster roster)
+    private static NativeBattleGraphicsState Graphics(BattleSession session)
     {
-        return new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
+        return NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0), session.UsesExpandedRoster ? BattleContactTaskStorageContract.ExpandableArena : BattleContactTaskStorageContract.OriginalArena);
     }
 
-    private static NativeBattleGraphicsModel Sequenced(int row, byte modelId)
+    private static NativeBattleGraphicsModel Sequenced(byte modelId)
     {
         return new(2)
         {
@@ -251,7 +255,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
         };
     }
 
-    private static NativeBattleGraphicsModel Removing(int row)
+    private static NativeBattleGraphicsModel Removing()
     {
         return new(2)
         {

@@ -55,7 +55,7 @@ public sealed class NativeBattleAdditional182PresentationTests
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
-        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags3 = hitFlags } };
+        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = hitFlags } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original command29/action10/sequence11 and formation94; declared Amount0 post-formula presentation contact with logical HP/status retained; contact BYTE3 bit4 selects the native director/camera/sound only, without formula, accuracy, status, ordinary command, AI or card-conversion admission", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));
         return source with { NativeActionPackets = packets with { Contacts = packets.Contacts.SetItem(0, declared) } };
     }

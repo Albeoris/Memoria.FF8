@@ -27,16 +27,16 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
         {
             Assert.NotNull(cycle);
             cycle.Observe(Observation(), false);
-            NativeBattleActionPacketsState packets = dispatch.ActionId == 65532 ? battle.ObserveDiagnosticDuelClosingPackets(dispatch) : battle.ObserveDiagnosticActionPackets(dispatch);
+            NativeBattleRetainedActionPackets packets = dispatch.ActionId == 65532 ? battle.ObserveDiagnosticDuelClosingPackets(dispatch) : battle.ObserveDiagnosticActionPackets(dispatch);
             BattleDiagnosticEffectInvocation invocation = battle.ObserveDiagnosticEffectInvocation(dispatch);
-            NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(dispatch.NativeHeaderIndex!.Value));
+            NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
             cycle.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
             {
                 Parameter80 = invocation.Parameter80,
                 Parameter82 = invocation.Parameter82,
-                HeaderEffect = (ushort)(header.ReadByte(6) | header.ReadByte(7) << 8),
+                HeaderEffect = (ushort)(header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8),
                 RetainedEffect = invocation.ExecutedEffect,
-                Duel = battle.GetNativeDuel("party")
+                Duel = battle.ObserveDiagnosticDuelState("party")
             });
         };
         DiagnosticDuelCycleReceipt? first = null;
@@ -99,7 +99,7 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
         }
         Assert.True(coldChecked);
 
-        DiagnosticDuelObservation Observation() => new(battle.NativeHostCallbacks!.Value, battle.GetNativeDuel("party"));
+        DiagnosticDuelObservation Observation() => new(battle.NativeHostCallbacks!.Value, battle.ObserveDiagnosticDuelState("party"));
         void Attach(BattleSession session) => session.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
     }
 }

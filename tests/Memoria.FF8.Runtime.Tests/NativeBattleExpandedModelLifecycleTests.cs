@@ -12,7 +12,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     public void IdleDispatcherUsesTheAttachedRosterWithoutAnInvocationContactRoster()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         NativeBattleGraphicsResource resource = new([0, 0])
         {
             AnimationFrames = [1],
@@ -59,7 +59,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     public void ParentAppliesOnlyTheNativeLifecycleFlagsAtExtendedRows(string identity, int row, bool release, uint flags)
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleCombatant actor = Actor(session, identity);
         actor.NativeCombatantFlags = 0x11;
         actor.NativeStatus0 = 8;
@@ -85,7 +85,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     public void WrongReceiptIdentityOrStaleAllocationRejectsBeforeAnyActorMutation()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleCombatant actor = Actor(session, "ally-10");
         var before = (actor.NativeCombatantFlags, actor.NativeStatus0);
         AssertInvalid(() => Invoke(session, "AcknowledgeExpandedModelRelease", roster, new NativeBattleModelParticipantReleased(14, "ally-9")));
@@ -105,7 +105,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     public void CueTimeHeaderSurvivesPacketReplacementAndOnlyOriginalMatchingWitnessCompletes(int row, byte headerActor, ushort actionId, byte headerSequence, byte cueSequence, bool captured, bool terminal, bool mismatchedIndex)
     {
         BattleSession session = Fixture(witness: true);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleModelOwner owner = roster[row];
         NativeBattleActionPacketsState bank = NativeBattleActionPacketsState.FromPresentationStorage(roster);
         (bank, int headerIndex) = bank.Prepare(new(headerActor, 8, headerSequence, -1, actionId, 0, null));

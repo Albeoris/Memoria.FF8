@@ -40,9 +40,9 @@ public sealed class EncounterNativeModelAllocationTests
                 foreach (string id in batch.ActorIds)
                 {
                     int physical = FindOriginalModelSlot(battle.NativeGraphics!, id);
-                    if (physical >= 0 && (ReadOriginalModelCell(battle.NativeGraphics, physical).Flags0 & 2) != 0)
+                    if (physical >= 0 && (ReadOriginalModelCell(battle.NativeGraphics!, physical).Flags0 & 2) != 0)
                     {
-                        Assert.NotEqual(0, ReadOriginalModelCell(battle.NativeGraphics, physical).Flags0 & 4);
+                        Assert.NotEqual(0, ReadOriginalModelCell(battle.NativeGraphics!, physical).Flags0 & 4);
                         Assert.False(battle.Combatants.Single(actor => actor.Id == id).IsActive);
                     }
                 }
@@ -71,7 +71,7 @@ public sealed class EncounterNativeModelAllocationTests
             Assert.Equal(maximumHp, copy.CurrentHp);
             int physical = FindOriginalModelSlot(battle.NativeGraphics!, id);
             Assert.InRange(physical, 3, 6);
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics, physical);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, physical);
             Assert.Equal((ushort)7, (ushort)(model.Flags0 & 7));
             Assert.Equal((byte)2, model.EffectCounter97);
             Assert.NotNull(model.ActiveResourceRow100);
@@ -154,10 +154,10 @@ public sealed class EncounterNativeModelAllocationTests
         TickUntil(battle, () => Drained(battle), "fourth next ordinary installed ability");
         Assert.False(fourth.IsBusy);
         Assert.True(battle.Combatants.Where(actor => actor.IsPlayer).Sum(actor => actor.CurrentHp) < counterEndPartyHp);
-        int[] copyRows = batch.ActorIds.Select(id => ReadOriginalModelCell(battle.NativeGraphics, FindOriginalModelSlot(battle.NativeGraphics, id)).TextureResourceIndex!.Value).ToArray();
+        int[] copyRows = batch.ActorIds.Select(id => ReadOriginalModelCell(battle.NativeGraphics!, FindOriginalModelSlot(battle.NativeGraphics!, id)).TextureResourceIndex!.Value).ToArray();
         int[] privateLengths = copyRows.Select(row => battle.NativeModelCpuResources!.Rows[row].PrivateLength4!.Value).ToArray();
         int heapBefore = battle.NativeModelCpuResources!.EnemyCursor!.Value;
-        int originalRow = ReadOriginalModelCell(battle.NativeGraphics, 3).TextureResourceIndex!.Value;
+        int originalRow = ReadOriginalModelCell(battle.NativeGraphics!, 3).TextureResourceIndex!.Value;
         int originalPrivateLength = battle.NativeModelCpuResources.Rows[originalRow].PrivateLength4!.Value;
         Invoke<object?>(battle, "QueueNativeGraphicsRemoval", original);
         TickUntil(battle, () => battle.EncounterPolicies?.CleanedUp == true && !battle.HasPendingEncounterRetirements && Drained(battle), "native105 retirement with unrelated fourth alive");
@@ -170,10 +170,10 @@ public sealed class EncounterNativeModelAllocationTests
         {
             NativeBattleEnemyAllocation allocation = battle.Capture().NativeAllocations.Single(allocation => allocation.Id == id);
             Assert.True(allocation.Retirement!.ResourcesReleased);
-            Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, allocation.Retirement.PhysicalIndex).Flags0 & 3);
+            Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics!, allocation.Retirement.PhysicalIndex).Flags0 & 3);
         }
         Assert.All(copyRows.Append(originalRow), row => Assert.Equal((byte)0, battle.NativeModelTextureCache!.Rows[row].Kind));
-        Assert.Equal((byte)3, battle.NativeModelTextureCache!.Rows[ReadOriginalModelCell(battle.NativeGraphics, 6).TextureResourceIndex!.Value].Kind);
+        Assert.Equal((byte)3, battle.NativeModelTextureCache!.Rows[ReadOriginalModelCell(battle.NativeGraphics!, 6).TextureResourceIndex!.Value].Kind);
         int removed = battle.Events.Count(entry => entry.Kind == "NativeModelRemoved");
         Invoke<object?>(battle, "QueueNativeCallback", fourth, (ushort)1, (byte)0);
         TickUntil(battle, () => Drained(battle), "fourth ordinary turn after resource compaction");

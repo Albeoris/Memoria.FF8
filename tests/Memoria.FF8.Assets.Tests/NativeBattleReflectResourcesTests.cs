@@ -18,7 +18,7 @@ public sealed class NativeBattleReflectResourcesTests
         Assert.Equal(0x12F9B80u, resources.Wall.Address);
         Assert.Equal(0x12FBAA0u, resources.Hexagon.Address);
         Assert.Equal(0x12FBB78u, resources.Ring.Address);
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int action = 0; action < actions; action++)
         {
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 106, null));

@@ -25,7 +25,7 @@ public sealed class NativeBattleComponentEventCompletionTests
         Assert.Equal(3, after.Combatants.Single(actor => actor.Id == allocation.Id).NativeParticipant!.ActorIndex);
         Assert.Equal((byte)3, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(0));
         Assert.Equal((byte)0, battle.NativeActionPackets.ActionCount);
-        Assert.DoesNotContain(battle.QueuedActions, command => command.NativeHeaderIndex is not null);
+        Assert.DoesNotContain(battle.QueuedActions, command => command.NativeHeader is not null);
         Assert.Null(battle.ActiveAction);
         Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "retiring");
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Windup" && item.ActorId == "retiring");
@@ -63,7 +63,7 @@ public sealed class NativeBattleComponentEventCompletionTests
         (packets, _) = packets.Publish(0);
         Field("nativeActionPackets").SetValue(battle, packets);
         Field("nativeActionScratch").SetValue(battle, battle.Capture().NativeActionScratch! with { EventActorB0F = eventActor, ComponentCompletion = 0x47DDA0 });
-        BattleAttackCommand command = new("retiring", "retiring", BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = 0, NativeQueuedCommand = 252, NativeGraphic = new(1) };
+        BattleAttackCommand command = new("retiring", "retiring", BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
         Queue(battle).Enqueue(command);
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Method("TryCompleteNativeComponentCommand").Invoke(battle, ["retiring", (byte?)3]));
         Assert.IsType<InvalidDataException>(error.InnerException);
@@ -81,7 +81,7 @@ public sealed class NativeBattleComponentEventCompletionTests
         (packets, _) = packets.Publish(0);
         Field("nativeActionPackets").SetValue(battle, packets);
         Field("nativeActionScratch").SetValue(battle, battle.Capture().NativeActionScratch! with { EventActorB0F = 3, ComponentCompletion = 0x47DDA0 });
-        BattleAttackCommand command = new("retiring", "retiring", BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = 0, NativeQueuedCommand = 252, NativeGraphic = new(1) };
+        BattleAttackCommand command = new("retiring", "retiring", BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
         Queue(battle).Enqueue(command);
         Method("TryCompleteNativeComponentCommand").Invoke(battle, ["retiring", (byte?)3]);
         Assert.Same(command, Assert.Single(Queue(battle)));

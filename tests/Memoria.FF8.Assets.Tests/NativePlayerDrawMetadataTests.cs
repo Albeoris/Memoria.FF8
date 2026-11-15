@@ -74,8 +74,8 @@ public sealed class NativePlayerDrawMetadataTests
         Assert.Equal(failed ? (byte)0 : (byte)1, header.ReadContactCount());
         Assert.Equal(0x47EBD0u, header.Data!.ProducerAddress);
         Assert.Equal((ushort)6, header.Data.Argument);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
-        Assert.Equal((byte)3, contact.ActorIndex);
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(3), contact.Recipient);
         Assert.Equal((ushort)0, contact.Amount6);
         Assert.Equal(hp, battle.Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(Enumerable.Repeat((ushort)4000, 16), battle.Capture().Combatants[0].GuardianForceCompatibility);

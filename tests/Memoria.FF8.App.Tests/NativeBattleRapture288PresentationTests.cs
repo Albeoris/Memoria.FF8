@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -44,21 +45,21 @@ public sealed class NativeBattleRapture288PresentationTests
         NativeBattleGraphicsState sourceGraphics = source.NativeGraphics!;
         int descriptor = Assert.Single(sourceGraphics.Descriptors.Queue, index => sourceGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = unchecked(sourceGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-        Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal(item.Effect, header.Effect);
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
-        Assert.Equal(0, contact.Primary.HitFlags3 & 4);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        Assert.Equal(0, contact.Primary.HitFlags & 4);
         Assert.Equal(0, contact.Primary.Flags2 & 0x40);
         Assert.NotEqual(0u, contact.Primary.BattleStatuses8 & 0x10000);
         Assert.NotEqual(0, contact.Primary.SavedStatuses4 & 1);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        string caster = ReadOriginalModelActorId(source.NativeGraphics, 0)!;
+        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         Assert.Equal(2, Stock(beforeInput, caster, action.ActionId));
         Assert.Equal(1, Stock(source, caster, action.ActionId));
         int producedHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
@@ -104,7 +105,7 @@ public sealed class NativeBattleRapture288PresentationTests
                 if (age is >= 23 and < 63)
                 {
                     Assert.NotEqual(0, ReadOriginalModelCell(current.NativeGraphics!, 3).Flags0 & 0x1000);
-                    moved |= ReadOriginalModelCell(current.NativeGraphics, 3).Transform!.Position28.Y != unchecked((short)previousTarget!.ReadWord(14));
+                    moved |= ReadOriginalModelCell(current.NativeGraphics!, 3).Transform!.Position28.Y != unchecked((short)previousTarget!.ReadWord(14));
                 }
                 if (age == 63 && nextAge == 64)
                 {
@@ -115,9 +116,9 @@ public sealed class NativeBattleRapture288PresentationTests
                     Assert.True(model.ModelId4 >= 16);
                     Assert.Equal((byte)0, ReadOriginalModelCell(prior.NativeGraphics!, 3).Kind5);
                     Assert.Equal((byte)5, model.Kind5);
-                    Assert.Equal(0, ReadOriginalModelCell(prior.NativeGraphics, 3).Flags0 & 0x10);
+                    Assert.Equal(0, ReadOriginalModelCell(prior.NativeGraphics!, 3).Flags0 & 0x10);
                     Assert.NotEqual(0, model.Flags0 & 0x10);
-                    Assert.Equal(0u, ReadOriginalModelCell(prior.NativeGraphics, 3).Flags8!.Value & projectedContact);
+                    Assert.Equal(0u, ReadOriginalModelCell(prior.NativeGraphics!, 3).Flags8!.Value & projectedContact);
                     Assert.NotEqual(0u, projectedContact & 0x400000);
                     Assert.Equal(projectedContact & ~0x400000u, model.Flags8!.Value & projectedContact);
                     receipts++;

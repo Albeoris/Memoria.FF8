@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -78,29 +79,29 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
             sourceCallback = graphics.Callback;
             int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
-            Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+            Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
             int headerIndex = checked((int)(offset / 20));
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
             Assert.Equal((byte)2, header.Command);
             Assert.Equal(action.ActionId, header.Action);
             Assert.Equal(item.Effect, header.Effect);
-            Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
+            Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.Header.Ordinal == headerIndex);
             Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-            Assert.Equal((byte)3, contact.Primary.ActorIndex);
-            Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+            Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+            Assert.Null(contact.Secondary);
             Assert.True(contact.Primary.Amount6 > 0);
             string target = ReadOriginalModelActorId(graphics, 3)!;
             string caster = ReadOriginalModelActorId(graphics, 0)!;
             int beforeHp = beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int targetHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int maximumHp = source.Definition.Combatants.Single(actor => actor.Id == target).MaximumHp;
-            int expectedHp = (contact.Primary.HitFlags3 & 1) != 0 ? Math.Min(maximumHp, beforeHp + contact.Primary.Amount6) : Math.Max(0, beforeHp - contact.Primary.Amount6);
+            int expectedHp = (contact.Primary.HitFlags & 1) != 0 ? Math.Min(maximumHp, beforeHp + contact.Primary.Amount6) : Math.Max(0, beforeHp - contact.Primary.Amount6);
             Assert.Equal(expectedHp, targetHp);
             Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
             Assert.Equal(2, Stock(beforeInput, caster, action.ActionId));
             Assert.Equal(1, Stock(source, caster, action.ActionId));
-            NativeBattleEffectTask expectedText = OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0) ?? throw new NotSupportedException("The ordinary produced contact suppresses damage text and requires its own proved observable before this generic gate can accept it.");
+            NativeBattleEffectTask expectedText = ExpectedOriginalDamageText(contact.Primary, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0) ?? throw new NotSupportedException("The ordinary produced contact suppresses damage text and requires its own proved observable before this generic gate can accept it.");
             contactObserver = "Fresh native damage-text task with original contact glyph/color payload; sequence transitions are diagnostic only";
             battle = BattleSession.Restore(source);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
@@ -142,7 +143,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                 for (int index = 0; index < current.NativeGraphics!.Effects.Slots.Length; index++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && text.ModelIndex == 3 && (prior.NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0)
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (prior.NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);

@@ -18,10 +18,10 @@ public sealed class NativeBattleMoogle96NodesTests
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattlePoseSource poseSource = resources.Model.PoseSource;
         NativeBattleDecodedPose pose = NativeBattlePoseDecoder.DecodeFirst509440(poseSource.Animations.AsSpan(), poseSource.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int actor) => new(3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, 300), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } };
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 96, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        NativeBattleGraphicsModel Model(BattleModelOwner owner) => new(3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(checked((short)(OriginalSlot(owner) * 100)), 0, 300), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } };
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 240, 0, 0, 1, 96, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x64, 1), NativeBattleEffectTaskPool.Initialize(0x257E258, 0x257DA68, 0x2A4, 3)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 1, 0x64);

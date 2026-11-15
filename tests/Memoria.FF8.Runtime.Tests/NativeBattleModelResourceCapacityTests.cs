@@ -130,36 +130,36 @@ public sealed class NativeBattleModelResourceCapacityTests
     [Fact]
     public void Production_bind_guard_allows_initial_unloaded_entry_and_refuses_live_guest_to_logical_reload_before_publication()
     {
-        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().BindPartyOwner(Party, PartySlot);
         NativeBattleModelDatSource source = Source(false, NativeBattleModelCpuBank.Length + 4);
-        NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(new(new(0, 1, 0, 0, 0x5077B0, 2), source, new([])), cpu.Cpu, cpu.Rows, 0, null);
+        NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(new(new(0, Party, PartySlot, 0, 0, 0x5077B0, 2), source, new([])), cpu.Cpu, cpu.Rows, 0, null);
         NativeBattleGraphicsState initial = Loading();
         NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, initial);
-        NativeBattleGraphicsState loaded = initial with { Models = initial.Models.SetItem(1, new(1, 3)) };
+        NativeBattleGraphicsState loaded = initial with { ActorModels = initial.ActorModels.Set(Party, new(3)) };
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, loaded));
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, initial with { Effects = initial.Effects with { PublishedCount = 1 } }));
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, initial with { ModuleEffects = initial.ModuleEffects with { PublishedCount = 1 } }));
         NativeBattleModelCpuResources aliased = cpu with { Rows = cpu.Rows.SetItem(3, cpu.Rows[3].Set(12, new(1, 0))) };
-        NativeBattleGraphicsState otherModel = initial with { Models = initial.Models.SetItem(0, new(0, 3) { OriginalResourceRow104 = 3 }) };
+        NativeBattleGraphicsState otherModel = initial with { ActorModels = initial.ActorModels.Set(OriginalOwner(0), new(3) { OriginalResourceRow104 = 3 }) };
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(aliased, completed, otherModel));
         Assert.False(cpu.Cpu.Banks[1].HasResourceStorage);
         NativeBattleModelDatSource small = Source(false, 8);
-        NativeBattleModelResourceCompletion originalDimensions = NativeBattleModelResourceCopies.Complete(new(new(0, 1, 0, 0, 0x5077B0, 2), small, new([])), cpu.Cpu, cpu.Rows, 0, null);
+        NativeBattleModelResourceCompletion originalDimensions = NativeBattleModelResourceCopies.Complete(new(new(0, Party, PartySlot, 0, 0, 0x5077B0, 2), small, new([])), cpu.Cpu, cpu.Rows, 0, null);
         NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, originalDimensions, loaded);
     }
 
     [Fact]
     public void Linked_staged_alias_and_implicit_auxiliary_animation_owner_keep_live_promotion_blocked()
     {
-        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().BindAnimation(1, new(0, [7, 8, 9], 8));
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().BindPartyOwner(Party, PartySlot).BindAnimation(Party, PartySlot, new(0, [7, 8, 9], 8));
         NativeBattleModelDatSource source = Source(false, NativeBattleModelCpuBank.Length + 4);
-        NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(new(new(0, 1, 0, 0, 0x5077B0, 2), source, new([])), cpu.Cpu, cpu.Rows, 0, null);
-        NativeBattleGraphicsState linked = Loading() with { Models = Loading().Models.SetItem(0, new(0, 3) { LinkedStagedResourceRow = NativeBattleTemporaryMemory.Address }) };
+        NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(new(new(0, Party, PartySlot, 0, 0, 0x5077B0, 2), source, new([])), cpu.Cpu, cpu.Rows, 0, null);
+        NativeBattleGraphicsState linked = Loading() with { ActorModels = Loading().ActorModels.Set(OriginalOwner(0), new(3) { LinkedStagedResourceRow = NativeBattleTemporaryMemory.Address }) };
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, linked));
         cpu = cpu with { Rows = cpu.Rows.SetItem(3, cpu.Rows[3].Set(12, new(0, 0)).Set(16, new(0, 64))) };
-        NativeBattleGraphicsState differentRows = Loading() with { Models = Loading().Models.SetItem(1, new(1, 3) { ActiveResourceRow100 = 3, OriginalResourceRow104 = 3, TextureResourceIndex = 3 }) };
+        NativeBattleGraphicsState differentRows = Loading() with { ActorModels = Loading().ActorModels.Set(Party, new(3) { ActiveResourceRow100 = 3, OriginalResourceRow104 = 3, TextureResourceIndex = 3 }) };
         Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, differentRows));
-        NativeBattleModelCpuResources next = cpu.BindAnimation(1, completed.AnimationCopy!);
+        NativeBattleModelCpuResources next = cpu.BindAnimation(Party, PartySlot, completed.AnimationCopy!);
         Assert.Equal(new byte[] { 7, 8, 9 }, cpu.ReadAnimationHeader(40, 0, 3));
         Assert.NotEqual(cpu.ReadAnimationHeader(40, 0, 3), next.ReadAnimationHeader(40, 0, 3));
         NativeBattleGraphicsState activeEffect = Loading() with { OriginalEffect = new(1, 0, new(1, 1, 1), null, null) };
@@ -179,19 +179,23 @@ public sealed class NativeBattleModelResourceCapacityTests
 
     private static (NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Load(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelDatSource source, int? linkedRow)
     {
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(source.Linked ? (ushort)0x1000 : (ushort)0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, 0);
+        cpu = cpu.BindPartyOwner(Party, PartySlot);
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(source.Linked ? (ushort)0x1000 : (ushort)0, Party, PartySlot, 0, 0, 0);
         NativeBattleModelLoadStep requested = loader.Poll507070(-1, [source], staging);
         NativeBattleModelLoadStep prepared = requested.State.Poll507070(source.Bytes.Length, [source], requested.Staging);
         NativeBattleModelLoadStep loaded = prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging);
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(loaded.Bind!, cpu.Cpu, cpu.Rows, 0, linkedRow);
         NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, Loading());
-        return ((cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation(1, completed.AnimationCopy!), loaded.Staging);
+        return ((cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation(Party, PartySlot, completed.AnimationCopy!), loaded.Staging);
     }
 
     private static NativeBattleGraphicsState Loading()
     {
-        return new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(1, new(1, 1)), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        return OriginalGraphics([(0, OriginalOwner(0), new(0)), (1, Party, new(1))]);
     }
+
+    private static readonly BattlePartyModelOwner Party = (BattlePartyModelOwner)OriginalOwner(1);
+    private static readonly NativeBattleModelSlot PartySlot = NativeBattleModelSlot.Decode(1);
 
     internal static NativeBattleModelDatSource Source(bool linked, int meshOffset)
     {

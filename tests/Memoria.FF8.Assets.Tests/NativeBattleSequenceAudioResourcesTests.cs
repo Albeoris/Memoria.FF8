@@ -28,7 +28,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
             bool completed = false;
             NativeBattleSequenceInputs inputs = new(null, null)
             {
-                ReadExternal = variable => variable == 25 ? hitFlags & 2 : throw new InvalidOperationException(),
+                ReadExternal = variable => variable == 25 ? NativeBattleScriptValue.Scalar(hitFlags & 2) : throw new InvalidOperationException(),
                 SelectModelSequence = (current, opcode, _, selected) =>
                 {
                     Assert.Equal((byte)0xBF, opcode);
@@ -44,7 +44,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
                 PlaySound = (current, cue) =>
                 {
                     NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
-                    NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(source, current.Index, 3, _ => current.ModelId4!.Value, index =>
+                    NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(0), () => OriginalOwner(3), _ => current.ModelId4!.Value, index =>
                     {
                         Assert.Equal(OriginalOwner(0), index);
                         return default;
@@ -56,7 +56,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
             {
                 // Exercise independently deserialized sequence state at every callback boundary.
                 model = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(model))!;
-                model = NativeBattleSequenceMachine.Advance(model, resource, inputs).Model;
+                model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, inputs).Model;
             }
             Assert.True(completed);
             uint[] expected = hitFlags switch
@@ -84,7 +84,7 @@ public sealed class NativeBattleSequenceAudioResourcesTests
             }
         }
         Assert.Equal(210009u, table[1]);
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, true, 4, 0), OriginalOwner(0), null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), table)!;
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, true, 4, 0), OriginalOwner(0), () => null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), table)!;
         Assert.Equal(210009u, sound.Sound);
         Assert.Equal((byte)26, sound.Commit46B2A0(NativeGlobalSoundProcess.FromBufferlessColdProcess()).Sound.ReadCommittedVoice());
     }

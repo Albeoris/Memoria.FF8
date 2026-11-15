@@ -16,13 +16,13 @@ public sealed class NativeCallbackQueueTests
         battle.Tick();
 
         Assert.Null(battle.ActiveAction);
-        BattleAttackCommand fact = Assert.Single(battle.QueuedActions, command => command.NativeHeaderIndex is not null);
+        BattleAttackCommand fact = Assert.Single(battle.QueuedActions, command => command.NativeHeader is not null);
         Assert.Equal((byte)8, fact.NativeQueuedCommand);
         Assert.Equal(100, fact.ActionId);
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(new BattleNativeCallback(0, 7), Assert.Single(battle.QueuedActions, command => command.NativeCallback is not null).NativeCallback);
         Assert.Equal(JsonSerializer.Serialize(random), JsonSerializer.Serialize(battle.Capture().Random));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 128 && battle.ActiveAction?.NativeQueuedCommand != 245; frame++)
         {
             battle.Tick();
@@ -46,7 +46,7 @@ public sealed class NativeCallbackQueueTests
         BattleSession battle = BattleSession.Restore(saved with
         {
             Definition = saved.Definition with { Combatants = saved.Definition.Combatants.Select((actor, index) => index == 1 ? actor with { NativeAi = initializer } : actor).ToArray() },
-            NativeCommandBanks = Callbacks(new("enemy", "enemy", BattleAbility.EnemyAbility) { NativeCallback = new(3, 0) }, new("enemy", "enemy", BattleAbility.EnemyAbility) { NativeCallback = new(3, 0) }, new("party-0", "party-0", BattleAbility.EnemyAbility) { NativeCallback = new(0, 7) })
+            NativeCommandBanks = Callbacks(new("enemy", "enemy", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(3, 0) }, new("enemy", "enemy", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(3, 0) }, new("party-0", "party-0", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(0, 7) })
         });
 
         battle.Tick();
@@ -77,11 +77,10 @@ public sealed class NativeCallbackQueueTests
         {
             Definition = saved.Definition with { LimitProgress = game.ReadNewGameLimitProgress() with { AngeloFlags = 2 } },
             NativeSupport = saved.NativeSupport! with { SelectedAction = 12, SelectedTargets = 1 },
-            NativeCommandBanks = Callbacks(new BattleAttackCommand("party-0", "party-0", BattleAbility.EnemyAbility) { NativeCallback = new(0, 8) })
+            NativeCommandBanks = Callbacks(new BattleAttackCommand("party-0", "party-0", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(0, 8) })
         });
         NativeBattleRandomState random = battle.Capture().Random!;
-        string json = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
 
         battle.Tick();
         restored.Tick();
@@ -90,7 +89,7 @@ public sealed class NativeCallbackQueueTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal((byte)240, queued.NativeQueuedCommand);
         Assert.Equal(12, queued.ActionId);
-        Assert.Equal((ushort)1, queued.NativeTargetMask);
+        Assert.Equal((ushort)1, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, target => battle.Combatants.Single(actor => actor.Id == target.ActorId).Slot));
         Assert.Equal(BattleNativePlayerReaction.AngeloPeriodic, queued.NativePlayerReaction);
         BattleNativeAction installedAction = Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 12);
         Assert.Equal((byte)32, installedAction.AttackType);
@@ -110,7 +109,7 @@ public sealed class NativeCallbackQueueTests
 
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { NativeSupport = saved.NativeSupport! with { SelectedAction = null } }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { NativeCommandBanks = Callbacks(callback with { NativeCallback = new(0, 8) }) }));
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { NativeCommandBanks = Callbacks(callback with { NativeTargetMask = 1 }) }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { NativeCommandBanks = Callbacks(callback with { TargetRequest = NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true) }) }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { NativeCommandBanks = Callbacks(callback with { NativeDuel = new(1) }) }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { NativeCommandBanks = Callbacks(callback with { NativeSlots = new(1, 2) }) }));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleScriptState>("{\"PendingInitializations\":[3]}"));
@@ -147,8 +146,8 @@ public sealed class NativeCallbackQueueTests
             Definition = initial.Definition with { Combatants = initial.Definition.Combatants.Select((actor, index) => index == 1 ? actor with { NativeAi = initializer } : actor).ToArray() },
             NativeSupport = new(true, assets.ReadNativeSupportRules().Cooldown, 0) { SelectedAction = 0 },
             NativeCommandBanks = Callbacks(
-                new("enemy", "enemy", BattleAbility.EnemyAbility) { NativeCallback = new(3, 0) },
-                new("party-0", "party-0", BattleAbility.EnemyAbility) { NativeCallback = new(0, 7) }
+                new("enemy", "enemy", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(3, 0) },
+                new("party-0", "party-0", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(0, 7) }
             )
         });
     }

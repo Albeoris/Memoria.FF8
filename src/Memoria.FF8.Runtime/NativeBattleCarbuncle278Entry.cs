@@ -26,6 +26,15 @@ public static class NativeBattleCarbuncle278Entry
         {
             throw new InvalidDataException("Native Carbuncle clearance requires initialized opposing scene transforms.");
         }
+        if (!packets.Roster.Contains(parameters.Source) || !models.Contains(parameters.Source))
+        {
+            throw new InvalidDataException("Native Carbuncle entry requires its bound caster.");
+        }
+        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts(parameters.Header);
+        if (contacts.IsEmpty || contacts.Any(contact => !models.Contains(contact.Primary.Recipient)))
+        {
+            throw new InvalidDataException("Native Carbuncle entry requires its bound recipients.");
+        }
         NativeCrtRandomState random = frame.Random.Draw(out ushort value);
         int resource = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2508110)?.ArenaOffset ?? throw new NotSupportedException("Native Carbuncle entry requires its executed initializer publication.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Carbuncle entry requires its current effect arena.");
@@ -36,21 +45,14 @@ public static class NativeBattleCarbuncle278Entry
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
         pool = pool.WriteSlot(slot, task);
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadContactCount();
         int sum = 0;
-        if (count != 0)
+        foreach (NativeBattleContactPacket contact in contacts)
         {
-            BattleContactCursor first = header.FirstContact;
-            for (int index = 0; index < count; index++)
-            {
-                BattleModelOwner target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                NativeBattleGraphicsModel model = models.Get(target);
-                NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle centroid requires the selected actor's current signed position WORD20.");
-                sum = unchecked(sum + transform.Position28.Z);
-            }
+            NativeBattleGraphicsModel model = models.Get(contact.Primary.Recipient);
+            NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle centroid requires the selected actor's current signed position WORD20.");
+            sum = unchecked(sum + transform.Position28.Z);
         }
-        int centroid = sum / count;
+        int centroid = sum / contacts.Length;
         int floor = unchecked(centroid - 0x7D0);
         int maximum = -32767;
         if (opposingTransforms is { } sceneOpponents)

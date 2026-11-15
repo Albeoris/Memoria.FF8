@@ -116,7 +116,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
         bool began = false;
         bool movedForeignTarget = false;
         NativeBattleEffectPresentation? lastEffect = null;
-        int foreignTarget = -1;
+        BattleModelOwner? foreignTarget = null;
         for (int tick = 0; tick < 10000; tick++)
         {
             host.Advance(waitForCommand: true);
@@ -132,7 +132,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
                     Ff7BattleGuestPreparedContact receipt = hit.PreparedContact!;
                     int slot = receipt.Invocation.TargetSlot;
                     prepared[slot] = receipt;
-                    if ((active.Presentation.PublishedTargetMask & 1 << slot) != 0 && publications.Add(slot))
+                    if (active.Presentation.PublishedContactOrdinals.Any(ordinal => active.Presentation.BoundContacts[ordinal].HostSlot == slot) && publications.Add(slot))
                     {
                         Ff7BattleAiActor current = host.Actors.Single(actor => actor.Actor.Slot == slot).Actor;
                         Assert.Equal(receipt.Receipt.Target.Hp, current.HitPoints);
@@ -142,7 +142,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
                 if (name == "Water" && (targets & ~1) != 0 && active.Presentation.Effect is { } effect)
                 {
                     lastEffect = effect;
-                    foreignTarget = active.Presentation.BoundTargets.First(target => target.HostSlot != 0).Contact.ActorIndex;
+                    foreignTarget = active.Presentation.BoundTargets.First(target => target.HostSlot != 0).Contact.Recipient;
                     movedForeignTarget |= !IsIdentity(effect.ForeignPlacement(foreignTarget));
                 }
             }
@@ -167,7 +167,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
         {
             Assert.True(movedForeignTarget, "The original Water action must publish its temporary foreign actor placement.");
             Assert.NotNull(lastEffect);
-            Assert.True(IsIdentity(lastEffect.ForeignPlacement(foreignTarget)), "Water must restore the foreign actor's base placement before completing.");
+            Assert.True(IsIdentity(lastEffect.ForeignPlacement(Assert.IsAssignableFrom<BattleModelOwner>(foreignTarget))), "Water must restore the foreign actor's base placement before completing.");
         }
         foreach (Ff7BattleActorState target in host.Actors.Where(actor => (targets & (1 << actor.Actor.Slot)) != 0))
         {

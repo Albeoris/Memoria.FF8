@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -92,8 +93,8 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         }, "original-initialization-and-readiness");
         BattleSnapshot ready = session.Capture();
         Assert.True(ReadOriginalModelCells(ready.NativeGraphics!).Length >= 7);
-        Assert.Equal((byte)144, ReadOriginalModelCell(ready.NativeGraphics, 3).ModelId4);
-        Assert.Equal((byte)98, ReadOriginalModelCell(ready.NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)144, ReadOriginalModelCell(ready.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte)98, ReadOriginalModelCell(ready.NativeGraphics!, 4).ModelId4);
         Save("after-entry", ready);
         session.SubmitDiagnosticEnemyAbility(casterDefinition.Id, selection!, checked((ushort)effect));
         Pump(Queued, "normal-native-action104");
@@ -109,7 +110,7 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
             NativeBattleEffectParameters parameters = Assert.IsType<NativeBattleEffectParameters>(admitted.Parameters);
             Assert.Equal((byte)3, parameters.Actor78);
             Assert.Equal((ushort)8, parameters.TargetMask7A);
-            headerIndex = parameters.HeaderIndex7C;
+            headerIndex = parameters.Header.Ordinal;
         }
         else
         {
@@ -124,10 +125,10 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(effect, header.Effect);
         NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Save("queued-action104", queued);
         File.WriteAllText(Path.Combine(output, "original-formation.json"), JsonSerializer.Serialize(formation));
-        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = contact.Primary.ActorIndex, OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.NativeGraphics.Callback }));
 
         bool Queued()
         {

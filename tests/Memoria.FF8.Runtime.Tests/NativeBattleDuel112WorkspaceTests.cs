@@ -32,7 +32,7 @@ public sealed class NativeBattleDuel112WorkspaceTests
         target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
-        NativeBattleDuel112Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, resources) }, effect, NativeBattleFileStaging.Unknown(), new(1));
+        NativeBattleDuel112Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, resources) }, effect, NativeBattleFileStaging.Unknown(), new(1));
         frame = NativeBattleDuel112Workspaces.Initialize7016B0(frame, 0, offset);
         task = frame.Effect.Pools[1].Slots[0];
         Assert.Equal(source, task.ReadDword(offset));

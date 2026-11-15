@@ -166,20 +166,20 @@ public sealed class NativeBattleEffect65PresentationTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 360 && row.MagicId == 65 && row.KernelSection == 3 && row.KernelIndex == 360);
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(124, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(5), 8, 13, -1, 360, 65, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(5), 8, 13, -1, 360, 65, null));
         string targetId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect65 requires its actual party recipient.");
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect65 requires its current recipient status.");
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleContactPacket contact = new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
+        Assert.Equal(priorActions, header.Ordinal);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([65])[64];
         Assert.Equal(Entry, binding.Entry);
         Assert.Equal(Initializer, binding.Initializer);
@@ -190,7 +190,7 @@ public sealed class NativeBattleEffect65PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared allocated original124 command8/action360/sequence13 declared post-formula renderer and lifecycle with one Amount0 contact; ordinary AI and formula admission excluded", ActualCasterId = casterId, PhysicalCaster = 5, Allocation = allocation, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, SourceNativeClock = original.NativeClock, SourceScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceStageRotation = original.NativeStage.Rotation, SourceSavedRotation = original.NativeStage.FinalStage142!.SavedRotation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle into presentation cache on the prepared component copy; engine producer not executed; HP/status preserved" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared allocated original124 command8/action360/sequence13 declared post-formula renderer and lifecycle with one Amount0 contact; ordinary AI and formula admission excluded", ActualCasterId = casterId, PhysicalCaster = 5, Allocation = allocation, Action = action, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, SourceNativeClock = original.NativeClock, SourceScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceStageRotation = original.NativeStage.Rotation, SourceSavedRotation = original.NativeStage.FinalStage142!.SavedRotation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle into presentation cache on the prepared component copy; engine producer not executed; HP/status preserved" }));
         return source;
     }
 

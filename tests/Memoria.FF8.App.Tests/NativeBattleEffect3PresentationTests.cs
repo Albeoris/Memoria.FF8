@@ -78,13 +78,13 @@ public sealed class NativeBattleEffect3PresentationTests
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray(), NativePresentationStatusMemory = (before.NativePresentationStatusMemory ?? throw new InvalidDataException("The controlled formula producer requires its current physical presentation-status bank.")).Observe(party.NativeParticipant!.ActorIndex, preparedParty.NativeStatus!.Presentation!) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), nativeEffect3.Command, 11, -1, nativeEffect3.ActionId, nativeEffect3.MagicId, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), nativeEffect3.Command, 11, -1, nativeEffect3.ActionId, nativeEffect3.MagicId, null));
         //This controlled presentation component substitutes an already-computed7HP damage contact.
         //The installed kernel supplies the pose sequence; no battle formula or formula RNG is replayed.
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), nativeEffect3.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), nativeEffect3.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
         BattleScenePresentation scene = new(assets, definition, true);
         List<NativeBattleModuleSound> heard = [];

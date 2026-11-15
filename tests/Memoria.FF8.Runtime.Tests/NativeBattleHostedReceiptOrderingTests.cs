@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -7,24 +6,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedReceiptOrderingTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly NativeBattleContactHalf NoSecondary = new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
+    private static readonly BattleEnemyActorModel Original = new(new("original"));
+    private static readonly BattlePartyActorModel AddedAlly = new(new("extra-ally"));
+    private static readonly BattleEnemyActorModel AddedEnemy = new(new("extra-enemy"));
+    private static readonly BattlePartyActorModel Unbound = new(new("missing"));
 
     [Fact]
     public void Hosted_contact_consumer_interleaves_original_packet_occurrences_with_lifecycle_receipts()
     {
         var (session, graphics, services) = Fixture();
-        NativeBattleContactPacket repeated = new(new(15, 5, 0, 0, 0, 123, 0), new(7, 0, 0, 1, 0, 14, 0));
-        NativeBattleContactPacket later = new(new(15, 5, 0, 0, 0, 234, 0), NoSecondary);
-        NativeBattleModelParticipantSuspended suspended = new(OriginalOwner(3), "original", 9);
-        NativeBattleModelParticipantReleased released = new(7, "extra-ally");
-        NativeBattleModelTextPublished text = new(15, "extra-enemy", "Original text", 6, BattleTextIdentity.Enemy(61, 0));
+        NativeBattleContactPacket repeated = new(new(AddedEnemy, 5, 0, 0, 0, 123, 0), new(AddedAlly, 0, 0, 1, 0, 14, 0));
+        NativeBattleContactPacket later = new(new(AddedEnemy, 5, 0, 0, 0, 234, 0), null);
+        NativeBattleModelParticipantSuspended suspended = new(Original, "original", 9);
+        NativeBattleModelParticipantReleased released = new(AddedAlly, "extra-ally");
+        NativeBattleModelTextPublished text = new(AddedEnemy, "extra-enemy", "Original text", 6, BattleTextIdentity.Enemy(61, 0));
         services.Emit(suspended);
         graphics = Consume(session, graphics with { PendingContacts = [repeated, repeated] }, services);
         services.Emit(released);
         ImmutableArray<NativeBattlePresentationReceipt> prefix = services.ReadOrderedReceipts();
         graphics = Consume(session, graphics with { PendingContacts = [later] }, services);
         typeof(BattleSession).GetMethod("PublishHostedModelLifecycleCue", PrivateInstance)!.Invoke(session,
-            [graphics, graphics.Models[15], services.Facts[15], new NativeBattleSequenceCue(NativeBattleSequenceCueKind.Text, 0, 6), services]);
+            [graphics, AddedEnemy, graphics.ActorModels.Get(AddedEnemy), services.Facts[AddedEnemy], new NativeBattleSequenceCue(NativeBattleSequenceCueKind.Text, 0, 6), services]);
 
         Assert.Collection(services.ReadOrderedReceipts(),
             receipt => Assert.Same(suspended, receipt),
@@ -42,14 +44,14 @@ public sealed class NativeBattleHostedReceiptOrderingTests
     }
 
     [Fact]
-    public void Invalid_late_secondary_row_leaves_prior_receipts_and_models_intact()
+    public void Invalid_late_secondary_owner_leaves_prior_receipts_and_models_intact()
     {
         var (session, graphics, services) = Fixture();
-        NativeBattleModelParticipantReleased existing = new(OriginalOwner(3), "original");
+        NativeBattleModelParticipantReleased existing = new(Original, "original");
         services.Emit(existing);
-        NativeBattleContactHalf valid = new(15, 5, 0, 0, 0, 123, 0);
-        NativeBattleContactPacket first = new(valid, NoSecondary);
-        NativeBattleContactPacket bad = new(valid, valid with { ActorIndex = 14 });
+        NativeBattleContactHalf valid = new(AddedEnemy, 5, 0, 0, 0, 123, 0);
+        NativeBattleContactPacket first = new(valid, null);
+        NativeBattleContactPacket bad = new(valid, valid with { Recipient = Unbound });
         graphics = graphics with { PendingContacts = [first, bad] };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
 
@@ -70,15 +72,14 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         var (session, hostedGraphics, services) = Fixture();
         if (foreign)
         {
-            Field("presentationForeignActors").SetValue(session, new Dictionary<int, NativeBattleForeignActor>());
+            Field("presentationForeignActors").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         }
         Field("hostedFrameServices").SetValue(session, services);
-        NativeBattleContactPacket packet = new(new(OriginalOwner(3), 5, 0, 0, 0, 123, 0), NoSecondary);
+        NativeBattleContactPacket packet = new(new(Original, 5, 0, 0, 0, 123, 0), null);
         NativeBattleGraphicsState nativeGraphics = hostedGraphics with
         {
-            PresentationRoster = null,
-            Models = hostedGraphics.Models[..7],
-            ActorIds = hostedGraphics.ActorIds[..7],
+            ActorModels = hostedGraphics.ActorModels.Remove(AddedAlly).Remove(AddedEnemy),
+            Effects = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena),
             PendingContacts = [packet]
         };
         NativeBattleGraphicsState result = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(session, [nativeGraphics])!;
@@ -107,23 +108,27 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
         Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, [], []) });
-        BattleModelOwner?[] actors = new BattleModelOwner?[16];
-        actors[3] = new BattleEnemyActorModel(new("original"));
-        actors[7] = new BattlePartyActorModel(new("extra-ally"));
-        actors[15] = new BattleEnemyActorModel(new("extra-enemy"));
-        BattleModelRoster roster = new(actors.ToImmutableArray());
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
-        foreach (int row in new[] { 3, 7, 15 })
+        BattleModelRoster roster = new([Original, AddedAlly, AddedEnemy]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(3), Original)]);
+        Field("nativeActionPackets").SetValue(session, session.NativeActionPackets.WithRoster(roster, aliases));
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(2)
         {
-            models[row] = models[row] with { ModelId4 = row == 7 ? (byte)1 : (byte)77, Flags0 = 2, Flags8 = 0, ResourceFlags44 = 1, Sequence = 1, SequenceState = new(), HasLinkedModelRing140 = false };
-        }
-        NativeBattleGraphicsResource resource = new([0, 0]) { TextBank = ["Original text"] };
-        Field("presentationNativeTargets").SetValue(session, new Dictionary<int, NativeBattleEffectModelBinding>
-        {
-            [15] = new("extra-enemy", models[15], resource)
+            ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)77,
+            Flags8 = 0,
+            ResourceFlags44 = 1,
+            Sequence = 1,
+            SequenceState = new(),
+            HasLinkedModelRing140 = false
         });
-        NativeBattleGraphicsState graphics = new(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
-        NativeBattleModelLifecycleServices services = new(roster.Rows.Select(actor => actor is null ? null : new NativeBattleModelActorFacts(actor.ActorId, actor.IsParty, 61, 0, 0) { RawBattleStatuses = 0 }).ToImmutableArray());
+        NativeBattleGraphicsResource resource = new([0, 0]) { TextBank = ["Original text"] };
+        Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
+        {
+            [AddedEnemy] = new(AddedEnemy, graphics.ActorModels.Get(AddedEnemy), resource)
+        });
+        NativeBattleModelLifecycleServices services = new(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts>.Empty
+            .Add(Original, new("original", false, 61, 0, 0) { RawBattleStatuses = 0 })
+            .Add(AddedAlly, new("extra-ally", true, 61, 0, 0) { RawBattleStatuses = 0 })
+            .Add(AddedEnemy, new("extra-enemy", false, 61, 0, 0) { RawBattleStatuses = 0 }));
         return (session, graphics, services);
     }
 

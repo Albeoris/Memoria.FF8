@@ -377,7 +377,7 @@ public sealed class EncounterNativeDamageRoutingTests
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        return Enumerable.Range(header.FirstContactIndex!.Value, header.ReadByte(16)).Select(battle.NativeActionPackets.ReadContact).ToArray();
+        return Enumerable.Range(header.FirstContactIndex!.Value, header.ReadContactCount()).Select(battle.NativeActionPackets.ReadContact).ToArray();
     }
 
     private static BattleSession Create(int damage, bool allTargets = false, int maximumHp = 1000, bool drain = false, bool poison = false, bool fourthCounter = false)

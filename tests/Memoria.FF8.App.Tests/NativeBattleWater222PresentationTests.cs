@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -30,7 +31,7 @@ public sealed class NativeBattleWater222PresentationTests
         BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         int descriptor = Assert.Single(original.NativeGraphics!.Descriptors.Queue, index => original.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(original.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(original.NativeActionPackets);
         NativeBattleActionHeaderSlot header = actionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
@@ -38,7 +39,7 @@ public sealed class NativeBattleWater222PresentationTests
         Assert.Equal((ushort)5, header.Action);
         Assert.Equal((ushort)100, header.Effect);
         NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(actionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((ushort)100, original.NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectMemory inherited = Assert.IsType<NativeBattleEffectMemory>(original.NativeEffectMemory);

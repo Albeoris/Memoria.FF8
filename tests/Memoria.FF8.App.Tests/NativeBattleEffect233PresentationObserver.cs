@@ -68,7 +68,7 @@ internal sealed class NativeBattleEffect233PresentationObserver(BattleSnapshot s
             NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, physical);
             Assert.Equal(initial.ModelId4, model.ModelId4);
             Assert.Equal(initial.HasLinkedModelRing140, model.HasLinkedModelRing140);
-            Assert.Equal(initial.LinkedModelIndex140, model.LinkedModelIndex140);
+            Assert.Equal(initial.LinkedModel, model.LinkedModel);
             if (physical is not (0 or 3))
             {
                 Assert.Equal(JsonSerializer.Serialize(initial), JsonSerializer.Serialize(model));
@@ -142,12 +142,12 @@ internal sealed class NativeBattleEffect233PresentationObserver(BattleSnapshot s
             };
             Assert.Equal(233, current.NativeEffectMemory!.Cinematic!.Effect);
             Assert.Equal((byte)0, current.NativeEffectMemory.Cinematic.Filter145);
-            int header = effect.Parameters!.HeaderIndex7C;
+            int header = effect.Parameters!.Header.Ordinal;
             Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
             Assert.Equal((byte)0, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
             Assert.Equal(39, ReadOriginalModelCell(current.NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);
-            Assert.False(ReadOriginalModelCell(current.NativeGraphics, 3).HasLinkedModelRing140);
-            Assert.Equal(23, ReadOriginalModelCell(current.NativeGraphics, 0).CurrentBodyBoneMatrices!.Matrices.Length);
+            Assert.False(ReadOriginalModelCell(current.NativeGraphics!, 3).HasLinkedModelRing140);
+            Assert.Equal(23, ReadOriginalModelCell(current.NativeGraphics!, 0).CurrentBodyBoneMatrices!.Matrices.Length);
             Assert.Equal(2, ReadOriginalModelCell(current.NativeGraphics, 0).CurrentLinkedBoneMatrices!.Matrices.Length);
             if (!initialized)
             {

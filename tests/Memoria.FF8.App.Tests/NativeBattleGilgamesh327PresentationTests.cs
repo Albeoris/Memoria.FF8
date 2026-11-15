@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
@@ -128,11 +129,11 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             // Declared post-formula494410 output and subsequent47E2D0 cache, not a historical-state recovery.
             NativeBattleStatusSnapshot postFormulaStatus = status with { Saved = 1, Battle = 0x10000, Presentation = new(1, 0x10000) };
             NativeBattleActionPacketsState packets = prepared.NativeActionPackets ?? throw new InvalidDataException("The component requires its existing physical action arena.");
-            (packets, int header) = packets.Prepare(new(OriginalOwner(0), kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 3, 9, 0, 1, 0, 0x10000), null));
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 3, 9, 0, 1, 0, 0x10000), null));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = prepared.NativeGraphics!;
-            (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+            (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
             prepared = prepared with
             {
                 NativeActionPackets = packets,
@@ -534,13 +535,14 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                 NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
                 if (!immune)
                 {
-                    Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                     Assert.Equal((ushort)0, contact.Primary.Amount6);
                     Assert.Equal((byte)9, contact.Primary.Flags2);
-                    Assert.Equal((byte)0, contact.Primary.HitFlags3);
+                    Assert.Equal((byte)0, contact.Primary.HitFlags);
+                    Assert.Null(contact.Primary.CoverSource);
                     Assert.Equal((ushort)1, contact.Primary.SavedStatuses4);
                     Assert.Equal(0x10000u, contact.Primary.BattleStatuses8);
-                    Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+                    Assert.Null(contact.Secondary);
                     Assert.Equal(0, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                     formulaHalf = contact.Primary;
                     expectedDamage = 0;
@@ -556,14 +558,14 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     expectedDamage = Math.Clamp(rawDamage, -9999, 9999);
                     Assert.Equal(0, expectedDamage);
                 }
-                Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                 Assert.Equal((ushort)expectedDamage!.Value, contact.Primary.Amount6);
-                Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+                Assert.Null(contact.Secondary);
                 Assert.Equal(immune ? initialTargetHp : 0, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                 Assert.Equal((ushort)(originalTarget.NativeStatus.Saved | (immune ? 0 : 1)), after.Combatants.Single(actor => actor.Id == targetId).NativeStatus!.Saved);
                 uint expectedStatus = originalTarget.NativeStatus.Battle | (immune ? 0u : 0x10000u);
                 Assert.Equal(expectedStatus, after.Combatants.Single(actor => actor.Id == targetId).NativeStatus!.Battle);
-                Assert.Equal(immune, (contact.Primary.HitFlags3 & 4) != 0);
+                Assert.Equal(immune, (contact.Primary.HitFlags & 4) != 0);
                 Assert.Equal(!immune, (contact.Primary.Flags2 & 1) != 0);
                 Assert.Equal(expectedStatus, contact.Primary.BattleStatuses8);
                 formulaHalf = contact.Primary;

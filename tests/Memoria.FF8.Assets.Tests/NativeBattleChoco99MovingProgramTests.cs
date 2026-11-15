@@ -130,7 +130,7 @@ public sealed class NativeBattleChoco99MovingProgramTests
             }
         }
 
-        static NativeBattleEffectTaskActors SelectActors(uint parameterAddress, sbyte headerOffset, sbyte contactOffset)
+        static NativeBattleEffectTaskActors SelectActors(uint parameterAddress, sbyte headerOffset, int contactOffset)
         {
             Assert.Equal(0x1D99A78u, parameterAddress);
             Assert.Equal((sbyte)0, headerOffset);

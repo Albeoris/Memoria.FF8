@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -29,7 +30,7 @@ public sealed class NativeBattleEffect308PrerequisiteTests
         Assert.Equal(65, source.Definition.StageId);
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
         Assert.Empty(graphics.Descriptors.Queue);
-        Assert.Equal(new int?[] { 4, 5, 3 }, ReadOriginalModelCells(graphics).Skip(3).Take(3).Select(model => model.ReadLinkedModelIndex140()));
+        Assert.Equal(new[] { 4, 5, 3 }.Select(slot => RequireOriginalModelOwner(graphics, slot)), ReadOriginalModelCells(graphics).Skip(3).Take(3).Select(model => model.ReadLinkedModel()));
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 74 && item.MagicId == 0);
         BattleCombatantDefinition caster = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(graphics, 3)!);
         NativeBattleAiDefinition ai = assets.ReadEnemyAi(caster.ModelId, caster.Level);
@@ -39,10 +40,10 @@ public sealed class NativeBattleEffect308PrerequisiteTests
         Assert.Equal((byte)12, ability.Sequence);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 12, unchecked((sbyte)action.RawRecord[4]), 74, 0, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 12, unchecked((sbyte)action.RawRecord[4]), 74, 0, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         NativeBattleRestorationPresentationTests.Publish(output!, "before-prerequisite", prepared, null);
         BattleSession session = NativeBattleEffect308PresentationTests.Restore(prepared, game);
@@ -57,7 +58,7 @@ public sealed class NativeBattleEffect308PrerequisiteTests
                 Assert.Equal(JsonSerializer.Serialize(source.Combatants), JsonSerializer.Serialize(current.Combatants));
                 Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory!.Effect308), JsonSerializer.Serialize(current.NativeEffectMemory!.Effect308));
                 Assert.Equal(new byte?[] { 121, 122, 123 }, ReadOriginalModelCells(current.NativeGraphics!).Skip(3).Take(3).Select(model => model.ModelId4));
-                if (!unlinked && ReadOriginalModelCells(current.NativeGraphics).Skip(3).Take(3).All(model => model.ReadLinkedModelIndex140() is null))
+                if (!unlinked && ReadOriginalModelCells(current.NativeGraphics!).Skip(3).Take(3).All(model => model.ReadLinkedModel() is null))
                 {
                     unlinked = true;
                     NativeBattleEffect308PresentationTests.VerifyColdNext("native90-unlinked", current, game, assets, output!);
@@ -70,7 +71,7 @@ public sealed class NativeBattleEffect308PrerequisiteTests
             Assert.True(callbacks < 600, "The preceding original action74 did not complete.");
             Assert.True(unlinked);
             BattleSnapshot completed = session.Capture();
-            Assert.All(ReadOriginalModelCells(completed.NativeGraphics!).Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
+            Assert.All(ReadOriginalModelCells(completed.NativeGraphics!).Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModel()));
             Assert.Equal(0, completed.NativeEffectMemory!.Active);
             Assert.Null(completed.NativeGraphics!.OriginalEffect);
             NativeBattleEffect308PresentationTests.VerifyColdNext("after-prerequisite", completed, game, assets, output!);

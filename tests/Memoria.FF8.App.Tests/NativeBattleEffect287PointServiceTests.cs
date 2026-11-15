@@ -34,7 +34,7 @@ public sealed class NativeBattleEffect287PointServiceTests
         WithSource((session, assets, source, frame) =>
         {
             NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, 3);
-            BattleCombatantDefinition actor = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 3)!);
+            BattleCombatantDefinition actor = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics!, 3)!);
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actor).PoseSource!;
             short parent = BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + 27 * 48, 2));
             short length = parent < 0 ? (short)0 : BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(18 + parent * 48, 2));
@@ -87,7 +87,7 @@ public sealed class NativeBattleEffect287PointServiceTests
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
         Assert.Equal((byte)125, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
-        Assert.Equal(28, ReadOriginalModelCell(source.NativeGraphics, 3).CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal(28, ReadOriginalModelCell(source.NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([287])[286];
         NativeBattleEffect287Frame frame = new(source.NativeEffectMemory!, new(287, 286, binding, null, null), source.NativeCrtRandom!, source.NativeEffectMemory!.Effect287!.WriteDword(NativeBattleEffect287Profile.CasterGlobal, 0x1D972C0u + 3 * 156u)) { Staging = source.NativeFileStaging };
         NativeBattleEffect287Frame result = check(session, assets, source, frame);

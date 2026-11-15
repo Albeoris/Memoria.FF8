@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using System.Collections.Immutable;
 using Memoria.FF8.Assets;
@@ -115,8 +116,8 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     if (graphics.OriginalEffect is { Binding.Effect: 248, Parameters: { } parameters })
                     {
                         Assert.Equal((byte)3, parameters.Actor78);
-                        NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.HeaderIndex7C));
-                        Assert.Equal((byte)3, header.ReadByte(0));
+                        NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, header.Source));
                         Assert.Equal((byte)252, header.Command);
                         Assert.Equal((byte)0, header.Sequence);
                         Assert.Equal((ushort)1, header.Action);
@@ -124,7 +125,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                         Assert.Equal((byte)1, header.ReadContactCount());
                         Assert.NotNull(header.FirstContactIndex);
                         NativeBattleContactPacket contact = current.NativeActionPackets.ReadContact(header.FirstContact);
-                        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                     }
                 }
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");

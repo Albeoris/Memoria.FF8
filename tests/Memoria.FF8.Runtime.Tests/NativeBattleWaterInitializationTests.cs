@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -31,8 +32,8 @@ public sealed class NativeBattleWaterInitializationTests
         Assert.Equal((ushort)0x0233, Word(result.Core, Manager + 0xA0));
         Assert.Equal(fixture.Inputs.FirstHeaderCount, result.Core.Read(Manager + 0xD1, 1)[0]);
         Assert.Equal((byte)0, result.Core.Read(Manager + 0xD0, 1)[0]);
-        Assert.Equal(fixture.Inputs.HeaderBaseAddress, Dword(result.Core, Manager + 0xCC));
-        Assert.Equal(fixture.Inputs.CurrentHeaderIndex, result.CurrentHeaderIndex);
+        Assert.Equal(fixture.Inputs.Selection.OriginalHeaderAddress, Dword(result.Core, Manager + 0xCC));
+        Assert.Equal(fixture.Inputs.Selection.Header, result.CurrentHeader);
         Assert.Equal((ushort)1, Word(result.Core, Command));
         Assert.Equal(0x80000000u, Dword(result.Core, Command + 8));
         Assert.Equal(0x04000080u, Dword(result.Core, Command + 0xC));
@@ -107,12 +108,12 @@ public sealed class NativeBattleWaterInitializationTests
     }
 
     [Fact]
-    public void WarmResetReadsMutatedArenaHeaderAndJsonPreservesAllOwners()
+    public void WarmResetReadsMutatedArenaHeaderAcrossPrivateContinuation()
     {
         var fixture = Fixture();
         NativeBattleWaterInitializationResult first = NativeBattleWaterInitialization.InitializeA9B200(NativeBattleScriptedEffectMemory.FromColdProcess(), fixture.Arena, fixture.Profile, fixture.Inputs);
         first = first with { Arena = PutDword(first.Arena, File0 + 4, 0x99) };
-        NativeBattleWaterInitializationResult restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterInitializationResult>(SnapshotJson(first))!);
+        NativeBattleWaterInitializationResult restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(first));
         NativeBattleWaterInitializationResult a = NativeBattleWaterInitialization.InitializeA9B200(first.Core, first.Arena, fixture.Profile, fixture.Inputs with { TemporaryFrame = first.TemporaryFrame });
         NativeBattleWaterInitializationResult b = NativeBattleWaterInitialization.InitializeA9B200(restored.Core, restored.Arena, fixture.Profile, fixture.Inputs with { TemporaryFrame = restored.TemporaryFrame });
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + File0 + 0x99u, Dword(b.Core, Manager + 0x94));
@@ -154,7 +155,9 @@ public sealed class NativeBattleWaterInitializationTests
         NativeBattleWater222Profile profile = new(new("tables", new byte[0x70].ToImmutableArray()), new("directory", directory.ToImmutableArray()), new("owners", owners.ToImmutableArray()));
         ImmutableArray<NativeBattleGraphicsModel> graphics = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((ushort)(0x100 + index)) { Transform = new(new((short)index, 0, 0), new((short)(10 + index), (short)(20 + index), (short)(30 + index)), (short)(40 + index), 50, 4096), Rotation12 = (short)(60 + index), Rotation14 = 70, Rotation16 = 80 }).ToImmutableArray();
         NativeBattleWaterTemporaryFrame frame = new(0x1D9A000, Enumerable.Repeat((byte)0xA5, 0x180).ToImmutableArray(), new bool[0x180].ToImmutableArray());
-        NativeBattleWaterInitializationInputs inputs = new(new(File0, 0x100, NativeBattleEffectNodeMemory.ArenaAddress + File0), new(File1, 0x858, NativeBattleEffectNodeMemory.ArenaAddress + File1), frame, 0x1D99A78, 0x1D99B00, 0x186C84C, 1, 2, 6, [4, 4, 2], 3, 9, graphics);
+        var (models, boundary) = OriginalModels(graphics.Select((model, slot) => (slot, model)));
+        NativeBattleWaterResetCaptureInputs selection = new(OriginalOwner(2), new BattleActionHeaderReference(1), 0x186C84C, OriginalOwner(6), [OriginalOwner(4), OriginalOwner(4), OriginalOwner(2)], models, boundary, BattleContactTaskStorageContract.OriginalArena);
+        NativeBattleWaterInitializationInputs inputs = new(new(File0, 0x100, NativeBattleEffectNodeMemory.ArenaAddress + File0), new(File1, 0x858, NativeBattleEffectNodeMemory.ArenaAddress + File1), frame, 0x1D99A78, 0x1D99B00, selection, 9);
         return (arena, profile, inputs);
     }
 
@@ -170,7 +173,7 @@ public sealed class NativeBattleWaterInitializationTests
             NativeBattleWaterInitializationResult initialized = NativeBattleWaterInitialization.InitializeA9B200(NativeBattleScriptedEffectMemory.FromColdProcess(), fixture.Arena, fixture.Profile, fixture.Inputs);
             initialized.TemporaryFrame.WriteByte(0x145, 0xA5);
             before = NativeBattleStorageSnapshots.Capture(initialized.TemporaryFrame);
-            Assert.Throws<InvalidOperationException>(() => NativeBattleWaterInitialization.ResetAA4B60(initialized.Core, initialized.Arena, initialized.TemporaryFrame, fixture.Inputs.Resource1, (_, _, _) => fixture.Inputs.HeaderBaseAddress, (_, _, _, _) => throw new InvalidOperationException("Capture service failed after temporary filter reset.")));
+            Assert.Throws<InvalidOperationException>(() => NativeBattleWaterInitialization.ResetAA4B60(initialized.Core, initialized.Arena, initialized.TemporaryFrame, fixture.Inputs.Resource1, _ => throw new InvalidOperationException("Capture service failed after temporary filter reset.")));
             Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(initialized.TemporaryFrame)));
         }
         else

@@ -32,7 +32,7 @@ public sealed class IndependentGuardianItemTests
         Assert.Equal(effect, invocation.Action.MagicId);
         Assert.Equal((byte?)4, windup.NativeQueuedCommand);
         Assert.Equal(itemId, windup.ActionId);
-        Assert.Equal(0, windup.NativeTargetMask);
+        Assert.Null(windup.TargetRequest.OriginalProjection);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(queued.Capture()));
         BattleSession active = RestoreJson(battle);
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(battle.Capture() with { ActiveAction = windup with { IndependentGuardian = invocation with { Level = 11 } } }));
@@ -173,7 +173,7 @@ public sealed class IndependentGuardianItemTests
         BattleIndependentGuardianInvocation invocation = windup.ActiveAction!.IndependentGuardian!;
         Assert.Equal((byte)244, invocation.Action!.Command);
         Assert.Equal((byte)10, invocation.Level);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(windup.ActiveAction.NativeHeaderIndex!.Value));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(windup.ActiveAction.NativeHeader!.Value);
         Assert.Equal((byte)244, header.Command);
         Assert.Equal(invocation.Action.ActionId == 15 ? (byte)11 : (byte)14, header.Sequence);
         Assert.Equal((uint)0x495050, header.Data!.ProducerAddress);
@@ -206,13 +206,13 @@ public sealed class IndependentGuardianItemTests
         BattleSession battle = Create(assets, 30, 0);
         battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
         battle.Tick();
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(battle.ActiveAction!.NativeHeaderIndex!.Value));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(battle.ActiveAction!.NativeHeader!.Value);
         Assert.Equal((byte)0, header.Command);
         Assert.Equal((byte)10, header.Sequence);
-        Assert.Equal((byte)9, header.ReadByte(4));
+        Assert.Equal(9, header.Action & 0xFF);
         Assert.Equal((byte)0, header.ReadContactCount());
         Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
-        Assert.Equal(0, battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary.Amount6);
+        Assert.Equal(0, battle.NativeActionPackets.ReadContact(header.FirstContact).Primary.Amount6);
         Assert.Equal((uint)0x47EA30, header.Data!.ProducerAddress);
         Assert.Equal(30, header.Data.Argument);
         for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)

@@ -39,7 +39,7 @@ public sealed class NativePlayerCommandTests
 
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(choice.NativeAction, queued.NativeAction);
-        Assert.Equal((ushort)0x0008, queued.NativeTargetMask);
+        Assert.Equal((ushort)0x0008, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, selected => battle.Combatants.Single(actor => actor.Id == selected.ActorId).Slot));
         Assert.Equal(0, battle.GetNativeLimitLevel("quistis"));
     }
 

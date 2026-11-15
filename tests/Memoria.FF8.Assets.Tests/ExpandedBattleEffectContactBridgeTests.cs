@@ -16,36 +16,44 @@ public sealed class ExpandedBattleEffectContactBridgeTests
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeGlobalRandomState global = new(0);
         NativeBattleVector origin = new(0, 0, 1800);
-        NativeBattleGraphicsModel caster = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        BattleModelOwner source = new BattlePartyActorModel(new("source"));
+        NativeBattleGraphicsModel caster = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(origin, origin, 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref global);
-        caster = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(caster, 1), resource, new(0, 0)).Model;
+        }, 0, 0, true, ref global);
+        caster = NativeBattleSequenceMachine.Advance(source, NativeBattleGraphicsModels.SelectSequence(caster, 1), resource, new(0, 0)).Model;
         caster = NativeBattlePoseMatrices.PublishShadowBounds5086F0(caster, resource.PoseSource!);
         caster = caster with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(caster, resource.PoseSource!) };
 
         int[] positions = count == 1 ? [5] : [1, 3, 4, 5];
         Dictionary<BattleRosterSlot, int> health = Enumerable.Range(0, 6).ToDictionary(BattleRosterSlot.Enemy, _ => 1000);
         BattleRosterSlot[] recipients = positions.Select(BattleRosterSlot.Enemy).ToArray();
-        var targets = recipients.Select((slot, index) => (Slot: slot, Contact: new NativeBattleContactHalf(checked((byte)(index + 3)), 4, 0, 0, 0, checked((ushort)(70 + slot.Position)), 0))).ToArray();
-        NativeBattleEffectContactBridge<BattleRosterSlot> bridge = new(targets);
-        (NativeBattleActionPacketsState packets, ushort mask) = bridge.Prepare(action.Command, 1, action.ActionId, action.MagicId);
+        var targets = recipients.Select(slot =>
+        {
+            var owner = new BattleForeignEnemyModel(new($"enemy-slot-{slot.Position}"));
+            return (Slot: slot, Contact: new NativeBattleContactHalf(owner, 4, 0, 0, 0, checked((ushort)(70 + slot.Position)), 0));
+        }).ToArray();
+        BattleModelRoster roster = new([source, .. targets.Select(target => target.Contact.Recipient)]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), source), .. targets.Select((target, index) => (NativeBattleModelSlot.Decode(checked((byte)(index + 3))), target.Contact.Recipient))]);
+        NativeBattleEffectContactBridge<BattleRosterSlot> bridge = new(targets, roster);
+        NativeBattleActionPacketsState initial = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        (NativeBattleActionPacketsState packets, BattleModelTargets selected) = bridge.Prepare(initial, action.Command, 1, action.ActionId, action.MagicId, source);
         Assert.Equal(1, packets.ActionCount);
         Assert.Equal(count, packets.ContactCount);
         NativeBattleGraphicsResource enemyResource = assets.ReadNativeGraphicsResource(new() { ModelId = 28 });
         ImmutableArray<NativeBattleForeignActor> actors = targets.Select(target =>
         {
             NativeBattleVector position = ExpandedBattleFormation.Position(target.Slot.Position, health.Count, isAlly: false);
-            int index = target.Contact.ActorIndex;
+            BattleModelOwner owner = target.Contact.Recipient;
             NativeGlobalRandomState random = new(0);
-            NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(index, 0)
+            NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0)
             {
                 Transform = new(position, position, 0, 2048, 4096),
                 SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-            }, 44, 0, ref random, assets.ReadEnemyNativeInformation246(28));
-            model = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(model, 0), enemyResource, new(0, 0)
+            }, 44, 0, false, ref random, assets.ReadEnemyNativeInformation246(28));
+            model = NativeBattleSequenceMachine.Advance(owner, NativeBattleGraphicsModels.SelectSequence(model, 0), enemyResource, new(0, 0)
             {
                 GlobalRandom = () =>
                 {
@@ -61,7 +69,7 @@ public sealed class ExpandedBattleEffectContactBridgeTests
                 NativeBattlePoseMatrices.ReadBone(posed, poseSource, 241, 0),
                 position.Y,
                 NativeBattlePoseMatrices.LocalBounds8DC870(poseSource, poseSource.Sample(posed.SequenceState!.Pose!.Value, posed.SequenceState.PoseFrame114!.Value, posed.SequenceState.PoseFlags109)));
-            return new NativeBattleForeignActor(index, posed.Transform!, NativeBattlePoseMatrices.ReadAnchor(posed, poseSource), (selector, fraction) => NativeBattlePoseMatrices.ReadBone(posed, poseSource, selector, fraction))
+            return new NativeBattleForeignActor(owner, posed.Transform!, NativeBattlePoseMatrices.ReadAnchor(posed, poseSource), (selector, fraction) => NativeBattlePoseMatrices.ReadBone(posed, poseSource, selector, fraction))
             {
                 Facing = 2048,
                 Geometry = new(posed.GeometryWorldMatrix!, anchors, [])
@@ -84,11 +92,13 @@ public sealed class ExpandedBattleEffectContactBridgeTests
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory()
         };
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 7000, 4096), 216, 160, 108);
-        NativeBattleEffectPresentation effect = new(new(resources, caster, resource, packets, new(0, 0, mask, 0, 0, 0), action.MagicId, NativeBattleEffectTextureState.FromColdProcess(), NativeCrtRandomState.FromColdProcess(), projection, actors));
+        NativeBattleEffectParameters parameters = new(source, 0, selected, new BattleActionHeaderReference(0), 0, 0);
+        NativeBattleEffectInvocation invocation = new NativeBattleEffectInvocation.Combat(packets, parameters);
+        using NativeBattleEffectPresentation effect = new(new(resources, caster, resource, invocation, action.MagicId, NativeBattleEffectTextureState.FromColdProcess(), NativeCrtRandomState.FromColdProcess(), projection, actors));
         Assert.Equal(action.MagicId, effect.Graphics.OriginalEffect!.Binding.Effect);
         foreach (NativeBattleForeignActor actor in actors)
         {
-            Assert.Equal(actor.Transform.Position28, effect.Graphics.Models[actor.Index].Transform!.Position28);
+            Assert.Equal(actor.Transform.Position28, effect.Graphics.ActorModels.Get(actor.Owner).Transform!.Position28);
         }
 
         List<BattleRosterSlot> hits = [];

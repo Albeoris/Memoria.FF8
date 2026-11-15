@@ -87,11 +87,11 @@ public sealed class NativeBattleGuardianPresentationTests
         BattleCombatantSnapshot[] coldActors = before.Combatants.Select(actor => actor.NativeParticipant!.ActorIndex == 3 ? actor with { NativeParticipant = actor.NativeParticipant! with { RemainingHits = coldRemainingHits } } : actor).ToArray();
         Assert.Equal((byte?)0, Assert.Single(coldActors, actor => actor.NativeParticipant!.ActorIndex == 3).NativeParticipant!.RemainingHits);
         //Native FE/action64 selects sequence14 through495070;116 is the original kernel GF effect ID.
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 0xFE, 14, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 1, 0, 0, 7, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         //The declared cold/manual-header component never invokes48E830/48EB40. This explicit input preserves native actor3's authenticated BSS byte; old snapshots receive no default.
         BattleSnapshot pendingSource = before with { Combatants = coldActors, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(new uint[] { 0x84, 0x85, 0x86 }, pendingSource.Definition.NativeMusicProcess!.Entry!.Sounds.Select(sound => sound.Sound));

@@ -145,18 +145,18 @@ public sealed class NativeBattleEffect69PresentationTests
         Assert.NotEqual(0u, stage);
         Assert.Equal(6, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(original.NativeFileStaging!.Read(stage, 4)));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 12, -1, 350, 69, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 12, -1, 350, 69, null));
         // Original selector200 is SELF; the declared neutral contact carries that physical target without publishing a new status cache.
         NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == definition.Id).NativeStatus!.Presentation;
-        NativeBattleContactPacket selfContact = new(new(OriginalOwner(4), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket selfContact = new(new(packets.ModelAliases.DecodeLiteral(4), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), null);
         (packets, _) = packets.AppendContact(selfContact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
+        Assert.Equal(priorActions, header.Ordinal);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([69])[68];
         Assert.Equal(Entry, binding.Entry);
         Assert.Equal(Initializer, binding.Initializer);
@@ -168,7 +168,7 @@ public sealed class NativeBattleEffect69PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
-        File.WriteAllText(Path.Combine(output, "declared-startup.json"), JsonSerializer.Serialize(new { Scenario = "Declared original startup component; declared zero-damage SELF contact; no AI or formula execution", Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, CurrentStageDirectory = stage, CasterModel = ReadOriginalModelCell(graphics, 4).ModelId4 }));
+        File.WriteAllText(Path.Combine(output, "declared-startup.json"), JsonSerializer.Serialize(new { Scenario = "Declared original startup component; declared zero-damage SELF contact; no AI or formula execution", Action = action, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, CurrentStageDirectory = stage, CasterModel = ReadOriginalModelCell(graphics, 4).ModelId4 }));
         return source;
     }
 

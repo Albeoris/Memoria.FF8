@@ -80,9 +80,9 @@ public sealed class NativeBattleChoco97NodeResourcesTests
             banks = banks.Write(addresses[index], Assert.Single(ioResources.Files, file => file.FileId == ids[index]).Data);
         }
         NativeBattleChoco97IoState io = NativeBattleChoco97Io.Initialize729EF0(ioResources.Script.Data, 0x20DFAB8 + 0x20000, banks).State;
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 97, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 240, 0, 0, 1, 97, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x64, 1), NativeBattleEffectTaskPool.Initialize(0x2579D38, 0x2579548, 0x2A4, 3)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 1, 0x64);
@@ -104,7 +104,7 @@ public sealed class NativeBattleChoco97NodeResourcesTests
         Assert.Equal(0xA5, frame.Memory.Arena.Read(0x1FFF, 1)[0]);
         Assert.Equal(0xB6, frame.Memory.Arena.Read(0x13760, 1)[0]);
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleGraphicsModel Model(int index) => new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)) };
+        NativeBattleGraphicsModel Model(BattleModelOwner owner) => new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)) };
         NativeBattleEffectNodeDogOrigins origins = new(new(-200, -400, 100), new(200, -768, 1000));
         NativeBattleChoco97NodeFrame Initialize(NativeBattleChoco97NodeFrame current, int index) => NativeBattleChoco97Nodes.InitializeContext(current, contexts[index], resources[index], packets, Model, _ => throw new InvalidOperationException("Mode2 consumes explicit origins."), origins);
         frame = Initialize(frame, 0);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
@@ -38,19 +39,19 @@ public sealed class NativeBattleCactuar199PresentationTests
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
         int queued = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
-        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(kernel.Command, header.Command);
         Assert.Equal(kernel.ActionId, header.Action);
         Assert.Equal((ushort)199, header.Effect);
-        Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
+        Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.Header.Ordinal == headerIndex);
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)1, contact.Primary.Flags2);
         Assert.Equal(0, contact.Primary.ContactFlags & 0x1000);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Null(contact.Secondary);
         string targetId = ReadOriginalModelActorId(graphics, 3)!;
         NativeBattleGraphicsResource targetResource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == targetId).Resource;
         int targetInitialHp = source.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
@@ -134,8 +135,8 @@ public sealed class NativeBattleCactuar199PresentationTests
                     Assert.Equal((ushort)7, prior.NativeActionPackets!.ReadContact(header.FirstContact).Primary.Amount6);
                     Assert.True(actualContact.Primary.Amount6 > 7);
                     Assert.Equal((ushort)2000, actualContact.Primary.Amount6);
-                    Assert.Equal((byte)3, actualContact.Primary.ActorIndex);
-                    Assert.Equal(0, actualContact.Primary.HitFlags3 & 1);
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, actualContact.Primary.Recipient));
+                    Assert.Equal(0, actualContact.Primary.HitFlags & 1);
                     int beforeHp = prior.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
                     int afterHp = current.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
                     Assert.Equal(targetInitialHp, beforeHp);
@@ -181,10 +182,10 @@ public sealed class NativeBattleCactuar199PresentationTests
                 for (int index = 0; index < current.NativeGraphics.Effects.Slots.Length; index++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && (prior.NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && text.ModelIndex == 3)
+                    if ((text.Flags0 & 1) != 0 && (prior.NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3))
                     {
                         Assert.NotNull(formulaAmount);
-                        NativeBattleEffectsState expected = OriginalEffects().PrependDamageText(3, actualContact.Primary.ContactFlags, actualContact.Primary.Amount6);
+                        NativeBattleEffectsState expected = ExpectedOriginalDamageText(actualContact.Primary, actualContact.Primary.Amount6);
                         NativeBattleEffectTask expectedText = Assert.Single(expected.Slots, task => (task.Flags0 & 1) != 0);
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         contactTextTransitions++;

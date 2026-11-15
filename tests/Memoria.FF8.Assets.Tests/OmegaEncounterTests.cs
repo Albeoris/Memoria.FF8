@@ -122,7 +122,7 @@ public sealed class OmegaEncounterTests
         byte actorIndex = checked((byte)saved.Combatants.Single(actor => actor.Id == actorId).NativeParticipant!.ActorIndex);
         NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
         (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(0, actorIndex, stage);
-        BattleAttackCommand callback = new(actorId, actorId, BattleAbility.EnemyAbility) { NativeCallback = new(actorIndex, stage) };
+        BattleAttackCommand callback = new(actorId, actorId, BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(actorIndex, stage) };
         return saved with { NativeCommandBanks = banks.BindCommand(location, 0, callback) };
     }
 

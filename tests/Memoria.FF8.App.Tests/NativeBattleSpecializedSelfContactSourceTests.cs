@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -22,7 +23,7 @@ public sealed class NativeBattleSpecializedSelfContactSourceTests
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             int headerIndex = checked((int)((graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u) / 20));
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
-            Assert.Equal(actorIndex, header.ReadByte(0));
+            Assert.Equal(actorIndex, ReadOriginalModelOperand(packets.ModelAliases, header.Source));
             Assert.Equal((byte)8, header.Command);
             Assert.Equal(sequence, header.Sequence);
             Assert.Equal(action, header.Action);
@@ -34,12 +35,12 @@ public sealed class NativeBattleSpecializedSelfContactSourceTests
             Assert.True(self.NativeParticipant!.Active);
             Assert.False(self.NativeParticipant.Suspended);
             Assert.False(self.NativeParticipant.AllocationPendingStatistics);
-            Assert.Equal(actorIndex, contact.Primary.ActorIndex);
+            Assert.Equal(actorIndex, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
             Assert.Equal((ushort)0, contact.Primary.Amount6);
             Assert.Equal((byte)0, contact.Primary.Sequence);
             Assert.Equal(status.Presentation.Saved, contact.Primary.SavedStatuses4);
             Assert.Equal(status.Presentation.Battle, contact.Primary.BattleStatuses8);
-            Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+            Assert.Null(contact.Secondary);
             Assert.Equal((ushort)(1 << actorIndex), NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetMask);
             if (effect == 64)
             {

@@ -21,7 +21,7 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
         bool sampled = false;
         bool movedSurface = false;
         bool movedActor = false;
-        int[] foreignActors = [];
+        BattleModelOwner[] foreignActors = [];
         bool rendered = false;
         bool restored = false;
         NativeBattleEffectPresentation? effectOwner = null;
@@ -36,7 +36,7 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
         {
             Assert.True(movedSurface, "The coarse host floor must acquire real interior deformation vertices.");
             Assert.True(movedActor, "The original action must lift and rotate its selected host actors.");
-            foreach (int actor in foreignActors)
+            foreach (BattleModelOwner actor in foreignActors)
             {
                 NativeBattleActionMatrix placement = effectOwner.ForeignPlacement(actor);
                 Assert.Equal((0, 0, 0), (placement.X, placement.Y, placement.Z));
@@ -60,7 +60,7 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
             effectOwner = effect;
             if (deformation)
             {
-                foreignActors = active.Presentation.BoundTargets.Where(target => target.Contact.ActorIndex != 0).Select(target => (int)target.Contact.ActorIndex).ToArray();
+                foreignActors = active.Presentation.BoundTargets.Where(target => target.Contact.Recipient != effect.SourceOwner).Select(target => target.Contact.Recipient).ToArray();
                 movedActor |= foreignActors.Any(actor =>
                 {
                     NativeBattleActionMatrix placement = effect.ForeignPlacement(actor);

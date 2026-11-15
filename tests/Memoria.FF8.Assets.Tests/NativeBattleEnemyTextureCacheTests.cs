@@ -192,7 +192,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             NativeBattleGraphicsModel removing = NativeBattleGraphicsModels.StartRemoval(ReadOriginalModelCell(snapshot.NativeGraphics!, 3), 5) with { Phase6 = 1 };
             BattleSession removal = BattleSession.Restore(snapshot with
             {
-                NativeGraphics = snapshot.NativeGraphics with { Models = snapshot.NativeGraphics.Models.SetItem(3, removing), ModelLoadCount = loadCount },
+                NativeGraphics = snapshot.NativeGraphics! with { ActorModels = snapshot.NativeGraphics.ActorModels.Set(battle.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(3), removing), ModelLoadCount = loadCount },
                 NativeEffectMemory = snapshot.NativeEffectMemory! with { SoundPublishedFlags = soundFlags }
             });
             removal.AdvanceNativeGraphicsPresentation(callbackDuration);

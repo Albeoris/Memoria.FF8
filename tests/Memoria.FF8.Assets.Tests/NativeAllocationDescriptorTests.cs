@@ -178,14 +178,15 @@ public sealed class NativeAllocationDescriptorTests
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot snapshot = battle.Capture();
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
-        NativeBattleGraphicsModel model = graphics.Models[0];
+        BattleModelOwner owner = battle.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(0);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         model = model with { Flags8 = 0x800000, Flags2 = (ushort)(model.Flags2!.Value | 4), Sequence = 19, SequenceState = model.SequenceState! with { Pending3 = 2 } };
-        graphics = graphics with { Models = graphics.Models.SetItem(0, model), Descriptors = graphics.Descriptors.Enqueue(114, 128, 240, 0).State };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model), Descriptors = graphics.Descriptors.Enqueue(114, 128, 240, 0).State };
         battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics });
         battle.AdvanceNativeGraphicsPresentation(NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1));
-        Assert.Equal(0u, battle.NativeGraphics!.Models[0].Flags8!.Value & 0x800000u);
-        Assert.Equal((byte)1, battle.NativeGraphics.Models[0].Sequence);
-        Assert.Equal((byte)0, battle.NativeGraphics.Models[0].SequenceState!.Pending3);
+        Assert.Equal(0u, battle.NativeGraphics!.ActorModels.Get(owner).Flags8!.Value & 0x800000u);
+        Assert.Equal((byte)1, battle.NativeGraphics.ActorModels.Get(owner).Sequence);
+        Assert.Equal((byte)0, battle.NativeGraphics.ActorModels.Get(owner).SequenceState!.Pending3);
     }
 
     [Theory]
@@ -273,7 +274,7 @@ public sealed class NativeAllocationDescriptorTests
         BattleCombatant caller = battle.Combatants.Single(actor => actor.Id == "caller");
         typeof(BattleSession).GetMethod("AllocateNativeEnemy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, [caller, 6, 0, true]);
         NativeBattleDescriptorPacket statistics = battle.NativeGraphics!.Descriptors.Packets.Single(packet => packet.PriorityState != 0 && packet.Command == 113 && packet.Argument == 0x48AD10);
-        Assert.Equal(unchecked((short)duration), statistics.Index);
+        Assert.Equal(unchecked((short)duration), statistics.ScalarWord8);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int callback = 0; callback < 100 && battle.NativeScriptState.AllocationControl!.ActionGate; callback++)
         {

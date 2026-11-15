@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
@@ -63,7 +64,7 @@ public sealed class NativeBattleMeteor223PresentationTests
             NativeBattleGraphicsState graphics = source.NativeGraphics!;
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-            Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+            Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
             Assert.Equal((byte)2, header.Command);
             Assert.Equal(action.ActionId, header.Action);
@@ -75,7 +76,7 @@ public sealed class NativeBattleMeteor223PresentationTests
             Assert.All(contacts, contact =>
             {
                 Assert.Equal((byte)3, contact.Primary.ActorIndex);
-                Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+                Assert.Null(contact.Secondary);
                 Assert.True(contact.Primary.Amount6 > 0);
             });
             string target = ReadOriginalModelActorId(graphics, 3)!;
@@ -84,13 +85,13 @@ public sealed class NativeBattleMeteor223PresentationTests
             int maximumHp = source.Definition.Combatants.Single(actor => actor.Id == target).MaximumHp;
             foreach (NativeBattleContactPacket contact in contacts)
             {
-                hp = (contact.Primary.HitFlags3 & 1) != 0 ? Math.Min(maximumHp, hp + contact.Primary.Amount6) : Math.Max(0, hp - contact.Primary.Amount6);
+                hp = (contact.Primary.HitFlags & 1) != 0 ? Math.Min(maximumHp, hp + contact.Primary.Amount6) : Math.Max(0, hp - contact.Primary.Amount6);
             }
             Assert.Equal(hp, source.Combatants.Single(actor => actor.Id == target).CurrentHp);
             Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
             Assert.Equal(2, Stock(beforeInput, caster, action.ActionId));
             Assert.Equal(1, Stock(source, caster, action.ActionId));
-            NativeBattleEffectTask[] expectedTexts = contacts.Select(contact => Assert.Single(OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0)).ToArray();
+            NativeBattleEffectTask[] expectedTexts = contacts.Select(contact => Assert.Single(ExpectedOriginalDamageText(contact.Primary, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0)).ToArray();
             battle = BattleSession.Restore(source);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
             BattleScenePresentation scene = new(assets, source.Definition, true);
@@ -119,7 +120,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                 for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || text.ModelIndex != 3 || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
+                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || !MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
                     {
                         continue;
                     }

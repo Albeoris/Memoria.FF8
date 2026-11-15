@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -63,14 +64,14 @@ public sealed class NativeBattleStare45PresentationTests
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
-        Assert.Equal((byte)3, header.ReadByte(0));
+        Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, header.Source));
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)12, header.Sequence);
         Assert.Equal((byte)1, header.ReadContactCount());
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.Equal((int?)0, header.FirstContact.Ordinal);
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

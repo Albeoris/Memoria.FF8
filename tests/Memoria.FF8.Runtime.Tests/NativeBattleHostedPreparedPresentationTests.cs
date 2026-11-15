@@ -16,7 +16,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         BattleCombatant alias = owner.Combatants.Single(actor => actor.Id == "enemy-4");
         alias.SetNativeDisplayName(0);
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
-        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         var before = owner.Combatants.Select(actor => (actor.Id, actor.Name, actor.CurrentHp, actor.Atb)).ToArray();
 
         child.RefreshHostedPreparedPresentation(owner, services);
@@ -40,7 +40,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
 
         alias.SetNativeDisplayName(null);
         Set(child, nameof(BattleSession.NativeGraphics), graphics with { Callback = 12 });
-        child.RefreshHostedPreparedPresentation(owner, owner.CaptureExpandedModelLifecycleServices(roster));
+        child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(roster));
 
         NativeBattlePreparedPresentation second = Assert.IsType<NativeBattlePreparedPresentation>(child.PreparedPresentation);
         Assert.Equal(first.Frame, second.Frame);
@@ -60,7 +60,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(owner, "encounterAllocation", new BattleEncounterAllocationState("batch", "enemy-0", ["enemy-4"], ["target"], BattleEncounterAllocationPhase.Loading, 0));
         graphics = graphics with { Flags = 4 };
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
-        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(graphics.PresentationRoster!);
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(graphics.PresentationRoster!);
         MethodInfo retain = typeof(BattleSession).GetMethod("RetainNativeSceneReplaySource", PrivateInstance)!;
         using IDisposable visible = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         TargetInvocationException missing = Assert.Throws<TargetInvocationException>(() => retain.Invoke(child, [graphics]));
@@ -95,7 +95,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         graphics = graphics with { OriginalEffect = effect, UiServices = NativeBattleUiServices.Initialize() };
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
 
-        child.RefreshHostedPreparedPresentation(owner, owner.CaptureExpandedModelLifecycleServices(graphics.PresentationRoster!));
+        child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(graphics.PresentationRoster!));
 
         NativeBattlePreparedScan prepared = Assert.IsType<NativeBattlePreparedScan>(child.PreparedPresentation!.Scan);
         Assert.Equal(new NativeBattlePreparedScanActor(61, "Known alias", false, true), prepared.Actor);
@@ -112,7 +112,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
     {
         var (owner, child, graphics) = Fixture();
         BattleModelRoster roster = graphics.PresentationRoster!;
-        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
         child.RefreshHostedPreparedPresentation(owner, services);
         NativeBattlePreparedPresentation? previous = child.PreparedPresentation;
@@ -141,7 +141,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(child, "hostedBattlePresentation", true);
         Set(child, "NativeStage", NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
         Set(child, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
-        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray().SetItem(0, 1));
         NativeBattleModelTextureBinding linked = new(new byte?[16].ToImmutableArray().SetItem(0, 2));

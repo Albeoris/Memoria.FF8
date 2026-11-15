@@ -6,26 +6,34 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedPartyLoadTests
 {
+    private static readonly BattlePartyModelOwner NativeParty = (BattlePartyModelOwner)OriginalOwner(0);
+    private static readonly BattlePartyModelOwner AddedParty = new BattlePartyActorModel(new("added-party"));
+    private static readonly BattlePartyModelOwner SecondAddedParty = new BattlePartyActorModel(new("second-added-party"));
+    private static readonly BattlePartyModelOwner MissingParty = new BattlePartyActorModel(new("missing-party"));
+    private static readonly BattleModelOwner Enemy = OriginalOwner(6);
+
     [Fact]
     public void Native_cpu_admission_keeps_source_zero_under_hosted_graphics()
     {
         BattleModelRoster roster = Roster();
-        NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown();
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
-        Assert.True(NativeBattleModelResourceCopies.CanUseResourceStorage(native, 0, graphics));
-        NativeBattleModelResourceCopies.RequirePlannedTransition(native, 0, graphics);
-        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceCopies.CanUseResourceStorage(native, 7, graphics));
+        NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown().BindPartyOwner(NativeParty, NativeBattleModelSlot.Decode(0));
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, Aliases(roster), _ => new NativeBattleGraphicsModel(0));
+        Assert.True(NativeBattleModelResourceCopies.CanUseResourceStorage(native, NativeParty, graphics));
+        NativeBattleModelResourceCopies.RequirePlannedTransition(native, NativeParty, graphics);
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceCopies.CanUseResourceStorage(native, AddedParty, graphics));
         Assert.Null(native.Cpu.PresentationBanks);
     }
 
     [Fact]
     public void Hosted_cpu_keeps_a_retained_native_animation_key_at_an_unbound_row()
     {
-        NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown().BindAnimation(2, new(2 * 0x3020 + 0x20, [7, 24], 8));
-        NativeBattleModelCpuResources hosted = native with { Cpu = native.Cpu.WithPresentationRoster(Roster()) };
+        BattleModelRoster roster = Roster();
+        var retained = new NativeBattleModelAnimationCopy(2 * 0x3020 + 0x20, [7, 24], 0, 2, 8);
+        NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown();
+        NativeBattleModelCpuResources hosted = (native with { AnimationSources = native.AnimationSources.Add(2 * 32 + 8, retained) }).WithPresentationRoster(roster, Aliases(roster));
         hosted.Validate();
         Assert.Equal(new byte[] { 7, 24 }, hosted.ReadAnimationHeader(2 * 32 + 8, 0, 2));
-        Assert.Throws<InvalidDataException>(() => hosted.BindAnimation(2, new(2 * 0x3020 + 0x20, [0], 8)));
+        Assert.Throws<InvalidDataException>(() => hosted.BindAnimation((BattlePartyModelOwner)OriginalOwner(2), NativeBattleModelSlot.Decode(2), retained));
     }
 
     [Fact]
@@ -36,14 +44,14 @@ public sealed class NativeBattleHostedPartyLoadTests
         NativeBattleModelDatSource body = TaggedBody(31);
         NativeBattleModelDatSource otherBody = TaggedBody(42);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
-        NativeBattlePartyLoadPlan first = Plan(0, 7, roster, body, linked);
-        NativeBattlePartyLoadPlan second = Plan(0, 24, roster, otherBody, linked);
+        NativeBattlePartyLoadPlan first = Plan(0, AddedParty, body, linked);
+        NativeBattlePartyLoadPlan second = Plan(0, SecondAddedParty, otherBody, linked);
         Assert.False(first.RequiresResourceStorage);
         Assert.True(first.UseResourceStorage);
 
         NativeBattleModelLoadStep step = Load(0, first, body);
         cpu = Publish(cpu, step, 0, null);
-        NativeBattleModelLoader retained = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelLoader>(NativeBattleTestSnapshots.Json(step.State));
+        NativeBattleModelLoader retained = NativeBattleTestSnapshots.Independent(step.State);
         retained.Validate();
         Assert.NotNull(retained.PartyPlan);
         cpu = Publish(cpu, Load(0x1000, retained.PartyPlan!, linked), 0, 1);
@@ -51,27 +59,29 @@ public sealed class NativeBattleHostedPartyLoadTests
         cpu = Publish(cpu, Load(0x1000, second, linked), 2, 3);
 
         Assert.Equal(new byte[] { 99 }, cpu.Cpu.GetBank(0).ReadGuest(1, 1));
-        foreach ((int row, byte bank, int bodyAlias, int linkedAlias, byte tag) in new[] { (7, (byte)9, 0, 1, (byte)31), (24, (byte)26, 2, 3, (byte)42) })
+        foreach ((BattlePartyModelOwner owner, int bodyAlias, int linkedAlias, byte tag) in new[] { (AddedParty, 0, 1, (byte)31), (SecondAddedParty, 2, 3, (byte)42) })
         {
+            int bank = cpu.Cpu.PartyBankIndex(owner);
+            Assert.True(NativeBattlePresentationCpuBanks.IsExtension(bank));
             Assert.Equal(new byte[] { tag }, cpu.Cpu.GetBank(bank).Read(1, 1));
             NativeBattleModelCpuReference tail = cpu.Rows[bodyAlias].Require(8);
             Assert.Equal(bank, tail.Bank);
             Assert.True(tail.ResourceOnly);
             Assert.Equal(first.Body.CopiedLength, tail.Offset);
             Assert.Equal(bank, cpu.Rows[linkedAlias].Require(12).Bank);
-            Assert.Equal((byte)row, cpu.Rows[bodyAlias].LinkedPhysicalIndex36);
-            Assert.Equal(body.Bytes.AsSpan().Slice(body.Section(6), 8).ToArray(), cpu.ReadAnimationHeader(row * 32 + 8, 0, 8));
-            Assert.Equal(linked.Bytes.AsSpan().Slice(linked.Section(7), 8).ToArray(), cpu.ReadAnimationHeader(row * 32 + 24, 0, 8));
+            Assert.Null(cpu.Rows[bodyAlias].LinkedPhysicalIndex36);
+            Assert.Equal(body.Bytes.AsSpan().Slice(body.Section(6), 8).ToArray(), cpu.ReadAnimationSection(owner, 8, 0, 8));
+            Assert.Equal(linked.Bytes.AsSpan().Slice(linked.Section(7), 8).ToArray(), cpu.ReadAnimationSection(owner, 24, 0, 8));
             Assert.Throws<NotSupportedException>(() => cpu.Cpu.GetBank(bank).ReadGuest(1, 1));
         }
         Assert.Empty(cpu.AnimationPointers);
         Assert.Throws<NotSupportedException>(() => cpu.AnimationFrames.ReadGuest(0x20, 1));
         Assert.Throws<InvalidDataException>(() => cpu.AnimationFrames.ReadGuest(7 * 0x3020 + 0x20, 1));
         cpu.Validate();
-        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(cpu));
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.Independent(cpu);
         restored.Validate();
-        Assert.Equal(cpu.ReadAnimationHeader(24 * 32 + 24, 0, 8), restored.ReadAnimationHeader(24 * 32 + 24, 0, 8));
-        Assert.Equal(new byte[] { 42 }, restored.Cpu.GetBank(26).Read(1, 1));
+        Assert.Equal(cpu.ReadAnimationSection(SecondAddedParty, 24, 0, 8), restored.ReadAnimationSection(SecondAddedParty, 24, 0, 8));
+        Assert.Equal(new byte[] { 42 }, restored.Cpu.GetBank(restored.Cpu.PartyBankIndex(SecondAddedParty)).Read(1, 1));
     }
 
     [Fact]
@@ -80,18 +90,18 @@ public sealed class NativeBattleHostedPartyLoadTests
         BattleModelRoster roster = Roster();
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8) with { ModelId = 1 };
         NativeBattleModelDatSource linked = SpecialSource(1, linked: true);
-        NativeBattlePartyLoadPlan plan = Plan(1, 24, roster, body, linked);
+        NativeBattlePartyLoadPlan plan = Plan(1, SecondAddedParty, body, linked);
         NativeBattleModelCpuResources cpu = Publish(Resources(roster), Load(1, plan, body), 0, null);
         NativeBattleModelCpuReference geometry = cpu.Rows[0].Require(16);
         NativeBattleModelLoadStep weapon = Load(0x1001, plan, linked);
         Assert.Equal(0x507E20u, weapon.Bind!.Task.Callback);
         cpu = Publish(cpu, weapon, 0, null);
         Assert.Equal(geometry, cpu.Rows[0].Require(16));
-        Assert.Equal((byte)26, geometry.Bank);
-        Assert.Equal(plan.Body.CopiedLength - geometry.Offset + 8, BinaryPrimitives.ReadInt32LittleEndian(cpu.Cpu.GetBank(26).Read(geometry.Offset + 8, 4)));
-        Assert.Equal((byte)24, cpu.Rows[0].LinkedPhysicalIndex36);
+        Assert.Equal(cpu.Cpu.PartyBankIndex(SecondAddedParty), geometry.Bank);
+        Assert.Equal(plan.Body.CopiedLength - geometry.Offset + 8, BinaryPrimitives.ReadInt32LittleEndian(cpu.Cpu.GetBank(geometry.Bank).Read(geometry.Offset + 8, 4)));
+        Assert.Null(cpu.Rows[0].LinkedPhysicalIndex36);
         Assert.Null(weapon.State.PartyPlan);
-        Assert.False(cpu.AnimationSources.ContainsKey(24 * 32 + 24));
+        Assert.False(cpu.OwnedAnimationSources.ContainsKey((SecondAddedParty, 24)));
         cpu.Validate();
     }
 
@@ -100,14 +110,14 @@ public sealed class NativeBattleHostedPartyLoadTests
     {
         BattleModelRoster roster = Roster();
         NativeBattleModelDatSource source = SpecialSource(7, linked: false);
-        NativeBattlePartyLoadPlan plan = Plan(7, 7, roster, source);
+        NativeBattlePartyLoadPlan plan = Plan(7, AddedParty, source);
         Assert.Null(plan.Linked);
         NativeBattleModelLoadStep loaded = Load(7, plan, source);
         Assert.Equal((byte)3, loaded.Bind!.Task.Phase);
         NativeBattleModelCpuResources cpu = Publish(Resources(roster), loaded, 0, null);
-        Assert.Equal((byte)9, cpu.Rows[0].Require(40).Bank);
-        Assert.Equal(source.Bytes.AsSpan().Slice(source.Section(9), 4).ToArray(), cpu.ReadAnimationHeader(7 * 32 + 8, 0, 4));
-        NativeBattleModelLoader noLink = NativeBattleModelLoader.Queue507080(0x1007, 7, 0, 0, 0, roster);
+        Assert.Equal(cpu.Cpu.PartyBankIndex(AddedParty), cpu.Rows[0].Require(40).Bank);
+        Assert.Equal(source.Bytes.AsSpan().Slice(source.Section(9), 4).ToArray(), cpu.ReadAnimationSection(AddedParty, 8, 0, 4));
+        NativeBattleModelLoader noLink = NativeBattleModelLoader.Queue507080(0x1007, AddedParty, null, 0, 0, 0);
         Assert.Null(noLink.Task);
         noLink.Validate();
     }
@@ -116,15 +126,15 @@ public sealed class NativeBattleHostedPartyLoadTests
     public void Queue_and_completion_reject_mismatched_rosters_sources_and_tail_owners()
     {
         BattleModelRoster roster = Roster();
-        BattleModelRoster other = new(roster.Rows.SetItem(24, new("different", true)));
+        BattleModelRoster other = new([NativeParty, Enemy, AddedParty, MissingParty]);
         NativeBattleModelDatSource body = TaggedBody(31);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
-        NativeBattlePartyLoadPlan plan = Plan(0, 24, roster, body, linked);
-        Assert.Throws<InvalidDataException>(() => NativeBattleModelLoader.Queue507080(0, 8, 0, 0, 0, roster));
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, OriginalOwner(6), 0, 0, 0, roster));
-        Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, 24, 0, 0, 0, roster).Task!.Callback);
-        Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, OriginalOwner(6), 0, 0, 0, roster).Task!.Callback);
-        Assert.Throws<InvalidDataException>((NativeBattleModelLoader.Queue507080(0, 24, 0, 0, 0, other) with { PartyPlan = plan }).Validate);
+        NativeBattlePartyLoadPlan plan = Plan(0, SecondAddedParty, body, linked);
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelLoader.Queue507080(0, AddedParty, NativeBattleModelSlot.Decode(3), 0, 0, 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, Enemy, NativeBattleModelSlot.Decode(6), 0, 0, 0));
+        Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, SecondAddedParty, null, 0, 0, 0).Task!.Callback);
+        Assert.Equal(0x507120u, NativeBattleModelLoader.Queue507080(20, Enemy, NativeBattleModelSlot.Decode(6), 0, 0, 0).Task!.Callback);
+        Assert.Throws<InvalidDataException>((NativeBattleModelLoader.Queue507080(0, MissingParty, null, 0, 0, 0) with { PartyPlan = plan }).Validate);
         NativeBattleModelDatSource changed = TaggedBody(32);
         Assert.Throws<InvalidDataException>(() => Load(0, plan, changed));
 
@@ -132,24 +142,24 @@ public sealed class NativeBattleHostedPartyLoadTests
         Assert.Throws<InvalidDataException>(() => Publish(Resources(other), prepared, 0, null));
         NativeBattleModelCpuResources cpu = Publish(Resources(roster), prepared, 0, null);
         NativeBattleModelLoadStep weapon = Load(0x1000, plan, linked);
-        foreach (byte invalidBank in new byte[] { 3, 4, 9 })
+        foreach (int invalidBank in new[] { 3, 4, cpu.Cpu.PartyBankIndex(AddedParty) })
         {
             NativeBattleModelCpuResources wrongTail = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(8, cpu.Rows[0].Require(8) with { Bank = invalidBank })) };
             Assert.Throws<InvalidDataException>(() => Publish(wrongTail, weapon, 0, 1));
         }
-        NativeBattleModelAnimationCopy animation = cpu.AnimationSources[24 * 32 + 8];
-        Assert.Throws<InvalidDataException>((cpu with { AnimationSources = cpu.AnimationSources.Add(6 * 32 + 8, animation) }).Validate);
+        NativeBattleModelAnimationCopy animation = cpu.OwnedAnimationSources[(SecondAddedParty, 8)];
+        Assert.Throws<InvalidDataException>((cpu with { OwnedAnimationSources = cpu.OwnedAnimationSources.Add((MissingParty, 8), animation) }).Validate);
         Assert.Throws<InvalidDataException>((cpu with { AnimationPointers = cpu.AnimationPointers.Add(24 * 32 + 8, 0) }).Validate);
     }
 
-    private static NativeBattlePartyLoadPlan Plan(byte model, byte row, BattleModelRoster roster, params NativeBattleModelDatSource[] sources)
+    private static NativeBattlePartyLoadPlan Plan(byte model, BattlePartyModelOwner owner, params NativeBattleModelDatSource[] sources)
     {
-        return NativeBattlePartyLoadPlan.Create(model, row, 0, 0, NativeBattlePartyCpuLayout.Classic, sources, roster);
+        return NativeBattlePartyLoadPlan.Create(model, owner, null, 0, 0, NativeBattlePartyCpuLayout.Classic, sources);
     }
 
     private static NativeBattleModelLoadStep Load(ushort request, NativeBattlePartyLoadPlan plan, NativeBattleModelDatSource source)
     {
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(request, plan.PhysicalIndex, 0, 0, 0, plan.PresentationRoster) with { PartyPlan = plan };
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(request, plan.Owner, plan.OriginalSlot, 0, 0, 0) with { PartyPlan = plan };
         NativeBattleModelLoadStep requested = loader.Poll507070(-1, [source], NativeBattleFileStaging.Unknown());
         Assert.Equal((byte)1, requested.State.Task!.Phase);
         Assert.Same(requested.State, requested.State.Poll507070(-1, [], requested.Staging).State);
@@ -170,25 +180,19 @@ public sealed class NativeBattleHostedPartyLoadTests
     {
         NativeBattleModelResourceCompletion result = NativeBattleModelResourceCopies.Complete(loaded.Bind!, cpu.Cpu, cpu.Rows, body, linked);
         cpu = cpu with { Cpu = result.Cpu, Rows = result.Rows };
-        return result.AnimationCopy is { } animation ? cpu.BindAnimation(loaded.Bind!.Task.PhysicalIndex, animation) : cpu;
+        return result.AnimationCopy is { } animation ? cpu.BindAnimation((BattlePartyModelOwner)loaded.Bind!.Task.Owner, loaded.Bind.Task.OriginalSlot, animation) : cpu;
     }
 
     private static NativeBattleModelCpuResources Resources(BattleModelRoster roster)
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
         NativeBattleModelCpuBank native = cpu.Cpu.GetBank(0).WriteGuest(1, [99]);
-        return cpu with { Cpu = cpu.Cpu.WithBank(0, native).WithPresentationRoster(roster) };
+        return (cpu with { Cpu = cpu.Cpu.WithBank(0, native) }).WithPresentationRoster(roster, Aliases(roster));
     }
 
-    private static BattleModelRoster Roster()
-    {
-        BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new BattlePartyActorModel(new("native"));
-        rows[6] = new BattleEnemyActorModel(new("enemy"));
-        rows[7] = new BattlePartyActorModel(new("party-seven"));
-        rows[24] = new BattlePartyActorModel(new("party-twenty-four"));
-        return new(rows.ToImmutableArray());
-    }
+    private static BattleModelRoster Roster() => new([NativeParty, Enemy, AddedParty, SecondAddedParty]);
+
+    private static NativeBattleModelAliases Aliases(BattleModelRoster roster) => new(roster, [(NativeBattleModelSlot.Decode(0), NativeParty), (NativeBattleModelSlot.Decode(6), Enemy)]);
 
     private static NativeBattleModelDatSource TaggedBody(byte tag)
     {

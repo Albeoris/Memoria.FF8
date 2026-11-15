@@ -269,7 +269,7 @@ internal sealed class NativeBattleEffect318PresentationObserver
     private static bool VerifyCurrentScaledBody(BattleSnapshot prior, BattleSnapshot current, Dictionary<uint, NativeBattleModulePoolTask> tasks, uint skeleton)
     {
         NativeBattleGraphicsModel entering = ReadOriginalModelCell(prior.NativeGraphics!, 3);
-        NativeBattleGraphicsResource resource = prior.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(prior.NativeGraphics, 3)).Resource;
+        NativeBattleGraphicsResource resource = prior.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(prior.NativeGraphics!, 3)).Resource;
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Effect318 requires its original current rig.");
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new InvalidDataException("Effect318 requires its current original body geometry.");
         Assert.Equal(4, geometry.Length);
@@ -286,7 +286,7 @@ internal sealed class NativeBattleEffect318PresentationObserver
         NativeBattleGraphicsModel baseline = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(entering, pose, projection.View!, eye);
         NativeBattleModelTextureBinding? material = resource.GeometryRelocated507550 ? null : entering.BodyTextureSlots;
         uint color = ReadOriginalModelCell(current.NativeGraphics!, 3).Color40!.Value;
-        uint objectMask = ReadOriginalModelCell(current.NativeGraphics, 3).SequenceState!.MeshMask124;
+        uint objectMask = ReadOriginalModelCell(current.NativeGraphics!, 3).SequenceState!.MeshMask124;
         NativeBattleGeometryViewport viewport = new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8);
         ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0(geometry, scaled.CurrentBodyBoneMatrices!.Matrices, projection, color, objectMask, null, 17, 4, material, viewport: viewport);
         ImmutableArray<NativeBattleGeometryPrimitive> unmodified = NativeBattleRawGeometryPackets.Emit5099D0(geometry, baseline.CurrentBodyBoneMatrices!.Matrices, projection, color, objectMask, null, 17, 4, material, viewport: viewport);

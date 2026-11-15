@@ -18,19 +18,19 @@ public sealed class DiagnosticShotCycleDriverTests
     private static DiagnosticShotDispatchPackets Packets(BattleDiagnosticEffectDispatch dispatch)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        (packets, _) = packets.Prepare(new(dispatch.NativeActorIndex ?? 0, dispatch.NativeCommand ?? 14, 0, -1, checked((ushort)(dispatch.ActionId ?? 0)), dispatch.RequestedEffect, null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)(dispatch.NativeActorIndex ?? 0))), dispatch.NativeCommand ?? 14, 0, -1, checked((ushort)(dispatch.ActionId ?? 0)), dispatch.RequestedEffect, null));
         byte count = 0;
         for (byte actor = 0; actor < 7; actor++)
         {
             if ((dispatch.NativeTargetMask.GetValueOrDefault() & (1 << actor)) != 0)
             {
-                (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
+                (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(actor), 0, 0, 0, 0, 0, 0), null));
                 count++;
             }
         }
         (packets, _) = packets.Publish(count);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
-        return new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex ?? 0, dispatch.NativeHeaderGeneration ?? 0, packets);
+        return new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex ?? 0, dispatch.NativeHeaderGeneration ?? 0, packets.ExportRetained());
     }
 
     private static void Observe(DiagnosticShotCycleDriver cycle, BattleDiagnosticEffectDispatch dispatch)
@@ -175,10 +175,11 @@ public sealed class DiagnosticShotCycleDriverTests
     {
         BattleDiagnosticEffectDispatch dispatch = Dispatch(1, 11, 14);
         DiagnosticShotDispatchPackets proof = Packets(dispatch);
-        NativeBattleActionPacketsState packets = proof.Packets;
+        NativeBattleRetainedActionPackets packets = proof.Packets;
+        NativeBattleRawContactPacket contact = packets.Contacts[0]!;
         proof = forgery switch
         {
-            "contact" => proof with { Packets = packets with { Contacts = packets.Contacts.SetItem(0, packets.ReadContact(new BattleContactOccurrence(0)) with { Primary = packets.ReadContact(new BattleContactOccurrence(0)).Primary with { ActorIndex = 4 } }) } },
+            "contact" => proof with { Packets = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { ActorIndex = 4 } }) } },
             "header" => proof with { Packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { Payload = packets.Headers[0].Payload.SetItem(4, 102) }) } },
             "generation" => proof with { HeaderGeneration = 2 },
             "active_header" => proof with { Packets = packets with { ActiveHeaderIndex = null } },

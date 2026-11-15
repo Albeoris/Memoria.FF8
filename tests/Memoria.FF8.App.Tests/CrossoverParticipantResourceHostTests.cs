@@ -128,7 +128,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         bool capturedArena = false;
         bool scaledForeignActor = false;
         int scaledCallbacks = 0;
-        int scaledIndex = -1;
+        BattleModelOwner? scaledOwner = null;
         NativeBattleEffectPresentation? lastEffect = null;
         NativeBattleGraphicsModel? restored = null;
         for (int tick = 0; tick < 10000; tick++)
@@ -147,15 +147,15 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
                 if (crisis == 0 && active.Presentation.Effect is { } effect)
                 {
                     lastEffect = effect;
-                    scaledIndex = active.Presentation.BoundTargets.First(target => target.HostSlot == 4).Contact.ActorIndex;
-                    NativeBattleGraphicsModel target = effect.Graphics.Models[scaledIndex];
-                    NativeBattleForeignActor originalActor = ReadHostCapabilities() with { Index = scaledIndex };
+                    scaledOwner = active.Presentation.BoundTargets.First(target => target.HostSlot == 4).Contact.Recipient;
+                    NativeBattleGraphicsModel target = effect.Graphics.ActorModels.Get(scaledOwner);
+                    NativeBattleForeignActor originalActor = ReadHostCapabilities() with { Owner = scaledOwner };
                     NativeBattleModelTransform currentTransform = target.Transform!;
                     if (currentTransform.Scale148 != originalActor.Transform.Scale148 || currentTransform.Scale154 != originalActor.Transform.Scale154)
                     {
                         NativeBattleGraphicsModel unscaled = target with { Transform = currentTransform with { Scale148 = originalActor.Transform.Scale148, Scale154 = originalActor.Transform.Scale154 } };
                         NativeBattleActionMatrix baselinePlacement = NativeBattleForeignPlacement.Delta(originalActor, unscaled);
-                        Assert.False(effect.ForeignPlacement(scaledIndex).Rotation.SequenceEqual(baselinePlacement.Rotation), "The actual host placement must consume the native animation scale fields.");
+                        Assert.False(effect.ForeignPlacement(scaledOwner).Rotation.SequenceEqual(baselinePlacement.Rotation), "The actual host placement must consume the native animation scale fields.");
                         scaledForeignActor = true;
                         scaledCallbacks++;
                     }
@@ -200,7 +200,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         {
             Assert.True(scaledForeignActor && scaledCallbacks > 1, "The original action must retain the changing native scale across host callbacks.");
             Assert.NotNull(lastEffect);
-            NativeBattleActionMatrix finalPlacement = lastEffect.ForeignPlacement(scaledIndex);
+            NativeBattleActionMatrix finalPlacement = lastEffect.ForeignPlacement(Assert.IsAssignableFrom<BattleModelOwner>(scaledOwner));
             Assert.Equal(NativeBattleForeignModelGeometry.Identity.Rotation.ToArray(), finalPlacement.Rotation.ToArray());
             Assert.Equal((0, 0, 0), (finalPlacement.X, finalPlacement.Y, finalPlacement.Z));
         }

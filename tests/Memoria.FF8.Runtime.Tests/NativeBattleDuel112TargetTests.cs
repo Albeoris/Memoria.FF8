@@ -13,23 +13,23 @@ public sealed class NativeBattleDuel112TargetTests
         (targets, _) = targets.Append(0x6CBF90);
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, targets] };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, null) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, null) };
         NativeBattleDuel112Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));
         NativeBattleGraphicsModel actor = new(3) { Transform = new(new(1, 2, 3), new(10, -11, 12), -13, 14, 4096), Color40 = 0x11223344, Color44 = 0x55667788, Alpha7 = 0x99 };
         NativeBattleGraphicsModel target = new(3) { Transform = new(new(0, 0, 0), new(20, 4, 12), 0, 0, scale) };
         List<string> calls = [];
-        NativeBattleDuel112ActorServices services = new(index => index == 0 ? actor : target, (index, model) =>
+        NativeBattleDuel112ActorServices services = new(index => index == OriginalOwner(0) ? actor : target, (index, model) =>
         {
-            Assert.Equal(0, index);
+            Assert.Equal(OriginalOwner(0), index);
             actor = model;
         }, sequence =>
         {
             Assert.Equal(2, sequence);
-            return 3;
+            return OriginalOwner(3);
         }, (current, index, row) =>
         {
             calls.Add("bind");
-            Assert.Equal(0, index);
+            Assert.Equal(OriginalOwner(0), index);
             Assert.Equal(0x20DFAC8u, row);
             Assert.Equal((ushort)0x1003, actor.Flags0);
             Assert.Equal((ushort)2, current.Effect.Pools[1].Slots[0].ReadWord(14));
@@ -38,11 +38,11 @@ public sealed class NativeBattleDuel112TargetTests
         }, (current, index, sequence) =>
         {
             calls.Add("sequence");
-            Assert.Equal(0, index);
+            Assert.Equal(OriginalOwner(0), index);
             Assert.Equal((byte)1, sequence);
             actor = actor with { Sequence = sequence };
             return current;
-        });
+        }, OriginalAliases);
         NativeBattleDuel112Frame result = NativeBattleDuel112Target.Initialize6CBF90(frame, 0, 2, services);
         NativeBattleModulePoolTask task = result.Effect.Pools[1].Slots[0];
         Assert.Equal(new[] { "bind", "sequence" }, calls);

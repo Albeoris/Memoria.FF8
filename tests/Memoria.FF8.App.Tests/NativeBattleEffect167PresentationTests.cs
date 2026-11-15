@@ -175,18 +175,18 @@ public sealed class NativeBattleEffect167PresentationTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 274 && row.MagicId == 167 && row.KernelSection == 3 && row.KernelIndex == 274);
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(70, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 274, 167, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 12, -1, 274, 167, null));
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect167 requires its current target status.");
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleContactPacket contact = new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
+        Assert.Equal(priorActions, header.Ordinal);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([167])[166];
         Assert.Same(game.ReadNativeEffect167Resources(), binding.Effect167Resources);
         NativeBattlePresentationStatusMemory presentationStatus = (original.NativePresentationStatusMemory ?? throw new InvalidDataException("The declared effect167 contact requires its current physical presentation-status bank.")).Observe(0, preparedTarget.NativeStatus!.Presentation);
@@ -196,7 +196,7 @@ public sealed class NativeBattleEffect167PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original70 command8/action274/sequence12 Amount0 party component; ordinary AI and formula excluded", ActualCasterId = casterId, ActualTargetId = targetId, PhysicalCaster = 3, PhysicalTarget = 0, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved", Source = "Fresh original formation317/stage79 resource component; no gameplay replay or substituted carrier" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original70 command8/action274/sequence12 Amount0 party component; ordinary AI and formula excluded", ActualCasterId = casterId, ActualTargetId = targetId, PhysicalCaster = 3, PhysicalTarget = 0, Action = action, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved", Source = "Fresh original formation317/stage79 resource component; no gameplay replay or substituted carrier" }));
         return source;
     }
     private static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 167, ReturnedDescriptor: 0 } effect && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;

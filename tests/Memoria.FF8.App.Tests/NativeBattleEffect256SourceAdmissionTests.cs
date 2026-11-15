@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect256SourceAdmissionTests
             Assert.False(actor.NativeParticipant.Untargetable);
             NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.NotEqual(0, model.Flags0 & 2);
-            Assert.Null(model.ReadLinkedModelIndex140());
+            Assert.Null(model.ReadLinkedModel());
             NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
             if (physical == 3)
             {

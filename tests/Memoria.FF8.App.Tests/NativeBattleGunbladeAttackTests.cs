@@ -132,7 +132,7 @@ public sealed class NativeBattleGunbladeAttackTests
             if (!checkedContact && battle.Events.Any(item => item.Kind == "Damage" && item.ActorId == "party"))
             {
                 NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
-                Assert.Equal(early ? 0 : 2, contact.HitFlags3 & 2);
+                Assert.Equal(early ? 0 : 2, contact.HitFlags & 2);
                 Assert.Equal(early ? (byte)4 : (byte)6, contact.Sequence);
                 checkedContact = true;
             }

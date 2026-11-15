@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -6,6 +7,13 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedTextureCacheTests
 {
+    private static readonly BattleModelOwner[] Owners = Enumerable.Range(0, 25).Select(index => index switch
+    {
+        < 3 => OriginalOwner(index),
+        < 10 or 24 => new BattlePartyActorModel(new($"party-{index}")),
+        _ => new BattleEnemyActorModel(new($"enemy-{index}"))
+    }).ToArray();
+
     [Fact]
     public void FullRosterUsesThirtySevenOwnedAliasesIncludingOnePartyForm()
     {
@@ -14,32 +22,32 @@ public sealed class NativeBattleHostedTextureCacheTests
         Assert.Equal(37, cache.Rows.Length);
         NativeBattleEffectHeapAllocation body = TimPack(2);
         NativeBattleEffectHeapAllocation linked = TimPack(1);
-        foreach (int actor in roster.PartyRows)
+        foreach (BattlePartyModelOwner actor in roster.Party)
         {
-            NativeBattleModelTextureCacheLoad primary = cache.LoadPlayer(0, actor, body);
+            NativeBattleModelTextureCacheLoad primary = cache.LoadPlayer(0, 0, body, actor);
             Assert.Equal(actor, primary.Cache.PresentationActors![primary.ResourceIndex]);
-            NativeBattleModelTextureCacheLoad weapon = primary.Cache.LoadLinkedWeapon(0, actor, linked);
+            NativeBattleModelTextureCacheLoad weapon = primary.Cache.LoadLinkedWeapon(0, 0, linked, actor);
             Assert.Equal(actor, weapon.Cache.PresentationActors![weapon.ResourceIndex]);
             cache = weapon.Cache;
         }
-        foreach (int actor in roster.EnemyRows)
+        foreach (BattleEnemyModelOwner actor in roster.Enemies)
         {
             NativeBattleModelTextureCacheLoad enemy = cache.LoadEnemy(77, body, actor);
             Assert.NotNull(enemy.Upload);
             Assert.Equal(actor, enemy.Cache.PresentationActors![enemy.ResourceIndex]);
             cache = enemy.Cache;
         }
-        NativeBattleModelTextureCacheLoad form = cache.LoadEnemy(77, body, 7);
+        NativeBattleModelTextureCacheLoad form = cache.LoadEnemy(77, body, Owners[7]);
         Assert.Equal(36, form.ResourceIndex);
         Assert.NotNull(form.Upload);
         cache = form.Cache;
         cache.Validate();
-        ImmutableDictionary<int, int> owners = cache.PresentationActors!;
+        ImmutableDictionary<int, BattleModelOwner> owners = cache.PresentationActors!;
         Assert.Equal(37, owners.Count);
-        Assert.Equal(7, owners[36]);
+        Assert.Equal(Owners[7], owners[36]);
         Assert.Equal((ushort)63, cache.BlockedSlots);
-        Assert.Throws<NotSupportedException>(() => cache.LoadEnemy(78, body, 7));
-        Assert.Equal(form.ResourceIndex, cache.LoadEnemy(77, body, 7).ResourceIndex);
+        Assert.Throws<NotSupportedException>(() => cache.LoadEnemy(78, body, Owners[7]));
+        Assert.Equal(form.ResourceIndex, cache.LoadEnemy(77, body, Owners[7]).ResourceIndex);
     }
 
     [Theory]
@@ -51,15 +59,17 @@ public sealed class NativeBattleHostedTextureCacheTests
     public void PartyReloadsReuseActorAliasWithItsOriginalOrPrivateMasks(int actor, int slot, int weaponSlot)
     {
         NativeBattleModelTextureCache initial = NativeBattleModelTextureCache.Initialize508260(null).WithPresentationRoster(FullRoster());
-        NativeBattleModelTextureCacheLoad body = initial.LoadPlayer(1, actor, TimPack(2));
-        NativeBattleModelTextureCacheLoad linked = body.Cache.LoadLinkedWeapon(1, actor, TimPack(1));
+        BattlePartyModelOwner owner = (BattlePartyModelOwner)Owners[actor];
+        int textureSlot = slot / 2;
+        NativeBattleModelTextureCacheLoad body = initial.LoadPlayer(1, textureSlot, TimPack(2), owner);
+        NativeBattleModelTextureCacheLoad linked = body.Cache.LoadLinkedWeapon(1, textureSlot, TimPack(1), owner);
         Assert.Equal((ushort)(3 << slot), body.Upload!.AllocatedSlots);
         Assert.Equal((byte?)slot, body.Binding.PaletteRows[0]);
         Assert.Equal((byte?)(slot + 1), body.Binding.PaletteRows[1]);
         Assert.Equal((ushort)(1 << weaponSlot), linked.Upload!.AllocatedSlots);
         Assert.Equal((byte?)weaponSlot, linked.Binding.PaletteRows[0]);
-        Assert.Equal(body.ResourceIndex, linked.Cache.LoadPlayer(1, actor, TimPack(2)).ResourceIndex);
-        Assert.Equal(linked.ResourceIndex, linked.Cache.LoadLinkedWeapon(1, actor, TimPack(1)).ResourceIndex);
+        Assert.Equal(body.ResourceIndex, linked.Cache.LoadPlayer(1, textureSlot, TimPack(2), owner).ResourceIndex);
+        Assert.Equal(linked.ResourceIndex, linked.Cache.LoadLinkedWeapon(1, textureSlot, TimPack(1), owner).ResourceIndex);
         Assert.Same(linked.Cache, linked.Cache.Release5080D0(body.ResourceIndex));
         Assert.Same(linked.Cache, linked.Cache.Release5080D0(linked.ResourceIndex));
     }
@@ -68,8 +78,8 @@ public sealed class NativeBattleHostedTextureCacheTests
     public void SameModelOnTwoActorsPublishesSeparateUploadsAndReleasesOnlyItsOwnRow()
     {
         NativeBattleModelTextureCache start = NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(FullRoster());
-        NativeBattleModelTextureCacheLoad first = start.LoadEnemy(77, TimPack(1, 31), 11);
-        NativeBattleModelTextureCacheLoad second = first.Cache.LoadEnemy(77, TimPack(1, 0x3E0), 12);
+        NativeBattleModelTextureCacheLoad first = start.LoadEnemy(77, TimPack(1, 31), Owners[11]);
+        NativeBattleModelTextureCacheLoad second = first.Cache.LoadEnemy(77, TimPack(1, 0x3E0), Owners[12]);
         Assert.NotEqual(first.ResourceIndex, second.ResourceIndex);
         Assert.Equal((byte?)6, first.Binding.PaletteRows[0]);
         Assert.Equal((byte?)6, second.Binding.PaletteRows[0]);
@@ -82,9 +92,9 @@ public sealed class NativeBattleHostedTextureCacheTests
         Assert.Equal(start.BlockedSlots, second.Cache.BlockedSlots);
         NativeBattleModelTextureCache cache = second.Cache with { EnemyTextureMotion = second.Cache.EnemyTextureMotion.Add(77, [21]) };
         NativeBattleModelTextureCache released = cache.Release5080D0(first.ResourceIndex);
-        ImmutableDictionary<int, int> owners = released.PresentationActors!;
+        ImmutableDictionary<int, BattleModelOwner> owners = released.PresentationActors!;
         Assert.DoesNotContain(first.ResourceIndex, owners.Keys);
-        Assert.Equal(12, owners[second.ResourceIndex]);
+        Assert.Equal(Owners[12], owners[second.ResourceIndex]);
         Assert.Equal(cache.Rows[second.ResourceIndex], released.Rows[second.ResourceIndex]);
         Assert.Equal(cache.Rows[first.ResourceIndex] with { Kind = 0 }, released.Rows[first.ResourceIndex]);
         Assert.True(released.EnemyTextureMotion.ContainsKey(77));
@@ -95,7 +105,7 @@ public sealed class NativeBattleHostedTextureCacheTests
     }
 
     [Fact]
-    public void HostedResetRetainsOverprovisionedStorageAndJsonOmitsNativeOwners()
+    public void HostedResetRetainsOverprovisionedStorageAndNativeJsonOmitsLiveOwners()
     {
         NativeBattleModelTextureCache native = NativeBattleModelTextureCache.Initialize508260(null);
         string nativeJson = NativeBattleTestSnapshots.Json(native);
@@ -104,12 +114,11 @@ public sealed class NativeBattleHostedTextureCacheTests
         Assert.False(document.RootElement.TryGetProperty(nameof(native.PresentationActors), out _));
         Assert.Equal(11, NativeBattleTestSnapshots.RestoreJson<NativeBattleModelTextureCache>(nativeJson).Rows.Length);
 
-        NativeBattleModelTextureCache cache = native.WithPresentationRoster(FullRoster()).LoadEnemy(77, TimPack(1), 11).Cache;
+        NativeBattleModelTextureCache cache = native.WithPresentationRoster(FullRoster()).LoadEnemy(77, TimPack(1), Owners[11]).Cache;
         cache = cache with { Rows = cache.Rows.Add(new(0, 42, null, null)) };
-        string json = NativeBattleTestSnapshots.Json(cache);
-        NativeBattleModelTextureCache restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelTextureCache>(json);
+        NativeBattleModelTextureCache restored = NativeBattleTestSnapshots.Independent(cache);
         restored.Validate();
-        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
+        Assert.Equal(cache.PresentationActors!.Single(), restored.PresentationActors!.Single());
         NativeBattleModelTextureCache reset = restored.Reset508260().WithPresentationRoster(FullRoster());
         Assert.Equal(38, reset.Rows.Length);
         Assert.Empty(reset.PresentationActors!);
@@ -123,39 +132,35 @@ public sealed class NativeBattleHostedTextureCacheTests
     {
         BattleModelRoster roster = FullRoster();
         NativeBattleModelTextureCache native = NativeBattleModelTextureCache.Initialize508260(null).LoadPlayer(2, 0, TimPack(2)).Cache;
-        ImmutableDictionary<int, int> owners = ImmutableDictionary<int, int>.Empty.Add(0, 7);
+        ImmutableDictionary<int, BattleModelOwner> owners = ImmutableDictionary<int, BattleModelOwner>.Empty.Add(0, Owners[7]);
         Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster));
-        Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster, owners.SetItem(0, 11)));
-        Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster, owners.Remove(0).Add(1, 7)));
-        Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster, owners.Remove(0).Add(51, 7)));
+        Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster, owners.SetItem(0, Owners[11])));
+        Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster, owners.Remove(0).Add(1, Owners[7])));
+        Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster, owners.Remove(0).Add(51, Owners[7])));
         NativeBattleModelTextureCache hosted = native.WithPresentationRoster(roster, owners);
         Assert.Equal(native.Rows, hosted.Rows.Take(11));
-        Assert.Equal(7, hosted.PresentationActors![0]);
-        Assert.Throws<InvalidDataException>(() => hosted.WithPresentationRoster(roster, owners.SetItem(0, 0)));
-        Assert.Throws<InvalidDataException>(() => hosted.WithPresentationRoster(new(roster.Rows.SetItem(7, new("replacement", true)))));
+        Assert.Equal(Owners[7], hosted.PresentationActors![0]);
+        Assert.Throws<InvalidDataException>(() => hosted.WithPresentationRoster(roster, owners.SetItem(0, Owners[0])));
+        Assert.Throws<InvalidDataException>(() => hosted.WithPresentationRoster(new(Owners.Select(owner => owner == Owners[7] ? new BattlePartyActorModel(new("replacement")) : owner))));
     }
 
     [Fact]
     public void LoadsRejectWrongSidesHolesAndAbsentHostedOwners()
     {
-        BattleModelRoster roster = FullRoster();
-        roster = new(roster.Rows.SetItem(16, null));
+        BattleModelRoster roster = new(Owners.Where(owner => owner != Owners[16]));
         NativeBattleEffectHeapAllocation pack = TimPack(1);
         NativeBattleModelTextureCache native = NativeBattleModelTextureCache.Initialize508260(null);
         NativeBattleModelTextureCache cache = native.WithPresentationRoster(roster);
-        Assert.Throws<InvalidDataException>(() => cache.LoadPlayer(1, 11, pack));
-        Assert.Throws<InvalidDataException>(() => cache.LoadLinkedWeapon(1, 16, pack));
+        Assert.Throws<InvalidDataException>(() => cache.LoadPlayer(1, 0, pack));
+        Assert.Throws<InvalidDataException>(() => cache.LoadLinkedWeapon(1, 0, pack, new BattlePartyActorModel(new("unbound-party"))));
         Assert.Throws<InvalidDataException>(() => cache.LoadEnemy(77, pack));
-        Assert.Throws<InvalidDataException>(() => cache.LoadEnemy(77, pack, 16));
-        Assert.Throws<InvalidDataException>(() => cache.LoadEnemy(77, pack, 25));
-        Assert.Throws<InvalidDataException>(() => native.LoadEnemy(77, pack, 11));
+        Assert.Throws<InvalidDataException>(() => cache.LoadEnemy(77, pack, Owners[16]));
+        Assert.Throws<InvalidDataException>(() => cache.LoadEnemy(77, pack, new BattleEnemyActorModel(new("unbound"))));
+        Assert.Throws<InvalidDataException>(() => native.LoadEnemy(77, pack, Owners[11]));
         Assert.Throws<InvalidDataException>((cache with { PresentationActors = null }).Validate);
     }
 
-    private static BattleModelRoster FullRoster()
-    {
-        return new(Enumerable.Range(0, 25).Select(row => (BattleModelOwner?)new BattleModelOwner($"actor-{row}", row < 10 || row == 24)).ToImmutableArray());
-    }
+    private static BattleModelRoster FullRoster() => new(Owners);
 
     private static ushort PaletteColor(NativeBattleModelTextureLoad upload)
     {

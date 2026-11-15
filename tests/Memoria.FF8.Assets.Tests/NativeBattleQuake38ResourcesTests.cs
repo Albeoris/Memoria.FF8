@@ -47,9 +47,11 @@ public sealed class NativeBattleQuake38ResourcesTests
         Assert.Equal(image.ReadLoader(0x2792B40, 0x10), cold.Pointers.ToArray());
         Assert.Equal(image.ReadLoader(0x2792D68, 0x10), cold.Tail.ToArray());
         Assert.Equal(image.ReadLoader(0x2792E04, 0x5C), cold.End.ToArray());
+        Assert.Empty(cold.SavedActors);
+        Assert.Empty(cold.SavedUnboundCells);
         for (int actor = 0; actor < 7; actor++)
         {
-            NativeBattleQuake38SavedActor saved = cold.SavedActors[actor];
+            NativeBattleQuake38SavedActor saved = NativeBattleQuake38SavedActor.FromColdProcess();
             byte[] expected = image.ReadLoader(checked(0x2792D78u + (uint)actor * 20), 20);
             Assert.Equal(BinaryPrimitives.ReadInt16LittleEndian(expected), saved.Rotation12);
             Assert.Equal(BinaryPrimitives.ReadInt16LittleEndian(expected.AsSpan(2)), saved.Rotation14);

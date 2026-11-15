@@ -52,7 +52,7 @@ public sealed class NativeBattleBoneParticleTests
         NativeBattleModuleResource resource = game.ReadNativeBattleModuleResources().Single(resource => resource.Id == 3);
         Assert.Equal(0x570CC0u, resource.WrapperCallback);
         Assert.Equal(0x570BC0u, resource.Callback);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendBoneParticle(3, 240, short.MinValue, resource, 3u | 9u << 16);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendBoneParticle(OriginalOwner(3), 240, short.MinValue, resource, 3u | 9u << 16, OriginalAliases);
         NativeBattleModuleState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModuleState>(NativeBattleSnapshotJson.Serialize(state))!;
         NativeBattleModuleInputs inputs = new(0) { Resources = [resource], ReadModelBone = (model, bone, fraction) =>
         {

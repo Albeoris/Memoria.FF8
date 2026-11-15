@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -42,7 +43,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             Assert.Equal(effect, admitted.RequestedEffect);
             Assert.Null(admitted.ReturnedDescriptor);
             Assert.Empty(admitted.Pools);
-            headerIndex = Assert.IsType<NativeBattleEffectParameters>(admitted.Parameters).HeaderIndex7C;
+            headerIndex = Assert.IsType<NativeBattleEffectParameters>(admitted.Parameters).Header.Ordinal;
         }
         else
         {
@@ -53,14 +54,14 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         }
         Assert.Equal(effect, source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex)).Effect);
         NativeBattleActionHeaderSlot selectedHeader = source.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
-        Assert.NotNull(selectedHeader.FirstContactIndex);
-        NativeBattleContactPacket selectedContact = Assert.IsType<NativeBattleContactPacket>(source.NativeActionPackets.Contacts[selectedHeader.FirstContactIndex.Value]);
-        Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)7);
+        NativeBattleContactPacket selectedContact = source.NativeActionPackets.ReadContact(selectedHeader.FirstContact);
+        byte selectedSlot = ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, selectedContact.Primary.Recipient);
+        Assert.InRange(selectedSlot, (byte)0, (byte)7);
         NativeBattleGilgameshCaptureAssertions? gilgamesh = effect is >= 327 and <= 330 ? new(source, effect, selectedHeader, selectedContact) : null;
         int contactTransitions = 0;
         int expectedContactTransitions = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EXPECTED_CONTACT_TRANSITIONS") is { } expectedContacts ? int.Parse(expectedContacts) : 1;
         Assert.InRange(expectedContactTransitions, 0, 1);
-        if (selectedContact.Primary.ActorIndex >= 3)
+        if (selectedSlot >= 3)
         {
             Assert.Equal(0, expectedContactTransitions);
         }
@@ -161,18 +162,18 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                         Cold("contact218-self", current);
                     }
                 }
-                if (selectedContact.Primary.ActorIndex < 3)
+                if (selectedSlot < 3)
                 {
-                    int beforeHp = prior.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
-                    int afterHp = current.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
+                    int beforeHp = prior.NativePartyPresentation!.Rows[selectedSlot]!.HitPoints;
+                    int afterHp = current.NativePartyPresentation!.Rows[selectedSlot]!.HitPoints;
                     if (beforeHp != afterHp)
                     {
                         if (effect == 7)
                         {
-                            Assert.NotEqual(0, selectedContact.Primary.HitFlags3 & 1);
+                            Assert.NotEqual(0, selectedContact.Primary.HitFlags & 1);
                             Assert.Equal(0, beforeHp);
                             Assert.Equal(selectedContact.Primary.Amount6, afterHp);
-                            Assert.Equal(source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == selectedContact.Primary.ActorIndex).CurrentHp, afterHp);
+                            Assert.Equal(source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == selectedSlot).CurrentHp, afterHp);
                         }
                         else
                         {
@@ -190,12 +191,12 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     completions++;
                 }
-                Assert.Equal(source.NativeGraphics!.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
+                Assert.Equal(source.NativeGraphics!.ActorModels.Owners, current.NativeGraphics!.ActorModels.Owners);
                 if (livePartyFollowup)
                 {
-                    for (int actor = 0; actor < ReadOriginalModelCells(source.NativeGraphics).Length; actor++)
+                    for (int actor = 0; actor < ReadOriginalModelCells(source.NativeGraphics!).Length; actor++)
                     {
-                        if ((ReadOriginalModelCell(source.NativeGraphics, actor).Flags0 & 8) != 0)
+                        if ((ReadOriginalModelCell(source.NativeGraphics!, actor).Flags0 & 8) != 0)
                         {
                             Assert.NotEqual(0, ReadOriginalModelCell(current.NativeGraphics, actor).Flags0 & 8);
                         }
@@ -382,8 +383,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             gilgamesh?.Complete(game, completed);
             if (effect == 218)
             {
-                Assert.Equal(selectedHeader.ReadByte(0), selectedContact.Primary.ActorIndex);
-                string textActor218 = ReadOriginalModelActorId(source.NativeGraphics!, selectedContact.Primary.ActorIndex)!;
+                Assert.Equal(ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, selectedHeader.Source), selectedSlot);
+                string textActor218 = ReadOriginalModelActorId(source.NativeGraphics!, selectedSlot)!;
                 BattleCombatantDefinition textDefinition218 = source.Definition.Combatants.Single(actor => actor.Id == textActor218);
                 Assert.Equal(128, textDefinition218.ModelId);
                 NativeBattleGraphicsResource textResource218 = assets.ReadNativeGraphicsResource(textDefinition218);
@@ -512,14 +513,14 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         BattleNativeAction action = Assert.Single(current.Definition.NativeActions, action => action.Command == 2 && action.ActionId == 1);
         Assert.Equal(effect, checked((ushort)action.MagicId));
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
-        NativeBattleContactPacket contact = Assert.IsType<NativeBattleContactPacket>(packets.Contacts.First(contact => contact is not null));
-        Assert.Equal(0, contact.Primary.ActorIndex);
+        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
+        Assert.Equal(packets.ModelAliases.DecodeLiteral(0), contact.Primary.Recipient);
         Assert.Equal(7, contact.Primary.Amount6);
         byte sequence = NativeBattleEffectFixtureExporter.SelectSequence(current.Definition.NativeCommandSequences, action.Command, action.ActionId);
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), action.Command, sequence, -1, action.ActionId, effect, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), action.Command, sequence, -1, action.ActionId, effect, null));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.EnqueueAction(128, header);
         return current with { NativeActionPackets = packets, NativeGraphics = current.NativeGraphics with { Descriptors = descriptors } };
     }
 
@@ -532,7 +533,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         {
             Assert.Equal(effect, admitted.RequestedEffect);
             Assert.Empty(admitted.Pools);
-            originalHeader = parameters.HeaderIndex7C;
+            originalHeader = parameters.Header.Ordinal;
         }
         else
         {
@@ -546,13 +547,12 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         Assert.Equal(effect, header.Effect);
         Assert.Equal(1, header.ReadContactCount());
         Assert.Equal(0, header.ReadRepeatModeMinusOne());
-        Assert.Equal(graphics.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
+        Assert.Equal(graphics.ActorModels.Owners, current.NativeGraphics!.ActorModels.Owners);
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
-        (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.Command, header.Sequence, unchecked((sbyte)header.ReadByte(3)), header.Action, effect, header.Data));
-        Assert.NotNull(header.FirstContactIndex);
-        (packets, _) = packets.AppendContact(Assert.IsType<NativeBattleContactPacket>(original.Contacts[header.FirstContactIndex.Value]));
+        (packets, BattleActionHeaderReference nextHeader) = packets.Prepare(new(header.Source, header.Command, header.Sequence, header.CameraChoice, header.Action, effect, header.Data));
+        (packets, _) = packets.AppendContact(original.ReadContact(header.FirstContact));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)nextHeader * 20));
+        (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.EnqueueAction(128, nextHeader);
         return current with { NativeActionPackets = packets, NativeGraphics = current.NativeGraphics with { Descriptors = descriptors } };
     }
 }

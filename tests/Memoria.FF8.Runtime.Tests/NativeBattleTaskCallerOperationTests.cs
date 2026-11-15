@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleTaskCallerOperationTests
@@ -57,7 +58,7 @@ public sealed class NativeBattleTaskCallerOperationTests
         NativeBattleEffectTaskPool born = Pool(NativeBattleEffectNodeMemory.ArenaAddress + 0x100, 0x3200000);
         NativeBattleOriginalEffectState before = new(274, 273, new(274, 0, 0), null, null) { Pools = [root] };
         NativeBattleOriginalEffectState accepted = before with { Pools = [root, born] };
-        NativeBattleGraphicsState published = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 7, 42, OriginalEffects()) { OriginalEffect = before };
+        NativeBattleGraphicsState published = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 7, 42, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalEffects()) { OriginalEffect = before };
         NativeBattleGraphicsState local = published with { Flags = 99, Callback = 100 };
 
         NativeBattleGraphicsState retained = NativeBattleTaskCallerOperation.PublishEffectMetadata(published, accepted);

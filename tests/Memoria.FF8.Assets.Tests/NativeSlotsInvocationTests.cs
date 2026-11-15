@@ -89,7 +89,7 @@ public sealed class NativeSlotsInvocationTests
         Assert.False(battle.SelectNativeSlotsCard(deal.Id, -1));
         Assert.True(battle.SelectNativeSlotsCard(deal.Id, 0));
         Assert.False(battle.SelectNativeSlotsCard(deal.Id, 1));
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle = BattleSession.Restore(battle.Capture());
         Assert.Equal(0, battle.PendingSlotsDeal!.SelectedIndex);
         Assert.True(battle.SubmitNativeSlotsCard(deal.Id));
         Assert.False(battle.SubmitNativeSlotsCard(deal.Id));
@@ -140,7 +140,7 @@ public sealed class NativeSlotsInvocationTests
         Assert.True(battle.CanCastNativeSlotsCard(expected[rapture]));
         Assert.False(battle.CanCastNativeSlotsCard(expected[other]));
 
-        BattleSession rejected = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession rejected = BattleSession.Restore(battle.Capture());
         Assert.True(rejected.SelectNativeSlotsCard(deal.Id, other));
         Assert.Throws<NotSupportedException>(() => rejected.SubmitNativeSlotsCard(deal.Id));
         Assert.Empty(rejected.QueuedActions);
@@ -149,12 +149,12 @@ public sealed class NativeSlotsInvocationTests
         Assert.Equal((ulong)1, rejected.NativeGlobalRandomChange!.Calls);
 
         Assert.True(battle.SelectNativeSlotsCard(deal.Id, rapture));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.True(restored.SubmitNativeSlotsCard(deal.Id));
         BattleAttackCommand command = Assert.Single(restored.QueuedActions);
         Assert.Equal(expected[rapture], command.NativeSlots);
         Assert.Equal(BattleAbility.LimitBreak, command.Ability);
-        Assert.Equal(0, command.NativeTargetMask);
+        Assert.Equal(BattleTargetSide.Enemies, Assert.IsType<BattleTargetSelection.SideGroup>(command.TargetRequest.Selection).Side);
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture().Random));
         Assert.Equal((ulong)1, restored.NativeGlobalRandomChange!.Calls);
 

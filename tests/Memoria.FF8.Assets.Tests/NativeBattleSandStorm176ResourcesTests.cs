@@ -17,9 +17,9 @@ public sealed class NativeBattleSandStorm176ResourcesTests
         Assert.Same(resources, game.ReadNativeSandStorm176Resources());
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([176])[175];
         NativeBattleEffectInitializerAsset texture = binding.InitializerAsset!;
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 4, 0, 1, 176, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 2, 4, 0, 1, 176, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState effect = new(176, 175, binding, new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2374554, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(175);
@@ -28,8 +28,8 @@ public sealed class NativeBattleSandStorm176ResourcesTests
         NativeBattleSandStorm176Frame frame = NativeBattleSandStorm176Controller.Initialize(memory, effect, resources, new(1));
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleCameraProjection projection = new(identity with { Z = 12000 }, 216, 160, 108);
-        NativeBattleGraphicsModel[] actors = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0) { Transform = new(new(0, 0, 0), new(unchecked((short)(index * 400)), 0, 0), 17, 0, 4096), Rotation12 = 100, Rotation14 = 200, Rotation16 = 300, RotationPadding18 = null, GeometryWorldMatrix = identity }).ToArray();
-        NativeBattleGraphicsModel before = actors[0];
+        BattleActorModels actors = OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(0) { Transform = new(new(0, 0, 0), new(unchecked((short)(index * 400)), 0, 0), 17, 0, 4096), Rotation12 = 100, Rotation14 = 200, Rotation16 = 300, RotationPadding18 = null, GeometryWorldMatrix = identity }))).Models;
+        NativeBattleGraphicsModel before = actors.Get(OriginalOwner(0));
         NativeBattlePoseSource pose = new(new byte[64].ToImmutableArray(), [1]);
         int contacts = 0;
         int sounds = 0;
@@ -37,14 +37,14 @@ public sealed class NativeBattleSandStorm176ResourcesTests
         int spritePackets = 0;
         int writes = 0;
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
-        NativeBattleSandStorm176Inputs inputs = new(packets, projection, 0, false, index => actors[index], _ => pose, Execute);
+        NativeBattleSandStorm176Inputs inputs = new(packets, projection, 0, false, owner => actors.Get(owner), _ => pose, Execute);
         for (int tick = 0; tick < 300 && frame.Effect.ReturnedDescriptor != 0; tick++)
         {
             ordering = NativeBattleLogicalOrdering.Clear();
             frame = NativeBattleSandStorm176Controller.Advance(frame, resources, inputs);
             if (tick == 30)
             {
-                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleSandStorm176Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
+                frame = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
                 if (pauseFunnel)
                 {
                     NativeBattleEffectTaskPool active = frame.Effect.Pools[1];
@@ -65,12 +65,12 @@ public sealed class NativeBattleSandStorm176ResourcesTests
         Assert.True(funnelPackets > 0);
         Assert.True(spritePackets > 0);
         Assert.True(writes > 0);
-        Assert.Equal(before.Flags0, actors[0].Flags0);
-        Assert.Equal(before.Rotation12, actors[0].Rotation12);
-        Assert.Equal(before.Rotation14, actors[0].Rotation14);
-        Assert.Equal(before.Rotation16, actors[0].Rotation16);
-        Assert.Null(actors[0].RotationPadding18);
-        Assert.Equal(before.Transform, actors[0].Transform);
+        Assert.Equal(before.Flags0, actors.Get(OriginalOwner(0)).Flags0);
+        Assert.Equal(before.Rotation12, actors.Get(OriginalOwner(0)).Rotation12);
+        Assert.Equal(before.Rotation14, actors.Get(OriginalOwner(0)).Rotation14);
+        Assert.Equal(before.Rotation16, actors.Get(OriginalOwner(0)).Rotation16);
+        Assert.Null(actors.Get(OriginalOwner(0)).RotationPadding18);
+        Assert.Equal(before.Transform, actors.Get(OriginalOwner(0)).Transform);
 
         NativeBattleSandStorm176Frame Execute(NativeBattleSandStorm176Frame current, NativeBattleSandStorm176Operation operation)
         {
@@ -89,7 +89,7 @@ public sealed class NativeBattleSandStorm176ResourcesTests
                     return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
                 case NativeBattleSandStorm176Actor actor:
                     writes++;
-                    actors[actor.Index] = actor.Model;
+                    actors = actors.Set(actor.Owner, actor.Model);
                     return current;
                 case NativeBattleSandStorm176Contact:
                     contacts++;

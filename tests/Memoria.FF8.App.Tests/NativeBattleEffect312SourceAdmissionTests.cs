@@ -61,7 +61,7 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
             Assert.False(actor.NativeParticipant.Suspended);
             Assert.False(actor.NativeParticipant.Untargetable);
             Assert.NotEqual(0, model.Flags0 & 2);
-            Assert.Null(model.ReadLinkedModelIndex140());
+            Assert.Null(model.ReadLinkedModel());
             NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
             resource.Validate();
             if (physical >= 3)

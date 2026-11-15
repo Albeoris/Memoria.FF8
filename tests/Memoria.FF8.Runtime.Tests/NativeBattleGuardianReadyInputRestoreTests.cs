@@ -19,7 +19,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         BattleAttackCommand command = Assert.IsType<BattleAttackCommand>(bank.LogicalCommands[0]);
         Assert.Equal((byte?)254, command.NativeQueuedCommand);
         Assert.Null(command.NativeAction);
-        Assert.Null(command.NativeHeaderIndex);
+        Assert.Null(command.NativeHeader);
         Assert.Equal((ushort)64, bank.Packets[0].ReadWord(4));
         Assert.Equal((ushort)0x80F8, bank.Packets[0].ReadWord(6));
         BattleSession restored = RestoreReadyInputOwners(ready);

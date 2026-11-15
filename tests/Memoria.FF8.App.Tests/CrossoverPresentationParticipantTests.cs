@@ -1,4 +1,4 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -6,44 +6,63 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverPresentationParticipantTests
 {
     [Fact]
-    public void SixSelectedForeignTargetsRetainTheirPhysicalSlotsWithoutAcquiringAnOptionalPartyContact()
+    public void SixSelectedForeignTargetsRetainTheirHostSlotsAlongsideAnOptionalPartyModel()
     {
-        var targets = CrossoverNativeMagicTarget.Bind(0, [4, 5, 6, 7, 8, 9], (_, index) => new(index, 0, 0, 0, 0, 0, 0));
-        Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, targets.Select(target => (int)target.Contact.ActorIndex));
-        CrossoverNativeMagicPresentationState state = State() with { Targets = targets, Participants = [1] };
-        Assert.Equal(6, state.BoundParticipants.Length);
-        Assert.DoesNotContain(state.BoundParticipants, participant => participant.HostSlot == 1);
-        Assert.Equal(targets.Select(target => (target.HostSlot, (int)target.Contact.ActorIndex)), state.BoundParticipants.Select(participant => (participant.HostSlot, participant.ActorIndex)));
+        CrossoverNativeMagicPresentationState state = State([4, 5, 6, 7, 8, 9], [1]);
+        Assert.Equal(new[] { 4, 5, 6, 7, 8, 9 }, state.BoundContacts.Select(contact => contact.HostSlot));
+        Assert.Equal(new[] { 4, 5, 6, 7, 8, 9, 1 }, state.BoundParticipants.Select(participant => participant.HostSlot));
+        Assert.Equal(new byte?[] { 3, 4, 5, 6, null, null, 1 }, state.BoundParticipants.Select(participant => participant.Alias?.Offset));
+        Assert.Equal(state.BoundTargets.Select(target => target.Contact.Recipient), state.BoundParticipants.Take(6).Select(participant => participant.Owner));
     }
 
     [Fact]
     public void OtherPartyParticipantsUseFreeSlotsIndependentlyFromSelectedContacts()
     {
-        var targets = CrossoverNativeMagicTarget.Bind(0, [4, 5], (_, index) => new(index, 0, 0, 0, 0, 0, 0));
-        CrossoverNativeMagicPresentationState state = State() with { Targets = targets, Participants = [1, 2] };
+        CrossoverNativeMagicPresentationState state = State([4, 5], [1, 2]);
         Assert.Equal(2, state.BoundTargets.Length);
         Assert.Equal(4, state.BoundParticipants.Length);
-        Assert.Equal(1, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 1).ActorIndex);
-        Assert.Equal(2, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 2).ActorIndex);
-        Assert.Equal(new byte[] { 3, 4 }, state.BoundTargets.Select(target => target.Contact.ActorIndex));
+        Assert.Equal((byte?)1, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 1).Alias?.Offset);
+        Assert.Equal((byte?)2, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 2).Alias?.Offset);
+        Assert.Equal(new byte?[] { 3, 4 }, state.BoundParticipants.Take(2).Select(participant => participant.Alias?.Offset));
     }
 
     [Fact]
     public void ASelectedPartyMemberKeepsOneOwnerAndDoesNotCreateAnotherContactOrModel()
     {
-        var targets = CrossoverNativeMagicTarget.Bind(0, [1, 4], (_, index) => new(index, 0, 0, 0, 0, 0, 0));
-        CrossoverNativeMagicPresentationState state = State() with { Targets = targets, Participants = [1, 2] };
+        CrossoverNativeMagicPresentationState state = State([1, 4], [1, 2]);
         Assert.Equal(2, state.BoundTargets.Length);
         Assert.Equal(3, state.BoundParticipants.Length);
-        Assert.Equal(3, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 1).ActorIndex);
-        Assert.Equal(1, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 2).ActorIndex);
+        CrossoverNativeMagicParticipant selected = Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 1);
+        Assert.Equal((byte?)1, selected.Alias?.Offset);
+        Assert.Equal(state.BoundTargets[0].Contact.Recipient, selected.Owner);
+        Assert.Equal((byte?)2, Assert.Single(state.BoundParticipants, participant => participant.HostSlot == 2).Alias?.Offset);
     }
 
     [Fact]
-    public void SelectedTargetsStillRejectActualModelBankOverflow()
+    public void SelectedTargetsBeyondTheOriginalEnemyAliasesKeepTheirTypedOwners()
     {
-        Assert.Throws<NotSupportedException>(() => CrossoverNativeMagicTarget.Bind(0, [1, 4, 5, 6, 7, 8, 9], (_, index) => new(index, 0, 0, 0, 0, 0, 0)));
+        int[] slots = [1, 4, 5, 6, 7, 8, 9];
+        CrossoverNativeMagicPresentationState state = State(slots, []);
+        Assert.Equal(slots, state.BoundTargets.Select(target => target.HostSlot));
+        Assert.Equal(slots, state.BoundParticipants.Select(participant => participant.HostSlot));
+        Assert.Equal(new byte?[] { 1, 3, 4, 5, 6, null, null }, state.BoundParticipants.Select(participant => participant.Alias?.Offset));
+        Assert.Equal(state.BoundTargets.Select(target => target.Contact.Recipient), state.BoundParticipants.Select(participant => participant.Owner));
     }
 
-    private static CrossoverNativeMagicPresentationState State() => new(null!, null!, null!, null!, null!, [], NativeCrtRandomState.FromColdProcess(), 4, new(OriginalOwner(3), 0, 0, 0, 0, 0, 0));
+    private static CrossoverNativeMagicPresentationState State(int[] targets, int[] otherParticipants)
+    {
+        ImmutableArray<CrossoverNativeMagicTarget> contacts = targets.Select(slot => new CrossoverNativeMagicTarget(slot, new(Owner(slot), 0, 0, 0, 0, 0, 0))).ToImmutableArray();
+        ImmutableArray<CrossoverNativeMagicParticipant> participants = CrossoverNativeMagicParticipant.Bind(targets.Concat(otherParticipants), Owner);
+        return new(null!, null!, null!, null!, null!, [], NativeCrtRandomState.FromColdProcess(), targets[0], contacts[0].Contact)
+        {
+            Targets = contacts,
+            ParticipantBindings = participants
+        };
+    }
+
+    private static BattleModelOwner Owner(int slot)
+    {
+        BattleForeignPresentationKey key = new($"host-slot-{slot}");
+        return slot < 4 ? new BattleForeignPartyModel(key) : new BattleForeignEnemyModel(key);
+    }
 }

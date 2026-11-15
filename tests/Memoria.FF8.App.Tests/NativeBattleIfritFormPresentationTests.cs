@@ -377,7 +377,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal((byte)77, ReadOriginalModelCell(battle.NativeGraphics!, 0).ModelId4);
-        Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics, 0));
+        Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics!, 0));
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         NativeBattleRestorationPresentationTests.Publish(output, "landed", landed, output is null ? null : scene.Render(battle, 320, 224).ToArray());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(landed))!);

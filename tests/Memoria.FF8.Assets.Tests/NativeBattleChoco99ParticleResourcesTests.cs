@@ -80,7 +80,7 @@ public sealed class NativeBattleChoco99ParticleResourcesTests
 
         NativeBattleChoco99ParticleStep Advance(NativeBattleModulePoolTask current) => NativeBattleChoco99Particles.Advance(current, resources, _ => false, view, projection, 512);
     }
-    private static NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target)
+    private static NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, int target)
     {
         Assert.Equal(0x1D99A78u, parameters);
         Assert.Equal((sbyte)-2, header);

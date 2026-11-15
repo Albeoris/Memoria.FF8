@@ -71,7 +71,7 @@ public sealed class NativeBattleDuel112ProgramsTests
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
             (target, _) = target.Append(0x6CBF90);
             NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(target.Slots[0], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xCC, 0xF48 - 12).ToImmutableArray() });
-            task = task.WriteWord(12, unchecked((ushort)phase)).WriteDword(176, 0x1D972C0 + 156 * 3);
+            task = NativeBattleDuel112Fixture.WriteOriginalTarget(task.WriteWord(12, unchecked((ushort)phase)));
             for (int word = 0; word < 9; word++)
             {
                 task = task.WriteWord(108 + word * 2, (ushort)(word % 4 == 0 ? 4096 : 0));
@@ -79,18 +79,18 @@ public sealed class NativeBattleDuel112ProgramsTests
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
             NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
-            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };
+            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, resources) };
             NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25218E8, BitConverter.GetBytes(0x20DFAB8u)).Write(0x2521914, BitConverter.GetBytes(0x20E1940u));
             Frame = new(memory, effect, staging, new(1));
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, 372);
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, 644);
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, 1468);
             NativeBattleGraphicsModel actor = new(3) { Rotation14 = 700 };
-            NativeBattleDuel112ActorServices services = new(index => index == 0 ? actor : Enemy, (index, model) =>
+            NativeBattleDuel112ActorServices services = new(index => index == OriginalOwner(0) ? actor : Enemy, (index, model) =>
             {
-                Assert.Equal(3, index);
+                Assert.Equal(OriginalOwner(3), index);
                 Enemy = model;
-            }, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException());
+            }, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), OriginalAliases);
             NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
             Inputs = new(services, (index, bone, fraction) =>
             {

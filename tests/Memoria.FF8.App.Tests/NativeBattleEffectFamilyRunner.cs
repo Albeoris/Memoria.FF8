@@ -59,10 +59,10 @@ internal static class NativeBattleEffectFamilyRunner
     {
         Require(packets is not null, "The standalone action packet owner is absent.");
         uint offset = unchecked(descriptor.Argument - 0x1D280C4u);
-        Require(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity, "The action104 descriptor does not address a physical20-byte action header.");
+        Require(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity, "The action104 descriptor does not address a physical20-byte action header.");
         int index = (int)(offset / 20);
         Require(packets!.ReadHeader(new BattleActionHeaderReference(index)).Effect == item.Effect, "The queued action104 header selects a different effect from the manifest.");
-        Require(action is null || action.HeaderIndex == index, "The started graphics action does not belong to the queued action104 header.");
+        Require(action is null || action.Header.Ordinal == index, "The started graphics action does not belong to the queued action104 header.");
     }
 
     internal static bool IsInitialized(NativeBattleOriginalEffectState? effect, NativeEffectFamilyCase item)

@@ -43,19 +43,19 @@ public sealed class NativeBattleEffect249PresentationTests
         int priorContacts = packets.ContactCount;
         byte retainedHeader11 = packets.ReadHeader(new BattleActionHeaderReference(packets.ActionCount)).ReadRepeatModeMinusOne();
         Assert.Equal((byte)0, retainedHeader11);
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), action.Command, sequence, unchecked((sbyte)action.RawRecord[4]), action.ActionId, action.MagicId, null));
-        Assert.Equal(retainedHeader11, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), action.Command, sequence, unchecked((sbyte)action.RawRecord[4]), action.ActionId, action.MagicId, null));
+        Assert.Equal(retainedHeader11, packets.ReadHeader(header).ReadRepeatModeMinusOne());
         string target = ReadOriginalModelActorId(graphics, 0)!;
         BattleCombatantSnapshot recipient = Assert.Single(original.Combatants, actor => actor.Id == target);
         NativeBattleStatusSnapshot status = recipient.NativeStatus!;
         NativeBattleStatusSnapshot presentation = status.Presentation.Saved is null || status.Presentation.Battle is null ? status with { Presentation = new(status.Saved, status.Battle) } : status;
-        NativeBattleContactPacket contact = new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal(1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        Assert.Equal(0, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal(1, packets.ReadHeader(header).ReadContactCount());
+        Assert.Equal(0, packets.ReadHeader(header).ReadRepeatModeMinusOne());
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([249])[248];
         BattleSnapshot prepared = original with
         {

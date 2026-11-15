@@ -67,7 +67,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     public void HeaderlessPresentationIsNotHydratedByAnUnrelatedNativeEvent()
     {
         var fixture = Fixture();
-        BattleActionPresentation headerless = fixture.Action with { NativeHeaderIndex = null };
+        BattleActionPresentation headerless = fixture.Action with { NativeHeader = null };
         SetAction(fixture.Session, headerless);
         Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
         Assert.Same(headerless, fixture.Session.ActiveAction);
@@ -329,7 +329,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             Field("nativeActionPackets").SetValue(captured.Session, laterPackets);
             Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
             Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(captured.Session, 40L);
-            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.Attack, 0) { NativeHeaderIndex = 0, NativeQueuedCommand = 1, NativeGraphic = new(1) });
+            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.Attack, 0) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 1, NativeGraphic = new(1) });
             NativeBattleDescriptorState laterDescriptors = capturedResult.Descriptors.RemoveFirst().Enqueue(10, 128, 0x47DDA0).State;
             NativeBattleGraphicsState laterResult = Complete(captured.Session, capturedResult with { Descriptors = laterDescriptors }, 0x47DDA0);
             Assert.Null(captured.Session.ActiveAction);
@@ -350,7 +350,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     [InlineData("invalid-program")]
     public void Pending_texture_context_observes_only_known_bounded_fields_without_mutation(string fault)
     {
-        NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 7, new([255], 0));
+        NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(OriginalOwner(0), 7, new([255], 0), OriginalAliases);
         NativeBattleAuxiliaryTask task = auxiliary.Slots[auxiliary.Head!.Value];
         if (fault == "unknown")
         {
@@ -427,7 +427,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
-        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = 0, NativeQueuedCommand = 252, NativeGraphic = new(1) };
+        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
         SetAction(session, action);
         typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.IsBusy))!.SetValue(session.Combatants[0], true);
         return (session, new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { ActionCallbackReady = false, ActionActorId = "party" }, action);

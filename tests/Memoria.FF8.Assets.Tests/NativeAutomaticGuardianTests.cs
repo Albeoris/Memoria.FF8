@@ -24,7 +24,7 @@ public sealed class NativeAutomaticGuardianTests
         Assert.Equal((byte)245, queued.NativeQueuedCommand);
         Assert.Equal(actionId, queued.NativeAction!.ActionId);
         Assert.Equal(effect, queued.NativeAction.MagicId);
-        Assert.Equal(0, queued.NativeTargetMask);
+        Assert.Equal(BattleTargetSide.Enemies, Assert.IsType<BattleTargetSelection.SideGroup>(queued.TargetRequest.Selection).Side);
         NativeBattleRandomState expected = definition.InitialRandom!;
         for (int draw = 0; draw < draws; draw++)
         {
@@ -248,7 +248,7 @@ public sealed class NativeAutomaticGuardianTests
         ];
         BattleDefinition definition = Definition(game, assets, flags, actors) with { EncounterId = encounterId, NativeActions = [.. assets.NativeActions, attack], InitialRandom = new(Enumerable.Repeat(randomIndex, 8).ToImmutableArray(), 0) };
         BattleSession initial = new(definition, BattleAtbMode.TurnBased);
-        BattleAttackCommand hit = new("enemy", "party-0", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = 1 };
+        BattleAttackCommand hit = new("enemy", "party-0", NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack };
         return BattleSession.Restore(initial.Capture() with { NativeSupport = new(true, assets.ReadNativeSupportRules().Cooldown, 0), QueuedActions = [hit] });
     }
 

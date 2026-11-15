@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -95,11 +96,11 @@ internal sealed class NativeBattleEffect315PresentationObserver
                     if ((task.Flags & 1) != 0 && task.Callback == 0x598E70 && unchecked((short)task.ReadWord(0xC)) == 112 && unchecked((short)next.ReadWord(0xC)) == 113)
                     {
                         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
-                        int first = packets.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.HeaderIndex7C)).FirstContactIndex!.Value;
+                        int first = packets.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.Header.Ordinal)).FirstContactIndex!.Value;
                         NativeBattleContactHalf half = packets.ReadContact(new BattleContactOccurrence(first)).Primary;
-                        Assert.Equal((byte)3, half.ActorIndex);
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, half.Recipient));
                         NativeBattleGraphicsModel beforeCaster = ReadOriginalModelCell(prior.NativeGraphics, 3);
-                        Assert.Null(beforeCaster.ReadLinkedModelIndex140());
+                        Assert.Null(beforeCaster.ReadLinkedModel());
                         uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!.Battle;
                         NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, beforeCaster, current.Definition.NativeGraphics!.Rules, battleStatuses);
                         Assert.True(plan.Loaded);

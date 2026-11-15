@@ -24,9 +24,9 @@ public sealed class NativeBattleDeathResourcesTests
         Assert.Equal(19, reaper.Polygons.Count(polygon => polygon.Quad));
         Assert.Equal(0x3FCC, resources.Model.Section(3));
         NativeBattleRetainedMemory retained = game.ReadColdProcessNativeBattleMemory();
-        NativeBattleActionPacketsState packets = retained.ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 14, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, immune ? (byte)4 : (byte)0, 0, 0, 0), null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, retained.ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 4, 0, 8, 14, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, immune ? (byte)4 : (byte)0, 0, 0, 0), null));
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState effect = new(14, 13, new(14, 0x8B68C0, 0x8B68A0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x273AE80, 0)] };
@@ -42,7 +42,7 @@ public sealed class NativeBattleDeathResourcesTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1]);
         NativeBattleDecodedPose decoded = new(new(0, 0, 0), [new(new(0, 0, 0), new(4096, 4096, 4096))], false);
-        NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0, GeometryBounds52 = new(new(0, -100, 0), new(0, 0, 0)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = decoded } };
+        NativeBattleGraphicsModel Model(BattleModelOwner owner) => new(0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096), Rotation14 = 0, GeometryBounds52 = new(new(0, -100, 0), new(0, 0, 0)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = decoded } };
         List<int> contacts = [];
         List<int> sounds = [];
         List<short> fades = [];

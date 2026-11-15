@@ -25,7 +25,8 @@ internal sealed class NativeBattleDuel112Fixture
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
         (target, _) = target.Append(0x6CBF90);
-        NativeBattleModulePoolTask task = target.Slots[0].WriteWord(12, unchecked((ushort)phase)).WriteWord(14, 2).WriteDword(176, 0x1D972C0 + 156 * 3).WriteDword(172, 1000).WriteDword(48, 0xCC1E3C78).WriteDword(52, 0xAB142850);
+        NativeBattleModulePoolTask task = target.Slots[0].WriteWord(12, unchecked((ushort)phase)).WriteWord(14, 2).WriteDword(172, 1000).WriteDword(48, 0xCC1E3C78).WriteDword(52, 0xAB142850);
+        task = WriteOriginalTarget(task);
         task = task.WriteWord(76, 1).WriteWord(78, 2).WriteWord(80, 3).WriteWord(92, 100).WriteWord(94, 200).WriteWord(96, 300).WriteWord(100, 400).WriteWord(102, 500).WriteWord(104, 600);
         for (int word = 0; word < 9; word++)
         {
@@ -34,27 +35,34 @@ internal sealed class NativeBattleDuel112Fixture
         target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(0x2521940, 0x20E0F40, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, 0x20E0D00, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, 0x20E0A00, 48, 16)], DrawArenaOffset = 0x1E88 };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, resources) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25218E8, BitConverter.GetBytes(0x20DFAB8u)).Write(0x2521914, BitConverter.GetBytes(0x20E1940u)).Write(0x2521918, new byte[4]);
         Frame = new(memory, effect, staging, new(0x1234));
         foreach (int offset in new[] { 180, 372, 644, 1468, 2316, 2584, 3480, 3704 })
         {
             Frame = NativeBattleDuel112Workspaces.Initialize7016B0(Frame, 0, offset);
         }
-        NativeBattleDuel112ActorServices actor = new(index => index == 0 ? Actor : Enemy, (index, model) =>
+        NativeBattleDuel112ActorServices actor = new(index => index == OriginalOwner(0) ? Actor : Enemy, (index, model) =>
         {
-            if (index == 0)
+            if (index == OriginalOwner(0))
             {
                 Actor = model;
             }
             else
             {
-                Assert.Equal(3, index);
+                Assert.Equal(OriginalOwner(3), index);
                 Enemy = model;
             }
-        }, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException());
+        }, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), OriginalAliases);
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         Drawing = new(actor, (_, _, _) => throw new InvalidOperationException("This fixture does not provide an actual decoded actor pose."), view, null!, null!, (_, _, _, _) => throw new InvalidOperationException("This phase does not queue a common flash."));
+    }
+
+    internal static NativeBattleModulePoolTask WriteOriginalTarget(NativeBattleModulePoolTask task)
+    {
+        BattleModelOwner target = OriginalOwner(3);
+        task.WriteExecutionReference(176, 4, new BattleExecutionReference.Model(target), OriginalAliases.EncodeAddress(target));
+        return task;
     }
 
     public void Fill(int poolIndex, uint callback)

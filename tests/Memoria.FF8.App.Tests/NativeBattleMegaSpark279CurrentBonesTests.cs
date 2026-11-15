@@ -61,7 +61,7 @@ public sealed class NativeBattleMegaSpark279CurrentBonesTests
         Save("composed", composed);
         BattleSnapshot restored = Restore(composed);
         Assert.Equal(JsonSerializer.Serialize(local), JsonSerializer.Serialize(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.NativeGraphics!, caster), pose)));
-        Assert.Equal(JsonSerializer.Serialize(world), JsonSerializer.Serialize(ReadOriginalModelCell(restored.NativeGraphics, caster).GeometryWorldMatrix));
+        Assert.Equal(JsonSerializer.Serialize(world), JsonSerializer.Serialize(ReadOriginalModelCell(restored.NativeGraphics!, caster).GeometryWorldMatrix));
         Save("restored", restored);
 
         BattleSnapshot coldBefore = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "before.battle.json"));
@@ -70,7 +70,7 @@ public sealed class NativeBattleMegaSpark279CurrentBonesTests
         BattleSnapshot coldAtCompose = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "composed.battle.json"));
         Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(Restore(coldAtCompose)));
         Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "restored.battle.json"))).Capture()));
-        File.WriteAllText(Path.Combine(output!, "current-bones.json"), JsonSerializer.Serialize(new { Status = "passed", Caster = caster, ResourceModel = definition.ModelId, NativeModel = model.ModelId4, SkeletonSha256 = skeletonHash, CurrentWorld = world, Before = Pack(local), Composed = Pack(actual), Restored = Pack(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.NativeGraphics, caster), pose)), SelectedBones = new[] { 10, 17, 18, 21 } }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output!, "current-bones.json"), JsonSerializer.Serialize(new { Status = "passed", Caster = caster, ResourceModel = definition.ModelId, NativeModel = model.ModelId4, SkeletonSha256 = skeletonHash, CurrentWorld = world, Before = Pack(local), Composed = Pack(actual), Restored = Pack(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.NativeGraphics!, caster), pose)), SelectedBones = new[] { 10, 17, 18, 21 } }, new JsonSerializerOptions { WriteIndented = true }));
 
         BattleSnapshot Compose(BattleSnapshot snapshot)
         {

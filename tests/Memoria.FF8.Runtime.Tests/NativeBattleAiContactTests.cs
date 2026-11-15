@@ -54,7 +54,7 @@ public sealed class NativeBattleAiContactTests
             }
             Assert.Equal((byte)1, session.NativeActionPackets.ActionCount);
             NativeBattleActionHeaderSlot header = session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-            Assert.Equal((byte)1, header.ReadByte(16));
+            Assert.Equal((byte)1, header.ReadContactCount());
             return session.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
         }
     }

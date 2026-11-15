@@ -1,4 +1,5 @@
-﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+﻿using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -93,7 +94,7 @@ public sealed class NativeBattleHeroPresentationTests
                 Assert.Equal((byte)2, (byte)(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 6));
                 Assert.Null(source.ActiveAction);
                 Assert.Empty(source.QueuedActions);
-                Assert.Null(source.NativeActionPackets.ActiveHeaderIndex);
+                Assert.Null(source.NativeActionPackets.ActiveHeader);
                 Assert.Equal((byte)1, source.NativeActionPackets.ActionCount);
                 Assert.Equal((byte)1, source.NativeActionPackets.ContactCount);
                 NativeBattleContactPacket firstContact = source.NativeActionPackets.ReadContact(header.FirstContact);
@@ -101,11 +102,11 @@ public sealed class NativeBattleHeroPresentationTests
                 NativeBattleStatusSnapshot status = enemy.NativeStatus ?? throw new InvalidDataException("The second controlled target lacks its native status owner.");
                 byte remainingHits = NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game);
                 enemy = enemy with { NativeParticipant = enemy.NativeParticipant! with { RemainingHits = remainingHits } };
-                NativeBattleContactPacket secondContact = new(new(OriginalOwner(3), action.DamagePresentation, 1, 0, status.Saved, 7, status.Battle), firstContact.Secondary);
+                NativeBattleContactPacket secondContact = new(new(source.NativeActionPackets.ModelAliases.DecodeLiteral(3), action.DamagePresentation, 1, 0, status.Saved, 7, status.Battle), firstContact.Secondary);
                 NativeBattleActionPacketsState packets = source.NativeActionPackets.ResetCounts();
-                int prepared;
-                (packets, prepared) = packets.Prepare(new(header.ReadByte(0), header.Command, header.Sequence, unchecked((sbyte)header.ReadByte(3)), header.Action, header.Effect, header.Data));
-                Assert.Equal(checked((int)(headerOffset / 20)), prepared);
+                BattleActionHeaderReference prepared;
+                (packets, prepared) = packets.Prepare(new(header.Source, header.Command, header.Sequence, header.CameraChoice, header.Action, header.Effect, header.Data));
+                Assert.Equal(new BattleActionHeaderReference(checked((int)(headerOffset / 20))), prepared);
                 (packets, _) = packets.AppendContact(firstContact);
                 (packets, _) = packets.AppendContact(secondContact);
                 (packets, _) = packets.Publish(2);
@@ -114,29 +115,29 @@ public sealed class NativeBattleHeroPresentationTests
                 {
                     NativeActionPackets = packets,
                     Combatants = source.Combatants.Select(actor => actor.Id == enemy.Id ? enemy : actor).ToArray(),
-                    Definition = source.Definition with { NativeRetainedMemory = source.Definition.NativeRetainedMemory! with { ActionPackets = packets } }
+                    Definition = source.Definition with { NativeRetainedMemory = source.Definition.NativeRetainedMemory! with { ActionPackets = packets.ExportRetained() } }
                 };
-                header = packets.ReadHeader(new BattleActionHeaderReference(prepared));
+                header = packets.ReadHeader(prepared);
                 prior = source;
             }
             Assert.Equal(checked((byte)expectedContacts), header.ReadContactCount());
-            NativeBattleContactPacket[] contactPackets = source.NativeActionPackets!.ReadHeaderContacts506BA0(checked((int)(headerOffset / 20))).ToArray();
+            NativeBattleContactPacket[] contactPackets = source.NativeActionPackets!.ReadHeaderContacts(new BattleActionHeaderReference(checked((int)(headerOffset / 20)))).ToArray();
             Assert.Equal(expectedContacts, contactPackets.Length);
-            Assert.Equal(multiTarget ? new byte[] { 0, 3 } : new byte[] { 0 }, contactPackets.Select(packet => packet.Primary.ActorIndex).ToArray());
+            Assert.Equal((multiTarget ? new byte[] { 0, 3 } : new byte[] { 0 }).Select(source.NativeActionPackets.ModelAliases.DecodeLiteral), contactPackets.Select(packet => packet.Primary.Recipient));
             if (multiTarget)
             {
                 Assert.Equal((ushort)1, contactPackets[1].Primary.ContactFlags);
             }
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-            Assert.Equal(0, contact.Primary.ActorIndex);
+            Assert.Equal(0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
             Assert.Equal((ushort)7, contact.Primary.Amount6);
-            Dictionary<int, NativeBattleEffectTask> expectedTexts = [];
+            Dictionary<BattleModelOwner, NativeBattleEffectTask> expectedTexts = [];
             foreach (NativeBattleContactPacket packet in contactPackets)
             {
-                NativeBattleEffectTask? text = OriginalEffects().PrependDamageText(packet.Primary.ActorIndex, packet.Primary.ContactFlags, packet.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
+                NativeBattleEffectTask? text = ExpectedOriginalDamageText(packet.Primary, packet.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
                 if (text is not null)
                 {
-                    expectedTexts.Add(packet.Primary.ActorIndex, text);
+                    expectedTexts.Add(packet.Primary.Recipient, text);
                 }
             }
             Dictionary<string, int> logicalHp = source.Combatants.ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
@@ -206,9 +207,9 @@ public sealed class NativeBattleHeroPresentationTests
                 for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && contactPackets.Any(packet => packet.Primary.ActorIndex == text.ModelIndex) && (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) == 0)
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && contactPackets.Any(packet => packet.Primary.Recipient == text.ModelOwner) && (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) == 0)
                     {
-                        Assert.True(expectedTexts.TryGetValue(text.ModelIndex, out NativeBattleEffectTask? expectedText));
+                        Assert.True(expectedTexts.TryGetValue(text.ModelOwner!, out NativeBattleEffectTask? expectedText));
                         Assert.NotNull(expectedText);
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);
@@ -287,7 +288,7 @@ public sealed class NativeBattleHeroPresentationTests
             File.WriteAllText(Path.Combine(output!, "visible-packet-owner.json"), JsonSerializer.Serialize(metadataPeak));
             ColdNext("peak", peakSnapshot);
             ColdNext("completed", completed);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Fresh original-resource controlled seven-HP component; no ordinary Item formula, inventory or target-policy claim", Effect = effectId, TargetActors = contactPackets.Select(packet => packet.Primary.ActorIndex), childBirthCallbacks, contactCallbacks, distinctLiveChildren, exported.Selection, callbacks, heroCallbacks, DiagnosticMaximumCallbacks = 4096, contacts, glyphs, completions, visibleChangedRgb, measuredPacketFrames, metadataPeak, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Fresh original-resource controlled seven-HP component; no ordinary Item formula, inventory or target-policy claim", Effect = effectId, TargetActors = contactPackets.Select(packet => packet.Primary.Recipient), childBirthCallbacks, contactCallbacks, distinctLiveChildren, exported.Selection, callbacks, heroCallbacks, DiagnosticMaximumCallbacks = 4096, contacts, glyphs, completions, visibleChangedRgb, measuredPacketFrames, metadataPeak, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
 
             BattleSession Restore(BattleSnapshot snapshot)
             {

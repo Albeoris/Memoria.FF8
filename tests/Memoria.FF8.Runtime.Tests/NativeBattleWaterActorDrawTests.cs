@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -17,12 +17,12 @@ public sealed class NativeBattleWaterActorDrawTests
     {
         NativeBattlePosedActor pose = new(Identity, [new(0, 0, 0), new(0, 0, 3000)], (_, _) => default);
         int reads = 0;
-        NativeBattleWaterActorPoseServices services = new((current, _) =>
+        NativeBattleWaterActorPoseServices services = new((current, _, _) =>
         {
             reads++;
             return new(current, [], []) { Pose = pose };
-        }, (_, _, _) => throw new InvalidOperationException("Host geometry must not publish a fabricated native skeleton."), NativeBattleActorAnchorRegisterFixture.Services());
-        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(Fixture(), Model(), Identity, default, services, Projection, 0, 0, 0, Resolve);
+        }, (_, _, _, _) => throw new InvalidOperationException("Host geometry must not publish a fabricated native skeleton."), NativeBattleActorAnchorRegisterFixture.Services());
+        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(Fixture(), OriginalOwner(0), Model(), Identity, default, services, Projection, 0, 0, 0, Resolve);
         Assert.Equal(2, reads);
         Assert.Equal(8, result.Packets.Attempts.Length);
         Assert.Equal(288, result.Packets.AllocationBytes);
@@ -37,7 +37,7 @@ public sealed class NativeBattleWaterActorDrawTests
         ImmutableArray<NativeBattleActionMatrix> published = [];
         NativeBattleWaterActorPoseServices services = Services(calls, bones => published = bones);
         uint? table = null;
-        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, Model(), Identity, new(0, 0, 0), services, Projection, 0, 0, 0x12340000, address =>
+        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, OriginalOwner(0), Model(), Identity, new(0, 0, 0), services, Projection, 0, 0, 0x12340000, address =>
         {
             table = address;
             return 4121;
@@ -77,7 +77,7 @@ public sealed class NativeBattleWaterActorDrawTests
         frame = CameraOwner(frame, Camera with { Rotation = [4096, 0, 0, 0, 0, cameraYFromZ, 0, 4096, 0] });
         frame = frame with { Core = frame.Core.MarkUnknown(Manager + 0x7C, 4) };
         List<string> calls = [];
-        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, Model() with { Color44 = null }, Identity, new(0, 0, 0), Services(calls), Projection, short.MaxValue, int.MinValue, 0, UnexpectedTable);
+        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, OriginalOwner(0), Model() with { Color44 = null }, Identity, new(0, 0, 0), Services(calls), Projection, short.MaxValue, int.MinValue, 0, UnexpectedTable);
         Assert.Empty(result.Packets.Attempts);
         Assert.Equal(new[] { "local", "world", "local" }, calls);
         Assert.Same(frame.Core, result.Frame.Core);
@@ -100,8 +100,8 @@ public sealed class NativeBattleWaterActorDrawTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x12), 30000);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x42), 1000);
         ImmutableArray<NativeBattleActionMatrix> bones = [Identity, Identity with { Z = 2000 }];
-        NativeBattleWaterActorPoseServices services = new((current, _) => new(current, skeleton.ToImmutableArray(), bones), KeepWorld, NativeBattleActorAnchorRegisterFixture.Services());
-        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, Model(), Identity, new(0, 0, 0), services, Projection, 0, 0, 0, Resolve);
+        NativeBattleWaterActorPoseServices services = new((current, _, _) => new(current, skeleton.ToImmutableArray(), bones), KeepWorld, NativeBattleActorAnchorRegisterFixture.Services());
+        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, OriginalOwner(0), Model(), Identity, new(0, 0, 0), services, Projection, 0, 0, 0, Resolve);
         Assert.Equal((ushort)1750, result.Frame.ReadTemporaryWord(0xB4));
         NativeBattleModuleProjectedVertex rootPaddedX = NativeBattleModuleProjection.Project45FAA0(Camera with { Y = -1250 }, new(500, 0, 0), Projection, 0, 0);
         Assert.Equal(rootPaddedX.Screen, result.Frame.ReadTemporaryDword(0xC0));
@@ -117,7 +117,7 @@ public sealed class NativeBattleWaterActorDrawTests
     public void Camera_center_uses_saturated_IR_translation_and_does_not_cull_projection_flags()
     {
         NativeBattleWaterExecutionFrame frame = CameraOwner(Fixture(), Camera with { X = 50000, Z = 50000 });
-        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, Model(), Identity, new(0, 0, 0), Services([]), Projection, short.MinValue, int.MinValue, 0, Resolve);
+        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, OriginalOwner(0), Model(), Identity, new(0, 0, 0), Services([]), Projection, short.MinValue, int.MinValue, 0, Resolve);
         NativeBattleActionMatrix expected = Camera with { X = short.MaxValue, Z = short.MaxValue };
         NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FAA0(expected, new(0, 0, 0), Projection, short.MinValue, int.MinValue);
         Assert.Equal(projected.Screen, result.Frame.ReadTemporaryDword(0xF0));
@@ -131,30 +131,28 @@ public sealed class NativeBattleWaterActorDrawTests
     {
         NativeBattleWaterExecutionFrame frame = WrapperFixture();
         List<string> calls = [];
-        ImmutableArray<NativeBattleGraphicsModel> models = Models();
+        BattleActorModels models = Models();
         NativeBattleWaterActorDrawResult first = NativeBattleWaterActorDraw.Draw26A9C340(frame, models, Services(calls), Projection, 0, 0, 0, Resolve);
         Assert.Equal(new[] { "local", "local", "world", "local" }, calls);
-        NativeBattleGraphicsModel actor = first.Models[0];
+        Assert.Equal(OriginalOwner(0), first.Owner);
+        NativeBattleGraphicsModel actor = first.Actor;
         Assert.Equal((ushort)0x1023, actor.Flags0);
         Assert.Equal(new NativeBattleVector(6, 8, 10), actor.Transform!.Position28);
-        Assert.Equal(models[0].GeometryWorldMatrix, actor.GeometryWorldMatrix);
-        Assert.Equal(models[0].Transform!.Scale148, actor.Transform.Scale148);
-        Assert.Equal(models[0].Transform!.Vertical34, actor.Transform.Vertical34);
+        Assert.Equal(models.Get(OriginalOwner(0)).GeometryWorldMatrix, actor.GeometryWorldMatrix);
+        Assert.Equal(models.Get(OriginalOwner(0)).Transform!.Scale148, actor.Transform.Scale148);
+        Assert.Equal(models.Get(OriginalOwner(0)).Transform!.Vertical34, actor.Transform.Vertical34);
         Assert.Equal(new byte[] { 10, 0, 20, 0, 30, 0 }, first.Frame.Arena.Read(0x20BC, 6));
         Assert.Equal(uint.MaxValue, WaterSchedulerFixture.ReadSlotDword(first.Frame, 0, 0xC4));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(first.Frame.Arena.Read(0x20C2, 2)));
         Assert.False(NativeBattleStorageSnapshots.Capture(first.Frame.TemporaryFrame).Known[0x72]);
         Assert.Equal((ushort)0xA5A5, first.Frame.ReadTemporaryWord(0x56));
-        for (int index = 1; index < 7; index++)
-        {
-            Assert.Same(models[index], first.Models[index]);
-        }
+        Assert.Equal((ushort)3, models.Get(OriginalOwner(0)).Flags0);
         NativeBattleWaterExecutionFrame again = WaterSchedulerFixture.SlotWord(first.Frame, 0, 0x8E, 1024);
-        ImmutableArray<NativeBattleGraphicsModel> warm = first.Models.SetItem(0, first.Models[0] with { GeometryWorldMatrix = null });
+        BattleActorModels warm = models.Set(first.Owner, first.Actor with { GeometryWorldMatrix = null });
         NativeBattleWaterActorDrawResult next = NativeBattleWaterActorDraw.Draw26A9C340(again, warm, Services([]), Projection, 0, 0, 0, Resolve);
-        Assert.Equal(new NativeBattleVector(-14, 8, 50), next.Models[0].Transform!.Position28);
-        Assert.Equal((short)1024, next.Models[0].Rotation14);
-        Assert.Null(next.Models[0].GeometryWorldMatrix);
+        Assert.Equal(new NativeBattleVector(-14, 8, 50), next.Actor.Transform!.Position28);
+        Assert.Equal((short)1024, next.Actor.Rotation14);
+        Assert.Null(next.Actor.GeometryWorldMatrix);
     }
 
     [Fact]
@@ -169,33 +167,36 @@ public sealed class NativeBattleWaterActorDrawTests
     }
 
     [Fact]
-    public void Independent_JSON_next_preserves_slot_cache_unknown_padding_and_current_actor()
+    public void Private_continuation_keeps_slot_cache_unknown_padding_and_current_actor()
     {
         NativeBattleWaterActorDrawResult first = NativeBattleWaterActorDraw.Draw26A9C340(WrapperFixture(), Models(), Services([]), Projection, 0, 0, 0, Resolve);
-        NativeBattleWaterExecutionFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
-        ImmutableArray<NativeBattleGraphicsModel> actors = NativeBattleTestSnapshots.RestoreJson<ImmutableArray<NativeBattleGraphicsModel>>(NativeBattleTestSnapshots.Json(first.Models));
-        NativeBattleWaterActorDrawResult expected = NativeBattleWaterActorDraw.Draw26A9C340(first.Frame, first.Models, Services([]), Projection, 0, 0, 0, Resolve);
+        NativeBattleWaterExecutionFrame clone = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(first.Frame));
+        BattleActorModels actors = Models().Set(first.Owner, first.Actor);
+        NativeBattleWaterActorDrawResult expected = NativeBattleWaterActorDraw.Draw26A9C340(first.Frame, actors, Services([]), Projection, 0, 0, 0, Resolve);
         NativeBattleWaterActorDrawResult actual = NativeBattleWaterActorDraw.Draw26A9C340(clone, actors, Services([]), Projection, 0, 0, 0, Resolve);
-        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(expected.Actor, actual.Actor);
+        Assert.Equal(expected.Owner, actual.Owner);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Packets), NativeBattleTestSnapshots.Json(actual.Packets));
     }
 
     [Fact]
-    public void Missing_published_world_or_uncaptured_actor_pointer_is_not_synthesized()
+    public void Missing_published_world_or_uncaptured_actor_is_rejected()
     {
-        ImmutableArray<NativeBattleGraphicsModel> models = Models();
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterActorDraw.Draw26A9C340(WrapperFixture(), models.SetItem(0, models[0] with { GeometryWorldMatrix = null }), Services([]), Projection, 0, 0, 0, Resolve));
-        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.CoreDword(WrapperFixture(), Header + 0x60, 0);
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterActorDraw.Draw26A9C340(frame, models, Services([]), Projection, 0, 0, 0, Resolve));
+        BattleActorModels models = Models();
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterActorDraw.Draw26A9C340(WrapperFixture(), models.Set(OriginalOwner(0), models.Get(OriginalOwner(0)) with { GeometryWorldMatrix = null }), Services([]), Projection, 0, 0, 0, Resolve));
+        NativeBattleWaterExecutionFrame frame = WrapperFixture();
+        frame = frame with { Core = frame.Core with { PresentationActors = null } };
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterActorDraw.Draw26A9C340(frame, models, Services([]), Projection, 0, 0, 0, Resolve));
     }
 
     private static NativeBattleWaterActorPoseServices Services(List<string> calls, Action<ImmutableArray<NativeBattleActionMatrix>>? observe = null)
     {
         ImmutableArray<NativeBattleActionMatrix> local = [Identity];
-        return new((frame, actor) =>
+        return new((frame, owner, actor) =>
         {
             calls.Add("local");
             return new(frame, Skeleton(1).ToImmutableArray(), local);
-        }, (frame, actor, bones) =>
+        }, (frame, owner, actor, bones) =>
         {
             calls.Add("world");
             observe?.Invoke(bones);
@@ -203,12 +204,12 @@ public sealed class NativeBattleWaterActorDrawTests
         }, NativeBattleActorAnchorRegisterFixture.Services());
     }
 
-    private static NativeBattleWaterExecutionFrame KeepWorld(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsModel actor, ImmutableArray<NativeBattleActionMatrix> bones) => frame;
+    private static NativeBattleWaterExecutionFrame KeepWorld(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, NativeBattleGraphicsModel actor, ImmutableArray<NativeBattleActionMatrix> bones) => frame;
     private static int Resolve(uint address) => 4121;
     private static int UnexpectedTable(uint address) => throw new InvalidOperationException("Culled shadow consumed an ordering-table pointer.");
 
     private static NativeBattleGraphicsModel Model() => new(3) { Color44 = 0x30112233, Transform = new(new(0, 0, 0), new(100, 200, 300), 17, 19, 4096), GeometryWorldMatrix = Identity with { X = 110, Y = 220, Z = 330 } };
-    private static ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(index => Model() with { Index = index }).ToImmutableArray();
+    private static BattleActorModels Models() => new(Enumerable.Range(0, 7).Select(index => new BattleModelEntry<BattleModelOwner>(OriginalOwner(index), Model())));
 
     private static byte[] Skeleton(int count)
     {
@@ -228,23 +229,17 @@ public sealed class NativeBattleWaterActorDrawTests
     private static NativeBattleWaterExecutionFrame WrapperFixture()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
-        frame = WaterSchedulerFixture.CoreDword(frame, Header + 0x60, 0x1D972C0);
-        frame = CoreVector(frame, Header + 0x84, new(1, 2, 3));
-        frame = CoreVector(frame, Header + 0xD8, new(0, 0, 0));
+        BattleModelOwner owner = OriginalOwner(0);
+        BattleActorModels models = Models();
+        NativeBattleGraphicsModel cached = models.Get(owner) with { Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = Model().Transform! with { Position28 = new(1, 2, 3) } };
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x279744C, Header);
+        frame = frame with { Core = frame.Core with { PresentationActors = NativeBattleCinematicActorContext.FromGraphics(models.Set(owner, cached)) } };
+        frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, owner, OriginalAliases);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x94, 5);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x96, 6);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x98, 7);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0xC2, 0xBEEF);
         return frame;
-    }
-
-    private static NativeBattleWaterExecutionFrame CoreVector(NativeBattleWaterExecutionFrame frame, uint address, NativeBattleVector value)
-    {
-        byte[] bytes = new byte[6];
-        BinaryPrimitives.WriteInt16LittleEndian(bytes, value.X);
-        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), value.Y);
-        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(4), value.Z);
-        return frame with { Core = frame.Core.Write(address, bytes) };
     }
 
     private static NativeBattleWaterExecutionFrame CameraOwner(NativeBattleWaterExecutionFrame frame, NativeBattleActionMatrix matrix)

@@ -163,15 +163,15 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.True(target.NativeParticipant!.Active);
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 13, -1, 352, 80, null));
-        NativeBattleContactPacket contact = new(new(OriginalOwner(5), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 13, -1, 352, 80, null));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(5), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts, packets.ReadHeader(new BattleActionHeaderReference(header)).FirstContact.Ordinal);
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal(priorActions, header.Ordinal);
+        Assert.Equal(priorContacts, packets.ReadHeader(header).FirstContact.Ordinal);
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([80])[79];
         Assert.Equal(Entry, binding.Entry);
         Assert.Equal(Initializer, binding.Initializer);
@@ -181,7 +181,7 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-contact.json"), JsonSerializer.Serialize(new { Scenario = "Declared post-formula Amount0 contact after actual native allocation; no ordinary AI, death admission, action74 replay or damage formula", Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = contact, PriorActionCount = priorActions, PriorContactCount = priorContacts, CacheProducer = "47E2D0 publishes current Saved/Battle into the presentation cache", StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, CpuScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceNativeClock = original.NativeClock }));
+        File.WriteAllText(Path.Combine(output, "declared-contact.json"), JsonSerializer.Serialize(new { Scenario = "Declared post-formula Amount0 contact after actual native allocation; no ordinary AI, death admission, action74 replay or damage formula", Action = action, header = packets.ReadHeader(header), Contact = contact, PriorActionCount = priorActions, PriorContactCount = priorContacts, CacheProducer = "47E2D0 publishes current Saved/Battle into the presentation cache", StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, CpuScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceNativeClock = original.NativeClock }));
         return source;
     }
 

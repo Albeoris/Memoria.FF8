@@ -48,10 +48,10 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
         Assert.Equal(status.Battle, target.NativeStatus!.Presentation.Battle);
         NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
-        (packets, int header) = packets.Prepare(new(checked((byte)allocatedActor), 8, 12, -1, 293, 286, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 293 && row.MagicId == 286).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)allocatedActor)), 8, 12, -1, 293, 286, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 293 && row.MagicId == 286).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.EnqueueAction(128, header);
         BattleSnapshot source = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } };
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([286])[285];
         Assert.Equal(NativeBattleMiniPulseCannon286Profile.Entry, binding.Entry);
@@ -74,10 +74,10 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
         NativeBattlePackedMatrix32 selected = NativeBattlePackedMatrix32.FromMatrix(NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource)[2], null);
         Assert.False(selected.Known[18]);
         Assert.False(selected.Known[19]);
-        Assert.Equal((byte)allocatedActor, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadByte(0));
-        Assert.Equal((byte)12, packets.ReadHeader(new BattleActionHeaderReference(header)).Sequence);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original MiniPulseCannon286 command8/action293/sequence12; originalformation431 prototype0 allocated by real52(false), then activated by53; controlled preparation does not claim ordinary action290 execution; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(431).Slots.Single(enemy => enemy.Slot == 0) }));
+        Assert.Equal((byte)allocatedActor, packets.ReadHeader(header).ReadByte(0));
+        Assert.Equal((byte)12, packets.ReadHeader(header).Sequence);
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original MiniPulseCannon286 command8/action293/sequence12; originalformation431 prototype0 allocated by real52(false), then activated by53; controlled preparation does not claim ordinary action290 execution; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, header = packets.ReadHeader(header), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(431).Slots.Single(enemy => enemy.Slot == 0) }));
         return source;
     }
 }

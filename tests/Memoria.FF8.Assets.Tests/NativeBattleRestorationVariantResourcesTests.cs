@@ -56,12 +56,12 @@ public sealed class NativeBattleRestorationVariantResourcesTests
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, catalog);
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!;
         (memory, selected) = NativeBattleOriginalEffects.Initialize(memory, selected);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
         // Controlled postformula component: effect57 has no named kernel action; this is an explicit Esuna header shell.
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), effect == 67 ? (byte)4 : (byte)2, 11, -1, 27, effect, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), effect == 67 ? (byte)4 : (byte)2, 11, -1, 27, effect, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        selected = selected with { Parameters = new(OriginalOwner(0), flags, 1, header, 0, 0) };
+        selected = selected with { Parameters = new(OriginalOwner(0), flags, BattleModelTargets.From([OriginalOwner(0)]), header, 0, 0) };
         NativeBattleRestorationFrame frame = NativeBattleRestorationController.Initialize(memory, selected, packets, resources);
         Assert.Equal(NativeBattleRestorationProfile.ForEffect(effect).MainCallback, frame.Effect.Pools[0].Slots[0].Callback);
         Assert.Equal(0u, frame.Memory.GetRestorationExecutable(effect)!.InitializationFlag);

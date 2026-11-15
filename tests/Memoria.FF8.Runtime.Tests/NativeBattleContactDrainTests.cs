@@ -22,7 +22,7 @@ public sealed class NativeBattleContactDrainTests
         Assert.True(packet.Primary.Amount6 > 0);
         Assert.Equal(10_000 - packet.Primary.Amount6, session.Combatants[1].CurrentHp);
         Assert.Equal(5_000, session.Combatants[0].CurrentHp);
-        Assert.Equal((byte)255, packet.Secondary.Recipient);
+        Assert.Null(packet.Secondary);
         Assert.Single(session.Events, item => item.Kind == "Damage");
         Assert.DoesNotContain(session.Events, item => item.Kind == "Healing");
         Assert.Equal(packet, independent);
@@ -59,9 +59,9 @@ public sealed class NativeBattleContactDrainTests
         int drain = packet.Primary.Amount6 * Math.Max(0, 100 - resistance) / 100;
         bool healing = drain == 0 || actorZombie == targetZombie;
         Assert.True(packet.Primary.Amount6 > 0);
-        Assert.Equal((byte)0, packet.Secondary.Recipient);
-        Assert.Equal(drain, packet.Secondary.Amount6);
-        Assert.Equal(healing ? (byte)1 : (byte)0, packet.Secondary.HitFlags);
+        Assert.Equal(new BattlePartyActorModel(new("party")), packet.Secondary!.Recipient);
+        Assert.Equal(drain, packet.Secondary!.Amount6);
+        Assert.Equal(healing ? (byte)1 : (byte)0, packet.Secondary!.HitFlags);
         Assert.Equal(5_000 + (healing ? drain : -drain), session.Combatants[0].CurrentHp);
         Assert.Equal(10_000 - packet.Primary.Amount6, session.Combatants[1].CurrentHp);
         Assert.Equal(packet, independent);
@@ -80,8 +80,8 @@ public sealed class NativeBattleContactDrainTests
 
         int drain = packet.Primary.Amount6 * 255 / 100;
         Assert.Equal((ushort)0x40, session.Combatants[1].NativeStatus0);
-        Assert.Equal((byte)1, packet.Secondary.HitFlags);
-        Assert.Equal(drain, packet.Secondary.Amount6);
+        Assert.Equal((byte)1, packet.Secondary!.HitFlags);
+        Assert.Equal(drain, packet.Secondary!.Amount6);
         Assert.Equal(5_000 + drain, session.Combatants[0].CurrentHp);
     }
 
@@ -96,8 +96,8 @@ public sealed class NativeBattleContactDrainTests
         NativeBattleContactPacket packet = Resolve(session, native);
 
         Assert.Equal((ushort)9_999, packet.Primary.Amount6);
-        Assert.Equal((ushort)9_999, packet.Secondary.Amount6);
-        Assert.Equal(targetZombie ? (byte)0 : (byte)1, packet.Secondary.HitFlags);
+        Assert.Equal((ushort)9_999, packet.Secondary!.Amount6);
+        Assert.Equal(targetZombie ? (byte)0 : (byte)1, packet.Secondary!.HitFlags);
         Assert.Equal(targetZombie ? 1 : 10_000, session.Combatants[0].CurrentHp);
     }
 
@@ -118,8 +118,8 @@ public sealed class NativeBattleContactDrainTests
         Assert.True(drain > 0);
         Assert.Equal((byte)1, (byte)(packet.Primary.HitFlags & 1));
         Assert.Equal(5_000 + packet.Primary.Amount6, session.Combatants[1].CurrentHp);
-        Assert.Equal(drain, packet.Secondary.Amount6);
-        Assert.Equal(healing ? (byte)1 : (byte)0, packet.Secondary.HitFlags);
+        Assert.Equal(drain, packet.Secondary!.Amount6);
+        Assert.Equal(healing ? (byte)1 : (byte)0, packet.Secondary!.HitFlags);
         Assert.Equal(5_000 + (healing ? drain : -drain), session.Combatants[0].CurrentHp);
     }
 
@@ -133,8 +133,8 @@ public sealed class NativeBattleContactDrainTests
         NativeBattleContactPacket packet = Resolve(session, native);
 
         Assert.Equal((ushort)1234, packet.Primary.Amount6);
-        Assert.Equal((ushort)9999, packet.Secondary.Amount6);
-        Assert.Equal((byte)0, packet.Secondary.HitFlags);
+        Assert.Equal((ushort)9999, packet.Secondary!.Amount6);
+        Assert.Equal((byte)0, packet.Secondary!.HitFlags);
         Assert.Equal(1, session.Combatants[0].CurrentHp);
     }
 
@@ -147,9 +147,9 @@ public sealed class NativeBattleContactDrainTests
         NativeBattleContactPacket packet = Resolve(session, native);
 
         Assert.InRange(packet.Primary.Amount6, (ushort)1, (ushort)99);
-        Assert.Equal((byte)0, packet.Secondary.Recipient);
-        Assert.Equal((ushort)0, packet.Secondary.Amount6);
-        Assert.Equal((byte)0, packet.Secondary.HitFlags);
+        Assert.Equal(new BattlePartyActorModel(new("party")), packet.Secondary!.Recipient);
+        Assert.Equal((ushort)0, packet.Secondary!.Amount6);
+        Assert.Equal((byte)0, packet.Secondary!.HitFlags);
         Assert.Equal(5_000, session.Combatants[0].CurrentHp);
     }
 
@@ -162,7 +162,7 @@ public sealed class NativeBattleContactDrainTests
         NativeBattleContactPacket packet = Resolve(session, native);
 
         Assert.Equal((ushort)100, packet.Primary.Amount6);
-        Assert.Equal((byte)255, packet.Secondary.Recipient);
+        Assert.Null(packet.Secondary);
         Assert.Equal(5_000, session.Combatants[0].CurrentHp);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Healing");
     }
@@ -189,15 +189,15 @@ public sealed class NativeBattleContactDrainTests
 
     private static BattleSession Restore(BattleSession session)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
+        return BattleSession.Restore(session.Capture());
     }
 
     private static NativeBattleContactPacket Resolve(BattleSession session, BattleNativeAction native)
     {
         BattleCombatant actor = session.Combatants.Single(item => item.Id == "party");
         BattleCombatant target = session.Combatants.Single(item => item.Id == "enemy");
-        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
+        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.Attack, 0, "Contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
-        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, (byte)255, false, null])!;
+        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, null, false])!;
     }
 }

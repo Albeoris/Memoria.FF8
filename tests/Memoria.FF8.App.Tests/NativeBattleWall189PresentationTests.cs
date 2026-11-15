@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -44,20 +45,20 @@ public sealed class NativeBattleWall189PresentationTests
         NativeBattleGraphicsState sourceGraphics = source.NativeGraphics!;
         int descriptor = Assert.Single(sourceGraphics.Descriptors.Queue, index => sourceGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = unchecked(sourceGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-        Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal(item.Effect, header.Effect);
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         Assert.NotEqual(0u, (uint)action.Statuses0 | action.Statuses1);
         Assert.Equal(action.Statuses0, (ushort)(contact.Primary.SavedStatuses4 & action.Statuses0));
         Assert.Equal(action.Statuses1, contact.Primary.BattleStatuses8 & action.Statuses1);
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
-        string caster = ReadOriginalModelActorId(source.NativeGraphics, 0)!;
+        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         Assert.Equal(2, Stock(beforeInput, caster, action.ActionId));
         Assert.Equal(1, Stock(source, caster, action.ActionId));
         int producedHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;

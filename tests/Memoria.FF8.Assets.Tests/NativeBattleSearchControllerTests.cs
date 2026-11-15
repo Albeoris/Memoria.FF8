@@ -133,7 +133,7 @@ public sealed class NativeBattleSearchControllerTests
     }
     private static (NativeBattleSearchFrame Frame, NativeBattleActionPacketsState Packets) Fixture(NativeBattleSearchResources resources)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 14, 92, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);

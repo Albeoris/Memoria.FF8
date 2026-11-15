@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -29,7 +30,7 @@ public sealed class NativeBattleTornado146PresentationTests
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
-        string target = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
+        string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
@@ -38,14 +39,14 @@ public sealed class NativeBattleTornado146PresentationTests
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal((ushort)146, header.Effect);
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.True(contact.Primary.Amount6 > 0);
         Assert.Equal(2, Stock(beforeInput));
         Assert.Equal(1, Stock(source));
         int expectedHp = Math.Max(0, beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp - contact.Primary.Amount6);
         Assert.Equal(expectedHp, source.Combatants.Single(actor => actor.Id == target).CurrentHp);
         Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
-        NativeBattleEffectTask expectedText = Assert.Single(OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
+        NativeBattleEffectTask expectedText = Assert.Single(ExpectedOriginalDamageText(contact.Primary, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
         HashSet<string> restored = [];
         bool initialized = false;
         bool privatePackets = false;
@@ -107,7 +108,7 @@ public sealed class NativeBattleTornado146PresentationTests
                 for (int index = 0; index < current.NativeGraphics!.Effects.Slots.Length; index++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && text.ModelIndex == 3 && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);
@@ -158,8 +159,8 @@ public sealed class NativeBattleTornado146PresentationTests
             Assert.True(groundHidden);
             Assert.Equal(2, battle.Capture().NativeStage!.Groups[1].Flags & 2);
             Assert.Equal(originalTarget.Position28, ReadOriginalModelCell(battle.NativeGraphics!, 3).Transform!.Position28);
-            Assert.Equal(originalTarget.Vertical34, ReadOriginalModelCell(battle.NativeGraphics, 3).Transform!.Vertical34);
-            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.NativeGraphics, 3).Flags0 & 0x1020);
+            Assert.Equal(originalTarget.Vertical34, ReadOriginalModelCell(battle.NativeGraphics!, 3).Transform!.Vertical34);
+            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.NativeGraphics!, 3).Flags0 & 0x1020);
             Assert.Equal(new[] { "funnel", "landing", "pieces-ground" }, renderedPhases.Order().ToArray());
             Assert.True(pixelChanges > 100);
             Assert.Equal(1, contacts);

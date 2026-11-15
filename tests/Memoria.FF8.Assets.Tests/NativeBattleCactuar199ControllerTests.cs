@@ -201,7 +201,7 @@ public sealed class NativeBattleCactuar199ControllerTests
         Run metrics = current;
         NativeBattlePoseSource source = resources.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(source.Animations.AsSpan(), source.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int actor) => new(3) { Rotation14 = actor == 3 ? (short)2048 : (short)0, Transform = new(new(0, 0, 0), new(0, 0, 1000), 0, 0, 4096), GeometryWorldMatrix = Identity, SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } };
+        NativeBattleGraphicsModel Model(BattleModelOwner owner) => new(3) { Rotation14 = owner == OriginalOwner(3) ? (short)2048 : (short)0, Transform = new(new(0, 0, 0), new(0, 0, 1000), 0, 0, 4096), GeometryWorldMatrix = Identity, SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } };
         NativeBattleCactuar199Frame Append(NativeBattleCactuar199Frame frame, NativeBattleGfGeometryBatch batch)
         {
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess!, NativeBattleLogicalOrdering.Clear(), batch);
@@ -233,9 +233,9 @@ public sealed class NativeBattleCactuar199ControllerTests
 
     private static Fixture Create(GameAssets game, NativeBattleCactuar199Resources resources)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 199, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 240, 0, 0, 1, 199, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(199, game.ReadNativeEffectCatalogForEffects([199]));
         var loaded = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);

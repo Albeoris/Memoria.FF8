@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -159,14 +160,14 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     Assert.NotNull(after.DrawStock15);
                     Assert.NotNull(current.NativeEffectMemory!.DrawStock15Executable);
                     NativeBattleEffectParameters parameters = after.Parameters!;
-                    NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.HeaderIndex7C));
-                    Assert.Equal((byte)0, header.ReadByte(0));
+                    NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
+                    Assert.Equal((byte)0, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, header.Source));
                     Assert.Equal((byte)6, header.Command);
                     Assert.Equal((ushort)selectedSpell, header.Action);
                     Assert.Equal((ushort)15, header.Effect);
                     Assert.Equal((byte)1, current.NativeActionPackets.ContactCount);
                     NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(header.FirstContact).Primary;
-                    Assert.Equal((byte)3, half.ActorIndex);
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, half.Recipient));
                     Assert.Equal((ushort)0, half.Amount6);
                     Assert.NotEqual(0, half.ContactFlags & 1);
                     Assert.Equal(JsonSerializer.Serialize(game.ReadNativeDrawStock15Resources().Animation), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation!.Source));
@@ -177,9 +178,9 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 {
                     contactTransitions++;
                     NativeBattleModulePoolTask target = current.NativeGraphics.OriginalEffect!.Pools[1].Slots.First(task => task.Callback == 0x8B0C70 && task.ReadByte(0x29) == 3);
-                    int contactIndex = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(unchecked((sbyte)target.ReadByte(0x2A)) + current.NativeGraphics.OriginalEffect.Parameters!.HeaderIndex7C)).FirstContactIndex!.Value + unchecked((sbyte)target.ReadByte(0x2B));
+                    int contactIndex = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(unchecked((sbyte)target.ReadByte(0x2A)) + current.NativeGraphics.OriginalEffect.Parameters!.Header.Ordinal)).FirstContactIndex!.Value + unchecked((sbyte)target.ReadByte(0x2B));
                     NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex)).Primary;
-                    Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == half.ActorIndex);
+                    Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, half.Recipient));
                     ColdNext("contact", current);
                 }
                 if (after?.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 })

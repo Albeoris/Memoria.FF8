@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -30,16 +31,16 @@ public sealed class NativeBattleBio22PresentationTests
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(source.NativeActionPackets);
         int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-        Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(headerOffset / 20));
         NativeBattleActionHeaderSlot header = actionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal((ushort)12, header.Action);
         Assert.Equal((ushort)22, header.Effect);
         NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(actionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Null(contact.Secondary);
         Assert.Equal((ushort)100, source.NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([22])[21];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[21]));

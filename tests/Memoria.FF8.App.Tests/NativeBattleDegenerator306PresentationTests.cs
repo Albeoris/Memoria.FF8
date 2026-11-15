@@ -58,7 +58,7 @@ public sealed class NativeBattleDegenerator306PresentationTests
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
-        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags3 = hitFlags } };
+        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = hitFlags } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared Amount0 presentation contact with original command/action/sequence and retained logical HP/status; non-MISS and MISS select native body/visibility branches only, without status, removal-formula, accuracy, ordinary command or AI admission", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));
         return source with { NativeActionPackets = packets with { Contacts = packets.Contacts.SetItem(0, declared) } };
     }

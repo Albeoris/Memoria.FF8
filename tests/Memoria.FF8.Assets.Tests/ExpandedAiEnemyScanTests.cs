@@ -53,7 +53,7 @@ public sealed class ExpandedAiEnemyScanTests
         {
             Assert.Equal((byte)1, active.NativeAiCallbackStage);
             Assert.Equal((byte)11, active.NativeSequence);
-            Assert.Equal(targetId, Assert.Single(Assert.IsType<BattleAiRecipients>(active.AiRecipients).ActorIds));
+            Assert.Equal(targetId, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(active.TargetRequest.Selection).Actors).ActorId);
             Assert.Equal((ushort)68, active.NativeAction.MagicId);
             Assert.Equal((byte)1, active.NativeAction.AttackFlags);
         }
@@ -62,7 +62,7 @@ public sealed class ExpandedAiEnemyScanTests
             BattleAttackCommand queued = Assert.Single(battle.QueuedActions, command => command.NativeAction?.ActionId == scanAction);
             Assert.Equal((byte)1, queued.NativeAiCallbackStage);
             Assert.Equal((byte)11, queued.NativeSequence);
-            Assert.Equal(targetId, Assert.Single(Assert.IsType<BattleAiRecipients>(queued.AiRecipients).ActorIds));
+            Assert.Equal(targetId, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(queued.TargetRequest.Selection).Actors).ActorId);
             Assert.Equal((ushort)68, queued.NativeAction!.MagicId);
             Assert.Equal((byte)1, queued.NativeAction.AttackFlags);
         }

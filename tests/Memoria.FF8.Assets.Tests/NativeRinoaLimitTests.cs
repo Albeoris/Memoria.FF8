@@ -32,9 +32,9 @@ public sealed class NativeRinoaLimitTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal((byte)19, queued.NativeQueuedCommand);
         Assert.Equal((ushort)2, queued.NativeAction!.ActionId);
-        Assert.Equal((ushort)0x8007, queued.NativeTargetMask);
+        Assert.Equal((ushort)0x8007, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, selected => battle.Combatants.Single(actor => actor.Id == selected.ActorId).Slot));
         string snapshot = JsonSerializer.Serialize(battle.Capture());
-        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!).Capture()));
+        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class NativeRinoaLimitTests
         battle.QueueNativePlayerCommand("rinoa", "ally", 19, choice.NativeAction!.ActionId);
 
         Assert.Equal((ushort)4, choice.NativeAction.ActionId);
-        Assert.Equal((ushort)0x81, Assert.Single(battle.QueuedActions).NativeTargetMask);
+        Assert.Equal((ushort)0x81, NativeBattleTargetRequestAdapter.ProjectOriginalWord(Assert.Single(battle.QueuedActions).TargetRequest, selected => battle.Combatants.Single(actor => actor.Id == selected.ActorId).Slot));
         battle.Tick();
         Assert.NotNull(battle.ActiveAction);
         Assert.Equal("rinoa", battle.ActiveAction.TargetId);
@@ -72,10 +72,10 @@ public sealed class NativeRinoaLimitTests
         NativeBattleRandomState expected = row == 1 ? before.Draw(out _) : before;
         battle.QueueNativePlayerCommand("rinoa", "enemy-5", 19, row);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-        Assert.Equal(0, queued.NativeTargetMask);
+        Assert.Null(queued.TargetRequest.OriginalProjection);
         Assert.Equal(row switch { 1 => "enemy-3", 2 => "rinoa", _ => "enemy-0" }, queued.TargetId);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(battle.Capture().Random));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();

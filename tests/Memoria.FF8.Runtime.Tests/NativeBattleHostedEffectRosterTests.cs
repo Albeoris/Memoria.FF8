@@ -1,99 +1,86 @@
+﻿using System.Collections.Immutable;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedEffectRosterTests
 {
-    [Fact]
-    public void Original_effect_keeps_its_native_seven_row_validation_and_json()
-    {
-        NativeBattleOriginalEffectState effect = Effect(new(OriginalOwner(6), 0, 0x4080, new BattleActionHeaderReference(0), 0, 0));
-        effect.Validate();
-        Assert.Throws<InvalidDataException>((effect with { Parameters = effect.Parameters! with { Actor78 = 7 } }).Validate);
+    private static readonly BattleModelOwner OriginalTarget = OriginalOwner(3);
+    private static readonly BattleModelOwner Ally = new BattlePartyActorModel(new("ally"));
+    private static readonly BattleModelOwner Enemy = new BattleEnemyActorModel(new("enemy"));
+    private static readonly BattleModelOwner Missing = new BattleEnemyActorModel(new("missing"));
+    private static readonly BattleModelRoster Roster = new([OriginalTarget, Ally, Enemy]);
 
-        string json = JsonSerializer.Serialize(effect);
-        using JsonDocument document = JsonDocument.Parse(json);
-        Assert.False(document.RootElement.TryGetProperty(nameof(NativeBattleOriginalEffectState.PresentationRoster), out _));
-        NativeBattleOriginalEffectState restored = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(json)!;
-        restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+    [Fact]
+    public void Original_effect_preserves_bound_owners_through_private_copy()
+    {
+        NativeBattleEffectParameters parameters = new(OriginalOwner(6), 0, BattleModelTargets.From([OriginalTarget]), new BattleActionHeaderReference(0), 0, 0);
+        NativeBattleOriginalEffectState effect = Effect(parameters);
+        effect.Validate(OriginalRoster);
+        Assert.Throws<InvalidDataException>(() => (effect with { Parameters = parameters with { Source = Missing } }).Validate(OriginalRoster));
+
+        NativeBattleOriginalEffectState restored = NativeBattleTestSnapshots.Independent(effect);
+        restored.Validate(OriginalRoster);
+        Assert.Equal(parameters, restored.Parameters);
     }
 
     [Fact]
-    public void Detached_and_inherited_effect_rosters_validate_the_same_bound_parameters()
+    public void Detached_and_graphics_owned_effects_validate_the_same_bound_parameters()
     {
-        BattleModelRoster roster = Roster();
-        NativeBattleOriginalEffectState effect = Effect(new(24, 0, 0x8, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = Rows(3, 7) }) with { PresentationRoster = roster };
-        effect.Validate();
-        (effect with { Parameters = null }).Validate();
-        effect.Validate(Roster());
-        string json = JsonSerializer.Serialize(effect);
-        NativeBattleOriginalEffectState restored = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(json)!;
-        restored.Validate();
-        restored.Validate(roster);
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        NativeBattleOriginalEffectState effect = Effect(Parameters());
+        effect.Validate(Roster);
+        (effect with { Parameters = null }).Validate(Roster);
+        NativeBattleOriginalEffectState restored = NativeBattleTestSnapshots.Independent(effect);
+        restored.Validate(Roster);
+        Assert.Equal(effect.Parameters, restored.Parameters);
 
-        NativeBattleOriginalEffectState inherited = effect with { PresentationRoster = null };
-        NativeBattleGraphicsState graphics = Graphics(roster) with { OriginalEffect = inherited };
+        NativeBattleGraphicsState graphics = Graphics(Roster) with { OriginalEffect = effect };
         graphics.Validate();
-        Assert.Throws<InvalidDataException>(inherited.Validate);
-        string graphicsJson = JsonSerializer.Serialize(graphics);
-        NativeBattleGraphicsState restoredGraphics = JsonSerializer.Deserialize<NativeBattleGraphicsState>(graphicsJson)!;
+        NativeBattleGraphicsState restoredGraphics = NativeBattleTestSnapshots.Independent(graphics);
         restoredGraphics.Validate();
-        Assert.Null(restoredGraphics.OriginalEffect!.PresentationRoster);
-        Assert.Equal(graphicsJson, JsonSerializer.Serialize(restoredGraphics));
+        Assert.Equal(graphics.ActorModels.Owners.ToArray(), restoredGraphics.ActorModels.Owners.ToArray());
+        Assert.Equal(effect.Parameters, restoredGraphics.OriginalEffect!.Parameters);
     }
 
     [Fact]
-    public void Hosted_effect_rejects_invalid_projections_holes_and_different_roster_rows()
+    public void Hosted_effect_checks_owner_membership_without_a_fixed_header_or_completion_extent()
     {
-        BattleModelRoster roster = Roster();
-        NativeBattleEffectParameters parameters = new(24, 0, 0x8, new BattleActionHeaderReference(0), 0, 0) { PresentationTargets = Rows(3, 7) };
-        NativeBattleOriginalEffectState effect = Effect(parameters) with { PresentationRoster = roster };
-        Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { Actor78 = 23 } }).Validate);
-        Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { PresentationTargets = Rows(3, 23) } }).Validate);
-        Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { TargetMask7A = 0 } }).Validate);
-        Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { HeaderIndex7C = 32 } }).Validate);
-        Assert.Throws<InvalidDataException>(() => effect.Validate(new(roster.Rows.SetItem(7, new("replacement", true)))));
-        Assert.Throws<InvalidDataException>(() => effect.Validate(new(roster.Rows.SetItem(7, new("ally", false)))));
-        Assert.Throws<InvalidDataException>((Graphics(new(roster.Rows.SetItem(24, null))) with { OriginalEffect = effect }).Validate);
-        (effect with { FireModelCompletion = Enumerable.Repeat(0, 25).ToImmutableArray() }).Validate();
-        Assert.Throws<InvalidDataException>((effect with { FireModelCompletion = Enumerable.Repeat(0, 26).ToImmutableArray() }).Validate);
+        NativeBattleEffectParameters parameters = Parameters();
+        NativeBattleOriginalEffectState effect = Effect(parameters);
+        Assert.Throws<InvalidDataException>(() => (effect with { Parameters = parameters with { Source = Missing } }).Validate(Roster));
+        Assert.Throws<InvalidDataException>(() => (effect with { Parameters = parameters with { TargetActors = BattleModelTargets.From([OriginalTarget, Missing]) } }).Validate(Roster));
+        Assert.Throws<InvalidDataException>(() => effect.Validate(new([OriginalTarget, Enemy, new BattlePartyActorModel(new("replacement"))])));
+        Assert.Throws<InvalidDataException>(() => effect.Validate(new([OriginalTarget, Enemy, new BattleEnemyActorModel(new("ally"))])));
+        Assert.Throws<InvalidDataException>((Graphics(new([OriginalTarget, Ally])) with { OriginalEffect = effect }).Validate);
+
+        (effect with { Parameters = parameters with { Header = new BattleActionHeaderReference(32) } }).Validate(Roster);
+        BattleModelRoster larger = new(Roster.Owners.Concat(Enumerable.Range(0, 26).Select(index => new BattleEnemyActorModel(new($"extra-{index}")))));
+        ImmutableDictionary<BattleModelOwner, int> completion = larger.Owners.ToImmutableDictionary(owner => owner, _ => 0);
+        (effect with { FireModelCompletion = completion }).Validate(larger);
+        Assert.Throws<InvalidDataException>(() => (effect with { FireModelCompletion = completion.Remove(Ally).Add(Missing, 0) }).Validate(larger));
     }
 
     [Fact]
     public void Hosted_graphics_validate_pending_contact_and_trigger_sound_ownership()
     {
-        NativeBattleGraphicsState graphics = Graphics(Roster()) with { PendingContacts = [Contact(24, 7), Contact(7, 255)], PendingTriggerSoundActorIndex = 24 };
+        NativeBattleGraphicsState graphics = Graphics(Roster) with { PendingContacts = [Contact(Enemy, Ally), Contact(Ally, null)], PendingTriggerSoundActor = Enemy };
         graphics.Validate();
-        Assert.Throws<InvalidDataException>((graphics with { PendingContacts = [Contact(23, 7)] }).Validate);
-        Assert.Throws<InvalidDataException>((graphics with { PendingContacts = [Contact(24, 23)] }).Validate);
-        Assert.Throws<InvalidDataException>((graphics with { PendingContacts = [Contact(25, 7)] }).Validate);
-        Assert.Throws<InvalidDataException>((graphics with { PendingTriggerSoundActorIndex = 23 }).Validate);
-        Assert.Throws<InvalidDataException>((graphics with { PendingTriggerSoundActorIndex = 25 }).Validate);
+        Assert.Throws<InvalidDataException>((graphics with { PendingContacts = [Contact(Missing, Ally)] }).Validate);
+        Assert.Throws<InvalidDataException>((graphics with { PendingContacts = [Contact(Enemy, Missing)] }).Validate);
+        Assert.Throws<InvalidDataException>((graphics with { PendingTriggerSoundActor = Missing }).Validate);
 
-        NativeBattleGraphicsState native = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), [null, null, null, null, null, null, null], 0, 0) { PendingTriggerSoundActorIndex = 6, PendingContacts = [Contact(6, 255)] };
+        BattleModelOwner source = OriginalOwner(6);
+        NativeBattleGraphicsState native = OriginalGraphics([(6, source, new NativeBattleGraphicsModel(0))]) with { PendingTriggerSoundActor = source, PendingContacts = [Contact(source, null)] };
         native.Validate();
-        Assert.Throws<InvalidDataException>((native with { PendingTriggerSoundActorIndex = 7 }).Validate);
-        Assert.Throws<InvalidDataException>((native with { PendingContacts = [Contact(7, 255)] }).Validate);
+        Assert.Throws<InvalidDataException>((native with { PendingTriggerSoundActor = Missing }).Validate);
+        Assert.Throws<InvalidDataException>((native with { PendingContacts = [Contact(Missing, null)] }).Validate);
     }
+
+    private static NativeBattleEffectParameters Parameters() => new(Enemy, 0, BattleModelTargets.From([OriginalTarget, Ally]), new BattleActionHeaderReference(0), 0, 0);
 
     private static NativeBattleOriginalEffectState Effect(NativeBattleEffectParameters parameters) => new(1, 0, new(1, 0x100, 0x200), parameters, null);
 
-    private static BattleModelRoster Roster()
-    {
-        BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[3] = new BattleEnemyActorModel(new("native-target"));
-        actors[7] = new BattlePartyActorModel(new("ally"));
-        actors[24] = new BattleEnemyActorModel(new("enemy"));
-        return new(actors.ToImmutableArray());
-    }
+    private static NativeBattleGraphicsState Graphics(BattleModelRoster roster) => NativeBattleHostedTestFixture.Graphics(roster, new(roster, [(NativeBattleModelSlot.Decode(3), OriginalTarget)]), _ => new NativeBattleGraphicsModel(0));
 
-    private static NativeBattleGraphicsState Graphics(BattleModelRoster roster) => new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
-
-    private static BattleModelTargets Rows(int first, int second) => default(BattleModelTargets).Add(first).Add(second);
-
-    private static NativeBattleContactPacket Contact(byte primary, byte secondary) => new(new(primary, 0, 0, 0, 0, 0, 0), new(secondary, 0, 0, 0, 0, 0, 0));
+    private static NativeBattleContactPacket Contact(BattleModelOwner primary, BattleModelOwner? secondary) => new(new(primary, 0, 0, 0, 0, 0, 0), secondary is null ? null : new(secondary, 0, 0, 0, 0, 0, 0));
 }

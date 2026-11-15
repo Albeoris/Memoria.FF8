@@ -75,7 +75,7 @@ public sealed class NativeBattleEffect232SourceAdmissionTests
             Assert.False(actor.NativeParticipant.Untargetable);
             NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.NotEqual(0, model.Flags0 & 2);
-            Assert.Null(model.ReadLinkedModelIndex140());
+            Assert.Null(model.ReadLinkedModel());
             int rowIndex = Assert.IsType<int>(model.ActiveResourceRow100);
             Assert.Equal(physical == 3 ? 0 : 1, rowIndex);
             NativeBattleModelCpuReference skeleton = cpu.Rows[rowIndex].Require(12);

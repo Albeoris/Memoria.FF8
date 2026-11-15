@@ -48,7 +48,7 @@ public sealed class NativeBattleMoogle96ControllerTests
         Assert.Equal(NativeBattleMoogle96Controller.MainBank + 0x62, current.AuxiliaryAddress);
         Assert.Equal((byte)8, current.Frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
         Assert.All(current.Frame.Effect.Pools.Skip(1), pool => Assert.Null(pool.Head));
-        Assert.Equal(new[] { 0, 1 }, current.Contacts);
+        Assert.Equal(new[] { new BattleContactOccurrence(0), new BattleContactOccurrence(1) }, current.Contacts);
         Assert.Equal(4, current.FileRequests);
         Assert.Equal(4, current.FileCompletions);
         Assert.Equal((short)0, current.FileIo.ActiveCount);
@@ -70,8 +70,8 @@ public sealed class NativeBattleMoogle96ControllerTests
         Assert.Contains((short)4096, current.Depths);
         Assert.Equal((short)0, current.Depths[^1]);
         Assert.Equal((short)127, current.Gains[^1]);
-        Assert.Equal((ushort)7, current.Models[4].Flags0 & 7);
-        Assert.Equal(0xA1445566u, current.Models[4].Color44);
+        Assert.Equal((ushort)7, current.Models.Get(OriginalOwner(4)).Flags0 & 7);
+        Assert.Equal(0xA1445566u, current.Models.Get(OriginalOwner(4)).Color44);
         Run waiting = Step(current, fixture.Packets, resources, rules);
         Assert.NotEqual(0u, waiting.Frame.Effect.ReturnedDescriptor);
         Assert.Throws<NotSupportedException>(() => NativeBattleMoogle96Controller.WriteCompletionByte(current.Frame.Effect, current.AuxiliaryAddress!.Value + 1, 1));
@@ -126,7 +126,7 @@ public sealed class NativeBattleMoogle96ControllerTests
     private static Run Step(Run run, NativeBattleActionPacketsState packets, NativeBattleMoogle96Resources resources, NativeBattleGraphicsRules rules)
     {
         NativeBattleMoogle96Frame frame = run.Frame with { Memory = run.Frame.Memory with { PrimitiveProcess = run.Frame.Memory.PrimitiveProcess!.Initialize500400() } };
-        NativeBattleGraphicsModel[] models = run.Models.ToArray();
+        BattleActorModels models = run.Models;
         NativeBattleFileIoState fileIo = run.FileIo;
         Run metrics = run;
         NativeBattleMoogle96Frame AppendCommon(NativeBattleMoogle96Frame current, NativeBattleGfGeometryBatch batch)
@@ -134,7 +134,7 @@ public sealed class NativeBattleMoogle96ControllerTests
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess!, NativeBattleLogicalOrdering.Clear(), batch);
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }
-        NativeBattleMoogle96Inputs inputs = new(packets, View, actor => models[actor], _ => resources.Model.PoseSource, 0x8090A0B0, (current, task, model) =>
+        NativeBattleMoogle96Inputs inputs = new(packets, View, actor => models.Get(actor), _ => resources.Model.PoseSource, 0x8090A0B0, (current, task, model) =>
         {
             NativeBattleMoogle96State shared = current.Memory.Moogle96!;
             NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, View, Projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8(), rules.SummonColors!, shared.ProjectedScratch ?? new byte[0xFD8].ToImmutableArray());
@@ -150,7 +150,7 @@ public sealed class NativeBattleMoogle96ControllerTests
         {
             NativeBattleMoogle96State shared = current.Memory.Moogle96!;
             NativeBattleMoogle96NodeState nodes = shared.Nodes with { Work = shared.Nodes.Work with { PrivateDrawCursor = current.Effect.DrawArenaOffset } };
-            NativeBattleMoogle96NodeStep advanced = NativeBattleMoogle96Nodes.AdvanceContext(new(current.Memory, current.Effect, nodes, current.Random), address, actor => models[actor], Projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
+            NativeBattleMoogle96NodeStep advanced = NativeBattleMoogle96Nodes.AdvanceContext(new(current.Memory, current.Effect, nodes, current.Random), address, actor => models.Get(actor), Projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
             return new(new(advanced.Frame.Memory with { Moogle96 = advanced.Frame.Memory.Moogle96! with { Nodes = advanced.Frame.State } }, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.Work.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
         }, current =>
         {
@@ -166,7 +166,7 @@ public sealed class NativeBattleMoogle96ControllerTests
                     metrics = metrics with { FileRequests = metrics.FileRequests + 1 };
                     return current with { Memory = queued.Memory };
                 case NativeBattleMoogle96Contact contact:
-                    metrics = metrics with { Contacts = metrics.Contacts.Add(contact.Contact) };
+                    metrics = metrics with { Contacts = metrics.Contacts.Add(contact.Occurrence) };
                     break;
                 case NativeBattleMoogle96Sound:
                     metrics = metrics with { Sounds = metrics.Sounds + 1 };
@@ -185,10 +185,10 @@ public sealed class NativeBattleMoogle96ControllerTests
                     metrics = metrics with { Gains = metrics.Gains.Add(gain.Value) };
                     break;
                 case NativeBattleMoogle96EnemyFlags enemy:
-                    models[enemy.Actor] = models[enemy.Actor] with { Flags0 = enemy.Flags0 };
+                    models = models.Set(enemy.Actor, models.Get(enemy.Actor) with { Flags0 = enemy.Flags0 });
                     break;
                 case NativeBattleMoogle96EnemyFade enemy:
-                    models[enemy.Actor] = models[enemy.Actor] with { Flags0 = enemy.Flags0, Color40 = enemy.Color40, Alpha7 = enemy.Alpha7 };
+                    models = models.Set(enemy.Actor, models.Get(enemy.Actor) with { Flags0 = enemy.Flags0, Color40 = enemy.Color40, Alpha7 = enemy.Alpha7 });
                     break;
                 case NativeBattleMoogle96DirectorModeE1:
                     metrics = metrics with { DirectorPackets = metrics.DirectorPackets + 1 };
@@ -213,20 +213,20 @@ public sealed class NativeBattleMoogle96ControllerTests
         });
         NativeBattleEffectTextureDrain drain = frame.Memory.Textures!.Drain505D20(frame.Memory.Arena);
         frame = frame with { Memory = frame.Memory with { Textures = drain.State } };
-        return metrics with { Frame = frame, Models = models.ToImmutableArray(), FileIo = fileIo };
+        return metrics with { Frame = frame, Models = models, FileIo = fileIo };
     }
 
     private static Fixture Create(NativeBattleMoogle96Resources resources)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 1, 96, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 240, 0, 0, 1, 96, null));
         foreach (byte actor in new byte[] { 3, 4 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(actor), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
         NativeBattleDecodedPose pose = NativeBattlePoseDecoder.DecodeFirst509440(resources.Model.PoseSource.Animations.AsSpan(), resources.Model.PoseSource.BoneCount, 0).Pose;
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => NativeBattleBodyBoneMatrices.Publish508C90(new NativeBattleGraphicsModel(actor == 6 ? (ushort)0 : actor == 4 ? (ushort)7 : (ushort)3) { ModelId4 = 0, Flags2 = 0, Color40 = 0x80606060, Color44 = 0xA1445566, Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, 300), 77, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, resources.Model.PoseSource)).ToImmutableArray();
+        BattleActorModels models = OriginalModels(Enumerable.Range(0, 7).Select(actor => (actor, NativeBattleBodyBoneMatrices.Publish508C90(new NativeBattleGraphicsModel(actor == 6 ? (ushort)0 : actor == 4 ? (ushort)7 : (ushort)3) { ModelId4 = 0, Flags2 = 0, Color40 = 0x80606060, Color44 = 0xA1445566, Transform = new(new(0, 0, 0), new((short)(actor * 100), 0, 300), 77, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, resources.Model.PoseSource)))).Models;
         NativeBattleOriginalEffectState effect = new(96, 95, new(96, 0x731DE0, 0x731DC0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x257B740, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Moogle96 = NativeBattleMoogle96State.FromColdProcess(), Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() };
         NativeBattleMoogle96Frame frame = NativeBattleMoogle96Controller.Initialize731DE0(memory, effect, packets, resources, new(1));
@@ -240,5 +240,5 @@ public sealed class NativeBattleMoogle96ControllerTests
         return new(directory);
     }
     private sealed record Fixture(Run Run, NativeBattleActionPacketsState Packets);
-    private sealed record Run(NativeBattleMoogle96Frame Frame, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleFileIoState FileIo, ImmutableArray<int> Contacts, ImmutableArray<short> Depths, ImmutableArray<short> Gains, uint? AuxiliaryAddress, int FileRequests, int FileCompletions, int TextureCopies, int ModelBytes, int ProgramBytes, int DirectorPackets, int CameraPublications, int VibrationStarts, int VibrationStops, int Sounds);
+    private sealed record Run(NativeBattleMoogle96Frame Frame, BattleActorModels Models, NativeBattleFileIoState FileIo, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<short> Depths, ImmutableArray<short> Gains, uint? AuxiliaryAddress, int FileRequests, int FileCompletions, int TextureCopies, int ModelBytes, int ProgramBytes, int DirectorPackets, int CameraPublications, int VibrationStarts, int VibrationStops, int Sounds);
 }

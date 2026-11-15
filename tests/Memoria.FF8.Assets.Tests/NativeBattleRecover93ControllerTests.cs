@@ -205,7 +205,7 @@ public sealed class NativeBattleRecover93ControllerTests
     }
     private static (NativeBattleRecover93Frame Frame, NativeBattleActionPacketsState Packets) Fixture(NativeBattleRecover93Resources resources, NativeBattleAngeloRestorationProfile profile)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 240, 0, 0, 13, profile.Effect, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);

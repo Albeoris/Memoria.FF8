@@ -140,7 +140,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             NativeBattleGraphicsModel original = ReadOriginalModelCell(battle.NativeGraphics!, slot);
             NativeBattleCameraPose humanCamera = battle.NativeCamera!.CurrentPose!;
             Assert.Equal((byte)character, original.ModelId4);
-            Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics, slot));
+            Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics!, slot));
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
             Assert.Equal(slot, battle.NativeGraphics!.GuardianFormPresentation!.ActorIndex);
@@ -171,10 +171,10 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             Assert.Equal(original.ModelId4, returned.ModelId4);
             Assert.Equal(original.Transform, returned.Transform);
             Assert.Equal(original.HasLinkedModelRing140, returned.HasLinkedModelRing140);
-            Assert.Equal(original.LinkedModelIndex140, returned.LinkedModelIndex140);
+            Assert.Equal(original.LinkedModel, returned.LinkedModel);
             Assert.Equal(original.LinkedTransform, returned.LinkedTransform);
             Assert.Equal(JsonSerializer.Serialize(original.BodyTextureSlots), JsonSerializer.Serialize(returned.BodyTextureSlots));
-            Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics, slot));
+            Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics!, slot));
             AssertCamera(humanCamera);
             BattleCombatant returnedActor = battle.Combatants.Single(actor => actor.Id == "party");
             Assert.Equal(character, returnedActor.ModelId);

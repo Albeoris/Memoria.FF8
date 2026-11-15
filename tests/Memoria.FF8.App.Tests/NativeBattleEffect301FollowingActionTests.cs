@@ -42,10 +42,10 @@ public sealed class NativeBattleEffect301FollowingActionTests
         string warmVertices = ReadOriginalModelCell(originalGraphics, casterIndex).CurrentBodyBoneMatrices!.SkeletonSha256;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(checked((byte)casterIndex), 8, 12, cameraChoice, 152, 282, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)casterIndex)), 8, 12, cameraChoice, 152, 282, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.EnqueueAction(128, header);
         BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.Id == targetId);
         target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([282])[281];

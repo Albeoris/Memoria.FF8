@@ -183,7 +183,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
             completed = targets.All(id =>
             {
                 int index = FindOriginalModelSlot(current.NativeGraphics!, id);
-                return (current.Combatants.Single(actor => actor.Id == id).NativeStatus!.Battle & 1) == 0 && (ReadOriginalModelCell(current.NativeGraphics, index).Flags8.GetValueOrDefault() & sleepFlag) == 0;
+                return (current.Combatants.Single(actor => actor.Id == id).NativeStatus!.Battle & 1) == 0 && (ReadOriginalModelCell(current.NativeGraphics!, index).Flags8.GetValueOrDefault() & sleepFlag) == 0;
             });
             if (completed)
             {

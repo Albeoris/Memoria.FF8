@@ -99,7 +99,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.DoesNotContain(session.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
         Assert.Equal(actualIndex, loaded.NativeLastAllocatedIndex);
         Assert.Equal(allocated.Id, ReadOriginalModelActorId(loaded.NativeGraphics!, actualIndex));
-        Assert.NotNull(ReadOriginalModelCell(loaded.NativeGraphics, actualIndex).ActiveResourceRow100);
+        Assert.NotNull(ReadOriginalModelCell(loaded.NativeGraphics!, actualIndex).ActiveResourceRow100);
         Save("allocation-ready-52-false", loaded);
         BattleSnapshot coldLoaded = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "allocation-ready-52-false.battle.json"))).Capture();
         Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(coldLoaded));

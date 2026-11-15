@@ -77,7 +77,7 @@ public sealed class NativeBattleNorgOrbTests
                                 }
                             }
                             Assert.Equal((byte)1, ReadOriginalModelCell(battle.NativeGraphics!, physical).Sequence);
-                            Assert.Equal(1, ReadOriginalModelCell(battle.NativeGraphics, physical).SequenceState!.Default2);
+                            Assert.Equal(1, ReadOriginalModelCell(battle.NativeGraphics!, physical).SequenceState!.Default2);
                             Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
                             return;
                         }

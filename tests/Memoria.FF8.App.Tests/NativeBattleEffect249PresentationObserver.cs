@@ -47,7 +47,7 @@ internal sealed class NativeBattleEffect249PresentationObserver(BattleSnapshot s
             NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, physical);
             Assert.Equal(initial.ModelId4, model.ModelId4);
             Assert.Equal(initial.HasLinkedModelRing140, model.HasLinkedModelRing140);
-            Assert.Equal(initial.LinkedModelIndex140, model.LinkedModelIndex140);
+            Assert.Equal(initial.LinkedModel, model.LinkedModel);
             if (physical is not (0 or 3))
             {
                 Assert.Equal(JsonSerializer.Serialize(initial), JsonSerializer.Serialize(model));
@@ -91,7 +91,7 @@ internal sealed class NativeBattleEffect249PresentationObserver(BattleSnapshot s
                 ActiveDescriptorTaskKinds = entryGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => task.Kind).ToArray()
             };
             Assert.Equal(249, current.NativeEffectMemory!.Cinematic!.Effect);
-            int header = effect.Parameters!.HeaderIndex7C;
+            int header = effect.Parameters!.Header.Ordinal;
             Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
             Assert.Equal((byte)0, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
             Assert.Equal(45, ReadOriginalModelCell(current.NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -376,7 +377,7 @@ internal static class NativeBattleEffectFixtureExporter
                             timers = timers.SetItem(bit, 0);
                         }
                     }
-                    before = before with { NativeGraphics = priorGraphics with { Models = priorGraphics.Models.SetItem(1, targetModel with { Flags8 = flags, StatusTimers = timers }) } };
+                    before = before with { NativeGraphics = priorGraphics with { ActorModels = priorGraphics.ActorModels.Set(RequireOriginalModelOwner(priorGraphics, 1), targetModel with { Flags8 = flags, StatusTimers = timers }) } };
                 }
             }
             else
@@ -403,10 +404,10 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 sequence = SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
             }
-            (packets, int header) = packets.Prepare(new(request.CasterActorIndex, native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)(request.CasterActorIndex))), native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
             // Deferred guardian admission replaces this placeholder through the actual Boost/formula callback.
             // Other component scenarios supply their declared post-formula contact.
-            NativeBattleContactHalf secondary = new(255, 0, 0, 0, 0, 0, 0);
+            NativeBattleContactHalf? secondary = null;
             if (request.ControlledDrainContact)
             {
                 if ((native.Statuses1 & 0x8000) == 0 || native.StatusAttack != 200 || status.Resistances is not { Length: > 23 })
@@ -422,12 +423,12 @@ internal static class NativeBattleEffectFixtureExporter
                 {
                     throw new InvalidDataException("This controlled healing pair requires the actual caster and target without reversed zombie drain.");
                 }
-                secondary = new(request.CasterActorIndex, 0, 0, 1, casterStatus.Saved, checked((ushort)Math.Min(9999, 7 * Math.Max(0, native.StatusAttack - status.Resistances[23]) / 100)), casterStatus.Battle);
+                secondary = new(packets.ModelAliases.DecodeLiteral(request.CasterActorIndex), 0, 0, 1, casterStatus.Saved, checked((ushort)Math.Min(9999, 7 * Math.Max(0, native.StatusAttack - status.Resistances[23]) / 100)), casterStatus.Battle);
             }
-            (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, request.ControlledContactValue ?? 7, status.Battle), secondary));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(request.TargetActorIndex), native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, request.ControlledContactValue ?? 7, status.Battle), secondary));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = before.NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
-            (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+            (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
             BattleSnapshot pending = before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
             boundary = "queued-action104";
             Save(boundary, pending);

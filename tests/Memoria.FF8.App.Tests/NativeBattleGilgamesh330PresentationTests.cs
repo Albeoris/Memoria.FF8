@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
@@ -187,12 +188,12 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                     NativeBattleModulePoolTask advancedContact = Assert.Single(after.NativeGraphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => (task.Flags & 1) != 0 && task.Callback == 0x5920E0);
                     Assert.Equal((ushort)20, advancedContact.ReadWord(12));
                     NativeBattleEffectParameters parameters = effect!.Parameters!;
-                    NativeBattleActionHeaderSlot header = before.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.HeaderIndex7C));
+                    NativeBattleActionHeaderSlot header = before.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
                     NativeBattleContactHalf half = before.NativeActionPackets.ReadContact(header.FirstContact).Primary;
-                    Assert.Equal(half.Sequence, ReadOriginalModelCell(after.NativeGraphics, half.ActorIndex).Sequence);
+                    Assert.Equal(half.Sequence, ReadOriginalModelCell(after.NativeGraphics, ReadOriginalModelOperand(before.NativeActionPackets.ModelAliases, half.Recipient)).Sequence);
                     Assert.Equal(1, createdText);
                     Assert.Equal(initialTargetHp - 1, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
-                    contactsPresented.Add(new { CounterBefore = 19, CounterAfter = 20, half.ActorIndex, half.Sequence, half.Amount6, DamageTextPublications = createdText });
+                    contactsPresented.Add(new { CounterBefore = 19, CounterAfter = 20, ActorIndex = ReadOriginalModelOperand(before.NativeActionPackets.ModelAliases, half.Recipient), half.Sequence, half.Amount6, DamageTextPublications = createdText });
                     sawContactPresentation = true;
                 }
                 if (after.NativeEffectMemory?.Gilgamesh?.VibrationHandle is int currentHandle && currentHandle > 0 && after.NativeVibrationProcess!.IsPlaying(currentHandle))
@@ -225,9 +226,9 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                 if (producedHeader?.FirstContactIndex is int contactIndex)
                 {
                     NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
-                    Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                     Assert.Equal((ushort)1, contact.Primary.Amount6);
-                    Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+                    Assert.Null(contact.Secondary);
                     Assert.Equal(initialTargetHp - 1, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                     sawFormulaHeader = true;
                 }

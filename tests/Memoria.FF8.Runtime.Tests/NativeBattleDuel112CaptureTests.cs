@@ -22,7 +22,7 @@ public sealed class NativeBattleDuel112CaptureTests
             BinaryPrimitives.WriteUInt32LittleEndian(image.AsSpan(0x500), 0x30);
             NativeBattleDuel112Resources resources = new(image.ToImmutableArray(), [], [], []);
             NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x4000, Enumerable.Repeat((byte)0xA5, 64).ToArray()), Duel112 = new(true, parameters, resources) };
+            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x4000, Enumerable.Repeat((byte)0xA5, 64).ToArray()), Duel112 = new(true, resources) };
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0);
             NativeBattleDuel112Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(123));
             NativeBattleGfAnimationSource source = new(NativeBattleDuel112Resources.Address + 0x100, Source(4).Data);

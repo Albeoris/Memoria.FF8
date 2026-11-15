@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -37,7 +38,7 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         CrossoverNativeRenzokukenEntryState state = CrossoverNativeRenzokukenEntry.Begin(game, 4, variant, finisherPending, random);
         Assert.Equal(variant, state.Frame.Effect.Binding.Effect);
         Assert.Equal(4, state.HostTarget);
-        Assert.Equal((byte)3, state.Packets.ReadContact(new BattleContactOccurrence(0)).Primary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(state.Packets.ModelAliases, state.Packets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient));
         Assert.Equal((byte)5, state.Packets.ReadHeader(new BattleActionHeaderReference(0)).Command);
         Assert.Equal(contacts, state.Resources.ActorResource.Timeline.InputThresholds.Length);
         NativeBattleRenzokuken160State native = variant == 141 ? NativeBattleRenzokukenVariantController.ReadState(state.Frame).Core : state.Frame.Memory.Renzokuken160!;

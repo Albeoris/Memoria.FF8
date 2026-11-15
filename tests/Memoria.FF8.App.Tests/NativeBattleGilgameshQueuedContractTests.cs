@@ -12,7 +12,7 @@ public sealed class NativeBattleGilgameshQueuedContractTests
     [InlineData((ushort)0x1001, 1)]
     public void Contact_text_publication_oracle_preserves_native_suppression_and_its_explicit_override(ushort flags, int publications)
     {
-        NativeBattleContactPacket contact = new(new(OriginalOwner(3), 4, unchecked((byte)flags), unchecked((byte)(flags >> 8)), 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(OriginalOwner(3), 4, unchecked((byte)flags), unchecked((byte)(flags >> 8)), 0, 7, 0), null);
         NativeBattleEffectsState effects = OriginalEffects().PrependDamageText(3, flags, 7);
         NativeBattleEffectTask[] text = effects.Slots.Where(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0).ToArray();
         Assert.Equal(publications, text.Length);
@@ -36,9 +36,9 @@ public sealed class NativeBattleGilgameshQueuedContractTests
     {
         byte sequence = NativeBattleEffectFixtureExporter.SelectSequence([], 245, action);
         Assert.Equal((byte)0, sequence);
-        (NativeBattleActionPacketsState packets, int index) = OriginalPackets().Prepare(new(0, 245, sequence, -1, action, effect, null));
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(index));
-        NativeBattleContactPacket contact = new(new(OriginalOwner(3), 4, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0));
+        (NativeBattleActionPacketsState packets, BattleActionHeaderReference index) = OriginalPackets().Prepare(new(0, 245, sequence, -1, action, effect, null));
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(index);
+        NativeBattleContactPacket contact = new(new(OriginalOwner(3), 4, 1, 0, 0, 7, 0), null);
         byte[] before = header.Payload.ToArray();
         NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header, contact);
         Assert.Equal(before, header.Payload);

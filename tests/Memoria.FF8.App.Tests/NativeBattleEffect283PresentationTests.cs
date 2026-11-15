@@ -77,17 +77,17 @@ public sealed class NativeBattleEffect283PresentationTests
         Assert.False(participant.AllocationPendingStatistics);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The selected component requires its current target status owner.");
         NativeBattleActionPacketsState packets = original.NativeActionPackets ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 12, -1, 261, 283, null));
-        Assert.Equal(priorActions, header);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 12, -1, 261, 283, null));
+        Assert.Equal(priorActions, header.Ordinal);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 261 && action.MagicId == 283).DamagePresentation;
-        NativeBattleContactPacket contact = new(new(OriginalOwner(4), reaction, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(4), reaction, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorContacts, packets.ReadHeader(new BattleActionHeaderReference(header)).FirstContact.Ordinal);
-        Assert.Equal(JsonSerializer.Serialize(original.NativeActionPackets.Headers.Take(priorActions)), JsonSerializer.Serialize(packets.Headers.Take(priorActions)));
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal(priorContacts, packets.ReadHeader(header).FirstContact.Ordinal);
+        Assert.Equal(JsonSerializer.Serialize(original.NativeActionPackets.ExportRetained().Headers.Take(priorActions)), JsonSerializer.Serialize(packets.ExportRetained().Headers.Take(priorActions)));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([283])[282];
         Assert.Equal(NativeBattleEffect283Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleEffect283Profile.Initializer, binding.Initializer);
@@ -99,7 +99,7 @@ public sealed class NativeBattleEffect283PresentationTests
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Arena), JsonSerializer.Serialize(source.NativeEffectMemory!.Arena));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect283 renderer and lifecycle from a compatible standalone activated actor pair; explicitly selected caster4/first-contact4, model12/native28, command8/action261/sequence12; declared seven-HP post-formula contact retains logical HP/status and current poses/colors/scales. This component does not claim ordinary AI self targeting.", Loaded = loaded, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = contact }));
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect283 renderer and lifecycle from a compatible standalone activated actor pair; explicitly selected caster4/first-contact4, model12/native28, command8/action261/sequence12; declared seven-HP post-formula contact retains logical HP/status and current poses/colors/scales. This component does not claim ordinary AI self targeting.", Loaded = loaded, header = packets.ReadHeader(header), Contact = contact }));
         return source;
     }
 }

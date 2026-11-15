@@ -14,7 +14,7 @@ public sealed class ExpandedBattleAiTests
     public void RandomSelectorsReachTheLastRosterSlots(int allyCount, int enemyCount, byte selector, byte seed, string target)
     {
         BattleSession battle = Start([4, selector, 7, 1, 6, 0], allyCount, enemyCount, seed);
-        Assert.Equal(new[] { target }, battle.ActiveAction!.AiRecipients!.ActorIds);
+        Assert.Equal(new[] { target }, ExplicitActors(battle.ActiveAction!.TargetRequest));
     }
 
     [Fact]
@@ -23,10 +23,11 @@ public sealed class ExpandedBattleAiTests
         BattleNativeAction native = Physical with { AttackType = 27, Power = 1, Hit = 99, HitCount = 10 };
         BattleSession battle = Start([4, 208, 7, 1, 6, 0], 11, 11, native: native);
         BattleSnapshot before = battle.Capture();
-        BattleAiRecipients targets = Assert.IsType<BattleAiRecipients>(battle.ActiveAction!.AiRecipients);
-        Assert.Equal(BattleSide.Allies, targets.RandomSide);
-        Assert.Equal(11, targets.ActorIds.Length);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        BattleTargetSelection.RandomOnSide selection = Assert.IsType<BattleTargetSelection.RandomOnSide>(battle.ActiveAction!.TargetRequest.Selection);
+        Assert.Equal(BattleSide.Allies, selection.Side);
+        string[] targets = battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).ToArray();
+        Assert.Equal(11, targets.Length);
+        BattleSession restored = BattleSession.Restore(before);
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();
@@ -34,7 +35,7 @@ public sealed class ExpandedBattleAiTests
         }
         string?[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4").Select(entry => entry.TargetId).ToArray();
         Assert.Equal(10, contacts.Length);
-        Assert.All(contacts, target => Assert.Contains(target, targets.ActorIds));
+        Assert.All(contacts, target => Assert.Contains(target, targets));
         Assert.True(contacts.Distinct().Count() > 1);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
@@ -51,12 +52,9 @@ public sealed class ExpandedBattleAiTests
         BattleSession battle = Start([4, selector, 7, 1, 6, 0], allyCount, enemyCount);
         BattleSnapshot snapshot = battle.Capture();
         string[] targets = battle.Combatants.Where(actor => selector == 206 || actor.IsPlayer == (selector == 204)).Select(actor => actor.Id).ToArray();
-        BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(battle.ActiveAction!.AiRecipients);
-        Assert.Empty(recipients.ActorIds);
-        Assert.Equal((ushort)(selector == 204 ? 0x8007 : selector == 205 ? 0x80F8 : 0x80FF), recipients.NativeSelectionMask);
-        Assert.Equal(targets, battle.CurrentExpandedAiTargets(recipients).Select(actor => actor.Id));
-        Assert.Equal(0, battle.ActiveAction.NativeTargetMask);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleTargetSelection.SideGroup selection = Assert.IsType<BattleTargetSelection.SideGroup>(battle.ActiveAction!.TargetRequest.Selection);
+        Assert.Equal(selector == 204 ? BattleTargetSide.Allies : selector == 205 ? BattleTargetSide.Enemies : BattleTargetSide.Both, selection.Side);
+        BattleSession restored = BattleSession.Restore(snapshot);
         for (int i = 0; i < BattleSession.AttackWindupFrames + 1; i++)
         {
             battle.Tick();
@@ -73,7 +71,7 @@ public sealed class ExpandedBattleAiTests
     {
         // Continue only if the expected number of allies is alive. Then choose the highest HP.
         BattleSession battle = Start([2, 6, 200, 0, (byte)allyCount, 0, 9, 0, 38, 0, 200, 0, 203, 7, 1, 6, 0, 0], allyCount, enemyCount);
-        Assert.Equal(new[] { $"ally-{allyCount - 1}" }, battle.ActiveAction!.AiRecipients!.ActorIds);
+        Assert.Equal(new[] { $"ally-{allyCount - 1}" }, ExplicitActors(battle.ActiveAction!.TargetRequest));
     }
 
     [Fact]
@@ -83,7 +81,7 @@ public sealed class ExpandedBattleAiTests
         byte[] turn = [2, 0, 10, 0, 110, 0, 6, 0, 4, 10, 7, 1, 6, 0, 0];
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [Physical], 0));
         BattleSession battle = Start(turn, 11, 8);
-        Assert.Equal(new[] { "ally-10" }, battle.ActiveAction!.AiRecipients!.ActorIds);
+        Assert.Equal(new[] { "ally-10" }, ExplicitActors(battle.ActiveAction!.TargetRequest));
     }
 
     [Fact]
@@ -128,13 +126,18 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal((byte)17, windup.NativeSequence);
         Assert.Equal(new BattleNativeGraphicCommand(248), windup.NativeGraphic);
         Assert.Null(windup.NativeAction);
-        BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(windup.AiRecipients);
-        Assert.Empty(recipients.ActorIds);
-        Assert.Equal(selectsTargets ? (ushort)0x8007 : null, recipients.NativeSelectionMask);
-        string[] targets = battle.CurrentExpandedAiTargets(recipients).Select(actor => actor.Id).ToArray();
+        if (selectsTargets)
+        {
+            Assert.Equal(BattleTargetSide.Allies, Assert.IsType<BattleTargetSelection.SideGroup>(windup.TargetRequest.Selection).Side);
+        }
+        else
+        {
+            Assert.IsType<BattleTargetSelection.None>(windup.TargetRequest.Selection);
+        }
+        string[] targets = selectsTargets ? battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).ToArray() : [];
         Assert.Equal(selectsTargets ? 11 : 0, targets.Length);
         BattleSnapshot saved = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
+        BattleSession restored = BattleSession.Restore(saved);
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();
@@ -202,7 +205,7 @@ public sealed class ExpandedBattleAiTests
         Assert.False(removed.IsActive);
         Assert.True(removed.Untargetable);
         Assert.Empty(battle.EnemyDefeats);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         BattleCombatant restoredActor = Assert.Single(restored.Combatants, actor => actor.Id == removed.Id);
         Assert.Equal(removed.Slot, restoredActor.Slot);
         Assert.False(restoredActor.IsActive);
@@ -255,8 +258,8 @@ public sealed class ExpandedBattleAiTests
         }
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal((byte)2, queued.NativeAiCallbackStage);
-        Assert.Equal("ally-10", Assert.Single(queued.AiRecipients!.ActorIds));
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        Assert.Equal("ally-10", Assert.Single(ExplicitActors(queued.TargetRequest)));
+        BattleSnapshot snapshot = battle.Capture();
         NativeBattleParticipantSnapshot saved = Assert.IsType<NativeBattleParticipantSnapshot>(Assert.Single(snapshot.Combatants, actor => actor.Id == "enemy-10").NativeParticipant);
         if (retainAttacker)
         {
@@ -301,4 +304,9 @@ public sealed class ExpandedBattleAiTests
         Name = "Physical", MagicId = 0, AttackType = 1, Power = 10, HitCount = 1, TargetFlags = null, AttackFlags = 0, DamagePresentation = 4, Element = 0, ElementPercent = null,
         StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
     };
+    private static IEnumerable<string> ExplicitActors(BattleTargetRequest request)
+    {
+        return Assert.IsType<BattleTargetSelection.Explicit>(request.Selection).Actors.Select(actor => actor.ActorId);
+    }
+
 }

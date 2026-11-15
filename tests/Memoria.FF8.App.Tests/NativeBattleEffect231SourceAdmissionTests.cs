@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -79,7 +80,7 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
             Assert.All(model.SequenceState.DecodedPose.Bones, bone => Assert.NotNull(bone));
             Assert.All(model.CurrentBodyBoneMatrices.Matrices, matrix => matrix.Validate());
             model.GeometryWorldMatrix!.Validate();
-            Assert.Null(model.ReadLinkedModelIndex140());
+            Assert.Null(model.ReadLinkedModel());
             Assert.Equal(physical == 3 ? 0 : 1, model.ActiveResourceRow100);
             Assert.Null(model.ActiveStagedResourceRow100);
             NativeBattleModelCpuResourceRow row = cpu.Rows[model.ActiveResourceRow100!.Value];
@@ -183,7 +184,7 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
         Assert.Equal((byte)1, packets.ContactCount);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal(0u, header.UnknownByteMask);
-        Assert.Equal((byte)3, header.ReadByte(0));
+        Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, header.Source));
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)14, header.Sequence);
         Assert.Equal((ushort)65, BinaryPrimitives.ReadUInt16LittleEndian(header.Payload.AsSpan().Slice(4)));
@@ -194,7 +195,7 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
         NativeBattleContactPacket contact = Assert.IsType<NativeBattleContactPacket>(packets.Contacts[0]);
         Assert.Equal((byte)0, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Null(contact.Secondary);
         NativeBattleDescriptorState descriptors = graphics.Descriptors;
         int packetIndex = Assert.Single(descriptors.Queue);
         NativeBattleDescriptorPacket packet = descriptors.Packets[packetIndex];

@@ -62,11 +62,14 @@ public sealed class NativeAutomaticGuardianPreparationTests
         BattleSnapshot saved = entry.Capture();
         Assert.Empty(saved.NativeGraphics!.Descriptors.Queue);
         Assert.Equal((byte)0, saved.NativeActionPackets!.ActionCount);
-        NativeBattleActionHeaderSlot retainedHeader = saved.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        saved = saved with { NativeActionPackets = saved.NativeActionPackets with { Headers = saved.NativeActionPackets.Headers.SetItem(0, retainedHeader with { Payload = retainedHeader.Payload.SetItem(17, 0xA7), UnknownByteMask = retainedHeader.UnknownByteMask & ~(1u << 17) }) } };
+        NativeBattleRetainedActionPackets retained = saved.NativeActionPackets.ExportRetained();
+        NativeBattleRetainedActionHeaderSlot retainedHeader = retained.Headers[0];
+        retained = retained with { Headers = retained.Headers.SetItem(0, retainedHeader with { Payload = retainedHeader.Payload.SetItem(17, 0xA7), UnknownByteMask = retainedHeader.UnknownByteMask & ~(1u << 17) }) };
+        (BattleModelRoster roster, NativeBattleModelAliases aliases) = entry.ReadBattlePresentationPacketBindings();
+        saved = saved with { NativeActionPackets = NativeBattleActionPacketsState.Create(roster, retained, aliases) };
         NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
         (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(0, 0, 7);
-        BattleAttackCommand callback7 = new("party", "party", BattleAbility.EnemyAbility) { NativeCallback = new(0, 7) };
+        BattleAttackCommand callback7 = new("party", "party", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(0, 7) };
         banks = banks.BindCommand(location, 0, callback7);
         saved = saved with
         {
@@ -75,13 +78,13 @@ public sealed class NativeAutomaticGuardianPreparationTests
             NativeCommandBanks = banks
         };
         BattleSession battle = BattleSession.Restore(saved);
-        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
+        BattleSession independent = BattleSession.Restore(saved);
         battle.Tick();
         independent.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
         BattleAttackCommand prepared = Assert.Single(battle.QueuedActions, command => command.NativeQueuedCommand == 245);
         Assert.Equal(8, prepared.ActionId);
-        Assert.NotNull(prepared.NativeHeaderIndex);
+        Assert.NotNull(prepared.NativeHeader);
         Assert.Equal((byte)10, prepared.IndependentGuardian!.Level);
         Assert.Equal((ushort)330, prepared.IndependentGuardian.Action!.MagicId);
         Assert.Equal(saved.Combatants[0].NativeAtb, battle.Capture().Combatants[0].NativeAtb);
@@ -92,7 +95,7 @@ public sealed class NativeAutomaticGuardianPreparationTests
         Assert.Equal(new uint[] { 0x47DD90, 0x47DDA0 }, ordered.Skip(1).Select(packet => packet.Argument));
         Assert.DoesNotContain(ordered, packet => packet.Command == 10 && packet.Argument == 0x47DE70);
         Assert.Equal(1u, battle.Capture().NativeClock!.ActionPause);
-        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(prepared.NativeHeaderIndex!.Value));
+        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.ReadHeader(prepared.NativeHeader!.Value);
         Assert.Equal((byte)245, header.Command);
         Assert.Equal((ushort)8, header.Action);
         Assert.Equal((ushort)330, header.Effect);

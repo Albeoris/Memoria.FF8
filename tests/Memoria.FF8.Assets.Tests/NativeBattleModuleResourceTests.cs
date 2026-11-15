@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -32,7 +33,7 @@ public sealed class NativeBattleModuleResourceTests
         NativeCrtRandomState before = new(123);
         NativeCrtRandomState after = before.Draw(out ushort orientation);
         NativeBattleModuleInputs inputs = Inputs(resources, before);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(3, resources[39], 0x100027);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(OriginalOwner(3), resources[39], 0x100027, OriginalAliases);
         NativeBattleModuleStep first = state.Advance(inputs);
         Assert.Equal(after, first.CrtRandomAfter);
         Assert.Equal([NativeBattleModuleDrawKind.Sound, NativeBattleModuleDrawKind.Defensive], first.Draws.Select(draw => draw.Kind).ToArray());
@@ -65,7 +66,7 @@ public sealed class NativeBattleModuleResourceTests
         using GameAssets assets = new(GameDirectory());
         ImmutableArray<NativeBattleModuleResource> resources = assets.ReadNativeBattleModuleResources();
         NativeBattleModuleInputs inputs = Inputs(resources, new(7));
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(0, resources[21], 0x200015);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(OriginalOwner(0), resources[21], 0x200015, OriginalAliases);
         for (int phase = 0; phase < 9; phase++)
         {
             NativeBattleModuleStep next = state.Advance(inputs);
@@ -94,7 +95,7 @@ public sealed class NativeBattleModuleResourceTests
     {
         using GameAssets assets = new(GameDirectory());
         ImmutableArray<NativeBattleModuleResource> resources = assets.ReadNativeBattleModuleResources();
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(0, resources[21], 0x84200015);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(OriginalOwner(0), resources[21], 0x84200015, OriginalAliases);
         NativeBattleModuleDraw draw = Assert.Single(state.Advance(Inputs(resources, new(7))).Draws);
         Assert.Equal((ushort)0x13, draw.SpriteFlags);
         Assert.Equal(new byte[] { 4, 0, 0, 0 }, draw.SpritePaletteOffsets.ToArray());

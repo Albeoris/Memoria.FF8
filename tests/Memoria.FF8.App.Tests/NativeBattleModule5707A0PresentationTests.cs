@@ -68,7 +68,7 @@ public sealed class NativeBattleModule5707A0PresentationTests
         BattleSnapshot original = session.Capture();
         int actor = FindOriginalModelSlot(original.NativeGraphics!, "enemy-1");
         Assert.Equal(4, actor);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(original.NativeGraphics, actor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(original.NativeGraphics!, actor);
         Assert.Equal((byte)89, model.ModelId4);
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Transform);

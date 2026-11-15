@@ -252,7 +252,7 @@ internal sealed class NativeBattleEffect63PresentationObserver(BattleAssets asse
     private void VerifyCurrentPoints(BattleSnapshot prior, NativeBattleEffect63Resources resources, int oldAge)
     {
         NativeBattleGraphicsModel model = ReadOriginalModelCell(prior.NativeGraphics!, 4);
-        BattleCombatantDefinition caster = BattleSession.Restore(prior).GetCombatantDefinition(ReadOriginalModelActorId(prior.NativeGraphics, 4)!);
+        BattleCombatantDefinition caster = BattleSession.Restore(prior).GetCombatantDefinition(ReadOriginalModelActorId(prior.NativeGraphics!, 4)!);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource!;
         Assert.Equal(2, pose.BoneCount);
         NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(model, pose, NativeBattleEffectArena.Clear().MarkUnknown(0, 88));
@@ -267,7 +267,7 @@ internal sealed class NativeBattleEffect63PresentationObserver(BattleAssets asse
         {
             short x = unchecked((short)((first[0] + second[0]) / 2));
             short z = unchecked((short)((first[2] + second[2]) / 2));
-            NativeBattleModelTransform target = ReadOriginalModelCell(prior.NativeGraphics, 0).Transform!;
+            NativeBattleModelTransform target = ReadOriginalModelCell(prior.NativeGraphics!, 0).Transform!;
             (_, int length) = NativeBattleFunguarLaser277.Basis50CBA0(x - target.Position28.X, 0, target.Position28.Z - z);
             Assert.NotEqual(0, length);
             numericSamples++;

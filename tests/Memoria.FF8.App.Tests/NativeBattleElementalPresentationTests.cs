@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -26,7 +27,7 @@ public sealed class NativeBattleElementalPresentationTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks its physical action packets.");
         int descriptorSlot = Assert.Single(initialGraphics.Descriptors.Queue, slot => initialGraphics.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(initialGraphics.Descriptors.Packets[descriptorSlot].Argument - 0x1D280C4u);
-        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = (int)(offset / 20);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         ushort effectId = header.Effect;
@@ -40,13 +41,13 @@ public sealed class NativeBattleElementalPresentationTests
             118 => new(118, 0x6C0C80, 0x2521640, 0x2521630, 0x6C0D20, 0x6C0EC0, 65, 300110, 1, [11, 12, 20, 38, 47, 48], [0x2521620], false),
             _ => throw new NotSupportedException("The fixture needs a proved elemental presentation recipe.")
         };
-        Assert.True(initialGraphics.ActionGraphics is null || initialGraphics.ActionGraphics.HeaderIndex == headerIndex);
+        Assert.True(initialGraphics.ActionGraphics is null || initialGraphics.ActionGraphics.Header.Ordinal == headerIndex);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
-        int target = contact.Primary.ActorIndex;
+        int target = ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient);
         Assert.InRange(target, 0, 2);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Null(contact.Secondary);
         ushort initialHp = source.NativePartyPresentation!.Rows[target]!.HitPoints;
         Assert.True(initialHp >= 7);
         ushort expectedHp = (ushort)(initialHp - 7);

@@ -83,7 +83,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Diagnostic action packet payload differs from its current dispatch source fields.");
         }
-        return nativeActionPackets.ExportRetained();
+        return nativeActionPackets.ExportRetained().DetachDiagnosticCopy();
     }
 
     /// <summary>Observes the original Duel timeout control's zero-magic header while its retained274 entry executes selector8.</summary>
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Duel timeout control changed its actual actor, zero-magic header or native target normalization.");
         }
-        return nativeActionPackets.ExportRetained();
+        return nativeActionPackets.ExportRetained().DetachDiagnosticCopy();
     }
 
     private string DescribeDiagnosticDuelClosingGuard(BattleDiagnosticEffectDispatch dispatch)

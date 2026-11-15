@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -48,15 +49,15 @@ public sealed class NativeBattleEffect308PresentationTests
             BattleCombatantDefinition definition = Assert.Single(source.Definition.Combatants, actor => actor.Id == ReadOriginalModelActorId(graphics, physical));
             Assert.Equal(placements[slot].ModelId, definition.ModelId);
             Assert.Equal((int?)placements[slot].Slot, definition.SceneSlot);
-            Assert.Equal(physical, model.Index);
+            Assert.Equal(new BattleEnemyActorModel(new(definition.Id)), RequireOriginalModelOwner(graphics, physical));
             Assert.Equal((byte?)nativeModels[slot], model.ModelId4);
             NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
             int start = resource.SequenceStart(8);
             int end = resource.SequenceEnd(8);
             Assert.Equal(initializers[slot], resource.SequenceSection.AsSpan().Slice(start, end - start).ToArray());
-            Assert.Equal((int?)nextModels[slot], model.ReadLinkedModelIndex140());
+            Assert.Equal(RequireOriginalModelOwner(graphics, nextModels[slot]), model.ReadLinkedModel());
         }
-        Assert.Equal(new[] { 3, 4, 5 }, NativeBattleModelRings.Walk(ReadOriginalModelCells(graphics), 3));
+        Assert.Equal(new[] { 3, 4, 5 }.Select(slot => RequireOriginalModelOwner(graphics, slot)), NativeBattleModelRings.Walk(graphics.ActorModels, RequireOriginalModelOwner(graphics, 3)));
     }
 
     internal static BattleSnapshot QueueComponent(BattleSnapshot original, GameAssets game, BattleAssets assets)
@@ -77,12 +78,12 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 14, cameraChoice, 286, 308, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 14, cameraChoice, 286, 308, null));
         NativeBattleStatusSnapshot status = original.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
         Assert.Equal(0, action.DamagePresentation);
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([308])[307];
         BattleSnapshot prepared = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(307, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));

@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAllocation FirstTim, NativeBattleEffectHeapAllocation SecondTim)
@@ -50,13 +52,22 @@ public static class NativeBattlePandemona291Entry
         {
             throw new InvalidDataException("Native Pandemona requires its selected original entry.");
         }
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona requires its current action parameters.");
+        if (!packets.Roster.Contains(parameters.Source))
+        {
+            throw new InvalidDataException("Native Pandemona entry requires its bound caster.");
+        }
+        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts(parameters.Header);
+        if (contacts.IsEmpty)
+        {
+            throw new InvalidDataException("Native Pandemona entry requires at least one recipient.");
+        }
         resources.Validate();
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona entry requires its retained module owner.");
         state = state with { Scratch25562EC = 0 };
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Pandemona requires its current TIM queue.");
         (textures, _) = textures.EnqueueTim505E30(resources.FirstTim);
         (textures, _) = textures.EnqueueTim505E30(resources.SecondTim);
-        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona requires its current action parameters.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona requires its current model buffer.");
         arena.Validate();
         state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78 };
@@ -64,21 +75,14 @@ public static class NativeBattlePandemona291Entry
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask root = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
         pool = pool.WriteSlot(slot, root);
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadContactCount();
         int sum = 0;
-        if (count > 0)
+        foreach (NativeBattleContactPacket contact in contacts)
         {
-            BattleContactCursor first = header.FirstContact;
-            for (int index = 0; index < count; index++)
-            {
-                BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                NativeBattleGraphicsModel model = readModel(actor);
-                NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona requires the selected actor's current position WORD20.");
-                sum = unchecked(sum + transform.Position28.Z);
-            }
+            NativeBattleGraphicsModel model = readModel(contact.Primary.Recipient);
+            NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona requires the selected actor's current position WORD20.");
+            sum = unchecked(sum + transform.Position28.Z);
         }
-        int ground = sum / count;
+        int ground = sum / contacts.Length;
         state = state with { Ground25562E0 = ground, Center25562E8 = unchecked(ground + 4000) };
         return frame with { Memory = frame.Memory with { Pandemona291 = state, Textures = textures }, Effect = frame.Effect with { Pools = [pool], ReturnedDescriptor = MainDescriptor } };
     }

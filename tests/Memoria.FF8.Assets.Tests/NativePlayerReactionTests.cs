@@ -21,25 +21,25 @@ public sealed class NativePlayerReactionTests
         Assert.Equal(1, saved.NativeItemInventory!.Single(stock => stock.ItemId == 3).Count);
         //483400 commits each reaction's physical action facts before publishing its queued presentation mirror.
         Assert.Equal((byte?)1, saved.Combatants[0].NativeParticipant!.LastHealing);
-        Assert.All(saved.QueuedActions, command => Assert.NotNull(command.NativeHeaderIndex));
-        NativeBattleActionHeaderSlot counter = saved.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(saved.QueuedActions[0].NativeHeaderIndex!.Value));
-        NativeBattleActionHeaderSlot potion = saved.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(saved.QueuedActions[1].NativeHeaderIndex!.Value));
+        Assert.All(saved.QueuedActions, command => Assert.NotNull(command.NativeHeader));
+        NativeBattleActionHeaderSlot counter = saved.NativeActionPackets!.ReadHeader(saved.QueuedActions[0].NativeHeader!.Value);
+        NativeBattleActionHeaderSlot potion = saved.NativeActionPackets.ReadHeader(saved.QueuedActions[1].NativeHeader!.Value);
         Assert.Equal((byte)1, counter.Command);
         Assert.Equal((byte)4, potion.Command);
         Assert.Equal((ushort)3, potion.Action);
-        NativeBattleContactPacket counterContact = saved.NativeActionPackets.ReadContact(counter.FirstContactIndex!.Value);
-        NativeBattleContactPacket healingContact = saved.NativeActionPackets.ReadContact(potion.FirstContactIndex!.Value);
-        Assert.Equal((byte)3, counterContact.Primary.ActorIndex);
-        Assert.Equal((byte)0, healingContact.Primary.ActorIndex);
+        NativeBattleContactPacket counterContact = saved.NativeActionPackets.ReadContact(counter.FirstContact);
+        NativeBattleContactPacket healingContact = saved.NativeActionPackets.ReadContact(potion.FirstContact);
+        Assert.Equal(battle.ReadPresentationModelOwner("enemy"), counterContact.Primary.Recipient);
+        Assert.Equal(battle.ReadPresentationModelOwner("party"), healingContact.Primary.Recipient);
         BattleEvent healing = Assert.Single(battle.Events, item => item.Kind == "Healing");
         Assert.Equal("party", healing.TargetId);
         Assert.True(healing.Amount > 0);
         Assert.Equal(checked((ushort)healing.Amount), healingContact.Primary.Amount6);
-        Assert.Equal(1, healingContact.Primary.HitFlags3 & 1);
+        Assert.Equal(1, healingContact.Primary.HitFlags & 1);
         BattleEvent received = Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "enemy");
         Assert.Equal(initialHp - received.Amount + healing.Amount, battle.Combatants[0].CurrentHp);
         string json = JsonSerializer.Serialize(saved);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSession restored = BattleSession.Restore(saved);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal(saved.NativeItemInventory, restored.Capture().NativeItemInventory);
         Assert.Equal(battle.Combatants[0].Atb, restored.Combatants[0].Atb);
@@ -111,7 +111,7 @@ public sealed class NativePlayerReactionTests
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Attack = 10, Speed = 1, NativeStatusResistances = new byte[40] }
             ]
         }, BattleAtbMode.TurnBased);
-        BattleAttackCommand command = new("enemy", "party", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = 1 };
+        BattleAttackCommand command = new("enemy", "party", NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack };
         return BattleSession.Restore(battle.Capture() with { QueuedActions = [command] });
     }
 

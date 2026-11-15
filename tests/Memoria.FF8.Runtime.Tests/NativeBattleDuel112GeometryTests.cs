@@ -37,7 +37,7 @@ public sealed class NativeBattleDuel112GeometryTests
     public void MidpointReadsBothActualBonesInOrderAndRoundsNegativeOddSumsDown()
     {
         List<byte> bones = [];
-        NativeBattleVector result = NativeBattleDuel112Geometry.Midpoint6CD8B0(0x1D972C0, (actor, bone, fraction) =>
+        NativeBattleVector result = NativeBattleDuel112Geometry.Midpoint6CD8B0(OriginalOwner(0), (actor, bone, fraction) =>
         {
             Assert.Equal(OriginalOwner(0), actor);
             Assert.Equal((short)0, fraction);

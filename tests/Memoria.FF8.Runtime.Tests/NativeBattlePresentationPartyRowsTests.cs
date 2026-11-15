@@ -1,80 +1,65 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativeBattlePresentationPartyRowsTests
+public sealed class NativeBattlePresentationPartyOwnershipTests
 {
-    [Fact]
-    public void EnemySourceDoesNotContributeAndNativeTargetsSupplyPartyRows()
-    {
-        Assert.Equal(new[] { 0, 1 }, NativeBattlePresentationPartyRows.Resolve(3, 20, null, null, [Target(1, 7), Target(0, 6)], [], 2));
-        Assert.Equal(new[] { 1 }, NativeBattlePresentationPartyRows.Resolve(3, 20, null, null, [Target(1, 7)], [], 1));
-    }
+    private static readonly BattleModelOwner Source = new BattlePartyActorModel(new("source"));
 
     [Fact]
-    public void PlayerSourceNativeTargetAndForeignTargetContributeOnce()
+    public void NativeAndForeignBindingsTakeTheirSideFromTheOwner()
     {
-        Assert.Equal(new[] { 0, 1, 2 }, NativeBattlePresentationPartyRows.Resolve(0, 15, null, null,
-            [Target(1, 0), Target(4, 16)], [Foreign(2, true), Foreign(3, false)], 3));
-    }
-
-    [Fact]
-    public void ExplicitOwnershipUsesBoundPartyIdentityForTransformedModels()
-    {
-        Assert.Equal(new[] { 1, 3 }, NativeBattlePresentationPartyRows.Resolve(3, 22, true, null,
-            [Target(1, 20, isParty: true), Target(0, 3, isParty: false)], [], 2));
-        Assert.Equal(new[] { 3 }, NativeBattlePresentationPartyRows.Resolve(3, 22, null, GuardianFormInvocationMode.EntryOnly, [], [], 1));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(3, 22, false, GuardianFormInvocationMode.EntryOnly, [], [], 0));
+        NativeBattleEffectModelBinding transformedAlly = Target(new BattlePartyActorModel(new("transformed")), 22);
+        NativeBattleEffectModelBinding enemyUsingPartyModel = Target(new BattleEnemyActorModel(new("enemy")), 3);
+        NativeBattleForeignActor ally = Foreign(new BattleForeignPartyModel(new("guest-ally")));
+        NativeBattleForeignActor enemy = Foreign(new BattleForeignEnemyModel(new("guest-enemy")));
+        Assert.True(transformedAlly.IsParty);
+        Assert.False(enemyUsingPartyModel.IsParty);
+        Assert.Equal("transformed", transformedAlly.ActorId);
+        Assert.True(ally.IsParty);
+        Assert.False(enemy.IsParty);
     }
 
     [Fact]
-    public void UnknownModelIdentityRequiresExplicitPartyMetadata()
+    public void ActivePresentationRequestsRejectTheSameOwnerAcrossSuppliedModelBindings()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattlePresentationPartyRows.Resolve(0, null, null, null, [], [], null));
-        Assert.Throws<NotSupportedException>(() => NativeBattlePresentationPartyRows.Resolve(0, 1, null, null, [Target(1, null)], [], null));
-        Assert.Equal(new[] { 0 }, NativeBattlePresentationPartyRows.Resolve(0, null, true, null, [Target(1, null, isParty: false)], [], 1));
-    }
-
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(7)]
-    public void RejectsOutOfBankBindingsEvenWhenTheyAreNotParty(int invalidRow)
-    {
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(invalidRow, 22, null, null, [], [], null));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [Target(invalidRow, 20)], [], null));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [], [Foreign(invalidRow, false)], null));
-    }
-
-    [Fact]
-    public void RejectsOverlappingRowsBetweenAllOwners()
-    {
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [Target(0, 1)], [], null));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [], [Foreign(0, true)], null));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [Target(1, 16)], [Foreign(1, false)], null));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [Target(1, 16), Target(1, 17)], [], null));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [], [Foreign(1, false), Foreign(1, true)], null));
-    }
-
-    [Theory]
-    [InlineData(1)]
-    [InlineData(3)]
-    public void HostPartyCountMustMatchTheBoundPopulation(int expectedPartyCount)
-    {
-        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => NativeBattlePresentationPartyRows.Resolve(0, 0, null, null, [], [Foreign(4, true)], expectedPartyCount));
-        Assert.Equal("The native party presentation operation exceeds the host's available physical model bank.", exception.Message);
+        BattleModelOwner other = new BattleEnemyActorModel(new("target"));
+        foreach (NativeBattleEffectPresentationInputs inputs in new[]
+        {
+            Inputs([Source], [Target(Source, 1)], []),
+            Inputs([Source], [], [Foreign(Source)]),
+            Inputs([Source, other], [Target(other, 16)], [Foreign(other)]),
+            Inputs([Source, other], [Target(other, 16), Target(other, 17)], []),
+            Inputs([Source, other], [], [Foreign(other), Foreign(other)])
+        })
+        {
+            Assert.Throws<InvalidDataException>(() => new NativeBattleEffectPresentation(inputs));
+        }
     }
 
     [Fact]
-    public void UnhostedNativePresentationKeepsItsFixedThreeRows()
+    public void PresentationRequestsRejectUnboundOrUnsuppliedOwners()
     {
-        Assert.Equal(new[] { 0, 1, 2 }, NativeBattlePresentationPartyRows.Resolve(0, null, null, null, null, null, null));
+        BattleModelOwner other = new BattleForeignPartyModel(new("guest"));
+        Assert.Throws<InvalidDataException>(() => new NativeBattleEffectPresentation(Inputs([Source], [], [Foreign(other)])));
+        Assert.Throws<InvalidDataException>(() => new NativeBattleEffectPresentation(Inputs([Source, other], [], [])));
+        Assert.Throws<InvalidDataException>(() => new NativeBattleEffectPresentation(Inputs([Source, other], [Target(other, 20)], [])));
     }
 
-    private static NativeBattleEffectModelBinding Target(int index, byte? modelId, bool? isParty = null)
+    private static NativeBattleEffectPresentationInputs Inputs(BattleModelOwner[] owners, ImmutableArray<NativeBattleEffectModelBinding> targets, ImmutableArray<NativeBattleForeignActor> foreign)
     {
-        return new($"target-{index}", new(index, 0) { ModelId4 = modelId }, new([])) { IsParty = isParty };
+        BattleModelRoster roster = new(owners);
+        NativeBattleModelAliases aliases = new(roster, []);
+        var invocation = new NativeBattleEffectInvocation.Positioning(Source, roster, aliases);
+        return new(new(), new(0) { ModelId4 = 22 }, new([]), invocation, 201, NativeBattleEffectTextureState.FromColdProcess(), new(1), new(null, null, null, null), foreign)
+        {
+            NativeTargets = targets,
+            GuardianFormMode = GuardianFormInvocationMode.EntryOnly,
+            CameraMode = NativeBattleEffectCameraMode.NativeCinematic
+        };
     }
 
-    private static NativeBattleForeignActor Foreign(int index, bool isParty)
-    {
-        return new(index, new(default, default, 0, 0, 4096), new(0, 0, 0, 0), (_, _) => default) { IsParty = isParty };
-    }
+    private static NativeBattleEffectModelBinding Target(BattleModelOwner owner, byte modelId) => new(owner, new(0) { ModelId4 = modelId }, new([]));
+
+    private static NativeBattleForeignActor Foreign(BattleModelOwner owner) => new(owner, new(default, default, 0, 0, 4096), new(0, 0, 0, 0), (_, _) => default);
 }

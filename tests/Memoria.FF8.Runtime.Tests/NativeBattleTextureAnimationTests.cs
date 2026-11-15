@@ -44,7 +44,7 @@ public sealed class NativeBattleTextureAnimationTests
     [Fact]
     public void DeadlineCounterIsCumulativeAndProcessesAtMostOneBytePerCallbackAcrossRestore()
     {
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 11, new([2, 2, 0, 255], 0));
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(OriginalOwner(0), 11, new([2, 2, 0, 255], 0), OriginalAliases);
         NativeBattleGraphicsModel model = Model(11);
         List<byte> variants = [];
         NativeBattleAuxiliaryInputs inputs = new()
@@ -99,7 +99,7 @@ public sealed class NativeBattleTextureAnimationTests
     [Fact]
     public void TextureDeadlineCounterWrapsItsUnsignedWordAndDoesNotAdvanceOnTheTerminator()
     {
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 11, new([1, 255], 0));
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(OriginalOwner(0), 11, new([1, 255], 0), OriginalAliases);
         byte[] payload = state.Slots[0].Payload.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(10), ushort.MaxValue);
         state = state with { Slots = state.Slots.SetItem(0, state.Slots[0] with { Payload = payload.ToImmutableArray() }) };
@@ -120,7 +120,7 @@ public sealed class NativeBattleTextureAnimationTests
     [InlineData(false)]
     public void CallbackAppliesTheReachedDeadlineBeforeItsLoadedAndSequenceCompletionRelease(bool removed)
     {
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(0, 11, new([0, 255], 0));
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(OriginalOwner(0), 11, new([0, 255], 0), OriginalAliases);
         NativeBattleGraphicsModel model = Model(11) with { Flags0 = removed ? (ushort)0 : (ushort)3, ResourceFlags44 = removed ? (ushort)0 : (ushort)0x40 };
         List<byte> variants = [];
         bool restored = false;

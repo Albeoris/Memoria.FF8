@@ -6,6 +6,13 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedElementalModelRowsTests
 {
+    private static readonly BattleModelOwner Source = OriginalOwner(0);
+    private static readonly BattleModelOwner OriginalTarget = OriginalOwner(3);
+    private static readonly BattlePartyActorModel AddedAlly = new(new("added-elemental-ally"));
+    private static readonly BattleEnemyActorModel AddedEnemy = new(new("added-elemental-enemy"));
+    private static readonly BattlePartyActorModel Missing = new(new("unbound-elemental-actor"));
+    private static readonly BattleModelRoster HostedRoster = new([Source, AddedAlly, AddedEnemy]);
+    private static readonly NativeBattleModelAliases HostedAliases = new(HostedRoster, [(NativeBattleModelSlot.Decode(0), Source)]);
     private static readonly NativeBattleModelTransform Transform = new(default, default, 0, 123, 4096);
     private static readonly NativeBattleActionMatrix View = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 18000, 4096);
 
@@ -22,25 +29,32 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     [InlineData(105, 3)]
     [InlineData(105, 7)]
     [InlineData(105, 24)]
-    public void Primary_callbacks_roundtrip_native_addresses_and_hosted_handles(int effect, int row)
+    public void Primary_callbacks_retain_exact_original_addresses_and_live_hosted_owners(int effect, int row)
     {
-        BattleModelRoster? roster = row == 3 ? null : Roster();
-        NativeBattleActionPacketsState packets = Packets(effect, row, roster);
-        List<int> observed = [];
+        BattleModelOwner expected = row switch { 3 => OriginalTarget, 7 => AddedAlly, 24 => AddedEnemy, _ => throw new ArgumentOutOfRangeException(nameof(row)) };
+        NativeBattleActionPacketsState packets = Packets(effect, expected);
+        List<BattleModelOwner> observed = [];
         ElementalFrame frame = Spawn(effect, packets, observed);
 
-        Assert.Contains(row, observed);
-        Assert.All(observed, actor => Assert.True(actor == row || effect == 104 && actor == 0));
-        uint expected = row == 3 ? 0x1D97494u : NativeBattleGraphicsModelAddress.Encode(row);
+        Assert.Contains(expected, observed);
+        Assert.All(observed, owner => Assert.True(owner == expected || effect == 104 && owner == Source));
         NativeBattleModulePoolTask primary = Primary(frame.Effect, effect);
-        Assert.Equal(expected, primary.ReadDword(PointerOffset(effect)));
+        Assert.Equal(expected, primary.ReadExecutionReference<BattleExecutionReference.Model>(PointerOffset(effect), 4).Owner);
+        if (expected == OriginalTarget)
+        {
+            Assert.Equal(0x1D97494u, primary.ReadDword(PointerOffset(effect)));
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(() => primary.ReadDword(PointerOffset(effect)));
+        }
         Assert.Equal((ushort)1, primary.ReadWord(12));
 
-        ElementalFrame restored = Restore(frame, effect);
-        NativeBattleActionPacketsState restoredPackets = NativeBattleTestSnapshots.RestoreJson<NativeBattleActionPacketsState>(NativeBattleTestSnapshots.Json(packets));
+        ElementalFrame restored = NativeBattleTestSnapshots.Independent(frame);
+        NativeBattleActionPacketsState restoredPackets = NativeBattleTestSnapshots.Independent(packets);
         ElementalFrame continued = Advance(effect, frame, packets, []);
         ElementalFrame resumed = Advance(effect, restored, restoredPackets, []);
-        Assert.Equal(expected, Primary(resumed.Effect, effect).ReadDword(PointerOffset(effect)));
+        Assert.Equal(expected, Primary(resumed.Effect, effect).ReadExecutionReference<BattleExecutionReference.Model>(PointerOffset(effect), 4).Owner);
         Assert.Equal((ushort)2, Primary(resumed.Effect, effect).ReadWord(12));
         Assert.True(string.Equals(Serialize(continued, effect), Serialize(resumed, effect), StringComparison.Ordinal), "The detached task continued differently.");
     }
@@ -52,14 +66,14 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     [InlineData(105)]
     public void Producer_rejects_an_unbound_contact_before_model_callbacks(int effect)
     {
-        NativeBattleActionPacketsState packets = Packets(effect, 7, Roster());
+        NativeBattleActionPacketsState packets = Packets(effect, AddedAlly);
         ElementalFrame frame = Advance(effect, Initialize(effect, packets), packets, []);
         string before = Serialize(frame, effect);
-        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
-        NativeBattleActionPacketsState malformed = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { ActorIndex = 8 } }) };
-        List<int> observed = [];
+        BattleModelRoster retired = new([Source, AddedEnemy]);
+        NativeBattleActionPacketsState malformed = packets.WithRoster(retired, new NativeBattleModelAliases(retired, [(NativeBattleModelSlot.Decode(0), Source)]));
+        List<BattleModelOwner> observed = [];
 
-        AssertRejected(effect, () => Advance(effect, frame, malformed, observed));
+        AssertRejected( () => Advance(effect, frame, malformed, observed));
         AssertUnchanged(before, frame, effect);
         Assert.Empty(observed);
     }
@@ -67,12 +81,12 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     [Fact]
     public void Blizzaga_rejects_an_unbound_source_before_model_callbacks()
     {
-        NativeBattleActionPacketsState packets = Packets(104, 7, Roster());
+        NativeBattleActionPacketsState packets = Packets(104, AddedAlly);
         ElementalFrame frame = Advance(104, Initialize(104, packets), packets, []);
         string before = Serialize(frame, 104);
-        List<int> observed = [];
+        List<BattleModelOwner> observed = [];
 
-        Assert.Throws<NotSupportedException>(() => Advance(104, frame, packets, observed, source: 8));
+        Assert.Throws<NotSupportedException>(() => Advance(104, frame, packets, observed, source: Missing));
         AssertUnchanged(before, frame, 104);
         Assert.Empty(observed);
     }
@@ -82,74 +96,52 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     [InlineData(103)]
     [InlineData(104)]
     [InlineData(105)]
-    public void Retained_primary_callback_rejects_holes_and_nonmodel_addresses(int effect)
+    public void Retained_primary_callback_requires_typed_provenance_even_with_known_raw_addresses(int effect)
     {
-        NativeBattleActionPacketsState packets = Packets(effect, 7, Roster());
+        NativeBattleActionPacketsState packets = Packets(effect, AddedAlly);
         ElementalFrame frame = Spawn(effect, packets, []);
-        string snapshot = Serialize(frame, effect);
-
-        foreach (uint address in new[] { NativeBattleGraphicsModelAddress.Encode(8), NativeBattleGraphicsModelAddress.Encode(7) + 1, NativeBattleGraphicsModelAddress.Encode(24) + NativeBattleGraphicsModelAddress.RowSize, 0x1D97704u })
+        foreach (uint address in new[] { 0x1D97494u, 0x1D97495u, uint.MaxValue })
         {
-            ElementalFrame branch = Restore(frame, effect, snapshot);
+            ElementalFrame branch = NativeBattleTestSnapshots.Independent(frame);
             Primary(branch.Effect, effect).WriteDword(PointerOffset(effect), address);
-            List<int> observed = [];
-            AssertRejected(effect, () => Advance(effect, branch, packets, observed));
+            List<BattleModelOwner> observed = [];
+            AssertRejected( () => Advance(effect, branch, packets, observed));
             Assert.Empty(observed);
         }
-
-        ElementalFrame shorter = Restore(frame, effect, snapshot);
-        Primary(shorter.Effect, effect).WriteDword(PointerOffset(effect), NativeBattleGraphicsModelAddress.Encode(24));
-        NativeBattleActionPacketsState shorterPackets = Packets(effect, 7, new(Roster().Rows.Take(8).ToImmutableArray()));
-        AssertRejected(effect, () => Advance(effect, shorter, shorterPackets, []));
     }
 
     [Fact]
-    public void Address_decoder_distinguishes_native_extent_from_bound_hosted_rows()
+    public void Original_address_decoder_has_no_aliases_for_added_models()
     {
-        BattleModelRoster roster = Roster();
-
-        Assert.True(roster.ContainsRow(0));
-        Assert.True(roster.ContainsRow(7));
-        Assert.True(roster.ContainsRow(24));
-        Assert.False(roster.ContainsRow(-1));
-        Assert.False(roster.ContainsRow(8));
-        Assert.False(roster.ContainsRow(25));
-        Assert.True(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.Encode(24), out int row, roster));
-        Assert.Equal(24, row);
-        Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.Encode(8), out row, roster));
-        Assert.Equal(-1, row);
-        Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(3)), out row, roster));
-        Assert.Equal(-1, row);
-        Assert.False(NativeBattleGraphicsModelAddress.TryDecode(NativeBattleGraphicsModelAddress.Encode(7), out _, roster: null));
-        Assert.True(NativeBattleGraphicsModelAddress.TryDecode(0x1D97494, out row, roster: null));
-        Assert.Equal(3, row);
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(HostedRoster, HostedAliases, _ => new(0));
+        Assert.True(HostedRoster.Contains(AddedAlly));
+        Assert.True(HostedRoster.Contains(AddedEnemy));
+        Assert.False(HostedRoster.Contains(Missing));
+        Assert.Null(HostedAliases.EncodeAddress(AddedAlly));
+        Assert.Null(HostedAliases.EncodeAddress(AddedEnemy));
+        Assert.True(NativeBattleGraphicsModelAddress.TryDecodeOriginalCell(0x1D97494, out NativeBattleModelSlot slot));
+        Assert.Equal(NativeBattleModelSlot.Decode(3), slot);
+        Assert.False(NativeBattleGraphicsModelAddress.TryDecodeOriginalCell(0x1D97495, out _));
+        Assert.Throws<InvalidDataException>(() => graphics.NativeBindings.DecodeLiteral(3, graphics.ActorModels));
     }
 
-    private static BattleModelRoster Roster()
+    private static NativeBattleActionPacketsState Packets(int effect, BattleModelOwner target)
     {
-        var rows = new BattleModelOwner?[25].ToImmutableArray().SetItem(0, new BattlePartyActorModel(new("source"))).SetItem(7, new BattlePartyActorModel(new("first"))).SetItem(24, new BattleEnemyActorModel(new("last")));
-        return new(rows);
-    }
-
-    private static NativeBattleActionPacketsState Packets(int effect, int row, BattleModelRoster? roster)
-    {
-        NativeBattleActionPacketsState packets = roster is null ? NativeBattleRetainedMemory.FromColdProcess().ActionPackets : NativeBattleActionPacketsState.FromPresentationStorage(roster);
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, (ushort)effect, null));
-        (packets, _) = packets.AppendContact(new(new((byte)row, 0, 0, 0, 0, 0, 0), null));
+        NativeBattleActionPacketsState packets = target == OriginalTarget
+            ? NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases)
+            : NativeBattleActionPacketsState.Create(HostedRoster, NativeBattleRetainedActionPackets.Fresh(), HostedAliases);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(Source, 2, 4, 0, 8, (ushort)effect, null));
+        (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
+        return packets.WritePlayerRepeatMode(header, 1);
     }
 
     private sealed record ElementalFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 
     private static ElementalFrame Initialize(int id, NativeBattleActionPacketsState packets)
     {
-        int row = packets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient;
-        BattleModelTargets targets = default(BattleModelTargets).Add(row);
-        NativeBattleEffectParameters parameters = new(0, 0, targets.NativePhysicalBits, 0, 0, 0)
-        {
-            PresentationTargets = packets.PresentationRoster is null ? null : targets
-        };
+        BattleModelOwner target = packets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient;
+        NativeBattleEffectParameters parameters = new(Source, 0, BattleModelTargets.From([target]), new(0), 0, 0);
         NativeBattleEffectBinding binding = id switch
         {
             102 => new(102, 0x6DC2D0, 0x6DC2B0),
@@ -158,7 +150,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
             105 => new(105, 0x6D3DB0, 0x6D3DC0),
             _ => throw new ArgumentOutOfRangeException(nameof(id))
         };
-        NativeBattleOriginalEffectState effect = new((ushort)id, id - 1, binding, parameters, null) { PresentationRoster = packets.PresentationRoster };
+        NativeBattleOriginalEffectState effect = new((ushort)id, id - 1, binding, parameters, null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
         NativeCrtRandomState random = new(1);
         switch (id)
@@ -177,23 +169,23 @@ public sealed class NativeBattleHostedElementalModelRowsTests
         }
     }
 
-    private static ElementalFrame Spawn(int id, NativeBattleActionPacketsState packets, List<int> observed)
+    private static ElementalFrame Spawn(int id, NativeBattleActionPacketsState packets, List<BattleModelOwner> observed)
     {
         ElementalFrame frame = Initialize(id, packets);
         frame = Advance(id, frame, packets, observed);
         return Advance(id, frame, packets, observed);
     }
 
-    private static ElementalFrame Advance(int id, ElementalFrame state, NativeBattleActionPacketsState packets, List<int> observed, int source = 0)
+    private static ElementalFrame Advance(int id, ElementalFrame state, NativeBattleActionPacketsState packets, List<BattleModelOwner> observed, BattleModelOwner? source = null)
     {
-        NativeBattleVector Bone(int row)
+        NativeBattleVector Bone(BattleModelOwner owner)
         {
-            observed.Add(row);
-            return new((short)(100 + row * 20), -200, 300);
+            observed.Add(owner);
+            return new((short)(100 + Coordinate(owner) * 20), -200, 300);
         }
-        NativeBattleModelTransform ReadTransform(int row)
+        NativeBattleModelTransform ReadTransform(BattleModelOwner owner)
         {
-            observed.Add(row);
+            observed.Add(owner);
             return Transform;
         }
         switch (id)
@@ -205,7 +197,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
                 NativeBattleBlizzaraFrame blizzara = NativeBattleBlizzaraController.Advance6DA3A0(new(state.Memory, state.Effect, state.Random), new(0, packets, Bone, ReadTransform, (frame, _) => frame));
                 return new(blizzara.Memory, blizzara.Effect, blizzara.Random);
             case 104:
-                NativeBattleBlizzagaFrame blizzaga = NativeBattleBlizzagaController.Advance6D6400(new(state.Memory, state.Effect, state.Random), new(0, packets, source, View, Bone, ReadTransform, row => new(10, 20, 30, (short)row), (frame, request) =>
+                NativeBattleBlizzagaFrame blizzaga = NativeBattleBlizzagaController.Advance6D6400(new(state.Memory, state.Effect, state.Random), new(0, packets, source ?? Source, View, Bone, ReadTransform, owner => new(10, 20, 30, Coordinate(owner)), (frame, request) =>
                 {
                     observed.Add(request.Actor);
                     return new(frame, -100, 200);
@@ -228,26 +220,17 @@ public sealed class NativeBattleHostedElementalModelRowsTests
         _ => throw new ArgumentOutOfRangeException(nameof(id))
     };
 
-    private static ElementalFrame Restore(ElementalFrame frame, int id, string? snapshot = null)
+    private static short Coordinate(BattleModelOwner owner)
     {
-        snapshot ??= Serialize(frame, id);
-        switch (id)
+        if (owner == AddedAlly)
         {
-            case 102:
-                NativeBattleThundaraFrame thundara = NativeBattleTestSnapshots.RestoreJson<NativeBattleThundaraFrame>(snapshot);
-                return new(thundara.Memory, thundara.Effect, thundara.Random);
-            case 103:
-                NativeBattleBlizzaraFrame blizzara = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzaraFrame>(snapshot);
-                return new(blizzara.Memory, blizzara.Effect, blizzara.Random);
-            case 104:
-                NativeBattleBlizzagaFrame blizzaga = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzagaFrame>(snapshot);
-                return new(blizzaga.Memory, blizzaga.Effect, blizzaga.Random);
-            case 105:
-                NativeBattleThundaga105Frame thundaga = NativeBattleTestSnapshots.RestoreJson<NativeBattleThundaga105Frame>(snapshot);
-                return new(thundaga.Memory, thundaga.Effect, thundaga.Random);
-            default:
-                throw new ArgumentOutOfRangeException(nameof(id));
+            return 7;
         }
+        if (owner == AddedEnemy)
+        {
+            return 24;
+        }
+        return (short)OriginalSlot(owner);
     }
 
     private static NativeBattleModulePoolTask Primary(NativeBattleOriginalEffectState effect, int id)
@@ -270,19 +253,9 @@ public sealed class NativeBattleHostedElementalModelRowsTests
         Assert.True(string.Equals(before, Serialize(frame, effect), StringComparison.Ordinal), "Rejected hosted input changed the arena or task state.");
     }
 
-    private static void AssertRejected(int effect, Action advance)
-    {
-        if (effect == 105)
-        {
-            Assert.Throws<InvalidDataException>(advance);
-        }
-        else
-        {
-            Assert.Throws<NotSupportedException>(advance);
-        }
-    }
+    private static void AssertRejected(Action advance) => Assert.Throws<InvalidDataException>(advance);
 
-    private static NativeBattleThundaga105Inputs ThundagaInputs(NativeBattleActionPacketsState packets, List<int> observed) => new(packets, _ => new byte[8].ToImmutableArray(), _ => new(0, -500, 0, 0), row =>
+    private static NativeBattleThundaga105Inputs ThundagaInputs(NativeBattleActionPacketsState packets, List<BattleModelOwner> observed) => new(packets, _ => new byte[8].ToImmutableArray(), _ => new(0, -500, 0, 0), row =>
     {
         observed.Add(row);
         return 0xAB123456u;

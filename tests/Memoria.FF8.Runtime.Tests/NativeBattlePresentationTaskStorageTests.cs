@@ -9,8 +9,8 @@ public sealed class NativeBattlePresentationTaskStorageTests
     {
         NativeBattleEffectMemory original = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleOriginalEffectState effect = HostedEffect();
-        (NativeBattleEffectMemory first, uint firstAddress) = NativeBattlePresentationTaskStorage.Reserve(original, effect, 13, 3);
-        (NativeBattleEffectMemory second, uint secondAddress) = NativeBattlePresentationTaskStorage.Reserve(first, effect, 36, 25);
+        (NativeBattleEffectMemory first, uint firstAddress) = NativeBattlePresentationTaskStorage.Reserve(original, effect, Roster, 13, 3);
+        (NativeBattleEffectMemory second, uint secondAddress) = NativeBattlePresentationTaskStorage.Reserve(first, effect, Roster, 36, 25);
 
         Assert.Null(original.PresentationTaskNextAddress);
         Assert.Equal(0x80000000u, firstAddress);
@@ -38,7 +38,7 @@ public sealed class NativeBattlePresentationTaskStorageTests
             ReturnedTaskPointer1D96AAC = detached.DescriptorAddress
         };
 
-        (NativeBattleEffectMemory next, uint address) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, 12, 1);
+        (NativeBattleEffectMemory next, uint address) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, Roster, 12, 1);
 
         Assert.Equal(expected, address);
         Assert.Equal(expected + 16, next.PresentationTaskNextAddress);
@@ -50,7 +50,7 @@ public sealed class NativeBattlePresentationTaskStorageTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PresentationTaskNextAddress = 0xEFFFFFF0 };
         NativeBattleOriginalEffectState effect = HostedEffect();
-        (NativeBattleEffectMemory reserved, uint address) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, 16, 1);
+        (NativeBattleEffectMemory reserved, uint address) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, Roster, 16, 1);
 
         Assert.Equal(0xEFFFFFF0u, address);
         Assert.Equal(0xF0000000u, reserved.PresentationTaskNextAddress);
@@ -60,7 +60,7 @@ public sealed class NativeBattlePresentationTaskStorageTests
         Assert.False(NativeBattlePresentationTaskStorage.IsHostedBank(0xF0000000, 12, 1));
         Assert.False(NativeBattlePresentationTaskStorage.IsHostedBank(0xF1000000, 12, 1));
         Assert.False(NativeBattlePresentationTaskStorage.IsHostedBank(0xF2000000, 12, 1));
-        Assert.Throws<InvalidOperationException>(() => NativeBattlePresentationTaskStorage.Reserve(reserved, effect, 12, 1));
+        Assert.Throws<InvalidOperationException>(() => NativeBattlePresentationTaskStorage.Reserve(reserved, effect, Roster, 12, 1));
     }
 
     [Theory]
@@ -72,7 +72,7 @@ public sealed class NativeBattlePresentationTaskStorageTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         Assert.False(NativeBattlePresentationTaskStorage.IsHostedBank(0x80000000, stride, capacity));
-        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, HostedEffect(), stride, capacity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, HostedEffect(), Roster, stride, capacity));
         Assert.Null(memory.PresentationTaskNextAddress);
     }
 
@@ -85,7 +85,7 @@ public sealed class NativeBattlePresentationTaskStorageTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PresentationTaskNextAddress = cursor };
         Assert.Throws<InvalidDataException>(memory.Validate);
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, HostedEffect(), 12, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, HostedEffect(), Roster, 12, 1));
     }
 
     [Fact]
@@ -97,11 +97,11 @@ public sealed class NativeBattlePresentationTaskStorageTests
         NativeBattleEffectTaskPool entering = NativeBattleEffectTaskPool.Initialize(0x1000, 0x7FFFFFF0, 17, 1);
         NativeBattleEffectTaskPool unaligned = NativeBattleEffectTaskPool.Initialize(0x1000, 0x80000004, 12, 1);
         Assert.False(NativeBattlePresentationTaskStorage.IsHostedBank(0xFFFFFFF0, ushort.MaxValue, ushort.MaxValue));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { Pools = [crossing] }, 12, 1));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { Pools = [entering] }, 12, 1));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { Pools = [unaligned] }, 12, 1));
-        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { PresentationRoster = null }, 12, 1));
-        Assert.Throws<InvalidOperationException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect, ushort.MaxValue, ushort.MaxValue));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { Pools = [crossing] }, Roster, 12, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { Pools = [entering] }, Roster, 12, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect with { Pools = [unaligned] }, Roster, 12, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect, new BattleModelRoster([]), 12, 1));
+        Assert.Throws<InvalidOperationException>(() => NativeBattlePresentationTaskStorage.Reserve(memory, effect, Roster, ushort.MaxValue, ushort.MaxValue));
     }
 
     [Fact]
@@ -115,17 +115,20 @@ public sealed class NativeBattlePresentationTaskStorageTests
         Assert.Null(legacy.PresentationTaskNextAddress);
 
         NativeBattleOriginalEffectState effect = HostedEffect();
-        (NativeBattleEffectMemory reserved, _) = NativeBattlePresentationTaskStorage.Reserve(legacy, effect, 36, 25);
+        (NativeBattleEffectMemory reserved, _) = NativeBattlePresentationTaskStorage.Reserve(legacy, effect, Roster, 36, 25);
         NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(reserved));
         restored.Validate();
         Assert.Equal(reserved.PresentationTaskNextAddress, restored.PresentationTaskNextAddress);
-        (_, uint address) = NativeBattlePresentationTaskStorage.Reserve(restored, effect, 12, 1);
+        (_, uint address) = NativeBattlePresentationTaskStorage.Reserve(restored, effect, Roster, 12, 1);
         Assert.Equal(0x80000390u, address);
     }
 
+    private static readonly BattleModelOwner Source = new BattlePartyActorModel(new("actor"));
+    private static readonly BattleModelRoster Roster = new([Source]);
+
     private static NativeBattleOriginalEffectState HostedEffect()
     {
-        BattleModelRoster roster = new([new BattlePartyActorModel(new("actor")), null, null, null, null, null, null]);
-        return new(5, 4, new(5, 1, 0), null, null) { PresentationRoster = roster };
+        NativeBattleEffectParameters parameters = new(Source, 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0);
+        return new(5, 4, new(5, 1, 0), parameters, null);
     }
 }

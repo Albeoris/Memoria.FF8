@@ -30,7 +30,7 @@ public sealed class NativeBattlePosePresentationTests
         Assert.True(session.Combatants[0].IsReady);
         AssertEntrySoundAllocation(session);
         BattleSnapshot saved = session.Capture();
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.NativeGraphics.ModuleEffects).AppendModelResource(0, definition.NativeModuleResources[39], 0x100027) } }));
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.NativeGraphics.ModuleEffects).AppendModelResource(session.ReadPresentationModelOwner("party"), definition.NativeModuleResources[39], 0x100027, session.ReadBattlePresentationPacketBindings().Aliases) } }));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);
@@ -81,9 +81,9 @@ public sealed class NativeBattlePosePresentationTests
         AssertEntrySoundAllocation(session);
         BattleSnapshot saved = session.Capture();
         int index = FindOriginalModelSlot(saved.NativeGraphics!, "ifrit");
-        NativeBattleVector position = ReadOriginalModelCell(saved.NativeGraphics, index).Transform!.Position28;
+        NativeBattleVector position = ReadOriginalModelCell(saved.NativeGraphics!, index).Transform!.Position28;
         byte pan = saved.NativeCamera!.Projection!.ReadPan(position);
-        NativeBattleContactPacket contact = new(new(checked((byte)index), 5, 0x40, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(session.ReadPresentationModelOwner("ifrit"), 5, 0x40, 0, 0, 0, 0), null);
         session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics with { PendingContacts = [contact] } }));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);

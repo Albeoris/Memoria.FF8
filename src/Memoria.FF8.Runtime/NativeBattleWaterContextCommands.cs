@@ -82,7 +82,6 @@ public static class NativeBattleWaterContextCommands
             return NativeBattleScriptedCommandReads.Advance(frame, 2);
         }
         ImmutableArray<BattleModelOwner> saved = mode == 0 ? [actor] : context.CurrentActors;
-        BattleModelOwner minimum = services.ResolveRing501FF0(frame, actor);
         NativeBattleModelAliases aliases = services.CaptureAliases();
         NativeBattleScriptedEffectMemory written = saved.Length <= byte.MaxValue
             ? frame.Core.Write(header + 0x17A, [(byte)saved.Length])
@@ -98,7 +97,10 @@ public static class NativeBattleWaterContextCommands
             byte savedCount = written.Read(header + 0x17A, 1)[0];
             saved = saved[..savedCount];
         }
-        NativeBattleCinematicActorContext updated = context.WithSavedActors(saved).WithCurrentActors([minimum]);
+        context = context.WithSavedActors(saved);
+        frame = frame with { Core = written with { PresentationActors = context } };
+        BattleModelOwner minimum = services.ResolveRing501FF0(frame, actor);
+        NativeBattleCinematicActorContext updated = context.WithCurrentActors([minimum]);
         written = WriteActor(written, header + 0x48, minimum, aliases).Write(header + 0x41, [1]);
         frame = frame with { Core = written with { PresentationActors = updated } };
         frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, minimum, aliases);

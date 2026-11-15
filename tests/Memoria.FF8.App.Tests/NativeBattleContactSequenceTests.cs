@@ -64,7 +64,7 @@ public sealed class NativeBattleContactSequenceTests
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         NativeBattleGraphicsState source = battle.NativeGraphics!;
         NativeBattleGraphicsModel original = ReadOriginalModelCell(source, 4);
-        Assert.Null(original.ReadLinkedModelIndex140());
+        Assert.Null(original.ReadLinkedModel());
         Assert.True(ContactResource(battle, source).Contains(4));
         Assert.False(ContactResource(battle, source).Contains(9));
         MethodInfo select = typeof(BattleSession).GetMethod("SelectNativeRingContactSequence", BindingFlags.Instance | BindingFlags.NonPublic)!;

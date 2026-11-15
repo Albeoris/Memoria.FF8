@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -29,7 +30,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             NativeBattleActionPacketsState packets = source.NativeActionPackets!;
             int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => packets.ReadHeader(new BattleActionHeaderReference(index)).Effect == 301);
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
-            byte actualCaster = header.ReadByte(0);
+            byte actualCaster = ReadOriginalModelOperand(packets.ModelAliases, header.Source);
             Assert.InRange(actualCaster, (byte)3, (byte)6);
             Assert.Equal((byte)110, ReadOriginalModelCell(source.NativeGraphics!, actualCaster).ModelId4);
             Assert.Equal((byte)8, header.Command);
@@ -39,7 +40,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             Assert.Equal((byte)1, header.ReadContactCount());
             NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
             BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == actualCaster);
-            Assert.Equal(actualCaster, contact.Primary.ActorIndex);
+            Assert.Equal(actualCaster, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
             Assert.Equal(self.NativeStatus!.Presentation.Saved, contact.Primary.SavedStatuses4);
             Assert.Equal(self.NativeStatus.Presentation.Battle, contact.Primary.BattleStatuses8);
             Assert.Equal((ushort)(1 << actualCaster), NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetMask);

@@ -33,7 +33,7 @@ public sealed class DiagnosticGuardianForceChargeTests
         Assert.Equal(originalTicks, cast.InitialTicks);
         Assert.Equal((ushort)0, cast.RemainingTicks);
         Assert.Null(cast.Command.NativeAction);
-        Assert.Null(cast.Command.NativeHeaderIndex);
+        Assert.Null(cast.Command.NativeHeader);
         BattleEvent skipped = Assert.Single(observed, entry => entry.Kind == "DiagnosticGuardianForceChargeSkipped");
         Assert.Equal(originalTicks, skipped.Amount);
         Assert.Equal("party", skipped.ActorId);

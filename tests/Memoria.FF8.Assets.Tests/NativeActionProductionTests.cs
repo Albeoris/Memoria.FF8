@@ -32,10 +32,10 @@ public sealed class NativeActionProductionTests
         Assert.Equal(9999, battle.Combatants[1].CurrentHp);
         Assert.Equal(77u, prepared.NativeAiVariables![0]);
         Assert.Null(prepared.ActiveAction);
-        Assert.Equal(0, Assert.Single(battle.QueuedActions).NativeHeaderIndex);
+        Assert.Equal(new BattleActionHeaderReference(0), Assert.Single(battle.QueuedActions).NativeHeader);
         Assert.Equal((byte)1, prepared.NativeActionPackets!.ActionCount);
         Assert.Equal((byte)1, prepared.NativeActionPackets.ContactCount);
-        Assert.Equal((ushort)1, prepared.NativeActionPackets.ReadContact(0).Primary.Amount6);
+        Assert.Equal((ushort)1, prepared.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         NativeBattleRandomState random = prepared.Random!;
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(prepared))!);
 
@@ -65,7 +65,7 @@ public sealed class NativeActionProductionTests
         battle.Tick();
 
         Assert.Equal(1000, battle.Combatants[1].CurrentHp);
-        Assert.Equal((ushort)0, battle.NativeActionPackets.ReadContact(0).Primary.Amount6);
+        Assert.Equal((ushort)0, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.Equal(before, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
@@ -101,7 +101,7 @@ public sealed class NativeActionProductionTests
         BattleAttackCommand poison = Assert.Single(battle.QueuedActions);
         Assert.Equal((byte)0, poison.NativeQueuedCommand);
         Assert.Equal(2, poison.ActionId);
-        Assert.NotNull(poison.NativeHeaderIndex);
+        Assert.NotNull(poison.NativeHeader);
         Assert.InRange(battle.Combatants[0].CurrentHp, 910, 950);
         BattleSnapshot prepared = battle.Capture();
         Assert.Equal(0x47E120u, prepared.NativeActionScratch!.ComponentCompletion);

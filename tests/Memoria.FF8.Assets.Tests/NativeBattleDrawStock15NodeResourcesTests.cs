@@ -86,7 +86,7 @@ public sealed class NativeBattleDrawStock15NodeResourcesTests
         Assert.Equal(NativeBattleSnapshotJson.Serialize(expected.Frame), NativeBattleSnapshotJson.Serialize(actual.Frame));
     }
 
-    private static NativeBattleGraphicsModel ReadModel(int index) => new(2)
+    private static NativeBattleGraphicsModel ReadModel(BattleModelOwner owner) => new(2)
     {
         Rotation14 = 0,
         Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096),

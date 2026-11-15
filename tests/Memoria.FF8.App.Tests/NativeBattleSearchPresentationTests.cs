@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -29,18 +30,18 @@ public sealed class NativeBattleSearchPresentationTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks physical action packets.");
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
-        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = (int)(offset / 20);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)14, header.Action);
         Assert.Equal((ushort)92, header.Effect);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
-        Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
+        Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.Header.Ordinal == headerIndex);
         NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Null(contact.Secondary);
         ushort initialHp = source.NativePartyPresentation!.Rows[0]!.HitPoints;
         Assert.True(initialHp >= 7);
         ushort expectedHp = (ushort)(initialHp - 7);

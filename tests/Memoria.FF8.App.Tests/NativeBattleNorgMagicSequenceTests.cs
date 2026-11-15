@@ -134,7 +134,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         {
             NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
             int physical = FindOriginalModelSlot(battle.NativeGraphics!, actorId);
-            Assert.Equal(nativeModel, ReadOriginalModelCell(battle.NativeGraphics, physical).ModelId4);
+            Assert.Equal(nativeModel, ReadOriginalModelCell(battle.NativeGraphics!, physical).ModelId4);
             Assert.Equal(count, BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan()));
             Assert.Equal(animations, resource.AnimationFrames.Length);
             Assert.False(resource.Contains(4));

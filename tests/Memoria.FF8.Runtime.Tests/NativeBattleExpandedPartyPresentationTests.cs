@@ -12,7 +12,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void ExtendedRowsUseTheirCachedHpUntilOrderedContactsAndNativeHudSmoothing()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleCombatant fourth = Actor(session, "ally-3");
         BattleCombatant eleventh = Actor(session, "ally-10");
         Assert.Equal((byte)7, session.ReadExpandedPresentationRow(fourth.Id));
@@ -42,7 +42,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void KoThenReviveOnTheSameActorUsesOrderedCacheAndEnemyRemainsCanonical()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleCombatant actor = Actor(session, "ally-10");
         actor.CurrentHp = 0;
         actor.NativeStatus0 |= 1;
@@ -75,7 +75,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void GuardianCacheRequiresASeedAndFormContactUsesCurrentFormHp()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleCombatant actor = Actor(session, "ally-3");
         BattleGuardianForceVital gf = Assert.Single(session.GuardianForces);
         object? before = Cache.GetValue(session);
@@ -101,7 +101,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void HoleUnknownIdentityAndMissingCacheRowRejectBeforeReplacingCache()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         object? original = Cache.GetValue(session);
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Publish(session, roster, Half(9, 1))).InnerException);
         BattleModelRoster stale = new(roster.Rows.SetItem(7, new("retired", true)));

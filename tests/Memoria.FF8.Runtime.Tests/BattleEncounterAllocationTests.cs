@@ -131,8 +131,8 @@ public sealed class BattleEncounterAllocationTests
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)4, header.ReadByte(0));
-        Assert.Equal((byte)8, header.ReadByte(1));
-        Assert.Equal((byte)7, header.ReadByte(2));
+        Assert.Equal((byte)8, header.Command);
+        Assert.Equal((byte)7, header.Sequence);
         Assert.Equal((byte)0, header.ReadByte(4));
         Assert.Equal((byte)0, battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary.ActorIndex);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Message");

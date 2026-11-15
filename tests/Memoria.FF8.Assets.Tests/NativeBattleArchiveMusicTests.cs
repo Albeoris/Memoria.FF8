@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
@@ -76,7 +77,7 @@ public sealed class NativeBattleArchiveMusicTests
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleModelDatSource model = assets.ReadNativeModelDatSource(0, false, 0);
-        NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 0).Poll507070(-1, [model], NativeBattleFileStaging.Unknown());
+        NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0).Poll507070(-1, [model], NativeBattleFileStaging.Unknown());
         NativeBattleModelLoadStep prepared = request.State.Poll507070(model.Bytes.Length, [model], request.Staging);
         NativeBattleModelLoadStep preparedSnapshot = NativeBattleStorageSnapshots.Capture(prepared);
         NativeBattleArchiveFile victory = assets.ReadNativeBattleFile(766);

@@ -163,20 +163,20 @@ public sealed class NativeBattleEffect68PresentationTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 135 && row.MagicId == 68 && row.KernelSection == 3 && row.KernelIndex == 135);
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(30, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 11, -1, 135, 68, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 11, -1, 135, 68, null));
         string targetId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect68 requires its actual party recipient.");
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect68 requires its current recipient status.");
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleContactPacket contact = new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
+        Assert.Equal(priorActions, header.Ordinal);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([68])[67];
         Assert.Equal(Entry, binding.Entry);
         Assert.Equal(Initializer, binding.Initializer);
@@ -187,7 +187,7 @@ public sealed class NativeBattleEffect68PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original30 command8/action135/sequence11 Amount0 Scan component; ordinary AI and formula excluded", ActualCasterId = casterId, PhysicalCaster = 3, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle into presentation cache on the prepared component copy; HP/status preserved", Input = "Retained real input; native automatic page expiration without synthetic acknowledgment" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original30 command8/action135/sequence11 Amount0 Scan component; ordinary AI and formula excluded", ActualCasterId = casterId, PhysicalCaster = 3, Action = action, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle into presentation cache on the prepared component copy; HP/status preserved", Input = "Retained real input; native automatic page expiration without synthetic acknowledgment" }));
         return source;
     }
     private static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 68, ReturnedDescriptor: 0 } effect && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;

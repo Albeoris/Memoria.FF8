@@ -18,15 +18,15 @@ public sealed class ExpandedEffectContactConsumerTests
         NativeBattleContactPacket second = Packet(3, 30);
         SetContacts(battle, [new("enemy-0", first), new("enemy-0", second)]);
 
-        Publish(battle, command, new([first with { PhysicalContactIndex = 0 }], [])
+        Publish(battle, command, new([first with { Occurrence = new BattleContactOccurrence(0) }], [])
         {
             Sequences = [new(OriginalOwner(3), NativeBattleForeignSequenceKind.Hit)]
         });
         Assert.Throws<InvalidDataException>(() => Invoke(battle, "ValidateExpandedEffectContactCompletion"));
-        Assert.Throws<InvalidDataException>(() => Publish(battle, command, new([first with { PhysicalContactIndex = 0 }], [])));
+        Assert.Throws<InvalidDataException>(() => Publish(battle, command, new([first with { Occurrence = new BattleContactOccurrence(0) }], [])));
         Assert.Single(battle.Events, entry => entry.Kind == "EffectContact");
 
-        Publish(battle, command, new([second with { PhysicalContactIndex = 1 }], []));
+        Publish(battle, command, new([second with { Occurrence = new BattleContactOccurrence(1) }], []));
         Invoke(battle, "ValidateExpandedEffectContactCompletion");
         Assert.Equal(new[] { 20, 30 }, battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.Amount));
         Assert.All(battle.Events.Where(entry => entry.Kind == "EffectContact"), entry => Assert.Equal("enemy-0", entry.TargetId));
@@ -46,7 +46,7 @@ public sealed class ExpandedEffectContactConsumerTests
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact");
         Publish(battle, command, new([.. Enumerable.Range(0, 5).Select(index => repeated with { PhysicalContactIndex = index })], []));
         Assert.Equal(5, battle.Events.Count(entry => entry.Kind == "EffectContact"));
-        Publish(battle, command, new([repeated with { PhysicalContactIndex = 5 }], []));
+        Publish(battle, command, new([repeated with { Occurrence = new BattleContactOccurrence(5) }], []));
 
         Invoke(battle, "ValidateExpandedEffectContactCompletion");
         Assert.Equal(new[] { 20, 20, 20, 20, 20, 20, 35 }, battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.Amount));

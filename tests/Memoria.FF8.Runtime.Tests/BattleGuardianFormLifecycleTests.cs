@@ -300,7 +300,7 @@ public sealed class BattleGuardianFormLifecycleTests
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
         battle.Tick();
         BattleActionPresentation admitted = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
-        Assert.NotNull(admitted.NativeHeaderIndex);
+        Assert.NotNull(admitted.NativeHeader);
         Assert.Equal(BattleGuardianFormAction.Fire, admitted.GuardianFormAction);
         int enemyHp = battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp;
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "actor" && item.TargetId == "enemy");
@@ -308,10 +308,10 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(BattleGuardianFormPhase.Returning, battle.GetGuardianForm("actor")!.Phase);
         Assert.Equal(0, Assert.Single(battle.GuardianForces).HitPoints);
         Assert.Equal(37, Actor(battle).CurrentHp);
-        Assert.Equal(admitted.NativeHeaderIndex, battle.ActiveAction!.NativeHeaderIndex);
+        Assert.Equal(admitted.NativeHeader, battle.ActiveAction!.NativeHeader);
         BattleSession restored = RoundTrip(battle.Capture());
         Assert.Equal(BattleGuardianFormPhase.Returning, restored.GetGuardianForm("actor")!.Phase);
-        Assert.Equal(admitted.NativeHeaderIndex, restored.ActiveAction!.NativeHeaderIndex);
+        Assert.Equal(admitted.NativeHeader, restored.ActiveAction!.NativeHeader);
         for (int tick = 0; tick < 100 && (restored.ActiveAction is not null || restored.GetGuardianForm("actor") is not null); tick++)
         {
             restored.Tick();
@@ -332,7 +332,7 @@ public sealed class BattleGuardianFormLifecycleTests
     {
         BattleSession battle = Active(new() { Kind = BattleStatusKind.Poison, DurationFrames = 1, TickIntervalFrames = 1, Magnitude = 100 }, ready: true);
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
-        Assert.Null(Assert.Single(battle.QueuedActions).NativeHeaderIndex);
+        Assert.Null(Assert.Single(battle.QueuedActions).NativeHeader);
         battle.Tick();
         Assert.Null(battle.GetGuardianForm("actor"));
         Assert.Empty(battle.QueuedActions);
@@ -374,7 +374,7 @@ public sealed class BattleGuardianFormLifecycleTests
         // A factual Counter has already resolved its contact and now owns only its remaining recovery presentation.
         BattleActionPresentation admitted = new("actor", "enemy", BattleActionPhase.Recovery, 2, BattleAbility.Attack, 0)
         {
-            NativeHeaderIndex = 0,
+            NativeHeader = new BattleActionHeaderReference(0),
             NativeQueuedCommand = 1,
             NativeSequence = 12,
             NativeTargetMask = 8,
@@ -405,7 +405,7 @@ public sealed class BattleGuardianFormLifecycleTests
         BattleSession battle = Active(ready: true);
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
         battle.Tick();
-        Assert.NotNull(battle.ActiveAction!.NativeHeaderIndex);
+        Assert.NotNull(battle.ActiveAction!.NativeHeader);
         int damageCount = battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "actor");
         battle.InstantVictory();
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
@@ -433,7 +433,7 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal((ushort)79, action.NativeAction!.ActionId);
         Assert.Equal((byte)1, action.NativeAction.AttackType);
         Assert.Equal((byte)12, action.NativeSequence);
-        Assert.NotNull(action.NativeHeaderIndex);
+        Assert.NotNull(action.NativeHeader);
         Assert.Equal(stock, Actor(battle).MagicStocks);
         Assert.Equal(items, battle.Items);
         BattleSession restored = RoundTrip(battle.Capture());

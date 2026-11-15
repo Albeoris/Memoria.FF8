@@ -70,13 +70,13 @@ public sealed class ExpandedAiInstalledAdmissionTests
 
         Until(battle, () => battle.ActiveAction?.NativeAction?.ActionId == action || battle.QueuedActions.Any(command => command.NativeAction?.ActionId == action));
         byte expectedStage = deathCallback ? (byte)3 : (byte)1;
-        BattleAiRecipients recipients;
+        BattleTargetRequest request;
         BattleNativeAction native;
         if (battle.ActiveAction is { NativeAction: { ActionId: var activeId } } active && activeId == action)
         {
             Assert.Equal(sequence, active.NativeSequence);
             Assert.Equal(expectedStage, active.NativeAiCallbackStage);
-            recipients = Assert.IsType<BattleAiRecipients>(active.AiRecipients);
+            request = active.TargetRequest;
             native = active.NativeAction!;
         }
         else
@@ -84,11 +84,11 @@ public sealed class ExpandedAiInstalledAdmissionTests
             BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
             Assert.Equal(sequence, queued.NativeSequence);
             Assert.Equal(expectedStage, queued.NativeAiCallbackStage);
-            recipients = Assert.IsType<BattleAiRecipients>(queued.AiRecipients);
+            request = queued.TargetRequest;
             native = Assert.IsType<BattleNativeAction>(queued.NativeAction);
         }
-        Assert.Equal(enemy.Id, Assert.Single(recipients.ActorIds));
-        Assert.Equal(deathCallback ? enemy.Id : null, recipients.DeathSelfTargetId);
+        Assert.Equal(enemy.Id, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(request.Selection).Actors).ActorId);
+        Assert.Equal(deathCallback ? enemy.Id : null, request.DeathCallbackSelf?.ActorId);
         Assert.Equal((byte)8, native.Command);
         Assert.Equal((byte)0, native.AttackType);
         Assert.Equal((byte)0, native.AttackFlags);

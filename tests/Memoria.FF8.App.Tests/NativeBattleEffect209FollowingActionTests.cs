@@ -29,10 +29,10 @@ public sealed class NativeBattleEffect209FollowingActionTests
         string targetId = ReadOriginalModelActorId(source.NativeGraphics, 0)!;
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 319, 209, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 13, -1, 319, 209, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = source.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = source.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = source.NativeGraphics with { Descriptors = descriptors } };
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-before-entry", prepared, null);
         BattleSession battle = Restore(prepared);

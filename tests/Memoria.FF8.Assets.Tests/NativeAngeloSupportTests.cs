@@ -22,7 +22,8 @@ public sealed class NativeAngeloSupportTests
         Assert.Equal((byte)240, queued.NativeQueuedCommand);
         Assert.Equal(row, queued.NativeAction!.ActionId);
         Assert.Equal(effect, queued.NativeAction.MagicId);
-        Assert.Equal(0, queued.NativeTargetMask);
+        var targets = Assert.IsType<BattleTargetSelection.Explicit>(queued.TargetRequest.Selection);
+        Assert.Equal(recipient, Assert.Single(targets.Actors).ActorId);
         if (lethal)
         {
             Assert.False(battle.Combatants[0].IsAlive);
@@ -146,10 +147,10 @@ public sealed class NativeAngeloSupportTests
         Assert.Equal(reaction, queued.NativePlayerReaction);
         Assert.Equal((byte)240, queued.NativeQueuedCommand);
         Assert.Equal(id, queued.ActionId);
-        Assert.Equal(mask, queued.NativeTargetMask);
+        Assert.Equal(mask, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, target => battle.Combatants.Single(actor => actor.Id == target.ActorId).Slot));
         Assert.True(battle.Combatants[0].Atb > 0);
         string snapshot = JsonSerializer.Serialize(battle.Capture());
-        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!).Capture()));
+        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }
 
     [Fact]
@@ -164,25 +165,29 @@ public sealed class NativeAngeloSupportTests
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleNativePlayerReaction.AngeloReverse, queued.NativePlayerReaction);
-        Assert.Equal((ushort)0x4001, queued.NativeTargetMask);
-        Assert.NotNull(queued.NativeHeaderIndex);
+        Assert.Equal((ushort)0x4001, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, target => battle.Combatants.Single(actor => actor.Id == target.ActorId).Slot));
+        Assert.NotNull(queued.NativeHeader);
         BattleSnapshot prepared = battle.Capture();
-        NativeBattleActionHeaderSlot header = prepared.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(queued.NativeHeaderIndex!.Value));
+        NativeBattleActionHeaderSlot header = prepared.NativeActionPackets!.ReadHeader(queued.NativeHeader!.Value);
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)13, header.Action);
-        NativeBattleContactPacket contact = prepared.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        NativeBattleContactPacket contact = prepared.NativeActionPackets.ReadContact(header.FirstContact);
+        Assert.Equal(battle.ReadPresentationModelOwner("rinoa"), contact.Primary.Recipient);
+        Assert.Null(contact.Secondary);
         int revivedHp = battle.Combatants[0].CurrentHp;
         Assert.Equal(checked((ushort)revivedHp), contact.Primary.Amount6);
-        Assert.Equal(1, contact.Primary.HitFlags3 & 1);
+        Assert.Equal(1, contact.Primary.HitFlags & 1);
         BattleEvent healing = Assert.Single(battle.Events, item => item.Kind == "Healing");
         Assert.Equal("rinoa", healing.TargetId);
         Assert.Equal(revivedHp, healing.Amount);
         string json = JsonSerializer.Serialize(prepared);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSession restored = BattleSession.Restore(prepared);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(contact.Encode(), restored.Capture().NativeActionPackets!.ReadContact(header.FirstContactIndex.Value).Encode());
+        NativeBattleActionPacketsState restoredPackets = restored.Capture().NativeActionPackets!;
+        Assert.Equal(contact, restoredPackets.ReadContact(header.FirstContact));
+        Assert.Equal(
+            NativeBattleContactPacketCodec.Encode(prepared.NativeActionPackets.ExportRetained().Contacts[header.FirstContact.Ordinal]!),
+            NativeBattleContactPacketCodec.Encode(restoredPackets.ExportRetained().Contacts[header.FirstContact.Ordinal]!));
         for (int frame = 0; frame < 128 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
@@ -271,7 +276,10 @@ public sealed class NativeAngeloSupportTests
         {
             return battle;
         }
-        BattleAttackCommand command = new("enemy", "rinoa", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = expanded ? (ushort)0 : (ushort)1, AiRecipients = expanded ? new(["rinoa"]) : null };
+        BattleTargetRequest targets = expanded
+            ? new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("rinoa")]), BattleTargetEligibility.AiAvailable, false, BattleTargetReplacement.None)
+            : NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        BattleAttackCommand command = new("enemy", "rinoa", targets, BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack };
         NativeBattleRandomState random = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0);
         return BattleSession.Restore(battle.Capture() with { QueuedActions = [command], Random = random });
     }

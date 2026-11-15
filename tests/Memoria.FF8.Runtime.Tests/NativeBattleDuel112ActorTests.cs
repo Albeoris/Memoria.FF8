@@ -25,13 +25,13 @@ public sealed class NativeBattleDuel112ActorTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
         (target, _) = target.Append(0x6CBF90);
-        target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteWord(12, 45).WriteDword(176, 0x1D972C0 + 156 * 3)) });
+        target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, NativeBattleDuel112Fixture.WriteOriginalTarget(target.Slots[0].WriteWord(12, 45))) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target] };
-        NativeBattleDuel112Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, null) }, effect, NativeBattleFileStaging.Unknown(), new(1));
+        NativeBattleDuel112Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, null) }, effect, NativeBattleFileStaging.Unknown(), new(1));
         NativeBattleGraphicsModel actor = new(3) { Rotation14 = 1024, Transform = new(new(0, 0, 0), new(1, 2, 3), 93, 17, 4096) };
         NativeBattleGraphicsModel enemy = new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 1000) };
-        NativeBattleDuel112ActorServices services = new(index => index == 0 ? actor : enemy, (_, model) => actor = model, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException());
+        NativeBattleDuel112ActorServices services = new(index => index == OriginalOwner(0) ? actor : enemy, (_, model) => actor = model, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), OriginalAliases);
         frame = NativeBattleDuel112Target.Trajectory6CBF90(frame, 0, services, index =>
         {
             Assert.Equal(OriginalOwner(3), index);

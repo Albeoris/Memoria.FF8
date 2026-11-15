@@ -186,7 +186,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 before = battle.Capture();
                 battle.Tick();
                 Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
-                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics, actorIndex).Color40 == interpolatedColor;
+                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
                 if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
@@ -248,7 +248,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         {
             NativeBattleActionMatrix matrix = ReadOriginalModelCell(battle.NativeGraphics!, 0).GeometryWorldMatrix!;
             int targetIndex = Array.IndexOf(battle.NativeGraphics.ActorIds.ToArray(), "enemy");
-            NativeBattleVector destination = ReadOriginalModelCell(battle.NativeGraphics, targetIndex).Transform!.Position28;
+            NativeBattleVector destination = ReadOriginalModelCell(battle.NativeGraphics!, targetIndex).Transform!.Position28;
             return Math.Pow(matrix.X - destination.X, 2) + Math.Pow(matrix.Z - destination.Z, 2);
         }
 

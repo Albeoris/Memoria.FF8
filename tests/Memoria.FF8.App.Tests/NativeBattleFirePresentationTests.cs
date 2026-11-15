@@ -76,11 +76,11 @@ public sealed class NativeBattleFirePresentationTests
             AssertNativeFileIoHostPump(before);
         }
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 1, 0, 0, 7, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
         BattleScenePresentation scene = new(assets, definition, true);
         List<NativeBattleModuleSound> heard = [];

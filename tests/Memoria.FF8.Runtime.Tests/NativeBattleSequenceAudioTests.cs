@@ -72,7 +72,7 @@ public sealed class NativeBattleSequenceAudioTests
     public void Actor_identity_is_loaded_BYTE4_without_a_second_enemy_offset_and_mask_is_the_optional_BYTE_shifted8()
     {
         ImmutableArray<uint> table = Enumerable.Range(0, 1120).Select(index => (uint)(90000 + index)).ToImmutableArray();
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(6, true, 6, 0xFF00), 3, null, index =>
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(6, true, 6, 0xFF00), OriginalOwner(3), null, index =>
         {
             Assert.Equal(OriginalOwner(3), index);
             return 77;
@@ -122,7 +122,7 @@ public sealed class NativeBattleSequenceAudioTests
                 Assert.Equal(cue.First == 6 && opcode is 0x97 or 0x98, cue.OverrideSoundOnContact4);
                 calls.Add($"sound:{cue.First}");
                 NativeBattleSequenceSound source = new((byte)cue.First, cue.Kind == NativeBattleSequenceCueKind.ActorSound, (byte)cue.Second, (ushort)cue.Third);
-                NativeBattleModuleSound resolved = NativeBattleSequenceAudio.Resolve505AB0(source, 3, null, _ => 77, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(123u, 1120).ToImmutableArray())!;
+                NativeBattleModuleSound resolved = NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(3), null, _ => 77, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(123u, 1120).ToImmutableArray())!;
                 (process, _) = resolved.Commit46B2A0(process);
             },
             ApplyActionContacts = current =>

@@ -15,9 +15,9 @@ public sealed class NativeReturnDamageTests
         Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
 
         Assert.Equal((byte)4, battle.NativeActionPackets.ActionCount);
-        Assert.Equal(new byte[] { 8, 0, 8, 0 }, battle.NativeActionPackets.Headers.Take(4).Select(header => header.ReadByte(1)));
+        Assert.Equal(new byte[] { 8, 0, 8, 0 }, battle.NativeActionPackets.PublishedHeaders().Take(4).Select(header => header.Slot.Command));
         Assert.Null(battle.ActiveAction);
-        Assert.Equal(new int?[] { 0, 1, 2, 3 }, battle.QueuedActions.Select(command => command.NativeHeaderIndex));
+        Assert.Equal(new int?[] { 0, 1, 2, 3 }, battle.QueuedActions.Select(command => command.NativeHeader?.Ordinal));
         Assert.Equal(9500, battle.Combatants[1].CurrentHp);
         Assert.Equal((ushort)0, battle.Capture().Combatants[1].NativeParticipant!.ReturnDamage);
         Assert.Equal(new[] { "party", "enemy", "party", "enemy" }, battle.Events.Where(item => item.Kind == "Damage").Select(item => item.TargetId));
@@ -48,7 +48,7 @@ public sealed class NativeReturnDamageTests
         Assert.Equal((ushort)0, saved.Combatants[0].NativeParticipant!.ReturnDamage);
         Assert.Equal((ushort)0, saved.Combatants[1].NativeParticipant!.ReturnDamage);
         Assert.Equal(10000 - returned, battle.Combatants[1].CurrentHp);
-        Assert.Equal((ushort)returned, battle.NativeActionPackets.ReadContact(1).Primary.Amount6);
+        Assert.Equal((ushort)returned, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Amount6);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
         for (int frame = 0; frame < 40; frame++)
         {

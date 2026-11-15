@@ -27,17 +27,17 @@ public sealed class NativeBattleQuezacotlResourcesTests
         (memory, effect) = NativeBattleOriginalEffects.Initialize(memory, effect);
         Assert.Equal(0x6C3580u, memory.EffectIo!.Callback);
         Assert.Equal(NativeBattleStorageSnapshots.Capture(resources.Initializer).Data.Length, memory.Cursor);
-        NativeBattleActionPacketsState packets = game.ReadColdProcessNativeBattleMemory().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 0xFE, 14, -1, 64, 116, null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, game.ReadColdProcessNativeBattleMemory().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
         foreach (byte target in new byte[] { 3, 4 })
         {
-            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), 0, 0, 0, 0, 0, 0), null));
         }
-        (packets, int header) = packets.Publish(2);
-        effect = effect with { Parameters = new(OriginalOwner(0), 0, 0x18, header, 0, 0) };
+        (packets, BattleActionHeaderReference header) = packets.Publish(2);
+        effect = effect with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3), OriginalOwner(4)]), header, 0, 0) };
         NativeCrtRandomState random = new(1);
         NativeCrtRandomState expected = random.Draw(out ushort value);
-        NativeBattleQuezacotlEntry entered = NativeBattleQuezacotl.Enter6C3640(memory, effect, random, packets, index => index == 3 ? (short)-101 : (short)100);
+        NativeBattleQuezacotlEntry entered = NativeBattleQuezacotl.Enter6C3640(memory, effect, random, packets, owner => owner == OriginalOwner(3) ? (short)-101 : (short)100);
         Assert.Equal(expected, entered.Random);
         Assert.Equal(value, entered.Effect.Quezacotl!.Random17A0);
         Assert.Equal(0, entered.Effect.Quezacotl.TargetZ1770);

@@ -23,7 +23,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         AdvanceBoth(ref session, ref clone);
         Assert.Equal((byte)8, ActionTask(session).Phase);
         NativeBattleGraphicsModel caster = ReadOriginalModelCell(session.NativeGraphics!, 0);
-        NativeBattleGraphicsModel neighbor = ReadOriginalModelCell(session.NativeGraphics, 1);
+        NativeBattleGraphicsModel neighbor = ReadOriginalModelCell(session.NativeGraphics!, 1);
         Assert.Equal(2, caster.Flags0 & 0xE);
         Assert.Equal(4, caster.Flags2 & 4);
         Assert.Equal(4, neighbor.Flags2 & 4);
@@ -45,7 +45,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             Assert.Equal((short)123, caster.SequenceState!.Header40);
             Assert.Equal((byte)0, caster.SequenceState.Pending3);
         }
-        Assert.Equal(0x10u, session.NativeGraphics.Flags & 0x10);
+        Assert.Equal(0x10u, session.NativeGraphics!.Flags & 0x10);
         Assert.Equal((byte)1, session.NativeEffectMemory!.Active);
         Assert.DoesNotContain(session.Events, item => item.NativeModuleSound is { Sound: 0x87 or 0x88 });
         Assert.DoesNotContain(session.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
@@ -68,7 +68,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         Assert.Equal(0x10u, session.NativeGraphics!.Flags & 0x10);
         AdvanceBoth(ref session, ref clone);
         Assert.DoesNotContain(session.NativeGraphics!.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
-        Assert.Equal(0u, session.NativeGraphics.Flags & 0x10);
+        Assert.Equal(0u, session.NativeGraphics!.Flags & 0x10);
         Assert.Equal((byte)0, session.NativeEffectMemory!.Active);
         NativeBattleModuleSound[] sounds = session.Events.Where(item => item.NativeModuleSound is { Sound: 0x87 or 0x88 }).Select(item => item.NativeModuleSound!).ToArray();
         Assert.Equal(parameter81 == 3 ? new uint[] { 0x87, 0x88 } : [], sounds.Select(sound => sound.Sound).ToArray());
@@ -138,10 +138,10 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         Assert.True(session.NativeEntryReady);
         BattleSnapshot entry = session.Capture();
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 0xFE, 14, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 0, 0, 0, 7, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = entry.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header));
+        (NativeBattleDescriptorState descriptors, _) = entry.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header.Ordinal));
         session = BattleSession.Restore(entry with { NativeActionPackets = packets, NativeGraphics = entry.NativeGraphics with { Descriptors = descriptors } });
         //Run actual50AFC0/phase1 preparation once; the module entry has not been invoked at phase2.
         for (int callback = 0; callback < 200 && !session.NativeGraphics!.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2); callback++)
@@ -160,9 +160,9 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         NativeBattleGraphicsModel neighbor = NativeBattleGraphicsModels.SelectSequence(ReadOriginalModelCell(graphics, 1), 11, true);
         caster = caster with { Flags0 = (ushort)((caster.Flags0 & ~0xE) | 8), Flags8 = 0x19, ResourceFlags44 = 0, SequenceState = caster.SequenceState! with { Header40 = 123, Pending3 = 0 } };
         neighbor = neighbor with { Flags0 = (ushort)(neighbor.Flags0 | 4), Flags8 = 0x19, ResourceFlags44 = 0, Kind5 = 0, Phase6 = 0, Color44 = 0 };
-        NativeBattleActionGraphicsState context = graphics.ActionGraphics! with { Guardian = graphics.ActionGraphics!.Guardian! with { Neighbor70 = 1 } };
+        NativeBattleActionGraphicsState context = graphics.ActionGraphics! with { Guardian = graphics.ActionGraphics!.Guardian! with { Neighbor = new(Assert.IsAssignableFrom<BattlePartyModelOwner>(session.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(1))) } };
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { Parameters = graphics.OriginalEffect!.Parameters! with { Parameter81 = parameter81 }, ReturnedDescriptor = 0, Pools = [] };
-        graphics = graphics with { Descriptors = descriptors, Models = graphics.Models.SetItem(0, caster).SetItem(1, neighbor), ActionGraphics = context, OriginalEffect = effect, ModuleEffects = NativeBattleModuleState.Clear(), Effects = OriginalEffects(), Auxiliary = NativeBattleAuxiliaryState.Clear(), Flags = graphics.Flags | 0x11 };
+        graphics = graphics with { Descriptors = descriptors, ActorModels = graphics.ActorModels.Set(session.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(0), caster).Set(session.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(1), neighbor), ActionGraphics = context, OriginalEffect = effect, ModuleEffects = NativeBattleModuleState.Clear(), Effects = OriginalEffects(), Auxiliary = NativeBattleAuxiliaryState.Clear(), Flags = graphics.Flags | 0x11 };
         NativeBattleCameraState camera = prepared.NativeCamera! with { Tasks = [null, null], Order = [], Mask = 0, ControlCursor = null, BlendProgress = 0 };
         return BattleSession.Restore(prepared with { NativeGraphics = graphics, NativeCamera = camera, NativeEffectMemory = prepared.NativeEffectMemory! with { Active = 1 } });
     }

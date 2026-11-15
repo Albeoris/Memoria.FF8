@@ -7,7 +7,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverNativeContactOccurrenceTests
 {
     private static readonly NativeBattleContactHalf Contact = new(OriginalOwner(3), 4, 0, 0, 0, 10, 0);
-    private static readonly NativeBattleContactHalf Absent = new(255, 0, 0, 0, 0, 0, 0);
     private static readonly ImmutableArray<CrossoverNativeMagicTarget> Planned = [new(4, Contact), new(4, Contact), new(4, Contact)];
 
     [Fact]
@@ -23,10 +22,10 @@ public sealed class CrossoverNativeContactOccurrenceTests
     {
         Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [2], [Packet(2)]));
         Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [], [Packet(1), Packet(1)]));
-        Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [], [new(Contact, Absent)]));
+        Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [], [new(Contact, null)]));
         Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [], [Packet(3)]));
-        Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [], [Packet(0) with { Primary = Contact with { ActorIndex = 4 } }]));
+        Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(Planned, [], [Packet(0) with { Primary = Contact with { Recipient = OriginalOwner(4) } }]));
     }
 
-    private static NativeBattleContactPacket Packet(int ordinal) => new(Contact, Absent) { PhysicalContactIndex = ordinal };
+    private static NativeBattleContactPacket Packet(int ordinal) => new(Contact, null) { Occurrence = new BattleContactOccurrence(ordinal) };
 }

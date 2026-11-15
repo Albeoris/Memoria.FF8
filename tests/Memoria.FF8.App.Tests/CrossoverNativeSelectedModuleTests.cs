@@ -11,7 +11,7 @@ public sealed class CrossoverNativeSelectedModuleTests
     public void Repeated_target_contacts_keep_seventeen_physical_occurrences_under_one_selected_header()
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 250, 0, -1, ushort.MaxValue, 165, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 250, 0, -1, ushort.MaxValue, 165, null));
         ImmutableArray<CrossoverNativeMagicTarget>.Builder contacts = ImmutableArray.CreateBuilder<CrossoverNativeMagicTarget>();
         for (int ordinal = 0; ordinal < 17; ordinal++)
         {
@@ -80,9 +80,9 @@ public sealed class CrossoverNativeSelectedModuleTests
             Assert.Equal(ushort.MaxValue, invocation.Argument);
             Assert.Equal((byte)0, invocation.SourceSequence);
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-            (packets, int index) = packets.Prepare(new(OriginalOwner(0), invocation.Command, invocation.SourceSequence!.Value, -1, invocation.Argument, action.MagicId, null));
-            Assert.Equal(0x50BC20u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(new BattleActionHeaderReference(index))).Callback);
-            Assert.Equal(action.MagicId, packets.ReadHeader(new BattleActionHeaderReference(index)).Effect);
+            (packets, BattleActionHeaderReference index) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), invocation.Command, invocation.SourceSequence!.Value, -1, invocation.Argument, action.MagicId, null));
+            Assert.Equal(0x50BC20u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(index)).Callback);
+            Assert.Equal(action.MagicId, packets.ReadHeader(index).Effect);
         }
     }
 }

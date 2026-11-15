@@ -93,6 +93,24 @@ public sealed record NativeBattleRetainedActionPackets([property: JsonRequired] 
         return this with { ActionCount = 0, ContactCount = 0, UnknownCountMask = 0 };
     }
 
+    internal NativeBattleRetainedActionPackets DetachDiagnosticCopy()
+    {
+        return this with
+        {
+            Headers = Headers.Select(header => header with
+            {
+                Payload = ImmutableArray.Create(header.Payload.AsSpan()),
+                Data = header.Data is null ? null : header.Data with { }
+            }).ToImmutableArray(),
+            Contacts = Contacts.Select(contact => contact is null ? null : contact with
+            {
+                Primary = contact.Primary with { },
+                Secondary = contact.Secondary with { },
+                UnknownBits = contact.UnknownBits.IsDefault ? default : ImmutableArray.Create(contact.UnknownBits.AsSpan())
+            }).ToImmutableArray()
+        };
+    }
+
     public void Validate()
     {
         if (ContactCount is < 0 or > byte.MaxValue || (UnknownCountMask & ~3) != 0 ||

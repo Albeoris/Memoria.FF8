@@ -163,9 +163,9 @@ public sealed class NativeBattleRestorationPresentationTests
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle), NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(1, new(priorSaved, priorBattle)) };
         NativeBattleActionPacketsState packets = before.NativeActionPackets!;
         byte sequence = definition.NativeCommandSequences[native.Command];
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
         ushort amount = healing ? checked((ushort)(targetHp - 50)) : resurrection ? checked((ushort)targetHp) : (ushort)0;
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), native.DamagePresentation, 0, resurrection || healing ? (byte)1 : (byte)0, status.Saved, amount, status.Battle), null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(1), native.DamagePresentation, 0, resurrection || healing ? (byte)1 : (byte)0, status.Saved, amount, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(graphics, 1);
@@ -205,7 +205,7 @@ public sealed class NativeBattleRestorationPresentationTests
             PublishJson(evidence, id + "-details", new { before.Frame, graphics.Callback, PoisonIconRgbPixels = iconRgb });
             Assert.True(iconRgb > 0, "Original poison icon packets changed no RGB pixels in the ordinary callback before104.");
         }
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         return BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } }));
     }
 

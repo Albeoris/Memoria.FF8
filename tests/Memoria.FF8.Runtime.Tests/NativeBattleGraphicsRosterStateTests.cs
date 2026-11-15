@@ -1,119 +1,97 @@
 using System.Collections.Immutable;
-using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGraphicsRosterStateTests
 {
     [Fact]
-    public void Old_native_state_serializes_without_a_presentation_roster()
+    public void OriginalGraphicsExposeOnlyBoundActorsAndRetainUnboundCellsSeparately()
     {
-        NativeBattleGraphicsState original = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), [null, "party", null, "enemy", null, null, null], 0, 0);
-        string json = JsonSerializer.Serialize(original);
-        using JsonDocument document = JsonDocument.Parse(json);
-        Assert.False(document.RootElement.TryGetProperty(nameof(NativeBattleGraphicsState.PresentationRoster), out _));
-
-        NativeBattleGraphicsState restored = JsonSerializer.Deserialize<NativeBattleGraphicsState>(json)!;
-        restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(7, restored.Models.Length);
-        Assert.True(restored.IsPartyActor(0));
-        Assert.True(restored.IsPartyActor(2));
-        Assert.False(restored.IsPartyActor(3));
-        Assert.False(restored.IsPartyActor(6));
-        Assert.Throws<ArgumentOutOfRangeException>(() => restored.IsPartyActor(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => restored.IsPartyActor(7));
-
-        NativeBattleGraphicsState hosted = CreateHostedState(25);
-        Assert.Throws<InvalidDataException>((hosted with { PresentationRoster = null }).Validate);
+        var graphics = OriginalGraphics([(1, OriginalOwner(1), new(0)), (3, OriginalOwner(3), new(0))]);
+        graphics.Validate();
+        Assert.Equal(new[] { OriginalOwner(1), OriginalOwner(3) }, graphics.ActorModels.Owners);
+        Assert.Equal(BattleSide.Allies, graphics.NativeBindings.DecodeLiteral(1, graphics.ActorModels).Side);
+        Assert.Equal(BattleSide.Enemies, graphics.NativeBindings.DecodeLiteral(3, graphics.ActorModels).Side);
+        Assert.Null(graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(2), graphics.ActorModels));
+        Assert.Equal((ushort)0, ReadOriginalModelCell(graphics, 2).Flags0);
+        Assert.Throws<InvalidDataException>(() => graphics.NativeBindings.DecodeLiteral(2, graphics.ActorModels));
     }
 
     [Theory]
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(25)]
-    public void Hosted_state_preserves_explicit_roles_and_holes_through_serialization(int count)
+    public void ExpandedGraphicsKeepExplicitActorRolesAndOrder(int count)
     {
-        NativeBattleGraphicsState state = CreateHostedState(count);
-        state.Validate();
-
-        NativeBattleGraphicsState restored = JsonSerializer.Deserialize<NativeBattleGraphicsState>(JsonSerializer.Serialize(state))!;
-        restored.Validate();
-        Assert.Equal(count, restored.Models.Length);
-        Assert.Equal(count, restored.PresentationRoster!.ActorCount);
-        Assert.False(restored.IsPartyActor(0));
-        Assert.True(restored.IsPartyActor(count - 1));
-        Assert.Null(restored.ActorIds[1]);
-        Assert.Throws<InvalidDataException>(() => restored.IsPartyActor(1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => restored.IsPartyActor(count));
+        NativeBattleGraphicsState graphics = ExpandedGraphics(count);
+        graphics.Validate();
+        BattleModelOwner[] owners = graphics.ActorModels.Owners.ToArray();
+        Assert.Equal(count, owners.Length);
+        Assert.Equal(count, graphics.ActorModels.Roster.Count);
+        Assert.Equal(BattleSide.Enemies, owners[0].Side);
+        Assert.Equal(BattleSide.Allies, owners[^1].Side);
+        Assert.Null(graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(1), graphics.ActorModels));
+        Assert.Throws<ArgumentException>(() => graphics.ActorModels.Add(new BattlePartyActorModel(new("enemy-0")), new(0)));
     }
 
     [Fact]
-    public void Hosted_state_rejects_inconsistent_rows_and_duplicate_bindings()
+    public void GraphicsValidationRejectsRetiredOwnersStillBoundToOriginalSlots()
     {
-        NativeBattleGraphicsState state = CreateHostedState(8);
-        Assert.Throws<InvalidDataException>((state with { Models = state.Models.RemoveAt(7) }).Validate);
-        Assert.Throws<InvalidDataException>((state with { Models = state.Models.SetItem(7, state.Models[7] with { Index = 6 }) }).Validate);
-        Assert.Throws<InvalidDataException>((state with { ActorIds = state.ActorIds.RemoveAt(7) }).Validate);
-        Assert.Throws<InvalidDataException>((state with { ActorIds = state.ActorIds.SetItem(7, "other") }).Validate);
-        Assert.Throws<InvalidDataException>((state with { ActorIds = state.ActorIds.SetItem(1, "unbound") }).Validate);
-        Assert.Throws<InvalidDataException>(() => new BattleModelRoster(state.PresentationRoster!.Rows.SetItem(7, new("enemy", true))));
+        NativeBattleGraphicsState graphics = OriginalGraphics([(1, OriginalOwner(1), new(0))]);
+        NativeBattleGraphicsState removed = graphics with { ActorModels = graphics.ActorModels.Remove(OriginalOwner(1)) };
+        Assert.Throws<InvalidDataException>(removed.Validate);
     }
 
     [Fact]
-    public void Hosted_loaded_rows_still_require_their_actor_resource_and_sequence_fields()
+    public void ExpandedLoadedModelsRequireResourceAndSequenceFacts()
     {
-        NativeBattleGraphicsState state = CreateHostedState(8);
+        NativeBattleGraphicsState graphics = ExpandedGraphics(8);
+        BattleModelOwner owner = graphics.ActorModels.Owners.Last();
         NativeBattleGraphicsModel loaded = new(2) { Flags2 = 4, Flags8 = 0, ResourceFlags44 = 1, SequenceState = new() };
-        (state with { Models = state.Models.SetItem(7, loaded) }).Validate();
-        Assert.Throws<InvalidDataException>((state with { Models = state.Models.SetItem(1, loaded with { Index = 1 }) }).Validate);
-        Assert.Throws<InvalidDataException>((state with { Models = state.Models.SetItem(7, loaded with { ResourceFlags44 = null }) }).Validate);
-        Assert.Throws<InvalidDataException>((state with { Models = state.Models.SetItem(7, loaded with { SequenceState = new() { Locals = [] } }) }).Validate);
+        BattleActorModels loadedModels = graphics.ActorModels.Set(owner, loaded);
+        (graphics with { ActorModels = loadedModels }).Validate();
+        Assert.Throws<InvalidDataException>((graphics with { ActorModels = loadedModels.Set(owner, loaded with { ResourceFlags44 = null }) }).Validate);
+        Assert.Throws<InvalidDataException>((graphics with { ActorModels = loadedModels.Set(owner, loaded with { SequenceState = new() { Locals = [] } }) }).Validate);
     }
 
     [Fact]
-    public void Expanded_bank_preserves_each_native_retained_row_and_leaves_extra_fields_unknown()
+    public void ExpandedGraphicsRetainOriginalTransformFieldsWithoutCreatingActorsForHoles()
     {
-        BattleModelRoster roster = CreateHostedState(25).PresentationRoster!;
-        ImmutableArray<NativeBattleModelRetainedFields> retained = Enumerable.Range(0, 7).Select(row =>
-            NativeBattleModelRetainedFields.Capture(new(ushort.MaxValue) { Flags2 = (ushort)(0x8000 + row), Rotation14 = (short)(200 + row), Color44 = (uint)(100 + row) })).ToImmutableArray();
-        NativeBattleGraphicsModel[] native = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: retained);
-        NativeBattleGraphicsModel[] hosted = NativeBattleGraphicsModels.ClearPresentationBank(roster, retained);
-        Assert.Equal(JsonSerializer.Serialize(native), JsonSerializer.Serialize(hosted[..7]));
-
-        Assert.Equal(25, hosted.Length);
-        for (int row = 0; row < 7; row++)
+        NativeBattleGraphicsState graphics = ExpandedGraphics(25);
+        ImmutableArray<NativeBattleModelRetainedFields> retained = Enumerable.Range(0, 7).Select(slot =>
+            NativeBattleModelRetainedFields.Capture(new(ushort.MaxValue) { Flags2 = (ushort)(0x8000 + slot), Rotation14 = (short)(200 + slot), Color44 = (uint)(100 + slot) })).ToImmutableArray();
+        NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.FromColdProcess() with { ModelTransformRows = retained };
+        graphics = graphics with { NativeBindings = NativeBattleModelBoundary.FromRetainedMemory(memory) };
+        Assert.Equal(25, graphics.ActorModels.Roster.Count);
+        for (int slot = 0; slot < 7; slot++)
         {
-            Assert.Equal((ushort)0, hosted[row].Flags0);
-            Assert.Equal((ushort)(0x8000 + row), hosted[row].Flags2);
-            Assert.Equal((short)(200 + row), hosted[row].Rotation14);
-            Assert.Equal((uint)(100 + row), hosted[row].Color44);
-        }
-        for (int row = 7; row < hosted.Length; row++)
-        {
-            NativeBattleGraphicsModel model = hosted[row];
-            Assert.Equal(row, model.Index);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, slot);
             Assert.Equal((ushort)0, model.Flags0);
-            Assert.Null(model.Flags2);
-            Assert.Null(model.Rotation14);
-            Assert.Null(model.Color44);
-            Assert.Null(model.Color40);
-            Assert.Null(model.Transform);
-            Assert.Null(model.GeometryWorldMatrix);
-            Assert.Null(model.SequenceState);
-            Assert.Equal(32, model.StatusTimers.Length);
-            Assert.All(model.StatusTimers, value => Assert.Null(value));
-            Assert.False(hosted[row - 1].StatusTimers == model.StatusTimers);
+            Assert.Equal((ushort)(0x8000 + slot), model.Flags2);
+            Assert.Equal((short)(200 + slot), model.Rotation14);
+            Assert.Equal((uint)(100 + slot), model.Color44);
+            Assert.Null(ReadOriginalModelActorId(graphics, slot));
         }
-        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.ClearPresentationBank(roster, retained.RemoveAt(6)));
+        foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
+        {
+            Assert.Equal((ushort)0, entry.State.Flags0);
+            Assert.Null(entry.State.Flags2);
+            Assert.Null(entry.State.Rotation14);
+            Assert.Null(entry.State.Color44);
+            Assert.Null(entry.State.Color40);
+            Assert.Null(entry.State.Transform);
+            Assert.Null(entry.State.GeometryWorldMatrix);
+            Assert.Null(entry.State.SequenceState);
+            Assert.Equal(32, entry.State.StatusTimers.Length);
+            Assert.All(entry.State.StatusTimers, value => Assert.Null(value));
+        }
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelBoundary.FromRetainedMemory(memory with { ModelTransformRows = retained.RemoveAt(6) }));
     }
 
-    private static NativeBattleGraphicsState CreateHostedState(int count)
+    private static NativeBattleGraphicsState ExpandedGraphics(int count)
     {
-        BattleModelOwner?[] rows = new BattleModelOwner?[count];
-        rows[0] = new BattleEnemyActorModel(new("enemy"));
-        rows[count - 1] = new BattlePartyActorModel(new("party"));
-        BattleModelRoster roster = new(rows.ToImmutableArray());
-        return new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+        BattleModelEntry<BattleModelOwner>[] entries = [.. Enumerable.Range(0, count - 1).Select(index => new BattleModelEntry<BattleModelOwner>(new BattleEnemyActorModel(new($"enemy-{index}")), new(0))), new(new BattlePartyActorModel(new("party")), new(0))];
+        return new(new(entries), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
     }
 }

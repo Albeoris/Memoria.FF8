@@ -15,9 +15,9 @@ public sealed class NativeBattleMeltdownResourcesTests
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleMeltdownResources resources = game.ReadNativeMeltdownResources();
         Assert.Same(resources, game.ReadNativeMeltdownResources());
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 148, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 4, 0, 8, 148, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState effect = new(148, 147, new(148, 0x6120D0, 0x6120B0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
@@ -27,7 +27,7 @@ public sealed class NativeBattleMeltdownResourcesTests
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 8192, 4096), 216, 160, 108);
         NativeBattlePoseSource pose = new([], []);
         ushort flags = 0;
-        NativeBattleGraphicsModel Model(int index) => new(index == 3 ? flags : (ushort)0) { Transform = new(new(0, 0, 0), index == 3 ? new(0, -100, 0) : new(0, -500, -1000), 0, 0, 4096) };
+        NativeBattleGraphicsModel Model(BattleModelOwner owner) => new(owner == OriginalOwner(3) ? flags : (ushort)0) { Transform = new(new(0, 0, 0), owner == OriginalOwner(3) ? new(0, -100, 0) : new(0, -500, -1000), 0, 0, 4096) };
         List<int> contacts = [];
         List<int> sounds = [];
         List<int> fades = [];
@@ -67,9 +67,9 @@ public sealed class NativeBattleMeltdownResourcesTests
             return current with { Memory = current.Memory with { Meltdown148 = state with { Packets = written.Arena, Cursor = written.Cursor } } };
         })
         {
-            ReadAnchor = semanticAnchors ? index =>
+            ReadAnchor = semanticAnchors ? owner =>
             {
-                NativeBattleModelTransform transform = Model(index).Transform!;
+                NativeBattleModelTransform transform = Model(owner).Transform!;
                 return new(transform.Position28.X, transform.Position28.Y, transform.Position28.Z, unchecked((short)(transform.Scale38 * 2000 >> 12)));
             } : null
         };

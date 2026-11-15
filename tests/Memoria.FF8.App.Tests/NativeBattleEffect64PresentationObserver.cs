@@ -159,7 +159,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics!;
         NativeBattleFileStaging staging = current.NativeFileStaging!;
         uint scratch = checked(0x196B018u - (uint)(current.NativeModelCpuResources!.ScratchMaximum!.Value * 8));
-        uint color = ReadOriginalModelCell(current.NativeGraphics, 5).Color40!.Value & 0xFFFFFF;
+        uint color = ReadOriginalModelCell(current.NativeGraphics!, 5).Color40!.Value & 0xFFFFFF;
         HashSet<BodyFace> expected = [];
         foreach (NativeBattleRawMesh mesh in ReadMeshes(current))
         {

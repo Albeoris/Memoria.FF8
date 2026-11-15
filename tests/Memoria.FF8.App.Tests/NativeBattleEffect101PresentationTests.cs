@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -45,10 +46,10 @@ public sealed class NativeBattleEffect101PresentationTests
         Assert.Equal(1, casterSource.SceneSlot);
         Assert.Equal(109, casterSource.ModelId);
         Assert.Equal((byte?)125, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
-        Assert.Null(ReadOriginalModelCell(source.NativeGraphics, 4).ModelId4);
+        Assert.Null(ReadOriginalModelCell(source.NativeGraphics!, 4).ModelId4);
         Assert.NotNull(game.ReadNativeEffectCatalogForEffects([101])[100].Effect101Resources);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -32,7 +33,7 @@ public sealed class NativeBattleSpectralCastingResourcesTests
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeCrtRandomState random = new(17);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, (byte)selector);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), (byte)selector, OriginalAliases);
         int callbacks = 0;
         bool mixed = false;
         bool originalSprite = false;

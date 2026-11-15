@@ -302,7 +302,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal((ushort)9, Assert.Single(battle.Capture().NativeScriptState.WaitCounters));
         //AA admits contact; the factual header remains in windup until its final descriptor10 completes.
         Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction!.Phase);
-        Assert.Equal(beforeText.ActiveAction!.NativeHeaderIndex, battle.ActiveAction.NativeHeaderIndex);
+        Assert.Equal(beforeText.ActiveAction!.NativeHeader, battle.ActiveAction.NativeHeader);
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "ActionComplete"), battle.Events.Count(item => item.Kind == "ActionComplete"));
         Assert.Single(battle.Events, item => item.Kind == "NativeText");
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
@@ -347,9 +347,8 @@ public sealed class NativeBattleGraphicsEntryTests
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
         foreach (NativeBattleGraphicsBinding binding in session.Capture().Definition.NativeGraphics!.Bindings.Where(binding => binding.ModelId >= 16))
         {
-            int actor = graphics.ActorIds.IndexOf(binding.ActorId);
-            Assert.True(actor >= 0);
-            int rowIndex = graphics.Models[actor].ActiveResourceRow100!.Value;
+            BattleModelOwner modelOwner = session.ReadPresentationModelOwner(binding.ActorId);
+            int rowIndex = graphics.ActorModels.Get(modelOwner).ActiveResourceRow100!.Value;
             NativeBattleModelCpuResourceRow row = cpu.Rows[rowIndex];
             foreach (int field in new[] { 12, 16 })
             {

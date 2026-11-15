@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
@@ -28,7 +29,7 @@ public sealed class NativeBattleChoco100PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         int queued = Assert.Single(source.NativeGraphics!.Descriptors.Queue, slot => source.NativeGraphics.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(source.NativeGraphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
-        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)5, header.Action);
@@ -36,8 +37,8 @@ public sealed class NativeBattleChoco100PresentationTests
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.Equal((ushort)100, Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 5).MagicId);
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        Assert.Null(contact.Secondary);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((ushort)100, source.NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([100])[99];

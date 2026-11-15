@@ -18,7 +18,7 @@ public sealed class NativeBattleDuel112HierarchyTests
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x200), flags);
         NativeBattleDuel112Resources resources = new(raw.ToImmutableArray(), [], [], []);
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, resources) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, resources) };
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0);
         NativeBattleDuel112Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));
         byte[] data = new byte[44];

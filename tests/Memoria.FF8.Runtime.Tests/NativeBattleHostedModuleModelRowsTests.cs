@@ -1,11 +1,17 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedModuleModelRowsTests
 {
+    private static readonly BattlePartyActorModel AddedParty = new(new("module-party"));
+    private static readonly BattleEnemyActorModel AddedEnemy = new(new("module-enemy"));
+    private static readonly BattleEnemyActorModel Unbound = new(new("module-unbound"));
+    private static readonly BattleModelRoster HostedRoster = new([AddedParty, AddedEnemy]);
+    private static readonly NativeBattleModelAliases HostedAliases = new(HostedRoster, []);
+
     [Theory]
     [InlineData(7, (byte)0, (ushort)5, (ushort)6)]
     [InlineData(24, (byte)1, (ushort)7, (ushort)8)]
@@ -14,23 +20,35 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     [InlineData(6, (byte)4, (ushort)19, (ushort)20)]
     public void CastingAndBoneSpriteCallbacksUseTheBoundModel(int row, byte selector, ushort firstSound, ushort secondSound)
     {
-        BattleModelRoster? roster = row == 6 ? null : Roster();
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(row, selector, null, roster);
-        Assert.Equal(NativeBattleGraphicsModelAddress.Encode(row), Pointer(state, 20));
+        BattleModelOwner owner = row switch { 7 => AddedParty, 24 => AddedEnemy, 6 => OriginalOwner(6), _ => throw new ArgumentOutOfRangeException(nameof(row)) };
+        NativeBattleModelAliases aliases = row == 6 ? OriginalAliases : HostedAliases;
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(owner, selector, aliases);
+        NativeBattleModuleTask task = state.Slots[state.Head!.Value];
+        Assert.Equal(owner, task.ModelOwner);
+        Assert.Equal(20, task.ModelPointerOffset);
+        if (row == 6)
+        {
+            Assert.Equal(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(6)), Pointer(state, 20));
+            Assert.Equal(0u, task.UnknownModelPointerBytes);
+        }
+        else
+        {
+            Assert.Equal(0xF00000u, task.UnknownModelPointerBytes & 0xF00000u);
+        }
         NativeBattleModuleAnchor anchor = new((short)row, 200, 300, 0);
         var inputs = new NativeBattleModuleInputs(0)
         {
-            PresentationRoster = roster,
+            ModelAliases = aliases,
             CrtRandom = new(7),
             Resources = [Sprite(), SpectralSprite()],
             ReadModelAnchor = actual =>
             {
-                Assert.Equal(row, actual);
+                Assert.Equal(owner, actual);
                 return anchor;
             },
             ReadModelTransform = actual =>
             {
-                Assert.Equal(row, actual);
+                Assert.Equal(owner, actual);
                 return new(default, default, 0, 123, 4096);
             }
         };
@@ -39,38 +57,37 @@ public sealed class NativeBattleHostedModuleModelRowsTests
         NativeBattleModuleDraw[] sounds = step.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToArray();
         Assert.Equal(new[] { firstSound, secondSound }, sounds.Select(draw => draw.Sound));
         Assert.All(sounds, draw => Assert.Equal(anchor, draw.Anchor));
-        NativeBattleModuleState restored = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(state))!;
+        NativeBattleModuleState restored = NativeBattleTestSnapshots.Independent(state);
         Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored.Advance(inputs)));
     }
 
     [Fact]
-    public void PlacementVariantsSendTheirActualRowsAndOriginalOperandsToModelServices()
+    public void PlacementVariantsSendTheirActualOwnersAndOriginalOperandsToModelServices()
     {
-        BattleModelRoster roster = Roster();
         NativeBattleModuleResource resource = Sprite();
         var local = new NativeBattleVector(-1, 2, -3);
         NativeBattleModuleState state = NativeBattleModuleState.Clear()
-            .AppendModelResource(7, resource, 5, roster)
-            .AppendPositionResource(24, local, resource, 5, roster)
-            .AppendBoneParticle(7, 240, short.MinValue, resource, 5, roster);
+            .AppendModelResource(AddedParty, resource, 5, HostedAliases)
+            .AppendPositionResource(AddedEnemy, local, resource, 5, HostedAliases)
+            .AppendBoneParticle(AddedParty, 240, short.MinValue, resource, 5, HostedAliases);
         var inputs = new NativeBattleModuleInputs(0)
         {
-            PresentationRoster = roster,
+            ModelAliases = HostedAliases,
             Resources = [resource],
             ReadModelAnchor = row =>
             {
-                Assert.Equal(7, row);
+                Assert.Equal(AddedParty, row);
                 return new(10, 11, 12, 0);
             },
             TransformModelPosition = (row, point) =>
             {
-                Assert.Equal(24, row);
+                Assert.Equal(AddedEnemy, row);
                 Assert.Equal(local, point);
                 return new(20, 21, 22);
             },
             ReadModelBone = (row, bone, fraction) =>
             {
-                Assert.Equal(7, row);
+                Assert.Equal(AddedParty, row);
                 Assert.Equal((byte)240, bone);
                 Assert.Equal((short)0, fraction);
                 return new(30, 31, 32);
@@ -87,24 +104,23 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     [InlineData(0x5707A0u)]
     public void PlacementChildDecodesItsRetainedOwnerAndUsesNativeRandom(uint callback)
     {
-        BattleModelRoster roster = Roster();
         NativeBattleModuleResource resource = new(5, 0xC70000, 0x570CC0, callback, [0, 0, 0, 1]);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(24, resource, 0x7F0005, roster);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(AddedEnemy, resource, 0x7F0005, HostedAliases);
         var anchor = new NativeBattleModuleAnchor(-1, 222, -333, -444);
         NativeCrtRandomState initial = new(1);
         var inputs = new NativeBattleModuleInputs(0)
         {
-            PresentationRoster = roster,
+            ModelAliases = HostedAliases,
             Resources = [resource],
             CrtRandom = initial,
             ReadModelAnchor = row =>
             {
-                Assert.Equal(24, row);
+                Assert.Equal(AddedEnemy, row);
                 return anchor;
             },
             ReadModelRotation14 = row =>
             {
-                Assert.Equal(24, row);
+                Assert.Equal(AddedEnemy, row);
                 return -1234;
             }
         };
@@ -122,40 +138,30 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     }
 
     [Fact]
-    public void ProducerAndRestoredTaskRejectRowsOutsideTheirActualOwnerBeforeModelReads()
+    public void ProducerAndRestoredTaskRejectModelsOutsideTheirOwnedRosterBeforeModelReads()
     {
         NativeBattleModuleState empty = NativeBattleModuleState.Clear();
-        BattleModelRoster roster = Roster();
         NativeBattleModuleResource resource = Sprite();
-        Assert.Throws<InvalidDataException>(() => empty.AppendModelEffect(7, 4));
-        Assert.Throws<InvalidDataException>(() => empty.AppendModelEffect(8, 4, null, roster));
-        Assert.Throws<InvalidDataException>(() => empty.AppendPositionResource(25, default, resource, 5, roster));
-        Assert.Throws<InvalidDataException>(() => empty.AppendBoneParticle(8, 240, 0, resource, 5, roster));
+        Assert.Throws<InvalidDataException>(() => empty.AppendModelEffect(AddedParty, 4, OriginalAliases));
+        Assert.Throws<InvalidDataException>(() => empty.AppendModelEffect(Unbound, 4, HostedAliases));
+        Assert.Throws<InvalidDataException>(() => empty.AppendPositionResource(Unbound, default, resource, 5, HostedAliases));
+        Assert.Throws<InvalidDataException>(() => empty.AppendBoneParticle(Unbound, 240, 0, resource, 5, HostedAliases));
 
-        NativeBattleModuleState state = empty.AppendModelEffect(24, 4, null, roster);
-        NativeBattleModuleState restored = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(state))!;
+        NativeBattleModuleState state = empty.AppendModelEffect(AddedEnemy, 4, HostedAliases);
+        NativeBattleModuleState restored = NativeBattleTestSnapshots.Independent(state);
         var inputs = new NativeBattleModuleInputs(0)
         {
             ReadModelAnchor = _ => throw new InvalidOperationException("An unbound model reached its reader.")
         };
-        Assert.Throws<InvalidDataException>(() => restored.Advance(inputs));
-        Assert.Throws<InvalidDataException>(() => restored.Advance(inputs with { PresentationRoster = Roster(8) }));
-        Assert.Throws<InvalidDataException>(() => restored.Advance(inputs with { PresentationRoster = Roster(bindLast: false) }));
+        Assert.Throws<NotSupportedException>(() => restored.Advance(inputs));
+        Assert.Throws<InvalidDataException>(() => restored.Advance(inputs with { ModelAliases = OriginalAliases }));
+        Assert.Throws<InvalidDataException>(() => restored.Advance(inputs with { ModelAliases = new NativeBattleModelAliases(new BattleModelRoster([AddedParty]), []) }));
+        Assert.Equal(AddedEnemy, restored.Slots[restored.Head!.Value].ModelOwner);
     }
 
     private static uint Pointer(NativeBattleModuleState state, int offset)
     {
         return BinaryPrimitives.ReadUInt32LittleEndian(state.Slots[state.Head!.Value].Payload.AsSpan().Slice(offset));
-    }
-
-    private static BattleModelRoster Roster(int capacity = 25, bool bindLast = true)
-    {
-        return new(Enumerable.Range(0, capacity).Select(row => row switch
-        {
-            7 => new BattlePartyActorModel(new("party")),
-            24 when bindLast => new BattleEnemyActorModel(new("enemy")),
-            _ => null
-        }).ToImmutableArray());
     }
 
     private static NativeBattleModuleResource Sprite()

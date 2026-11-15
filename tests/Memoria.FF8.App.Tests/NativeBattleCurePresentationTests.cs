@@ -74,13 +74,13 @@ public sealed class NativeBattleCurePresentationTests
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 21, 1, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 11, -1, 21, 1, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), nativeCure.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), nativeCure.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
         BattleScenePresentation scene = new(assets, definition, true);
         List<NativeBattleModuleSound> heard = [];

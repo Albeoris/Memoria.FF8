@@ -466,7 +466,7 @@ public sealed class DiagnosticInvocationAftercareTests
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
-        Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, action) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeGraphic = new(effect) });
+        Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, action) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = new(effect) });
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.Initialize());
         Set(session, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, SoundPublishedFlags = 0 });
@@ -474,7 +474,7 @@ public sealed class DiagnosticInvocationAftercareTests
         NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear();
         if (terminalTexture)
         {
-            auxiliary = auxiliary.AppendTextureAnimation(0, 11, new([255], 0));
+            auxiliary = auxiliary.AppendTextureAnimation(OriginalOwner(0), 11, new([255], 0), OriginalAliases);
         }
         NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0)
         {

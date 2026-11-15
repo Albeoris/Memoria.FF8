@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -23,8 +24,8 @@ public sealed class NativeBattleEffect331PresentationTests
         Assert.Equal(0, caster.SceneSlot);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(caster);
         Assert.Equal(resource.PoseSource!.BoneCount, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(source.NativeGraphics!, 3), resource.PoseSource).Length);
-        Assert.NotNull(ReadOriginalModelCell(source.NativeGraphics, 3).GeometryWorldMatrix);
-        Assert.NotNull(ReadOriginalModelCell(source.NativeGraphics, 3).ActiveResourceRow100);
+        Assert.NotNull(ReadOriginalModelCell(source.NativeGraphics!, 3).GeometryWorldMatrix);
+        Assert.NotNull(ReadOriginalModelCell(source.NativeGraphics!, 3).ActiveResourceRow100);
         Assert.NotNull(source.NativeGraphics.UiServices);
         Assert.Null(source.NativeGraphics.OriginalEffect);
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
@@ -32,7 +33,7 @@ public sealed class NativeBattleEffect331PresentationTests
         Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
         int slot = checked((int)((argument - 0x1D280C4u) / 20));
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(slot));
-        Assert.Equal((byte)3, header.ReadByte(0));
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, header.Source));
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)13, header.Sequence);
         Assert.Equal((ushort)313, header.Action);

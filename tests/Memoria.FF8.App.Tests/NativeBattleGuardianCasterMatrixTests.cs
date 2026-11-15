@@ -174,7 +174,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
         {
             WaitFor(() => battle.CanChoosePlayerCommand("caster"), 600);
             Assert.Equal(slot, FindOriginalModelSlot(battle.NativeGraphics!, "caster"));
-            ushort[] visibility = ReadOriginalModelCells(battle.NativeGraphics).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
+            ushort[] visibility = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
             string?[] ids = battle.NativeGraphics.ActorIds.ToArray();
             BattleActionDefinition action = definition.ActionDefinitions.Single(item => item.Ability == BattleAbility.GuardianForce && item.Id == guardian);
             string target = action.Allies ? "caster" : "enemy";
@@ -210,7 +210,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             Assert.Single(battle.Events, item => item.Kind == "GuardianForceReady" && item.ActorId == "caster");
             Assert.Contains(battle.Events, item => item.Kind == "Damage" && item.ActorId == "caster" && item.TargetId == target);
             Assert.Equal(ids, battle.NativeGraphics!.ActorIds);
-            Assert.Equal(visibility, ReadOriginalModelCells(battle.NativeGraphics).Select(model => (ushort)(model.Flags0 & 0xC)));
+            Assert.Equal(visibility, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)));
             for (int index = 0; index < 3; index++)
             {
                 Assert.Equal((byte)actors[index].ModelId, ReadOriginalModelCell(battle.NativeGraphics, index).ModelId4);

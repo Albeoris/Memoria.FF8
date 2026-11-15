@@ -30,7 +30,7 @@ public sealed class NativeBattleStatusMagicResourcesTests
         int allocations = 0;
         int callbacks = 0;
         bool reachedAlternateRotation = false;
-        NativeBattleStatusMagicInputs inputs = new(NativeBattleRetainedMemory.FromColdProcess().ActionPackets, projection, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException("Drawing has its captured anchor."), _ => throw new InvalidOperationException("Drawing has its captured anchor."), (_, _) => throw new InvalidOperationException("Part callback does not change entity flags."), (current, operation) =>
+        NativeBattleStatusMagicInputs inputs = new(NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases), projection, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException("Drawing has its captured anchor."), _ => throw new InvalidOperationException("Drawing has its captured anchor."), (_, _) => throw new InvalidOperationException("Part callback does not change entity flags."), (current, operation) =>
         {
             NativeBattleStatusMagicPackets packets = Assert.IsType<NativeBattleStatusMagicPackets>(operation);
             allocations += packets.Batch.AllocationBytes;

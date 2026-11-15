@@ -118,7 +118,7 @@ public sealed class NativeBattleAiTargetTests
         Assert.Equal(BattleRosterSlot.Ally(2), actors[4].Slot);
         Assert.Equal(BattleRosterSlot.Enemy(3), actors[6].Slot);
         Assert.Equal((ushort)0x40, ReadPublishedTargetMask(snapshot));
-        int header = snapshot.ActiveAction?.NativeHeaderIndex ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeaderIndex is not null).NativeHeaderIndex!.Value;
+        int header = snapshot.ActiveAction?.NativeHeaderIndex ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeader is not null).NativeHeaderIndex!.Value;
         NativeBattleContactPacket contact = Assert.Single(snapshot.NativeActionPackets!.ReadHeaderContacts506BA0(header));
         Assert.Equal((byte)6, contact.Primary.Recipient);
 
@@ -142,7 +142,7 @@ public sealed class NativeBattleAiTargetTests
     private static ushort ReadPublishedTargetMask(BattleSnapshot snapshot)
     {
         Assert.Equal((byte)1, snapshot.NativeActionPackets!.ActionCount);
-        BattleAttackCommand[] queued = snapshot.QueuedActions.Where(command => command.NativeHeaderIndex is not null).ToArray();
+        BattleAttackCommand[] queued = snapshot.QueuedActions.Where(command => command.NativeHeader is not null).ToArray();
         bool active = snapshot.ActiveAction?.NativeHeaderIndex is not null;
         Assert.Equal(1, queued.Length + (active ? 1 : 0));
         return active ? snapshot.ActiveAction!.NativeTargetMask : Assert.Single(queued).NativeTargetMask;

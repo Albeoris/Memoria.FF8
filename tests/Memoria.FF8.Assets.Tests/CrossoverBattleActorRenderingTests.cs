@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 ﻿using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF7.Formats;
@@ -33,9 +34,9 @@ public sealed class CrossoverBattleActorRenderingTests(ITestOutputHelper output)
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
             LinkedTransform = new(default, default)
         };
-        model = NativeBattleGraphicsModels.CompleteLoad(model, checked((byte)modelId), 0, ref random);
+        model = NativeBattleGraphicsModels.CompleteLoad(model, checked((byte)modelId), 0, true, ref random);
         model = NativeBattleGraphicsModels.SelectSequence(model, 1);
-        model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
+        model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(0, 0)).Model;
         model = model with
         {
             Flags2 = (ushort)(model.Flags2!.Value & ~4),
@@ -79,9 +80,9 @@ public sealed class CrossoverBattleActorRenderingTests(ITestOutputHelper output)
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
             LinkedTransform = new(default, default)
         };
-        model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0, ref random);
+        model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0, true, ref random);
         model = NativeBattleGraphicsModels.SelectSequence(model, 1);
-        model = Publish(NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model);
+        model = Publish(NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, new(0, 0)).Model);
         model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4) };
         (float top, float feet) = SquallBounds(model, body, source);
         (float cloudTop, float cloudFeet) = CloudBounds(archive);
@@ -107,23 +108,23 @@ public sealed class CrossoverBattleActorRenderingTests(ITestOutputHelper output)
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleSequenceInputs inputs = new(0, 0)
         {
-            ReadModelExternal = (_, variable) => variable switch
+            ReadModelExternal = (_, variable) => NativeBattleScriptValue.Scalar(variable switch
             {
                 17 => 1999,
                 25 or 46 => 0,
                 18 or 19 => memory.ReadSequenceGlobal5044B0(variable),
                 _ => throw new NotSupportedException($"Unexpected Squall render probe variable {variable}.")
-            },
+            }),
             WriteExternal = (variable, value) => memory = memory.WriteSequenceGlobal5048E0(variable, value),
             ScheduleSoundParticle = (program, two, bone) =>
             {
-                (auxiliary, random, bool allocated) = auxiliary.AppendSoundParticle(0, two, bone, program, random);
+                (auxiliary, random, bool allocated) = auxiliary.AppendSoundParticle(OriginalOwner(0), two, bone, program, random, OriginalAliases);
                 Assert.True(allocated);
             }
         };
         for (int callback = 0; callback < 16 && model.SequenceState!.Header40 == 0; callback++)
         {
-            model = Publish(NativeBattleSequenceMachine.Advance(model, resource, inputs).Model);
+            model = Publish(NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, resource, inputs).Model);
         }
         Assert.NotEqual(0, model.SequenceState!.Header40);
         Capture moving = Render(guest with { Model = model });

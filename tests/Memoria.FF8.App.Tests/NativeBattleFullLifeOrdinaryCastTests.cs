@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -125,7 +126,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 {
                     Assert.Equal((byte)1, actionPackets.ContactCount);
                     NativeBattleContactHalf contact = actionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
-                    Assert.Equal((byte)1, contact.ActorIndex);
+                    Assert.Equal((byte)1, ReadOriginalModelOperand(actionPackets.ModelAliases, contact.Recipient));
                     Assert.Equal((ushort)1000, contact.Amount6);
                     Assert.Equal(0, contact.SavedStatuses4 & 1);
                     producedRevivalContact = true;

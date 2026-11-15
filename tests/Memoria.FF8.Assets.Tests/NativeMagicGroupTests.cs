@@ -74,7 +74,7 @@ public sealed class NativeMagicGroupTests
     {
         BattleSession battle = Create(status, passive, cost);
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: Enumerable.Repeat("enemy", count).ToArray());
-        Assert.Equal(count, Assert.Single(battle.QueuedActions).NativeMagicTargets.Length);
+        Assert.Equal(count, Assert.Single(battle.QueuedActions).MagicCasts.Length);
         battle.Tick();
         BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(battle);

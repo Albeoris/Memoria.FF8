@@ -72,9 +72,9 @@ public sealed class NativeBattleSlotsContinuationTests
                     Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
                     produced = true;
                 }
-                if (current.NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.HeaderIndex)).Command == 16)
+                if (current.NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal)).Command == 16)
                 {
-                    Assert.Equal(0, context.HeaderIndex);
+                    Assert.Equal(0, context.Header.Ordinal);
                 }
                 if (count % 8 == 0)
                 {

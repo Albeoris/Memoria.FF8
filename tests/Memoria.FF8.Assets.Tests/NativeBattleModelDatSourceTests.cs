@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -15,7 +16,7 @@ public sealed class NativeBattleModelDatSourceTests
         NativeBattleModelDatSource source = assets.ReadNativeModelDatSource(model, linked, 0);
         Assert.Equal(fileId, source.FileId);
         Assert.Equal(name, source.Name);
-        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080((ushort)(model | (linked ? 0x1000 : 0)), 0, 0, 0, 0);
+        NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080((ushort)(model | (linked ? 0x1000 : 0)), OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0);
         NativeBattleModelLoadStep request = loader.Poll507070(-1, [source], NativeBattleFileStaging.Unknown());
         Assert.Equal(fileId, request.FileRequest!.FileId);
         Assert.Equal(1, request.State.Poll507070(-1, [source], request.Staging).Remaining);

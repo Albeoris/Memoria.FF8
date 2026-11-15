@@ -212,15 +212,15 @@ public sealed class NativeBattleEffect290PresentationTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 291 && row.MagicId == 290 && row.KernelSection == 3 && row.KernelIndex == 291);
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(OriginalOwner(3), 8, 14, cameraChoice, 291, 290, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 14, cameraChoice, 291, 290, null));
         packets = PublishDeclaredSelfContact(original, packets);
-        Assert.Equal(priorActions, header);
+        Assert.Equal(priorActions, header.Ordinal);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([290])[289];
         Assert.Same(game.ReadNativeEffect290Resources(), binding.Effect290Resources);
         BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(289, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
@@ -230,7 +230,7 @@ public sealed class NativeBattleEffect290PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(source.NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original109 command8/action291/sequence14 zero-damage SELF-contact graphics component, unchanged current pose/CPU/companions; no AI/formula admission", ActualCasterId = casterId, PhysicalCaster = 3, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, LogicalState = "SELF target declared; HP, saved/battle status, participant flags, presentation cache and current script bytes preserved" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original109 command8/action291/sequence14 zero-damage SELF-contact graphics component, unchanged current pose/CPU/companions; no AI/formula admission", ActualCasterId = casterId, PhysicalCaster = 3, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, LogicalState = "SELF target declared; HP, saved/battle status, participant flags, presentation cache and current script bytes preserved" }));
         return source;
     }
 
@@ -239,7 +239,7 @@ public sealed class NativeBattleEffect290PresentationTests
         string casterId = ReadOriginalModelActorId(source.NativeGraphics!, 3) ?? throw new InvalidDataException("The declared self contact requires its current original109 caster.");
         BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.Id == casterId);
         NativeBattleStatusMirror status = self.NativeStatus!.Presentation;
-        NativeBattleContactPacket contact = new(new(OriginalOwner(3), 0, 0, 0, status.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, status.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, status.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, status.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), null);
         (packets, _) = packets.AppendContact(contact);
         return packets.Publish(1).State;
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -49,7 +50,7 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         Assert.Null(original.Combatants[targetIndex].NativeParticipant!.RemainingHits);
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
-        Assert.Single(Enumerable.Range(0, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount()), index => packets.ReadContact(new BattleContactOccurrence(index)).Primary.ActorIndex == 3);
+        Assert.Single(Enumerable.Range(0, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount()), index => ReadOriginalModelOperand(packets.ModelAliases, packets.ReadContact(new BattleContactOccurrence(index)).Primary.Recipient) == 3);
         Assert.Equal((byte)0, NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game));
         JsonObject targetParticipant = migratedNode["Combatants"]![targetIndex]!["NativeParticipant"]!.AsObject();
         Assert.True(targetParticipant.ContainsKey("RemainingHits"));

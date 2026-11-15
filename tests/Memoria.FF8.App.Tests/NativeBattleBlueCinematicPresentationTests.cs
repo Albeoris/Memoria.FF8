@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -79,7 +80,7 @@ public sealed class NativeBattleBlueCinematicPresentationTests
         Assert.Equal(checked(0x1D280C4u + (uint)(headerIndex * 20)), current.HeaderAddress);
         NativeBattleActionHeaderSlot header = after.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         int first = header.FirstContactIndex ?? throw new NotSupportedException("The captured header requires its physical contact pointer.");
-        Assert.Equal(slot.Actor, after.NativeActionPackets.ReadContact(new BattleContactOccurrence(first)).Primary.ActorIndex);
+        Assert.Equal(slot.Actor, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, after.NativeActionPackets.ReadContact(new BattleContactOccurrence(first)).Primary.Recipient));
         NativeBattleEffectArena arena = after.NativeEffectMemory!.Arena!;
         int source = checked((int)(current.File0Address - 0x20DFAB8));
         if (current.Effect == 229)

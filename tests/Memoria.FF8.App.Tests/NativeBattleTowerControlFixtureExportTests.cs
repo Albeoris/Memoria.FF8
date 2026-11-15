@@ -121,15 +121,15 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             NativeBattleEffectBinding binding = ready.Definition.NativeEffectCatalog[effect - 1];
             Assert.Equal(effect, binding.Effect);
             NativeBattleActionPacketsState packets = ready.NativeActionPackets!.ResetCounts();
-            (packets, int header) = packets.Prepare(new(OriginalOwner(5), 252, 1, -1, 1, effect, null));
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(5), 252, 1, -1, 1, effect, null));
             BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.ActorIndex == 0);
             NativeBattleStatusSnapshot status = target.NativeStatus!;
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, status.Saved, 7, status.Battle), null));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), 0, 0, 0, status.Saved, 7, status.Battle), null));
             (packets, _) = packets.Publish(1);
             packets.Validate();
-            (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+            (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.EnqueueAction(128, header);
             NativeBattleRetainedMemory mirror = ready.Definition.NativeRetainedMemory!;
-            BattleSnapshot queued = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors }, Definition = ready.Definition with { NativeRetainedMemory = mirror with { ActionPackets = packets } } };
+            BattleSnapshot queued = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors }, Definition = ready.Definition with { NativeRetainedMemory = mirror with { ActionPackets = packets.ExportRetained() } } };
             Assert.Equal(JsonSerializer.Serialize(ready.Combatants), JsonSerializer.Serialize(queued.Combatants));
             Assert.Equal(JsonSerializer.Serialize(ready.NativeEffectMemory), JsonSerializer.Serialize(queued.NativeEffectMemory));
             Assert.Equal(JsonSerializer.Serialize(ready.NativeCrtRandom), JsonSerializer.Serialize(queued.NativeCrtRandom));
@@ -149,7 +149,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             Assert.False(participant.AllocationPendingStatistics);
             NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, 5);
             Assert.Equal((byte)107, model.ModelId4);
-            Assert.Equal(allocated.Id, ReadOriginalModelActorId(snapshot.NativeGraphics, 5));
+            Assert.Equal(allocated.Id, ReadOriginalModelActorId(snapshot.NativeGraphics!, 5));
             Assert.Equal(prototypePlacement.NativePosition, model.Transform!.Position28);
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(session.GetCombatantDefinition(allocated.Id)).PoseSource!;
             Assert.Equal(pose.BoneCount, NativeBattleBodyBoneMatrices.Require(model, pose).Length);

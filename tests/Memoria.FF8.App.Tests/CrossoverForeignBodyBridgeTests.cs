@@ -236,7 +236,7 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
         bool began = false;
         int contacts = 0;
         HashSet<int> publications = [];
-        HashSet<int> foreignIndices = [];
+        HashSet<BattleModelOwner> foreignOwners = [];
         NativeBattleEffectPresentation? effectOwner = null;
         for (int tick = 0; tick < 10000; tick++)
         {
@@ -248,16 +248,16 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
             {
                 contacts = Math.Max(contacts, active.Presentation.PublishedContacts);
                 effectOwner = active.Presentation.Effect ?? effectOwner;
-                foreach (var bound in active.Presentation.BoundTargets.Where(target => target.Contact.ActorIndex != 0))
+                foreach (var bound in active.Presentation.BoundTargets.Where(target => target.HostSlot != 0))
                 {
-                    foreignIndices.Add(bound.Contact.ActorIndex);
+                    foreignOwners.Add(bound.Contact.Recipient);
                 }
                 IReadOnlyList<Ff7BattleGuestPhysicalHit> hits = active.CompositePrepared.Select(contact => contact.HitDescription).ToArray();
                 foreach (Ff7BattleGuestPhysicalHit hit in hits)
                 {
                     Ff7BattleGuestPreparedContact receipt = hit.PreparedContact!;
                     int slot = receipt.Invocation.TargetSlot;
-                    if ((active.Presentation.PublishedTargetMask & 1 << slot) != 0 && publications.Add(slot))
+                    if (active.Presentation.PublishedContactOrdinals.Any(ordinal => active.Presentation.BoundContacts[ordinal].HostSlot == slot) && publications.Add(slot))
                     {
                         Ff7BattleActorState currentState = host.Actors.Single(actor => actor.Actor.Slot == slot);
                         Ff7BattleAiActor current = currentState.Actor;
@@ -289,9 +289,9 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
         Assert.NotNull(effectOwner);
         Assert.True(effectOwner.Complete);
         Assert.Empty(effectOwner.ArenaReplacements);
-        foreach (int index in foreignIndices)
+        foreach (BattleModelOwner owner in foreignOwners)
         {
-            NativeBattleActionMatrix placement = effectOwner.ForeignPlacement(index);
+            NativeBattleActionMatrix placement = effectOwner.ForeignPlacement(owner);
             Assert.Equal((0, 0, 0), (placement.X, placement.Y, placement.Z));
             Assert.True(placement.Rotation.SequenceEqual(NativeBattleForeignModelGeometry.Identity.Rotation));
         }

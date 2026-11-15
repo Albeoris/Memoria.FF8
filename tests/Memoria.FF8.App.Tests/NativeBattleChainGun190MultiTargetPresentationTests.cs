@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -81,7 +82,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                     Assert.NotNull(current.NativeEffectMemory.GeometryRegisters);
                     Assert.NotNull(current.NativeEffectMemory.ScriptedColorRegisters);
                     Assert.Equal(JsonSerializer.Serialize(game.ReadNativeChainGun190Resources().Camera), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation!.Source));
-                    observations.Add(new { Boundary = "setup-main1", ActualPhysicalThird = current.NativeActionPackets!.ReadContact(new BattleContactOccurrence(2)), CrtBeforeTick = prior.NativeCrtRandom, CrtAfterTick = current.NativeCrtRandom, GeometryBeforeTick = prior.NativeEffectMemory!.GeometryRegisters, GeometryAfterTick = current.NativeEffectMemory.GeometryRegisters, ColorRegistersAfterTick = current.NativeEffectMemory.ScriptedColorRegisters, Records = state.ReadView(RecordsAddress, 12 * RecordStride), LoadedPartyModels = ReadOriginalModelCells(current.NativeGraphics!).Take(3).ToArray(), Scope = "Actual complete graphics Tick CRT and GTE publication; exact effect-local RNG branches are covered by the dedicated Runtime tests" });
+                    observations.Add(new { Boundary = "setup-main1", ActualPhysicalThird = current.NativeActionPackets!.ExportRetained().Contacts[2], CrtBeforeTick = prior.NativeCrtRandom, CrtAfterTick = current.NativeCrtRandom, GeometryBeforeTick = prior.NativeEffectMemory!.GeometryRegisters, GeometryAfterTick = current.NativeEffectMemory.GeometryRegisters, ColorRegistersAfterTick = current.NativeEffectMemory.ScriptedColorRegisters, Records = state.ReadView(RecordsAddress, 12 * RecordStride), LoadedPartyModels = ReadOriginalModelCells(current.NativeGraphics!).Take(3).ToArray(), Scope = "Actual complete graphics Tick CRT and GTE publication; exact effect-local RNG branches are covered by the dedicated Runtime tests" });
                     ColdNext("setup-main1", current);
                 }
                 if (!beforeContacts && main?.ReadWord(12) == 30)
@@ -92,23 +93,26 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                 if (oldMain?.ReadWord(12) == 30 && main?.ReadWord(12) == 31)
                 {
                     contactCrossings++;
-                    Assert.Equal(contactCount, current.NativeActionPackets!.ReadHeaderContacts506BA0(after!.Parameters!.HeaderIndex7C).Length);
-                    observations.Add(new { Boundary = "old30-contact", current.Frame, current.NativeGraphics!.Callback, Count = contactCount, DeclaredContacts = current.NativeActionPackets.ReadHeaderContacts506BA0(after.Parameters.HeaderIndex7C) });
+                    Assert.Equal(contactCount, current.NativeActionPackets!.ReadHeaderContacts(after!.Parameters!.Header).Length);
+                    observations.Add(new { Boundary = "old30-contact", current.Frame, current.NativeGraphics!.Callback, Count = contactCount, DeclaredContacts = current.NativeActionPackets.ReadHeaderContacts(after.Parameters.Header) });
                 }
                 for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0 || text.ModelIndex >= 3)
+                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0 || text.ModelOwner is not BattlePartyModelOwner)
                     {
                         continue;
                     }
-                    Assert.InRange(text.ModelIndex, (byte)0, checked((byte)(contactCount - 1)));
-                    NativeBattleContactHalf half = current.NativeActionPackets!.ReadContact(text.ModelIndex).Primary;
-                    NativeBattleEffectTask expected = Assert.Single(OriginalEffects().PrependDamageText(half.ActorIndex, half.ContactFlags, half.Amount6).Slots, task => (task.Flags0 & 1) != 0);
+                    var declared = current.NativeActionPackets!.ReadHeaderContacts(new BattleActionHeaderReference(0));
+                    NativeBattleContactPacket contact = Assert.Single(declared, item => item.Primary.Recipient == text.ModelOwner);
+                    int targetOrdinal = declared.IndexOf(contact);
+                    Assert.InRange(targetOrdinal, 0, contactCount - 1);
+                    NativeBattleContactHalf half = contact.Primary;
+                    NativeBattleEffectTask expected = Assert.Single(ExpectedOriginalDamageText(half, half.Amount6).Slots, task => (task.Flags0 & 1) != 0);
                     Assert.Equal(expected.Glyphs.ToArray(), text.Glyphs.ToArray());
                     Assert.Equal(expected.Color, text.Color);
                     Assert.Equal(expected.HalfWidth, text.HalfWidth);
-                    glyphs[text.ModelIndex]++;
+                    glyphs[targetOrdinal]++;
                 }
                 if (!rendered && current.NativeGraphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleChainGun190PacketArena.PacketBank))
                 {
@@ -193,10 +197,10 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
     {
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
         Assert.Equal((byte)contactCount, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
-        Assert.Equal((byte)(contactCount == 2 ? 0 : 2), packets.ReadContact(new BattleContactOccurrence(2)).Primary.ActorIndex);
+        Assert.Equal((byte)(contactCount == 2 ? 0 : 2), packets.ExportRetained().Contacts[2]!.Primary.ActorIndex);
         if (contactCount == 2)
         {
-            Assert.Equal(new byte[24], packets.ReadContact(new BattleContactOccurrence(2)).Encode());
+            Assert.Equal(new byte[24], NativeBattleContactPacketCodec.Encode(packets.ExportRetained().Contacts[2]!));
         }
         NativeBattleChainGun190State state = snapshot.NativeEffectMemory!.ChainGun190!;
         int middle = contactCount == 2 ? 0 : 1;
@@ -210,7 +214,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         void AssertInterpolated(int start, int from, int to)
         {
             NativeBattleVector first = ReadOriginalModelCell(snapshot.NativeGraphics!, from).Transform!.Position28;
-            NativeBattleVector last = ReadOriginalModelCell(snapshot.NativeGraphics, to).Transform!.Position28;
+            NativeBattleVector last = ReadOriginalModelCell(snapshot.NativeGraphics!, to).Transform!.Position28;
             short stepX = unchecked((short)((last.X - first.X) / 3));
             short stepZ = unchecked((short)((last.Z - first.Z) / 3));
             for (int index = 0; index < 2; index++)

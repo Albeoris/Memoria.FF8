@@ -6,9 +6,9 @@ public sealed class NativeBattleTypedActionBusyTests
     public void OrdinaryRosterPreservesCameraAndSelectedModelRules()
     {
         BattleActorModels models = Models(3, 4);
-        BattleModelOwner source = models.Party.Owners.First();
-        BattleModelOwner target = models.Enemies.Owners.First();
-        BattleModelOwner other = models.Enemies.Owners.Last();
+        BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner target = models.Enemies.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner other = models.Enemies.Entries.Select(entry => entry.Owner).Last();
         NativeBattleActionGraphicsState context = Action(source, target);
         Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, context));
 
@@ -31,8 +31,8 @@ public sealed class NativeBattleTypedActionBusyTests
     public void BothWaitModesReachLastExtendedOwnerOnEitherSide(bool party)
     {
         BattleActorModels models = Models(28, 29);
-        BattleModelOwner source = models.Party.Owners.First();
-        BattleModelOwner last = party ? models.Party.Owners.Last() : models.Enemies.Owners.Last();
+        BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner last = party ? models.Party.Entries.Select(entry => entry.Owner).Last() : models.Enemies.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(last, Busy());
 
         Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, last)));
@@ -44,8 +44,8 @@ public sealed class NativeBattleTypedActionBusyTests
     public void BusySourceShortCircuitsUnknownSelectedModelReadiness()
     {
         BattleActorModels models = Models(3, 4);
-        BattleModelOwner earlier = models.Party.Owners.First();
-        BattleModelOwner source = models.Party.Owners.Last();
+        BattleModelOwner earlier = models.Party.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(source, Busy()).Set(earlier, new NativeBattleGraphicsModel(2));
         Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, earlier)));
         Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models.Set(source, Ready()), Action(source, earlier)));
@@ -55,9 +55,9 @@ public sealed class NativeBattleTypedActionBusyTests
     public void SelectedModelChecksUseRosterOrderInsteadOfTargetOrder()
     {
         BattleActorModels models = Models(3, 4);
-        BattleModelOwner source = models.Party.Owners.First();
-        BattleModelOwner earlier = models.Enemies.Owners.First();
-        BattleModelOwner later = models.Enemies.Owners.Last();
+        BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner earlier = models.Enemies.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner later = models.Enemies.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(earlier, Busy()).Set(later, new NativeBattleGraphicsModel(2));
 
         Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, later, earlier)));
@@ -71,8 +71,8 @@ public sealed class NativeBattleTypedActionBusyTests
     public void RetiredSourceTargetAndCoverRejectBeforeAnyReadinessCheck(bool useActionCamera)
     {
         BattleActorModels models = Models(3, 4);
-        BattleModelOwner source = models.Party.Owners.First();
-        BattleModelOwner retired = models.Enemies.Owners.Last();
+        BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).First();
+        BattleModelOwner retired = models.Enemies.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(source, new NativeBattleGraphicsModel(2)).ReplaceOwner(retired, new BattleEnemyActorModel(new("replacement")), Ready());
         NativeBattleActionGraphicsState context = Action(source) with { UseActionCamera = useActionCamera };
 
@@ -85,7 +85,7 @@ public sealed class NativeBattleTypedActionBusyTests
     public void MissingCameraDecisionRejectsBeforeReadiness()
     {
         BattleActorModels models = Models(3, 4);
-        BattleModelOwner source = models.Party.Owners.First();
+        BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).First();
         models = models.Set(source, new NativeBattleGraphicsModel(2));
 
         Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source) with { UseActionCamera = null }));

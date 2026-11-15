@@ -15,7 +15,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         BattleSession session = Fixture();
         BattleCombatant fourth = Actor(session, Fourth);
         BattleCombatant eleventh = Actor(session, Eleventh);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         Assert.Equal((byte)7, session.ReadExpandedPresentationRow(Fourth));
         Assert.Equal((byte)14, session.ReadExpandedPresentationRow(Eleventh));
         Assert.False(roster.ContainsRow(9));
@@ -65,7 +65,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
     {
         BattleSession session = Fixture();
         BattleCombatant actor = Actor(session, Eleventh);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         actor.CurrentHp = 321;
         actor.NativeCombatantFlags |= 0xC;
         actor.IsBusy = true;
@@ -101,7 +101,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
     {
         BattleSession session = Fixture();
         BattleCombatant actor = Actor(session, Fourth);
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleGuardianForceVital gf = Assert.Single(session.GuardianForces);
         Invoke(session, "BeginNativePresentedGuardianForce", actor, gf);
         actor.NativeStatus1 = 0x80000000;
@@ -128,7 +128,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         NativeCharacterVitals vitals = MagicSystemFixture.Create().ChangeMagicStock(0, 1, 3, MagicOperationReason.ScriptReward, out _);
         BattleSession session = Fixture(vitals);
         var queue = Field<Queue<BattleAttackCommand>>(session, "actions");
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         int itemSlot = (int)Invoke(session, "ConsumeNativeItem", 1)!;
         BattleAttackCommand magic = (BattleAttackCommand)Invoke(session, "EnsureMagicReservation", Actor(session, Fourth), new BattleAttackCommand(Fourth, "enemy", BattleAbility.Magic, 1))!;
         Assert.NotNull(magic.MagicReservationId);
@@ -166,7 +166,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
     public void UnstartedShotOpeningIsRemovedWhileLiveContinuationCallbacksRetainTheirOwners()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         var queue = Field<Queue<BattleAttackCommand>>(session, "actions");
         var shots = Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses");
         var levels = Field<Dictionary<string, byte>>(session, "nativeLimitLevels");

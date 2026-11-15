@@ -102,10 +102,10 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
             Assert.Equal(before.ModelId4, model.ModelId4);
             Assert.Equal(before.Flags0 & 2, model.Flags0 & 2);
             Assert.Equal(before.HasLinkedModelRing140, model.HasLinkedModelRing140);
-            Assert.Equal(before.LinkedModelIndex140, model.LinkedModelIndex140);
+            Assert.Equal(before.LinkedModel, model.LinkedModel);
             if (physical is 0 or 3 || before.HasLinkedModelRing140 is not null)
             {
-                Assert.Equal(before.ReadLinkedModelIndex140(), model.ReadLinkedModelIndex140());
+                Assert.Equal(before.ReadLinkedModel(), model.ReadLinkedModel());
             }
             Assert.Equal(before.CurrentBodyBoneMatrices?.Matrices.Length, model.CurrentBodyBoneMatrices?.Matrices.Length);
             Assert.Equal(before.CurrentLinkedBoneMatrices?.Matrices.Length, model.CurrentLinkedBoneMatrices?.Matrices.Length);

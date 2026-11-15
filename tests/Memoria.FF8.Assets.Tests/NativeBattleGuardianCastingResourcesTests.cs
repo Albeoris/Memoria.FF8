@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -14,7 +15,7 @@ public sealed class NativeBattleGuardianCastingResourcesTests
         ImmutableArray<NativeBattleModuleResource> resources = game.ReadNativeBattleModuleResources();
         Assert.Equal(8, BinaryPrimitives.ReadUInt16LittleEndian(resources[4].Bytes.AsSpan().Slice(8)));
         NativeCrtRandomState random = new(7);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 1);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 1, OriginalAliases);
         int callbacks = 0;
         bool sawOriginalQuads = false;
         bool checkedRestore = false;

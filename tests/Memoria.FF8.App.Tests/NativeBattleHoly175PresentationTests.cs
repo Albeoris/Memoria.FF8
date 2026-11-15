@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -28,7 +29,7 @@ public sealed class NativeBattleHoly175PresentationTests
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
         int descriptor = Assert.Single(graphics.Descriptors.Queue, slot => graphics.Descriptors.Packets[slot].Command == 104);
         uint delta = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
-        Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleActionPacketsState.HeaderCapacity);
+        Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(delta / 20))));
         Assert.Equal(action.Command, header.Command);
         Assert.Equal(action.ActionId, header.Action);
@@ -36,7 +37,7 @@ public sealed class NativeBattleHoly175PresentationTests
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        int target = contact.Primary.ActorIndex;
+        int target = ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient);
         Assert.InRange(target, 0, 2);
         ushort initialHp = source.NativePartyPresentation!.Rows[target]!.HitPoints;
         ushort finalHp = checked((ushort)(initialHp - 7));

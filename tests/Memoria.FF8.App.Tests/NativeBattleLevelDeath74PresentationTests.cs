@@ -58,7 +58,7 @@ public sealed class NativeBattleLevelDeath74PresentationTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
-        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags3 = hitFlags } };
+        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = hitFlags } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared post-formula presentation input; original command/action/sequence and physical target retained; no level comparison, KO/status result, formula, AI or ordinary command execution claim", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));
         return source with { NativeActionPackets = packets with { Contacts = packets.Contacts.SetItem(0, declared) } };
     }

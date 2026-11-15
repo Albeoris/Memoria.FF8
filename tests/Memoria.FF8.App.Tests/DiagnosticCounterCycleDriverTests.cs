@@ -109,8 +109,8 @@ public sealed class DiagnosticCounterCycleDriverTests
     {
         // Codec-only ordinary primary receipt; no installed AI/admission or RNG success is claimed.
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 1, 4, -1, 0, 0, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 4, 0, 0, 0, 10, 0), null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 1, 4, -1, 0, 0, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 4, 0, 0, 0, 10, 0), null));
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
         BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 90, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [1, 0, 0, 0, 0, 0, 0, 0]);

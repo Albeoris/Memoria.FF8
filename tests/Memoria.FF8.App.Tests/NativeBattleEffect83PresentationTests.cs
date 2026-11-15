@@ -82,17 +82,17 @@ public sealed class NativeBattleEffect83PresentationTests
         Assert.Equal((ushort)0, (ushort)(status.Saved & 1));
         Assert.Equal(new NativeBattleStatusMirror(768, 0), status.Presentation);
         NativeBattleActionPacketsState packets = original.NativeActionPackets ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(4), 8, 16, -1, 336, 83, null));
-        Assert.Equal(priorActions, header);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 16, -1, 336, 83, null));
+        Assert.Equal(priorActions, header.Ordinal);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 336 && action.MagicId == 83).DamagePresentation;
-        NativeBattleContactPacket contact = new(new(OriginalOwner(0), reaction, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(0), reaction, 0, 0, status.Saved, 7, status.Battle), null);
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorContacts, packets.ReadHeader(new BattleActionHeaderReference(header)).FirstContact.Ordinal);
-        Assert.Equal(JsonSerializer.Serialize(original.NativeActionPackets.Headers.Take(priorActions)), JsonSerializer.Serialize(packets.Headers.Take(priorActions)));
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal(priorContacts, packets.ReadHeader(header).FirstContact.Ordinal);
+        Assert.Equal(JsonSerializer.Serialize(original.NativeActionPackets.ExportRetained().Headers.Take(priorActions)), JsonSerializer.Serialize(packets.ExportRetained().Headers.Take(priorActions)));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([83])[82];
         Assert.Equal(NativeBattleEffect83Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleEffect83Profile.Initializer, binding.Initializer);
@@ -104,7 +104,7 @@ public sealed class NativeBattleEffect83PresentationTests
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Arena), JsonSerializer.Serialize(source.NativeEffectMemory!.Arena));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect83 renderer and lifecycle from a preserved standalone formation509/stage142 carrier; caster4/model122/native138, command8/action336/sequence16. Explicit aliveparty0 post-formula renderer/lifecycle input preserves sourceHP100, rawSaved768/Battle0 and retainedPresentation768/0. Original AI opcode38 criterion0 requires allocated deadparty; this alive target is not ordinarily eligible. This component excludes ordinary AI/dead-target/KO/formula admission and does not mutate sourceHP/status to fabricate eligibility.", Loaded = loaded, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), Contact = contact }));
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect83 renderer and lifecycle from a preserved standalone formation509/stage142 carrier; caster4/model122/native138, command8/action336/sequence16. Explicit aliveparty0 post-formula renderer/lifecycle input preserves sourceHP100, rawSaved768/Battle0 and retainedPresentation768/0. Original AI opcode38 criterion0 requires allocated deadparty; this alive target is not ordinarily eligible. This component excludes ordinary AI/dead-target/KO/formula admission and does not mutate sourceHP/status to fabricate eligibility.", Loaded = loaded, header = packets.ReadHeader(header), Contact = contact }));
         return source;
     }
 }

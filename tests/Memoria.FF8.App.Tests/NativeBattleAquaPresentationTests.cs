@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -58,7 +59,7 @@ public sealed class NativeBattleAquaPresentationTests
             uint headerOffset = checked(source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
-            Assert.Equal(caster, header.ReadByte(0));
+            Assert.Equal(caster, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, header.Source));
             Assert.Equal(action.Command, header.Command);
             Assert.Equal(action.ActionId, header.Action);
             Assert.Equal(effectId, header.Effect);
@@ -66,10 +67,10 @@ public sealed class NativeBattleAquaPresentationTests
             Assert.Equal(action.MagicId, exported.Selection.ShellEffect);
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
             Assert.Equal((byte)1, source.NativeActionPackets.ContactCount);
-            Assert.Equal(contactActor, contact.Primary.ActorIndex);
+            Assert.Equal(contactActor, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
             Assert.Equal((ushort)7, contact.Primary.Amount6);
-            Assert.Equal((byte)255, contact.Secondary.ActorIndex);
-            NativeBattleEffectTask? expectedText = OriginalEffects().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
+            Assert.Null(contact.Secondary);
+            NativeBattleEffectTask? expectedText = ExpectedOriginalDamageText(contact.Primary, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
             string target = ReadOriginalModelActorId(source.NativeGraphics!, contactActor)!;
             int logicalHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int initialSounds = source.Events.Count(item => item.NativeModuleSound is not null);
@@ -96,7 +97,7 @@ public sealed class NativeBattleAquaPresentationTests
                 Assert.NotNull(current.NativeCamera?.Projection?.View);
                 cameraChanged |= JsonSerializer.Serialize(current.NativeCamera) != initialCamera;
                 stageChanged |= StageColors(current) != initialStage;
-                boundCaster72 |= effectId == 72 && ReadOriginalModelCell(current.NativeGraphics!, caster).ActiveStagedResourceRow100 == 0x25FA3D8 && ReadOriginalModelCell(current.NativeGraphics, caster).LinkedStagedResourceRow is not null;
+                boundCaster72 |= effectId == 72 && ReadOriginalModelCell(current.NativeGraphics!, caster).ActiveStagedResourceRow100 == 0x25FA3D8 && ReadOriginalModelCell(current.NativeGraphics!, caster).LinkedStagedResourceRow is not null;
                 if (CrossedContactGate(prior, current, effectId))
                 {
                     contacts++;
@@ -113,7 +114,7 @@ public sealed class NativeBattleAquaPresentationTests
                 for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || text.ModelIndex != contactActor || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
+                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || !MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, contactActor) || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
                     {
                         continue;
                     }

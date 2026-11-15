@@ -51,7 +51,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount: 4, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
-        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = logical.ReadBattlePresentationRoster();
         ImmutableSortedDictionary<int, BattleEnemyRosterSource> added = logicalDefinition.AddedEnemySources!;
         var combatants = logical.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
         BattleEncounter encounter = assets.LoadEncounter(logicalDefinition.EncounterId!.Value);
@@ -59,7 +59,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         double shear = stagger ? (authored.NativeEye.X - authored.NativeTarget.X) / (double)(authored.NativeEye.Z - authored.NativeTarget.Z) : 0;
         if (stagger)
         {
-            Assert.Equal(11, roster.PartyRows.Count());
+            Assert.Equal(11, roster.Party.Count());
             Assert.Equal(10, added.Count);
             Assert.True(double.IsFinite(shear));
             output.WriteLine(FormattableString.Invariant($"placement=stagger authoredEye={authored.NativeEye} authoredTarget={authored.NativeTarget} shear={shear:F8}"));
@@ -87,22 +87,22 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         NativeBattlePreparedPresentation prepared = Assert.IsType<NativeBattlePreparedPresentation>(process.PreparedPresentation);
         Assert.Equal(process.Graphics.Callback, prepared.Callback);
         Assert.Equal(allyCount + enemyCount, prepared.Actors.Length);
-        foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
+        foreach (BattleModelOwner actor in roster.Owners)
         {
-            BattleModelOwner actor = roster[row];
+            string actorId = ExpandedBattlePresentationProcessEntryTests.ActorId(actor);
             NativeBattleVector? expected;
-            if (actor.IsParty)
+            if (actor is BattlePartyModelOwner)
             {
-                expected = partyPositions[actor.ActorId];
+                expected = partyPositions[actorId];
             }
             else
             {
-                int sceneSlot = combatants[actor.ActorId].SceneSlot!.Value;
+                int sceneSlot = combatants[actorId].SceneSlot!.Value;
                 expected = donorPositions.TryGetValue(sceneSlot, out NativeBattleVector donor)
                     ? donor
                     : encounter.Slots.Single(slot => slot.Slot == sceneSlot).NativePosition;
             }
-            Assert.Equal(expected, process.Graphics.Models[row].Transform!.Initial20);
+            Assert.Equal(expected, process.Graphics.ActorModels.Get(actor).Transform!.Initial20);
         }
         Assert.NotEmpty(prepared.Primitives.LastCommands);
         NativeBattleCameraPose pose = Assert.IsType<NativeBattleCameraPose>(prepared.Camera);
@@ -162,7 +162,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         {
             int commands = prepared.Primitives.LastCommands.Count(command => command.Command.PresentationActorId == actor.Id);
             bool hasBounds = renderer.TryGetActorBounds(actor.Id, out Vector4 bounds);
-            output.WriteLine(FormattableString.Invariant($"row={logical.ReadExpandedPresentationRow(actor.Id)} actor={actor.Id} model={actor.ModelId} commands={commands} bounds={(hasBounds ? $"{bounds.X:F1},{bounds.Y:F1},{bounds.Z:F1},{bounds.W:F1}" : "none")}"));
+            output.WriteLine(FormattableString.Invariant($"owner={logical.ReadPresentationModelOwner(actor.Id)} actor={actor.Id} model={actor.ModelId} commands={commands} bounds={(hasBounds ? $"{bounds.X:F1},{bounds.Y:F1},{bounds.Z:F1},{bounds.W:F1}" : "none")}"));
         }
         Directory.CreateDirectory(directory!);
         PixelImage image = new(width, height, MemoryMarshal.Cast<byte, Rgba32>(pixels).ToArray());

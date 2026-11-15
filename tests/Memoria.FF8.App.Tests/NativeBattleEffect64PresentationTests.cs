@@ -152,18 +152,18 @@ public sealed class NativeBattleEffect64PresentationTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 353 && row.MagicId == 64 && row.KernelSection == 3 && row.KernelIndex == 353);
         Assert.Equal((byte)16, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(124, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
+        int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
-        (packets, int header) = packets.Prepare(new(OriginalOwner(5), 8, 16, -1, 353, 64, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(5), 8, 16, -1, 353, 64, null));
         // Original selector200 is SELF; the declared neutral contact carries that physical target without publishing a new status cache.
         NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == casterId).NativeStatus!.Presentation;
-        NativeBattleContactPacket selfContact = new(new(OriginalOwner(5), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket selfContact = new(new(packets.ModelAliases.DecodeLiteral(5), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), null);
         (packets, _) = packets.AppendContact(selfContact);
         (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
+        Assert.Equal(priorActions, header.Ordinal);
         Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([64])[63];
         Assert.Equal(Entry, binding.Entry);
         Assert.Equal(Initializer, binding.Initializer);
@@ -174,7 +174,7 @@ public sealed class NativeBattleEffect64PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared allocated original124 command8/action353/sequence16 zero-damage SELF-contact renderer and lifecycle; reaction/death AI and formula admission excluded", ActualCasterId = casterId, PhysicalCaster = 5, Allocation = allocation, Action = action, Header = packets.ReadHeader(new BattleActionHeaderReference(header)), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, SourceNativeClock = original.NativeClock, SourceScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceStageRotation = original.NativeStage.Rotation, SourceSavedRotation = original.NativeStage.FinalStage142!.SavedRotation, StatusCache = "Preserved without publication; SELF contact copies current cached statuses" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared allocated original124 command8/action353/sequence16 zero-damage SELF-contact renderer and lifecycle; reaction/death AI and formula admission excluded", ActualCasterId = casterId, PhysicalCaster = 5, Allocation = allocation, Action = action, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, SourceNativeClock = original.NativeClock, SourceScratchMaximum = original.NativeModelCpuResources.ScratchMaximum, SourceStageRotation = original.NativeStage.Rotation, SourceSavedRotation = original.NativeStage.FinalStage142!.SavedRotation, StatusCache = "Preserved without publication; SELF contact copies current cached statuses" }));
         return source;
     }
 

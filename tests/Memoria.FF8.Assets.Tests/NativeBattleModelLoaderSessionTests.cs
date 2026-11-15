@@ -49,7 +49,7 @@ public sealed class NativeBattleModelLoaderSessionTests
         Assert.Equal((byte)1, session.NativeModelLoader.Task.Phase);
         Assert.Equal(-1, session.NativeEffectIoResult);
         Assert.Equal((byte?)1, ReadOriginalModelCell(session.NativeGraphics!, 0).EffectCounter97);
-        Assert.Equal(0, ReadOriginalModelCell(session.NativeGraphics, 0).Flags0 & 2);
+        Assert.Equal(0, ReadOriginalModelCell(session.NativeGraphics!, 0).Flags0 & 2);
         BattleSnapshot pending = session.Capture();
         string json = JsonSerializer.Serialize(pending);
         BattleSession first = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);

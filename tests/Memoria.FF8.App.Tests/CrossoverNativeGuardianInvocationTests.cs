@@ -51,7 +51,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
             {
                 invoked = true;
                 Assert.Equal((byte)254, state.Command);
-                Assert.Equal(0, state.Effect.Graphics.OriginalEffect!.Parameters!.HeaderIndex7C);
+                Assert.Equal(0, state.Effect.Graphics.OriginalEffect!.Parameters!.Header.Ordinal);
             }
             hidden |= (state.Cast.Model.Flags0 & 8) != 0;
             contacts += step.ContactTargets.Length;

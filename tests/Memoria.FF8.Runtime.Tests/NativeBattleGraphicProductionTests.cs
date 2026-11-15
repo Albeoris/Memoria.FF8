@@ -15,7 +15,7 @@ public sealed class NativeBattleGraphicProductionTests
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
-        Assert.Equal((byte)252, header.ReadByte(1));
+        Assert.Equal((byte)252, header.Command);
         Assert.Equal((ushort)1, NativeBattleActionGraphics.Word(header, 4));
         Assert.Equal((ushort)7, NativeBattleActionGraphics.Word(header, 6));
         Assert.Null(header.Data);

@@ -80,8 +80,8 @@ public sealed class NativeBattleStage147LifecycleTests
             if (intro.Subphase == 3)
             {
                 Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics!, 0).Sequence);
-                Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics, 2).Sequence);
-                Assert.Equal((short)2048, ReadOriginalModelCell(battle.NativeGraphics, 0).Rotation14);
+                Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics!, 2).Sequence);
+                Assert.Equal((short)2048, ReadOriginalModelCell(battle.NativeGraphics!, 0).Rotation14);
                 sawPartySequence = true;
             }
             if (intro.Subphase == 4 && intro.Counter == 7 && !restoredDescent)
@@ -95,7 +95,7 @@ public sealed class NativeBattleStage147LifecycleTests
             {
                 foreach (int index in new[] { 0, 2 })
                 {
-                    NativeBattleModelTransform transform = battle.NativeGraphics!.Models[index].Transform!;
+                    NativeBattleModelTransform transform = ReadOriginalModelCell(battle.NativeGraphics!, index).Transform!;
                     Assert.Equal(NativeBattleStage147.Descent511EF0(transform.Initial20.Z, intro.Counter), transform.Position28.Z);
                 }
             }
@@ -109,8 +109,8 @@ public sealed class NativeBattleStage147LifecycleTests
                 {
                     Assert.NotEqual(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).ResourceFlags44!.Value & 0x40);
                 }
-                Assert.Equal((byte)7, battle.NativeGraphics.UiServices!.Windows!.RequestedVitalsMask);
-                Assert.Equal((short)0, ReadOriginalModelCell(battle.NativeGraphics, 0).Rotation14);
+                Assert.Equal((byte)7, battle.NativeGraphics!.UiServices!.Windows!.RequestedVitalsMask);
+                Assert.Equal((short)0, ReadOriginalModelCell(battle.NativeGraphics!, 0).Rotation14);
                 sawEnemySequence = true;
             }
             if (restored is not null)

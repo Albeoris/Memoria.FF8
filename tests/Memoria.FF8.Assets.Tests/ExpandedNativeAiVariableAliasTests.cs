@@ -85,15 +85,15 @@ public sealed class ExpandedNativeAiVariableAliasTests
         {
             Assert.Equal((byte)0, Assert.Single(checkpoint.Combatants, actor => actor.Id == enemyId).NativeParticipant!.TurnCount);
         }
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(checkpoint))!);
+        BattleSession restored = BattleSession.Restore(checkpoint);
         if (expectContact && allyCount == 3)
         {
             // The physical path calculates contacts before publishing its queued header.
-            int header = checkpoint.ActiveAction?.NativeHeaderIndex ?? Assert.Single(checkpoint.QueuedActions, command => command.ActorId == enemyId && command.NativeHeaderIndex is not null).NativeHeaderIndex!.Value;
-            NativeBattleContactPacket[] published = checkpoint.NativeActionPackets!.ReadHeaderContacts506BA0(header).ToArray();
+            BattleActionHeaderReference header = checkpoint.ActiveAction?.NativeHeader ?? Assert.Single(checkpoint.QueuedActions, command => command.ActorId == enemyId && command.NativeHeader is not null).NativeHeader!.Value;
+            NativeBattleContactPacket[] published = checkpoint.NativeActionPackets!.ReadHeaderContacts(header).ToArray();
             Assert.NotEmpty(published);
-            Assert.All(published, contact => Assert.InRange(contact.Primary.ActorIndex, (byte)0, (byte)2));
-            Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(restored.Capture().NativeActionPackets!.ReadHeaderContacts506BA0(header).ToArray()));
+            Assert.All(published, contact => Assert.IsAssignableFrom<BattlePartyModelOwner>(contact.Primary.Recipient));
+            Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(restored.Capture().NativeActionPackets!.ReadHeaderContacts(header).ToArray()));
         }
         int priorEvents = battle.Events.Count;
         BattleSnapshot continued = AdvanceUntil(battle, enemyId, started: false);

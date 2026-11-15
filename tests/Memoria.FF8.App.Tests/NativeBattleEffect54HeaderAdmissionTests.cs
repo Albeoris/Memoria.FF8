@@ -33,14 +33,14 @@ public sealed class NativeBattleEffect54HeaderAdmissionTests
         Assert.Equal((byte)0, retained.ReadRepeatModeMinusOne());
         string targetId = ReadOriginalModelActorId(source.NativeGraphics, 0) ?? throw new NotSupportedException("The source requires its current physical target.");
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus ?? throw new NotSupportedException("The target requires its actual saved and battle status owners.");
-        (NativeBattleActionPacketsState packets, int headerIndex) = original.Prepare(new(OriginalOwner(3), 8, 11, unchecked((sbyte)action.RawRecord[4]), 223, 54, null));
-        Assert.Equal(retained.ReadRepeatModeMinusOne(), packets.ReadHeader(new BattleActionHeaderReference(headerIndex)).ReadRepeatModeMinusOne());
-        (packets, int contactIndex) = packets.AppendContact(new(new(OriginalOwner(0), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
-        (packets, int publishedIndex) = packets.Publish(1);
-        Assert.Equal(original.ActionCount, headerIndex);
-        Assert.Equal(headerIndex, publishedIndex);
+        (NativeBattleActionPacketsState packets, BattleActionHeaderReference headerIndex) = original.Prepare(new(OriginalOwner(3), 8, 11, unchecked((sbyte)action.RawRecord[4]), 223, 54, null));
+        Assert.Equal(retained.ReadRepeatModeMinusOne(), packets.ReadHeader(headerIndex).ReadRepeatModeMinusOne());
+        (packets, int contactIndex) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
+        (packets, BattleActionHeaderReference publishedIndex) = packets.Publish(1);
+        Assert.Equal(original.ActionCount, headerIndex.Ordinal);
+        Assert.Equal(headerIndex.Ordinal, publishedIndex.Ordinal);
         Assert.Equal(original.ContactCount, contactIndex);
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(headerIndex);
         Assert.Equal((byte)1, header.ReadContactCount());
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.Equal(retained.ReadRepeatModeMinusOne(), header.ReadRepeatModeMinusOne());
@@ -51,6 +51,6 @@ public sealed class NativeBattleEffect54HeaderAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "header-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Canonical local postformula packet preparation only; no action execution or snapshot mutation", source.Frame, PhysicalCaster = 3, caster.ModelId, action.Command, action.ActionId, action.MagicId, Sequence = 11, HeaderIndex = headerIndex, ContactIndex = contactIndex, header.FirstContactIndex, TargetCount = header.ReadContactCount(), RetainedGroup = header.ReadRepeatModeMinusOne(), RootMaximumGroup = 0, Header = header.Payload, Contact = packets.Contacts[contactIndex], SnapshotUnchanged = true }));
+        File.WriteAllText(Path.Combine(output!, "header-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Canonical local postformula packet preparation only; no action execution or snapshot mutation", source.Frame, PhysicalCaster = 3, caster.ModelId, action.Command, action.ActionId, action.MagicId, Sequence = 11, headerIndex = headerIndex.Ordinal, ContactIndex = contactIndex, header.FirstContactIndex, TargetCount = header.ReadContactCount(), RetainedGroup = header.ReadRepeatModeMinusOne(), RootMaximumGroup = 0, Header = header.Payload, Contact = packets.Contacts[contactIndex], SnapshotUnchanged = true }));
     }
 }

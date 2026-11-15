@@ -47,7 +47,7 @@ public sealed class EffectComponentTerminalTextureTrackerTests
         Assert.Equal((byte)1, current.Owners.ContactRows);
         Assert.False((current with { RawBlockers = default }).IsEligible);
         Assert.False((current with { PhysicalCommandBanksEmpty = false }).IsEligible);
-        Assert.False((current with { Owners = current.Owners with { RetainedActiveHeader = NativeBattleActionPacketsState.HeaderCapacity } }).IsEligible);
+        Assert.False((current with { Owners = current.Owners with { RetainedActiveHeader = NativeBattleRetainedActionPackets.HeaderCapacity } }).IsEligible);
         Assert.False((current with { Owners = current.Owners with { RetainedActiveContact = NativeBattleActionPacketsState.ContactCapacity + 1 } }).IsEligible);
         Assert.False((current with { Owners = current.Owners with { Files = null } }).IsEligible);
     }

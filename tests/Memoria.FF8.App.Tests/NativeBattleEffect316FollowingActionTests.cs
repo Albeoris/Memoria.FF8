@@ -34,7 +34,7 @@ public sealed class NativeBattleEffect316FollowingActionTests
         Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
         File.WriteAllText(Path.Combine(output!, "following-warm-source.json"), JsonSerializer.Serialize(new { Status = "prepared", Effect, WarmRandom = random, WarmColor = warm.ReadDword(ColorGlobal), ModelsAndSourceMarkersPreserved = true, RootBankExclusive = true }));
         BattleSnapshot completed = NativeBattleEffect316PresentationTests.RunPrepared(prepared, game, assets, output!);
-        Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Color44, ReadOriginalModelCell(completed.NativeGraphics!, 3).Color44);
+        Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, 3).Color44, ReadOriginalModelCell(completed.NativeGraphics!, 3).Color44);
         uint completedRandom = completed.NativeEffectMemory!.Effect316!.ReadDword(RandomGlobal);
         BattleSession cleanup = NativeBattleEffect316PresentationTests.Restore(completed, game);
         for (int callback = 1; callback <= 4; callback++)

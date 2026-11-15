@@ -144,7 +144,7 @@ public sealed class NativeBattleReadyMenuTests
         snapshot = snapshot with { NativeGraphics = snapshot.NativeGraphics with { UiServices = ui with { Commands = commands, ReadyMask = readyMask } } };
         BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
         actors[0] = actors[0] with { CurrentHp = savedStatus == 1 ? 0 : actors[0].CurrentHp, NativeStatus = actors[0].NativeStatus! with { Saved = savedStatus, Presentation = new(0, 0) } };
-        NativeBattleContactPacket packet = new(new(OriginalOwner(0), 0, 1, 4, savedStatus, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactPacket packet = new(new(OriginalOwner(0), 0, 1, 4, savedStatus, 0, 0), null);
         battle = BattleSession.Restore(snapshot with { Combatants = actors, NativeClock = snapshot.NativeClock! with { ActionPause = 1 }, NativeGraphics = snapshot.NativeGraphics! with { PendingContacts = [packet] } });
         string before = JsonSerializer.Serialize(battle.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!);

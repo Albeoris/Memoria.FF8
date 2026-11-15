@@ -21,7 +21,7 @@ public sealed class InstalledNativeActionExecutionTests
         Assert.Equal(2, session.Frame);
         Assert.Equal((byte)254, session.ActiveAction!.NativeQueuedCommand);
         Assert.Equal(assets.NativeActions.Single(action => action.Command == 254 && action.ActionId == 64).Name, session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Data!.FormattedText);
-        Assert.Equal((ushort)0, session.NativeActionPackets.ReadContact(0).Primary.Amount6);
+        Assert.Equal((ushort)0, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.False(session.Capture().NativeActionScratch!.GuardianFormulaE1E);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Damage");
         NativeBattleRandomState random = session.Capture().Random!;

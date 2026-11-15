@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -12,7 +13,7 @@ public sealed class NativeBattleModelColorsTests
     public void Ordinary_callback_restores_actual_stage_RGB_and_clears_only_Vertical34_even_under_pause()
     {
         NativeBattleGraphicsModel model = Model;
-        NativeBattleModelColorStep changed = NativeBattleModelColors.Advance50A0A0(model, 1, Colors, Inactive);
+        NativeBattleModelColorStep changed = AdvanceOriginalModelColor(model, 1, Colors, Inactive);
         Assert.Equal(Colors.Transition, changed.Model.Color40);
         Assert.Equal((short)0, changed.Model.Transform!.Vertical34);
         Assert.Equal(model.Transform! with { Vertical34 = 0 }, changed.Model.Transform);
@@ -22,7 +23,7 @@ public sealed class NativeBattleModelColorsTests
         Assert.Equal(model.Flags8, changed.Model.Flags8);
         Assert.Equal(model.Kind5, changed.Model.Kind5);
         Assert.Equal(model.Phase6, changed.Model.Phase6);
-        NativeBattleModelColorStep next = NativeBattleModelColors.Advance50A0A0(changed.Model with { Color40 = 0 }, 0, Colors, changed.Overrides);
+        NativeBattleModelColorStep next = AdvanceOriginalModelColor(changed.Model with { Color40 = 0 }, 0, Colors, changed.Overrides);
         Assert.Equal(Colors.Transition, next.Model.Color40);
     }
 
@@ -30,7 +31,7 @@ public sealed class NativeBattleModelColorsTests
     public void Model_gate_returns_without_reading_status_transform_stage_or_pending_owner()
     {
         NativeBattleGraphicsModel gated = new(3) { Flags2 = 4 };
-        NativeBattleModelColorStep result = NativeBattleModelColors.Advance50A0A0(gated, 0, null!, null);
+        NativeBattleModelColorStep result = AdvanceOriginalModelColor(gated, 0, null!, null);
         Assert.Same(gated, result.Model);
         Assert.Null(result.Overrides);
     }
@@ -41,7 +42,7 @@ public sealed class NativeBattleModelColorsTests
         NativeBattleGraphicsModel model = Model with { Kind5 = 12, Phase6 = 0 };
         for (int callback = 0; callback < 9; callback++)
         {
-            NativeBattleModelColorStep seeded = NativeBattleModelColors.Advance50A0A0(model, 0, Colors, Inactive);
+            NativeBattleModelColorStep seeded = AdvanceOriginalModelColor(model, 0, Colors, Inactive);
             Assert.Equal(Colors.Transition, seeded.Model.Color40);
             model = NativeBattleSummonModels.Advance(seeded.Model, false, Colors);
             if (model.Kind5 == 12)
@@ -59,11 +60,11 @@ public sealed class NativeBattleModelColorsTests
     public void Two_matching_overrides_consume_in_physical_order_and_preserve_RGB_storage()
     {
         NativeBattleModelColorOverrides pending = new([new(0, 0x112233), new(0, 0xAABBCC)]);
-        NativeBattleModelColorStep applied = NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, pending);
+        NativeBattleModelColorStep applied = AdvanceOriginalModelColor(Model, 0, Colors, pending);
         Assert.Equal(0xAABBCCu, applied.Model.Color40);
         Assert.Equal(new byte?[] { 255, 255 }, applied.Overrides!.Slots.Select(slot => slot.Actor).ToArray());
         Assert.Equal(new uint?[] { 0x112233, 0xAABBCC }, applied.Overrides.Slots.Select(slot => slot.Color).ToArray());
-        NativeBattleModelColorStep next = NativeBattleModelColors.Advance50A0A0(applied.Model, 0, Colors, applied.Overrides);
+        NativeBattleModelColorStep next = AdvanceOriginalModelColor(applied.Model, 0, Colors, applied.Overrides);
         Assert.Equal(Colors.Transition, next.Model.Color40);
         Assert.Equal(new byte?[] { 0, 0 }, pending.Slots.Select(slot => slot.Actor).ToArray());
     }
@@ -75,7 +76,7 @@ public sealed class NativeBattleModelColorsTests
     public void Inactive_or_other_actor_does_not_read_an_unknown_RGB(byte actor)
     {
         NativeBattleModelColorOverrides pending = new([new(actor, null), new(255, null)]);
-        NativeBattleModelColorStep result = NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, pending);
+        NativeBattleModelColorStep result = AdvanceOriginalModelColor(Model, 0, Colors, pending);
         Assert.Equal(Colors.Transition, result.Model.Color40);
         Assert.Same(pending, result.Overrides);
     }
@@ -83,9 +84,9 @@ public sealed class NativeBattleModelColorsTests
     [Fact]
     public void Old_missing_owner_or_reached_unknown_actor_RGB_is_strict()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, null));
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, new([new(null, null), new(255, null)])));
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, new([new(0, null), new(255, null)])));
+        Assert.Throws<NotSupportedException>(() => AdvanceOriginalModelColor(Model, 0, Colors, null));
+        Assert.Throws<NotSupportedException>(() => AdvanceOriginalModelColor(Model, 0, Colors, new([new(null, null), new(255, null)])));
+        Assert.Throws<NotSupportedException>(() => AdvanceOriginalModelColor(Model, 0, Colors, new([new(0, null), new(255, null)])));
         NativeBattleEffectMemory old = NativeBattleEffectMemory.FromColdProcess() with { ModelColorOverrides = null };
         Assert.DoesNotContain("ModelColorOverrides", NativeBattleTestSnapshots.Json(old));
         Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(old))!.ModelColorOverrides);
@@ -96,25 +97,25 @@ public sealed class NativeBattleModelColorsTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         Assert.Equal(new byte?[] { 255, 0 }, memory.ModelColorOverrides!.Slots.Select(slot => slot.Actor).ToArray());
-        NativeBattleModelColorStep consumed = NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, memory.ModelColorOverrides);
+        NativeBattleModelColorStep consumed = AdvanceOriginalModelColor(Model, 0, Colors, memory.ModelColorOverrides);
         Assert.Equal(0u, consumed.Model.Color40);
         memory = (memory with { ModelColorOverrides = consumed.Overrides }).BeginLoad(116);
         NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(new byte?[] { 255, 255 }, restored.ModelColorOverrides!.Slots.Select(slot => slot.Actor).ToArray());
-        Assert.Equal(Colors.Transition, NativeBattleModelColors.Advance50A0A0(consumed.Model, 0, Colors, restored.ModelColorOverrides).Model.Color40);
+        Assert.Equal(Colors.Transition, AdvanceOriginalModelColor(consumed.Model, 0, Colors, restored.ModelColorOverrides).Model.Color40);
     }
 
     [Fact]
     public void Color_suppression_retains_status_and_color_but_does_not_suppress_override_or_vertical_clear()
     {
         NativeBattleGraphicsModel model = Model with { Flags0 = 0x803, Flags8 = 0x100000, Color40 = 0xA5123456, Alpha7 = 19 };
-        NativeBattleModelColorStep changed = NativeBattleModelColors.Advance50A0A0(model, 0, Colors, Inactive);
+        NativeBattleModelColorStep changed = AdvanceOriginalModelColor(model, 0, Colors, Inactive);
         Assert.Equal(model.Color40, changed.Model.Color40);
         Assert.Equal(model.StatusTimers, changed.Model.StatusTimers);
         Assert.Equal(model.Flags8, changed.Model.Flags8);
         Assert.Equal(model.Alpha7, changed.Model.Alpha7);
         Assert.Equal((short)0, changed.Model.Transform!.Vertical34);
-        NativeBattleModelColorStep overridden = NativeBattleModelColors.Advance50A0A0(model, 0, Colors, new([new(0, 0xFEDCBA), new(255, null)]));
+        NativeBattleModelColorStep overridden = AdvanceOriginalModelColor(model, 0, Colors, new([new(0, 0xFEDCBA), new(255, null)]));
         Assert.Equal(0xFEDCBAu, overridden.Model.Color40);
     }
 
@@ -132,7 +133,14 @@ public sealed class NativeBattleModelColorsTests
     public void Countdown_service_is_requested_only_at_its_actual_status_and_graphics_gates(uint statuses, uint graphicsFlags, ushort flags2, ushort additionalModelFlags, bool expected)
     {
         NativeBattleGraphicsModel model = Model with { Flags8 = statuses, Flags2 = flags2, Flags0 = (ushort)(Model.Flags0 | additionalModelFlags) };
-        NativeBattleModelColorStep step = NativeBattleModelColors.Advance50A0A0(model, graphicsFlags, Colors, Inactive);
+        NativeBattleModelColorStep step = AdvanceOriginalModelColor(model, graphicsFlags, Colors, Inactive);
         Assert.Equal(expected, step.CountdownRequired);
     }
+    private static NativeBattleModelColorStep AdvanceOriginalModelColor(NativeBattleGraphicsModel model, uint graphicsFlags, NativeBattleSummonColors colors, NativeBattleModelColorOverrides? overrides)
+    {
+        BattleModelOwner owner = OriginalOwner(0);
+        var (models, boundary) = OriginalModels([(0, model)]);
+        return NativeBattleModelColors.Advance50A0A0(owner, model, graphicsFlags, colors, overrides, models, boundary);
+    }
+
 }

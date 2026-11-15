@@ -59,8 +59,8 @@ public sealed class NativeBattleMeleeDisplacementContinuationTests
         void RunAction(string actorId, bool limit)
         {
             int index = FindOriginalModelSlot(battle.NativeGraphics!, actorId);
-            int target = FindOriginalModelSlot(battle.NativeGraphics, targetId);
-            NativeBattleGraphicsModel initial = ReadOriginalModelCell(battle.NativeGraphics, index);
+            int target = FindOriginalModelSlot(battle.NativeGraphics!, targetId);
+            NativeBattleGraphicsModel initial = ReadOriginalModelCell(battle.NativeGraphics!, index);
             double initialDistance = Distance(initial);
             double minimumDistance = initialDistance;
             int events = battle.Events.Count;

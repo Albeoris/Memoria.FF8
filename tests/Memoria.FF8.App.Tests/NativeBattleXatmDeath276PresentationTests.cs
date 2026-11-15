@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -32,7 +33,7 @@ public sealed class NativeBattleXatmDeath276PresentationTests
         Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
         int headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
-        Assert.Equal((byte)3, header.ReadByte(0));
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, header.Source));
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)19, header.Sequence);
         Assert.Equal((ushort)145, header.Action);
@@ -41,10 +42,11 @@ public sealed class NativeBattleXatmDeath276PresentationTests
         Assert.Equal((byte)1, header.ReadContactCount());
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
-        Assert.Equal((byte)0, contact.Primary.HitFlags3);
-        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        Assert.Equal((byte)0, contact.Primary.HitFlags);
+        Assert.Null(contact.Primary.CoverSource);
+        Assert.Null(contact.Secondary);
         BattleCombatantDefinition caster = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(graphics, 3));
         Assert.Equal(92, caster.ModelId);
         Assert.Equal(0, caster.SceneSlot);

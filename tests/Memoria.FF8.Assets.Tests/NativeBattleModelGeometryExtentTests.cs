@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -39,7 +40,7 @@ public sealed class NativeBattleModelGeometryExtentTests
 
         NativeBattleModelResourceCompletion Complete(NativeBattleModelDatSource source, NativeBattleModelCpuBanks cpu, ImmutableArray<NativeBattleModelCpuResourceRow> current, int? linked)
         {
-            NativeBattleModelLoadTask task = NativeBattleModelLoader.Queue507080((ushort)(model | (source.Linked ? 0x1000 : 0)), 0, 0, 0, 0).Task!;
+            NativeBattleModelLoadTask task = NativeBattleModelLoader.Queue507080((ushort)(model | (source.Linked ? 0x1000 : 0)), OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0).Task!;
             return NativeBattleModelResourceCopies.Complete(new(task, source, new([])), cpu, current, 0, linked);
         }
 

@@ -91,11 +91,11 @@ public sealed class ExpandedActionPreparationTests
         Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(candidate.Capture().Random));
 
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-        BattleModelRoster roster = candidate.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = candidate.ReadBattlePresentationRoster();
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(candidate, [invocation, roster, bridge]);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(candidate, 1L);
-        NativeBattleModelLifecycleServices services = candidate.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = candidate.CaptureModelLifecycleServices(roster);
         services.EmitContact(placeholder.Packet);
         MethodInfo acknowledger = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         string staged = Snapshot(candidate);
@@ -151,13 +151,13 @@ public sealed class ExpandedActionPreparationTests
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         object invocation = ReadHostedInvocation(candidate);
         Assert.Empty((ImmutableArray<ExpandedBattleContact>)invocation.GetType().GetProperty("Contacts")!.GetValue(invocation)!);
-        BattleModelRoster roster = candidate.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = candidate.ReadBattlePresentationRoster();
         object? bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster]);
         Assert.Null(bridge);
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(candidate, [invocation, roster, bridge]);
         typeof(BattleSession).GetMethod("ValidateExpandedEffectContactCompletion", privateInstance)!.Invoke(candidate, []);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(candidate, 1L);
-        NativeBattleModelLifecycleServices services = candidate.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = candidate.CaptureModelLifecycleServices(roster);
         services.EmitContact(new(new(candidate.ReadExpandedPresentationRow(target), 0, 0, 0, 0, 0, 0), new(byte.MaxValue, 0, 0, 0, 0, 0, 0)));
         MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         Assert.Contains("unexpected contact", Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => acknowledge.Invoke(candidate, [services, 1L])).InnerException).Message);
@@ -187,7 +187,7 @@ public sealed class ExpandedActionPreparationTests
         BattleSession owner = Create();
         BattleCombatant caster = owner.Combatants.Single(actor => actor.Id == "caster");
         caster.NativePresentationStatus = new(caster.NativeStatus0, caster.NativeStatus1);
-        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
         byte row = owner.ReadExpandedPresentationRow("caster");
         BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 1);
         NativeBattleContactPacket packet = new(new(row, 0, 0, 0, 0, 0, 0), new(byte.MaxValue, 0, 0, 0, 0, 0, 0));
@@ -206,7 +206,7 @@ public sealed class ExpandedActionPreparationTests
         typeof(BattleSession).GetMethod("InitializeExpandedPartyPresentation", privateInstance)!.Invoke(owner, []);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, 1L);
         pending.SetValue(owner, newer);
-        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         services.EmitContact(packet);
         MethodInfo acknowledger = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         int before = owner.GetAvailableMagicCasts("caster", 1);
@@ -243,7 +243,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Null(pending.GetValue(owner));
         ExpandedBattleContact placeholder = Assert.Single((ImmutableArray<ExpandedBattleContact>)invocation.GetType().GetProperty("Contacts")!.GetValue(invocation)!);
 
-        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
         pending.SetValue(owner, newer);
@@ -286,7 +286,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Same(newer ?? held, boundDraw.GetValue(owner));
         Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
 
-        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         services.EmitContact(child.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)));
         MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         acknowledge.Invoke(owner, [services, token]);

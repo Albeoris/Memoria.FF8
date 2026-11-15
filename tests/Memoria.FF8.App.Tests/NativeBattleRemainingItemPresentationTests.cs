@@ -169,7 +169,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                     {
                         Assert.Equal(0, half.SavedStatuses4 & initialSavedStatus);
                         Assert.Equal(0u, half.BattleStatuses8 & initialBattleStatus);
-                        Assert.Equal(0, half.HitFlags3 & 4);
+                        Assert.Equal(0, half.HitFlags & 4);
                     }
                     if (revival)
                     {

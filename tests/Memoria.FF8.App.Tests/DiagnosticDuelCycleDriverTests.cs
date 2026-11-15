@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -65,7 +64,7 @@ public sealed class DiagnosticDuelCycleDriverTests
         DiagnosticDuelCycleDriver cycle = Create();
         BattleNativeDuelState ready = State(BattleNativeDuelPhase.Ready);
         BattleNativeDuelChoice choice = new(1, 0, "Punch Rush", true, false, [16, 32]);
-        cycle.BeginInput(choice, new(3, ready));
+        cycle.BeginInput(choice, new(3, ReadObservation(ready)));
         Assert.Equal((ushort)16, cycle.Buttons(ready));
         Assert.Equal((ushort)16, cycle.Buttons(ready));
         BattleNativeDuelState first = ready with { InputCursor = 1, PreviousButtons = 16, InputRing = ready.InputRing.SetItem(1, 16) };
@@ -73,7 +72,7 @@ public sealed class DiagnosticDuelCycleDriverTests
         Assert.Equal((ushort)0, cycle.Buttons(first));
         Assert.Equal((ushort)32, cycle.Buttons(first with { PreviousButtons = 0 }));
         BattleNativeDuelState accepted = first with { Phase = BattleNativeDuelPhase.AwaitingEffect, MoveSetId = 1, InputCursor = 2, InputRing = first.InputRing.SetItem(2, 32), RemainingTimer = 239 };
-        cycle.Observe(new(4, accepted), false);
+        cycle.Observe(new(4, ReadObservation(accepted)), false);
         Assert.Equal((ushort)0, cycle.Buttons(accepted));
         DiagnosticDuelInputReceipt input = Assert.Single(cycle.Receipt.Inputs);
         Assert.True(NativeBattleDuelRules.Matches(input.Choice, input.After.Duel!.InputRing, input.After.Duel.InputCursor));
@@ -86,12 +85,12 @@ public sealed class DiagnosticDuelCycleDriverTests
     public void Timer_close_requires_the_real_255_transition_and_full_drain_after_input()
     {
         DiagnosticDuelCycleDriver cycle = Create();
-        cycle.Observe(new(2, State(BattleNativeDuelPhase.Opening)), false);
-        BattleNativeDuelState ready = State(BattleNativeDuelPhase.Ready);
+        cycle.Observe(new(2, ReadObservation(State(BattleNativeDuelPhase.Opening))), false);
+        BattleDiagnosticDuelState ready = ReadObservation(State(BattleNativeDuelPhase.Ready));
         cycle.BeginInput(new(1, 0, "Punch Rush", true, false, [16]), new(3, ready));
         cycle.Observe(new(4, ready with { Phase = BattleNativeDuelPhase.AwaitingEffect, MoveSetId = 1, InputCursor = 1, InputRing = ready.InputRing.SetItem(1, 16) }), false);
         BattleDiagnosticEffectDispatch dispatch = new(3, 5, "party", BattleAbility.NativeCommand, 0, 274, 274, 241) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
-        Assert.True(cycle.ObserveDispatch(dispatch, new(3, 5, 0, 1, OriginalPackets())));
+        Assert.True(cycle.ObserveDispatch(dispatch, new(3, 5, 0, 1, NativeBattleRetainedActionPackets.Fresh())));
         cycle.Observe(new(6, ready with { MoveSetId = 1 }), false);
         Assert.NotNull(cycle.Receipt.ReadyAfterBasic);
         cycle.Observe(new(7, null), true);
@@ -111,7 +110,7 @@ public sealed class DiagnosticDuelCycleDriverTests
     public void Unlearned_or_finisher_choices_cannot_replace_a_basic(bool learned, bool finisher)
     {
         DiagnosticDuelCycleDriver cycle = Create();
-        Assert.Throws<InvalidDataException>(() => cycle.BeginInput(new(1, 0, "Native", learned, finisher, [16]), new(3, State(BattleNativeDuelPhase.Ready))));
+        Assert.Throws<InvalidDataException>(() => cycle.BeginInput(new(1, 0, "Native", learned, finisher, [16]), new(3, ReadObservation(State(BattleNativeDuelPhase.Ready)))));
     }
 
     [Theory]
@@ -142,6 +141,18 @@ public sealed class DiagnosticDuelCycleDriverTests
         }
     }
 
-    private static BattleNativeDuelState State(BattleNativeDuelPhase phase) => new(0, 8, 240, 240, phase) { Selection1D28DEF = 254 };
+    private static BattleNativeDuelState State(BattleNativeDuelPhase phase) => new(0, NativeBattleTargetRequestAdapter.Decode(8, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), 240, 240, phase) { Selection1D28DEF = 254 };
+
+    private static BattleDiagnosticDuelState ReadObservation(BattleNativeDuelState state)
+    {
+        ushort target = NativeBattleTargetRequestAdapter.ProjectOriginalWord(state.TargetRequest, _ => throw new InvalidOperationException())!.Value;
+        return new(state.MoveSetId, target, state.InitialTimer, state.RemainingTimer, state.Phase)
+        {
+            Selection1D28DEF = state.Selection1D28DEF,
+            InputRing = state.InputRing,
+            InputCursor = state.InputCursor,
+            PreviousButtons = state.PreviousButtons
+        };
+    }
     private static DiagnosticDuelCycleDriver Create() => new(new(1, "party", "enemy", 0, 3, new(0), new("party", 1, 11, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(1)), new(1, null)));
 }

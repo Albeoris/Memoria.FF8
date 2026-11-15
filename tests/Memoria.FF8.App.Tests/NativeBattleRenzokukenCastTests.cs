@@ -93,7 +93,7 @@ public sealed class NativeBattleRenzokukenCastTests
                 before = battle.Capture();
                 battle.Tick();
                 Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
-                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics, actorIndex).Color40 == interpolatedColor;
+                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
                 if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {

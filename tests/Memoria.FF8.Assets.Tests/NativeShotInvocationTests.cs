@@ -29,11 +29,12 @@ public sealed class NativeShotInvocationTests
         }, BattleAtbMode.TurnBased);
         battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("irvine", 4)] });
         battle.QueueNativePlayerCommand("irvine", "enemy-10", 14, (ushort)shot);
-        Assert.Equal("enemy-10", battle.GetNativeShot("irvine")!.ExpandedTargetId);
+        var shotTargets = Assert.IsType<BattleTargetSelection.Explicit>(battle.GetNativeShot("irvine")!.TargetRequest.Selection);
+        Assert.Equal("enemy-10", Assert.Single(shotTargets.Actors).ActorId);
         Assert.Equal(2, Assert.Single(battle.Items).Count);
         Until(battle, () => battle.GetNativeShot("irvine")?.Phase == BattleNativeShotPhase.Ready);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact");
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.True(battle.TriggerNativeShot("irvine"));
         Assert.True(restored.TriggerNativeShot("irvine"));
         Assert.False(battle.TriggerNativeShot("irvine"));

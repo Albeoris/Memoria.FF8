@@ -45,7 +45,7 @@ public sealed class NativeBattleEscapeContinuationTests
         }
         Assert.NotEqual(initialGauges, Gauges(battle));
         Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.NotEqual(0u, model.Flags8!.Value & 0x1000000));
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Take(3), model => Assert.Equal((byte)16, model.Sequence));
+        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.Equal((byte)16, model.Sequence));
         CompareNext("held");
         Advance(false);
         Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.Equal(0u, model.Flags8!.Value & 0x1000000));

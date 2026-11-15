@@ -51,8 +51,7 @@ public sealed class NativeRenzokukenInvocationTests
         Assert.Equal((byte)2, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)5, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
         Assert.Equal((byte)250, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Command);
-        Assert.Equal((byte)255, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).ReadByte(4));
-        Assert.Equal((byte)255, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).ReadByte(5));
+        Assert.Equal(ushort.MaxValue, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Action);
         Assert.Equal(action.Name, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Data!.FormattedText);
         Assert.Equal(action.HitCount, battle.Capture().NativeActionScratch!.LastPublishedTargetCountE05);
         Assert.Equal(action.HitCount, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));

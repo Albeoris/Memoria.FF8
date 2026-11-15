@@ -78,8 +78,8 @@ public sealed class NativeBattleCuragaNodeRenderingTests
     private static (NativeBattleCuragaFrame Frame, uint Task) Fixture(GameAssets game)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        (packets, int header) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 23, 28, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 1, 0, 100, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 11, 0, 23, 28, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), 1, 0, 1, 0, 100, 0), null));
         packets = packets.WritePlayerRepeatMode(header, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleCuragaResources resources = game.ReadNativeCuragaResources();

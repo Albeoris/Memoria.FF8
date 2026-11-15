@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -26,7 +27,7 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         Assert.Equal((ushort)11, header.Action);
         Assert.Equal((ushort)118, header.Effect);
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         int targetHp = source.Combatants.Single(actor => actor.Id == "enemy").CurrentHp;
         Assert.Equal(contact.Primary.Amount6, beforeInput.Combatants.Single(actor => actor.Id == "enemy").CurrentHp - targetHp);
         Assert.True(contact.Primary.Amount6 > 0);
