@@ -101,7 +101,13 @@ public sealed partial class FieldMachine
                         bool awaiting = mask != 0 && unmatched != unchecked((ushort)(pc + 4)) && LoopsBackToInput(detached, entity, unmatched, pc, instructionBudget);
                         string identity = $"{program.Identity}:{entity}:{owner.Priority}:{pc:X4}";
                         demands.Add(new(identity, program.Identity, entity, owner.Priority, pc, (FieldScriptInputKind)(opcode - 0x30), mask, mapped, awaiting));
-                        break;
+                        if (!awaiting)
+                        {
+                            break;
+                        }
+                        // Inspect the same no-button path used to prove the wait, without entering any accepted handler.
+                        owner.Pc = unmatched;
+                        continue;
                     }
                     if (IsInputInspectionBoundary(opcode))
                     {
@@ -139,7 +145,12 @@ public sealed partial class FieldMachine
             try
             {
                 byte opcode = program.Read(pc);
-                if (opcode is >= 0x30 and <= 0x32 || IsInputInspectionBoundary(opcode))
+                if (opcode is >= 0x30 and <= 0x32)
+                {
+                    detached.entities[entity].Pc = unchecked((ushort)(pc + 3 + program.Read(pc + 3)));
+                    continue;
+                }
+                if (IsInputInspectionBoundary(opcode))
                 {
                     return false;
                 }

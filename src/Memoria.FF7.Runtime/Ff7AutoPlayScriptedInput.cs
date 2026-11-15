@@ -50,8 +50,13 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
         {
             return null;
         }
-        CurrentDemand = session.Machine.ReadCurrentInputDemands().Where(demand => demand.AwaitingInput).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).FirstOrDefault();
+        CurrentDemand = SelectDemand(session.Machine.ReadCurrentInputDemands());
         return CurrentDemand is null ? null : SelectInput(CurrentDemand, session.Machine.Input);
+    }
+
+    internal static FieldScriptInputDemand? SelectDemand(IEnumerable<FieldScriptInputDemand> demands)
+    {
+        return demands.Where(demand => demand.AwaitingInput).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).ThenBy(demand => demand.Mapped && (demand.Mask & 0x40) != 0 ? 0 : demand.Mapped && (demand.Mask & 0x20) != 0 ? 1 : 2).FirstOrDefault();
     }
 
     public static Ff7AutoplayInput SelectInput(FieldScriptInputDemand demand, FieldInputState input)

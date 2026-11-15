@@ -25,6 +25,19 @@ internal static class NativeAutoPlayScriptedInputTests
         demand = demand with { Mapped = false };
         Check(Ff7AutoPlayScriptedInput.SelectInput(demand, new(Held: 0x20, RawHeld: 0)).Held == 0x20, "Raw KEYOFF used the mapped held bank.");
         Check(Ff7AutoPlayScriptedInput.SelectInput(demand, new(Held: 0, RawHeld: 0x20)).Held == 0, "Raw KEYOFF ignored its native held bank.");
+        FieldScriptInputDemand direction = demand with { Identity = "direction", Kind = FieldScriptInputKind.Held, Mapped = false, Mask = 0x1000 };
+        FieldScriptInputDemand confirm = direction with { Identity = "confirm", Mapped = true, Mask = 0x220 };
+        FieldScriptInputDemand cancel = confirm with { Identity = "cancel", Mask = 0x240 };
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([direction, confirm, cancel]) == cancel, "A native menu loop selected navigation or Confirm before its mapped Cancel gate.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([direction, confirm]) == confirm, "A native menu loop selected navigation before mapped Confirm.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([cancel with { AwaitingInput = false }, direction, confirm]) == confirm, "An unproved Cancel branch displaced a proved input wait.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([cancel with { Mapped = false }, confirm]) == confirm, "A raw Cancel-shaped bitmask displaced mapped Confirm.");
+        FieldScriptInputDemand earlierOwner = direction with { Entity = 0, Priority = 0 };
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([cancel, earlierOwner]) == earlierOwner, "Button preference displaced native script priority.");
+        earlierOwner = direction with { Entity = 0 };
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([cancel with { Entity = 1 }, earlierOwner]) == earlierOwner, "Button preference displaced native entity ordering.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([direction, direction with { Identity = "second-direction", Mask = 0x2000 }]) == direction, "Equivalent navigation gates lost stable source ordering.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([]) is null && Ff7AutoPlayScriptedInput.SelectDemand([cancel with { AwaitingInput = false }]) is null, "No proved wait fabricated an autoplay button demand.");
     }
 
     private static void Check(bool condition, string message)
