@@ -154,6 +154,7 @@ public sealed record Ff7FieldProcess
     public Ff7NativeWaterSplash[] NativeWaterSplashes { get; init; } = [];
     public int NativeWaterSplashCursor { get; init; }
     public Ff7Window[] Windows { get; init; } = [Ff7Window.CreateDefault(0), Ff7Window.CreateDefault(1), Ff7Window.CreateDefault(2), Ff7Window.CreateDefault(3)];
+    public byte[]? NativePartyPresentationMask { get; init; }
     public Ff7Dialogue[] Dialogues { get; init; } = [];
     public Ff7HostReceipt[] Receipts { get; init; } = [];
     public Ff7Motion[] Motions { get; init; } = [];
@@ -293,6 +294,10 @@ public sealed record Ff7FieldProcess
         if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < 0 or > 98 || MusicVolume is < 0 or > 127)
         {
             throw new InvalidDataException("FFVII music continuation has invalid native track, clock or volume state.");
+        }
+        if (NativePartyPresentationMask is { } partyMask && (partyMask.Length is < 1 or > 256 || partyMask.Any(value => value > 1)))
+        {
+            throw new InvalidDataException("Native party presentation contains an invalid saved mask publication.");
         }
         if (Tick < 0 || Actors is null || Windows is null || Dialogues is null || Receipts is null || Motions is null || AnimationRequests is null || BackgroundStates is not { Length: 256 })
         {

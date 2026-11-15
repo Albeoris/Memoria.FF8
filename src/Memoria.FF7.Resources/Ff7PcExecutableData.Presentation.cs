@@ -6,9 +6,19 @@ namespace Memoria.FF7.Resources;
 
 public readonly record struct Ff7NativeModelPresentation(int ExtraY, int ExtraZ, int Mask);
 public sealed record Ff7NativeEyeProfile(bool Enabled, string? ClosedLeft, string? ClosedRight);
+public sealed record Ff7NativePartyPresentationFilter(int LastSlotInclusive);
 
-public sealed class Ff7PcFieldPresentationData(Ff7NativeModelPresentation[][] fields, IReadOnlyDictionary<string, int> roles, IReadOnlyList<Ff7NativeEyeProfile> eyes, IReadOnlyList<float> nearPlanes)
+public sealed class Ff7PcFieldPresentationData(Ff7NativeModelPresentation[][] fields, IReadOnlyDictionary<string, int> roles, IReadOnlyList<Ff7NativeEyeProfile> eyes, IReadOnlyList<float> nearPlanes, IReadOnlyDictionary<int, Ff7NativePartyPresentationFilter>? partyFilters = null)
 {
+    public Ff7NativePartyPresentationFilter? PartyFilter(int field)
+    {
+        if ((uint)field >= fields.Length)
+        {
+            throw new NotSupportedException("Native party presentation requires an original configured field identity.");
+        }
+        return partyFilters is not null && partyFilters.TryGetValue(field, out Ff7NativePartyPresentationFilter? filter) ? filter : null;
+    }
+
     public Ff7NativeModelPresentation Model(int field, int slot)
     {
         if ((uint)field >= fields.Length || (uint)slot >= fields[field].Length)
@@ -184,6 +194,31 @@ public sealed partial class Ff7PcExecutableData
             uint right = unchecked((uint)I32(address + 16));
             eyes[role] = new(I32(address) != 0, left == 0 ? null : Text(left), right == 0 ? null : Text(right));
         }
-        return new(fields, new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(roles), Array.AsReadOnly(eyes), Array.AsReadOnly(nearPlanes));
+        void RequirePartyFilterCode(uint address, params byte[] expected)
+        {
+            if (!ReadVirtual(stream, pe, address, expected.Length).AsSpan().SequenceEqual(expected))
+            {
+                throw new InvalidDataException("The native party presentation publication contract is unsupported.");
+            }
+        }
+        RequirePartyFilterCode(0x63BCE7, 0x33, 0xC0, 0x66, 0xA1, 0x68, 0xF4, 0xCF, 0x00, 0x3D);
+        int partyField = I32(0x63BCF0);
+        RequirePartyFilterCode(0x63BCF4, 0x0F, 0x85, 0xAA, 0x00, 0x00, 0x00);
+        RequirePartyFilterCode(0x63BCFA, 0xC7, 0x45, 0xF0, 0x00, 0x00, 0x00, 0x00, 0xEB, 0x09, 0x8B, 0x4D, 0xF0, 0x83, 0xC1, 0x01, 0x89, 0x4D, 0xF0, 0x83, 0x7D, 0xF0);
+        int lastPartySlot = U8(0x63BD0F);
+        RequirePartyFilterCode(0x63BD10, 0x7F, 0x10, 0x8B, 0x55, 0xF0, 0xC7, 0x04, 0x95, 0x48, 0xFA, 0xCF, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEB, 0xE1);
+        RequirePartyFilterCode(0x63BD22, 0xC7, 0x45, 0xF0, 0x00, 0x00, 0x00, 0x00, 0xEB, 0x09, 0x8B, 0x45, 0xF0, 0x83, 0xC0, 0x01, 0x89, 0x45, 0xF0, 0x83, 0x7D, 0xF0, 0x03, 0x7D, 0x6A);
+        RequirePartyFilterCode(0x63BD3A, 0x8B, 0x4D, 0xF0, 0x66, 0x0F, 0xB6, 0x91, 0xE5, 0x09, 0xDC, 0x00, 0x66, 0x89, 0x55, 0xFC, 0x0F, 0xBF, 0x45, 0xFC, 0x3D, 0xFF, 0x00, 0x00, 0x00, 0x74, 0x4E);
+        RequirePartyFilterCode(0x63BD54, 0x0F, 0xBF, 0x4D, 0xFC, 0x66, 0x0F, 0xB6, 0x91, 0x98, 0x09, 0xCC, 0x00, 0x66, 0x89, 0x55, 0xF4, 0x0F, 0xBF, 0x45, 0xF4, 0x3D, 0xFF, 0x00, 0x00, 0x00, 0x74, 0x33);
+        RequirePartyFilterCode(0x63BD6F, 0x0F, 0xBF, 0x4D, 0xF4, 0x66, 0x0F, 0xB6, 0x91, 0x70, 0xFB, 0xCB, 0x00, 0x66, 0x89, 0x55, 0xF8, 0x0F, 0xBF, 0x45, 0xF8, 0x3D, 0xFF, 0x00, 0x00, 0x00, 0x74, 0x18);
+        RequirePartyFilterCode(0x63BD8A, 0x0F, 0xBF, 0x4D, 0xF8, 0x83, 0xF9);
+        RequirePartyFilterCode(0x63BD91, 0x7F, 0x0F, 0x0F, 0xBF, 0x55, 0xF8, 0xC7, 0x04, 0x95, 0x48, 0xFA, 0xCF, 0x00, 0x01, 0x00, 0x00, 0x00, 0xEB, 0x87);
+        RequirePartyFilterCode(0x63C151, 0xE8, 0x8B, 0xFB, 0xFF, 0xFF);
+        if ((uint)partyField >= count || lastPartySlot >= slots || U8(0x63BD90) != lastPartySlot)
+        {
+            throw new InvalidDataException("The native party presentation field or allocated-slot bounds are unsupported.");
+        }
+        Dictionary<int, Ff7NativePartyPresentationFilter> partyFilters = new() { [partyField] = new(lastPartySlot) };
+        return new(fields, new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(roles), Array.AsReadOnly(eyes), Array.AsReadOnly(nearPlanes), new System.Collections.ObjectModel.ReadOnlyDictionary<int, Ff7NativePartyPresentationFilter>(partyFilters));
     }
 }

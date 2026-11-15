@@ -17,6 +17,7 @@ public sealed partial class Ff7Session
         FieldVariables variables = new(data.AsSpan(0xBA4, 1280).ToArray(), new byte[256]);
         session.LoadField(slot.MapId, variables);
         session.Machine.Initialize();
+        session.InitializeNativePartyPresentation();
         session.Host.InitializePlayerMovement(session.Field.Scripts.Scale);
         session.Host.InitializeBackgroundTriggers();
         session.Host.PlacePlayerAtEntry(new(slot.MapId, BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(0xB9A)), BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(0xB9C)), BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(0xB9E)), data[0xBA0]));

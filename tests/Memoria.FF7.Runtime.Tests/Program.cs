@@ -9,6 +9,12 @@ if (args.Contains("--native-transparency-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--party-presentation-only", StringComparer.Ordinal))
+{
+    NativePartyPresentationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--actor-reaction-motion-only", StringComparer.Ordinal))
 {
     NativeReactionMotionTests.Run();
@@ -623,6 +629,7 @@ var tests = new (string Name, Action Run)[]
     ("native optional-area frontier and initialized field ownership", NativeTourFrontierTests.Run),
     ("native window parameter binding and numeric cursor", NativeWindowParameterTests.Run),
     ("native window defaults and legacy ownership", NativeWindowDefaultsTests.Run),
+    ("native post-initialization party presentation", NativePartyPresentationTests.Run),
     ("native shop autoplay cadence and clock ownership", NativeShopAutoPlayTests.Run),
     ("native optional inn production tour and return receipts", NativeOptionalInnTourTests.Run),
     ("native optional item shop production tour and return receipts", NativeOptionalInnTourTests.RunItemShop),

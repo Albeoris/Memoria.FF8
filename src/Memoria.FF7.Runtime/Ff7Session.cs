@@ -76,6 +76,7 @@ public sealed partial class Ff7Session : IDisposable
             FieldVariables variables = new(session.executable.CreateInitialPersistentVariables(), new byte[256]);
             session.LoadField(session.executable.InitialField, variables);
             session.Machine.Initialize();
+            session.InitializeNativePartyPresentation();
             session.Host.InitializePlayerMovement(session.Field.Scripts.Scale);
             session.Host.InitializeBackgroundTriggers();
             return session;
@@ -124,6 +125,7 @@ public sealed partial class Ff7Session : IDisposable
             }
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm with { Entities = fieldEntities }, session.Host);
             session.Machine.ScriptReturned = session.ObserveNativeScriptReturn;
+            session.InitializeNativePartyPresentation(restoring: true);
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
             session.AutoPlayState = save.AutoPlay?.Clone();
@@ -277,6 +279,7 @@ public sealed partial class Ff7Session : IDisposable
             FieldGeneration++;
             fieldLoadIncomplete = true;
             Machine.Initialize();
+            InitializeNativePartyPresentation();
             Host.InitializePlayerMovement(Field.Scripts.Scale);
             Host.InitializeBackgroundTriggers();
             Host.PlacePlayerAtEntry(transition);
@@ -330,7 +333,6 @@ public sealed partial class Ff7Session : IDisposable
             NativeBlinkCamera = Host?.NativeBlinkCamera ?? ReadNativeMovieCamera,
             NativeMovieCameraRecordCount = ReadNativeMovieCameraRecordCount,
             NativeBlinkRandomTable = executable.NativeFieldRandomTable,
-            NativeModelConfiguration = slot => map == 502 ? throw new NotSupportedException("This native field requires its dynamic party presentation-mask owner.") : executable.NativePresentation.Model(map, slot),
             Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles, map),
             NativeFieldEntryFadeAlpha = executable.NativeFieldEntryFadeAlpha,
             CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
@@ -345,6 +347,7 @@ public sealed partial class Ff7Session : IDisposable
             ExternalCommand = ExecuteExternal,
             AdvanceDialogue = AdvanceDialogue
         };
+        loadedHost.NativeModelConfiguration = slot => ReadNativeModelPresentation(map, loadedHost.Process, slot);
         ConfigureNativeWater(loadedHost, loadedField, loadedModels, map);
         loadedHost.ConfigureNativeSoundResources(ReadNativeSoundDescription, restoring: !enteringField);
         prepareHost?.Invoke(loadedHost);

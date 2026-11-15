@@ -120,6 +120,7 @@ public sealed partial class Ff7Session
             });
             fieldLoadIncomplete = true;
             Machine.Initialize();
+            InitializeNativePartyPresentation();
             Host.InitializePlayerMovement(Field.Scripts.Scale);
             Host.InitializeBackgroundTriggers();
             Host.PlacePlayerAtEntry(entry);

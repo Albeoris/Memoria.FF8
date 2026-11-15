@@ -50,6 +50,7 @@ public sealed partial class Ff7Session
             World = null;
             fieldLoadIncomplete = true;
             Machine.Initialize();
+            InitializeNativePartyPresentation();
             Host.InitializePlayerMovement(Field.Scripts.Scale);
             Host.InitializeBackgroundTriggers();
             if (entry.Triangle >= Field.Walkmesh.Count || !Host.Process.Actors.Any(actor => actor.PlayerControlled))
