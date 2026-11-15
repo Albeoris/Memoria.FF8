@@ -144,7 +144,7 @@ public sealed class NativeBattleLaserEye71BeamLowerTests
             Inputs = new(ReadBone, (_, _) => Identity, Look, _ => Identity, (_, _, _) => OriginalTaskActors(0, 3), Deliver, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
         }
 
-        private NativeBattleLaserEye71PointStep ReadBone(NativeBattleLaserEye71Frame frame, byte actor, byte selector, short distance)
+        private NativeBattleLaserEye71PointStep ReadBone(NativeBattleLaserEye71Frame frame, BattleModelOwner actor, byte selector, short distance)
         {
             Selectors.Add(selector);
             return new(frame, selector == 0xF1 ? new(500, 600, 700) : new(100, 200, 300));

@@ -86,7 +86,7 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
                 ProgramOffset = task.Program?.Offset,
                 ProgramLength = task.Program?.Source.Length,
                 ProgramSha256 = task.Program is { } program ? Convert.ToHexStringLower(SHA256.HashData(program.Source.AsSpan())) : null,
-                model.Index,
+                Index = row.ModelIndex!.Value,
                 model.Flags0,
                 model.ResourceFlags44,
                 model.Sequence,

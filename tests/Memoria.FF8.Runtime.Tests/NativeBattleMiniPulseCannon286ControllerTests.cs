@@ -45,7 +45,7 @@ public sealed class NativeBattleMiniPulseCannon286ControllerTests
         var inputs = Inputs(operations) with { ReadAnchor571400 = (current, model) =>
         {
             anchors++;
-            Assert.Equal(ModelAddress(0), model);
+            Assert.Equal(OriginalOwner(0), model);
             return new(current with { Random = current.Random.Draw(out _) }, PointView(new(-123, 456, -789), -222));
         } };
         var actual = AdvanceTask(frame, RootBank, Resources(), inputs).Frame;
@@ -74,7 +74,7 @@ public sealed class NativeBattleMiniPulseCannon286ControllerTests
         Assert.Equal(contacts, operations.OfType<NativeBattleMiniPulseCannon286Contact506690>().Count());
         if (contacts != 0)
         {
-            Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleMiniPulseCannon286Contact506690>()).ContactIndex);
+            Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleMiniPulseCannon286Contact506690>()).Occurrence.Ordinal);
         }
         if (sounds != 0)
         {
@@ -141,7 +141,7 @@ public sealed class NativeBattleMiniPulseCannon286ControllerTests
         var frame = MainAt(68);
         List<NativeBattleMiniPulseCannon286Operation> operations = [];
         var actual = Advance(frame, Resources(), Inputs(operations));
-        Assert.Equal(new NativeBattleMiniPulseCannon286ActorFlags(ModelAddress(3), 8, 0), Assert.Single(operations.OfType<NativeBattleMiniPulseCannon286ActorFlags>()));
+        Assert.Equal(new NativeBattleMiniPulseCannon286ActorFlags(OriginalOwner(3), 8, 0), Assert.Single(operations.OfType<NativeBattleMiniPulseCannon286ActorFlags>()));
         var ordered = operations.Where(operation => operation is NativeBattleMiniPulseCannon286ComposeCaster5095B0 or NativeBattleMiniPulseCannon286ActorFlags or NativeBattleMiniPulseCannon286RestoreCaster508C90).ToArray();
         Assert.IsType<NativeBattleMiniPulseCannon286ComposeCaster5095B0>(ordered[0]);
         Assert.IsType<NativeBattleMiniPulseCannon286ActorFlags>(ordered[1]);
@@ -273,9 +273,9 @@ public sealed class NativeBattleMiniPulseCannon286ControllerTests
     }
     private static NativeBattlePackedMatrix32 Identity() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
     private static uint ModelAddress(int actor) => 0x1D972C0u + (uint)(actor * 156);
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner owner)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
+        int actor = OriginalSlot(owner);
         return new(2) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 1000), (short)(444 + actor), 777, 4096) };
     }
 }

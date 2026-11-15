@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -196,12 +197,12 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Run(frame, 0xD4, Resources(), Services())), NativeBattleTestSnapshots.Json(Run(clone, 0xD4, Resources(), Services())));
     }
 
-    private static NativeBattleWaterInstructionServices Services() => new(ResolveProgram, new(UnexpectedActorFlags, UnexpectedWriteFlags, UnexpectedSound), new(UnexpectedPointer, UnexpectedPointer, UnexpectedBytes, UnexpectedContact, UnexpectedFrame, UnexpectedStage), UnexpectedByte, UnexpectedActor, UnexpectedAnchor, UnexpectedHeaderBase, UnexpectedCapture, UnexpectedTextures, UnexpectedPublishTextures, UnexpectedFile, UnexpectedEcx, NativeBattleActorAnchorRegisterFixture.Services());
+    private static NativeBattleWaterInstructionServices Services() => new(ResolveProgram, new(UnexpectedActorFlags, UnexpectedWriteFlags, UnexpectedSound), new((_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), UnexpectedBytes, (_, _) => throw new InvalidOperationException(), UnexpectedFrame, UnexpectedStage, _ => null, OriginalPackets, () => OriginalAliases, BattleContactTaskStorageContract.OriginalArena), UnexpectedByte, UnexpectedActor, UnexpectedAnchor, _ => throw new InvalidOperationException(), UnexpectedTextures, UnexpectedPublishTextures, UnexpectedFile, UnexpectedEcx, NativeBattleActorAnchorRegisterFixture.Services());
 
     private static NativeBattleWaterScriptProgram ResolveProgram(NativeBattleWaterExecutionFrame frame, uint pc) => new(0x1000, 16, Pc);
     private static NativeBattleWaterScriptProgram UnexpectedProgram(NativeBattleWaterExecutionFrame frame, uint pc) => throw new InvalidOperationException("Terminal header transition consumed an old program.");
-    private static ushort UnexpectedActorFlags(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException();
-    private static NativeBattleWaterExecutionFrame UnexpectedWriteFlags(NativeBattleWaterExecutionFrame frame, uint address, ushort value) => throw new InvalidOperationException();
+    private static ushort UnexpectedActorFlags(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor) => throw new InvalidOperationException();
+    private static NativeBattleWaterExecutionFrame UnexpectedWriteFlags(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor, ushort value) => throw new InvalidOperationException();
     private static NativeBattleWaterExecutionFrame UnexpectedSound(NativeBattleWaterExecutionFrame frame, uint address, short argument, byte flags) => throw new InvalidOperationException();
     private static uint UnexpectedPointer(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException();
     private static byte[] UnexpectedBytes(NativeBattleWaterExecutionFrame frame, uint address, int count) => throw new InvalidOperationException();
@@ -209,8 +210,8 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
     private static NativeBattleWaterExecutionFrame UnexpectedFrame(NativeBattleWaterExecutionFrame frame) => throw new InvalidOperationException();
     private static NativeBattleWaterExecutionFrame UnexpectedStage(NativeBattleWaterExecutionFrame frame, int index, short depth, uint color) => throw new InvalidOperationException();
     private static byte UnexpectedByte(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException();
-    private static NativeBattleGraphicsModel UnexpectedActor(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException();
-    private static NativeBattleWaterActorAnchorSource UnexpectedAnchor(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException();
+    private static NativeBattleGraphicsModel UnexpectedActor(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor) => throw new InvalidOperationException();
+    private static NativeBattleWaterActorAnchorSource UnexpectedAnchor(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor) => throw new InvalidOperationException();
     private static uint UnexpectedHeaderBase(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, uint address) => throw new InvalidOperationException();
     private static NativeBattleWaterResetCaptureInputs UnexpectedCapture(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, uint parameters, byte index) => throw new InvalidOperationException();
     private static NativeBattleEffectTextureState UnexpectedTextures(NativeBattleWaterExecutionFrame frame) => throw new InvalidOperationException();

@@ -161,8 +161,11 @@ public sealed class NativeBattleDuel274TargetTests
             }
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (target, _) = target.Append(0x689AC0);
-            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteByte(15, 6).WriteByte(16, 1).WriteDword(20, NativeBattleDuel274Controller.Address(3))) });
-            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 6, Parameter82 = 0 }, 0x25084B8) { Pools = [NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1), target] };
+            BattleModelOwner targetOwner = OriginalOwner(3);
+            NativeBattleModulePoolTask task = target.Slots[0].WriteByte(15, 6).WriteByte(16, 1);
+            task.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(targetOwner), OriginalAliases.EncodeAddress(targetOwner));
+            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
+            NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 6, Parameter82 = 0 }, 0x25084B8) { Pools = [NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1), target], Duel274SavedFlags = OriginalRoster.Owners.ToImmutableDictionary(owner => owner, owner => Models[OriginalSlot(owner)].Flags0) };
             NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25084D8, [1, 6]);
             for (int index = 0; index < 7; index++)
             {
@@ -175,12 +178,12 @@ public sealed class NativeBattleDuel274TargetTests
             byte[] data = new byte[NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address];
             data[checked((int)(0x110E3E6 - NativeBattleDuel274Resources.Address))] = 49;
             Resources = new(data.ToImmutableArray(), []);
-            NativeBattleDuel274ActorServices actors = new(index => Models[index].Flags0, (index, flags) => Models[index] = Models[index] with { Flags0 = flags }, _ => 0, index => index, _ => throw new InvalidOperationException("Bounds are not re-read by the target."));
+            NativeBattleDuel274ActorServices actors = new(OriginalAliases, index => Models[OriginalSlot(index)].Flags0, (index, flags) => Models[OriginalSlot(index)] = Models[OriginalSlot(index)] with { Flags0 = flags }, _ => null, index => index, _ => throw new InvalidOperationException("Bounds are not re-read by the target."));
             if (foreign && foreignRoles)
             {
-                actors = actors with { IsNativeModel = (index, modelId) => index != 3 && Models[index].ModelId4 == modelId };
+                actors = actors with { IsNativeModel = (index, modelId) => index != OriginalOwner(3) && Models[OriginalSlot(index)].ModelId4 == modelId };
             }
-            Inputs = new(actors, index => Models[index], (index, model) => Models[index] = model, _ => new(100, 101, 102, 103), (current, index, row) =>
+            Inputs = new(actors, index => Models[OriginalSlot(index)], (index, model) => Models[OriginalSlot(index)] = model, _ => new(100, 101, 102, 103), (current, index, row) =>
             {
                 Assert.Equal(OriginalOwner(0), index);
                 Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 56, row);

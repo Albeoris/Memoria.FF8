@@ -48,7 +48,7 @@ public sealed class NativeBattleScanTargetTests
         NativeBattleScanPresentationMemory presentation = result.Frame.Scan.Memory.Scan!.Presentation;
         Assert.Equal((ushort)0, presentation.Result269D938);
         Assert.Equal((ushort)0, presentation.Exit269CE2C);
-        Assert.Equal(NativeBattleScanModelSelection.ModelBase + 6u * 156, presentation.PrimaryModel269CE30);
+        Assert.Equal(0x1D972C0u + 6u * 156, presentation.PrimaryModel269CE30);
         Assert.Equal(1u, presentation.Selection269A1BC.ReadDword(24));
         Assert.Equal(0u, presentation.Selection269A1BC.ReadDword(0));
     }
@@ -58,7 +58,7 @@ public sealed class NativeBattleScanTargetTests
     {
         var fixture = Fixture(2);
         int sounds = 0;
-        List<int> contacts = [];
+        List<BattleContactOccurrence> contacts = [];
         NativeBattleScanTargetInputs inputs = fixture.Inputs with
         {
             Sound501330 = (current, _, _, _) =>
@@ -84,7 +84,7 @@ public sealed class NativeBattleScanTargetTests
         frame = waited.Frame with { Scan = waited.Frame.Scan with { Effect = waited.Frame.Scan.Effect with { Pools = retiredChild.Hierarchy.Pools } } };
         NativeBattleScanTargetStep completed = NativeBattleScanTarget.Advance84D230(frame, fixture.Address, inputs);
         Assert.Equal(2, completed.Result);
-        Assert.Equal(new[] { 2 }, contacts);
+        Assert.Equal(new[] { new BattleContactOccurrence(2) }, contacts);
         Assert.Equal(1, sounds);
         Assert.Equal(0x40u, completed.Frame.Scan.Memory.SoundPendingFlags);
         Assert.Equal((byte)2, Task(completed.Frame, fixture.Address).ReadByte(0x29));
@@ -98,14 +98,14 @@ public sealed class NativeBattleScanTargetTests
         var fixture = Fixture(2);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Scan.Effect.Pools);
         hierarchy = hierarchy.Write(fixture.Address, hierarchy.Read(fixture.Address).WriteByte(0x2A, 0xFF));
-        NativeBattleScanTargetFrame frame = fixture.Frame with { Scan = fixture.Frame.Scan with { Effect = fixture.Frame.Scan.Effect with { Parameters = fixture.Frame.Scan.Effect.Parameters! with { HeaderIndex7C = 1 }, Pools = hierarchy.Pools } } };
+        NativeBattleScanTargetFrame frame = fixture.Frame with { Scan = fixture.Frame.Scan with { Effect = fixture.Frame.Scan.Effect with { Parameters = fixture.Frame.Scan.Effect.Parameters! with { Header = new BattleActionHeaderReference(1) }, Pools = hierarchy.Pools } } };
         NativeBattleScanTargetStep first = NativeBattleScanTarget.Advance84D230(frame, fixture.Address, fixture.Inputs);
         Assert.Equal(0x850B40u, first.Frame.Scan.Effect.Pools[2].Slots[0].Callback);
         Assert.Equal((byte)4, first.Frame.Scan.Effect.Pools[2].Slots[0].ReadByte(0x2D));
         hierarchy = new(first.Frame.Scan.Effect.Pools);
         NativeBattleEffectHierarchyStep retired = hierarchy.Advance(2, (current, address) => new(current.Complete8DC530(address), 2));
         frame = first.Frame with { Scan = first.Frame.Scan with { Effect = first.Frame.Scan.Effect with { Pools = retired.Hierarchy.Pools } } };
-        int? contact = null;
+        BattleContactOccurrence? contact = null;
         NativeBattleScanTargetStep last = NativeBattleScanTarget.Advance84D230(frame, fixture.Address, fixture.Inputs with
         {
             ApplyContact506690 = (current, index) =>
@@ -114,7 +114,7 @@ public sealed class NativeBattleScanTargetTests
                 return current;
             }
         });
-        Assert.Equal(0, contact);
+        Assert.Equal(new BattleContactOccurrence(0), contact);
         Assert.Equal(2, last.Result);
     }
 
@@ -123,7 +123,7 @@ public sealed class NativeBattleScanTargetTests
     {
         var fixture = Fixture(0);
         NativeBattleScanTargetFrame frame = NativeBattleScanTarget.Advance84D230(fixture.Frame, fixture.Address, fixture.Inputs).Frame;
-        NativeBattleScanTargetFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanTargetFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleScanTargetFrame clone = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleScanTargetStep left = NativeBattleScanTarget.Advance84D230(frame, fixture.Address, fixture.Inputs);
         NativeBattleScanTargetStep right = NativeBattleScanTarget.Advance84D230(clone, fixture.Address, fixture.Inputs);
         Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
@@ -163,20 +163,18 @@ public sealed class NativeBattleScanTargetTests
         NativeBattleEffectHierarchy hierarchy = new(scan.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x2A, 1).WriteByte(0x63, 1));
-        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x84D230, 0x58, root, (_, group, actor) => new(packets.Headers[group].ReadByte(0), packets.ReadContact(packets.Headers[group].FirstContactIndex!.Value + actor).Primary.ActorIndex));
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x84D230, 0x58, root, (pointer, group, actor) => NativeBattleCureController.SelectActors(effect.Parameters!, packets, pointer, group, actor));
         hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteWord(0x48, 0x1234));
         scan = scan with { Effect = scan.Effect with { Pools = hierarchy.Pools }, Memory = scan.Memory with { Scan = scan.Memory.Scan! with { Presentation = scan.Memory.Scan!.Presentation with { Result269D938 = 9, Exit269CE2C = 10 } } } };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }).ToImmutableArray();
-        ImmutableArray<NativeBattleScanByteOwner> physical = ScanPhysicalModelFixture.Models();
-        physical = physical.SetItem(6, physical[6].WriteByte(0, 2));
+        BattleActorModels models = OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(index == 6 ? (ushort)2 : (ushort)0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }))).Models;
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         NativeBattleScanTargetInputs inputs = new(packets, _ => source, _ => throw new InvalidDataException(), (current, _, _, _) => current, (_, _) => throw new InvalidDataException("Contact is not reached in this fixture callback."));
-        return (new(scan, models, physical), target.Address, inputs);
+        return (new(scan, models), target.Address, inputs);
     }
 
-    private static NativeBattleContactPacket Contact(byte actor, byte flags) => new(new(actor, 1, flags, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static NativeBattleContactPacket Contact(byte actor, byte flags) => new(new(OriginalOwner(actor), 1, flags, 0, 0, 0, 0), null);
 }

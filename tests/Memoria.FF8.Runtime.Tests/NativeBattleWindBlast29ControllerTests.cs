@@ -77,17 +77,18 @@ public sealed class NativeBattleWindBlast29ControllerTests
         Fixture fixture = new();
         NativeBattleWindBlast29Frame frame = fixture.TargetFrame(2, 42, out _, out uint target);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        hierarchy = hierarchy.Write(target, hierarchy.Read(target).WriteByte(0x2B, 1));
+        hierarchy = hierarchy.Write(target, hierarchy.Read(target).WriteTraversalPosition(0x2B, 1));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
         NativeBattleContactPacket packet = packets.ReadContact(new BattleContactOccurrence(0));
+        NativeBattleActionHeaderSlot retained = packets.ReadHeader(new BattleActionHeaderReference(0));
+        packets = packets.ResetCounts();
+        (packets, _) = packets.Prepare(new(retained.Source, retained.Command, retained.Sequence, retained.CameraChoice, retained.Action, retained.Effect, retained.Data));
         while (packets.ContactCount < count)
         {
             (packets, _) = packets.AppendContact(packet);
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
-        header = header with { Payload = header.Payload.SetItem(16, count), UnknownByteMask = header.UnknownByteMask & ~(1u << 16), FirstContactIndex = count == 0 ? null : 0 };
-        packets = packets with { Headers = packets.Headers.SetItem(0, header) };
+        (packets, _) = packets.Publish(count);
         NativeBattleWindBlast29Inputs inputs = fixture.Inputs with { Packets = packets, Execute = (current, operation) =>
         {
             fixture.Operations.Add(operation);
@@ -104,7 +105,7 @@ public sealed class NativeBattleWindBlast29ControllerTests
             expected = expected.Draw(out _);
         }
         frame = NativeBattleWindBlast29Controller.Advance(frame, fixture.Resources, inputs);
-        Assert.Equal(Enumerable.Range(0, count), fixture.Operations.OfType<NativeBattleWindBlast29Contact>().Select(operation => operation.Index));
+        Assert.Equal(Enumerable.Range(0, count), fixture.Operations.OfType<NativeBattleWindBlast29Contact>().Select(operation => operation.Occurrence.Ordinal));
         Assert.Equal(expected, frame.Random);
         Assert.Equal((byte)3, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(target).ReadByte(0x29));
         Assert.Equal(1, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(target).ReadByte(0x26) & 1);

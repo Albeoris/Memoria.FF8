@@ -17,7 +17,7 @@ public sealed class NativeBattleDoom8StripTests
             frame = frame with { State = frame.State with { Globals = frame.State.Globals.MarkUnknown(checked((int)(bank - NativeBattleDoom8State.BaseAddress)), 544) } };
         }
         List<NativeBattleDoom8Operation> calls = [];
-        frame = NativeBattleDoom8Strips.InitializeTarget8C8120(frame, fixture.Address, 3, Tables(), (current, operation) =>
+        frame = NativeBattleDoom8Strips.InitializeTarget8C8120(frame, fixture.Address, OriginalOwner(3), Tables(), (current, operation) =>
         {
             calls.Add(operation);
             if (operation is NativeBattleDoom8StripAnchor anchor)

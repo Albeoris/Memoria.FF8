@@ -52,7 +52,7 @@ public sealed class NativeBattleStatusCureItemTests
         Assert.Equal(BitConverter.GetBytes(child.Flags), started.Frame.Memory.Arena!.Read(256, 2));
         NativeBattleStatusCureItemFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStatusCureItemFrame>(NativeBattleTestSnapshots.Json(started.Frame))!;
         NativeBattleStatusCureItemStep complete = NativeBattleStatusCureItemController.Advance(restored, resources, inputs);
-        Assert.Equal(new[] { 0 }, complete.Contacts);
+        Assert.Equal(new[] { new BattleContactOccurrence(0) }, complete.Contacts);
         Assert.Empty(complete.Sounds);
         Assert.Equal(0u, complete.Frame.Effect.ReturnedDescriptor);
         Assert.Empty(NativeBattleStatusCureItemController.Advance(complete.Frame, resources, inputs).Contacts);

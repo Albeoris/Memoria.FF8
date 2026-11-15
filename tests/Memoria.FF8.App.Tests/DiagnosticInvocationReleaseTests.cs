@@ -150,7 +150,7 @@ public sealed class DiagnosticInvocationReleaseTests
     {
         BattleDiagnosticInvocationRelease basis = PostFrameReceipt();
         BattleDiagnosticEffectDispatch focal = basis.Dispatch with { Ability = BattleAbility.LimitBreak, NativeCommand = 16, ActionId = 53, RequestedEffect = 288, ExecutedEffect = 288 };
-        NativeBattleActionHeaderSlot header = basis.Header with { Payload = basis.Header.Payload.SetItem(1, 16).SetItem(4, 53).SetItem(6, 32).SetItem(7, 1) };
+        NativeBattleRetainedActionHeaderSlot header = basis.Header with { Payload = basis.Header.Payload.SetItem(1, 16).SetItem(4, 53).SetItem(6, 32).SetItem(7, 1) };
         BattleDiagnosticInvocationRelease certificate = basis.ExecutingCompletion! with { Dispatch = focal, Header = header, Owners = basis.ExecutingCompletion.Owners with { AuxiliaryHead = true }, Blockers = ["effect-or-auxiliary-task"] };
         BattleDiagnosticCombatant caster = new(focal.ActorId!, 100, 100, 0, 0, []) { NativeIndex = focal.NativeActorIndex, ModelId = 5 };
         BattleDiagnosticTerminalHoldDeclaration declaration = new("Single-use native victory texture cleanup", [focal.ActorId!], 100) { Candidate = BattleOutcome.Victory };

@@ -108,8 +108,8 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
             Assert.Null(admitted.ReturnedDescriptor);
             Assert.Empty(admitted.Pools);
             NativeBattleEffectParameters parameters = Assert.IsType<NativeBattleEffectParameters>(admitted.Parameters);
-            Assert.Equal((byte)3, parameters.Actor78);
-            Assert.Equal((ushort)8, parameters.TargetMask7A);
+            Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets!.ModelAliases, parameters.Source));
+            Assert.True(parameters.TargetActors.IsSingle(queued.NativeActionPackets!.ModelAliases.DecodeLiteral(3)));
             headerIndex = parameters.Header.Ordinal;
         }
         else

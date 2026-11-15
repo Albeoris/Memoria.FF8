@@ -51,7 +51,7 @@ public sealed class NativeBattleEffect314ControllerTests
         ImmutableArray<byte> bytes = words.SelectMany(BitConverter.GetBytes).ToImmutableArray();
         NativeBattleEffect314Resources resources = new(null!, new("camera", []), new("vibration", []), [], ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(program, bytes));
         uint offsets = CommonAddress + MainOffset + 0x20;
-        NativeBattleEffect314AddressStep creation = SpawnParticle664CD0(frame, resources, 0x1D97494, offsets, program);
+        NativeBattleEffect314AddressStep creation = SpawnParticle664CD0(frame, resources, OriginalOwner(3), offsets, program, OriginalAliases);
         uint row = offsets + 55 * 16;
         frame = WriteBytes(creation.Frame, row + 8, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)0x7FFF)).Write(2, BitConverter.GetBytes((ushort)0xFFFF)).Write(4, BitConverter.GetBytes((ushort)0xFFFD)), 6);
         NativeBattleEffect314Step result = AdvanceParticle664D20(frame, creation.Address, resources, null!);
@@ -73,7 +73,7 @@ public sealed class NativeBattleEffect314ControllerTests
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, particles) } };
         uint program = ProgramAddresses[0];
         NativeBattleEffect314Resources resources = new(null!, null!, null!, [], ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(program, [55, 0, 0xFF, 0x10]));
-        NativeBattleEffect314AddressStep result = SpawnParticle664CD0(frame, resources, 0x1D97494, CommonAddress + MainOffset + 0x20, program);
+        NativeBattleEffect314AddressStep result = SpawnParticle664CD0(frame, resources, OriginalOwner(3), CommonAddress + MainOffset + 0x20, program, OriginalAliases);
         Assert.Equal(CommonAddress, result.Address);
         NativeBattleModulePoolTask particle = Read(result.Frame, result.Address);
         Assert.Equal(ParticleCallback, particle.Callback);

@@ -14,14 +14,14 @@ public sealed class NativeBattleSequenceLocalOwnershipTests
         cold.Validate();
         ImmutableArray<ImmutableArray<short?>> locals = cold.ModelSequenceLocals!.Value;
         Assert.Equal(7, locals.Length);
-        NativeBattleGraphicsModel[] bank = NativeBattleGraphicsModels.ClearBank(retainedSequenceLocals: locals);
+        ImmutableArray<NativeBattleGraphicsModel> bank = OriginalCells(cold);
         foreach (NativeBattleGraphicsModel model in bank)
         {
             Assert.Equal(8, model.SequenceState!.Locals.Length);
             Assert.All(model.SequenceState.Locals, value => Assert.Equal((short)0, value));
             Assert.All(model.SequenceState.Scratch, Assert.Null);
         }
-        Assert.All(NativeBattleGraphicsModels.ClearBank(), model => Assert.Null(model.SequenceState));
+        Assert.All(OriginalCells(null), model => Assert.Null(model.SequenceState));
     }
 
     [Theory]
@@ -56,7 +56,7 @@ public sealed class NativeBattleSequenceLocalOwnershipTests
         NativeBattleRetainedMemory observed = cold with { ModelSequenceLocals = rows };
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(observed))!;
         restored.Validate();
-        NativeBattleGraphicsModel[] bank = NativeBattleGraphicsModels.ClearBank(retainedSequenceLocals: restored.ModelSequenceLocals);
+        ImmutableArray<NativeBattleGraphicsModel> bank = OriginalCells(restored);
         Assert.Null(bank[4].SequenceState!.Locals[6]);
         Assert.Equal((short)-123, bank[4].SequenceState!.Locals[7]);
         Assert.All(bank[3].SequenceState!.Locals, value => Assert.Equal((short)0, value));
@@ -71,8 +71,13 @@ public sealed class NativeBattleSequenceLocalOwnershipTests
     public void MalformedRetainedLocalBanksFailBeforeGraphicsInitialization()
     {
         ImmutableArray<ImmutableArray<short?>> malformed = [ImmutableArray.CreateRange(new short?[8])];
-        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.ClearBank(retainedSequenceLocals: malformed));
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess() with { ModelSequenceLocals = malformed };
+        Assert.Throws<InvalidDataException>(() => OriginalCells(retained));
         Assert.Throws<InvalidDataException>(retained.Validate);
+    }
+
+    private static ImmutableArray<NativeBattleGraphicsModel> OriginalCells(NativeBattleRetainedMemory? retained)
+    {
+        return NativeBattleModelBoundary.FromRetainedMemory(retained).CaptureOriginalCells(new BattleActorModels([]));
     }
 }

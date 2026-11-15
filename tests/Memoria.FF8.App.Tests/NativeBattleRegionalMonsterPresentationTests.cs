@@ -115,7 +115,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     }
                     if (graphics.OriginalEffect is { Binding.Effect: 248, Parameters: { } parameters })
                     {
-                        Assert.Equal((byte)3, parameters.Actor78);
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, parameters.Source));
                         NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
                         Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, header.Source));
                         Assert.Equal((byte)252, header.Command);
@@ -123,7 +123,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                         Assert.Equal((ushort)1, header.Action);
                         Assert.Equal((ushort)248, header.Effect);
                         Assert.Equal((byte)1, header.ReadContactCount());
-                        Assert.NotNull(header.FirstContactIndex);
+                        Assert.NotNull(current.NativeActionPackets!.ExportRetained().Headers[parameters.Header.Ordinal].FirstContactIndex);
                         NativeBattleContactPacket contact = current.NativeActionPackets.ReadContact(header.FirstContact);
                         Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                     }

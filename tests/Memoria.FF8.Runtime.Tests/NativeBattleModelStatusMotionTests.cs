@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -146,15 +147,16 @@ public sealed class NativeBattleModelStatusMotionTests
         NativeBattleSummonColors colors = new(0x123456, 0x32464646, 1f / 4096, 4503601774854144d);
         NativeBattleModelColorOverrides inactive = new([new(255, null), new(255, null)]);
         NativeBattleGraphicsModel source = Model with { Flags8 = 0xA04, StatusTimers = Model.StatusTimers.SetItem(11, 4).SetItem(9, 1) };
-        NativeBattleModelColorStep ordinary = NativeBattleModelColors.Advance50A0A0(source, 0, colors, inactive);
-        NativeBattleModelColorStep paused = NativeBattleModelColors.Advance50A0A0(source, 1, colors, inactive);
+        (BattleActorModels models, NativeBattleModelBoundary boundary) = OriginalModels([(0, source)]);
+        NativeBattleModelColorStep ordinary = NativeBattleModelColors.Advance50A0A0(OriginalOwner(0), source, 0, colors, inactive, models, boundary);
+        NativeBattleModelColorStep paused = NativeBattleModelColors.Advance50A0A0(OriginalOwner(0), source, 1, colors, inactive, models, boundary);
         Assert.Equal(JsonSerializer.Serialize(ordinary), JsonSerializer.Serialize(paused));
         Assert.Equal((short)-270, ordinary.Model.Transform!.Vertical34);
         Assert.Equal((short)4096, ordinary.Model.GeometryWorldMatrix!.Rotation[2]);
         Assert.Equal(200, ordinary.Model.GeometryWorldMatrix.Y);
         Assert.Equal((byte?)5, ordinary.Model.StatusTimers[11]);
         Assert.Equal((byte?)2, ordinary.Model.StatusTimers[9]);
-        NativeBattleGraphicsModel suppressed = NativeBattleModelColors.Advance50A0A0(source with { Flags0 = 0x3003 }, 0, colors, inactive).Model;
+        NativeBattleGraphicsModel suppressed = NativeBattleModelColors.Advance50A0A0(OriginalOwner(0), source with { Flags0 = 0x3003 }, 0, colors, inactive, models, boundary).Model;
         Assert.Equal((short)0, suppressed.Transform!.Vertical34);
         Assert.Same(source.GeometryWorldMatrix, suppressed.GeometryWorldMatrix);
         Assert.Equal(source.StatusTimers, suppressed.StatusTimers);

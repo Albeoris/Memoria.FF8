@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 

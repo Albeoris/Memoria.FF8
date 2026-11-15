@@ -143,11 +143,12 @@ public sealed class NativeBattleEffect30ControllerTests
 
         public Fixture()
         {
-            byte[] header = new byte[20];
-            header[16] = 1;
             NativeBattleContactHalf half = new(OriginalOwner(3), 0, 0, 0, 0, 7, 0);
             NativeBattleActionPacketsState packets = OriginalPackets();
-            packets = packets with { Headers = packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, 0, null)), Contacts = packets.Contacts.SetItem(0, new(half, half)) };
+            (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 0, null));
+            (packets, _) = packets.AppendContact(new(half, half));
+            (packets, _) = packets.Publish(1);
+            packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
             NativeBattlePackedMatrix32 camera = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
             Inputs = new(packets, (_, _, _) => OriginalTaskActors(0, 3), _ => camera, (frame, operation) =>
             {

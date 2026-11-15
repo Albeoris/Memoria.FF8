@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect312Profile;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -56,7 +57,7 @@ public sealed class NativeBattleEffect312MainTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, capacity);
         (pool, int slot) = pool.Append(MainCallback);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, age));
-        NativeBattleEffect312State state = NativeBattleEffect312State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(ParametersGlobal, 0x1000);
+        NativeBattleEffect312State state = NativeBattleEffect312State.FromColdProcess().WriteModel(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(ParametersGlobal, 0x1000);
         NativeBattleOriginalEffectState effect = new(312, 311, new(312, Entry, Initializer), null, null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), state);
     }
@@ -71,13 +72,13 @@ public sealed class NativeBattleEffect312MainTests
     private static NativeBattleEffect312Inputs Inputs(uint flags)
     {
         NativeBattlePackedMatrix32 Matrix(int x, int y, int z) => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], x, y, z, 4096), null);
-        return new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, _ => throw new InvalidOperationException("Main must use actual physical header/contact fields."), (_, _, _) => throw new InvalidOperationException("These ages do not read parameters."), (_, _) => throw new InvalidOperationException("These ages do not enumerate party rows."), (_, model) =>
+        return new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, _ => throw new InvalidOperationException("These ages do not read action packets."), _ => throw new InvalidOperationException("These ages do not enumerate party models."), (_, _, _) => throw new InvalidOperationException("These ages do not read physical data."), (_, _) => throw new InvalidOperationException("These ages do not read model data."), (_, model) =>
         {
-            Assert.Equal(0x1D972C0u + 3 * 0x9Cu, model);
+            Assert.Equal(OriginalOwner(3), model);
             return Matrix(100, 200, 300);
         }, (_, model, bone) =>
         {
-            Assert.Equal(0x1D972C0u + 3 * 0x9Cu, model);
+            Assert.Equal(OriginalOwner(3), model);
             Assert.Equal(10, bone);
             return Matrix(10, 20, 30);
         }, (_, _, _) => throw new InvalidOperationException("These ages do not initialize the center."), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => Matrix(0, 0, 0), _ => new(null, 100, 160, 108), _ => 0, (_, _) => throw new InvalidOperationException("Paused main and age8 must not execute stage/sound/draw operations."));

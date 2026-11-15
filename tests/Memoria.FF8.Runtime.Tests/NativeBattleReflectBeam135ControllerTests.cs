@@ -162,10 +162,10 @@ public sealed class NativeBattleReflectBeam135ControllerTests
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 177, 0, 15, 135, null));
             foreach (byte actor in new byte[] { 3, 4, 3 })
             {
-                (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 7, 0), null));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 1, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(3);
-            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2) { Transform = new(new(0, 0, 0), new(unchecked((short)(actor == 4 ? -1000 : 1000)), 0, 0), 0, 300, 4096) }, _ => NativeBattlePackedMatrix32.FromMatrix(identity with { X = 10, Y = 20, Z = 30 }, null), (frame, _) => new(frame, new(30000, 30000, 30000, 123)), (frame, _, _, _) => new(frame, new(100, 200, 300)), (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(identity with { Y = 1000 }, null), (frame, _, source, offset, size, context) =>
+            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2) { Transform = new(new(0, 0, 0), new(unchecked((short)(actor == OriginalOwner(4) ? -1000 : 1000)), 0, 0), 0, 300, 4096) }, _ => NativeBattlePackedMatrix32.FromMatrix(identity with { X = 10, Y = 20, Z = 30 }, null), (frame, _) => new(frame, new(30000, 30000, 30000, 123)), (frame, _, _, _) => new(frame, new(100, 200, 300)), (_, _, _) => NativeBattlePackedMatrix32.FromMatrix(identity with { Y = 1000 }, null), (frame, _, source, offset, size, context) =>
             {
                 Acts.Add((source.Address, offset, size, context));
                 return new(frame with { State = frame.State.WriteDword(CursorGlobal, frame.State.ReadDword(CursorGlobal) + 1) }, Remaining);

@@ -30,7 +30,7 @@ public sealed class EncounterNativeTerminalWitnessTests
     private static NativeBattleActionHeaderSlot Header(int id, byte sequence, byte command = 8)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        (packets, int index) = packets.Prepare(new(OriginalOwner(3), command, sequence, -1, checked((ushort)id), 0, null));
-        return packets.Headers[index];
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(3), command, sequence, -1, checked((ushort)id), 0, null));
+        return packets.ReadHeader(header);
     }
 }

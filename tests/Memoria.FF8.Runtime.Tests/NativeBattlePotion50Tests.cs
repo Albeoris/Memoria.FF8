@@ -36,7 +36,7 @@ public sealed class NativeBattlePotion50Tests
         var fixture = Fixture();
         NativeBattleCureFrame frame = fixture.Frame;
         int leaves = 0;
-        List<int> contacts = [];
+        List<BattleContactOccurrence> contacts = [];
         List<NativeBattleModuleSound> sounds = [];
         for (int callback = 1; callback <= 19; callback++)
         {
@@ -60,7 +60,7 @@ public sealed class NativeBattlePotion50Tests
             }
         }
         Assert.Equal(16, leaves);
-        Assert.Equal(new[] { 0 }, contacts);
+        Assert.Equal(new[] { new BattleContactOccurrence(0) }, contacts);
         Assert.Equal(300018u, Assert.Single(sounds).Sound);
         Assert.Equal(0x81FCD0u, frame.Effect.Pools[1].Slots[0].Callback);
         Assert.Equal((short?)-7, frame.Memory.Potion50ContextF4);

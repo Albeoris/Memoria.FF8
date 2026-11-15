@@ -155,7 +155,7 @@ public sealed class NativeBattleGatlingGun305ControllerTests
         public NativeBattleGatlingGun305Frame WithOnlyChild(uint callback) => NativeBattleGatlingGun305Controller.Write(Frame, ChildBank, NativeBattleTaskFixture.EditTask(NativeBattleGatlingGun305Controller.Read(Frame, ChildBank), taskData => taskData with { Callback = callback }));
         public NativeBattleGatlingGun305Frame Step(NativeBattleGatlingGun305Frame frame, uint flags = 0, bool capturePresentation = false) => NativeBattleGatlingGun305Controller.Advance(frame, resources, new(flags, packets, actor => new(2) { Rotation14 = 0, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(-10, -800, -10), new(10, 0, 10)) }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, actor, bone, distance) =>
         {
-            Bones.Add((actor, bone, distance));
+            Bones.Add((OriginalSlot(actor), bone, distance));
             return new(current, new(10, 20, 300));
         }, (current, _) => new(current, new(100, -200, 500, 99)), (current, operation) =>
         {

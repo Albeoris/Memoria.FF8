@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -74,7 +75,7 @@ public sealed class NativeBattleWaterActorAnchorTests
     {
         NativeBattleWaterExecutionFrame frame = Frame().WriteTemporaryWord(0x14A, 0x60);
         frame = WriteCoreDword(frame, 0x279744C, NativeBattleScriptedEffectMemory.Address);
-        frame = WriteCoreDword(frame, NativeBattleScriptedEffectMemory.Address + 0x68, 0x1D97400);
+        frame = NativeBattleCinematicTypedTestFixture.BindActor(frame, OriginalOwner(2));
         frame = frame with { Core = frame.Core.MarkUnknown(0x2797454, 128) };
         byte[] cached = Enumerable.Repeat((byte)0xA6, 12).ToArray();
         byte[] angles = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
@@ -86,7 +87,7 @@ public sealed class NativeBattleWaterActorAnchorTests
         NativeBattleWaterExecutionFrame result = NativeBattleWaterActorAnchor.Execute60AA2190(frame, program, bank, (current, actor) =>
         {
             calls++;
-            Assert.Equal(0x1D97400u, actor);
+            Assert.Equal(OriginalOwner(2), actor);
             Assert.Equal(CoreDword(frame, 0x27973E8), CoreDword(current, 0x27973E8));
             return new(Skeleton(), Bones(), Identity());
         }, NativeBattleActorAnchorRegisterFixture.Services());

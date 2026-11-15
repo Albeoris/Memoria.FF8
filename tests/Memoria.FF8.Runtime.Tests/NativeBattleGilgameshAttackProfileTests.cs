@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -79,7 +80,7 @@ public sealed class NativeBattleGilgameshAttackProfileTests
         Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(329), Task(330, 18), Pool(), new(1), 0, [], _ => throw new InvalidOperationException()));
     }
 
-    private static NativeBattleGilgameshAttackStep Step(int effect, ushort counter, uint flags = 0) => NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(effect), Task(effect, counter), Pool(), new(0x12345678), flags, [5, 3], actor => new((short)(actor * 100), -200, -300, -999));
+    private static NativeBattleGilgameshAttackStep Step(int effect, ushort counter, uint flags = 0) => NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(effect), Task(effect, counter), Pool(), new(0x12345678), flags, [OriginalOwner(5), OriginalOwner(3)], actor => new((short)(OriginalSlot(actor) * 100), -200, -300, -999));
     private static NativeBattleModulePoolTask Task(int effect, ushort counter) => new NativeBattleModulePoolTask(1, 0, null, NativeBattleGilgameshAttackProfile.ForEffect(effect).Callback, Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray()).WriteWord(12, counter);
 
     private static NativeBattleEffectTaskPool Pool()

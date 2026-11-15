@@ -35,7 +35,7 @@ public sealed class NativeBattlePetrifyStare127ControllerTests
         fixture.Observe = (frame, operation) => operation is NativeBattlePetrifyStare127AdvanceAct ? frame with { State = frame.State.WriteDword(CursorGlobal, frame.State.ReadDword(CursorGlobal) + 4) } : frame;
         NativeBattlePetrifyStare127Frame result = fixture.Step(fixture.Frame);
         Assert.Equal(new[] { typeof(NativeBattlePetrifyStare127AdvanceAct), typeof(NativeBattlePetrifyStare127AdvanceAct), typeof(NativeBattlePetrifyStare127Contact), typeof(NativeBattlePetrifyStare127StageClear) }, fixture.Operations.Select(operation => operation.GetType()));
-        Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattlePetrifyStare127Contact>()).Index);
+        Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattlePetrifyStare127Contact>()).Occurrence.Ordinal);
         Assert.Equal((ushort)43, fixture.Target(result).ReadWord(12));
         Assert.Equal(ArenaAddress + SecondPacketOffset + 8, result.State.ReadDword(CursorGlobal));
     }
@@ -158,13 +158,13 @@ public sealed class NativeBattlePetrifyStare127ControllerTests
         public NativeBattleModulePoolTask Root(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Pools[0].Slots[0];
         public NativeBattleModulePoolTask Target(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Pools[1].Slots[0];
         public NativeBattlePetrifyStare127Frame WithRoot(NativeBattlePetrifyStare127Frame frame, NativeBattleModulePoolTask task) => NativeBattlePetrifyStare127Controller.Write(frame, RootBank, task);
-        public NativeBattlePetrifyStare127Frame Step(NativeBattlePetrifyStare127Frame frame) => NativeBattlePetrifyStare127Controller.Advance(frame, Resources, new(Packets, actor => new(1) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, actor == 0 ? (short)512 : (short)1024) }, (current, _) =>
+        public NativeBattlePetrifyStare127Frame Step(NativeBattlePetrifyStare127Frame frame) => NativeBattlePetrifyStare127Controller.Advance(frame, Resources, new(Packets, actor => new(1) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, actor == OriginalOwner(0) ? (short)512 : (short)1024) }, (current, _) =>
         {
             BoneReads++;
             return new(current, new(100, 200, 300));
         }, (current, actor) =>
         {
-            AnchorActors.Add(actor);
+            AnchorActors.Add(OriginalSlot(actor));
             return new(current, new(700, 800, 900, unchecked((short)0xFEDC)));
         }, (current, operation) =>
         {

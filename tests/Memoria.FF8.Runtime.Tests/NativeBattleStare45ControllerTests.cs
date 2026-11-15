@@ -169,15 +169,14 @@ public sealed class NativeBattleStare45ControllerTests
         uint address = Pools[1].Bank;
         frame = frame with { State = frame.State.WriteWord(0x2655410, gate) };
         frame = Write(frame, address, Read(frame, address).WriteByte(0x2B, 1));
-        var packets = Packets();
-        packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { UnknownByteMask = packets.Headers[1].UnknownByteMask | 1u << 16 }) };
+        var packets = Packets(unknownCount: true);
         List<NativeBattleStare45Operation> operations = [];
         var actual = AdvanceTask(frame, address, Resources(), Inputs(operations) with { ReadPackets = _ => packets }).Frame;
         Assert.Equal(contact ? 2 : 1, Read(actual, address).ReadByte(0x29));
         Assert.Equal(contact ? 1 : 0, operations.OfType<NativeBattleStare45Contact506690>().Count());
         if (contact)
         {
-            Assert.Equal(2, Assert.Single(operations.OfType<NativeBattleStare45Contact506690>()).ContactIndex);
+            Assert.Equal(2, Assert.Single(operations.OfType<NativeBattleStare45Contact506690>()).Occurrence.Ordinal);
         }
         Assert.IsType<NativeBattleStare45UpdateTargetBounds8DC610_8DC870>(operations[0]);
         Assert.Equal(frame.Random, actual.Random);
@@ -233,9 +232,8 @@ public sealed class NativeBattleStare45ControllerTests
     {
         var frame = Frame(1, 0x836990, 1);
         frame = frame with { State = frame.State.WriteWord(0x2655410, 1) };
-        var packets = Packets();
-        packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { FirstContactIndex = null, UnknownByteMask = packets.Headers[1].UnknownByteMask | 0xF00 }) };
-        Assert.Throws<NotSupportedException>(() => AdvanceTask(frame, Pools[1].Bank, Resources(), Inputs([]) with { ReadPackets = _ => packets }));
+        var packets = Packets(unknownCount: true);
+        Assert.Throws<ArgumentOutOfRangeException>(() => AdvanceTask(frame, Pools[1].Bank, Resources(), Inputs([]) with { ReadPackets = _ => packets }));
     }
 
     [Fact]
@@ -326,13 +324,13 @@ public sealed class NativeBattleStare45ControllerTests
         return new(memory, effect, new(123), NativeBattleStare45State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleStare45Inputs Inputs(List<NativeBattleStare45Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 444, 777, 4096) }, (current, actor, selector, distance) => new(current, PointView(new((short)actor, (short)selector, (short)distance))), _ => Packets(), (current, operation) =>
+    private static NativeBattleStare45Inputs Inputs(List<NativeBattleStare45Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 300), 444, 777, 4096) }, (current, actor, selector, distance) => new(current, PointView(new((short)OriginalSlot(actor), (short)selector, (short)distance))), _ => Packets(), (current, operation) =>
     {
         operations.Add(operation);
         return current;
     });
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(bool unknownCount = false, bool missingContacts = false)
     {
         var packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 84, 45, null));
@@ -340,9 +338,15 @@ public sealed class NativeBattleStare45ControllerTests
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 84, 45, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), null));
-        (packets, _) = packets.Publish(2);
+        if (!missingContacts)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), null));
+        }
+        if (!unknownCount)
+        {
+            (packets, _) = packets.Publish(missingContacts ? 0 : 2);
+        }
         return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 

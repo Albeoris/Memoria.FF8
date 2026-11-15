@@ -14,7 +14,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         var frame = Inactive();
         frame = frame with { State = frame.State.WriteDword(PacketBase + 17, 0x12345678).WriteWord(SourcePointGlobal + 6, 0xBEEF) with { RootBankStorage = NativeBattleEffectArena.Clear().Write(98, new byte[] { 1, 2 }), ChildABankStorage = NativeBattleEffectArena.Clear().Write(ChildABankLength - 2, new byte[] { 3, 4 }), ChildBBankStorage = NativeBattleEffectArena.Clear().Write(ChildBBankLength - 2, new byte[] { 5, 6 }) } };
         List<NativeBattleBladeShot12Operation> operations = [];
-        List<(uint Model, int Bone)> bones = [];
+        List<(BattleModelOwner Model, int Bone)> bones = [];
         var inputs = Inputs(operations, bones) with { ReadAnchor571400 = (current, model) =>
         {
             Assert.Equal(OriginalOwner(0), model);
@@ -25,7 +25,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         Assert.Equal(0x1D97494u, actual.State.ReadDword(CasterGlobal));
         Assert.Equal(0x1D972C0u, actual.State.ReadDword(FirstTargetGlobal));
         Assert.Equal(0x1D99A78u, actual.State.ReadDword(ParametersGlobal));
-        Assert.Equal(new[] { (0x1D97494u, 7) }, bones);
+        Assert.Equal(new[] { (OriginalOwner(3), 7) }, bones);
         Assert.Equal(new NativeBattleBladeShot12ActorMeshMask124(OriginalOwner(3), 0x80, 0), Assert.Single(operations));
         Assert.Equal(241, actual.Memory.Active);
         Assert.Equal((ushort)128, Read(actual, RootBank).ReadWord(0x2A));
@@ -101,17 +101,16 @@ public sealed class NativeBattleBladeShot12ControllerTests
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
         }
         List<NativeBattleBladeShot12Operation> operations = [];
-        List<(uint Model, int Bone)> bones = [];
+        List<(BattleModelOwner Model, int Bone)> bones = [];
         List<uint> morphFlags = [];
-        var packets = Packets();
-        packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { UnknownByteMask = 1u << 16 }) };
+        var packets = Packets(unknownCount: true);
         var inputs = Inputs(operations, bones) with { Packets = packets, Execute = (current, operation) =>
         {
             if (operation is NativeBattleBladeShot12Contact506690 contact)
             {
                 Assert.Equal(new BattleContactOccurrence(1), contact.ContactIndex);
                 Assert.Equal((ushort)241, Read(current, RootBank).ReadWord(0x4C));
-                Assert.Equal(new[] { (0x1D97494u, 7), (0x1D972C0u, 241) }, bones);
+                Assert.Equal(new[] { (OriginalOwner(3), 7), (OriginalOwner(0), 241) }, bones);
             }
             if (operation is NativeBattleBladeShot12DrawStatic88 draw && draw.SourceAddress is MeshAAddress or MeshBAddress)
             {
@@ -201,7 +200,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         return new(memory, effect, new(123), NativeBattleBladeShot12State.FromColdProcess().EnsureVertexSources(Resources())) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleBladeShot12Inputs Inputs(List<NativeBattleBladeShot12Operation> operations, List<(uint Model, int Bone)> bones) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, model) => new(checked((int)((model - 0x1D972C0) / 156)), 2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 777, 4096) }, (current, model, selector, distance) =>
+    private static NativeBattleBladeShot12Inputs Inputs(List<NativeBattleBladeShot12Operation> operations, List<(BattleModelOwner Model, int Bone)> bones) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, model) => new(2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 0, 777, 4096) }, (current, model, selector, distance) =>
     {
         Assert.Equal(0, distance);
         bones.Add((model, selector));
@@ -212,7 +211,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         return current;
     });
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(bool unknownCount = false)
     {
         var packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 32, 12, null));
@@ -220,7 +219,10 @@ public sealed class NativeBattleBladeShot12ControllerTests
         (packets, _) = packets.Publish(1);
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, -1, 32, 12, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
-        (packets, _) = packets.Publish(1);
+        if (!unknownCount)
+        {
+            (packets, _) = packets.Publish(1);
+        }
         return packets;
     }
 

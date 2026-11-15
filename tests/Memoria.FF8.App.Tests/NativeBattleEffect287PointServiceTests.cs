@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Reflection;
@@ -43,7 +44,7 @@ public sealed class NativeBattleEffect287PointServiceTests
             frame = frame with { Staging = frame.Staging!.MarkUnknown(allocation.Address + 0x3A, 2).Write(allocation.Address + 0x3A, new byte[] { 0xA5 }) };
             (byte[] priorBytes, bool[] priorKnown) = frame.Staging.ReadSnapshot(allocation.Address, 60);
             NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(6, BitConverter.GetBytes((ushort)0x5AA5));
-            NativeBattleEffect287PointStep result = Invoke<NativeBattleEffect287PointStep>(session, "NativeEffect287LocalPoint", source.NativeGraphics, frame, 0x1D972C0u + 3 * 156u, 27, retained);
+            NativeBattleEffect287PointStep result = Invoke<NativeBattleEffect287PointStep>(session, "NativeEffect287LocalPoint", source.NativeGraphics!, frame, RequireOriginalModelOwner(source.NativeGraphics!, 3), 27, retained);
             Assert.Equal(unchecked((short)expected.X), BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(0, 2)));
             Assert.Equal(unchecked((short)expected.Y), BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(2, 2)));
             Assert.Equal(unchecked((short)expected.Z), BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(4, 2)));

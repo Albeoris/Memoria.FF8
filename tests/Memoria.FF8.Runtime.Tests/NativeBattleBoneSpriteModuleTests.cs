@@ -94,7 +94,7 @@ public sealed class NativeBattleBoneSpriteModuleTests
     public void Selector5DoublesOnlyScaleWithTheSameCrtBoneAndRetainedPayload(uint seed)
     {
         NativeCrtRandomState random = new(seed);
-        List<(int Model, byte Bone, short Fraction)> points = [];
+        List<(BattleModelOwner Model, byte Bone, short Fraction)> points = [];
         NativeBattleModuleInputs inputs = Inputs(random) with
         {
             ReadModelBone = (model, bone, fraction) =>

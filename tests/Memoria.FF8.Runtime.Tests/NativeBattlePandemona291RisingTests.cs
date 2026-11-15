@@ -50,7 +50,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(1000, NativeBattleArenaPose.ReadMatrix(composed.Memory.Arena!, 0x40020).Z);
         NativeBattleCameraProjection projection = new(BodyIdentity, 100, 160, 100);
         NativeBattleSummonColors colors = new(0, 0, 1f / 4096f, 4503601774854144d);
-        NativeBattlePandemona291Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(composed))!;
+        NativeBattlePandemona291Frame independent = NativeBattleTestSnapshots.Independent(composed);
         NativeBattlePandemona291BodyDraw drawn = NativeBattlePandemona291BodyDrawing.Render5099D0(composed, fixture.Address, projection, colors);
         Assert.Equal(32, drawn.Packets.AllocationBytes);
         Assert.Single(drawn.Packets.Attempts);

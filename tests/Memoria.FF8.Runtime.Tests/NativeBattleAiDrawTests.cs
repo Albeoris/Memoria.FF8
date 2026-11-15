@@ -14,7 +14,7 @@ public sealed class NativeBattleAiDrawTests
 
         BattleSnapshot snapshot = battle.Capture();
         BattleAttackCommand cast = snapshot.QueuedActions.Last();
-        Assert.Equal((ushort)1, cast.NativeTargetMask);
+        Assert.Equal((ushort)1, NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.TargetRequest, _ => null));
         Assert.Equal(2, cast.ActionId);
         Assert.Equal((byte)11, cast.NativeSequence);
         Assert.Equal(expected, Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
@@ -106,12 +106,11 @@ public sealed class NativeBattleAiDrawTests
         Assert.Equal(group ? "enemy-10" : firstRecipient, pending.ActiveAction?.TargetId);
         if (group)
         {
-            BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(pending.ActiveAction!.AiRecipients);
-            Assert.Equal((ushort)0x8007, recipients.NativeSelectionMask);
-            Assert.Empty(recipients.ActorIds);
-            Assert.Equal(allies.Select(ally => ally.Id), battle.CurrentExpandedAiTargets(recipients, attack).Select(actor => actor.Id));
+            BattleTargetSelection.SideGroup side = Assert.IsType<BattleTargetSelection.SideGroup>(pending.ActiveAction!.TargetRequest.Selection);
+            Assert.Equal(BattleTargetSide.Allies, side.Side);
         }
-        Assert.Equal((ushort)0, Assert.Single(pending.Combatants, actor => actor.Id == "enemy-10").NativeParticipant!.PreviousTargetMask);
+        BattlePreviousTarget.Actor previous = Assert.IsType<BattlePreviousTarget.Actor>(Assert.Single(pending.Combatants, actor => actor.Id == "enemy-10").NativeParticipant!.PreviousTarget);
+        Assert.Equal(new BattlePartyActorReference("ally-10"), previous.Reference);
         Assert.Equal("ally-10", Assert.Single(pending.QueuedActions).TargetId);
         BattleSession restored = BattleSession.Restore(pending);
 
@@ -180,11 +179,17 @@ public sealed class NativeBattleAiDrawTests
         Assert.Equal(id, queued.ActionId);
         Assert.Equal((byte)11, queued.NativeSequence);
         Assert.Equal((byte)2, queued.NativeQueuedCommand);
-        BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(queued.AiRecipients);
-        Assert.Equal(queuedCount, recipients.ActorIds.Length);
-        Assert.Equal(BattleAiTargetPolicy.DrawnMagic, recipients.TargetPolicy);
-        Assert.All(recipients.ActorIds, recipient => Assert.Equal(side, battle.Combatants.Single(actor => actor.Id == recipient).Side));
-        Assert.Equal(hits > 1 ? side : (BattleSide?)null, recipients.RandomSide);
+        Assert.Equal(BattleTargetEligibility.DrawnMagic, queued.TargetRequest.Eligibility);
+        if ((flags & 2) != 0)
+        {
+            Assert.Equal(side, Assert.IsType<BattleTargetSelection.RandomOnSide>(queued.TargetRequest.Selection).Side);
+        }
+        else
+        {
+            BattleTargetSelection.Explicit targets = Assert.IsType<BattleTargetSelection.Explicit>(queued.TargetRequest.Selection);
+            Assert.Equal(queuedCount, targets.Actors.Length);
+            Assert.All(targets.Actors, target => Assert.Equal(side, target.Side));
+        }
         BattleSession restored = BattleSession.Restore(snapshot);
 
         for (int frame = 0; frame < 180 && !restored.Events.Any(entry => entry is { Kind: "EffectContact", NativeSequence: 11 }); frame++)

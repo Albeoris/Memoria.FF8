@@ -98,7 +98,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
         List<(byte Actor, byte Bone, short Fraction)> bones = [];
         NativeBattleLionHeart165Inputs inputs = Inputs(0, []) with { ReadBone = (actor, bone, fraction) =>
         {
-            bones.Add((actor, bone, fraction));
+            bones.Add((checked((byte)OriginalSlot(actor)), bone, fraction));
             return new(10, 20, 30);
         } };
         NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.RunInitializer(frame, pool, 0x5EA850, inputs);
@@ -247,11 +247,11 @@ public sealed class NativeBattleLionHeart165ControllerTests
         Assert.Equal(2, step.Result);
     }
 
-    private static NativeBattleLionHeart165Inputs Inputs(uint flags, List<NativeBattleLionHeart165Operation> operations) => new(flags, () => 0, actor => new(actor, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, _ => new(10, 20, 30, 0), (_, _, _) => new(10, 20, 30), _ => new(new(10, 20, 30), 0, 0, -4096, null, null), (frame, operation) =>
+    private static NativeBattleLionHeart165Inputs Inputs(uint flags, List<NativeBattleLionHeart165Operation> operations) => new(flags, () => 0, _ => new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, _ => new(10, 20, 30, 0), (_, _, _) => new(10, 20, 30), _ => new(new(10, 20, 30), 0, 0, -4096, null, null), (frame, operation) =>
     {
         operations.Add(operation);
         return frame;
-    });
+    }, OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, new NativeBattleGraphicsModel(3)))).Models, OriginalAliases, _ => new(3));
 
     private static (NativeBattleLionHeart165Frame Frame, NativeBattleEffectTaskPool Pool) Frame(uint callback, ushort counter)
     {
@@ -261,8 +261,8 @@ public sealed class NativeBattleLionHeart165ControllerTests
         (children, _) = children.Append(callback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { LionHeart165 = new(true, parameters, 3, null, null) };
-        NativeBattleOriginalEffectState effect = new(165, 164, new(165, 0x5E9470, 0x5E9450), parameters, 0x23C34B0) { Pools = [main, children] };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { LionHeart165 = new(true, null, null) };
+        NativeBattleOriginalEffectState effect = new(165, 164, new(165, 0x5E9470, 0x5E9450), parameters, 0x23C34B0) { Pools = [main, children], EntryFirstRecipient = OriginalOwner(3) };
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(0x23C3278, new byte[0x36D8]).Write(NativeBattleTemporaryMemory.Address, Enumerable.Repeat((byte)0xA5, NativeBattleTemporaryMemory.ReachedLength).ToArray()));
         byte[] matrix = new byte[32];
         for (int index = 0; index < 3; index++)

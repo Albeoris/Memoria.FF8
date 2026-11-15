@@ -133,12 +133,10 @@ public sealed class NativeBattleEnemyMicroMissiles284ControllerTests
         (frame, uint particle) = Append(frame, Pools[1].Descriptor, 0x67C240);
         frame = ClearDwords701200(frame, particle + 12, 6);
         List<NativeBattleEnemyMicroMissiles284Operation> operations = [];
-        var packets = Packets();
-        var header = packets.Headers[1];
-        packets = packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, 0) }) };
+        NativeBattleActionPacketsState packets = Packets(secondContactCount: 0);
         var inputs = Inputs(operations) with { ReadPackets = _ => packets };
         var actual = Advance(frame, Resources(), inputs);
-        Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleEnemyMicroMissiles284Contact506690>()).ContactIndex);
+        Assert.Equal(new BattleContactCursor(1), Assert.Single(operations.OfType<NativeBattleEnemyMicroMissiles284Contact506690>()).Cursor);
         Assert.IsType<NativeBattleEnemyMicroMissiles284Contact506690>(operations[0]);
         Assert.IsType<NativeBattleEnemyMicroMissiles284DrawSprite180>(operations[1]);
         Assert.Equal((byte)2, Read(actual, RootBank).ReadByte(15));
@@ -203,14 +201,14 @@ public sealed class NativeBattleEnemyMicroMissiles284ControllerTests
     private static NativeBattleEnemyMicroMissiles284Inputs Inputs(List<NativeBattleEnemyMicroMissiles284Operation> operations)
     {
         var packets = Packets();
-        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, model) => Model(model), (_, _) => 1, (_, _, _) => 0, (_, _, _) => 0, (_, _, _) => Bone(), (_, _) => Identity(), _ => packets, (current, operation) =>
+        return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, model) => Model(OriginalSlot(model)), (_, _) => 1, (_, _, _) => 0, (_, _, _) => 0, (_, _, _) => Bone(), (_, _) => Identity(), _ => packets, (current, operation) =>
         {
             operations.Add(operation);
             return current;
         });
     }
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(int secondContactCount = 1)
     {
         var packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 201, 284, null));
@@ -218,7 +216,7 @@ public sealed class NativeBattleEnemyMicroMissiles284ControllerTests
         (packets, _) = packets.Publish(1);
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 201, 284, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
-        (packets, _) = packets.Publish(1);
+        (packets, _) = packets.Publish(secondContactCount);
         return packets;
     }
 
@@ -226,9 +224,8 @@ public sealed class NativeBattleEnemyMicroMissiles284ControllerTests
     private static NativeBattlePackedMatrix32 Identity() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
     private static NativeBattlePackedMatrix32 Bone() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 300, Y = 400, Z = 500 }, null);
     private static uint ModelAddress(int actor) => 0x1D972C0u + (uint)(actor * 156);
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(int actor)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
         return new(2) { Rotation14 = 0, Transform = new(new(0, 0, 0), new(100, 200, 1000), (short)(444 + actor), 777, 4096) };
     }
 }

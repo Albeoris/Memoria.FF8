@@ -92,7 +92,7 @@ public sealed class NativeBattleFiraControllerTests
         }
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.Equal(new[] { 14, 35 }, operations.Where(item => item.Operation is NativeBattleFiraContact).Select(item => item.Tick));
-        Assert.Equal(new[] { 0, 1 }, operations.Where(item => item.Operation is NativeBattleFiraContact).Select(item => ((NativeBattleFiraContact)item.Operation).Contact));
+        Assert.Equal(new[] { 0, 1 }, operations.Where(item => item.Operation is NativeBattleFiraContact).Select(item => ((NativeBattleFiraContact)item.Operation).Contact.Ordinal));
         Assert.Equal(new[] { 3, 24 }, operations.Where(item => item.Operation is NativeBattleFiraSound).Select(item => item.Tick));
         NativeCrtRandomState expectedRandom = new(1);
         for (int index = 0; index < 1224; index++)
@@ -214,7 +214,7 @@ public sealed class NativeBattleFiraControllerTests
         for (int index = 0; index < headers; index++)
         {
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 2, 142, null));
-            (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index + 3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);

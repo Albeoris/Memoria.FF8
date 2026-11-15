@@ -49,7 +49,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         var actual = AdvanceTask(frame, RootBank, Resources(), inputs).Frame;
         var task = Read(actual, Pools[1].Bank);
         Assert.Equal(new[] { ModelAddress(1), ModelAddress(0), ModelAddress(2) }, new[] { task.ReadDword(32), task.ReadDword(36), task.ReadDword(40) });
-        Assert.Equal(new byte[] { 0, 1, 2 }, Enumerable.Range(0, 3).Select(index => packets.ReadContact(index).Primary.ActorIndex));
+        Assert.Equal(Enumerable.Range(0, 3).Select(OriginalOwner), Enumerable.Range(0, 3).Select(index => packets.ReadContact(new BattleContactOccurrence(index)).Primary.Recipient));
         Assert.Equal(unchecked((ushort)-2500), task.ReadWord(18));
         Assert.Equal((ushort)1700, task.ReadWord(20));
         Assert.Equal((ushort)(unchecked((short)90000) / 3), task.ReadWord(22));

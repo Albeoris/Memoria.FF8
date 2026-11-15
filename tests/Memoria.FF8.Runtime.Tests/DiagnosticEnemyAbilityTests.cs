@@ -35,7 +35,7 @@ public sealed class DiagnosticEnemyAbilityTests
         Assert.Equal("party", queued.TargetId);
         Assert.Equal((byte)1, queued.NativeSequence);
         Assert.Equal((byte)2, queued.NativeQueuedCommand);
-        Assert.Equal((ushort)1, queued.NativeTargetMask);
+        Assert.Equal((ushort)1, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, reference => battle.Combatants.Single(actor => actor.Id == reference.ActorId).Slot));
         Assert.Equal(7, queued.ActionId);
         Assert.Equal(BattleAbility.EnemyAbility, queued.Ability);
         Assert.False(battle.CanSubmitDiagnosticEnemyAbility("enemy", Selection));

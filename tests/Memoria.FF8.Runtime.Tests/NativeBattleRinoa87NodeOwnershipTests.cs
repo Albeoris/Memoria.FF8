@@ -76,7 +76,7 @@ public sealed class NativeBattleRinoa87NodeOwnershipTests
         return step;
     }
 
-    private static NativeBattleGraphicsModel Model(int actor) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = new(new(-1, -1, -1), new(1, 1, 1)) };
+    private static NativeBattleGraphicsModel Model(BattleModelOwner actor) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = new(new(-1, -1, -1), new(1, 1, 1)) };
 
     private static (NativeBattleRinoa87Frame Frame, uint Address, NativeBattleRinoa87NodeResources Resources, NativeBattleActionPacketsState Packets) Fixture(bool existingSource)
     {

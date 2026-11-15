@@ -180,7 +180,11 @@ public sealed class NativeBattleSandStorm155ControllerTests
     private static NativeBattleSandStorm155Inputs Inputs(Func<NativeBattleSandStorm155Frame, NativeBattleSandStorm155Operation, NativeBattleSandStorm155Frame>? execute = null)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { FirstContactIndex = 2 }), Contacts = packets.Contacts.SetItem(2, new(new(6, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };
+        NativeBattleContactPacket contact = new(new(OriginalOwner(6), 0, 0, 0, 0, 0, 0), null);
+        packets = packets.AppendContacts([contact, contact]);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 0, null));
+        (packets, _) = packets.AppendContact(contact);
+        (packets, _) = packets.Publish(1);
         return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => NativeBattleCuragaMatrices.Identity8DD770(), (current, _) => new(current, new(1, 2, 3, 4)), (current, _) => new(current, new(5, 6, 7)), execute ?? ((current, _) => current));
     }
     private static NativeBattleSandStorm155Resources Resources()

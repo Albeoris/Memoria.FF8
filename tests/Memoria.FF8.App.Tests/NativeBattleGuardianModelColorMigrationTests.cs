@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -26,7 +27,7 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         Assert.Null(original.NativeEffectMemory!.ModelColorOverrides);
         Assert.Null(original.Definition.NativeRetainedMemory!.EffectMemory!.ModelColorOverrides);
         NativeBattleGraphicsModel visible = ReadOriginalModelCell(original.NativeGraphics, 3);
-        Assert.Equal((byte)3, visible.Index);
+        Assert.Equal(visible, original.NativeGraphics.ActorModels.Get(RequireOriginalModelOwner(original.NativeGraphics, 3)));
         Assert.Equal(0, visible.Flags0 & 0x808);
         Assert.Equal(0, visible.Flags2!.Value & 4);
         Assert.True((visible.Flags8!.Value & 0x2160510) == 0);

@@ -29,7 +29,8 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(0, complete.Remaining);
         Assert.Null(complete.State.Task);
         Assert.NotNull(complete.Bind);
-        Assert.Equal((byte)1, complete.Bind.Task.PhysicalIndex);
+        Assert.Equal(OriginalOwner(1), complete.Bind.Task.Owner);
+        Assert.Equal(NativeBattleModelSlot.Decode(1), complete.Bind.Task.OriginalSlot);
         Assert.Null(complete.TextureUpload);
         Assert.Equal(0, complete.State.Poll507070(-1, [], complete.Staging).Remaining);
         Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 9).Poll507070(0, [source], NativeBattleFileStaging.Unknown()));
@@ -50,7 +51,11 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(request >= 0x1000 ? (byte)4 : request >= 16 ? (byte)0 : (byte)5, queue.Task.Selector);
         queue.Validate();
         Assert.Null(NativeBattleModelLoader.Queue507080(0x1007, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, 0).Task);
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(request, 7, 0, 0, 0));
+        BattleModelOwner extra = new BattlePartyActorModel(new BattlePartyActorReference("extra"));
+        NativeBattleModelLoadTask extraTask = Assert.IsType<NativeBattleModelLoadTask>(NativeBattleModelLoader.Queue507080(request, extra, null, 0, 4, 5).Task);
+        Assert.Equal(extra, extraTask.Owner);
+        Assert.Null(extraTask.OriginalSlot);
+        Assert.Equal(callback, extraTask.Callback);
     }
 
     [Fact]

@@ -88,7 +88,14 @@ public sealed class NativeBattleEffect66ControllerTests
     public void Contact_resolves_the_current_header_instead_of_the_entry_target()
     {
         Harness harness = new();
-        harness.Packets = harness.Packets with { Headers = harness.Packets.Headers.SetItem(0, harness.Packets.Headers[0] with { FirstContactIndex = 1 }) };
+        NativeBattleActionPacketsState original = harness.Packets;
+        NativeBattleActionHeaderSlot header = original.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactPacket contact = original.ReadContact(header.FirstContact);
+        NativeBattleActionPacketsState packets = original.ResetCounts().AppendContacts(Enumerable.Repeat(contact, 1));
+        (packets, _) = packets.Prepare(new(header.Source, header.Command, header.Sequence, header.CameraChoice, header.Action, header.Effect, header.Data));
+        (packets, _) = packets.AppendContact(contact);
+        (packets, _) = packets.Publish(1);
+        harness.Packets = packets;
         AdvanceMain6226E0(Frame(25), ChildBank, Resources(), harness.Inputs());
         Assert.Equal(new NativeBattleEffect66Contact506690(new BattleContactOccurrence(1)), Assert.Single(harness.Operations.OfType<NativeBattleEffect66Contact506690>()));
     }

@@ -61,20 +61,23 @@ public sealed class NativeBattleEffectFamilyRunnerTests
         NativeEffectFamilyCase item = Case();
         NativeBattleOriginalEffectState stale = new(item.Effect, 0, new(item.Effect, item.Entry, 0), null, 0);
         Assert.False(NativeBattleEffectFamilyRunner.IsInitialized(stale, item));
-        byte[] header = new byte[20];
-        header[6] = 2;
-        NativeBattleActionPacketsState packets = new(1, 0, [new(header.ToImmutableArray(), 0, null, null)], [], null);
+        NativeBattleActionPacketsState packets = Packets(2);
         byte[] descriptor = new byte[12];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), 0x1D280C4);
         NativeBattleDescriptorPacket queued = new(descriptor.ToImmutableArray());
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, null, item));
-        header[6] = 1;
-        packets = packets with { Headers = [new(header.ToImmutableArray(), 0, null, null)] };
+        packets = Packets(1);
         NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, null, item);
-        NativeBattleActionGraphicsState otherHeader = new(1, OriginalOwner(0), 0, 0, 0, null, null, 0, null, 0);
+        NativeBattleActionGraphicsState otherHeader = new(new BattleActionHeaderReference(1), OriginalOwner(0), new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, null, 0);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, otherHeader, item));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), 0x1D280C5);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(new(descriptor.ToImmutableArray()), packets, null, item));
+
+        static NativeBattleActionPacketsState Packets(ushort effect)
+        {
+            (NativeBattleActionPacketsState state, _) = OriginalPackets().Prepare(new(OriginalOwner(0), 0, 0, 0, 0, effect, null));
+            return state.Publish(0).State;
+        }
     }
 
     [Fact]

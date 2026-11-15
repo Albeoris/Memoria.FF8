@@ -22,7 +22,7 @@ public sealed class NativeBattleShot188Tests
         }
         frame = NativeBattleShot188.Advance(frame, inputs, resources);
         Assert.Equal((byte)1, frame.Effect.Parameters!.Parameter81);
-        Assert.Contains(operations, operation => operation is NativeBattleShot188Bind { Actor: 0 });
+        Assert.Contains(operations, operation => operation is NativeBattleShot188Bind bind && bind.Actor == OriginalOwner(0));
         Assert.Contains(operations, operation => operation is NativeBattleShot188Sequence { Sequence: 1 });
         frame = NativeBattleShot188.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters with { Parameter80 = 2, Parameter81 = 0 } } }, packets);
         frame = NativeBattleShot188.Advance(frame, inputs, resources);

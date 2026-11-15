@@ -76,7 +76,7 @@ public sealed class NativeBattleMightyGuardTests
         Assert.Equal(expected, fixture.Operations.OfType<NativeBattleMightyGuardContact>().Count());
         if (expected != 0)
         {
-            Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattleMightyGuardContact>()).Index);
+            Assert.Equal(new BattleContactOccurrence(0), Assert.Single(fixture.Operations.OfType<NativeBattleMightyGuardContact>()).Occurrence);
         }
     }
 

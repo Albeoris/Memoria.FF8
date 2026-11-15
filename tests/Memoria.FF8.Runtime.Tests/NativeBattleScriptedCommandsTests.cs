@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -42,17 +43,20 @@ public sealed class NativeBattleScriptedCommandsTests
     public void Visibility_selects_root_side_and_exact_operand_rows(short operand, bool party, int first, int count, bool hide)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x13D, operand);
-        frame = frame with { Arena = frame.Arena.Write(0x201B, [party ? (byte)2 : (byte)3]).Write(0x211B, [party ? (byte)6 : (byte)0]) };
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(OriginalOwner(party ? 2 : 3)), [party ? (byte)2 : (byte)3]).WriteExecutionReference(0x211B, 1, new BattleExecutionReference.Model(OriginalOwner(party ? 6 : 0)), [party ? (byte)6 : (byte)0]) };
         frame = WaterSchedulerFixture.CoreDword(frame, 0x27973E8, Address(0x2100));
         ushort[] flags = Enumerable.Repeat((ushort)0xA107, 7).ToArray();
         List<int> writes = [];
-        NativeBattleScriptedVisibilityServices services = new((_, row) => flags[row], (current, row, value) =>
+        NativeBattleWaterExecutionFrame result = NativeBattleScriptedVisibility.Execute(frame, Program, (current, side, update) =>
         {
-            writes.Add(row);
-            flags[row] = value;
+            foreach (BattleModelOwner owner in OriginalRoster.Owners.Where(owner => side is null || owner.Side == side))
+            {
+                int row = OriginalSlot(owner);
+                writes.Add(row);
+                flags[row] = update(new(flags[row]), () => 0).Flags0;
+            }
             return current;
         });
-        NativeBattleWaterExecutionFrame result = NativeBattleScriptedVisibility.Execute(frame, Program, services);
         Assert.Equal(Enumerable.Range(first, count), writes);
         foreach (int row in writes)
         {
@@ -65,17 +69,28 @@ public sealed class NativeBattleScriptedCommandsTests
     public void Restore_preserves_original_hidden_row_and_rereads_captured_scene_after_each_service()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x13D, 4);
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(OriginalOwner(2)), [2]) };
         frame = WaterSchedulerFixture.CoreWord(frame, Scene + 0x4E, 0xFF04);
         List<int> writes = [];
-        NativeBattleWaterExecutionFrame result = NativeBattleScriptedVisibility.Execute(frame, Program, new((_, _) => 0xFFEF, (current, row, flags) =>
+        NativeBattleWaterExecutionFrame result = NativeBattleScriptedVisibility.Execute(frame, Program, (current, _, update) =>
         {
-            writes.Add(row);
-            if (row == 1)
+            foreach (BattleModelOwner owner in OriginalRoster.Owners)
             {
-                current = WaterSchedulerFixture.CoreWord(current, Scene + 0x4E + 4, 4);
+                int row = OriginalSlot(owner);
+                const ushort original = 0xFFEF;
+                NativeBattleGraphicsModel model = update(new(original), () => unchecked((ushort)WaterSchedulerFixture.ReadCoreDword(current, Scene + 0x4E + (uint)row * 2)));
+                if (model.Flags0 != original)
+                {
+                    writes.Add(row);
+                    if (row == 1)
+                    {
+                        current = WaterSchedulerFixture.CoreWord(current, Scene + 0x4E + 4, 4);
+                    }
+                    current = WaterSchedulerFixture.CoreDword(current, 0x2797450, 0xFFFFFFFC);
+                }
             }
-            return WaterSchedulerFixture.CoreDword(current, 0x2797450, 0xFFFFFFFC);
-        }));
+            return current;
+        });
         Assert.Equal(new[] { 1, 3, 4, 5, 6 }, writes);
         Assert.Equal(0u, Pc(result));
     }

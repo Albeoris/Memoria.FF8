@@ -75,7 +75,7 @@ public sealed class NativeBattlePotion51Tests
         NativeBattleCuraControllerStep next = NativeBattleCuraController.Advance889E40(frame, fixture.Inputs, Resources(), Leaf);
         NativeBattleCuraControllerStep independent = NativeBattleCuraController.Advance889E40(restored, fixture.Inputs, Resources(), Leaf);
         Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(independent));
-        Assert.Equal(new[] { 0 }, next.Contacts);
+        Assert.Equal(new[] { new BattleContactOccurrence(0) }, next.Contacts);
         Assert.Equal(300077u, Assert.Single(sounds).Sound);
         Assert.Equal((short?)-7, next.Frame.Memory.Potion51ContextF4);
         Assert.Equal((int?)99, next.Frame.Memory.Potion51SceneFade);
@@ -144,11 +144,11 @@ public sealed class NativeBattlePotion51Tests
     private static (NativeBattleCuraFrame Frame, NativeBattleCuraControllerInputs Inputs) Fixture(byte actor = 0)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        (packets, int header) = packets.Prepare(new(actor, 4, 0, 0, 1, 51, null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(actor), 4, 0, 0, 1, 51, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
         packets = packets.WritePlayerRepeatMode(header, 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(51, 50, new(51, 0x81C800, 0x81C7E0), new(actor, 1, 8, header, 0, 0), null);
+        NativeBattleOriginalEffectState effect = new(51, 50, new(51, 0x81C800, 0x81C7E0), new(OriginalOwner(actor), 1, BattleModelTargets.From([OriginalOwner(3)]), header, 0, 0), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Textures = null, CuraContextF4 = 1, CuraSceneFade = 88, Potion51ContextF4 = -7, Potion51SceneFade = 99 };
         NativeBattleCuraFrame frame = NativeBattleCuraController.Initialize889D60(memory, effect, packets, Resources());
         byte[] skeleton = new byte[64];

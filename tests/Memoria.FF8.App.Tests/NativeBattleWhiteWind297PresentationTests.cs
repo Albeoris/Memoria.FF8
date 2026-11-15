@@ -21,7 +21,7 @@ public sealed class NativeBattleWhiteWind297PresentationTests
             NativeBattleModelCpuReference cpu = pointer.Cpu!;
             Assert.True(pointer.NativeAddressEncoding);
             Assert.InRange(cpu.Bank, (byte)0, (byte)2);
-            uint address = checked(cpu.EffectiveLayout.BaseAddress + (uint)cpu.EffectiveLayout.BankLength * cpu.Bank + (uint)cpu.Offset);
+            uint address = cpu.PhysicalAddress;
             Assert.Equal(address, arena.ReadUInt32(entry.Key));
         }
     }

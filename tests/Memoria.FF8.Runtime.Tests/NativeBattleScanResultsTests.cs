@@ -49,7 +49,7 @@ public sealed class NativeBattleScanResultsTests
     {
         ScanResultTestSource source = new() { InfoFlags = flags };
         NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(3), source.Services);
-        Assert.Equal(3, source.LastInfoActor);
+        Assert.Equal(OriginalOwner(3), source.LastInfoActor);
         Assert.False(source.Descriptor.Known[0]);
         Assert.Equal(expected is null ? 1u : 2u, result.Count);
         if (expected is not null)
@@ -86,12 +86,12 @@ public sealed class NativeBattleScanResultsTests
         NativeBattleScanResultMemory initial = NativeBattleScanResultMemory.FromColdProcess() with { Cursor = 15 };
         NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(initial, OriginalOwner(4), source.Services);
         Assert.Equal(2u, result.Count);
-        Assert.Equal(NativeBattleScanResults.RingAddress + 15u * 48, NativeBattleScanResults.PageB68810(result, 0, 0));
-        Assert.Equal(NativeBattleScanResults.EnemyExtraAddress + 71u, NativeBattleScanResults.PageB68810(result, 255, 1));
+        Assert.Equal(NativeBattleScanResults.RingAddress + 15u * 48, NativeBattleScanResults.PageB68810(result, 0));
+        Assert.Equal(NativeBattleScanResults.EnemyExtraAddress + 71u, NativeBattleScanResults.PageB68810(result, 1));
         Assert.Equal((byte)16, result.Cursor);
         Assert.Equal("X", source.Page(result, 1));
         NativeBattleScanResultMemory next = NativeBattleScanResults.BuildB68390(result, OriginalOwner(4), source.Services);
-        Assert.Equal(NativeBattleScanResults.RingAddress, NativeBattleScanResults.PageB68810(next, 4, 0));
+        Assert.Equal(NativeBattleScanResults.RingAddress, NativeBattleScanResults.PageB68810(next, 0));
         Assert.Equal((byte)1, next.Cursor);
     }
 
@@ -106,7 +106,7 @@ public sealed class NativeBattleScanResultsTests
         Assert.Equal(NativeBattleScanResults.RingAddress + 15u * 48, pointer);
         Assert.Equal((byte)16, memory.Cursor);
         Assert.False(memory.Ring768.Known[15 * 48 + 2]);
-        Assert.Equal(0x11223344u, NativeBattleScanResults.PageB68810(memory, 42, 263));
+        Assert.Equal(0x11223344u, NativeBattleScanResults.PageB68810(memory, 263));
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class NativeBattleScanResultsTests
         NativeBattleScanResultMemory right = NativeBattleScanResults.BuildB68390(cloned, OriginalOwner(3), source.Services);
         Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
         Assert.Equal((byte)1, left.Cursor);
-        Assert.Throws<InvalidDataException>(() => NativeBattleScanResults.PageB68810(left, 0, 8));
+        Assert.Throws<InvalidDataException>(() => NativeBattleScanResults.PageB68810(left, 8));
     }
 }
 
@@ -138,8 +138,8 @@ internal sealed class ScanResultTestSource
     public NativeBattleScanByteOwner Descriptor { get; set; }
     public NativeBattleScanByteOwner Extra { get; set; } = Unknown(71).WriteByte(0, 0);
     public byte InfoFlags { get; init; }
-    public int? LastInfoActor { get; private set; }
-    public NativeBattleScanResultServices Services => new(_ => Descriptor, Misc, actor =>
+    public BattleModelOwner? LastInfoActor { get; private set; }
+    public NativeBattleScanResultServices Services => new(OriginalAliases, _ => Descriptor, Misc, actor =>
     {
         LastInfoActor = actor;
         return InfoFlags;
@@ -156,7 +156,7 @@ internal sealed class ScanResultTestSource
 
     public string Page(NativeBattleScanResultMemory memory, int index)
     {
-        uint pointer = NativeBattleScanResults.PageB68810(memory, 0, index);
+        uint pointer = NativeBattleScanResults.PageB68810(memory, index);
         List<byte> bytes = [];
         while (true)
         {

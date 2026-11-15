@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -131,15 +132,15 @@ public sealed class NativeBattleBreath235ComponentTests
             NativeBattleContactPacket contact;
             if (graphics.ActionGraphics is { } original)
             {
-                caster = original.ActorIndex;
-                contact = packets.ReadContact(original.FirstContactIndex);
+                caster = ReadOriginalModelOperand(packets.ModelAliases, original.Actor);
+                contact = packets.ReadContact(original.FirstContact);
             }
             else
             {
                 BattleCombatantSnapshot party = source.Combatants.Single(actor => actor.Id == "party");
                 NativeBattleStatusSnapshot status = Assert.IsType<NativeBattleStatusSnapshot>(party.NativeStatus);
                 source = source with { Combatants = source.Combatants.Select(actor => actor.Id == "party" ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray() };
-                contact = new(new(OriginalOwner(0), 5, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
+                contact = new(new(packets.ModelAliases.DecodeLiteral(0), 5, 0, 0, status.Saved, 7, status.Battle), null);
             }
             // A controlled component uses original50B190 with sequence0. It does not claim a reachable enemy bank action or alter the casting handshake.
             (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)(caster))), 8, 0, -1, 94, 235, null));

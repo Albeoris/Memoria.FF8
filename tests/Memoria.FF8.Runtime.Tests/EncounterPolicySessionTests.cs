@@ -172,7 +172,7 @@ public sealed class EncounterPolicySessionTests
             if (battle.ActiveAction?.NativeAction?.PresentationOnly == true || battle.QueuedActions.Any(command => command.NativeAction?.PresentationOnly == true))
             {
                 sawControl = true;
-                sawHeader |= battle.ActiveAction?.NativeHeaderIndex is not null || battle.QueuedActions.Any(command => command.NativeHeader is not null);
+                sawHeader |= battle.ActiveAction?.NativeHeader is not null || battle.QueuedActions.Any(command => command.NativeHeader is not null);
                 BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
                 battle = BattleSession.Restore(snapshot);
                 Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);

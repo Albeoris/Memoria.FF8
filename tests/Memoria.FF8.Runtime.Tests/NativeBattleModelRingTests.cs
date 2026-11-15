@@ -101,15 +101,15 @@ public sealed class NativeBattleModelRingTests
     public void SharedRingCallbacksRetainPhysicalPointerAndDistinctOperandsAcrossJsonAndReleaseOnce()
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear();
-        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, 3, sequence: 254).State;
-        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, OriginalOwner(6), 0xFFFFFFFF).State;
-        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, OriginalOwner(0), 0x200).State;
+        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, OriginalOwner(3), OriginalAliases, sequence: 254).State;
+        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, OriginalOwner(6), OriginalAliases, 0xFFFFFFFF).State;
+        state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, OriginalOwner(0), OriginalAliases, 0x200).State;
         state = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(state))!;
-        List<(NativeBattleAuxiliaryKind Kind, int Model, uint Argument)> calls = [];
+        List<(NativeBattleAuxiliaryKind Kind, BattleModelOwner Model, uint Argument)> calls = [];
         NativeBattleAuxiliaryInputs inputs = new() { ApplyModelRing = (kind, model, argument) => calls.Add((kind, model, argument)) };
         state = state.Advance(inputs).State;
         state = state.Advance(inputs).State;
-        Assert.Equal(new[] { (NativeBattleAuxiliaryKind.ModelSequence505C70, 3, 254u), (NativeBattleAuxiliaryKind.ModelStatus50A000, 6, uint.MaxValue), (NativeBattleAuxiliaryKind.ModelResourceFlags50B080, 0, 0x200u) }, calls);
+        Assert.Equal(new[] { (NativeBattleAuxiliaryKind.ModelSequence505C70, OriginalOwner(3), 254u), (NativeBattleAuxiliaryKind.ModelStatus50A000, OriginalOwner(6), uint.MaxValue), (NativeBattleAuxiliaryKind.ModelResourceFlags50B080, OriginalOwner(0), 0x200u) }, calls);
         Assert.Null(state.Head);
         Assert.Null(state.Tail);
         Assert.Equal(0x831E0u, NativeBattleModelRings.PreservedStatusMask50A000(0x40));

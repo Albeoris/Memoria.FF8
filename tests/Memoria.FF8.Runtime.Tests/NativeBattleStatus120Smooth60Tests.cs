@@ -13,11 +13,12 @@ public sealed class NativeBattleStatus120Smooth60Tests
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 19, 120, null));
         for (byte actor = 0; actor < 3; actor++)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 4, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 4, 0, 0), null));
         }
         (packets, _) = packets.Publish(3);
-        Assert.Equal((byte)3, packets.Headers[0].ReadByte(16));
-        Assert.Equal(0, packets.Headers[0].FirstContactIndex);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal(3, header.ReadContactCount());
+        Assert.Equal(new BattleContactCursor(0), header.FirstContact);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         NativeBattleStatusMagicResources resources = new(120, new("animation", []), [Source(0x1277640), Source(0x1279C68)], 1);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(resources.RootDescriptor, resources.RootBank, 20, 1);
@@ -26,8 +27,8 @@ public sealed class NativeBattleStatus120Smooth60Tests
         NativeBattleStatusMagicFrame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect);
         NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(1) { Transform = new(new(0, 0, 0), new((short)(index * 100), -100, 3000), 0, 0, 4096), Rotation14 = 0 }).ToArray();
         List<NativeBattlePilotVisualGeometry> geometries = [];
-        List<(int Tick, int Contact)> contacts = [];
-        NativeBattleStatusMagicInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770(), 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, index => models[index], _ => new([], []), (_, _) => throw new InvalidOperationException("120 does not write122 flags."), (current, operation) =>
+        List<(int Tick, BattleContactOccurrence Contact)> contacts = [];
+        NativeBattleStatusMagicInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770(), 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, owner => models[OriginalSlot(owner)], _ => new([], []), (_, _) => throw new InvalidOperationException("120 does not write122 flags."), (current, operation) =>
         {
             if (operation is NativeBattleStatusMagicPackets draw)
             {
@@ -68,7 +69,7 @@ public sealed class NativeBattleStatus120Smooth60Tests
                 }
             }
         }
-        Assert.Equal(new[] { (44, 0), (44, 1), (44, 2) }, contacts);
+        Assert.Equal(new[] { (44, new BattleContactOccurrence(0)), (44, new BattleContactOccurrence(1)), (44, new BattleContactOccurrence(2)) }, contacts);
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
     }
 

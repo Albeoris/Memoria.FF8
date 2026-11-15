@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -143,7 +144,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics!, slot));
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
-            Assert.Equal(slot, battle.NativeGraphics!.GuardianFormPresentation!.ActorIndex);
+            Assert.Equal(RequireOriginalModelOwner(battle.NativeGraphics!, slot), battle.NativeGraphics!.GuardianFormPresentation!.Actor);
             Assert.Equal((byte)77, ReadOriginalModelCell(battle.NativeGraphics, slot).ModelId4);
             Assert.Equal(character, battle.Combatants.Single(actor => actor.Id == "party").ModelId);
             NativeBattleCameraPose formCamera = battle.NativeCamera!.CurrentPose!;

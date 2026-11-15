@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -16,7 +17,8 @@ public sealed class NativeBattleChoco99DirectorTests
             Flags0 = index is 0 or 3 or 5 ? (ushort)2 : (ushort)0,
             Transform = new(new(0, 0, 0), index switch { 0 => new(30000, 999, 30000), 3 => new(first, 999, -301), 5 => new(second, 999, 100), _ => new(0, 0, 0) }, 0, 0, 4096)
         };
-        NativeBattleChoco97Context actual = NativeBattleChoco99Context.Initialize718670(Model);
+        BattleModelPool<BattleEnemyModelOwner> enemies = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, Model(slot)))).Models.Enemies;
+        NativeBattleChoco97Context actual = NativeBattleChoco99Context.Initialize718670(enemies);
         Assert.Equal(expected, actual.Word(8));
         Assert.Equal(unchecked((ushort)(short)-100), actual.Word(12));
         Assert.Equal((ushort)2048, actual.Word(4));

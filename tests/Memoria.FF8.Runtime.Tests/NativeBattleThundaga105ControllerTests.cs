@@ -29,10 +29,10 @@ public sealed class NativeBattleThundaga105ControllerTests
             operations.Add(operation);
             if (operation is NativeBattleThundaga105ActorColor color)
             {
-                colors[color.Actor] = color.Color40;
+                colors[OriginalSlot(color.Actor)] = color.Color40;
             }
             return current;
-        }, actor => colors[actor]);
+        }, actor => colors[OriginalSlot(actor)]);
         frame = NativeBattleThundaga105Controller.Initialize6D3DE0(frame, inputs, fixture.Resources);
         int primaryDraws = 0;
         int movingDraws = 0;
@@ -150,7 +150,7 @@ public sealed class NativeBattleThundaga105ControllerTests
         Assert.Throws<InvalidDataException>(() => NativeBattleThundaga105Controller.WriteCompletionWord(frame.Effect, frame.Effect.Pools[3].BankAddress + 0xE, 1));
     }
 
-    private static NativeBattleThundaga105Inputs Inputs(NativeBattleActionPacketsState packets, NativeBattleThundaga105Resources resources, Func<NativeBattleThundaga105Frame, NativeBattleThundaga105Operation, NativeBattleThundaga105Frame>? execute = null, Func<int, uint>? color = null) => new(packets, _ => new byte[8].ToImmutableArray(), _ => new(0, -500, 0, 0), color ?? (_ => 0xAB123456), _ => 4096, (frame, task, _, _) =>
+    private static NativeBattleThundaga105Inputs Inputs(NativeBattleActionPacketsState packets, NativeBattleThundaga105Resources resources, Func<NativeBattleThundaga105Frame, NativeBattleThundaga105Operation, NativeBattleThundaga105Frame>? execute = null, Func<BattleModelOwner, uint>? color = null) => new(packets, _ => new byte[8].ToImmutableArray(), _ => new(0, -500, 0, 0), color ?? (_ => 0xAB123456), _ => 4096, (frame, task, _, _) =>
     {
         NativeBattleThundaga105ProgramDraw draw = NativeBattleThundaga105ProgramDrawing.Advance6D43B0(frame.Memory, task, resources.ProgramSource, resources.NodeSelector.Data, new byte[8].ToImmutableArray(), View, View, new(View, 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
         return new(frame with { Memory = draw.Memory }, draw.Task);
@@ -160,7 +160,7 @@ public sealed class NativeBattleThundaga105ControllerTests
 
     private static (NativeBattleThundaga105Frame Frame, NativeBattleActionPacketsState Packets, NativeBattleThundaga105Resources Resources) Fixture(byte flags = 0)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 105, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);

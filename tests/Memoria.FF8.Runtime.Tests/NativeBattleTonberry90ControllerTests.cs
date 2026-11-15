@@ -172,14 +172,14 @@ public sealed class NativeBattleTonberry90ControllerTests
         NativeBattleGraphicsModel restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGraphicsModel>(savedModel)!;
         NativeBattleTonberry90Inputs inputs = fixture.Inputs with
         {
-            ReadModel = actor => actor == 3 ? target : fixture.Inputs.ReadModel(actor),
+            ReadModel = actor => actor == OriginalOwner(3) ? target : fixture.Inputs.ReadModel(actor),
             InitializeTarget = (current, _) => current,
             AdvanceLeaf = (current, _) => new(current, false)
         };
         NativeBattleTonberry90Frame before = WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 3));
         string savedFrame = NativeBattleTestSnapshots.Json(before);
         NativeBattleTonberry90Frame frame = NativeBattleTonberry90Controller.Advance7624D0(before, inputs);
-        NativeBattleTonberry90Frame independent = NativeBattleTonberry90Controller.Advance7624D0(NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(savedFrame)!, inputs with { ReadModel = actor => actor == 3 ? restored : fixture.Inputs.ReadModel(actor) });
+        NativeBattleTonberry90Frame independent = NativeBattleTonberry90Controller.Advance7624D0(NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(savedFrame)!, inputs with { ReadModel = actor => actor == OriginalOwner(3) ? restored : fixture.Inputs.ReadModel(actor) });
         Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(independent));
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[0];
         Assert.Equal((ushort)123, task.ReadWord(0x48));
@@ -201,9 +201,9 @@ public sealed class NativeBattleTonberry90ControllerTests
         NativeBattleEffectActorGeometry geometry = new(new(100, -200, 300), new(400, -500, 600), -70, new(new(-10, -20, -30), new(40, 50, 60)));
         NativeBattleTonberry90Inputs inputs = fixture.Inputs with
         {
-            ReadModel = actor => new(0) { Flags0 = actor == 3 ? (ushort)2 : (ushort)0, Transform = new(default, default, 0, 0, 4096) },
+            ReadModel = actor => new(0) { Flags0 = actor == OriginalOwner(3) ? (ushort)2 : (ushort)0, Transform = new(default, default, 0, 0, 4096) },
             ReadPoseSource = _ => throw new InvalidOperationException("Foreign geometry must not request a native skeleton."),
-            ReadForeign = actor => actor == 3 ? geometry : null,
+            ReadForeign = actor => actor == OriginalOwner(3) ? geometry : null,
             InitializeTarget = (current, _) => current,
             AdvanceLeaf = (current, _) => new(current, false)
         };
@@ -242,7 +242,7 @@ public sealed class NativeBattleTonberry90ControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
         for (int index = 0; index < Math.Max(1, (int)targets); index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3 + index), 1, 0, 0, 0, 100, 0), null));
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeats);
         (packets, _) = packets.Publish(targets);

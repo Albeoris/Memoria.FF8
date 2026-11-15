@@ -12,9 +12,9 @@ public sealed class NativeBattleRenzokukenEffectTests
     {
         NativeBattleRenzokuken160State state = NativeBattleRenzokuken160State.FromColdProcess();
         state = state with { Sparks = Enumerable.Repeat((byte)0x5A, 480).ToImmutableArray(), Debris = Enumerable.Repeat((byte)0x6B, 800).ToImmutableArray(), Spirals = Enumerable.Repeat((byte)0x7C, 960).ToImmutableArray(), TrailHistory = Enumerable.Repeat((byte)0x8D, 140).ToImmutableArray() };
-        NativeBattleRenzokuken160State entered = state.Enter(1, 2, 3, true);
+        NativeBattleRenzokuken160State entered = state.Enter(true);
         Assert.Equal(4, entered.Duration);
-        Assert.Equal(3, entered.FirstTarget);
+        Assert.True(entered.InitialControl);
         Assert.Equal(state.TrailHistory, entered.TrailHistory);
         Check(entered.Sparks, 12, 0x5A);
         Check(entered.Debris, 20, 0x6B);
@@ -78,7 +78,7 @@ public sealed class NativeBattleRenzokukenEffectTests
 
     private static NativeBattleRenzokuken160Frame Frame()
     {
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Renzokuken160 = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100 } };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Renzokuken160 = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 100 } };
         NativeBattleOriginalEffectState effect = new(160, 159, new(160, 0x5FF080, 0x5FF060), null, null);
         return new(memory, effect, NativeCrtRandomState.FromColdProcess());
     }

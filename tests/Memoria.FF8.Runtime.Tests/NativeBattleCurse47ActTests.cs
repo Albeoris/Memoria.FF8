@@ -202,16 +202,16 @@ public sealed class NativeBattleCurse47ActTests
         public int Emitted { get; private set; }
         public Func<int, NativeBattleVector> Anchor { get; set; } = _ => new(11, -22, 33);
         public Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47Frame> OnEmit { get; set; } = (frame, _) => frame;
-        public NativeBattleCurse47ActInputs Inputs => new((_, pointer) => Source with { Address = pointer }, (frame, actor) =>
+        public NativeBattleCurse47ActInputs Inputs => new((_, pointer) => Source with { Address = pointer }, () => OriginalRoster.Owners, (frame, actor) =>
         {
-            ReadIdentities.Add(actor);
-            return Identities[actor];
+            ReadIdentities.Add(OriginalSlot(actor));
+            return Identities[OriginalSlot(actor)];
         }, (frame, actor, selector, distance) =>
         {
             Assert.Equal((short)15, selector);
             Assert.Equal(0, distance);
-            ReadAnchors.Add(actor);
-            return new(frame with { State = frame.State.WithSharedWord(0x10, 7) }, Anchor(actor));
+            ReadAnchors.Add(OriginalSlot(actor));
+            return new(frame with { State = frame.State.WithSharedWord(0x10, 7) }, Anchor(OriginalSlot(actor)));
         }, (frame, _) =>
         {
             Prepared++;

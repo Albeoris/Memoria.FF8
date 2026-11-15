@@ -22,7 +22,7 @@ public sealed class NativeBattleMemoryNodeAdmissionTests
         NativeBattleRecover93NodeFrame frame = new(memory, effect, NativeBattleRecover93NodeState.FromColdProcess(), new(1));
         Assert.Null(frame.State.Data);
         NativeBattleEffectNodeCallerPolicy policy = new(NativeBattleRecover93Nodes.SourceAddress, NativeBattleRecover93Nodes.SourceLength, NativeBattleRecover93Nodes.ContextCallback, 20, 70, false);
-        NativeBattleGraphicsModel Model(int actor) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = new(new(-1, -1, -1), new(1, 1, 1)) };
+        NativeBattleGraphicsModel Model(BattleModelOwner actor) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryBounds52 = new(new(-1, -1, -1), new(1, 1, 1)) };
         NativeBattleRecover93NodeFrame initialized = NativeBattleEffectNodeCaller.Initialize74EC00(policy, frame, child.Address, new(new byte[NativeBattleRecover93Nodes.SourceLength].ToImmutableArray()), packets, Model, _ => throw new InvalidOperationException("Explicit mode2 origins bypass pose reads."), new(new(0, 0, 0), new(0, 0, 0)));
         NativeBattleNodeSource source = Assert.IsType<NativeBattleNodeSource>(initialized.State.Data);
         Assert.Same(memory.RetainedAuthority, source.Arena!.Working.RetainedAuthority);

@@ -217,7 +217,7 @@ public sealed class NativeBattleRenzokukenFinalFirstCaptureTests
         Put(rows, 28, 4096);
         var meshes = Enumerable.Range(0, 6).Select(index => Mesh(index)).ToImmutableArray();
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], meshes, 0, 0) { SpecialSprites = [Sprite, Sprite], SpecialAlignmentAxis = [0, 0, 4096] };
-        var core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 200, Origin = new(100, -200, 6000), Direction = new(2896, 0, 2896) };
+        var core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 200, Origin = new(100, -200, 6000), Direction = new(2896, 0, 2896) };
         var state = new NativeBattleRenzokukenSpecialState(core, resources) { ExtraStorage = rows.ToImmutableArray(), PreviousOrigin = core.Origin, PreviousDirection = core.Direction };
         var memory = NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(effect, state) };
         var original = new NativeBattleOriginalEffectState(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), null, null) { Pools = [root, children] };

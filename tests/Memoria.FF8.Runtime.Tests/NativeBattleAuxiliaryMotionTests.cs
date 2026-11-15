@@ -1,7 +1,6 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -24,7 +23,7 @@ public sealed class NativeBattleAuxiliaryMotionTests
                 frames.Add(frame);
             }
         };
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelGroupFade50F0B0(0, 33);
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelGroupFade50F0B0(OriginalOwner(0), 33, OriginalAliases);
         for (int frame = 0; frame < 15; frame++)
         {
             state = state.Advance(inputs).State;
@@ -67,18 +66,19 @@ public sealed class NativeBattleAuxiliaryMotionTests
     [Fact]
     public void MovePreincrementsReadsMovingTargetAndCommitsOnlyXZAtCompletion()
     {
-        NativeBattleGraphicsModel[] models = [Model(new(10, 11, 20)), Model(new(110, 55, 220))];
-        NativeBattleAuxiliaryInputs inputs = new() { ReadModel = index => models[index], WriteModel = (index, model) => models[index] = model };
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelMotion(0x9E, 0, 1, 0, 0, 0, 2).State;
+        BattleActorModels models = new([new(OriginalOwner(0), Model(new(10, 11, 20))), new(OriginalOwner(1), Model(new(110, 55, 220)))]);
+        NativeBattleAuxiliaryInputs inputs = new() { ReadModel = owner => models.Get(owner), WriteModel = (owner, model) => models = models.Set(owner, model) };
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelMotion(0x9E, OriginalOwner(0), OriginalOwner(1), 0, 0, 0, 2, OriginalAliases).State;
         state = state.Advance(inputs).State;
-        Assert.Equal(new NativeBattleVector(60, 11, 120), models[0].Transform!.Position28);
-        Assert.Equal(new NativeBattleVector(10, 11, 20), models[0].Transform!.Initial20);
-        state = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(state))!;
-        models[1] = models[1] with { Transform = models[1].Transform! with { Position28 = new(210, 55, -20) } };
+        Assert.Equal(new NativeBattleVector(60, 11, 120), models.Get(OriginalOwner(0)).Transform!.Position28);
+        Assert.Equal(new NativeBattleVector(10, 11, 20), models.Get(OriginalOwner(0)).Transform!.Initial20);
+        state = state with { };
+        NativeBattleGraphicsModel target = models.Get(OriginalOwner(1));
+        models = models.Set(OriginalOwner(1), target with { Transform = target.Transform! with { Position28 = new(210, 55, -20) } });
         state = state.Advance(inputs).State;
         Assert.Null(state.Head);
-        Assert.Equal(new NativeBattleVector(210, 11, -20), models[0].Transform!.Position28);
-        Assert.Equal(models[0].Transform!.Position28, models[0].Transform!.Initial20);
+        Assert.Equal(new NativeBattleVector(210, 11, -20), models.Get(OriginalOwner(0)).Transform!.Position28);
+        Assert.Equal(models.Get(OriginalOwner(0)).Transform!.Position28, models.Get(OriginalOwner(0)).Transform!.Initial20);
     }
 
     [Theory]
@@ -87,28 +87,28 @@ public sealed class NativeBattleAuxiliaryMotionTests
     [InlineData(0xAD, 255, 255, 242, 100)]
     public void AttachmentUsesExactSelectorsSignedFractionCachedTranslationAndCompletion(byte opcode, byte first, byte second, byte expectedTargetBone, int desiredX)
     {
-        NativeBattleGraphicsModel[] models = [Model(new(0, 0, 0)), Model(new(100, 200, 300)) with { Flags2 = 0x21 }];
-        List<(int Model, byte Bone, short Fraction)> reads = [];
+        BattleActorModels models = new([new(OriginalOwner(0), Model(new(0, 0, 0))), new(OriginalOwner(1), Model(new(100, 200, 300)) with { Flags2 = 0x21 })]);
+        List<(BattleModelOwner Model, byte Bone, short Fraction)> reads = [];
         NativeBattleAuxiliaryInputs inputs = new()
         {
-            ReadModel = index => models[index],
-            WriteModel = (index, model) => models[index] = model,
+            ReadModel = owner => models.Get(owner),
+            WriteModel = (owner, model) => models = models.Set(owner, model),
             ReadBone = (index, bone, fraction) =>
             {
                 reads.Add((index, bone, fraction));
-                return index == 1 ? new(5, 6, 7) : bone == 201 ? new(40, 60, 80) : new(20, 40, 60);
+                return index == OriginalOwner(1) ? new(5, 6, 7) : bone == 201 ? new(40, 60, 80) : new(20, 40, 60);
             }
         };
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelMotion(opcode, 0, 1, first, second, -1234, 1).State;
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelMotion(opcode, OriginalOwner(0), OriginalOwner(1), first, second, -1234, 1, OriginalAliases).State;
         state = state.Advance(inputs).State;
         Assert.Null(state.Head);
-        Assert.Equal((ushort)1, models[1].Flags2);
-        Assert.Equal(100 + desiredX - 5, models[1].GeometryWorldMatrix!.X);
-        Assert.Equal(new NativeBattleVector(100, 200, 300), models[1].Transform!.Position28);
-        Assert.Equal((1, expectedTargetBone, (short)2048), reads[^1]);
+        Assert.Equal((ushort)1, models.Get(OriginalOwner(1)).Flags2);
+        Assert.Equal(100 + desiredX - 5, models.Get(OriginalOwner(1)).GeometryWorldMatrix!.X);
+        Assert.Equal(new NativeBattleVector(100, 200, 300), models.Get(OriginalOwner(1)).Transform!.Position28);
+        Assert.Equal((OriginalOwner(1), expectedTargetBone, (short)2048), reads[^1]);
         if (first != 255)
         {
-            Assert.Equal((0, (byte)(first & 127), (short)-1234), reads[0]);
+            Assert.Equal((OriginalOwner(0), (byte)(first & 127), (short)-1234), reads[0]);
         }
     }
 
@@ -117,14 +117,14 @@ public sealed class NativeBattleAuxiliaryMotionTests
     {
         NativeBattleGraphicsModel model = Model(new(10, 20, 30)) with { Flags2 = 0x20 };
         NativeBattleAuxiliaryInputs inputs = new() { ReadModel = _ => model, WriteModel = (_, value) => model = value, ReadBone = (_, _, _) => new(0, 0, 0) };
-        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelMotion(0xAD, 0, 0, 255, 255, 0, 0).State.Advance(inputs).State;
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelMotion(0xAD, OriginalOwner(0), OriginalOwner(0), 255, 255, 0, 0, OriginalAliases).State.Advance(inputs).State;
         Assert.Equal(uint.MaxValue, BinaryPrimitives.ReadUInt32LittleEndian(state.Slots[0].Payload.AsSpan().Slice(12)));
         Assert.Equal((ushort)0x20, model.Flags2);
         for (int index = 1; index < 16; index++)
         {
-            state = state.AppendModelMotion(0x9E, 0, 0, 0, 0, 0, 1).State;
+            state = state.AppendModelMotion(0x9E, OriginalOwner(0), OriginalOwner(0), 0, 0, 0, 1, OriginalAliases).State;
         }
-        Assert.False(state.AppendModelMotion(0xAE, 0, 0, 0, 1, 0, 1).Allocated);
+        Assert.False(state.AppendModelMotion(0xAE, OriginalOwner(0), OriginalOwner(0), 0, 1, 0, 1, OriginalAliases).Allocated);
     }
 
     private static NativeBattleGraphicsModel Model(NativeBattleVector position)

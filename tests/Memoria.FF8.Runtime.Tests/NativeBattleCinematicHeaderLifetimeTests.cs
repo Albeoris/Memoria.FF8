@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCinematicHeaderLifetimeTests
@@ -15,23 +16,21 @@ public sealed class NativeBattleCinematicHeaderLifetimeTests
         frame = WaterSchedulerFixture.CoreWord(frame, Header + 0x4E + 4 * 2, 0x2345);
         frame = WaterSchedulerFixture.CoreDword(frame, MovedHeader + 0x60 + 4 * 4, 0x1D97668);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x94, ushort.MaxValue);
-        List<(uint Address, ushort Flags)> writes = [];
-
-        NativeBattleWaterExecutionFrame result = NativeBattleApocalypse221ActorTint69.Execute(frame, new((_, address) =>
+        frame = NativeBattleCinematicTypedTestFixture.WithContext(frame);
+        frame = frame with { Core = frame.Core with { PresentationActors = frame.Core.PresentationActors!.WithCurrentActors([OriginalOwner(0)]) } };
+        int callbacks = 0;
+        NativeBattleWaterExecutionFrame result = NativeBattleApocalypse221ActorTint69.Execute(frame, (current, side, combined, color) =>
         {
-            return new(NativeBattleGraphicsModelAddress.Decode(address), 0);
-        }, (current, address, actor) =>
-        {
-            writes.Add((address, actor.Flags0));
-            if (writes.Count == 1)
-            {
-                current = WaterSchedulerFixture.CoreDword(current, 0x279744C, MovedHeader);
-                current = WaterSchedulerFixture.CoreWord(current, Header + 0x4E + 4 * 2, 0x3456);
-            }
-            return current;
-        }));
-
-        Assert.Equal(new (uint, ushort)[] { (0x1D97494, 0x1234), (0x1D97530, 0x3456) }, writes);
+            callbacks++;
+            Assert.Equal(BattleSide.Enemies, side);
+            Assert.Equal(-1, combined);
+            Assert.Equal(0u, color);
+            Assert.Equal(MovedHeader, WaterSchedulerFixture.ReadCoreDword(WaterSchedulerFixture.CoreDword(current, 0x279744C, MovedHeader), 0x279744C));
+            Assert.Equal((ushort)0x1234, NativeBattleApocalypse221ActorTint69.ApplyTint(new(0), combined, color, () => 0x1234).Flags0);
+            Assert.Equal((ushort)0x3456, NativeBattleApocalypse221ActorTint69.ApplyTint(new(0), combined, color, () => 0x3456).Flags0);
+            return WaterSchedulerFixture.CoreDword(current, 0x279744C, MovedHeader);
+        });
+        Assert.Equal(1, callbacks);
         Assert.Equal(MovedHeader, WaterSchedulerFixture.ReadCoreDword(result, 0x279744C));
     }
 
@@ -48,16 +47,18 @@ public sealed class NativeBattleCinematicHeaderLifetimeTests
             Arena = frame.Arena.Write(0x1000, [0x6E, 0x10, 0x23, 0x01])
         };
         List<int> visited = [];
+        frame = NativeBattleCinematicTypedTestFixture.WithContext(frame);
+        frame = frame with { Core = frame.Core with { PresentationActors = frame.Core.PresentationActors!.WithCurrentActors([OriginalOwner(3)]) } };
 
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicEntityPosition.FromTargetJointAverage6E(frame, new(0x1000, 4, programAddress), (current, actor, selector) =>
         {
             Assert.Equal(0x123, selector);
-            visited.Add(actor);
+            visited.Add(OriginalSlot(actor));
             if (visited.Count == 1)
             {
-                current = WaterSchedulerFixture.CoreDword(current, 0x279744C, MovedHeader);
+                current = current with { Core = current.Core with { PresentationActors = current.Core.PresentationActors!.WithCurrentActors([OriginalOwner(6), OriginalOwner(5)]) } };
             }
-            return new(current, new(actor * 100, 0, 0, 0));
+            return new(current, new(OriginalSlot(actor) * 100, 0, 0, 0));
         }, (current, _) => current);
 
         Assert.Equal(new[] { 3, 5 }, visited);

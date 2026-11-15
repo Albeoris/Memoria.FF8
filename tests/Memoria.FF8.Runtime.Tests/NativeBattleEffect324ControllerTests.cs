@@ -19,7 +19,7 @@ public sealed class NativeBattleEffect324ControllerTests
         Harness harness = new() { Flags = flags };
         NativeBattleEffect324Step result = AdvanceMain596C70(Frame(1), ChildBank, harness.Inputs());
         Assert.Equal(1, harness.PointQueries);
-        Assert.Equal(ModelAddress(3), harness.LastModel);
+        Assert.Equal(OriginalOwner(3), harness.LastModel);
         Assert.Equal((short)0xF0, harness.LastSelector);
         Assert.Equal((short)4096, harness.LastFraction);
         Assert.Equal(777u, result.Frame.State.ReadDword(InitializerGlobal));
@@ -130,7 +130,14 @@ public sealed class NativeBattleEffect324ControllerTests
     public void Contact_uses_the_current_absolute_header_index_at_old_age130()
     {
         Harness harness = new();
-        harness.Packets = harness.Packets with { Headers = harness.Packets.Headers.SetItem(0, harness.Packets.Headers[0] with { FirstContactIndex = 7 }) };
+        NativeBattleActionPacketsState original = harness.Packets;
+        NativeBattleActionHeaderSlot header = original.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactPacket contact = original.ReadContact(header.FirstContact);
+        NativeBattleActionPacketsState packets = original.ResetCounts().AppendContacts(Enumerable.Repeat(contact, 7));
+        (packets, _) = packets.Prepare(new(header.Source, header.Command, header.Sequence, header.CameraChoice, header.Action, header.Effect, header.Data));
+        (packets, _) = packets.AppendContact(contact);
+        (packets, _) = packets.Publish(1);
+        harness.Packets = packets;
         NativeBattleEffect324Step result = AdvanceMain596C70(Frame(130), ChildBank, harness.Inputs());
         Assert.Equal(new NativeBattleEffect324Contact506690(new BattleContactCursor(7)), Assert.Single(harness.Operations));
         Assert.Equal(131, Read(result.Frame, ChildBank).ReadWord(12));
@@ -240,7 +247,7 @@ public sealed class NativeBattleEffect324ControllerTests
         public int PointQueries { get; private set; }
         public int VibrationQueries { get; private set; }
         public int QueriedHandle { get; private set; }
-        public uint LastModel { get; private set; }
+        public BattleModelOwner? LastModel { get; private set; }
         public short LastSelector { get; private set; }
         public short LastFraction { get; private set; }
         public List<NativeBattleEffect324Operation> Operations { get; } = [];

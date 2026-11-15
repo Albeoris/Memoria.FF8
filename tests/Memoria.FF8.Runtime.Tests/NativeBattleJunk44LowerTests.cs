@@ -122,7 +122,7 @@ public sealed class NativeBattleJunk44LowerTests
     {
         var resources = NativeBattleJunk44StateTests.Resources();
         var frame = Frame();
-        (frame, uint address) = SpawnDebris6E8470(frame, 100, 300, 0, 5, resources, Inputs());
+        (frame, uint address) = SpawnDebris6E8470(frame, 100, 300, OriginalOwner(0), 5, resources, Inputs());
         frame = Write(frame, address, Read(frame, address).WriteWord(0x12, (ushort)remaining));
         frame = PublishContext(frame, NativeBattleTemporaryMemory.Address, Context(frame, NativeBattleTemporaryMemory.Address, 120).Write(18, BitConverter.GetBytes((ushort)0xBEEF)), 120);
         var actual = AdvanceDebris6E84D0(frame, address, resources, Inputs((current, operation) =>
@@ -148,7 +148,7 @@ public sealed class NativeBattleJunk44LowerTests
     public void Terminal_debris_draws_then_returns_before_gravity_or_random()
     {
         var frame = Frame();
-        (frame, uint address) = SpawnDebris6E8470(frame, 100, 300, 0, 0, null!, Inputs());
+        (frame, uint address) = SpawnDebris6E8470(frame, 100, 300, OriginalOwner(0), 0, null!, Inputs());
         frame = Write(frame, address, Read(frame, address).WriteWord(0x12, 1).WriteWord(0x0E, 0));
         var actual = AdvanceDebris6E84D0(frame, address, NativeBattleJunk44StateTests.Resources(), Inputs());
         Assert.Equal(2, actual.Result);

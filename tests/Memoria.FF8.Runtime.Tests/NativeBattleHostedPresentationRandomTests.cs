@@ -55,11 +55,11 @@ public sealed class NativeBattleHostedPresentationRandomTests
         {
             expected = expected.Draw(out ushort mainValue);
             Assert.Equal(mainValue, DrawCrt(owner));
-            child.ImportHostedPresentationRandom(owner);
+            child.ImportHostedPresentationSharedState(owner);
             expected = expected.Draw(out ushort childValue);
             Assert.Equal(childValue, DrawCrt(child));
             Assert.NotEqual(expected, owner.CurrentCrtRandom);
-            child.ExportHostedPresentationRandom(owner);
+            child.ExportHostedPresentationSharedState(owner);
             Assert.Equal(expected, owner.CurrentCrtRandom);
         }
     }
@@ -182,7 +182,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
         NativeBattleGraphicsState graphics = child.NativeGraphics!;
         NativeBattleUiServices ui = NativeBattleUiServices.Initialize();
         BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));
-        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(0, block, 1, ui, graphics.PresentationRoster) with { Input = new(6, 68, 2, 0, 0) };
+        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(owner.ReadPresentationModelOwner("ally"), block, 1, ui, graphics.ActorModels.Roster) with { Input = new(6, 68, 2, 0, 0) };
         SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = ui, TriggerWidget = widget });
         ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
         NativeBattleUiRandomState childDraw = owner.Capture().NativeBattleUiRandom!.Draw(out _);
@@ -324,10 +324,10 @@ public sealed class NativeBattleHostedPresentationRandomTests
         SetField(child, "hostedBattlePresentation", true);
         FieldInfo descriptors = typeof(BattleSession).GetField("hostedEntryDescriptors", PrivateInstance)!;
         descriptors.SetValue(child, Activator.CreateInstance(descriptors.FieldType));
-        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
-        SetProperty(child, nameof(BattleSession.NativeGraphics), new NativeBattleGraphicsState(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
+        var (roster, aliases) = owner.ReadBattlePresentationPacketBindings();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
+        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with
         {
-            PresentationRoster = roster,
             EntryLifecycle = 4,
             EntryReady = true,
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()

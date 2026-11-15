@@ -61,7 +61,7 @@ public sealed class NativeBattleScanResultTaskTests
         NativeBattleScanResultTaskFrame frame = NativeBattleScanResultTask.Advance84FAF0(fixture.Frame, fixture.Address, 0, fixture.Services).Frame;
         frame = NativeBattleScanResultTask.Advance84FAF0(frame, fixture.Address, 0, fixture.Services).Frame;
         NativeBattleScanByteOwner row = frame.Text.Windows.Row(1);
-        Assert.Equal(NativeBattleScanResults.PageB68810(frame.Results, 0, 0), row.ReadDword(8));
+        Assert.Equal(NativeBattleScanResults.PageB68810(frame.Results, 0), row.ReadDword(8));
         Assert.Equal(new NativeBattleScanRect(16, 180, 296, 28).ToBytes(), row.Bytes.AsSpan().Slice(0, 8).ToArray());
         Assert.Equal((ushort)0, row.ReadWord(0x10));
         Assert.Equal((ushort)4096, row.ReadWord(0x1E));

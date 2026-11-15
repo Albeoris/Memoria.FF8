@@ -155,7 +155,9 @@ public sealed class DiagnosticPetrifyRepeatTests
                 audio.Update(battle);
                 if (observingCast > 0 && observedTargetMask is null && focal.Count >= observingCast && battle.NativeGraphics?.OriginalEffect is { RequestedEffect: 120, Parameters: { } parameters })
                 {
-                    observedTargetMask = parameters.TargetMask7A;
+                    NativeBattleGraphicsState graphics = battle.NativeGraphics;
+                    Assert.True(graphics.NativeBindings.TryEncodeExactTargetMask(parameters.TargetActors, graphics.ActorModels, out ushort mask));
+                    observedTargetMask = mask;
                 }
                 ticks++;
             }

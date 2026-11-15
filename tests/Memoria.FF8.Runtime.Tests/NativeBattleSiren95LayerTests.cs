@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -110,9 +111,9 @@ public sealed class NativeBattleSiren95LayerTests
         var frame = Put(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteWord(0x22, 0xABCD));
         int anchors = 0;
         int draws = 0;
-        NativeBattleVector Anchor(byte actor)
+        NativeBattleVector Anchor(BattleModelOwner actor)
         {
-            Assert.Equal((byte)3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             anchors++;
             return new(-123, 456, -789);
         }

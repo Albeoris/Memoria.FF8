@@ -14,8 +14,9 @@ public sealed class NativeBattleChoco100DirectorTests
             Flags0 = index is 0 or 3 or 5 ? (ushort)2 : (ushort)0,
             Transform = new(new(0, 0, 0), index switch { 0 => new(30000, 999, 30000), 3 => new(-100, 999, -301), 5 => new(25, 999, 100), _ => new(0, 0, 0) }, 0, 0, 4096)
         };
-        NativeBattleChoco97Context context = NativeBattleChoco100Context.Initialize70F290(Model);
-        Assert.Equal(NativeBattleChoco99Context.Initialize718670(Model).Data, context.Data);
+        BattleModelPool<BattleEnemyModelOwner> enemies = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, Model(slot)))).Models.Enemies;
+        NativeBattleChoco97Context context = NativeBattleChoco100Context.Initialize70F290(enemies);
+        Assert.Equal(NativeBattleChoco99Context.Initialize718670(enemies).Data, context.Data);
         Assert.Equal((ushort)0, context.Word(8));
         Assert.Equal(unchecked((ushort)(short)-100), context.Word(12));
         Assert.Equal((ushort)2048, context.Word(4));

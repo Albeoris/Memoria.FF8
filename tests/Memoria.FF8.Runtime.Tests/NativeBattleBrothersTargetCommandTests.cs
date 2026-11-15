@@ -1,12 +1,13 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleBrothersTargetCommandTests
 {
-    private const uint Header = 0x2797690;
+    private const uint Header = NativeBattleScriptedEffectMemory.Address;
     private static readonly NativeBattleWaterScriptProgram Program = new(0x1000, 4, 0x1000);
 
     [Fact]
@@ -41,7 +42,7 @@ public sealed class NativeBattleBrothersTargetCommandTests
     public void Model3_target_clears_only_retained_flag_and_advances_without_operand()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xD5);
-        frame = frame with { Core = frame.Core.Write(Header + 0x48, new byte[] { 3 }), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
+        frame = frame with { Core = frame.Core.Write(Header + 0x48, new byte[] { 3 }) with { PresentationActors = frame.Core.PresentationActors!.WithCurrentActors([OriginalOwner(3)]) }, Arena = frame.Arena.MarkUnknown(0x1002, 2) };
         byte flag = 9;
         byte[] header = frame.Core.Read(Header, 0x180);
         NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, Services(63) with { WriteFlag = value => flag = value });
@@ -54,10 +55,10 @@ public sealed class NativeBattleBrothersTargetCommandTests
     public void Mode0_publishes_physical_model3_target_and_preserves_other_header_bytes()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xD5);
-        frame = frame with { Core = frame.Core.Write(Header, Enumerable.Repeat((byte)0xA5, 0x180).ToArray()), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
+        frame = frame with { Core = frame.Core.Write(Header, Enumerable.Repeat((byte)0xA5, 0x180).ToArray()).Write(Header + 0x48, [0, 1, 2]), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
         byte flag = 0;
         NativeBattleGraphicsModel model = new(0x9876) { Transform = new(new(0, 0, 0), new(-123, 32767, -32768), 0, 0, 4096) };
-        NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, Services(63) with { WriteFlag = value => flag = value, ReadModel3 = _ => model });
+        NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, Services(63) with { WriteFlag = value => flag = value, ReadModel = owner => owner == OriginalOwner(3) ? model : throw new InvalidOperationException("Unexpected correction target.") });
         byte[] expected = frame.Core.Read(Header, 0x180);
         expected[0x41] = 4;
         expected[0x4B] = 3;
@@ -79,17 +80,21 @@ public sealed class NativeBattleBrothersTargetCommandTests
     public void Mode1_branches_from_same_PC_only_for_retained_model3(byte flag, byte actor, short displacement, uint expectedPc)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x10D5);
-        frame = frame with { Arena = frame.Arena.Write(0x201B, new byte[] { actor }).Write(0x1002, BitConverter.GetBytes(displacement)), Core = frame.Core.MarkUnknown(Header, 0x180) };
+        frame = frame with { Arena = frame.Arena.Write(0x1002, BitConverter.GetBytes(displacement)), Core = frame.Core.MarkUnknown(Header, 0x180) };
         if (flag == 0)
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x201B, 1) };
+        }
+        else
+        {
+            frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, OriginalOwner(actor), OriginalAliases);
         }
         if (flag == 0 || actor != 3)
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 2) };
         }
         NativeBattleBrothersTargetServices services = Services(63) with { ReadFlag = () => flag };
-        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, services);
         Assert.Equal(expectedPc, Pc(result));
         Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleBrothersTargetCommand.Execute(restored, Program, services)));
@@ -107,10 +112,20 @@ public sealed class NativeBattleBrothersTargetCommandTests
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
-        return WaterSchedulerFixture.CoreDword(frame, 0x279744C, Header);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x279744C, Header);
+        BattleActorModels models = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, new NativeBattleGraphicsModel(0)))).Models;
+        NativeBattleCinematicActorContext actors = NativeBattleCinematicActorContext.FromGraphics(models).WithCurrentActors([OriginalOwner(0)]);
+        return frame with { Core = frame.Core with { PresentationActors = actors } };
     }
 
-    private static NativeBattleBrothersTargetServices Services(ushort encounter) => new(encounter, () => throw new InvalidOperationException("Unexpected flag read."), _ => throw new InvalidOperationException("Unexpected flag write."), _ => throw new InvalidOperationException("Unexpected model read."));
+    private static NativeBattleBrothersTargetServices Services(ushort encounter)
+    {
+        NativeBattleWaterContextServices context = new(
+            (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(),
+            (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(),
+            _ => throw new InvalidOperationException(), () => throw new InvalidOperationException(), () => OriginalAliases, BattleContactTaskStorageContract.OriginalArena);
+        return new(encounter, () => throw new InvalidOperationException("Unexpected flag read."), _ => throw new InvalidOperationException("Unexpected flag write."), () => OriginalOwner(3), _ => throw new InvalidOperationException("Unexpected model read."), context);
+    }
     private static uint Pc(NativeBattleWaterExecutionFrame frame) => WaterSchedulerFixture.ReadCoreDword(frame, 0x2797450);
 
     private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));

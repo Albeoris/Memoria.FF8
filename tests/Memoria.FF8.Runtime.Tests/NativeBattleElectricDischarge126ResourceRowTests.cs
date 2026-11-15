@@ -44,7 +44,7 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
         NativeBattleModulePoolTask task = Pool().Slots[0];
         Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(0, 0x2000000)));
         Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(-1, null)));
-        Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(NativeBattleModelResourceRowAddress.MaximumRowCount, null)));
+        Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(NativeBattleModelResourceRowAddress.MaximumEncodedRowCount, null)));
         Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(null, null)));
         task = task.WriteResourceRowReference(36, new(3, null));
         Assert.Throws<InvalidDataException>(() => NativeBattleTaskFixture.EditTask(task, data => data with { Unknown = null }).ReadResourceRowReference(36));

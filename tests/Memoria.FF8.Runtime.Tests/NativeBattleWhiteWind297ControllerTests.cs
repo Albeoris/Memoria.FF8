@@ -53,7 +53,7 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 297, null));
         for (int target = 3; target <= 5; target++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)target, 1, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), 1, 0, 0, 0, 7, 0), null));
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Publish(3);
@@ -66,17 +66,17 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         NativeBattleWhiteWind297Inputs inputs = new(packets, actor => new(0)
         {
             MinimumY146 = foreignBounds ? null : (short)-7,
-            Transform = new(new(0, 0, 0), new(0, 0, (short)(actor * 100)), 0, 100, 8192)
+            Transform = new(new(0, 0, 0), new(0, 0, (short)(OriginalSlot(actor) * 100)), 0, 100, 8192)
         }, _ => NativeBattlePackedMatrix32.FromMatrix(camera, 0x2222), (frame, actor) =>
         {
-            anchors.Add(actor);
-            return new(frame, new((short)(actor * 10), -123, (short)(actor * 100), 100));
+            anchors.Add(OriginalSlot(actor));
+            return new(frame, new((short)(OriginalSlot(actor) * 10), -123, (short)(OriginalSlot(actor) * 100), 100));
         }, (frame, operation) =>
         {
             operations.Add(operation);
             if (operation is NativeBattleWhiteWind297Contact contact)
             {
-                contacts.Add(contact.Index);
+                contacts.Add(contact.Occurrence.Ordinal);
             }
             return frame;
         }, (frame, _, context, _) =>
@@ -90,7 +90,7 @@ public sealed class NativeBattleWhiteWind297ControllerTests
             {
                 ReadMinimumY = actor =>
                 {
-                    minimumReads.Add(actor);
+                    minimumReads.Add(OriginalSlot(actor));
                     return -7;
                 }
             };

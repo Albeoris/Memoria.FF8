@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -77,12 +78,12 @@ public sealed class NativeBattlePreRootStackObserverTests
         payload[9] = 11;
         NativeBattleAuxiliaryTask task = new(1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, payload.ToImmutableArray()) { Program = new([255], 0), UnknownByteMask = 0xF0 };
         NativeBattleGraphicsModel model = new(3) { Sequence = 11, ResourceFlags44 = 34 };
-        NativeBattleStackBytes stack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(Vitals(), task, model, "texture-wait");
+        NativeBattleStackBytes stack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(Vitals(), task, OriginalOwner(0), model, "texture-wait");
         Assert.Equal(0x4B04E3u, stack.ReadUInt32(-0x8C));
         Assert.Equal(0x1A7904Cu, stack.ReadUInt32(-0x88));
         NativeBattleAuxiliaryTask copy = task with { Program = new([1], 0) };
-        Assert.Throws<NotSupportedException>(() => NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, copy, model, "copy").IsNonzero(-0x8C));
-        Assert.Throws<NotSupportedException>(() => NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, model with { ResourceFlags44 = 0x40 }, "release").IsNonzero(-0x8C));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, copy, OriginalOwner(0), model, "copy").IsNonzero(-0x8C));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, OriginalOwner(0), model with { ResourceFlags44 = 0x40 }, "release").IsNonzero(-0x8C));
     }
 
     [Fact]

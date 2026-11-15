@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -22,8 +21,9 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(unobserved, command);
         }
         typeof(BattleSession).GetField("diagnosticDispatchSerial", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, 5L);
-        NativeBattleContactPacket retained = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0));
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleRetainedActionPackets original = battle.NativeActionPackets.ExportRetained();
+        NativeBattleRawContactPacket retained = Assert.IsType<NativeBattleRawContactPacket>(original.Contacts[0]);
+        NativeBattleRetainedActionHeaderSlot header = original.Headers[0];
         List<BattleDiagnosticResolution> resolutions = [];
         battle.DiagnosticResolution += resolutions.Add;
 
@@ -52,8 +52,8 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
         Assert.Equal(0, proof.RetainedContactIndex);
         Assert.Equal(header.Payload, proof.HeaderPayload);
         Assert.Equal(header.UnknownByteMask, proof.HeaderUnknownByteMask);
-        Assert.Equal(retained.Encode(), proof.ContactPayload.ToArray());
-        Assert.Equal((byte)4, NativeBattleContactPacket.Decode(proof.ContactPayload.AsSpan()).Primary.ActorIndex);
+        Assert.Equal(NativeBattleContactPacketCodec.Encode(retained), proof.ContactPayload.ToArray());
+        Assert.Equal((byte)4, NativeBattleContactPacketCodec.Decode(proof.ContactPayload.AsSpan()).Primary.ActorIndex);
         Assert.Equal(4, battle.ObserveDiagnosticCombatants().Single(actor => actor.Id == "recipient").NativeIndex);
         BattleDiagnosticResolution restored = JsonSerializer.Deserialize<BattleDiagnosticResolution>(JsonSerializer.Serialize(resolution))!;
         Assert.Equal(JsonSerializer.Serialize(resolution), JsonSerializer.Serialize(restored));
@@ -73,8 +73,8 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
         BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "requested", Name = "Requested", MaximumHp = 10000, CurrentHp = 10000 }, new() { Id = "recipient", Name = "Recipient", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
         BattleSnapshot saved = battle.Capture();
         NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 254, 14, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 5, 1, 0, 0, 0, 0), null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 254, 14, -1, 64, 116, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(4), 5, 1, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         return BattleSession.Restore(saved with { NativeActionPackets = packets });
     }

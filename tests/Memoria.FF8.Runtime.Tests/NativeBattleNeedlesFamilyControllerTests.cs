@@ -50,7 +50,7 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
     {
         Fixture fixture = new(effect, contactAge);
         NativeBattleNeedlesFamilyFrame contacted = fixture.Step(fixture.Frame);
-        Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattleNeedlesFamilyContact>()).Index);
+        Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattleNeedlesFamilyContact>()).Occurrence.Ordinal);
         Assert.Equal(fixture.Profile.RootDescriptor, contacted.Effect.ReturnedDescriptor);
         fixture.Operations.Clear();
         NativeBattleModulePoolTask scheduler = contacted.Effect.Pools[1].Slots[0].WriteWord(12, finalAge);
@@ -168,13 +168,13 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), selected, new(123), NativeBattleNeedlesFamilyState.FromColdProcess(effect).WriteDword(Profile.CasterGlobal, 3).WriteDword(Profile.BaseAddress, 0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(packets, actor =>
             {
-                BoneCounts.Add(actor);
+                BoneCounts.Add(OriginalSlot(actor));
                 return 8;
             }, (current, actor, selector, distance) =>
             {
-                Bones.Add((actor, selector, distance));
-                SpawnWKnown.Add(current.Staging!.ReadSnapshot(NativeBattleTemporaryMemory.Address + (actor == 3 ? 6u : 14u), 2).Known.All(value => value));
-                return new(current, actor == 3 ? new(100, 200, 300) : new(-400, 500, -600));
+                Bones.Add((checked((byte)OriginalSlot(actor)), selector, distance));
+                SpawnWKnown.Add(current.Staging!.ReadSnapshot(NativeBattleTemporaryMemory.Address + (actor == OriginalOwner(3) ? 6u : 14u), 2).Known.All(value => value));
+                return new(current, actor == OriginalOwner(3) ? new(100, 200, 300) : new(-400, 500, -600));
             }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => Flags, (current, operation) =>
             {
                 Operations.Add(operation);

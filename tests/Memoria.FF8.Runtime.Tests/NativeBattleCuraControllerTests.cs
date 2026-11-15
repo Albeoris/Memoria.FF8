@@ -1,7 +1,6 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -51,11 +50,11 @@ public sealed class NativeBattleCuraControllerTests
     }
 
     [Fact]
-    public void Contact_uses_signed_greater_than_thirty_and_preserves_exact_sound_and_json_next_callback()
+    public void Contact_uses_signed_greater_than_thirty_and_preserves_exact_sound_and_private_next_callback()
     {
         var fixture = Fixture();
         NativeBattleCuraFrame frame = fixture.Frame;
-        List<int> applied = [];
+        List<BattleContactOccurrence> applied = [];
         List<NativeBattleModuleSound> sounds = [];
         NativeBattleCuraControllerInputs inputs = fixture.Inputs with { ApplyContact = applied.Add };
         NativeBattleCuraLeafStep Leaf(NativeBattleCuraFrame current, uint _) => new(current, 0);
@@ -70,8 +69,8 @@ public sealed class NativeBattleCuraControllerTests
             }
             else
             {
-                Assert.Equal(new[] { 0 }, step.Contacts);
-                Assert.Equal(new[] { 0 }, applied);
+                Assert.Equal(new BattleContactOccurrence(0), Assert.Single(step.Contacts));
+                Assert.Equal(new BattleContactOccurrence(0), Assert.Single(applied));
             }
             frame = step.Frame;
         }
@@ -81,7 +80,8 @@ public sealed class NativeBattleCuraControllerTests
         Assert.Equal((byte)128, sound.Pan);
         Assert.Equal(127u, sound.Volume);
         Assert.Null(sound.Anchor);
-        NativeBattleCuraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuraFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleCuraFrame restored = frame with { Effect = frame.Effect with { } };
+        Assert.Equal(OriginalOwner(3), restored.Effect.Parameters!.TargetActors.Enumerate().Single());
         var next = NativeBattleCuraController.Advance889E40(frame, fixture.Inputs, Resources(), Leaf);
         var independent = NativeBattleCuraController.Advance889E40(restored, fixture.Inputs, Resources(), Leaf);
         Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(independent));
@@ -115,12 +115,12 @@ public sealed class NativeBattleCuraControllerTests
     private static (NativeBattleCuraFrame Frame, NativeBattleCuraControllerInputs Inputs) Fixture(byte actor = 0)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        int headerIndex;
-        (packets, headerIndex) = packets.Prepare(new(actor, 2, 11, 0, 22, 1, null));
+        BattleModelOwner owner = OriginalOwner(actor);
+        (packets, BattleActionHeaderReference headerIndex) = packets.Prepare(new(owner, 2, 11, 0, 22, 1, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 1, 0, 0, 0, 100, 0), null));
         packets = packets.WritePlayerRepeatMode(headerIndex, 1);
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState selected = new(25, 24, new(25, 0x889D60, 0x889D40), new(actor, 1, 8, headerIndex, 0, 0), null);
+        NativeBattleOriginalEffectState selected = new(25, 24, new(25, 0x889D60, 0x889D40), new(owner, 1, BattleModelTargets.From([OriginalOwner(3)]), headerIndex, 0, 0), null);
         NativeBattleCuraFrame frame = NativeBattleCuraController.Initialize889D60(NativeBattleEffectMemory.FromColdProcess() with { Textures = null }, selected, packets, Resources());
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;

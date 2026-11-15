@@ -214,7 +214,7 @@ public sealed class NativeBattleBreath129ControllerTests
 
     private static NativeBattleBreath129Resources Resources() => new(new("unused", []), new(0x12239B8, []), new(0x1225468, []), new(0x1226098, []), new(0x122688C, []), new(0, 0x12238C0, 0, 0, []), new("unused", []), [], [], [], [], [], [], [], 0);
 
-    private static NativeBattleBreath129Inputs Inputs(List<string> order) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(checked((int)((actor - 0x1D972C0) / 156)), 3) { ActiveStagedResourceRow100 = 0x9000 + (actor - 0x1D972C0) / 156 }, (_, _) => throw new InvalidOperationException(), (frame, actor, selector, scale) =>
+    private static NativeBattleBreath129Inputs Inputs(List<string> order) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, actor) => new(3) { ActiveStagedResourceRow100 = 0x9000u + (uint)OriginalSlot(actor) }, (_, _) => throw new InvalidOperationException(), (frame, actor, selector, scale) =>
     {
         Assert.Equal(OriginalOwner(0), actor);
         Assert.Equal(9, selector);
@@ -230,7 +230,7 @@ public sealed class NativeBattleBreath129ControllerTests
         switch (operation)
         {
             case NativeBattleBreath129ComposeBody5095B0 composed:
-                order.Add($"compose:{composed.ActorAddress:X}");
+                order.Add($"compose:{NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(checked((byte)OriginalSlot(composed.Actor)))):X}");
                 break;
             case NativeBattleBreath129Stage5713E0 stage:
                 Assert.Equal(0, stage.Accumulator);

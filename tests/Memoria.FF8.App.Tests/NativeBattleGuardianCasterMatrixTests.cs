@@ -175,7 +175,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             WaitFor(() => battle.CanChoosePlayerCommand("caster"), 600);
             Assert.Equal(slot, FindOriginalModelSlot(battle.NativeGraphics!, "caster"));
             ushort[] visibility = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
-            string?[] ids = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => ReadOriginalModelActorId(battle.NativeGraphics, index)).ToArray();
+            string?[] ids = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => ReadOriginalModelActorId(battle.NativeGraphics!, index)).ToArray();
             BattleActionDefinition action = definition.ActionDefinitions.Single(item => item.Ability == BattleAbility.GuardianForce && item.Id == guardian);
             string target = action.Allies ? "caster" : "enemy";
             battle.QueueAction("caster", target, BattleAbility.GuardianForce, guardian);
@@ -213,7 +213,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             Assert.Equal(visibility, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)));
             for (int index = 0; index < 3; index++)
             {
-                Assert.Equal((byte)actors[index].ModelId, ReadOriginalModelCell(battle.NativeGraphics, index).ModelId4);
+                Assert.Equal((byte)actors[index].ModelId, ReadOriginalModelCell(battle.NativeGraphics!, index).ModelId4);
             }
             RoundTripNext();
             Record("passed");

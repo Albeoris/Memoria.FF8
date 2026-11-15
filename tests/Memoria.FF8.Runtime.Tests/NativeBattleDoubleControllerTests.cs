@@ -113,7 +113,7 @@ public sealed class NativeBattleDoubleControllerTests
             NativeBattleDoubleStep step = NativeBattleDoubleController.Advance8D5180(current, fixture.Resources, inputs, random);
             current = step.Frame;
             random = step.Random;
-            contacts.AddRange(step.Contacts);
+            contacts.AddRange(step.Contacts.Select(contact => contact.Ordinal));
             sounds.AddRange(step.Sounds);
             callbacks++;
         }

@@ -229,8 +229,8 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
 
     private static NativeBattleWaterScalarReferenceServices Services() => new((frame, selector) => ArenaBase + Reference, UnexpectedParameter, UnexpectedActor, UnexpectedAnchor, UnexpectedPost, UnexpectedPost, NativeBattleActorAnchorRegisterFixture.Services());
     private static byte UnexpectedParameter(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException("Unused parameter payload was consumed.");
-    private static NativeBattleGraphicsModel UnexpectedActor(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException("Unused actor was consumed.");
-    private static NativeBattleWaterActorAnchorSource UnexpectedAnchor(NativeBattleWaterExecutionFrame frame, uint address) => throw new InvalidOperationException("Unused current actor pose was consumed.");
+    private static NativeBattleGraphicsModel UnexpectedActor(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor) => throw new InvalidOperationException("Unused actor was consumed.");
+    private static NativeBattleWaterActorAnchorSource UnexpectedAnchor(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor) => throw new InvalidOperationException("Unused current actor pose was consumed.");
     private static NativeBattleWaterExecutionFrame UnexpectedPost(NativeBattleWaterExecutionFrame frame) => throw new InvalidOperationException("Unexpected update/cache call.");
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, short first = 0, short second = 0)

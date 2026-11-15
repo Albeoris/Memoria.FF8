@@ -7,7 +7,7 @@ public sealed class NativeBattleEffect60ParticlesTests
     public void Emitter_initializes_at_age36_without_birth_then_emits_two_children_on_ages37_through44()
     {
         NativeBattleEffect60ControllerTests.Fixture fixture = new();
-        fixture.Rotations[3] = NativeBattleEffect60ControllerTests.Fixture.PutWord(fixture.Rotations[3], 2, 0);
+        fixture.Rotations[OriginalOwner(3)] = NativeBattleEffect60ControllerTests.Fixture.PutWord(fixture.Rotations[OriginalOwner(3)], 2, 0);
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(5, NativeBattleEffect60Profile.DebrisEmitterCallback, 140, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = append.Hierarchy.Write(append.Address, append.Hierarchy.Read(append.Address).WriteWord(0x24, 36));

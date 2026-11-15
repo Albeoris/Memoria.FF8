@@ -1,3 +1,5 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -49,16 +51,17 @@ public sealed class NativeScanFixtureMigrationTests
         Assert.All(coldColors, color => Assert.NotNull(color));
         Assert.Null(original.Definition.NativeRetainedMemory!.ModelColors40);
         int[] inactiveIndices = [1, 2, 4, 5, 6];
-        Assert.Equal(inactiveIndices, original.NativeGraphics.Models.Where(model => model.Color40 is null).Select(model => model.Index).ToArray());
-        ImmutableArray<NativeBattleGraphicsModel>.Builder models = original.NativeGraphics.Models.ToBuilder();
+        Assert.Equal(inactiveIndices, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Where(slot => ReadOriginalModelCell(original.NativeGraphics, slot).Color40 is null).ToArray());
+        NativeBattleModelBoundary boundary = original.NativeGraphics.NativeBindings;
         foreach (int index in inactiveIndices)
         {
-            Assert.Equal(0, models[index].Flags0 & 2);
-            Assert.Null(original.NativeGraphics.ActorIds[index]);
-            models[index] = models[index] with { Color40 = coldColors[index] };
+            NativeBattleGraphicsModel cell = ReadOriginalModelCell(original.NativeGraphics, index);
+            Assert.Equal(0, cell.Flags0 & 2);
+            Assert.Null(ReadOriginalModelActorId(original.NativeGraphics, index));
+            boundary = boundary.WriteUnboundCell(NativeBattleModelSlot.Decode(checked((byte)index)), cell with { Color40 = coldColors[index] });
         }
-        Assert.Equal(original.NativeGraphics.Models[0], models[0]);
-        Assert.Equal(original.NativeGraphics.Models[3], models[3]);
+        Assert.Equal(ReadOriginalModelCell(original.NativeGraphics, 0), boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(0), original.NativeGraphics.ActorModels));
+        Assert.Equal(ReadOriginalModelCell(original.NativeGraphics, 3), boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(3), original.NativeGraphics.ActorModels));
         NativeInputConfiguration inputConfiguration = game.ReadNewGameInputConfiguration();
         Assert.Null(original.NativeScannedModels);
         Assert.Null(original.Definition.NativeScannedModels);
@@ -82,7 +85,7 @@ public sealed class NativeScanFixtureMigrationTests
         NativeBattleAtbState fullGauge = caster.NativeAtb! with { Current = caster.NativeAtb!.Maximum };
         NativeBattleGaugeRegistration registration = NativeBattleGaugeRegistrations.Evaluate4842B0(fullGauge, caster.NativeParticipant!.NativeCombatantFlags ?? throw new InvalidDataException("The fixture requires its actual saved participant flags."), caster.NativeStatus!.Saved, caster.NativeStatus.Battle);
         Assert.Equal(NativeBattleGaugeRegistrationKind.Menu, registration.Kind);
-        int casterIndex = original.NativeGraphics.ActorIds.IndexOf(casterId);
+        int casterIndex = FindOriginalModelSlot(original.NativeGraphics, casterId);
         Assert.InRange(casterIndex, 0, 2);
         NativeBattleUiServices ui = original.NativeGraphics.UiServices!;
         Assert.Equal(0u, ui.ReadyMask);
@@ -110,7 +113,7 @@ public sealed class NativeScanFixtureMigrationTests
             Definition = definition,
             NativeScannedModels = scannedModels,
             NativeEffectMemory = original.NativeEffectMemory with { Scan = cold },
-            NativeGraphics = original.NativeGraphics with { Models = models.ToImmutable(), UiServices = readyUi },
+            NativeGraphics = original.NativeGraphics with { NativeBindings = boundary, UiServices = readyUi },
             Combatants = original.Combatants.Select(actor => actor.Id == casterId ? actor with { Atb = fullGauge.Display, NativeAtb = fullGauge, NativeParticipant = actor.NativeParticipant! with { NativeCombatantFlags = registration.ActorFlags }, NativeMagicInventory = casterInventory.ToArray() } : actor.Id == enemy.Id ? actor with { NativeParticipant = actor.NativeParticipant! with { ElementDefenses = enemyDefenses.ToArray() } } : actor).ToArray()
         };
         List<Change> changes = [];

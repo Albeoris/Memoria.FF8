@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
         NativeBattleModuleState original = NativeBattleModuleState.Clear();
         NativeBattleModuleTask retained = original.Slots[1] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() };
         original = original with { Slots = original.Slots.SetItem(1, retained) };
-        NativeBattleModuleStep step = original.AppendModelEffect(4, (byte)selector).Advance(new(1));
+        NativeBattleModuleStep step = original.AppendModelEffect(OriginalOwner(4), (byte)selector, OriginalAliases).Advance(new(1));
         NativeBattleModuleTask child = Assert.Single(step.State.Slots, task => task.Flags != 0);
         Assert.Equal(NativeBattleModuleKind.SpectralCasting573800, child.Kind);
         Assert.Equal((short)0, Word(child, 0));
@@ -33,7 +34,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
     public void Controller_keeps_sound_CRT_child_order_and_same_pass_draws(int selector, ushort material)
     {
         NativeCrtRandomState random = new(7);
-        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(0, (byte)selector).Advance(Inputs(random));
+        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), (byte)selector, OriginalAliases).Advance(Inputs(random));
         Assert.Equal(new ushort[] { 22, 23 }, first.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).Select(draw => draw.Sound));
         Assert.Equal(21, first.State.PublishedCount);
         Assert.Equal(Advance(random, 120), first.CrtRandomAfter);
@@ -56,7 +57,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
     {
         NativeCrtRandomState initial = new(17);
         NativeCrtRandomState random = initial;
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, (byte)selector);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), (byte)selector, OriginalAliases);
         int callbacks = 0;
         while (state.Head is not null && callbacks < 64)
         {
@@ -176,7 +177,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
     [Fact]
     public void Missing_reached_owners_and_native_zero_divisor_remain_strict()
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 2);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(OriginalOwner(0), 2, OriginalAliases);
         Assert.Throws<NotSupportedException>(() => state.Advance(new(0)));
         Assert.Throws<NotSupportedException>(() => state.Advance(Inputs(new(7)) with { CrtRandom = null }));
         NativeBattleModuleInputs zero = Inputs(new(7)) with { ReadModelTransform = _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 0) };

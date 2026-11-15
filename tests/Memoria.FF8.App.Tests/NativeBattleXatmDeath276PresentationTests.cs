@@ -38,7 +38,7 @@ public sealed class NativeBattleXatmDeath276PresentationTests
         Assert.Equal((byte)19, header.Sequence);
         Assert.Equal((ushort)145, header.Action);
         Assert.Equal((ushort)276, header.Effect);
-        Assert.NotNull(header.FirstContactIndex);
+        Assert.NotNull(source.NativeActionPackets.ExportRetained().Headers[headerIndex].FirstContactIndex);
         Assert.Equal((byte)1, header.ReadContactCount());
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);

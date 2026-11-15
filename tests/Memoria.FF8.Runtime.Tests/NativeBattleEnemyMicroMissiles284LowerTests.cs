@@ -69,7 +69,7 @@ public sealed class NativeBattleEnemyMicroMissiles284LowerTests
         {
             var command = Assert.Single(operations.OfType<NativeBattleEnemyMicroMissiles284Reaction505C00>());
             Assert.Equal((byte)4, command.Sequence);
-            Assert.Equal(0x1D97494u, command.ModelAddress);
+            Assert.Equal(OriginalOwner(3), command.Owner);
         }
         var impact = Read(actual.Frame, ArenaAddress + 0xD80);
         Assert.Equal(variant == 0 ? ImpactAddress : WideImpactAddress, impact.ReadDword(48));

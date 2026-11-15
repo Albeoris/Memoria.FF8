@@ -10,7 +10,7 @@ public sealed class NativeBattleRetainedMemoryTests
     {
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
         cold.Validate();
-        Assert.Equal(0, cold.ActionPackets.Headers[0].ReadByte(17));
+        Assert.Equal(0, cold.ActionPackets.Headers[0].ReadOriginalByte(17));
         Assert.Equal(new(0, false, false), cold.AllocationControl);
         Assert.All(cold.PartyStatusMirrors.Saved, value => Assert.Equal((ushort)0, value));
         Assert.False(cold.ActionScratch.FinisherPendingE03);
@@ -28,18 +28,20 @@ public sealed class NativeBattleRetainedMemoryTests
     public void BattleEntryResetsOnlyCountsAndNewGameResetsObservedProcessMemory()
     {
         NativeBattleRetainedMemory initial = NativeBattleRetainedMemory.FromColdProcess();
-        NativeBattleActionPacketsState packets = initial.ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, initial.ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 1, -1, 12, 12, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 4, 0, 0, 0, 37, 0), null));
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 3).ActivateHeader(new BattleActionHeaderReference(0));
-        NativeBattleRetainedMemory observed = initial with { ActionPackets = packets, AllocationControl = new(5, true, true), PartyStatusMirrors = initial.PartyStatusMirrors.Observe(0, 0x20, 0x4000), EffectIoResult = -1 };
+        NativeBattleRetainedMemory observed = initial with { ActionPackets = packets.ExportRetained(), AllocationControl = new(5, true, true), PartyStatusMirrors = initial.PartyStatusMirrors.Observe(0, 0x20, 0x4000), EffectIoResult = -1 };
         BattleSession battle = new(Definition() with { NativeRetainedMemory = observed }, BattleAtbMode.Normal);
         Assert.Equal(0, battle.NativeActionPackets.ActionCount);
         Assert.Equal(0, battle.NativeActionPackets.ContactCount);
         Assert.Equal(2, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
-        Assert.Equal(37, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
-        Assert.Equal(0, battle.NativeActionPackets.ActiveHeaderIndex);
+        NativeBattleRetainedActionPackets retainedPackets = battle.NativeActionPackets.ExportRetained();
+        Assert.Equal(37, retainedPackets.Contacts[0]!.Primary.Amount6);
+        Assert.Equal(0, retainedPackets.ActiveHeaderIndex);
+        Assert.Null(battle.NativeActionPackets.ActiveHeader);
         Assert.Equal(observed.AllocationControl, battle.NativeScriptState.AllocationControl);
         Assert.Equal(-1, battle.NativeEffectIoResult);
         GameSession process = GameSession.CreateColdProcess();

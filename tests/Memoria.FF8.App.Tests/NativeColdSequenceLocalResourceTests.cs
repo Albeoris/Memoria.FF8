@@ -13,7 +13,7 @@ public sealed class NativeColdSequenceLocalResourceTests
         imported.Validate();
         Assert.NotNull(imported.ModelSequenceLocals);
         Assert.Equal(7, imported.ModelSequenceLocals.Value.Length);
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank(imported.ModelColors40, imported.ModelStatusTimers, imported.ModelWorldMatrices64, imported.ModelTransformRows, imported.ModelSequenceLocals);
+        NativeBattleGraphicsModel[] models = NativeBattleModelBoundary.FromRetainedMemory(imported).CaptureOriginalCells(new BattleActorModels([])).ToArray();
         foreach (NativeBattleGraphicsModel model in models)
         {
             Assert.NotNull(model.SequenceState);

@@ -17,7 +17,7 @@ public sealed class ExpandedAiQueuedGaugeTests
         BattleSnapshot queued = live.Capture();
         BattleAttackCommand command = Assert.Single(queued.QueuedActions);
         Assert.Equal(stage, command.NativeAiCallbackStage);
-        Assert.Equal(stage == 3 ? "enemy" : null, command.AiRecipients!.DeathSelfTargetId);
+        Assert.Equal(stage == 3 ? "enemy" : null, command.TargetRequest.DeathCallbackSelf?.ActorId);
         Assert.Equal(BattleSession.AtbMaximum, Enemy(queued).Atb);
         Assert.Null(Enemy(queued).NativeAtb);
         if (gauge != BattleSession.AtbMaximum)
@@ -67,7 +67,7 @@ public sealed class ExpandedAiQueuedGaugeTests
         if (compelled)
         {
             battle.Tick();
-            Assert.Equal(BattleAiTargetPolicy.Compelled, battle.ActiveAction?.AiRecipients?.TargetPolicy);
+            Assert.Equal(BattleTargetEligibility.CompelledAction, battle.ActiveAction?.TargetRequest.Eligibility);
         }
         else
         {
@@ -137,7 +137,7 @@ public sealed class ExpandedAiQueuedGaugeTests
     private static BattleSession RestoreAndVerify(BattleSnapshot snapshot)
     {
         string json = JsonSerializer.Serialize(snapshot);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
         return restored;
     }

@@ -133,8 +133,8 @@ public sealed class EncounterNativeDamageRoutingTests
         BattleSession battle = Create(100, drain: true);
         int before = battle.Combatants.Single(actor => actor.Id == "party").CurrentHp;
         NativeBattleContactPacket[] contacts = Hit(battle);
-        NativeBattleContactHalf secondary = Assert.Single(contacts, packet => packet.Secondary.Recipient != 255).Secondary;
-        Assert.Equal((byte)0, secondary.Recipient);
+        NativeBattleContactHalf secondary = Assert.IsType<NativeBattleContactHalf>(Assert.Single(contacts, packet => packet.Secondary is not null).Secondary);
+        Assert.Equal(new BattlePartyActorModel(new("party")), secondary.Recipient);
         Assert.True(secondary.PresentedAmount > 0);
         Assert.Equal(Math.Min(1000, before + secondary.PresentedAmount), battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
         Assert.Single(battle.Events, entry => entry.Kind == "Healing");
@@ -268,7 +268,7 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.Equal(enemyInit ? 1000 : 990, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
         Assert.Equal(900, battle.Combatants.Single(actor => actor.Id == "fourth").CurrentHp);
         Assert.All(battle.EncounterAllocation!.ActorIds, id => Assert.Equal(850, battle.Combatants.Single(actor => actor.Id == id).CurrentHp));
-        NativeBattleContactPacket countered = Assert.Single(battle.NativeActionPackets.ReadHeaderContacts506BA0(0), packet => packet.Primary.ActorIndex == 4);
+        NativeBattleContactPacket countered = Assert.Single(battle.NativeActionPackets.ReadHeaderContacts(new BattleActionHeaderReference(0)), packet => packet.Primary.Recipient == new BattleEnemyActorModel(new("fourth")));
         Assert.Equal(enemyInit ? (byte)5 : (byte)18, countered.Primary.Sequence);
         BattleSnapshot snapshot = battle.Capture();
         if (enemyInit)
@@ -376,8 +376,7 @@ public sealed class EncounterNativeDamageRoutingTests
             battle.Tick();
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        return Enumerable.Range(header.FirstContactIndex!.Value, header.ReadContactCount()).Select(battle.NativeActionPackets.ReadContact).ToArray();
+        return battle.NativeActionPackets.ReadHeaderContacts(new BattleActionHeaderReference(0)).ToArray();
     }
 
     private static BattleSession Create(int damage, bool allTargets = false, int maximumHp = 1000, bool drain = false, bool poison = false, bool fourthCounter = false)

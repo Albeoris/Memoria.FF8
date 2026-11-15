@@ -27,7 +27,7 @@ public sealed class NativeBattleIfritEntryTests
         Assert.Equal(0xB25DF0u, Assert.Single(pool.Slots).Callback);
         Assert.Equal(0, pool.Head);
         Assert.Equal(fixture.Memory.Textures, result.Memory.Textures);
-        Assert.Equal(fixture.Inputs.CurrentHeaderIndex, result.CurrentHeaderIndex);
+        Assert.Equal(fixture.Inputs.Selection.Header, result.CurrentHeader);
         for (int index = 1; index < 8; index++)
         {
             int offset = fixture.Inputs.Resource1.ArenaOffset + 0x58 + index * 0x100;
@@ -39,11 +39,11 @@ public sealed class NativeBattleIfritEntryTests
     }
 
     [Fact]
-    public void Independent_JSON_reproduces_entry_and_Water_wrapper_keeps_its_prior_validation()
+    public void Independent_owners_reproduce_entry_and_Water_wrapper_keeps_its_prior_validation()
     {
         var fixture = Fixture();
         NativeBattleIfritEntryStep expected = Initialize(fixture);
-        NativeBattleIfritEntryStep actual = Initialize((RoundTrip(fixture.Memory), RoundTrip(fixture.Effect), RoundTrip(fixture.Directories), RoundTrip(fixture.Inputs)));
+        NativeBattleIfritEntryStep actual = Initialize((RoundTrip(fixture.Memory), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Effect)), RoundTrip(fixture.Directories), fixture.Inputs));
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(RoundTrip(expected))));
         var water = NativeBattleWaterInitializationTests.Fixture();
@@ -89,7 +89,7 @@ public sealed class NativeBattleIfritEntryTests
         NativeBattleScriptedEffectMemory warm = new NativeBattleScriptedEffectMemory(NativeBattleEffectArena.Clear()).Write(NativeBattleScriptedEffectMemory.Address, Enumerable.Repeat((byte)0xA5, NativeBattleScriptedEffectMemory.Length).ToArray());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = shared.Arena, ScriptedEffects = warm };
         NativeBattleWaterInitializationInputs inputs = shared.Inputs with { InitializationDirectoryAddress = 0x1874894 };
-        NativeBattleOriginalEffectState effect = new(201, 200, new(201, 0xB25780, 0xB25750), new(inputs.Caster, 0, 0x14, inputs.CurrentHeaderIndex, 0, 0), null) { ResourcePointers = [new(0x2796E4C, inputs.Resource0.ArenaOffset), new(0x2796E48, inputs.Resource1.ArenaOffset)] };
+        NativeBattleOriginalEffectState effect = new(201, 200, new(201, 0xB25780, 0xB25750), new(inputs.Selection.Caster, 0, BattleModelTargets.From(inputs.Selection.Contacts), inputs.Selection.Header ?? throw new InvalidDataException("The combat entry requires its prepared header."), 0, 0), null) { ResourcePointers = [new(0x2796E4C, inputs.Resource0.ArenaOffset), new(0x2796E48, inputs.Resource1.ArenaOffset)] };
         return (memory, effect, directories, inputs);
     }
 

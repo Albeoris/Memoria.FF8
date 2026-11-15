@@ -11,7 +11,7 @@ public sealed class NativeBattleShot192Tests
     public void Every_physical_contact_gets_its_own_original_random_branch_and_delayed_impact_pair()
     {
         List<NativeBattleShot192Operation> operations = [];
-        List<int> bones = [];
+        List<BattleModelOwner> bones = [];
         NativeBattleActionPacketsState packets = Packets();
         NativeBattleShot192Frame frame = NativeBattleShot192.Enter(Fixture(), packets);
         NativeBattleShot192Inputs inputs = Inputs(packets, operations) with { ReadBone = (actor, bone, angle) =>
@@ -26,7 +26,7 @@ public sealed class NativeBattleShot192Tests
         frame = NativeBattleShot192.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { Parameter80 = 2, Parameter81 = 0 } } }, packets);
         frame = NativeBattleShot192.Advance(frame, inputs, Resources());
         frame = NativeBattleShot192.Advance(frame, inputs, Resources());
-        Assert.Equal(new[] { 3, 4, 4 }, bones);
+        Assert.Equal(new[] { OriginalOwner(3), OriginalOwner(4), OriginalOwner(4) }, bones);
         Assert.Equal(4, frame.Memory.Shot192!.ImpactSerial);
         Assert.Equal(14400, frame.Memory.Shot192.ImpactParticles.Length);
         Assert.Single(operations.OfType<NativeBattleShot192Contact>());
@@ -90,7 +90,7 @@ public sealed class NativeBattleShot192Tests
         }
         frame = NativeBattleShot192.Advance(frame, inputs, resources);
         Assert.Equal((byte)1, frame.Effect.Parameters!.Parameter81);
-        Assert.Contains(operations, operation => operation is NativeBattleShot192Bind { Actor: 0 });
+        Assert.Contains(operations, operation => operation is NativeBattleShot192Bind bind && bind.Actor == OriginalOwner(0));
         Assert.Contains(operations, operation => operation is NativeBattleShot192Sequence { Sequence: 1 });
         frame = NativeBattleShot192.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters with { Parameter80 = 2, Parameter81 = 0 } } }, packets);
         frame = NativeBattleShot192.Advance(frame, inputs, resources);

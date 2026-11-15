@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -198,12 +199,12 @@ public sealed class NativeBattleCinematicControlCommandsTests
         NativeBattleWaterExecutionFrame frame = Fixture(0xF0CE, offset);
         frame = frame with { Arena = frame.Arena.Write(0x201B, [actor]).MarkUnknown(0x2012, 2).MarkUnknown(0x1004, 2) };
         NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
-        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.SetRelativeActorIdCE(frame, Program);
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.SetRelativeActorIdCE(frame, Program, OriginalAliases);
         Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x2012, 2)));
         Assert.Equal(0x1004u, Pc(result));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.SetRelativeActorIdCE(replayFrame, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.SetRelativeActorIdCE(replayFrame, Program, OriginalAliases)));
     }
 
     [Theory]

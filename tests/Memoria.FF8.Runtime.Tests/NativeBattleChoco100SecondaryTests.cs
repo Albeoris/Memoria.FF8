@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -44,7 +45,7 @@ public sealed class NativeBattleChoco100SecondaryTests
         Assert.Equal(0x1D8E054u, frame.Task.ReadDword(0xBC));
         Assert.Equal(Work, frame.Settings!.WorkAddress());
 
-        NativeBattleChoco100SecondaryStep Advance(NativeBattleChoco100SecondaryFrame current, bool dormant) => NativeBattleChoco100Secondary.Advance716C20(current, Work, drawn =>
+        NativeBattleChoco100SecondaryStep Advance(NativeBattleChoco100SecondaryFrame current, bool dormant) => NativeBattleChoco100Secondary.Advance716C20(current, Work, OriginalAliases, drawn =>
         {
             Assert.False(dormant);
             Assert.True((drawn.Task.ReadByte(0x26) & 8) != 0);
@@ -66,7 +67,7 @@ public sealed class NativeBattleChoco100SecondaryTests
     {
         NativeBattleChoco100SecondaryFrame frame = Frame(1, 1);
         frame = frame with { Actor = frame.Actor with { GeometryBounds52 = new(new(0, 0, 0), new(0, (short)height, 0)) } };
-        NativeBattleChoco100SecondaryFrame next = NativeBattleChoco100Secondary.Advance716C20(frame, Work, value => value).Frame;
+        NativeBattleChoco100SecondaryFrame next = NativeBattleChoco100Secondary.Advance716C20(frame, Work, OriginalAliases, value => value).Frame;
         Assert.Equal((ushort)amplitude, next.Task.ReadWord(0xC2));
         Assert.Equal((ushort)frequency, next.Task.ReadWord(0xC8));
         Assert.Equal((ushort)0x180, next.Task.ReadWord(0xC0));
@@ -79,7 +80,7 @@ public sealed class NativeBattleChoco100SecondaryTests
     {
         NativeBattleChoco100SecondaryFrame frame = Frame(1, 1);
         frame = frame with { Actor = frame.Actor with { GeometryBounds52 = new(new(0, -30000, 0), new(0, 30000, 0)) } };
-        NativeBattleChoco100SecondaryFrame next = NativeBattleChoco100Secondary.Advance716C20(frame, Work, value => value).Frame;
+        NativeBattleChoco100SecondaryFrame next = NativeBattleChoco100Secondary.Advance716C20(frame, Work, OriginalAliases, value => value).Frame;
         Assert.Equal((ushort)1024, next.Task.ReadWord(0xC2));
         Assert.Equal((ushort)8, next.Task.ReadWord(0xC8));
         NativeBattleChoco100SecondarySettings unknown = NativeBattleChoco100SecondarySettings.Unknown();
@@ -101,9 +102,10 @@ public sealed class NativeBattleChoco100SecondaryTests
     private const uint Work = 0x20DFAB8 + 0x30000;
     private static NativeBattleChoco100SecondaryFrame Frame(byte phase, ushort timer)
     {
-        NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x716C20, new byte[0xD0 - 12].ToImmutableArray()).WriteByte(0x29, phase).WriteByte(0x2D, 0).WriteWord(0xCC, timer);
+        NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x716C20, new byte[0xD0 - 12].ToImmutableArray()).WriteByte(0x29, phase).WriteWord(0xCC, timer);
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 4096);
         NativeBattleGraphicsModel actor = new(0x802) { Rotation12 = 0, GeometryWorldMatrix = world, GeometryBounds52 = new(new(-10, -2048, -10), new(10, 2048, 10)) };
-        return new(task, actor, null);
+        NativeBattleEffectTaskActors actors = OriginalTaskActors(0, 0);
+        return new(actors.WriteTargetTo(task), OriginalOwner(0), actor, null);
     }
 }

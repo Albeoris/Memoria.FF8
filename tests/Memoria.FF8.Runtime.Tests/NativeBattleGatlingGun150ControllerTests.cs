@@ -60,7 +60,7 @@ public sealed class NativeBattleGatlingGun150ControllerTests
         Assert.Equal(frame, AdvanceDirector(frame, ChildBank, Resources(), paused).Frame);
         var active = AdvanceDirector(frame, ChildBank, Resources(), Inputs(operations));
         Assert.Equal(0, active.Result);
-        Assert.Equal(3, Assert.IsType<NativeBattleGatlingGun150ContactsAll>(Assert.Single(operations)).HeaderIndex);
+        Assert.Equal(3, Assert.IsType<NativeBattleGatlingGun150ContactsAll>(Assert.Single(operations)).Header.Ordinal);
         frame = Write(active.Frame, ChildBank, Read(active.Frame, ChildBank).WriteWord(12, 36));
         var finished = AdvanceDirector(frame, ChildBank, Resources(), Inputs(operations));
         Assert.Equal(2, finished.Result);

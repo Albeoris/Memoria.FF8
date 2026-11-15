@@ -160,7 +160,7 @@ public sealed class NativeBattleScanAlternateTests
         Assert.Equal((byte)3, Read(final.Frame.Scan, fixture.Address).ReadByte(0x29));
     }
 
-    private static NativeBattleScanAlternateFrame Alternate(NativeBattleScanFrame scan) => new(new(scan, Zero(8), Zero(8), 1), Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0x25)).ToImmutableArray(), 0, 0, 0);
+    private static NativeBattleScanAlternateFrame Alternate(NativeBattleScanFrame scan) => new(new(scan, Zero(8), Zero(8), 1), OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(0x25)))).Models, 0, 0, 0);
     private static NativeBattleScanAlternateFrame Tick(NativeBattleScanAlternateFrame frame, (NativeBattleScanFrame Scan, uint Address, NativeBattleActionPacketsState Packets) fixture) => NativeBattleScanAlternate.Advance850B40(frame, fixture.Address, new(fixture.Packets, _ => new(0, Zero(16)))).Frame;
     private static NativeBattleScanByteOwner Zero(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());
     private static NativeBattleModulePoolTask Read(NativeBattleScanFrame scan, uint address) => new NativeBattleEffectHierarchy(scan.Effect.Pools).Read(address);

@@ -248,7 +248,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         double Distance()
         {
             NativeBattleActionMatrix matrix = ReadOriginalModelCell(battle.NativeGraphics!, 0).GeometryWorldMatrix!;
-            int targetIndex = FindOriginalModelSlot(battle.NativeGraphics, "enemy");
+            int targetIndex = FindOriginalModelSlot(battle.NativeGraphics!, "enemy");
             NativeBattleVector destination = ReadOriginalModelCell(battle.NativeGraphics!, targetIndex).Transform!.Position28;
             return Math.Pow(matrix.X - destination.X, 2) + Math.Pow(matrix.Z - destination.Z, 2);
         }

@@ -190,7 +190,7 @@ public sealed class NativeBattleHeroControllerTests
         {
             if (operation is NativeBattleHeroContact contact)
             {
-                contacts.Add((tick, contact.Index));
+                contacts.Add((tick, contact.Index.Ordinal));
             }
             return current;
         } };
@@ -345,7 +345,7 @@ public sealed class NativeBattleHeroControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(4), 0, 0, 0, 18, effect, null));
         foreach (byte actor in actors)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 1, 0, 0, 0, 100, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 1, 0, 0, 0, 100, 0), null));
         }
         (packets, _) = packets.Publish(checked((byte)actors.Length));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(effect - 1);

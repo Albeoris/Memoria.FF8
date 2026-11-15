@@ -91,7 +91,7 @@ public sealed class NativeBattleBladeShot12PresentationTests
         NativeBattleOriginalEffectState effect = new(12, 11, new(12, Entry, Initializer), null, RootDescriptor) { Pools = [pool] };
         NativeBattleBladeShot12Frame frame = new(NativeBattleBladeShot12MeshContext88Tests.Memory(2000), effect, new(123), NativeBattleBladeShot12State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         List<NativeBattleBladeShot12DrawStatic88> draws = [];
-        NativeBattleBladeShot12Inputs inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => new(0, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleBladeShot12Inputs inputs = new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, (_, _, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, operation) =>
         {
             draws.Add(Assert.IsType<NativeBattleBladeShot12DrawStatic88>(operation));
             return current;

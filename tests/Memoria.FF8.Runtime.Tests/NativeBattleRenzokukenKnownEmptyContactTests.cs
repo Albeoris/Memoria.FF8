@@ -153,7 +153,7 @@ public sealed class NativeBattleRenzokukenKnownEmptyContactTests
 
     private static NativeBattleRenzokuken160Frame Frame(ushort effect, int duration = 4)
     {
-        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, true) with { Duration = duration };
+        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(true) with { Duration = duration };
         NativeBattleEffectMemory memory = effect == 160 ? NativeBattleEffectMemory.FromColdProcess() with { Renzokuken160 = core } : NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(effect, new(core, Resources(effect)) { ExtraStorage = new byte[3200].ToImmutableArray() }) };
         NativeBattleOriginalEffectState original = new(effect, effect - 1, new(effect, 0, 0), null, null);
         return new(memory, original, NativeCrtRandomState.FromColdProcess());

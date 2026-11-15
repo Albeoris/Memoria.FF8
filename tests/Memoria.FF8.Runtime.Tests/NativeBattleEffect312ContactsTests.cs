@@ -1,74 +1,48 @@
-using System.Collections.Immutable;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect312ContactsTests
 {
     [Fact]
-    public void Header_padding_has_no_reader_and_first_matching_actor_uses_native24byte_contact_stride()
+    public void Finds_first_matching_primary_at_its_relative_position_without_reading_unwritten_suffix()
     {
-        List<(uint Address, int Length)> reads = [];
-        int actual = NativeBattleEffect312Contacts.Find(0x3000, 0, (address, length) =>
-        {
-            reads.Add((address, length));
-            return address switch
-            {
-                0x3004 when length == 4 => Bytes(BitConverter.GetBytes(0x4000u)),
-                0x4010 when length == 1 => Bytes([3]),
-                0x4008 when length == 4 => Bytes(BitConverter.GetBytes(0x5000u)),
-                0x5000 when length == 1 => Bytes([2]),
-                0x5018 when length == 1 => Bytes([0]),
-                _ => throw new NotSupportedException("The requested physical bytes have no writer.")
-            };
-        });
-        Assert.Equal(1, actual);
-        Assert.Equal(new (uint, int)[] { (0x3004, 4), (0x4010, 1), (0x4008, 4), (0x5000, 1), (0x5018, 1) }, reads);
+        var (packets, header) = Prepare(3, OriginalOwner(2), OriginalOwner(0));
+        Assert.Equal(1, NativeBattleEffect312Contacts.Find(packets, header, OriginalOwner(0)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect312Contacts.Find(packets, header, OriginalOwner(1)));
     }
 
     [Fact]
-    public void Zero_count_does_not_read_the_unproduced_contact_pointer()
+    public void Zero_count_does_not_read_an_unwritten_contact()
     {
-        int actual = NativeBattleEffect312Contacts.Find(0x3000, 0, (address, length) => address switch
-        {
-            0x3004 when length == 4 => Bytes(BitConverter.GetBytes(0x4000u)),
-            0x4010 when length == 1 => Bytes([0]),
-            _ => throw new NotSupportedException("The requested physical bytes have no writer.")
-        });
-        Assert.Equal(-1, actual);
+        var (packets, header) = Prepare(0);
+        Assert.Null(NativeBattleEffect312Contacts.Find(packets, header, OriginalOwner(0)));
     }
 
     [Fact]
-    public void Missing_actor_returns_negative_one_after_the_declared_count()
+    public void Missing_actor_returns_no_position_after_the_declared_count()
     {
-        int contactReads = 0;
-        int actual = NativeBattleEffect312Contacts.Find(0x3000, 1, (address, length) =>
-        {
-            if (address == 0x3004 && length == 4)
-            {
-                return Bytes(BitConverter.GetBytes(0x4000u));
-            }
-            if (address == 0x4010 && length == 1)
-            {
-                return Bytes([2]);
-            }
-            if (address == 0x4008 && length == 4)
-            {
-                return Bytes(BitConverter.GetBytes(0x5000u));
-            }
-            Assert.Equal(1, length);
-            Assert.Equal(0x5000u + 24u * (uint)contactReads, address);
-            contactReads++;
-            return Bytes([2]);
-        });
-        Assert.Equal(-1, actual);
-        Assert.Equal(2, contactReads);
+        var (packets, header) = Prepare(2, OriginalOwner(2), OriginalOwner(2), OriginalOwner(1));
+        Assert.Null(NativeBattleEffect312Contacts.Find(packets, header, OriginalOwner(1)));
     }
 
     [Fact]
-    public void Required_header_count_still_requires_its_physical_writer()
+    public void Required_header_count_still_requires_its_actual_writer()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect312Contacts.Find(0x3000, 0, (address, length) => address == 0x3004 && length == 4 ? Bytes(BitConverter.GetBytes(0x4000u)) : NativeBattleEffectArena.Clear().MarkUnknown(0, length)));
+        var (packets, header) = Prepare(null);
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect312Contacts.Find(packets, header, OriginalOwner(0)));
     }
 
-    private static NativeBattleEffectArena Bytes(byte[] value) => NativeBattleEffectArena.Clear().Write(0, value);
+    private static (NativeBattleActionPacketsState Packets, BattleActionHeaderReference Header) Prepare(int? count, params BattleModelOwner[] targets)
+    {
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(3), 0, 0, 0, 0, 312, null));
+        packets = packets.AppendContacts(targets.Select(owner => new NativeBattleContactPacket(new(owner, 0, 0, 0, 0, 0, 0), null)));
+        if (count is int declared)
+        {
+            (packets, _) = packets.Publish(declared);
+        }
+        return (packets, header);
+    }
 }

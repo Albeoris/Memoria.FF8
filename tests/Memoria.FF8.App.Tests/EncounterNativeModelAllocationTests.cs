@@ -179,8 +179,8 @@ public sealed class EncounterNativeModelAllocationTests
         TickUntil(battle, () => Drained(battle), "fourth ordinary turn after resource compaction");
         Assert.Equal(removed, battle.Events.Count(entry => entry.Kind == "NativeModelRemoved"));
         BattleCombatant reused = Invoke<BattleCombatant>(battle, "AllocateNativeEnemy", fourth, 1, 4, true);
-        TickUntil(battle, () => reused.IsActive && ReadOriginalModelCell(battle.NativeGraphics, 4).EffectCounter97 == 2 && Drained(battle), "released physical slot reuse through native loader");
-        Assert.Equal(reused.Id, ReadOriginalModelActorId(battle.NativeGraphics, 4));
+        TickUntil(battle, () => reused.IsActive && ReadOriginalModelCell(battle.NativeGraphics!, 4).EffectCounter97 == 2 && Drained(battle), "released physical slot reuse through native loader");
+        Assert.Equal(reused.Id, ReadOriginalModelActorId(battle.NativeGraphics!, 4));
         Assert.True(fourth.IsActive);
     }
 

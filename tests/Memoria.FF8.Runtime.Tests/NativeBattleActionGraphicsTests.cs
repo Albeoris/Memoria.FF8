@@ -1,3 +1,5 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleActionGraphicsTests
@@ -172,8 +174,9 @@ public sealed class NativeBattleActionGraphicsTests
         NativeBattleActionGraphicsState result = NativeBattleActionGraphics.Normalize(packets, header);
         Assert.Equal(new BattleModelOwner[] { Target, Second }, result.TargetActors.Enumerate());
         Assert.Equal(new BattleModelOwner[] { Cover1, Cover2 }, result.CoverActors.Enumerate());
-        Assert.Equal(Second, result.FirstTarget);
-        Assert.Equal(Cover1, result.CoverSource);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, Source, new(2)), (1, Cover1, new(2)), (2, Cover2, new(2)), (3, Target, new(2)), (4, Second, new(2))]);
+        Assert.Equal(Second, result.FirstTargetBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(Cover1, result.CoverSourceBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(Source, result.CameraActor);
         Assert.Equal(2, result.FirstHeaderTargetCount);
         Assert.Equal(2, result.HitFlags);
@@ -194,7 +197,8 @@ public sealed class NativeBattleActionGraphicsTests
 
         NativeBattleActionGraphicsState result = NativeBattleActionGraphics.Normalize(packets, header);
         Assert.Equal(ordered, result.TargetActors.Enumerate());
-        Assert.Equal(ordered[^1], result.FirstTarget);
+        BattleActorModels models = new(ordered.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, new NativeBattleGraphicsModel(2))));
+        Assert.Equal(ordered[^1], result.FirstTargetBinding!.Resolve(models, NativeBattleModelBoundary.FromRetainedMemory(null)));
         Assert.Equal(31, result.FirstHeaderTargetCount);
     }
 
@@ -202,16 +206,20 @@ public sealed class NativeBattleActionGraphicsTests
     public void EmptyHeaderRetainsBoundOwnersAndRejectsARetiredReference()
     {
         NativeBattleActionPacketsState packets = Prepare();
-        NativeBattleActionGraphicsState prior = new(FirstHeader, Source, new(0), BattleModelTargets.From([Target]), BattleModelTargets.From([Cover1]), Cover1, Target, 2, null, 0x50B190);
+        NativeBattleActionGraphicsState prior = new(FirstHeader, Source, new(0), BattleModelTargets.From([Target]), BattleModelTargets.From([Cover1]),
+            BattleRetainedModelReference.Capture(Cover1, packets.ModelAliases), BattleRetainedModelReference.Capture(Target, packets.ModelAliases), 2, null, 0x50B190);
         NativeBattleActionGraphicsState next = NativeBattleActionGraphics.Normalize(packets, FirstHeader, prior);
-        Assert.Equal(Target, next.FirstTarget);
-        Assert.Equal(Cover1, next.CoverSource);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(1, Cover1, new(2)), (3, Target, new(2))]);
+        Assert.Equal(Target, next.FirstTargetBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(Cover1, next.CoverSourceBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
         Assert.True(next.TargetActors.IsEmpty);
         Assert.True(next.CoverActors.IsEmpty);
         Assert.Equal(0, next.HitFlags);
         var retired = new BattleEnemyActorModel(new("retired"));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.Normalize(packets, FirstHeader, prior with { FirstTarget = retired }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.Normalize(packets, FirstHeader, prior with { CoverSource = retired }));
+        BattleRetainedModelReference retiredBinding = BattleRetainedModelReference.Capture(retired, packets.ModelAliases);
+        NativeBattleActionGraphicsState carried = NativeBattleActionGraphics.Normalize(packets, FirstHeader, prior with { FirstTargetBinding = retiredBinding, CoverSourceBinding = retiredBinding });
+        Assert.Throws<InvalidDataException>(() => carried.FirstTargetBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Throws<InvalidDataException>(() => carried.CoverSourceBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
     }
 
     [Fact]

@@ -130,11 +130,11 @@ public sealed class BattleEncounterAllocationTests
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        Assert.Equal((byte)4, header.ReadByte(0));
+        Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(4), header.Source);
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)7, header.Sequence);
-        Assert.Equal((byte)0, header.ReadByte(4));
-        Assert.Equal((byte)0, battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary.ActorIndex);
+        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(4));
+        Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(0), battle.NativeActionPackets.ReadContact(header.FirstContact).Primary.Recipient);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Message");
         Assert.Null(battle.GetCombatantDefinition(batch.ActorIds[0]).Rewards);
     }

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -46,7 +47,7 @@ public sealed class NativeBattleEffect9PresentationTests
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleActionMatrix matrix = identity with { Z = 1024 };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        NativeBattleOriginalEffectState effect = new(9, 2, new(9, NativeBattleEffect9Controller.Entry, 0x8C0360), new(0, 0, 0, 0, 0, 0), 0);
+        NativeBattleOriginalEffectState effect = new(9, 2, new(9, NativeBattleEffect9Controller.Entry, 0x8C0360), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), 0);
         NativeBattleEffect9Frame frame = new(memory, effect, new(1), NativeBattleEffect9State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         return NativeBattleEffect9Body.Draw(frame, [new(mesh, new([]), true) { AuthoredMesh = 3 }], [identity], matrix, new(identity, 216, 160, 108), -10, 200, 128, 1, capture ? new NativeBattlePilotVisualIdentity(9, 0x2500000, 0, 7, 0) { ResourceGeneration = 31 } : null);
     }

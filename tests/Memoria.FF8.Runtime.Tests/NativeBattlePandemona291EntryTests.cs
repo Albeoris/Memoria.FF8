@@ -18,7 +18,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(0u, state.Scratch25562EC);
         Assert.Equal(17u, state.Pause2556258);
         Assert.Equal(3u, state.StaticLoadState13BBBE8);
-        Assert.Equal(0x1D972C0u + 3 * 0x9Cu, state.Caster2556260);
+        Assert.Equal(OriginalOwner(3), result.Effect.Parameters!.Source);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress, state.ModelBuffer25562F4);
         NativeBattleEffectTextureState textures = result.Memory.Textures!;
         Assert.Equal(2, textures.Count);
@@ -37,7 +37,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
     public void EntryStandaloneSnapshotReproducesTheSameCurrentStateWithoutDefaultingWarmOwners()
     {
         var fixture = Fixture();
-        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.Independent(fixture.Frame);
         var live = NativeBattlePandemona291Entry.Initialize6ED250(fixture.Frame, fixture.Resources, fixture.Packets, ReadModel);
         var resumed = NativeBattlePandemona291Entry.Initialize6ED250(restored, fixture.Resources, fixture.Packets, ReadModel);
         Assert.Equal(NativeBattleTestSnapshots.Json(live), NativeBattleTestSnapshots.Json(resumed));
@@ -63,7 +63,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
             frame = NativeBattlePandemona291Controller.Advance6ED350(frame, (_, _) => { });
         }
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[0].ReadWord(0xC));
-        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.Independent(frame);
         string before = NativeBattleTestSnapshots.Json(restored);
         Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291Controller.Advance6ED350(restored, (_, _) => throw new InvalidOperationException()));
         Assert.Equal(before, NativeBattleTestSnapshots.Json(restored));
@@ -97,15 +97,15 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(new[] { 0x20DFAB8u + 0x151D4u, 0x20DFAB8u + 0x71D4u }, cursors);
     }
 
-    private static NativeBattleGraphicsModel ReadModel(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, checked((short)(index == 0 ? -103 : 100))), 0, 0, 0) };
+    private static NativeBattleGraphicsModel ReadModel(BattleModelOwner owner) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, checked((short)(owner == OriginalOwner(0) ? -103 : 100))), 0, 0, 0) };
 
     private static (NativeBattlePandemona291Frame Frame, NativeBattlePandemona291Resources Resources, NativeBattleActionPacketsState Packets) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 240, 0, 0, 3, 291, null));
         foreach (byte actor in new byte[] { 0, 1 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(2);
         NativeBattleOriginalEffectState effect = new(291, 290, new(291, 0x6ED250, 0), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), 0, 0), null);

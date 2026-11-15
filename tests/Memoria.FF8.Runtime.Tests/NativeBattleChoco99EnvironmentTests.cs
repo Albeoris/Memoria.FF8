@@ -32,22 +32,24 @@ public sealed class NativeBattleChoco99EnvironmentTests
         Assert.Equal(0xDEADBEEFu, U32(hidden.Frame.Context, 0x30));
         Assert.Equal(0x106u, U32(hidden.Frame.Context, 0x34));
         Assert.Equal(0x802u, U32(hidden.Frame.Context, 0x38));
-        Assert.Equal(source.Models.Take(3), hidden.Frame.Models.Take(3));
-        ImmutableArray<NativeBattleGraphicsModel>.Builder changed = hidden.Frame.Models.ToBuilder();
-        changed[3] = changed[3] with { Flags0 = (ushort)(changed[3].Flags0 | 0x4000) };
-        changed[5] = changed[5] with { Flags0 = (ushort)(changed[5].Flags0 & ~6) };
-        NativeBattleChoco99EnvironmentFrame restore = hidden.Frame with { Task = Task(0x721460, 1), Models = changed.ToImmutable(), Context = hidden.Frame.Context.WriteWord(0x40, 10) };
+        Assert.Equal(source.Models.Party.Entries, hidden.Frame.Models.Party.Entries);
+        BattleModelOwner firstEnemy = OriginalOwner(3);
+        BattleModelOwner nextEnemy = OriginalOwner(5);
+        BattleActorModels changed = hidden.Frame.Models;
+        changed = changed.Set(firstEnemy, changed.Get(firstEnemy) with { Flags0 = (ushort)(changed.Get(firstEnemy).Flags0 | 0x4000) });
+        changed = changed.Set(nextEnemy, changed.Get(nextEnemy) with { Flags0 = (ushort)(changed.Get(nextEnemy).Flags0 & ~6) });
+        NativeBattleChoco99EnvironmentFrame restore = hidden.Frame with { Task = Task(0x721460, 1), Models = changed, Context = hidden.Frame.Context.WriteWord(0x40, 10) };
         NativeBattleChoco99EnvironmentStep restored = NativeBattleChoco99Environment.Advance(restore, (current, sound) =>
         {
             Assert.Equal(new byte[] { 7, 6, 1, 0 }, current.Stage.Groups.Select(group => group.Flags));
             Assert.Equal(0x4102, current.Models.Get(OriginalOwner(3)).Flags0);
-            Assert.Equal(changed[5], current.Models.Get(OriginalOwner(5)));
+            Assert.Equal(changed.Get(nextEnemy), current.Models.Get(nextEnemy));
             Assert.Equal(new NativeBattleChoco99EnvironmentSound(0x1529FB0, 0, 128), sound);
             sounds.Add(sound.Descriptor);
             return current;
         });
         Assert.True(restored.ReadyToComplete);
-        Assert.Equal(source.Models.Take(3), restored.Frame.Models.Take(3));
+        Assert.Equal(source.Models.Party.Entries, restored.Frame.Models.Party.Entries);
         Assert.Equal(new uint[] { 0x1529FAC, 0x1529FB0 }, sounds);
         Assert.Equal(source.Stage.Groups.Select(group => (group.ColorDepth, group.ColorFlags)), restored.Frame.Stage.Groups.Select(group => (group.ColorDepth, group.ColorFlags)));
     }
@@ -130,6 +132,7 @@ public sealed class NativeBattleChoco99EnvironmentTests
         byte[] flags = [7, 6, 3, 2];
         stage = stage with { Groups = stage.Groups.Select((group, index) => group with { Flags = flags[index], ColorDepth = 99, ColorFlags = 0xAB123456 }).ToImmutableArray() };
         ushort[] actors = [0xF02, 0xA02, 0x402, 0x102, 0xFF04, 0x106, 0x802];
-        return new(Task(callback, phase), NativeBattleChoco99Context.Clear718670().WriteWord(0x40, mode).WriteWord(0x44, mode), stage, actors.Select((actor, index) => new NativeBattleGraphicsModel(actor)).ToImmutableArray(), 0, 0);
+        var (models, boundary) = OriginalModels(actors.Select((flags, slot) => (slot, new NativeBattleGraphicsModel(flags))));
+        return new(Task(callback, phase), NativeBattleChoco99Context.Clear718670().WriteWord(0x40, mode).WriteWord(0x44, mode), stage, models, boundary, 0, 0);
     }
 }

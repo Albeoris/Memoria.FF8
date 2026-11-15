@@ -151,7 +151,7 @@ public sealed class NativeBattleBlizzagaControllerTests
 
     private static NativeBattleActionMatrix View => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
     private static uint Dword(NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);
-    private static NativeBattleBlizzagaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame>? execute = null, Action<NativeBattleBlizzagaModelBandRequest>? bands = null, Action<int>? ribbonPackets = null) => new(0, packets, 0, View, actor => new(unchecked((short)(100 + actor * 20)), -200, 300), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new(10, 20, 30, (short)OriginalSlot(actor)), (frame, request) =>
+    private static NativeBattleBlizzagaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame>? execute = null, Action<NativeBattleBlizzagaModelBandRequest>? bands = null, Action<int>? ribbonPackets = null) => new(0, packets, OriginalOwner(0), View, actor => new(unchecked((short)(100 + OriginalSlot(actor) * 20)), -200, 300), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new(10, 20, 30, (short)OriginalSlot(actor)), (frame, request) =>
     {
         bands?.Invoke(request);
         return new(frame, -100, 200);

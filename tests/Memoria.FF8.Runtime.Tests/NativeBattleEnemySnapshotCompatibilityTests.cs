@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -75,7 +76,7 @@ public sealed class NativeBattleEnemySnapshotCompatibilityTests
             snapshot = snapshot with
             {
                 Definition = snapshot.Definition with { NativeGraphics = new(rules, [], []) },
-                NativeGraphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0),
+                NativeGraphics = OriginalGraphics([]),
                 NativePartyPresentation = new([null, null, null]),
                 NativeModelCpuResources = cpu
             };

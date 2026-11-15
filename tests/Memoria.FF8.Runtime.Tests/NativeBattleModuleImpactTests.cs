@@ -191,7 +191,7 @@ public sealed class NativeBattleModuleImpactTests
     public void Resource_callback_dispatch_uses_impact_seed_and_same_pass_child_without_defensive_sound()
     {
         var resource = Resource();
-        var state = NativeBattleModuleState.Clear().AppendModelResource(6, resource, 0x007F001F);
+        var state = NativeBattleModuleState.Clear().AppendModelResource(OriginalOwner(6), resource, 0x007F001F, OriginalAliases);
         int anchors = 0;
         var actual = state.Advance(new(0) { Resources = [resource], CrtRandom = new(1), ReadModelRotation14 = _ => 2048, ReadModelAnchor = actor =>
         {

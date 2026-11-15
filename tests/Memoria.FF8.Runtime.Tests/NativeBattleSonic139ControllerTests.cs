@@ -102,7 +102,7 @@ public sealed class NativeBattleSonic139ControllerTests
             switch (operation)
             {
                 case NativeBattleSonic139WriteActorColor color:
-                    Assert.Equal(0x1D972C0u, color.ActorAddress);
+                    Assert.Equal(OriginalOwner(0), color.Actor);
                     Assert.Equal(0x9A123456u, color.Color);
                     order.Add("restore");
                     break;
@@ -112,7 +112,7 @@ public sealed class NativeBattleSonic139ControllerTests
                     order.Add("clear");
                     break;
                 case NativeBattleSonic139ContactForActor contact:
-                    Assert.Equal(0x1D972C0u, contact.ActorAddress);
+                    Assert.Equal(OriginalOwner(0), contact.Actor);
                     order.Add("contact");
                     break;
                 default:

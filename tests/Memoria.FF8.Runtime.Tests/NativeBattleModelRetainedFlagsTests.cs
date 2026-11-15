@@ -21,7 +21,8 @@ public sealed class NativeBattleModelRetainedFlagsTests
     public void Bank_clear_changes_only_word0_and_preserves_each_rows_captured_word2()
     {
         ImmutableArray<NativeBattleModelRetainedFields> retained = Enumerable.Range(0, 7).Select(index => NativeBattleModelRetainedFields.Capture(new(0xFFFF) { Flags2 = (ushort)(0x8000 + 17 * index) })).ToImmutableArray();
-        NativeBattleGraphicsModel[] cleared = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: retained);
+        NativeBattleModelBoundary boundary = NativeBattleModelBoundary.FromRetainedMemory(NativeBattleRetainedMemory.FromColdProcess() with { ModelTransformRows = retained });
+        ImmutableArray<NativeBattleGraphicsModel> cleared = boundary.CaptureOriginalCells(new BattleActorModels([]));
         for (int index = 0; index < cleared.Length; index++)
         {
             Assert.Equal((ushort)0, cleared[index].Flags0);

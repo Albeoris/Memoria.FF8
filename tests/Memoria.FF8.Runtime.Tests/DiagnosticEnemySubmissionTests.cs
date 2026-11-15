@@ -1,5 +1,4 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 
@@ -25,7 +24,7 @@ public sealed class DiagnosticEnemySubmissionTests
         Assert.Equal(3, receipt.ActorIndex);
         Assert.Equal(Selection, receipt.Selection);
         Assert.Equal((ushort)3, receipt.ExpectedEffect);
-        Assert.Equal(queued.NativeTargetMask, receipt.TargetMask);
+        Assert.Equal(NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, _ => null), receipt.TargetMask);
         Assert.Equal((ushort)1, receipt.TargetMask);
         Assert.DoesNotContain("LastDiagnosticEnemySubmission", JsonSerializer.Serialize(session.Capture()));
         BattleDiagnosticEnemySubmission restored = JsonSerializer.Deserialize<BattleDiagnosticEnemySubmission>(JsonSerializer.Serialize(receipt))!;
@@ -77,8 +76,16 @@ public sealed class DiagnosticEnemySubmissionTests
         BattleSession session = Create();
         BattleDiagnosticEffectDispatch? observed = null;
         session.DiagnosticEffectDispatched += dispatch => observed = dispatch;
-        NativeBattleGraphicsState graphics = new(ImmutableArray<NativeBattleGraphicsModel>.Empty, ["party", null, null, "enemy", null, null, null], 0, 42);
-        NativeBattleOriginalEffectState effect = new(3, 2, new(3, 0, 0), hasParameters ? new(OriginalOwner(3), 0, 4, -1, 0, 0) : null, null);
+        BattleModelOwner party = session.NativeActionPackets.ModelAliases.DecodeLiteral(0);
+        BattleModelOwner enemy = session.NativeActionPackets.ModelAliases.DecodeLiteral(3);
+        BattleModelOwner recipient = new BattleForeignPartyModel(new("observed-target"));
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, party, new(2)), (2, recipient, new(2)), (3, enemy, new(2))], callback: 42);
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
+        NativeBattleActionPacketsState packets = session.NativeActionPackets.WithRoster(graphics.ActorModels.Roster, aliases);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(enemy, 2, 0, -1, 7, 3, null));
+        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
+        NativeBattleEffectParameters? parameters = hasParameters ? new NativeBattleEffectParameters(enemy, 0, BattleModelTargets.From([recipient]), header, 0, 0).CaptureOriginalWindow(aliases) : null;
+        NativeBattleOriginalEffectState effect = new(3, 2, new(3, 0, 0), parameters, null);
         typeof(BattleSession).GetMethod("ObserveDiagnosticEffectDispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, effect]);
         Assert.Equal(hasParameters ? (ushort?)4 : null, observed!.NativeTargetMask);
     }

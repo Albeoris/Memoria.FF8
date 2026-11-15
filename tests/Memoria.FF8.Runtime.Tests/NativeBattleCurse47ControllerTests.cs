@@ -121,7 +121,7 @@ public sealed class NativeBattleCurse47ControllerTests
         frame = fixture.Step(frame);
         Assert.Empty(fixture.Operations.OfType<NativeBattleCurse47Contact>());
         frame = fixture.Step(frame with { State = frame.State.WithSharedWord(0x48, 1) });
-        Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattleCurse47Contact>()).Index);
+        Assert.Equal(0, Assert.Single(fixture.Operations.OfType<NativeBattleCurse47Contact>()).Cursor.Ordinal);
         Assert.Equal((byte)2, NativeBattleCurse47Controller.Read(frame, target).ReadByte(0x29));
         frame = NativeBattleCurse47Controller.Write(frame, target, NativeBattleCurse47Controller.Read(frame, target).WriteByte(0x28, 1));
         frame = fixture.Step(frame with { State = frame.State.WithSharedWord(0x4C, 1) });

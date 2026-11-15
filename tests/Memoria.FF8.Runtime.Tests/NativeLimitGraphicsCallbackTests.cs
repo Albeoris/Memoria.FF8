@@ -1,10 +1,12 @@
-using System.Collections.Immutable;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeLimitGraphicsCallbackTests
 {
+    private static readonly BattleTargetRequest Target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+
     [Theory]
     [InlineData("Shot")]
     [InlineData("Duel")]
@@ -18,13 +20,13 @@ public sealed class NativeLimitGraphicsCallbackTests
         switch (limit)
         {
             case "Shot":
-                Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses").Add("party", new(0, 8, 800, 800, 2, BattleNativeShotPhase.Ready));
+                Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses").Add("party", new(0, Target, 800, 800, 2, BattleNativeShotPhase.Ready));
                 break;
             case "Duel":
-                Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses").Add("party", new(0, 8, 800, 800, BattleNativeDuelPhase.Ready));
+                Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses").Add("party", new(0, Target, 800, 800, BattleNativeDuelPhase.Ready));
                 break;
             case "Renzokuken":
-                Field<Dictionary<string, BattleNativeRenzokukenState>>(session, "nativeRenzokukenProcesses").Add("party", new(160, 8, null, new()));
+                Field<Dictionary<string, BattleNativeRenzokukenState>>(session, "nativeRenzokukenProcesses").Add("party", new(160, Target, null, new()));
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(limit));
@@ -43,7 +45,7 @@ public sealed class NativeLimitGraphicsCallbackTests
     {
         BattleSession session = Fixture();
         Dictionary<string, BattleNativeShotState> shots = Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses");
-        BattleNativeShotState before = new(0, 8, 160, 139, 9, phase) { UiSubframeTicks = 123 };
+        BattleNativeShotState before = new(0, Target, 160, 139, 9, phase) { UiSubframeTicks = 123 };
         shots.Add("party", before);
         NativeBattleGraphicsState graphics = Graphics();
 
@@ -58,7 +60,7 @@ public sealed class NativeLimitGraphicsCallbackTests
     {
         BattleSession session = Fixture();
         Dictionary<string, BattleNativeShotState> shots = Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses");
-        BattleNativeShotState ending = new(0, 8, 160, -1, 0, BattleNativeShotPhase.Ending);
+        BattleNativeShotState ending = new(0, Target, 160, -1, 0, BattleNativeShotPhase.Ending);
         shots.Add("party", ending);
 
         Invoke(session, Graphics(), 0x4AD7C0);
@@ -73,7 +75,7 @@ public sealed class NativeLimitGraphicsCallbackTests
     {
         BattleSession session = Fixture();
         Dictionary<string, BattleNativeDuelState> duels = Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses");
-        BattleNativeDuelState before = new(2, 8, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8], InputCursor = 5, AutomaticCountdown = 30, PreviousButtons = 8, PendingPulse = 4, UiSubframeTicks = 91 };
+        BattleNativeDuelState before = new(2, Target, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8], InputCursor = 5, AutomaticCountdown = 30, PreviousButtons = 8, PendingPulse = 4, UiSubframeTicks = 91 };
         duels.Add("party", before);
 
         Invoke(session, Graphics(), callback);
@@ -94,11 +96,11 @@ public sealed class NativeLimitGraphicsCallbackTests
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, Graphics());
         Dictionary<string, BattleNativeShotState> shots = Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses");
         Dictionary<string, BattleNativeDuelState> duels = Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses");
-        BattleNativeShotState shot = new(0, 8, 160, 139, 9, BattleNativeShotPhase.AwaitingEffect);
-        BattleNativeDuelState duel = new(2, 8, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8] };
+        BattleNativeShotState shot = new(0, Target, 160, 139, 9, BattleNativeShotPhase.AwaitingEffect);
+        BattleNativeDuelState duel = new(2, Target, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8] };
         shots.Add("party", shot);
         duels.Add("party", duel);
-        BattleActionPresentation presentation = new("party", "enemy", BattleActionPhase.Recovery, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.LimitBreak, 0);
+        BattleActionPresentation presentation = new("party", "enemy", BattleActionPhase.Recovery, 0, Target, BattleAbility.LimitBreak, 0);
 
         Assert.True((bool)typeof(BattleSession).GetMethod("CompleteNativeShotAction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [presentation with { NativeLimitCallback = NativeLimitCallback.ShotEffect }])!);
         Assert.True((bool)typeof(BattleSession).GetMethod("CompleteNativeDuelAction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [presentation with { NativeLimitCallback = NativeLimitCallback.DuelEffect }])!);
@@ -113,7 +115,7 @@ public sealed class NativeLimitGraphicsCallbackTests
 
     private static NativeBattleGraphicsState Graphics()
     {
-        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((byte)index, 0)).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        return OriginalGraphics([]);
     }
 
     private static T Field<T>(BattleSession session, string name)

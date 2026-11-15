@@ -44,7 +44,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(frame.Random, result.Frame.Random);
         NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(result.Frame.Memory.Arena!, 0x31238, 1);
         Assert.Equal(new NativeBattleVector(0, 0, 0), pose.Translation);
-        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattlePandemona291Body.Initialize99(restored, address, task, () => { })));
     }
 

@@ -1,13 +1,14 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect312Controller;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect312LateTests
 {
     private const uint TaskAddress = 0x223E1B8;
-    private const uint Model = 0x1D9735C;
+    private static readonly BattleModelOwner Model = OriginalOwner(1);
     private const uint Saved = 0x223EFE4;
 
     [Fact]
@@ -34,7 +35,7 @@ public sealed class NativeBattleEffect312LateTests
         Harness harness = new();
         NativeBattleEffectArena original = harness.ModelBytes;
         NativeBattleEffect312Frame frame = Frame(0x5A0AA0, 0);
-        frame = Write(frame, TaskAddress, Read(frame, TaskAddress).WriteWord(14, 1).WriteWord(32, 500));
+        frame = Write(frame, TaskAddress, ModelTarget(Read(frame, TaskAddress)).WriteWord(32, 500));
         NativeBattleEffect312Step first = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
         Assert.Equal(0, first.Result);
         Assert.Equal(0x1123, U16(harness.ModelBytes, 0));
@@ -56,13 +57,13 @@ public sealed class NativeBattleEffect312LateTests
     {
         Harness harness = new() { Flags = 0x201 };
         NativeBattleEffect312Frame frame = WithSaved(Frame(0x5A0AA0, 3), harness.ModelBytes);
-        frame = Write(frame, TaskAddress, Read(frame, TaskAddress).WriteWord(14, 1).WriteWord(32, 500));
+        frame = Write(frame, TaskAddress, ModelTarget(Read(frame, TaskAddress)).WriteWord(32, 500));
         NativeBattleEffect312Step step = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
         Assert.Equal(0, step.Result);
         Assert.Equal(3, Read(step.Frame, TaskAddress).ReadWord(12));
         Assert.Equal(813, U16(harness.ModelBytes, 30));
         Assert.Equal(0x1123, U16(harness.ModelBytes, 0));
-        Assert.All(harness.Operations.OfType<NativeBattleEffect312WriteModelBytes>(), write => Assert.Equal(Model, write.ModelAddress));
+        Assert.All(harness.Operations.OfType<NativeBattleEffect312WriteModelBytes>(), write => Assert.Equal(Model, write.Model));
         Assert.Equal(frame.Random, step.Frame.Random);
     }
 
@@ -72,8 +73,8 @@ public sealed class NativeBattleEffect312LateTests
         Harness harness = new() { Sequence = 6 };
         NativeBattleEffectArena original = harness.ModelBytes;
         NativeBattleEffect312Frame frame = WithSaved(Frame(0x5A0BF0, 27), original);
-        frame = Write(frame, TaskAddress, Read(frame, TaskAddress).WriteWord(14, 1).WriteWord(26, 2).WriteWord(32, unchecked((ushort)-3000)));
-        frame = frame with { State = frame.State.WriteDword(0x2240EB8, 0x1D99A78), ReadPhysical = harness.Physical };
+        frame = Write(frame, TaskAddress, Contact(ModelTarget(Read(frame, TaskAddress)), 2).WriteWord(32, unchecked((ushort)-3000)));
+
         NativeBattleEffect312Step waiting = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
         Assert.Equal(0, waiting.Result);
         Assert.Equal(28, Read(waiting.Frame, TaskAddress).ReadWord(12));
@@ -81,7 +82,7 @@ public sealed class NativeBattleEffect312LateTests
         harness.Sequence = 33;
         NativeBattleEffect312Step completed = NativeBattleEffect312Late.Advance(waiting.Frame, TaskAddress, null!, harness.Inputs());
         Assert.Equal(2, completed.Result);
-        Assert.Equal(0x1D99C30u, Assert.Single(harness.Operations.OfType<NativeBattleEffect312Contact506690>()).TargetArgumentAddress);
+        Assert.Equal(new BattleContactOccurrence(2), Assert.Single(harness.Operations.OfType<NativeBattleEffect312Contact506690>()).Occurrence);
         Assert.Equal(original.Read(12, 8), harness.ModelBytes.Read(12, 8));
         Assert.Equal(original.Read(28, 8), harness.ModelBytes.Read(28, 8));
     }
@@ -91,7 +92,7 @@ public sealed class NativeBattleEffect312LateTests
     {
         Harness harness = new() { Flags = 0x201 };
         NativeBattleEffect312Frame frame = WithSaved(Frame(0x5A0BF0, 20), harness.ModelBytes);
-        NativeBattleModulePoolTask task = Read(frame, TaskAddress).WriteWord(14, 1).WriteWord(24, 4096).WriteWord(26, 0).WriteWord(32, unchecked((ushort)-3000));
+        NativeBattleModulePoolTask task = Contact(ModelTarget(Read(frame, TaskAddress)), 0).WriteWord(24, 4096).WriteWord(32, unchecked((ushort)-3000));
         task = task.WriteBytes(16, new byte[8]);
         frame = Write(frame, TaskAddress, task);
         NativeBattleEffect312Step result = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
@@ -107,7 +108,7 @@ public sealed class NativeBattleEffect312LateTests
     {
         Harness harness = new();
         NativeBattleEffect312Frame frame = WithSaved(Frame(0x5A0BF0, 20), harness.ModelBytes);
-        NativeBattleModulePoolTask task = Read(frame, TaskAddress).WriteWord(14, 1).WriteWord(24, 4096).WriteWord(26, unchecked((ushort)-1)).WriteWord(32, unchecked((ushort)-3000)).WriteBytes(16, new byte[8]);
+        NativeBattleModulePoolTask task = Contact(ModelTarget(Read(frame, TaskAddress)), null).WriteWord(24, 4096).WriteWord(32, unchecked((ushort)-3000)).WriteBytes(16, new byte[8]);
         frame = Write(frame, TaskAddress, task);
         NativeCrtRandomState expectedRandom = frame.Random.Draw(out ushort value);
         NativeBattleEffect312Step result = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
@@ -278,8 +279,31 @@ public sealed class NativeBattleEffect312LateTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x223E1A8, TaskAddress, 36, 100);
         (pool, int slot) = pool.Append(callback);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, age));
-        NativeBattleOriginalEffectState effect = new(312, 311, new(312, 0x59CB90, 0x59CB70), new(3, 0, 1, 0, 0, 0), null) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(312, 311, new(312, 0x59CB90, 0x59CB70), new(OriginalOwner(3), 0, BattleModelTargets.From([Model]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(83), NativeBattleEffect312State.FromColdProcess().DetachBank(1));
+    }
+
+    private static NativeBattleActionPacketsState Packets()
+    {
+        (NativeBattleActionPacketsState packets, _) = OriginalPackets().Prepare(new(OriginalOwner(3), 0, 0, 0, 0, 0, null));
+        for (int index = 0; index < 3; index++)
+        {
+            (packets, _) = packets.AppendContact(new(new(Model, 0, 0, 0, 0, 0, 0), null));
+        }
+        (packets, _) = packets.Publish(3);
+        return packets;
+    }
+
+    private static NativeBattleModulePoolTask ModelTarget(NativeBattleModulePoolTask task)
+    {
+        task.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(Model), [1, 0]);
+        return task;
+    }
+
+    private static NativeBattleModulePoolTask Contact(NativeBattleModulePoolTask task, int? offset)
+    {
+        task.WriteExecutionReference(26, 2, new BattleExecutionReference.ContactOffset(offset), BitConverter.GetBytes((short)(offset ?? -1)).ToImmutableArray());
+        return task;
     }
 
     private static NativeBattleEffect312Frame WithSaved(NativeBattleEffect312Frame frame, NativeBattleEffectArena model)
@@ -287,7 +311,7 @@ public sealed class NativeBattleEffect312LateTests
         NativeBattleEffectArena saved = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)(U16(model, 0) & 0x1000)));
         saved = CopyBytes(model, 12, saved, 4, 8);
         saved = CopyBytes(model, 28, saved, 12, 8);
-        return WriteBytes(frame, Saved, saved, 20);
+        return frame with { Effect = frame.Effect with { Effect312SavedTransforms = frame.Effect.Effect312SavedTransforms.SetItem(Model, saved) } };
     }
 
     private static ushort U16(NativeBattleEffectArena bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.Read(offset, 2));
@@ -306,14 +330,14 @@ public sealed class NativeBattleEffect312LateTests
             return NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value));
         }
 
-        public NativeBattleEffect312Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => throw new InvalidOperationException(), (_, address, length) => Physical(address, length), (_, model) => model == Model ? ModelBytes : throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, model) => model == Model ? Sequence : throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute);
+        public NativeBattleEffect312Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), _ => throw new InvalidOperationException(), (_, address, length) => Physical(address, length), (_, model) => model == Model ? ModelBytes : throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, model) => model == Model ? Sequence : throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute);
 
         private NativeBattleEffect312Frame Execute(NativeBattleEffect312Frame frame, NativeBattleEffect312Operation operation)
         {
             Operations.Add(operation);
             if (operation is NativeBattleEffect312WriteModelBytes write)
             {
-                Assert.Equal(Model, write.ModelAddress);
+                Assert.Equal(Model, write.Model);
                 ModelBytes = CopyBytes(write.Data, 0, ModelBytes, write.Offset, write.Length);
             }
             else if (operation is NativeBattleEffect312DrawBatch draw)

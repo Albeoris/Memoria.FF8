@@ -156,7 +156,7 @@ public sealed class SnapshotDefaultsTests
         JsonObject snapshot = ColdSnapshot();
         JsonObject shiva = snapshot["NativeBattleMemory"]!["EffectMemory"]!["Shiva"]!.AsObject();
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        shiva["Entry"] = JsonSerializer.SerializeToNode(new NativeBattleShivaEntryState(0, 1, new(0, 0, 0), world, 7), Options);
+        shiva["Entry"] = JsonSerializer.SerializeToNode(new NativeBattleShivaEntryState(new(0, 0, 0), world, 7), Options);
         shiva.Remove("SpawnedChildD32508");
 
         JsonException exception = Assert.Throws<JsonException>(() => Deserialize(snapshot));

@@ -4445,8 +4445,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         Assert.Equal(stageColors, current.NativeStage!.ModelColors);
                         NativeBattleModelColorOverrides overrides = prior.NativeEffectMemory.ModelColorOverrides!;
                         Assert.All(overrides.Slots, slot => Assert.Equal((byte?)255, slot.Actor));
-                        NativeBattleGraphicsModel afterFade = prior.NativeGraphics.Models[contactActor] with { Flags0 = flags, Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000, Alpha7 = unchecked((byte)((uint)(factor * 255) >> 12)) };
-                        NativeBattleModelColorStep afterModelColor = NativeBattleModelColors.Advance50A0A0(afterFade, Assert.IsType<NativeBattleGraphicsState>(prior.NativeGraphics).Flags, colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 }, overrides);
+                        NativeBattleGraphicsState priorGraphics = Assert.IsType<NativeBattleGraphicsState>(prior.NativeGraphics);
+                        BattleModelOwner contactModel = RequireOriginalModelOwner(priorGraphics, contactActor);
+                        NativeBattleGraphicsModel afterFade = priorGraphics.ActorModels.Get(contactModel) with { Flags0 = flags, Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000, Alpha7 = unchecked((byte)((uint)(factor * 255) >> 12)) };
+                        NativeBattleModelColorStep afterModelColor = NativeBattleModelColors.Advance50A0A0(contactModel, afterFade, priorGraphics.Flags, colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 }, overrides, priorGraphics.ActorModels, priorGraphics.NativeBindings);
                         Assert.Equal(afterModelColor.Model.Color40, model.Color40);
                         if (fade.Next is null && (fade.Flags & 1) != 0)
                         {
@@ -7286,7 +7288,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 }
                 Assert.Equal(logicalHp, completed.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(JsonSerializer.Serialize(source.Combatants.Single(actor => actor.Id == target).NativeStatus), JsonSerializer.Serialize(completed.Combatants.Single(actor => actor.Id == target).NativeStatus));
-                Assert.Equal(contact.Encode(), completed.NativeActionPackets!.ReadContact(header.FirstContact).Encode());
+                Assert.Equal(contact, completed.NativeActionPackets!.ReadContact(header.FirstContact));
+                NativeBattleRawContactPacket originalContact = Assert.IsType<NativeBattleRawContactPacket>(source.NativeActionPackets!.ExportRetained().Contacts[header.FirstContact.Ordinal]);
+                NativeBattleRawContactPacket completedContact = Assert.IsType<NativeBattleRawContactPacket>(completed.NativeActionPackets.ExportRetained().Contacts[header.FirstContact.Ordinal]);
+                Assert.Equal(NativeBattleContactPacketCodec.Encode(originalContact), NativeBattleContactPacketCodec.Encode(completedContact));
                 File.WriteAllText(Path.Combine(output!, "effect298-native-observations.json"), JsonSerializer.Serialize(new { Callbacks = effect298Callbacks.Order(), Banks = effect298Banks.Order(), Programmes = effect298Programmes.Order(), Markers = effect298Markers.Order(), Domains = effect298Domains.Order(), VibrationHandle = effect298VibrationHandle, Counters = completed.NativeEffectMemory!.Effect298!.ScriptCounterWrites, Observations = effect298Observations, CompletionScope = "Root stops child scans at old117, queues actual file360 at old118 and waits at119 for IO; retained child banks are not artificially drained. No controller or original sequence contact." }));
             }
             if (effectId == 279)
@@ -9901,7 +9906,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         BattleSession oracle = BattleSession.Restore(prior);
         NativeBattleGraphicsModel model = ReadOriginalModelCell(prior.NativeGraphics!, actor);
         Assert.Equal(2, model.Flags0 & 2);
-        NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", prior.NativeGraphics, actor);
+        NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", prior.NativeGraphics!, RequireOriginalModelOwner(prior.NativeGraphics!, actor));
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Resonance programme requires its selected actor's original current skeleton.");
         Assert.Equal(32, NativeBattleBodyBoneMatrices.Require(model, pose).Length);
         Assert.NotNull(model.GeometryWorldMatrix);
@@ -10025,7 +10030,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         {
             return model.Transform!.Position28;
         }
-        NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", graphics, actor);
+        NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", graphics!, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Blade Shot point queries require the original current skeleton.");
         NativeBattleEffectMemory memory = oracle.NativeEffectMemory!;
         List<NativeBattleVector> points = [];

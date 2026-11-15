@@ -36,7 +36,7 @@ public sealed class NativeBattleLoadedBoneMatricesTests
         NativeBattleGraphicsModel model = Model();
         model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(model, source);
         Assert.Null(model.SequenceState!.Pose);
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, false, 0, 0), OriginalOwner(0), null, _ => throw new InvalidOperationException(), index =>
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(1, false, 0, 0), OriginalOwner(0), () => null, _ => throw new InvalidOperationException(), index =>
         {
             Assert.Equal(OriginalOwner(0), index);
             return NativeBattlePoseMatrices.ReadBone(model, source, 241, 0);

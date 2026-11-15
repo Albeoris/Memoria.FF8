@@ -1,6 +1,4 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -15,10 +13,12 @@ public sealed class NativeBattleRepeatAbortTests
     {
         BattleSession battle = Create(cards);
         Queue(ref battle, cards, repetitions);
-        NativeBattleContactPacket stale = new(new(OriginalOwner(3), 3, 8, 0, 1, 323, 0), new(255, 0, 0, 0, 0, 0, 0));
+        BattleModelOwner enemy = battle.ReadPresentationModelOwner("enemy");
+        NativeBattleContactPacket stale = new(new(enemy, 3, 8, 0, 1, 323, 0), null);
         BattleSnapshot snapshot = battle.Capture();
         NativeBattleActionPacketsState retained = snapshot.NativeActionPackets!;
-        battle = BattleSession.Restore(snapshot with { NativeActionPackets = retained with { Contacts = retained.Contacts.SetItem(1, stale) } });
+        retained = retained.AppendContacts([stale, stale]).ResetCounts();
+        battle = BattleSession.Restore(snapshot with { NativeActionPackets = retained });
 
         for (int frame = 0; frame < 300 && battle.NativeActionPackets.ActionCount < 2; frame++)
         {
@@ -29,14 +29,17 @@ public sealed class NativeBattleRepeatAbortTests
         Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(2, packets.ActionCount);
         Assert.Equal(1, packets.ContactCount);
-        Assert.Equal(0, packets.Headers[0].ReadByte(17));
-        Assert.Equal(1, packets.Headers[0].ReadByte(16));
-        Assert.Equal(0, packets.Headers[0].FirstContactIndex);
-        Assert.Equal(1, packets.Headers[1].ReadByte(16));
-        Assert.Equal(1, packets.Headers[1].FirstContactIndex);
-        Assert.Equal(stale, packets.Contacts[1]);
-        Assert.Equal(3, packets.Contacts[0]!.Primary.ActorIndex);
-        Assert.NotEqual(0, packets.Contacts[0]!.Primary.SavedStatuses4 & 1);
+        NativeBattleActionHeaderSlot first = packets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleActionHeaderSlot second = packets.ReadHeader(new BattleActionHeaderReference(1));
+        Assert.Equal(0, first.ReadRepeatModeMinusOne());
+        Assert.Equal(1, first.ReadContactCount());
+        Assert.Equal(new BattleContactCursor(0), first.FirstContact);
+        Assert.Equal(1, second.ReadContactCount());
+        Assert.Equal(new BattleContactCursor(1), second.FirstContact);
+        Assert.Equal(stale, packets.ReadContact(new BattleContactOccurrence(1)));
+        NativeBattleContactHalf primary = packets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        Assert.Equal(enemy, primary.Recipient);
+        Assert.NotEqual(0, primary.SavedStatuses4 & 1);
     }
 
     private static void Queue(ref BattleSession battle, bool cards, int repetitions)
@@ -54,7 +57,7 @@ public sealed class NativeBattleRepeatAbortTests
             battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", 4) { Slots = roll }] });
             battle.QueueNativePlayerCommand("selphie", "selphie", 16, 1);
         }
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle = BattleSession.Restore(NativeBattleTestSnapshots.Independent(battle.Capture()));
     }
 
     private static BattleSession Create(bool cards)

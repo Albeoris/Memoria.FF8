@@ -15,7 +15,7 @@ public sealed class NativeBattleAiContactTests
         NativeBattleAiDefinition ai = new(scripts, Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleNativeAction native = new(8, 1, 3, 1) { MagicId = 0, AttackType = 27, Power = 1, HitCount = 1, TargetFlags = 0, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 0, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
         BattleSession battle = new(new() { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = [native], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", InitialAtb = BattleSession.AtbMaximum, MaximumHp = 1000, CurrentHp = 1000, NativeCombatantFlags = 0x10, NativeAi = ai }] }, BattleAtbMode.Normal);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int callback = 0; callback < 10 && battle.NativeActionPackets.ActionCount == 0; callback++)
         {
             battle.Tick();
@@ -36,7 +36,7 @@ public sealed class NativeBattleAiContactTests
         NativeBattleAiDefinition ai = new([[0], [0], [0], [0], [9, 18, 0]], abilities, 0, []);
         BattleNativeAction native = new(8, 1, 3, 1) { MagicId = 0, AttackType = 27, Power = 1, HitCount = 1, TargetFlags = 0, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 0, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
         BattleSession battle = new(new() { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = [native], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeCommands = [new(8, "Hit", 0x50, 1)] }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, NativeCombatantFlags = 0x10, NativeAi = ai }] }, BattleAtbMode.TurnBased);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         NativeBattleContactPacket packet = Hit(battle);
         NativeBattleContactPacket independent = Hit(restored);
         Assert.Equal((byte)18, packet.Primary.Sequence);
@@ -55,7 +55,7 @@ public sealed class NativeBattleAiContactTests
             Assert.Equal((byte)1, session.NativeActionPackets.ActionCount);
             NativeBattleActionHeaderSlot header = session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
             Assert.Equal((byte)1, header.ReadContactCount());
-            return session.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+            return session.NativeActionPackets.ReadContact(header.FirstContact);
         }
     }
 }

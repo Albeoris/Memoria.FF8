@@ -15,8 +15,8 @@ public sealed class NativeBattleFireCallbackTests
         var fixture = Fixture(targets);
         NativeBattleOriginalEffectState effect = fixture.Effect;
         NativeBattleFireInputs inputs = fixture.Inputs;
-        List<int> contacts = [];
-        List<int> appliedContacts = [];
+        List<BattleContactOccurrence> contacts = [];
+        List<BattleContactOccurrence> appliedContacts = [];
         inputs = inputs with { ApplyContact = appliedContacts.Add };
         List<NativeBattleFireSound> sounds = [];
         HashSet<uint> resources = [];
@@ -30,13 +30,13 @@ public sealed class NativeBattleFireCallbackTests
             {
                 resources.Add(draw.Resource!.Address);
             }
-            effect = NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(NativeBattleTestSnapshots.Json(step.Effect))!;
+            effect = NativeBattleTestSnapshots.Independent(step.Effect);
             inputs = inputs with { CrtRandom = step.CrtRandomAfter };
             frames++;
         }
         Assert.Equal((uint?)0, effect.ReturnedDescriptor);
         Assert.InRange(frames, 22, 65);
-        Assert.Equal(Enumerable.Range(0, targets), contacts);
+        Assert.Equal(Enumerable.Range(0, targets).Select(index => new BattleContactOccurrence(index)), contacts);
         Assert.Equal(contacts, appliedContacts);
         NativeBattleFireSound sound = Assert.Single(sounds);
         Assert.Equal(0xDEE130u, sound.DescriptorAddress);
@@ -44,7 +44,7 @@ public sealed class NativeBattleFireCallbackTests
         Assert.Equal(targets == 1 ? null : (int?)128, sound.Pan);
         Assert.Equal(targets == 1, sound.Position is not null);
         Assert.True(resources.SetEquals([0xDEDC2C, 0xDEDDD8, 0xDEDF84, 0x123450]));
-        Assert.All(effect.FireModelCompletion!.Value, value => Assert.Equal(1, value));
+        Assert.All(effect.FireModelCompletion!.Values, value => Assert.Equal(1, value));
         Assert.NotEqual(NativeCrtRandomState.FromColdProcess(), inputs.CrtRandom);
         Assert.All(effect.Pools, pool => Assert.All(pool.Slots, slot => Assert.Equal(0, slot.Flags)));
     }
@@ -141,13 +141,13 @@ public sealed class NativeBattleFireCallbackTests
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 1, 2, null));
         for (int index = 0; index < targets; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(4 + index), 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(4 + index), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish((byte)targets);
         NativeBattleOriginalEffectState effect = new(2, 1, new(2, 0x6298A0, 0x629880), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleFireEffect.InitializePools(effect, packets);
         ImmutableArray<NativeBattleModuleResource> resources = [Sprite(0xDEDC2C, 0), Sprite(0xDEDDD8, 0), Sprite(0xDEDF84, 0), Sprite(0x123450, 5)];
-        NativeBattleFireInputs inputs = new(0, packets, NativeCrtRandomState.FromColdProcess(), model => new((short)(model * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);
+        NativeBattleFireInputs inputs = new(0, packets, NativeCrtRandomState.FromColdProcess(), model => new((short)(OriginalSlot(model) * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);
         return (effect, inputs);
     }
 

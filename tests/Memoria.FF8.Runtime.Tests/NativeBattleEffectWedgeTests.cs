@@ -104,9 +104,9 @@ public sealed class NativeBattleEffectWedgeTests
         });
     }
 
-    private static NativeBattleModelTransform ReadModel(byte target)
+    private static NativeBattleModelTransform ReadModel(BattleModelOwner target)
     {
-        Assert.Equal((byte)2, target);
+        Assert.Equal(OriginalOwner(2), target);
         return new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096);
     }
 

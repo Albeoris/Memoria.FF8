@@ -40,7 +40,7 @@ public sealed class NativeBattleEffect227SelfContactSourceTests
             Assert.Equal((ushort)0, contact.Primary.Amount6);
             Assert.Equal(self.NativeStatus!.Presentation.Saved, contact.Primary.SavedStatuses4);
             Assert.Equal(self.NativeStatus.Presentation.Battle, contact.Primary.BattleStatuses8);
-            Assert.True(NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetActors.IsSingle(packets.ModelAliases.DecodeLiteral(3)));
+            Assert.True(NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(headerIndex)).TargetActors.IsSingle(packets.ModelAliases.DecodeLiteral(3)));
             Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
             string frozen = JsonSerializer.Serialize(source);
             BattleSession direct = BattleSession.Restore(source);

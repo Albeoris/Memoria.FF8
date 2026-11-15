@@ -114,7 +114,7 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         (children, _) = children.Append(0x5F91D0);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { FatedCircle162 = new(true, parameters, null) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { FatedCircle162 = new(true, null) };
         NativeBattleOriginalEffectState effect = new(162, 161, new(162, 0x5F90F0, 0x5F90D0), parameters, 0x23CE640) { Pools = [main, children] };
         return (new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess()), children);
     }

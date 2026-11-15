@@ -44,7 +44,7 @@ public sealed class NativeBattleActorDirectorTests
         var fixture = Fixture(61);
         NativeBattleActorDirectorState retained = fixture.Frame.State.WithDword(0x40, -1);
         NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0];
-        NativeBattleActorDirectorInputs inputs = fixture.Inputs with { ReadModel = index => Model(index) with { Transform = new(new(0, 0, 0), index == 0 ? new(100, -200, 300) : new(-400, 500, -600), index == 0 ? (short)-1234 : (short)5678, 0, 4096) } };
+        NativeBattleActorDirectorInputs inputs = fixture.Inputs with { ReadModel = index => Model(index) with { Transform = new(new(0, 0, 0), index == OriginalOwner(0) ? new(100, -200, 300) : new(-400, 500, -600), index == OriginalOwner(0) ? (short)-1234 : (short)5678, 0, 4096) } };
         NativeBattleActorDirectorState state = NativeBattleActorDirectorController.InitializeShared(retained, task, inputs);
         Assert.Equal(new short[] { 100, -200, 300, -1234, -400, 500, -600, 5678 }, Enumerable.Range(0, 8).Select(index => state.Word(index * 2)));
         Assert.Equal(0, state.Dword(0x40));
@@ -355,7 +355,7 @@ public sealed class NativeBattleActorDirectorTests
         return (frame, resources, inputs);
     }
 
-    private static NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+    private static NativeBattleGraphicsModel Model(BattleModelOwner index) => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
 
     private static NativeBattleActorDirectorResources Resources(ushort effect)
     {

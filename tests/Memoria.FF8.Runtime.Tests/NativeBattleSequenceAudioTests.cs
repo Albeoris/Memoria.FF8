@@ -15,11 +15,11 @@ public sealed class NativeBattleSequenceAudioTests
     public void Conditional_97_98_sound_reads_current_contact_bit4_after_pan_and_preserves_mask(bool actorSound, byte contactFlags, uint expected)
     {
         NativeBattleSequenceSound source = new(6, actorSound, 6, 0xFF00) { OverrideOnContact4 = true };
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(0), null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(77u, 1120).ToImmutableArray(), contactFlags)!;
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(0), () => null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(77u, 1120).ToImmutableArray(), contactFlags)!;
         Assert.Equal(expected, sound.Sound);
         Assert.Equal((byte)128, sound.Pan);
         Assert.Equal(0xFF00u, sound.Flags);
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(0), null, _ => 0, _ => default, _ => 128, null));
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(0), () => null, _ => 0, _ => default, _ => 128, null));
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public sealed class NativeBattleSequenceAudioTests
     [InlineData(1, 5)]
     public void Projected_pan_reads_bone241_from_the_original_current_or_first_target_model(byte flags, int source)
     {
-        List<int> reads = [];
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(255, false, flags, 0), 3, 5, _ => throw new InvalidOperationException(), index =>
+        List<BattleModelOwner> reads = [];
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(255, false, flags, 0), OriginalOwner(3), () => OriginalOwner(5), _ => throw new InvalidOperationException(), index =>
         {
             reads.Add(index);
             return new(10, 20, 30);
@@ -48,7 +48,7 @@ public sealed class NativeBattleSequenceAudioTests
             Assert.Equal(new NativeBattleVector(10, 20, 30), position);
             return 175;
         }, null)!;
-        Assert.Equal(new[] { source }, reads);
+        Assert.Equal(new[] { OriginalOwner(source) }, reads);
         Assert.Equal(255u, sound.Sound);
         Assert.Equal((byte)175, sound.Pan);
         Assert.Equal(new NativeBattleModuleAnchor(10, 20, 30, 0), sound.Anchor);
@@ -61,7 +61,7 @@ public sealed class NativeBattleSequenceAudioTests
     [InlineData(0xFD)]
     public void Fixed_pan_does_not_require_a_target_bone_camera_or_actor_table(byte flags)
     {
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(0, false, flags, 0), OriginalOwner(3), null, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), null)!;
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(0, false, flags, 0), OriginalOwner(3), () => null, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), null)!;
         Assert.Equal((byte)128, sound.Pan);
         Assert.Null(sound.Anchor);
         Assert.Equal(0u, sound.Sound);
@@ -72,7 +72,7 @@ public sealed class NativeBattleSequenceAudioTests
     public void Actor_identity_is_loaded_BYTE4_without_a_second_enemy_offset_and_mask_is_the_optional_BYTE_shifted8()
     {
         ImmutableArray<uint> table = Enumerable.Range(0, 1120).Select(index => (uint)(90000 + index)).ToImmutableArray();
-        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(6, true, 6, 0xFF00), OriginalOwner(3), null, index =>
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(new(6, true, 6, 0xFF00), OriginalOwner(3), () => null, index =>
         {
             Assert.Equal(OriginalOwner(3), index);
             return 77;
@@ -88,16 +88,16 @@ public sealed class NativeBattleSequenceAudioTests
     [InlineData(159, 7)]
     public void Native5015A0_rejects_table_operands_without_allocating_a_voice(byte identity, byte sound)
     {
-        Assert.Null(NativeBattleSequenceAudio.Resolve505AB0(new(sound, true, 4, 0), OriginalOwner(3), null, _ => identity, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), null));
+        Assert.Null(NativeBattleSequenceAudio.Resolve505AB0(new(sound, true, 4, 0), OriginalOwner(3), () => null, _ => identity, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), null));
     }
 
     [Fact]
     public void Required_unknown_sources_fail_lazily_at_the_native_read()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, true, 4, 0), OriginalOwner(3), null, _ => 0, _ => default, _ => 128, null));
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, false, 1, 0), OriginalOwner(3), null, _ => 0, _ => default, _ => 128, null));
-        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, false, 4, 0x100), OriginalOwner(3), null, _ => 0, _ => default, _ => 128, null));
-        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, false, 6, 1), OriginalOwner(3), null, _ => 0, _ => default, _ => 128, null));
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, true, 4, 0), OriginalOwner(3), () => null, _ => 0, _ => default, _ => 128, null));
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, false, 1, 0), OriginalOwner(3), () => null, _ => 0, _ => default, _ => 128, null));
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, false, 4, 0x100), OriginalOwner(3), () => null, _ => 0, _ => default, _ => 128, null));
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceAudio.Resolve505AB0(new(0, false, 6, 1), OriginalOwner(3), () => null, _ => 0, _ => default, _ => 128, null));
     }
 
     [Theory]
@@ -118,11 +118,11 @@ public sealed class NativeBattleSequenceAudioTests
         {
             PlaySound = (current, cue) =>
             {
-                Assert.Equal(3, current.Index);
+                Assert.Equal((byte)77, current.ModelId4);
                 Assert.Equal(cue.First == 6 && opcode is 0x97 or 0x98, cue.OverrideSoundOnContact4);
                 calls.Add($"sound:{cue.First}");
                 NativeBattleSequenceSound source = new((byte)cue.First, cue.Kind == NativeBattleSequenceCueKind.ActorSound, (byte)cue.Second, (ushort)cue.Third);
-                NativeBattleModuleSound resolved = NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(3), null, _ => 77, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(123u, 1120).ToImmutableArray())!;
+                NativeBattleModuleSound resolved = NativeBattleSequenceAudio.Resolve505AB0(source, OriginalOwner(3), () => null, _ => 77, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(123u, 1120).ToImmutableArray())!;
                 (process, _) = resolved.Commit46B2A0(process);
             },
             ApplyActionContacts = current =>

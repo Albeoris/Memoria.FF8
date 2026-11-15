@@ -67,7 +67,7 @@ public sealed class NativeBattleRinoa86ControllerTests
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
         uint root = hierarchy.Address(0, 0);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(99, 1));
-        Assert.Equal((byte)3, fixture.Inputs.Packets.Headers[0].ReadByte(16));
+        Assert.Equal((byte)3, fixture.Inputs.Packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x77F5B0, 88, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = appended.Hierarchy;
         hierarchy = hierarchy.Write(appended.Address, hierarchy.Read(appended.Address).WriteByte(41, 1));
@@ -77,7 +77,7 @@ public sealed class NativeBattleRinoa86ControllerTests
         List<int> contacts = [];
         NativeBattleRinoa86TargetInputs inputs = new(controller, (_, _) => throw new InvalidOperationException(), _ => contactFlag, _ => throw new InvalidOperationException("No children means no scene completion read."), (current, index) =>
         {
-            contacts.Add(index);
+            contacts.Add(index.Ordinal);
             return current;
         });
         NativeBattleRinoa86Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };

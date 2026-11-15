@@ -149,7 +149,7 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
             Calls.Clear();
             Operations.Clear();
         }
-        public NativeBattleEerieSoundWave130Frame Step(NativeBattleEerieSoundWave130Frame frame) => NativeBattleEerieSoundWave130Controller.Advance(frame, Resources, new(Packets, actor => new(1) { Rotation14 = 0, Transform = new(Initial20: new(0, 0, 0), Position28: new((short)(actor == 5 ? 700 : actor == 4 ? -300 : 100), 0, 0), Vertical34: 0, Angle36: 0, Scale38: 512) }, () => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (current, _, _, _) => new(current, new(100, 200, 300)), (current, _) => new(current, new(700, 800, 900, unchecked((short)0xFEDC))), (current, _, kind, context) =>
+        public NativeBattleEerieSoundWave130Frame Step(NativeBattleEerieSoundWave130Frame frame) => NativeBattleEerieSoundWave130Controller.Advance(frame, Resources, new(Packets, actor => new(1) { Rotation14 = 0, Transform = new(Initial20: new(0, 0, 0), Position28: new((short)(actor == OriginalOwner(5) ? 700 : actor == OriginalOwner(4) ? -300 : 100), 0, 0), Vertical34: 0, Angle36: 0, Scale38: 512) }, () => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (current, _, _, _) => new(current, new(100, 200, 300)), (current, _) => new(current, new(700, 800, 900, unchecked((short)0xFEDC))), (current, _, kind, context) =>
         {
             Calls.Add((kind, context));
             return new(current, Remaining(kind));

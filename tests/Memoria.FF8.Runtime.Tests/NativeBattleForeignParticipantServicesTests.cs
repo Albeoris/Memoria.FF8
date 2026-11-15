@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -18,11 +17,13 @@ public sealed class NativeBattleForeignParticipantServicesTests
             Assert.Equal(1024, fraction);
             return new(10, 20, 30);
         });
-        NativeBattleForeignActor actor = new(OriginalOwner(3), transform, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
-        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<int, NativeBattleForeignActor> { [3] = actor });
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, new(3, 2) { Transform = transform, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 }), [null, null, null, "host", null, null, null], 0, 0);
+        BattleModelOwner owner = new BattleForeignEnemyModel(new("host"));
+        NativeBattleForeignActor actor = new(owner, transform, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
+        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [owner] = actor });
+        BattleActorModels models = new([new(owner, new NativeBattleGraphicsModel(2) { Transform = transform, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 })]);
+        NativeBattleGraphicsState graphics = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
         MethodInfo observe = typeof(BattleSession).GetMethod("ObserveNativeGraphicsBoneAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var result = ((NativeBattleEffectMemory Memory, NativeBattleVector Point))observe.Invoke(battle, [NativeBattleEffectMemory.FromColdProcess(), graphics, 3, (byte)0, (short)1024])!;
+        var result = ((NativeBattleEffectMemory Memory, NativeBattleVector Point))observe.Invoke(battle, [NativeBattleEffectMemory.FromColdProcess(), graphics, owner, (byte)0, (short)1024])!;
         Assert.Equal(new NativeBattleVector(110, 220, 330), result.Point);
         Assert.Equal(new int?[] { 110, 220, 330 }, result.Memory.ScriptedColorRegisters!.Mac.ToArray());
         Assert.Null(battle.NativeModelCpuResources);

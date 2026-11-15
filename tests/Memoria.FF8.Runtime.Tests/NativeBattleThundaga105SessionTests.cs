@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -14,7 +15,7 @@ public sealed class NativeBattleThundaga105SessionTests
     {
         BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleGraphicsModel model = new(0) { Transform = new(new(10, 20, 30), new(123, -1800, -789), -600, ground, 4096) };
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => index == 3 ? model : new NativeBattleGraphicsModel(0)).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(3, OriginalOwner(3), model)]);
         MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeThundaga105Anchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
         ImmutableArray<byte> anchor = (ImmutableArray<byte>)read.Invoke(session, [graphics, 3])!;
         Assert.Equal(8, anchor.Length);

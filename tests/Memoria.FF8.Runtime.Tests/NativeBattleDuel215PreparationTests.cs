@@ -12,7 +12,7 @@ public sealed class NativeBattleDuel215PreparationTests
         (pool, int slot) = pool.Append(0x69B070);
         pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[5108])) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel215 = new(true, parameters, null) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel215 = new(true, null) };
         NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), parameters, NativeBattleDuel215Controller.Root) { Pools = [pool] };
         NativeBattleDuel215Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown().Write(0x2508990, new byte[8]), NativeCrtRandomState.FromColdProcess());
         NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2)
@@ -26,14 +26,14 @@ public sealed class NativeBattleDuel215PreparationTests
         }).ToArray();
         uint boundRow = 0;
         byte sequence = 0;
-        NativeBattleDuel215PreparationServices services = new(index => models[index], (index, model) => models[index] = model, index => new((short)(index == 3 ? -100 : 300), 0, (short)(index == 3 ? 500 : 900), 0), ImmutableArray.Create<byte>(3, 4), (current, actor, row) =>
+        NativeBattleDuel215PreparationServices services = new(owner => models[OriginalSlot(owner)], (owner, model) => models[OriginalSlot(owner)] = model, owner => new((short)(owner == OriginalOwner(3) ? -100 : 300), 0, (short)(owner == OriginalOwner(3) ? 500 : 900), 0), [OriginalOwner(3), OriginalOwner(4)], OriginalAliases, (current, actor, row) =>
         {
-            Assert.Equal(0, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             boundRow = row;
             return current;
         }, (current, actor, value) =>
         {
-            Assert.Equal(0, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             sequence = value;
             return current;
         });

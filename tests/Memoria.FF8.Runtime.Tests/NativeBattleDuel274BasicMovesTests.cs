@@ -86,7 +86,9 @@ public sealed class NativeBattleDuel274BasicMovesTests
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (targets, _) = targets.Append(0x689AC0);
-            NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(15, selector).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000).WriteWord(48, 100).WriteWord(50, 200).WriteWord(52, 300).WriteWord(54, 40);
+            NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(15, selector).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000).WriteWord(48, 100).WriteWord(50, 200).WriteWord(52, 300).WriteWord(54, 40);
+            BattleModelOwner target = OriginalOwner(3);
+            task.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(target), OriginalAliases.EncodeAddress(target));
             targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(0, task) });
             NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [targets]);
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), root.DescriptorAddress) { Pools = [root, targets] };
@@ -100,11 +102,11 @@ public sealed class NativeBattleDuel274BasicMovesTests
                 BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset + 20), 100);
             }
             resources = new(data.ToImmutableArray(), []);
-            inputs = new(index => Models[index], (index, model) => Models[index] = model, (_, _) => Bone, (_, _) => Identity, (current, _) => current, (current, _) => current, (current, _) => current, (current, _, _, _, _, _) => current, (current, _) => current, (current, _) =>
+            inputs = new(index => Models[OriginalSlot(index)], (index, model) => Models[OriginalSlot(index)] = model, (_, _) => Bone, (_, _) => Identity, (current, _) => current, (current, _) => current, (current, _) => current, (current, _, _, _, _, _) => current, (current, _) => current, (current, _) =>
             {
                 ContactPosition = Models[3].Transform!.Position28;
                 return current;
-            }, (current, _) => current, (current, _) => current);
+            }, (current, _) => current, (current, _) => current, () => Identity);
         }
 
         public NativeBattleDuel274Frame Advance(NativeBattleDuel274Frame frame) => selector switch

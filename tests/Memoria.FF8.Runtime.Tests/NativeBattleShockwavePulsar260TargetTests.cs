@@ -119,7 +119,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
         Assert.Equal(0x111D424u, child.ReadDword(0x14));
         Assert.Equal(0u, child.ReadDword(0x18));
         Assert.Equal((short)700, Word(fixture.Positions[3], 2));
-        Assert.Equal(new byte[] { 3, 5 }, fixture.Operations.OfType<NativeBattleShockwavePulsar260DrawBody>().Select(operation => operation.Actor));
+        Assert.Equal(new[] { OriginalOwner(3), OriginalOwner(5) }, fixture.Operations.OfType<NativeBattleShockwavePulsar260DrawBody>().Select(operation => operation.Actor));
         NativeBattleShockwavePulsar260Operation[] bodyAndFlags = fixture.Operations.Where(operation => operation is NativeBattleShockwavePulsar260DrawBody or NativeBattleShockwavePulsar260ActorFlags).ToArray();
         Assert.IsType<NativeBattleShockwavePulsar260DrawBody>(bodyAndFlags[0]);
         Assert.IsType<NativeBattleShockwavePulsar260DrawBody>(bodyAndFlags[1]);
@@ -225,19 +225,19 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
             Frame = NativeBattleShockwavePulsar260Controller.InitializeAct(frame, TaskAddress, 0x14, size, source, Resources);
         }
 
-        public NativeBattleShockwavePulsar260TaskStep Advance(NativeBattleShockwavePulsar260Frame frame) => NativeBattleShockwavePulsar260Controller.AdvanceTarget(frame, TaskAddress, Resources, new(OriginalPackets(), 368, actor => Models[actor], actor => Positions[actor], actor => Linked ? actor switch { 3 => 4, 4 => 5, 5 => 3, _ => null } : null, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), Execute));
+        public NativeBattleShockwavePulsar260TaskStep Advance(NativeBattleShockwavePulsar260Frame frame) => NativeBattleShockwavePulsar260Controller.AdvanceTarget(frame, TaskAddress, Resources, new(OriginalPackets(), 368, actor => Models[OriginalSlot(actor)], actor => Positions[OriginalSlot(actor)], actor => Linked ? OriginalSlot(actor) switch { 3 => OriginalOwner(4), 4 => OriginalOwner(5), 5 => OriginalOwner(3), _ => null } : null, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), Execute));
 
         private NativeBattleShockwavePulsar260Frame Execute(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Operation operation)
         {
             Operations.Add(operation);
             if (operation is NativeBattleShockwavePulsar260ActorWrite write)
             {
-                Positions[write.Actor] = NativeBattleEffectNodeContextMemory.Copy(write.Bytes, 0, Positions[write.Actor], write.Offset - 0x1C, write.Length);
+                Positions[OriginalSlot(write.Actor)] = NativeBattleEffectNodeContextMemory.Copy(write.Bytes, 0, Positions[OriginalSlot(write.Actor)], write.Offset - 0x1C, write.Length);
             }
             if (operation is NativeBattleShockwavePulsar260ActorFlags flags)
             {
-                NativeBattleGraphicsModel model = Models[flags.Actor];
-                Models[flags.Actor] = model with { Flags0 = (ushort)((model.Flags0 & ~flags.ClearMask) | flags.SetMask) };
+                NativeBattleGraphicsModel model = Models[OriginalSlot(flags.Actor)];
+                Models[OriginalSlot(flags.Actor)] = model with { Flags0 = (ushort)((model.Flags0 & ~flags.ClearMask) | flags.SetMask) };
             }
             return frame;
         }

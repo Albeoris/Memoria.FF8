@@ -71,7 +71,7 @@ public sealed class NativeBattleTripleGraphTests
     {
         var fixture = Fixture();
         List<NativeBattleTripleOperation> operations = [];
-        List<int> contacts = [];
+        List<BattleContactOccurrence> contacts = [];
         List<NativeBattleModuleSound> sounds = [];
         HashSet<uint> callbacks = [];
         NativeBattleTripleInputs inputs = fixture.Inputs with

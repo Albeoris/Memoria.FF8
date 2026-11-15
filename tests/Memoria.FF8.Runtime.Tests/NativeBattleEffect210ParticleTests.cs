@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -235,7 +236,7 @@ public sealed class NativeBattleEffect210ParticleTests
         {
             Draws.Add(Assert.IsType<NativeBattleEffect210DrawBatch>(operation));
             return frame;
-        })
+        }, (_, owner) => OriginalOwner(OriginalSlot(owner) + 1))
         {
             ReadCommonSprite5710B0 = (_, id) =>
             {

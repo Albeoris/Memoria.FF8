@@ -175,7 +175,7 @@ public sealed class NativeBattleHypnotize133ControllerTests
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(123), NativeBattleHypnotize133State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97494)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(packets, _ => 7, (current, actor, bone, distance) =>
             {
-                Bones.Add((actor, bone, distance));
+                Bones.Add((OriginalSlot(actor), bone, distance));
                 return new(current, new(100, 200, 300));
             }, (current, _, kind) =>
             {

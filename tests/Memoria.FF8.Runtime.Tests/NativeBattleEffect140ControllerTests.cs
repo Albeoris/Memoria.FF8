@@ -105,7 +105,9 @@ public sealed class NativeBattleEffect140ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect140Frame frame = Frame(254);
-        frame = Write(frame, Main, Read(frame, Main).WriteWord(14, 1).WriteDword(0x14, ModelAddress(3)).WriteDword(0x3C, 0xEE123456));
+        NativeBattleModulePoolTask task = Read(frame, Main).WriteWord(14, 1);
+        task.WriteExecutionReference(0x14, 4, new BattleExecutionReference.Model(OriginalOwner(3)), OriginalAliases.EncodeAddress(OriginalOwner(3)));
+        frame = Write(frame, Main, task.WriteDword(0x3C, 0xEE123456));
         NativeBattleEffect140Step step = AdvanceTimeline6A7119(frame, Main, null!, harness.Inputs());
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)255, Read(step.Frame, Main).ReadWord(12));
@@ -152,7 +154,7 @@ public sealed class NativeBattleEffect140ControllerTests
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x2517AD8, Main, 0x878, 1);
         (main, _) = main.Append(0x6A6750);
         main = main.WriteSlot(0, main.Slots[0].WriteBytes(12, new byte[0x878 - 12]).WriteWord(12, unchecked((ushort)age)));
-        NativeBattleOriginalEffectState effect = new(140, 139, new(140, 0x6A6300, 0x6A6310), new(OriginalOwner(0), 0, 240, new BattleActionHeaderReference(0), 0, 0), null) { Pools = [main], ReturnedDescriptor = 0x2517AE8 };
+        NativeBattleOriginalEffectState effect = new(140, 139, new(140, 0x6A6300, 0x6A6310), new(OriginalOwner(0), 0, BattleModelTargets.From(Enumerable.Range(4, 4).Where(slot => slot < 7).Select(OriginalOwner)), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [main], ReturnedDescriptor = 0x2517AE8 };
         NativeBattleEffect140State state = NativeBattleEffect140State.FromColdProcess().DetachBank().WriteDword(0x2517B28, Main).WriteDword(0x2517B18, 3690);
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(1), state) { Staging = NativeBattleFileStaging.Unknown().Rebase(0x1100000) };
     }

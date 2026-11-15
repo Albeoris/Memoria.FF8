@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -17,7 +18,7 @@ public sealed class NativeBattlePreparedPresentationTests
         NativeBattlePcUiFrame firstUi = new([], [], [1], 640, 480);
         memory = memory with { Textures = memory.Textures!.Upload45BD30(0, 0, 1, 1, [11, 0]), UiImmediateFrame = firstUi };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
         battle.RefreshPreparedPresentation();
         NativeBattlePreparedPresentation first = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
         long captures = memory.Arena!.Working.CaptureBytes;

@@ -222,7 +222,7 @@ public sealed class NativeBattleFiragaControllerTests
         for (int index = 0; index < headers; index++)
         {
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 3, 143, null));
-            (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index + 3), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);

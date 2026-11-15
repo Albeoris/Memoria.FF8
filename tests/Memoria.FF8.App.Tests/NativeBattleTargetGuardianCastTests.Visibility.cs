@@ -15,14 +15,14 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsModel[] actors = ReadOriginalModelCells(graphics).Where(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x85) == 0).ToArray();
+        var actors = ReadOriginalModelCells(graphics).Select((model, slot) => (model, slot)).Where(entry => (entry.model.Flags0 & 6) == 2 && entry.model.Flags2 is { } flags && (flags & 0x85) == 0).ToArray();
         if (actors.Length != 1 || ReadOriginalModelCells(graphics).Count(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x84) == 0) != 1)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsModel actor = actors[0];
+        var (actor, actorSlot) = actors[0];
         NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
-        NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actor.Index)).Resource;
+        NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actorSlot)).Resource;
         if (resource.LinkedGeometry is not { IsEmpty: true } || resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || current.NativeCamera?.Projection is not { } projection || prior.NativeCamera?.Projection?.View is not { } view)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;

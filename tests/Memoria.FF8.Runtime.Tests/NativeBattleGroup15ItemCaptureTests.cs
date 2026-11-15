@@ -90,7 +90,7 @@ public sealed class NativeBattleGroup15ItemCaptureTests
         step = NativeBattleStatusCureItemController.Advance(step.Frame, fixture.Resources, inputs);
         Assert.Empty(step.Contacts);
         step = NativeBattleStatusCureItemController.Advance(step.Frame, fixture.Resources, inputs);
-        Assert.Equal(new[] { 0 }, step.Contacts);
+        Assert.Equal(new BattleContactOccurrence(0), Assert.Single(step.Contacts));
         Assert.Equal(0u, step.Frame.Effect.ReturnedDescriptor);
         Assert.Equal(3, identities.Count);
         Assert.All(identities, identity => Assert.Equal(identities[0], identity));

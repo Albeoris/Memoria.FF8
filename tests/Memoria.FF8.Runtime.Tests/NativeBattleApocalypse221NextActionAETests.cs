@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -45,43 +46,23 @@ public sealed class NativeBattleApocalypse221NextActionAETests
         const uint basis = NativeBattleEffectNodeMemory.ArenaAddress;
         const uint header = NativeBattleScriptedEffectMemory.Address;
         const uint manager = 0x2797690;
-        const uint parameters = 0x1D99A78;
         const uint first = 0x1D280C4 + 7 * 20;
         const uint selected = first + 2 * 20;
-        const uint firstContacts = 0x1D29000;
-        const uint contacts = 0x1D29100;
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2798A6C, basis + 0x2000);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x27973E8, basis + 0x2100);
-        frame = WaterSchedulerFixture.CoreDword(frame, manager + 0xC0, parameters);
         frame = WaterSchedulerFixture.CoreWord(frame, header + 0x38, 4);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x1B, 5);
         frame = frame with { Core = frame.Core.Write(manager + 0xD0, new byte[] { 2 }).Write(header + 0xCC, Enumerable.Repeat((byte)0xA5, 7).ToArray()).Write(header + 0x84, Enumerable.Repeat((byte)0xA5, 56).ToArray()) };
         ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel((ushort)(0x8100 + index))).ToImmutableArray();
-        Dictionary<uint, byte[]> owners = new()
+        (BattleActorModels boundModels, NativeBattleModelBoundary boundary) = OriginalModels(models.Select((model, slot) => (slot, model)));
+        ImmutableArray<BattleModelOwner> contacts = contactsPresent ? [OriginalOwner(3), OriginalOwner(1), OriginalOwner(3), OriginalOwner(6)] : [];
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicNextActionAE.CaptureCurrent(frame, 0x400, relative =>
         {
-            [parameters] = new byte[12],
-            [first] = new byte[20],
-            [selected] = new byte[20],
-            [firstContacts] = new byte[24],
-            [contacts] = new byte[96]
-        };
-        owners[parameters][0] = 5;
-        BinaryPrimitives.WriteUInt32LittleEndian(owners[parameters].AsSpan(4), first);
-        BinaryPrimitives.WriteUInt32LittleEndian(owners[first].AsSpan(8), firstContacts);
-        owners[firstContacts][0] = 2;
-        BinaryPrimitives.WriteUInt32LittleEndian(owners[selected].AsSpan(8), contacts);
-        owners[selected][0x10] = contactsPresent ? (byte)4 : (byte)0;
-        byte[] actors = [3, 1, 3, 6];
-        for (int index = 0; index < actors.Length; index++)
-        {
-            owners[contacts][24 * index] = actors[index];
-        }
-        NativeBattleWaterExecutionFrame result = NativeBattleCinematicNextActionAE.CaptureCurrent(frame, 0x400, (_, address, length) =>
-        {
-            KeyValuePair<uint, byte[]> owner = owners.Single(row => address >= row.Key && address - row.Key <= row.Value.Length - length);
-            return owner.Value.AsSpan(checked((int)(address - owner.Key)), length).ToArray();
-        }, models);
+            Assert.Equal((byte)2, relative);
+            return new(OriginalOwner(5), new BattleActionHeaderReference(7 + relative), selected, OriginalOwner(2), contacts, boundModels, boundary, BattleContactTaskStorageContract.OriginalArena);
+        });
+        Assert.Equal(OriginalOwner(contactsPresent ? 3 : 2), NativeBattleCinematicActorAccess.ReadCurrentActor(result, 0));
         Assert.Equal(selected, WaterSchedulerFixture.ReadCoreDword(result, manager + 0xCC));
         Assert.Equal((byte)5, result.Core.Read(header + 0x44, 1)[0]);
         Assert.Equal(contactsPresent ? (byte)3 : (byte)0, result.Core.Read(header + 0x41, 1)[0]);

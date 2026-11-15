@@ -45,12 +45,12 @@ public sealed class NativeBattleDuel274ControllerTests
         Assert.Equal(1, frame.Effect.Parameters!.Parameter81);
         Assert.Equal(0x25084B8u, frame.Effect.ReturnedDescriptor);
         Assert.Equal(0x1006, fixture.Flags[3]);
-        Assert.Equal(2, fixture.BoundsModel);
+        Assert.Equal(OriginalOwner(2), fixture.BoundsModel);
         NativeBattleEffectTaskPool targets = frame.Effect.Pools[1];
         Assert.Equal(0x25084A8u, targets.DescriptorAddress);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress, targets.BankAddress);
         Assert.Equal(116, targets.Stride);
-        Assert.Equal(NativeBattleDuel274Controller.Address(2), targets.Slots[0].ReadDword(20));
+        Assert.Equal(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(2)), targets.Slots[0].ReadDword(20));
         Assert.Equal(200, targets.Slots[0].ReadWord(92));
         Assert.Equal(unchecked((ushort)-50), targets.Slots[0].ReadWord(94));
         Assert.Equal(1, targets.Slots[0].ReadWord(12));
@@ -141,7 +141,7 @@ public sealed class NativeBattleDuel274ControllerTests
         public ushort[] Flags { get; } = [2, 6, 2, 0x1006, 0, 2, 6];
         public int TextureCalls { get; private set; }
         public int BoundsCalls { get; private set; }
-        public int BoundsModel { get; private set; } = -1;
+        public BattleModelOwner? BoundsModel { get; private set; }
         public NativeBattleDuel274Frame Frame { get; }
         public NativeBattleDuel274ActorServices Actors { get; }
 
@@ -150,7 +150,9 @@ public sealed class NativeBattleDuel274ControllerTests
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(2352, BitConverter.GetBytes(0x12345678u)).Write(2348, BitConverter.GetBytes(0x87654321u));
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 0 }, null);
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel274 = NativeBattleDuel274State.FromColdProcess(), Arena = arena }, effect, NativeBattleFileStaging.Unknown(), new(1));
-            Actors = new(index => Flags[index], (index, flags) => Flags[index] = flags, index => index switch { 2 => NativeBattleDuel274Controller.Address(3), 3 => NativeBattleDuel274Controller.Address(2), _ => 0 }, index => index == 3 ? 2 : throw new InvalidOperationException("Unexpected actual target."), index =>
+            Actors = new(OriginalAliases, owner => Flags[OriginalSlot(owner)], (owner, flags) => Flags[OriginalSlot(owner)] = flags,
+                owner => owner == OriginalOwner(2) ? OriginalOwner(3) : owner == OriginalOwner(3) ? OriginalOwner(2) : null,
+                owner => owner == OriginalOwner(3) ? OriginalOwner(2) : throw new InvalidOperationException("Unexpected actual target."), index =>
             {
                 BoundsCalls++;
                 BoundsModel = index;
@@ -169,7 +171,7 @@ public sealed class NativeBattleDuel274ControllerTests
 
         public NativeBattleDuel274Frame Advance(NativeBattleDuel274Frame frame)
         {
-            return NativeBattleDuel274Controller.Advance689990(frame, Actors, sequence => sequence == 0 ? 3 : throw new InvalidOperationException("Unexpected actual sequence."), (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, Actors, (_, _) => throw new InvalidOperationException("Opening must not dispatch a selected move.")));
+            return NativeBattleDuel274Controller.Advance689990(frame, Actors, sequence => sequence == 0 ? OriginalOwner(3) : throw new InvalidOperationException("Unexpected actual sequence."), (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, Actors, (_, _) => throw new InvalidOperationException("Opening must not dispatch a selected move.")));
         }
     }
 }

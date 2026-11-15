@@ -37,9 +37,10 @@ public sealed class NativeBattleSecondaryActionMemoryTests
         Assert.Equal((byte)1, memory.ActionId);
         Assert.Equal((byte)3, memory.AttackerIndex);
         NativeBattleContactPacket contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)3, contact.Secondary.Recipient);
+        NativeBattleContactHalf secondary = Assert.IsType<NativeBattleContactHalf>(contact.Secondary);
+        Assert.Equal(battle.ReadPresentationModelOwner("enemy"), secondary.Recipient);
         Assert.True(contact.Primary.Amount6 > 1);
-        Assert.Equal(contact.Primary.Amount6, contact.Secondary.Amount6);
+        Assert.Equal(contact.Primary.Amount6, secondary.Amount6);
         Assert.Equal(1000 - contact.Primary.Amount6, battle.Combatants[0].CurrentHp);
     }
 }

@@ -303,7 +303,7 @@ public sealed class NativeBattleEffect324LowerTests
             switch (operation)
             {
                 case NativeBattleEffect324WriteModelBytes write:
-                    Assert.Equal(Model, write.ModelAddress);
+                    Assert.Equal(OriginalOwner(NativeBattleGraphicsModelAddress.DecodeOriginalCell(Model).Offset), write.Model);
                     ModelBytes = NativeBattleEffectNodeContextMemory.Copy(write.Data, 0, ModelBytes, write.Offset, write.Length);
                     break;
                 case NativeBattleEffect324WriteCurrentBoneMatrices32 write:

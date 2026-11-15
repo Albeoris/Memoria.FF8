@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -128,7 +129,7 @@ public sealed class NativeBattleWaterPresentationCommandsTests
         {
             ReadActorFlags = (value, pointer) =>
             {
-                Assert.Equal(Address(0x6000), pointer);
+                Assert.Equal(OriginalOwner(0), pointer);
                 return BinaryPrimitives.ReadUInt16LittleEndian(value.Arena.Read(0x6000, 2));
             },
             WriteActorFlags = (value, pointer, flags) =>

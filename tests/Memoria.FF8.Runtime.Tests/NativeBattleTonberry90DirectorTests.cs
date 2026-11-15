@@ -22,7 +22,7 @@ public sealed class NativeBattleTonberry90DirectorTests
         List<int> actors = [];
         frame = NativeBattleTonberry90Director.Initialize762BB0(frame, fixture.Child, actor =>
         {
-            actors.Add(actor);
+            actors.Add(OriginalSlot(actor));
             return new(0) { Transform = transform };
         }, _ => throw new InvalidOperationException("An unposed model does not read a pose resource."));
         state = frame.Memory.Tonberry90!;
@@ -163,7 +163,7 @@ public sealed class NativeBattleTonberry90DirectorTests
     {
         var fixture = NativeBattleTonberry90ControllerTests.Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleEffectTaskActors Select(uint _, sbyte __, sbyte ___) => OriginalTaskActors(0, 3);
+        NativeBattleEffectTaskActors Select(uint _, sbyte __, int ___) => OriginalTaskActors(0, 3);
         var child = hierarchy.Append8DC540(1, 0x762690, 0x58, NativeBattleTonberry90Controller.MainBank, Select);
         var director = child.Hierarchy.Append8DC540(2, 0x762C60, 0x48, child.Address, Select);
         hierarchy = director.Hierarchy.Write(director.Address, director.Hierarchy.Read(director.Address).WriteByte(0x29, phase));

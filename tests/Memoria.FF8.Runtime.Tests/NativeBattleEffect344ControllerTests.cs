@@ -13,11 +13,12 @@ public sealed class NativeBattleEffect344ControllerTests
     public void Entry_preserves_write_only_target_byte_without_model_eligibility_gate()
     {
         NativeBattleActionPacketsState packets = Packets();
-        NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
-        packets = packets with { Contacts = packets.Contacts.SetItem(0, contact with { Primary = contact.Primary with { ActorIndex = 255 } }) };
+        NativeBattleRawContactPacket raw = Assert.IsType<NativeBattleRawContactPacket>(packets.ExportRetained().Contacts[0]);
+        var (models, boundary) = OriginalModels([(6, new NativeBattleGraphicsModel(0))]);
+        Assert.Throws<InvalidDataException>(() => NativeBattleContactPacketCodec.DecodeOriginal(raw with { Primary = raw.Primary with { ActorIndex = 255 } }, boundary, models));
         Harness harness = new() { CurrentPackets = packets };
         NativeBattleEffect344Frame frame = Initialize(Cold(), Resources(), harness.Inputs());
-        Assert.Equal(255u, frame.State.ReadDword(TargetGlobal));
+        Assert.Equal(6u, frame.State.ReadDword(TargetGlobal));
         Assert.Empty(harness.Operations);
     }
 
@@ -182,13 +183,17 @@ public sealed class NativeBattleEffect344ControllerTests
         return resources;
     }
 
-    private static NativeBattleActionPacketsState Packets(byte first = 6)
+    private static NativeBattleActionPacketsState Packets(byte first = 6, bool deferFirstCursor = false)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
+        if (deferFirstCursor)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
+        }
         (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 16, -1, 368, 344, null));
         foreach (byte actor in new byte[] { first, 1 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 4, 0, 0, 0, 7, 0), null));
         }
         (packets, _) = packets.Publish(2);
         return packets;
@@ -206,7 +211,7 @@ public sealed class NativeBattleEffect344ControllerTests
             Operations.Add(operation);
             if (ChangeContactOnGain && operation is NativeBattleEffect344MusicGain501B10)
             {
-                CurrentPackets = CurrentPackets with { Headers = CurrentPackets.Headers.SetItem(0, CurrentPackets.Headers[0] with { FirstContactIndex = 1 }) };
+                CurrentPackets = Packets(first: 1, deferFirstCursor: true);
             }
             return frame;
         });

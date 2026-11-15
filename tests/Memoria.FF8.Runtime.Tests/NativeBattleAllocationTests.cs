@@ -88,7 +88,7 @@ public sealed class NativeBattleAllocationTests
         BattleSession battle = Create([52, 6, 29, 1, 52, 6, 0]);
         Assert.False(battle.Combatants.Single(actor => actor.Id == "native-allocation-1").IsActive);
         Assert.True(battle.Combatants.Single(actor => actor.Id == "native-allocation-2").IsActive);
-        Assert.Equal(4, battle.Capture().NativeLastAllocatedIndex);
+        Assert.Equal(new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(4), battle.Capture().NativeLastAllocatedTarget);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class NativeBattleAllocationTests
         Assert.Equal(6, replacement.SceneSlot);
         Assert.Equal(5, replacement.Level);
         BattleSnapshot snapshot = battle.Capture();
-        Assert.Equal(5, snapshot.NativeLastAllocatedIndex);
+        Assert.Equal(new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(5), snapshot.NativeLastAllocatedTarget);
         Assert.Equal(1u, snapshot.Combatants.Single(actor => actor.Id == replacement.Id).NativeParticipant!.Variables[0]);
         Assert.Equal(0u, snapshot.Combatants.Single(actor => actor.Id == reserved.Id).NativeParticipant!.Variables[0]);
         NativeBattleRandomState expected = NativeBattleRandomState.Initialize(0).Draw(out _).Draw(out _).Draw(out _);
@@ -144,7 +144,7 @@ public sealed class NativeBattleAllocationTests
         BattleSession battle = CreateExpanded([0], turn: turn);
         battle.Tick();
         Assert.Equal("party-2", battle.ActiveAction?.TargetId);
-        Assert.Equal(0, battle.ActiveAction!.NativeTargetMask);
+        Assert.IsType<NativeBattleTargetRequestAdapter.DeferredOperands>(battle.ActiveAction!.TargetRequest.Selection);
         AssertExpandedContinuation(battle);
     }
 

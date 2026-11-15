@@ -179,11 +179,12 @@ internal sealed class NativeBattleEffect80PresentationObserver
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
         NativeBattleEffect80State state = current.NativeEffectMemory!.Effect80!;
-        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics, checked((int)((state.ReadDword(BodyContextAddress + 0x64) - 0x1D972C0u) / 156)));
+        int actorSlot = NativeBattleGraphicsModelAddress.DecodeOriginalCell(state.ReadDword(BodyContextAddress + 0x64)).Offset;
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics, actorSlot);
         NativeBattleModelCpuResources cpu = current.NativeModelCpuResources ?? throw new InvalidDataException("The deformed body proof requires its current CPU resource owner.");
         NativeBattleModelCpuResourceRow resource = cpu.Rows[actor.ActiveResourceRow100 ?? throw new InvalidDataException("The deformed body proof requires its current resource row.")];
         NativeBattleModelCpuReference source = resource.Require(16);
-        string actorId = ReadOriginalModelActorId(current.NativeGraphics, actor.Index) ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
+        string actorId = ReadOriginalModelActorId(current.NativeGraphics, actorSlot) ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
         NativeBattleGraphicsBinding? binding = current.Definition.NativeGraphics!.Bindings.SingleOrDefault(item => item.ActorId == actorId);
         if (binding is null)
         {

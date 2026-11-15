@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -21,10 +22,12 @@ public sealed class NativeBattleEffectParticipantResourceTests
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, NativeBattleEffectMemory.FromColdProcess());
         NativeBattleSequenceState sequence = new() { Default2 = 14 };
         NativeBattleGraphicsModel source = new(3) { ModelId4 = 0, FileSelector128 = 0, FileSelector129 = 0, Flags2 = 4, SequenceState = sequence, LinkedTransform = new(default, default) };
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, source), ["source", null, null, null, null, null, null], 0, 0);
+        BattleModelOwner owner = battle.NativeActionPackets.ModelAliases.DecodeLiteral(0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, owner, source)]);
+        typeof(BattleSession).GetField("presentationSourceOwner", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, owner);
         MethodInfo load = typeof(BattleSession).GetMethod("InitializeEffectPresentationSourceResources", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        graphics = (NativeBattleGraphicsState)load.Invoke(battle, [graphics, resource])!;
-        NativeBattleGraphicsModel loaded = graphics.Models[0];
+        graphics = (NativeBattleGraphicsState)load.Invoke(battle, [graphics, resource, false])!;
+        NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(owner);
         Assert.Equal(source.Flags0, loaded.Flags0);
         Assert.Same(sequence, loaded.SequenceState);
         Assert.Equal(loaded.ActiveResourceRow100, loaded.OriginalResourceRow104);

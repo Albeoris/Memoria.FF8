@@ -154,7 +154,7 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
         Assert.Equal(count, fixture.Operations.OfType<NativeBattleEnergyBomber217Contact>().Count());
         if (count != 0)
         {
-            Assert.Equal(1, Assert.Single(fixture.Operations.OfType<NativeBattleEnergyBomber217Contact>()).Index);
+            Assert.Equal(1, Assert.Single(fixture.Operations.OfType<NativeBattleEnergyBomber217Contact>()).Occurrence.Ordinal);
         }
     }
 
@@ -218,14 +218,14 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
             for (int index = 0; index < 2; index++)
             {
                 (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 16, 0, 316, 217, null));
-                (packets, _) = packets.AppendContact(new(new((byte)(index == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(index == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
                 (packets, _) = packets.Publish(1);
             }
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
             Frame = new(memory, effect, new(123), NativeBattleEnergyBomber217State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97530).WriteDword(TargetGlobal, 0x1D97494)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(packets, (frame, _) => new(frame, new(1000, 2000, 3000, 777)), (frame, actor, selector, distance) =>
             {
-                Bones.Add((actor, selector, distance));
+                Bones.Add((OriginalSlot(actor), selector, distance));
                 return new(frame, new(100, 500, 1000));
             }, (frame, _, _, _, _, context) =>
             {

@@ -74,9 +74,11 @@ public sealed class NativeBattleEffectPresentationFileIoTests
         NativeBattleCameraState camera = BattleSession.BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), projection);
         SetProperty(owner, nameof(BattleSession.NativeCamera), camera);
         SetField(owner, "presentationHostCamera", camera);
-        SetField(owner, "presentationForeignActors", new Dictionary<int, NativeBattleForeignActor>());
+        SetField(owner, "presentationForeignActors", new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         SetField(owner, "presentationFirstAdvance", firstAdvance);
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), ["source", null, null, null, null, null, null], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        BattleModelOwner source = new BattlePartyActorModel(new("source"));
+        SetField(owner, "presentationSourceOwner", source);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, new(0))]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         SetProperty(owner, nameof(BattleSession.NativeGraphics), graphics);
         return owner;
     }

@@ -81,7 +81,7 @@ public sealed class NativeBattleAngelWing84ControllerTests
         List<int> contacts = [];
         NativeBattleAngelWing84TargetInputs inputs = new(controller, (_, _) => throw new InvalidOperationException(), _ => contactFlag, _ => throw new InvalidOperationException("No children means no scene completion read."), (current, index) =>
         {
-            contacts.Add(index);
+            contacts.Add(index.Ordinal);
             return current;
         });
         NativeBattleAngelWing84Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };

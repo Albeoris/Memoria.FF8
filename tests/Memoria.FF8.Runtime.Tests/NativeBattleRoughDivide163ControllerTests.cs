@@ -130,7 +130,7 @@ public sealed class NativeBattleRoughDivide163ControllerTests
         (children, _) = children.Append(0x5F5C80);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RoughDivide163 = new(true, parameters, 3, null) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RoughDivide163 = new(true, null) };
         NativeBattleOriginalEffectState effect = new(163, 162, new(163, 0x5F5B80, 0x5F5B60), parameters, 0x23CA1C8) { Pools = [main, children] };
         return (new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess()), children);
     }

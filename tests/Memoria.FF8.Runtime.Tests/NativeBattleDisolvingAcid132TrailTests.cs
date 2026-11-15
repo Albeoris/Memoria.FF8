@@ -18,7 +18,7 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
     {
         NativeBattleDisolvingAcid132Frame frame = Frame();
         NativeBattleEffectArena original = PointView(new(100, 400, 600), flag);
-        (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(10, 20, 30)), PointView(new(100, 200, 300)), 3, 150, PointView(new(60, 80, 100)), original, NativeBattleCuragaMatrices.Identity8DD770());
+        (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(10, 20, 30)), PointView(new(100, 200, 300)), OriginalOwner(3), OriginalAliases, 150, PointView(new(60, 80, 100)), original, NativeBattleCuragaMatrices.Identity8DD770());
         NativeBattleModulePoolTask curve = Assert.Single(frame.Effect.Pools[4].Slots, task => (task.Flags & 1) != 0);
         Assert.Equal(Working + PointsOffset, point);
         Assert.Equal((ushort)1, curve.ReadWord(14));
@@ -47,7 +47,7 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
             frame = WriteArena(frame, Working + PointsOffset + (uint)(index * PointStride) + 6, BitConverter.GetBytes((short)150));
         }
         frame = WriteArena(frame, Working + MorphOffset, BitConverter.GetBytes((uint)0xAABBCCDD));
-        (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(0, 0, 0)), PointView(new(0, 0, 0)), 3, 150, PointView(new(0, 0, 0)), PointView(new(0, 0, 0), 0), NativeBattleCuragaMatrices.Identity8DD770());
+        (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(0, 0, 0)), PointView(new(0, 0, 0)), OriginalOwner(3), OriginalAliases, 150, PointView(new(0, 0, 0)), PointView(new(0, 0, 0), 0), NativeBattleCuragaMatrices.Identity8DD770());
         Assert.Equal(0u, point);
         Assert.All(frame.Effect.Pools[4].Slots, task => Assert.Equal(0, task.Flags & 1));
         Assert.Equal(0xAABBCCDDu, BinaryPrimitives.ReadUInt32LittleEndian(Arena(frame).Read(MorphOffset, 4)));
@@ -59,7 +59,7 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
     public void First_tick_appends_point_runs_two_canonical_blends_and_consumes_three_selectors()
     {
         NativeBattleDisolvingAcid132Frame frame = Frame();
-        (frame, _) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(10, 20, 30)), PointView(new(100, 200, 300)), 3, 150, PointView(new(60, 80, 100)), PointView(new(0, 0, 0), 1), NativeBattleCuragaMatrices.Identity8DD770());
+        (frame, _) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(10, 20, 30)), PointView(new(100, 200, 300)), OriginalOwner(3), OriginalAliases, 150, PointView(new(60, 80, 100)), PointView(new(0, 0, 0), 1), NativeBattleCuragaMatrices.Identity8DD770());
         uint taskAddress = frame.Effect.Pools[4].BankAddress;
         NativeCrtRandomState expected = frame.Random;
         for (int index = 0; index < 3; index++)
@@ -131,7 +131,7 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
         NativeBattleDisolvingAcid132Frame frame = Frame();
         uint Create()
         {
-            (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(0, 0, 2048)), PointView(new(32, 0, 2048)), -1, 32, PointView(new(0, 0, 0)), PointView(new(0, 0, 0), 0), NativeBattleCuragaMatrices.Identity8DD770());
+            (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(0, 0, 2048)), PointView(new(32, 0, 2048)), OriginalOwner(3), OriginalAliases, 32, PointView(new(0, 0, 0)), PointView(new(0, 0, 0), 0), NativeBattleCuragaMatrices.Identity8DD770());
             return point;
         }
         uint first = Create();

@@ -148,7 +148,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         harness.Operations.Clear();
         _ = AdvanceMain(MainAt(58), Pools[6].Bank, Resources(), harness.Inputs());
         var contact = Assert.Single(harness.Operations.OfType<NativeBattleMegaSpark279Contact506BA0>());
-        Assert.Equal(0, contact.FirstContactIndex);
+        Assert.Equal(0, contact.First.Ordinal);
         Assert.Equal(2, contact.Count);
     }
 
@@ -278,11 +278,11 @@ public sealed class NativeBattleMegaSpark279ControllerTests
 
     private static NativeBattleActionPacketsState Packets(params byte[] actors)
     {
-        var packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]);
-        (packets, _) = packets.Prepare(new(3, 8, 14, -1, 106, 279, null));
+        var packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]), OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 106, 279, null));
         foreach (byte actor in actors)
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 4, 0, 0, 0, 7, 0), null));
         }
         (packets, _) = packets.Publish(checked((byte)actors.Length));
         return packets;
@@ -300,7 +300,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
             this.packets = packets ?? Packets(0);
         }
 
-        public NativeBattleMegaSpark279Inputs Inputs() => new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, model) => Models[Actor(model)], (_, _) => 8, (_, row, bone) =>
+        public NativeBattleMegaSpark279Inputs Inputs() => new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, model) => Models[OriginalSlot(model)], (_, _) => 8, (_, row, bone) =>
         {
             Bones.Add((row, bone));
             return NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = bone, Y = bone * 2, Z = bone * 3 }, null);
@@ -309,7 +309,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
             Operations.Add(operation);
             if (operation is NativeBattleMegaSpark279ModelFields fields)
             {
-                int actor = Actor(fields.ModelAddress);
+                int actor = OriginalSlot(fields.Model);
                 var model = Models[actor];
                 model = model with { Flags0 = (ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0), Rotation12 = fields.Rotation12 ?? model.Rotation12 };
                 if (fields.PositionZ is short z)

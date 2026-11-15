@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -16,7 +17,7 @@ public sealed class NativeBattleCinematicBone5BTests
         {
             Assert.Equal(ushort.MaxValue, selector);
             return Address(0x2100);
-        }, (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), NativeBattleActorAnchorRegisterFixture.Services());
+        }, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBone5B.Execute(frame, Program(), services);
         Assert.Equal(Address(0x3008), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
     }
@@ -27,14 +28,13 @@ public sealed class NativeBattleCinematicBone5BTests
         NativeBattleWaterExecutionFrame frame = Fixture(0x045B);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x3002, 6) };
         int restores = 0;
-        NativeBattleCinematicBone5BServices services = new((_, _) => throw new InvalidOperationException(), (current, owner, physical) =>
+        NativeBattleCinematicBone5BServices services = new((_, _) => throw new InvalidOperationException(), (current, owner) =>
         {
             restores++;
-            Assert.True(physical);
-            Assert.Equal(0x1D972C0u, owner);
+            Assert.Equal(OriginalOwner(0), owner);
             Assert.Equal(Address(0x3004), WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
             return new(current, Skeleton(), Bones(), Identity(100, 200, 300));
-        }, (current, kind) =>
+        }, (_, _) => throw new InvalidOperationException(), (current, kind) =>
         {
             Assert.Equal(3, kind);
             Assert.Equal(110u << 16, WaterSchedulerFixture.ReadSlotDword(current, 0, 0x5C));
@@ -57,9 +57,8 @@ public sealed class NativeBattleCinematicBone5BTests
         NativeBattleWaterExecutionFrame frame = Fixture(0x285B);
         frame = PutWord(frame, 0x3004, 0x8001);
         frame = PutWord(frame, 0x3006, 128);
-        NativeBattleCinematicBone5BServices services = new((_, _) => Address(0x2100), (current, source, physical) =>
+        NativeBattleCinematicBone5BServices services = new((_, _) => Address(0x2100), (_, _) => throw new InvalidOperationException(), (current, source) =>
         {
-            Assert.False(physical);
             Assert.Equal(Address(0x2100), source);
             Assert.Equal(Address(0x3008), WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
             return new(current, Skeleton(), Bones(), null);

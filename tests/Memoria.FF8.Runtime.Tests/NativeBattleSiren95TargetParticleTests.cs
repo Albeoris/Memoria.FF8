@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -33,9 +34,9 @@ public sealed class NativeBattleSiren95TargetParticleTests
             GeometryBounds52 = new(new(-100, 50, -200), new(100, -50, 200)),
             Transform = new(new(0, 0, 0), new(-32000, 32000, -1000), 0, 0, 4096)
         };
-        NativeBattleGraphicsModel ReadTarget(byte actor)
+        NativeBattleGraphicsModel ReadTarget(BattleModelOwner actor)
         {
-            Assert.Equal((byte)3, actor);
+            Assert.Equal(OriginalOwner(3), actor);
             return target;
         }
         NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;

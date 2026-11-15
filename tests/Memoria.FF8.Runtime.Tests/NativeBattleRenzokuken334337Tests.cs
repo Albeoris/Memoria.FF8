@@ -154,7 +154,7 @@ public sealed class NativeBattleRenzokuken334337Tests
     private static NativeBattleRenzokuken160Frame Frame(ushort effect)
     {
         NativeBattleRenzokukenSpecialProfile profile = NativeBattleRenzokukenSpecialProfiles.ForEffect(effect);
-        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 200, Origin = new(100, -200, 300), Direction = new(4096, 0, 0) };
+        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 200, Origin = new(100, -200, 300), Direction = new(4096, 0, 0) };
         NativeBattleRenzokukenSpecialState state = new(core, Resources()) { ExtraStorage = new byte[3200].ToImmutableArray() };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(effect, state) };
         return new(memory, new(effect, (ushort)(effect - 1), new(effect, profile.Entry, profile.Initializer), null, null), NativeCrtRandomState.FromColdProcess());

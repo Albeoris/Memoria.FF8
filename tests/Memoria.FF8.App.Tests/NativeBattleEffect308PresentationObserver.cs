@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -58,7 +59,7 @@ internal sealed class NativeBattleEffect308PresentationObserver
             Assert.Equal(length, state.ScriptStorage[address].Read(0, length).Length);
         }
         uint arena = state.ReadDword(ArenaGlobal);
-        int caster = NativeBattleEffect308Controller.Actor(state.ReadDword(CasterGlobal));
+        int caster = ReadOriginalModelOperand(graphics.NativeBindings.CaptureAliases(graphics.ActorModels), state.ReadModel(CasterGlobal));
         Assert.Equal(3, caster);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
@@ -96,12 +97,12 @@ internal sealed class NativeBattleEffect308PresentationObserver
                 Assert.NotNull(model.Color44);
                 savedColors.TryAdd(caster + index, main.ReadDword(20 + index * 4));
                 Assert.Equal(savedColors[caster + index], main.ReadDword(20 + index * 4));
-                models.Add(model.Index);
+                models.Add(caster + index);
             }
         }
         foreach (NativeBattleModulePoolTask script in tasks.Values.Where(task => task.Callback == ScriptCallback))
         {
-            int actor = NativeBattleEffect308Controller.Actor(script.ReadDword(12));
+            int actor = ReadOriginalModelOperand(graphics.NativeBindings.CaptureAliases(graphics.ActorModels), script.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner);
             Assert.InRange(actor, caster, caster + 2);
             uint pc = script.ReadDword(24);
             (uint source, int length) = ScriptRanges[actor - caster];

@@ -68,7 +68,7 @@ public sealed class NativeBattleTaskCallerOperationTests
         Assert.Equal(published.Flags, retained.Flags);
         Assert.Equal(published.Callback, retained.Callback);
         Assert.NotEqual(local.Flags, retained.Flags);
-        Assert.Equal(published.Models, retained.Models);
+        Assert.Equal(published.ActorModels.Entries, retained.ActorModels.Entries);
         Assert.Same(published.PrimitiveFrame, retained.PrimitiveFrame);
     }
 

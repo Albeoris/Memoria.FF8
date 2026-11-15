@@ -47,7 +47,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     {
         BattleSnapshot saved = RawReadyInput();
         BattleSession source = RestoreReadyInputOwners(saved);
-        BattleAttackCommand command = Assert.Single(source.QueuedActions) with { NativeQueuedCommand = 3, NativeTargetMask = 0 };
+        BattleAttackCommand command = Assert.Single(source.QueuedActions) with { NativeQueuedCommand = 3, TargetRequest = BattleTargetRequest.None };
         typeof(BattleSession).GetField("nativeCommandBanks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(source, NativeBattleCommandBanks.Initialize());
         Method("EnqueueNativeInputCommand").Invoke(source, [command]);
         BattleSnapshot queued = source.Capture();
@@ -152,7 +152,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         BattleSnapshot saved = RawReadyInput();
         BattleSession target = RestoreReadyInputOwners(saved);
         BattleAttackCommand command = Assert.Single(target.QueuedActions);
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Method("ValidateSavedAction").Invoke(target, [command.ActorId, command.TargetId, new HashSet<string>(), command.Ability, command.ActionId, true, null, command.NativeTargetMask, null, null, null, null, false, null, null]));
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Method("ValidateSavedAction").Invoke(target, [command.ActorId, command.TargetId, new HashSet<string>(), command.Ability, command.ActionId, true, null, command.TargetRequest, null, null, null, null, false, null, null, command.NativeQueuedCommand, command.NativeAiCallbackStage, command.NativeLimitCallback]));
         Assert.IsType<InvalidDataException>(error.InnerException);
     }
 

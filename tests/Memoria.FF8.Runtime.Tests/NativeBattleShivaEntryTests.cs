@@ -12,8 +12,8 @@ public sealed class NativeBattleShivaEntryTests
     {
         var fixture = Fixture();
         NativeBattleShivaEntryStep result = Initialize(fixture);
-        Assert.Equal((byte)0, result.State.SourceActor);
-        Assert.Equal((byte)3, result.State.FirstContactActor);
+        Assert.Equal(OriginalOwner(0), result.Effect.Parameters!.Source);
+        Assert.Equal(OriginalOwner(3), fixture.Packets.ReadHeaderContacts(result.Effect.Parameters!.Header)[0].Primary.Recipient);
         Assert.Equal(new NativeBattleVector(200, 0, 388), result.State.TargetCenter);
         Assert.Equal(NativeBattleGfMatrices.Euler56CD50(new(0, 0x900, 0)).Rotation.ToArray(), result.State.World.Rotation.ToArray());
         Assert.Equal(-4000, result.State.World.X);
@@ -69,23 +69,23 @@ public sealed class NativeBattleShivaEntryTests
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory with { Textures = null }, fixture.Effect, fixture.Packets, fixture.Models)));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect with { ResourcePointers = [] }, fixture.Packets, fixture.Models)));
         Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect with { Parameters = null }, fixture.Packets, fixture.Models)));
-        Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect with { Parameters = fixture.Effect.Parameters! with { TargetMask7A = 0 } }, fixture.Packets, fixture.Models)));
+        Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect with { Parameters = fixture.Effect.Parameters! with { TargetActors = BattleModelTargets.Empty } }, fixture.Packets, fixture.Models)));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models.SetItem(3, fixture.Models[3] with { Rotation14 = null }))));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models.SetItem(3, fixture.Models[3] with { GeometryWorldMatrix = null }))));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models.SetItem(1, fixture.Models[1] with { Transform = null }))));
     }
 
-    private static NativeBattleShivaEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) fixture) => NativeBattleShivaEntry.Initialize5C0D50(fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models);
+    private static NativeBattleShivaEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) fixture) => NativeBattleShivaEntry.Initialize5C0D50(fixture.Memory, fixture.Effect, fixture.Packets, OriginalModels(fixture.Models.Select((model, slot) => (slot, model))).Models);
 
     private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 254, 14, 0, 65, 185, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(185, 184, new(185, 0x5C0D50, 0x5C0D30), new(OriginalOwner(0), 0, (1 << 1) | (1 << 4) | (1 << 6), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x22BC150, 0x40000)] };
+        NativeBattleOriginalEffectState effect = new(185, 184, new(185, 0x5C0D50, 0x5C0D30), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(1), OriginalOwner(4), OriginalOwner(6)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x22BC150, 0x40000)] };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x2BFFF, Enumerable.Repeat((byte)0xA5, 0x2D962 - 0x2BFFF).ToArray()).Write(0x40000, Tim());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena };
         ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2)

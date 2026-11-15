@@ -289,7 +289,7 @@ public sealed class NativeBattleEffect54LowerTests
             (packets, _) = packets.Publish(1);
             Inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => packets, (_, physical) =>
             {
-                int actor = checked((int)((physical - 0x1D972C0) / 156));
+                int actor = OriginalSlot(physical);
                 return NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes((short)(actor == 3 ? 100 : 0))).Write(0x24, BitConverter.GetBytes((short)7)).Write(0x3C, BitConverter.GetBytes((short)40));
             }, frame => frame.Memory.SharedEffectView2793E58!, _ => new(null, 100, 160, 108), _ => 0, (frame, _, selector, _, retained) =>
             {

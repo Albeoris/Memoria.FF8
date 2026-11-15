@@ -104,7 +104,7 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         Assert.Equal(0u, current.Effect.ReturnedDescriptor);
         Assert.Equal(Enumerable.Repeat(0, 6), fixture.Anchors);
         Assert.Single(fixture.Operations.OfType<NativeBattleMicroMissiles299Contact>());
-        Assert.Equal(0, fixture.Operations.OfType<NativeBattleMicroMissiles299Contact>().Single().Index);
+        Assert.Equal(0, fixture.Operations.OfType<NativeBattleMicroMissiles299Contact>().Single().Occurrence.Ordinal);
         Assert.Single(fixture.Operations.OfType<NativeBattleMicroMissiles299Sound>());
         Assert.True(fixture.Operations.OfType<NativeBattleMicroMissiles299DrawSprite>().Any());
         Assert.True(fixture.Operations.OfType<NativeBattleMicroMissiles299DrawParticle>().Any());
@@ -203,7 +203,7 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         }
         public NativeBattleMicroMissiles299Frame Step(NativeBattleMicroMissiles299Frame frame) => NativeBattleMicroMissiles299Controller.Advance(frame, Resources, new(Packets, _ => Model, _ => Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, actor) =>
         {
-            Anchors.Add(actor);
+            Anchors.Add(OriginalSlot(actor));
             return new(current, new(0, 100, 0, 100));
         }, (current, operation) =>
         {

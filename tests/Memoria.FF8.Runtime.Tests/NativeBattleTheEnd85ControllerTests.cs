@@ -74,7 +74,7 @@ public sealed class NativeBattleTheEnd85ControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 42, 0, 85, 1, null));
         for (int index = 0; index < Math.Max(1, (int)targets); index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3 + index), 1, 0, 0, 0, 100, 0), null));
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeats);
         (packets, _) = packets.Publish(targets);

@@ -27,7 +27,7 @@ public sealed class NativeBattleGuardianAnimationFinaleTests
     public void Shiva_remembers_the_completed_finale_after_its_worker_is_released()
     {
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleShivaProcess shiva = NativeBattleShivaProcess.FromColdProcess() with { Entry = new(0, 3, new(0, 0, 0), matrix, 2) };
+        NativeBattleShivaProcess shiva = NativeBattleShivaProcess.FromColdProcess() with { Entry = new(new(0, 0, 0), matrix, 2) };
         Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(185), NativeBattleEffectMemory.FromColdProcess() with { Shiva = shiva }));
     }
 

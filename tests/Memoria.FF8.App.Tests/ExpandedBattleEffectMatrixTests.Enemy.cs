@@ -143,7 +143,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         NativeBattleEffectPresentation? presentation = null;
         HashSet<string>? recipientsAtFirstContact = null;
         string[]? resolvedRecipientsAtFirstContact = null;
-        bool usesOriginalSlots = battle.ReadDefinition().UsesOriginalEnemySlots;
         int observationWindows = effect.Effect == 158 ? 360 : effect.Effect is 153 or 154 ? 300 : extendOriginalTurns ? 240 : battle.Mode == BattleAtbMode.Normal ? 120 : 24;
         for (int turn = 0; turn < observationWindows && battle.Outcome == BattleOutcome.Active; turn++)
         {
@@ -156,8 +155,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 preparation?.SubmitIfReady(world, battle);
                 references?.SubmitIfReady(world, battle);
                 HashSet<string> eligibleBeforeContact = battle.Combatants.Where(actor => actor.IsActive && actor.IsAlive && !actor.Untargetable && (actor.PersistentStatus & 5) == 0).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
-                string[]? resolvedBeforeContact = usesOriginalSlots && recipientsAtFirstContact is null && cast?.AiRecipients is { } selection
-                    ? battle.CurrentExpandedAiTargets(selection, cast.NativeAction).Select(actor => actor.Id).ToArray() : null;
+                string[]? resolvedBeforeContact = recipientsAtFirstContact is null && cast?.TargetRequest is { } selection
+                    ? ReadTargetsWithoutSampling(battle, selection).Select(actor => actor.Id).ToArray() : null;
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 preparation?.Observe(battle);
                 references?.Observe(battle);
@@ -166,7 +165,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     return new("logical", references.Describe(), null);
                 }
                 BattleActionPresentation? active = battle.ActiveAction;
-                if (cast is null && active is { Ability: BattleAbility.EnemyAbility, AiRecipients: not null }
+                if (cast is null && active is { Ability: BattleAbility.EnemyAbility, TargetRequest.Selection: not BattleTargetSelection.None }
                     && (preparation is null || preparation.Ready)
                     && references is null
                     && actors.TryGetValue(active.ActorId, out EnemyScenarioScriptedAction[]? scripts)
@@ -260,14 +259,20 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             mapped.KernelSection == native.KernelSection && mapped.KernelIndex == native.KernelIndex && native.MagicId == effect.Effect;
     }
 
+    private static BattleCombatant[] ReadTargetsWithoutSampling(BattleSession battle, BattleTargetRequest request)
+    {
+        System.Reflection.MethodInfo resolve = typeof(BattleSession).GetMethod("ResolveBattleTargets", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        return (BattleCombatant[])resolve.Invoke(battle, [request, false])!;
+    }
+
     private static void AssertEnemyContacts(BattleSession battle, BattleActionPresentation cast, BattleEvent[] contacts, HashSet<string> eligible, string[]? resolvedRecipients = null)
     {
-        BattleAiRecipients selection = cast.AiRecipients!;
-        string[] recipients = resolvedRecipients ?? selection.ActorIds.Where(eligible.Contains).ToArray();
+        BattleTargetSelection selection = cast.TargetRequest.Selection;
+        string[] recipients = resolvedRecipients ?? ReadTargetsWithoutSampling(battle, cast.TargetRequest).Select(actor => actor.Id).Where(eligible.Contains).ToArray();
         int hitCount = cast.NativeGraphic is not null ? 1 : cast.NativeAction!.HitCount;
-        if (selection.RandomSide is not null || (cast.NativeAction?.TargetFlags.GetValueOrDefault() & 2) == 2)
+        if (selection is BattleTargetSelection.RandomOnSide || (cast.NativeAction?.TargetFlags.GetValueOrDefault() & 2) == 2)
         {
-            BattleSide targetSide = selection.RandomSide ?? battle.Combatants.Single(actor => actor.Id == cast.TargetId).Side;
+            BattleSide targetSide = selection is BattleTargetSelection.RandomOnSide random ? random.Side : battle.Combatants.Single(actor => actor.Id == cast.TargetId).Side;
             Assert.InRange(contacts.Length, 1, hitCount);
             Assert.All(contacts, contact => Assert.Contains(battle.Combatants, actor => actor.Id == contact.TargetId && actor.Side == targetSide && eligible.Contains(actor.Id)));
             return;

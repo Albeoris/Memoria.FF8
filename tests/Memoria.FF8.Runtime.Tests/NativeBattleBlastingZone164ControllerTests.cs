@@ -122,7 +122,7 @@ public sealed class NativeBattleBlastingZone164ControllerTests
     {
         operations.Add(operation);
         return frame;
-    });
+    }, OriginalAliases);
 
     private static (NativeBattleBlastingZone164Frame Frame, NativeBattleEffectTaskPool Pool) Frame(uint callback, ushort counter)
     {
@@ -132,8 +132,8 @@ public sealed class NativeBattleBlastingZone164ControllerTests
         (children, _) = children.Append(callback);
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { BlastingZone164 = new(true, parameters, 3, null, null) };
-        NativeBattleOriginalEffectState effect = new(164, 162, new(164, 0x5F0260, 0x5F0240), parameters, 0x23C6968) { Pools = [main, children] };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { BlastingZone164 = new(true, null, null) };
+        NativeBattleOriginalEffectState effect = new(164, 162, new(164, 0x5F0260, 0x5F0240), parameters, 0x23C6968) { Pools = [main, children], EntryFirstRecipient = OriginalOwner(3) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x23C9D98, new byte[8]);
         return (new(memory, effect, staging, NativeCrtRandomState.FromColdProcess()), children);
     }

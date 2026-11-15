@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -135,7 +136,7 @@ public sealed class NativeBattleFinalStage142Tests
     public void HP_target_uses_first_enabled_identity8C_descriptor_in_actor_order_and_signed_quantization()
     {
         NativeBattleFinalStage142State state = NativeBattleFinalStage142State.FromColdProcess();
-        ImmutableArray<NativeBattleFinalStage142Actor> actors = [new(6, 2, 0x8C, 1, 4), new(3, 4, 0x8C, 1, 4), new(5, 2, 0x8C, 3, 4), new(4, 2, 0x8C, 1, 3)];
+        ImmutableArray<NativeBattleFinalStage142Actor> actors = [new((BattleEnemyModelOwner)OriginalOwner(6), 2, 0x8C, 1, 4), new((BattleEnemyModelOwner)OriginalOwner(3), 4, 0x8C, 1, 4), new((BattleEnemyModelOwner)OriginalOwner(5), 2, 0x8C, 3, 4), new((BattleEnemyModelOwner)OriginalOwner(4), 2, 0x8C, 1, 3)];
         NativeBattleFinalStage142State sampled = NativeBattleFinalStage142.UpdateTarget3(state, actors);
         Assert.Equal(1536, sampled.TargetRatio);
         sampled = NativeBattleFinalStage142.UpdateTarget3(state, actors.Select(actor => actor with { Identity = 1 }).ToImmutableArray());
@@ -146,7 +147,7 @@ public sealed class NativeBattleFinalStage142Tests
     public void HP_sampling_preserves_signed_division_and_fails_on_native_zero_divisor()
     {
         NativeBattleFinalStage142State state = NativeBattleFinalStage142State.FromColdProcess();
-        ImmutableArray<NativeBattleFinalStage142Actor> actors = Enumerable.Range(3, 4).Select(index => new NativeBattleFinalStage142Actor(index, 2, 0x8C, -1, 3)).ToImmutableArray();
+        ImmutableArray<NativeBattleFinalStage142Actor> actors = Enumerable.Range(3, 4).Select(index => new NativeBattleFinalStage142Actor((BattleEnemyModelOwner)OriginalOwner(index), 2, 0x8C, -1, 3)).ToImmutableArray();
         Assert.Equal(0xFC00, NativeBattleFinalStage142.UpdateTarget3(state, actors).TargetRatio);
         Assert.Throws<NotSupportedException>(() => NativeBattleFinalStage142.UpdateTarget3(state, actors.SetItem(0, actors[0] with { MaximumHp = 0 })));
     }

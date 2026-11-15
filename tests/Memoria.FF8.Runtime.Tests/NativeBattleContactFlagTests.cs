@@ -29,7 +29,7 @@ public sealed class NativeBattleContactFlagTests
         Assert.Equal(expected, packet.Primary.PresentedAmount);
         Assert.Equal(zombie ? (byte)0 : (byte)1, (byte)(packet.Primary.HitFlags & 1));
         Assert.Equal(400 + (zombie ? -expected : expected), session.Combatants.Single(item => item.Id == "target").CurrentHp);
-        Assert.Equal((byte)255, packet.Secondary.Recipient);
+        Assert.Null(packet.Secondary);
         Assert.Equal(expected, Assert.Single(session.Events, item => item.Kind == (zombie ? "Damage" : "Healing")).Amount);
     }
 
@@ -75,7 +75,7 @@ public sealed class NativeBattleContactFlagTests
         Assert.Equal(unchecked((ushort)expected), packet.Primary.Amount6);
         Assert.Equal(200_000 - expected, session.Combatants.Single(item => item.Id == "target").CurrentHp);
         Assert.Equal(expected, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal((byte)255, packet.Secondary.Recipient);
+        Assert.Null(packet.Secondary);
     }
 
     [Theory]
@@ -173,6 +173,6 @@ public sealed class NativeBattleContactFlagTests
         BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([target.IsPlayer ? new BattlePartyActorReference(target.Id) : new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.Attack, 0, "Contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
         typeof(BattleSession).GetMethod("BeginNativeReactionBatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, []);
-        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, (byte)255, false, null])!;
+        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, null, false])!;
     }
 }

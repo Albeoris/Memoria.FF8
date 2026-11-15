@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -8,15 +9,15 @@ public sealed class NativeBattleRinoa88ModelOperationsTests
     [Fact]
     public void Visibility_saves_the_exact_bank_and_restores_only_bit4_of_still_loaded_models()
     {
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray();
-        models = models.SetItem(0, models[0] with { Flags0 = 0x12 }).SetItem(3, models[3] with { Flags0 = 0x22 });
+        BattleActorModels models = OriginalModels([(0, new(0x12)), (3, new(0x22))]).Models;
+        NativeBattleOriginalEffectState effect = new(88, 87, new(88, 0x769CB0, 0x769F40), null, null);
         NativeBattleRinoa88SceneMemory scene = new(NativeBattleEffectArena.Clear());
-        NativeBattleRinoa88VisibilityStep hidden = NativeBattleRinoa88ModelOperations.ApplyVisibility(scene, models, 0x769CB0);
+        NativeBattleRinoa88VisibilityStep hidden = NativeBattleRinoa88ModelOperations.ApplyVisibility(scene, models, effect, OriginalAliases, 0x769CB0);
         Assert.Equal((ushort)0x26, hidden.Models.Get(OriginalOwner(3)).Flags0);
         Assert.Equal((ushort)0x22, hidden.Scene.Word(44));
         Assert.Equal((ushort)0x12, hidden.Models.Get(OriginalOwner(0)).Flags0);
         hidden = hidden with { Models = hidden.Models.Set(OriginalOwner(3), hidden.Models.Get(OriginalOwner(3)) with { Flags0 = 0xA6 }) };
-        NativeBattleRinoa88VisibilityStep restored = NativeBattleRinoa88ModelOperations.ApplyVisibility(hidden.Scene, hidden.Models, 0x769F40);
+        NativeBattleRinoa88VisibilityStep restored = NativeBattleRinoa88ModelOperations.ApplyVisibility(hidden.Scene, hidden.Models, hidden.Effect, OriginalAliases, 0x769F40);
         Assert.Equal((ushort)0xA2, restored.Models.Get(OriginalOwner(3)).Flags0);
     }
 
@@ -27,7 +28,7 @@ public sealed class NativeBattleRinoa88ModelOperationsTests
         models = models.SetItem(0, models[0] with { Flags0 = 2, Transform = new(default, new(-101, 123, -100), 0, 0, 4096) });
         models = models.SetItem(2, models[2] with { Flags0 = 2, Transform = new(default, new(100, -999, 99), 0, 0, 4096) });
         models = models.SetItem(3, models[3] with { Flags0 = 2, Transform = new(default, new(10000, 0, 10000), 0, 0, 4096) });
-        ImmutableArray<byte> point = NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(models);
+        ImmutableArray<byte> point = NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(OriginalModels(models.Select((model, slot) => (slot, model))).Models);
         Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan()));
         Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan().Slice(2)));
         Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan().Slice(4)));

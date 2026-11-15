@@ -14,8 +14,8 @@ public sealed class NativeBattleDoomtrain191Tests
         NativeBattleDoomtrain191Frame preserved = NativeBattleStorageSnapshots.Capture(fixture.Frame);
         NativeBattleDoomtrain191Frame result = Initialize(fixture);
         NativeBattleDoomtrain191State state = result.Memory.Doomtrain191!;
-        Assert.Equal(3, state.FirstTarget);
-        Assert.Equal(0, state.Caster);
+        Assert.Equal(OriginalOwner(3), fixture.Packets.ReadHeaderContacts(new BattleActionHeaderReference(0))[0].Primary.Recipient);
+        Assert.Equal(OriginalOwner(0), result.Effect.Parameters!.Source);
         Assert.Equal(NativeBattleGfMatrices.Euler56CD50(new(0, 0x900, 0)).Rotation.ToArray(), state.BaseMatrix.ReadMatrix().Rotation.ToArray());
         Assert.Equal(123, state.BaseMatrix.ReadMatrix().Z);
         Assert.Equal(0, state.BaseMatrix.ReadMatrix().X);
@@ -63,7 +63,7 @@ public sealed class NativeBattleDoomtrain191Tests
     public void Zero_displacement_still_requires_the_current_target_matrix_and_warm_missing_module_state_is_not_recreated()
     {
         var fixture = Fixture();
-        Assert.Throws<NotSupportedException>(() => Initialize(fixture with { Models = fixture.Models.SetItem(3, fixture.Models[3] with { GeometryWorldMatrix = null }) }));
+        Assert.Throws<NotSupportedException>(() => Initialize(fixture with { Models = fixture.Models.Set(OriginalOwner(3), fixture.Models.Get(OriginalOwner(3)) with { GeometryWorldMatrix = null }) }));
         Assert.Throws<NotSupportedException>(() => Initialize(fixture with { Frame = fixture.Frame with { Memory = fixture.Frame.Memory with { Doomtrain191 = null } } }));
     }
 
@@ -84,7 +84,7 @@ public sealed class NativeBattleDoomtrain191Tests
         NativeBattleDoomtrain191Frame before = RoundTrip(initial);
         NativeBattleDoomtrain191Frame result = NativeBattleDoomtrain191Controller.Advance6472C0(initial, inputs, fixture.Resources);
         Assert.Equal(new[] { typeof(NativeBattleDoomtrain191StreamStart), typeof(NativeBattleDoomtrain191StartVibration), typeof(NativeBattleDoomtrain191CameraPublish) }, operations);
-        Assert.Equal(new[] { 3, 4 }, result.Memory.Doomtrain191!.Targets);
+        Assert.Equal(new[] { OriginalOwner(3), OriginalOwner(4) }, result.Memory.Doomtrain191!.Targets);
         NativeBattleDoomtrain191ActorSnapshot snapshot = result.Memory.Doomtrain191.ActorSnapshots[OriginalOwner(3)]!;
         Assert.Equal((short)-31, BinaryPrimitives.ReadInt16LittleEndian(snapshot.Position.AsSpan().Slice(6)));
         Assert.Equal((short)777, BinaryPrimitives.ReadInt16LittleEndian(snapshot.Scale.AsSpan().Slice(6)));
@@ -155,13 +155,13 @@ public sealed class NativeBattleDoomtrain191Tests
         Assert.Equal((ushort)0, second.ReadWord(0x20));
     }
 
-    internal sealed record TestFixture(NativeBattleDoomtrain191Frame Frame, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleActionPacketsState Packets, NativeBattleDoomtrain191Resources Resources);
+    internal sealed record TestFixture(NativeBattleDoomtrain191Frame Frame, BattleActorModels Models, NativeBattleActionPacketsState Packets, NativeBattleDoomtrain191Resources Resources);
 
     internal static NativeBattleDoomtrain191Frame Initialize(TestFixture fixture) => NativeBattleDoomtrain191Controller.Initialize63E730(fixture.Frame.Memory, fixture.Frame.Effect, Inputs(fixture), fixture.Resources, fixture.Frame.Random);
 
     internal static NativeBattleDoomtrain191Inputs Inputs(TestFixture fixture)
     {
-        return new(fixture.Packets, actor => fixture.Models[actor], _ => new(999, -999, 123), () => fixture.Frame.Memory.Doomtrain191!.CameraBackup, () => new(new(0, 0, 0), new(0, 0, 1), 256, 0), () => 0, () => 0, (current, _) => current, (_, _) => throw new InvalidOperationException("Unexpected native leaf."));
+        return new(fixture.Packets, fixture.Models.Get, _ => new(999, -999, 123), () => fixture.Frame.Memory.Doomtrain191!.CameraBackup, () => new(new(0, 0, 0), new(0, 0, 1), 256, 0), () => 0, () => 0, (current, _) => current, (_, _) => throw new InvalidOperationException("Unexpected native leaf."));
     }
 
     internal static TestFixture Fixture()
@@ -183,7 +183,7 @@ public sealed class NativeBattleDoomtrain191Tests
         packed[18] = 0x71;
         packed[19] = 0x72;
         memory = memory with { Doomtrain191 = memory.Doomtrain191! with { BaseMatrix = new(packed.ToImmutableArray(), identity.Known.SetItem(18, false).SetItem(19, false)), CameraBackup = identity } };
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel(2) { Rotation14 = 0x100, GeometryWorldMatrix = identity.ReadMatrix(), HasLinkedModelRing140 = actor is 3 or 4, LinkedModelIndex140 = actor == 3 ? 4 : actor == 4 ? 3 : null, Transform = new(new(0, 0, 0), new(1, 2, 3), -31, 0, 4096) { Scale148 = new(100, 200, 300), Scale154 = 777 } }).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel(2) { Rotation14 = 0x100, GeometryWorldMatrix = identity.ReadMatrix(), HasLinkedModelRing140 = actor is 3 or 4, LinkedModel = actor == 3 ? OriginalOwner(4) : actor == 4 ? OriginalOwner(3) : null, Transform = new(new(0, 0, 0), new(1, 2, 3), -31, 0, 4096) { Scale148 = new(100, 200, 300), Scale154 = 777 } }).ToImmutableArray();
         NativeBattleOriginalEffectState effect = new(191, 190, new(191, 0x63E730, 0x575560), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null);
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 16);
@@ -201,7 +201,7 @@ public sealed class NativeBattleDoomtrain191Tests
             BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(2 * index), words[index]);
         }
         NativeBattleDoomtrain191Resources resources = new(new("tim", tim.ToImmutableArray()), new("camera", program.ToImmutableArray()), new(0, new("test", [], [])), new("sound", new byte[20].ToImmutableArray()), 144, []);
-        return new(new(memory, effect, new(1)), models, packets, resources);
+        return new(new(memory, effect, new(1)), OriginalModels(models.Select((model, slot) => (slot, model))).Models, packets, resources);
     }
 
     private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -44,7 +45,7 @@ public sealed class NativeBattleStatusTests
         BattleSnapshot snapshot = battle.Capture();
         snapshot.Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[0] = 0;
         battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0));
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]));
 
         typeof(BattleSession).GetMethod("DispatchNativeStatusTimers", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, null);
 
@@ -54,7 +55,7 @@ public sealed class NativeBattleStatusTests
         NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
         NativeBattleDescriptorPacket packet = descriptors.Packets[Assert.Single(descriptors.Queue)];
         Assert.Equal((ushort)117, packet.Command);
-        Assert.Equal((short)3, packet.Index);
+        Assert.Equal((short)3, packet.ScalarWord8);
         Assert.Equal(0x1D27B10u + 208u * 3, packet.Argument);
         NativeBattleDescriptorState restored = JsonSerializer.Deserialize<NativeBattleDescriptorState>(JsonSerializer.Serialize(descriptors))!;
         restored.Validate();

@@ -37,12 +37,12 @@ public sealed class NativeBattleRaldo19ControllerTests
         NativeBattleEffectHierarchyAppend generic = hierarchy.Append8DC540(3, 0x8A3A30, 676, hierarchy.Address(0, 0), (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleModulePoolTask task = generic.Hierarchy.Read(generic.Address).WriteWord(0x29C, 4).WriteWord(0x296, 0x4321);
         NativeBattleGraphicsModel model = new(0) { Transform = new(new(0, 0, 0), new(-123, 456, -789), unchecked((short)0xABCD), 0, 4096) };
-        task = NativeBattleRaldo19Controller.PrepareMode4Caster(task, model);
+        task = NativeBattleRaldo19Controller.PrepareMode4Caster(task, _ => model);
         Assert.Equal((short)-123, unchecked((short)task.ReadWord(0x290)));
         Assert.Equal((short)-768, unchecked((short)task.ReadWord(0x292)));
         Assert.Equal((short)-789, unchecked((short)task.ReadWord(0x294)));
         Assert.Equal((ushort)0xABCD, task.ReadWord(0x296));
-        Assert.Throws<InvalidDataException>(() => NativeBattleRaldo19Controller.PrepareMode4Caster(task.WriteWord(0x29C, 0), model));
+        Assert.Throws<InvalidDataException>(() => NativeBattleRaldo19Controller.PrepareMode4Caster(task.WriteWord(0x29C, 0), _ => model));
     }
 
     [Fact]
@@ -91,8 +91,8 @@ public sealed class NativeBattleRaldo19ControllerTests
             NativeBattleGraphicsModel model = fixture.Inputs.ReadModel(index);
             return index switch
             {
-                2 or 4 => model with { Flags0 = 2, ModelId4 = 0x70 },
-                5 => model with { Flags0 = 2, ModelId4 = 0x70, Transform = model.Transform! with { Position28 = new(0, 1, 0) } },
+                var owner when owner == OriginalOwner(2) || owner == OriginalOwner(4) => model with { Flags0 = 2, ModelId4 = 0x70 },
+                var owner when owner == OriginalOwner(5) => model with { Flags0 = 2, ModelId4 = 0x70, Transform = model.Transform! with { Position28 = new(0, 1, 0) } },
                 _ => model
             };
         } };

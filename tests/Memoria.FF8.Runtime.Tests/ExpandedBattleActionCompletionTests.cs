@@ -14,7 +14,7 @@ public sealed class ExpandedBattleActionCompletionTests
         BattleSession battle = CreateMulticast(status, initialStock, poison: true);
         string[] targets = ["enemy-10", "enemy-7", "enemy-10"];
         battle.QueueAction("caster", targets[0], BattleAbility.Magic, 1, magicTargets: targets[..casts]);
-        Assert.Equal(targets[..casts], Assert.Single(battle.QueuedActions).ExpandedMagicTargets!.Value.ToArray());
+        Assert.Equal(targets[..casts], Assert.Single(battle.QueuedActions).MagicCasts.Select(cast => Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(cast.Targets.Selection).Actors).ActorId));
         battle = RoundTrip(battle);
         battle.Tick();
         battle = RoundTrip(battle);
@@ -219,7 +219,7 @@ public sealed class ExpandedBattleActionCompletionTests
 
     private static BattleSession RoundTrip(BattleSession battle)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        return BattleSession.Restore(battle.Capture());
     }
 
     private static void Complete(BattleSession battle)

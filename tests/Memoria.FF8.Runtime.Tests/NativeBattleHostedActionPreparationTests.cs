@@ -1,5 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Collections.Immutable;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -7,8 +5,10 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedActionPreparationTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly NativeBattleActionHeaderPreparation Header = new(OriginalOwner(0), 1, 5, -1, 0, 0, null);
-    private static readonly NativeBattleContactPacket Contact = new(new(OriginalOwner(3), 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static readonly BattlePartyModelOwner Source = new BattlePartyActorModel(new("ally"));
+    private static readonly BattleEnemyModelOwner Enemy = new BattleEnemyActorModel(new("enemy"));
+    private static readonly NativeBattleActionHeaderPreparation Header = new(Source, 1, 5, -1, 0, 0, null);
+    private static readonly NativeBattleContactPacket Contact = new(new(Enemy, 0, 1, 0, 0, 0, 0), null);
 
     [Fact]
     public void PreparationLeavesLiveOwnersUntouchedAndPublishesTheSameAdmissionAsBegin()
@@ -36,9 +36,9 @@ public sealed class NativeBattleHostedActionPreparationTests
 
         long token = session.PublishHostedAction(prepared);
         Assert.Equal(direct.BeginHostedAction(Header, [Contact, Contact]), token);
-        Assert.Equal(NativeBattleTestSnapshots.Json(direct.NativeActionPackets), NativeBattleTestSnapshots.Json(session.NativeActionPackets));
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct.NativeActionPackets.ExportRetained()), NativeBattleTestSnapshots.Json(session.NativeActionPackets.ExportRetained()));
         Assert.Equal(NativeBattleTestSnapshots.Json(direct.NativeGraphics!.Descriptors), NativeBattleTestSnapshots.Json(session.NativeGraphics!.Descriptors));
-        Assert.Equal(graphics.Models, session.NativeGraphics.Models);
+        Assert.Same(graphics.ActorModels, session.NativeGraphics.ActorModels);
         Assert.Same(memory, session.NativeEffectMemory);
         Assert.Same(cpu, session.NativeModelCpuResources);
         Assert.Same(cache, session.NativeModelTextureCache);
@@ -103,7 +103,7 @@ public sealed class NativeBattleHostedActionPreparationTests
         NativeGlobalRandomChange? random = session.NativeGlobalRandomChange;
 
         Assert.Throws<InvalidDataException>(() => session.AdvanceHostedBattlePresentationFrame(conflicting, null));
-        NativeBattleContactPacket late = Contact with { Primary = Contact.Primary with { ActorIndex = 6 } };
+        NativeBattleContactPacket late = Contact with { Primary = Contact.Primary with { Recipient = new BattleEnemyActorModel(new("unbound")) } };
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedAction(Header, [Contact, late]));
         Assert.Same(graphics, session.NativeGraphics);
         Assert.Same(packets, session.NativeActionPackets);
@@ -124,7 +124,7 @@ public sealed class NativeBattleHostedActionPreparationTests
             ran = true;
             Assert.Throws<InvalidOperationException>(() => session.ValidatePreparedHostedAction(stale));
             BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
-            BattleModelRoster roster = session.NativeGraphics!.PresentationRoster!;
+            BattleModelRoster roster = session.NativeGraphics!.ActorModels.Roster;
             Field("hostedFrameServices").SetValue(session, logical.CaptureModelLifecycleServices(roster));
             try
             {
@@ -154,22 +154,16 @@ public sealed class NativeBattleHostedActionPreparationTests
     private static BattleSession Fixture()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        BattleModelRoster roster = session.ReadBattlePresentationRoster();
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
-        models[0] = models[0] with { ModelId4 = 1 };
-        models[3] = models[3] with { ModelId4 = 16 };
-        Set(session, nameof(BattleSession.NativeGraphics), new NativeBattleGraphicsState(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
-        {
-            PresentationRoster = roster,
-            EntryReady = true
-        });
+        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Source ? (byte)1 : (byte)16 });
+        Set(session, nameof(BattleSession.NativeGraphics), graphics with { EntryReady = true });
         Field("hostedBattlePresentation").SetValue(session, true);
-        Field("presentationNativeTargets").SetValue(session, new Dictionary<int, NativeBattleEffectModelBinding>
+        Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
         {
-            [0] = new("ally", models[0], new([0, 0])) { IsParty = true }
+            [Source] = new(Source, graphics.ActorModels.Get(Source), new([0, 0]))
         });
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess() });
-        Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster));
+        Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
         Set(session, nameof(BattleSession.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));
         return session;
     }

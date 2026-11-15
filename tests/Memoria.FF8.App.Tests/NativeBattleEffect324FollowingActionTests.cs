@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -31,7 +32,7 @@ public sealed class NativeBattleEffect324FollowingActionTests
         Assert.Empty(source.QueuedActions);
         Assert.All(source.NativeEffectMemory.Effect324!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
-        int physicalCaster = originalGraphics.OriginalEffect.Parameters!.Actor78;
+        int physicalCaster = ReadOriginalModelOperand(originalGraphics.NativeBindings.CaptureAliases(originalGraphics.ActorModels), originalGraphics.OriginalEffect.Parameters!.Source);
         Assert.InRange(physicalCaster, 3, 6);
         string casterId = ReadOriginalModelActorId(originalGraphics, physicalCaster)!;
         string targetId = ReadOriginalModelActorId(originalGraphics, 0)!;

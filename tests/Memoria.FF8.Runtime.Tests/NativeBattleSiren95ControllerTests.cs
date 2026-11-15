@@ -116,7 +116,7 @@ public sealed class NativeBattleSiren95ControllerTests
             AdvanceLeaf = (current, _) => new(current, false),
             ApplyContact = (current, contact) =>
             {
-                contacts.Add(contact);
+                contacts.Add(contact.Ordinal);
                 return current with { Memory = current.Memory with { Siren95 = current.Memory.Siren95!.WriteDword(0x258FCF0, (uint)contacts.Count) } };
             }
         };
@@ -147,7 +147,7 @@ public sealed class NativeBattleSiren95ControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
         for (int index = 0; index < Math.Max(1, (int)targets); index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 1, 0, 0, 0, 100, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3 + index), 1, 0, 0, 0, 100, 0), null));
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeats);
         (packets, _) = packets.Publish(targets);

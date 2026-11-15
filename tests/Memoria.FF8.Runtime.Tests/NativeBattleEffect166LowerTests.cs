@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -272,7 +273,7 @@ public sealed class NativeBattleEffect166LowerTests
         pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, 0).WriteWord(14, 0));
         return new(Memory(), new(166, 165, new(166, 0x5E4E90, 0x5E4E70), null, null) { Pools = [pool] }, new(123), NativeBattleEffect166State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
-    private static NativeBattleEffect166Inputs Inputs(uint flags) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, null!, null!, null!, null!, null!, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(null, 100, 160, 108), (frame, _) => frame) { ReadCameraRoll = _ => 0 };
+    private static NativeBattleEffect166Inputs Inputs(uint flags) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, null!, null!, null!, null!, null!, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(null, 100, 160, 108), (frame, _) => frame, () => Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalRoster.Owners.OfType<BattlePartyModelOwner>()) { ReadCameraRoll = _ => 0 };
     private static NativeBattleEffect166Resources Resources()
     {
         byte[] axis = new byte[16];

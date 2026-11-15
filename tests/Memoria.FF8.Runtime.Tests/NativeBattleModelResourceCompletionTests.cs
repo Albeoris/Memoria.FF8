@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -120,7 +121,7 @@ public sealed class NativeBattleModelResourceCompletionTests
         return Enumerable.Repeat(stale, 11).ToImmutableArray();
     }
 
-    private static NativeBattleModelResourceBind Bind(uint callback, NativeBattleModelDatSource source) => new(new(0, 0, 0, 0, callback, 2), source, new([]));
+    private static NativeBattleModelResourceBind Bind(uint callback, NativeBattleModelDatSource source) => new(new(0, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, callback, 2), source, new([]));
 
     private static NativeBattleModelDatSource Body()
     {

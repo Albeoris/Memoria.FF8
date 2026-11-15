@@ -276,16 +276,16 @@ public sealed class NativeBattleEffect174ControllerTests
         public List<NativeBattleEffect174Operation> Operations { get; } = [];
         public List<(int Actor, int Selector, int Fraction)> Points { get; } = [];
         public NativeBattleEffectArena[] Models { get; } = Enumerable.Range(0, 7).Select(actor => NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)(actor is 0 or 3 ? 2 : 0))).Write(14, BitConverter.GetBytes((short)0x1234)).Write(38, BitConverter.GetBytes((short)700))).ToArray();
-        public NativeBattleEffect174Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new(Word(Models[actor], 0)) { Rotation14 = unchecked((short)Word(Models[actor], 14)), Transform = new(new(0, 0, 0), Vector(Models[actor], 28), unchecked((short)Word(Models[actor], 34)), 0, unchecked((short)Word(Models[actor], 38))) }, (_, actor) => Models[actor], (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, _ => 512, (_, address) => address == 0xB8B7D8 ? 0x80604020u : 0x80C08040u, (frame, actor, selector, fraction, retained) =>
+        public NativeBattleEffect174Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new(Word(Models[OriginalSlot(actor)], 0)) { Rotation14 = unchecked((short)Word(Models[OriginalSlot(actor)], 14)), Transform = new(new(0, 0, 0), Vector(Models[OriginalSlot(actor)], 28), unchecked((short)Word(Models[OriginalSlot(actor)], 34)), 0, unchecked((short)Word(Models[OriginalSlot(actor)], 38))) }, (_, actor) => Models[OriginalSlot(actor)], (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, _ => 512, (_, address) => address == 0xB8B7D8 ? 0x80604020u : 0x80C08040u, (frame, actor, selector, fraction, retained) =>
         {
-            Points.Add((actor, selector, fraction));
+            Points.Add((OriginalSlot(actor), selector, fraction));
             return new(frame, CopyBytes(Point(10, 20, 30, 0), 0, retained, 0, 6));
         }, (frame, actor, retained) => new(frame, CopyBytes(Point(10, 20, 30, 0), 0, retained, 0, 6)), null!, null!, (frame, operation) =>
         {
             Operations.Add(operation);
             if (operation is NativeBattleEffect174WriteModelBytes write)
             {
-                Models[write.Actor] = CopyBytes(write.Data, 0, Models[write.Actor], write.Offset, write.Length);
+                Models[OriginalSlot(write.Actor)] = CopyBytes(write.Data, 0, Models[OriginalSlot(write.Actor)], write.Offset, write.Length);
             }
             return frame;
         });

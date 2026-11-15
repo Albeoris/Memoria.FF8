@@ -249,7 +249,7 @@ public sealed class NativeBattleDuel28CaptureTests
         BinaryPrimitives.WriteUInt16LittleEndian(mesh.Slice(154), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(mesh.Slice(156), 2);
         NativeBattleDuel216Resources data = new(resource.ToImmutableArray(), [], new("unused", []), []);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel216 = new(true, null, data), Arena = NativeBattleEffectArena.Clear().Write(11480, Enumerable.Repeat((byte)0xA5, 1216).ToArray()) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel216 = new(true, data), Arena = NativeBattleEffectArena.Clear().Write(11480, Enumerable.Repeat((byte)0xA5, 1216).ToArray()) };
         NativeBattleOriginalEffectState effect = new(216, 215, new(216, 1, 1), null, null);
         NativeBattleDuel216Frame frame = new(memory, effect, NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), NativeCrtRandomState.FromColdProcess());
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
@@ -294,14 +294,14 @@ public sealed class NativeBattleDuel28CaptureTests
         if (effect == 212)
         {
             NativeBattleDuel212Resources data = new(resource.ToImmutableArray(), [], [], [], [], new("unused", [])) { Files = [] };
-            NativeBattleDuel212Frame frame = new(memory with { Duel212 = new(true, null, data) }, selected, staging, NativeCrtRandomState.FromColdProcess());
+            NativeBattleDuel212Frame frame = new(memory with { Duel212 = new(true, data) }, selected, staging, NativeCrtRandomState.FromColdProcess());
             NativeBattleDuel212HierarchyStep result = NativeBattleDuel212Hierarchy.Draw6A2B80(frame, source, node, new(0, 0, 0, basis, "0", null, null, 0, 0, 0, false), 1, projection, colors, identity);
             return (NativeBattleTestSnapshots.Json(result), result.Batch, result.Frame.Memory.Arena!, meshAddress, morphOffset);
         }
         if (effect == 215)
         {
             NativeBattleDuel215Resources data = new(resource.ToImmutableArray(), [], new("unused", []), []);
-            NativeBattleDuel215Frame frame = new(memory with { Duel215 = new(true, null, data) }, selected, staging, NativeCrtRandomState.FromColdProcess());
+            NativeBattleDuel215Frame frame = new(memory with { Duel215 = new(true, data) }, selected, staging, NativeCrtRandomState.FromColdProcess());
             NativeBattleDuel215Program context = new(basis, new(0, 0, 0), window9 ? "9" : "0", 0, window9 ? (short)4096 : (short)0, 0, NativeBattleEffectNodeMemory.ArenaAddress + (uint)morphOffset);
             NativeBattleDuel215HierarchyStep result = anchored ? NativeBattleDuel215Hierarchy.Draw69C6B0(frame, source, node, context, projection, colors, identity) : NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors, identity);
             return (NativeBattleTestSnapshots.Json(result), result.Batch, result.Frame.Memory.Arena!, meshAddress, morphOffset);
@@ -309,7 +309,7 @@ public sealed class NativeBattleDuel28CaptureTests
         else
         {
             NativeBattleDuel216Resources data = new(resource.ToImmutableArray(), [], new("unused", []), []);
-            NativeBattleDuel216Frame frame = new(memory with { Duel216 = new(true, null, data) }, selected, staging, NativeCrtRandomState.FromColdProcess());
+            NativeBattleDuel216Frame frame = new(memory with { Duel216 = new(true, data) }, selected, staging, NativeCrtRandomState.FromColdProcess());
             NativeBattleDuel216Program context = new(basis, null, address + 0x20, 0, 0, 0, NativeBattleEffectNodeMemory.ArenaAddress + (uint)morphOffset);
             NativeBattleDuel216HierarchyStep result = NativeBattleDuel216Hierarchy.Draw6978F0(frame, source, node, context, projection, colors, identity);
             return (NativeBattleTestSnapshots.Json(result), result.Batch, result.Frame.Memory.Arena!, meshAddress, morphOffset);

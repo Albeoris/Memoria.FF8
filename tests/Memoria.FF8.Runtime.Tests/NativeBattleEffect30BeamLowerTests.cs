@@ -266,10 +266,10 @@ public sealed class NativeBattleEffect30BeamLowerTests
             Inputs = new(ReadBone, (_, _) => Identity, Look, _ => Identity, (_, _, _) => OriginalTaskActors(0, 3), Deliver, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
         }
 
-        private NativeBattleEffect30PointStep ReadBone(NativeBattleEffect30Frame frame, byte actor, byte selector, short distance)
+        private NativeBattleEffect30PointStep ReadBone(NativeBattleEffect30Frame frame, BattleModelOwner actor, byte selector, short distance)
         {
             Selectors.Add(selector);
-            return new(frame, actor == 3 ? new(500, 600, 700) : new(100, 200, 300));
+            return new(frame, actor == OriginalOwner(3) ? new(500, 600, 700) : new(100, 200, 300));
         }
 
         private NativeBattleEffect30MatrixStep Look(NativeBattleEffect30Frame frame, NativeBattlePackedMatrix32 destination, NativeBattleVector direction, NativeBattleVector up)

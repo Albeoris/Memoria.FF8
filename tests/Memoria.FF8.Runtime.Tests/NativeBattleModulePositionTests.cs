@@ -11,7 +11,7 @@ public sealed class NativeBattleModulePositionTests
     public void PositionProducerRetainsLocalWordsPhysicalModelAndPackedResourceAcrossJson()
     {
         NativeBattleModuleResource resource = Resource();
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(6, new(-1, 2, -3), resource, 0x81234505);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(OriginalOwner(6), new(-1, 2, -3), resource, 0x81234505, OriginalAliases);
         ImmutableArray<byte> payload = state.Slots[state.Tail!.Value].Payload;
         Assert.Equal((short)4, BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan().Slice(2)));
         Assert.Equal(new byte[] { 255, 255, 2, 0, 253, 255, 0, 0 }, payload.AsSpan().Slice(4, 8).ToArray());
@@ -25,7 +25,7 @@ public sealed class NativeBattleModulePositionTests
     public void PlacementTransformsAtCallbackTimeAndAppendsItsActualSpriteInTheSamePassEvenWhenPaused()
     {
         NativeBattleModuleResource resource = Resource();
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(2, new(1, 2, 3), resource, 0x00010005);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(OriginalOwner(2), new(1, 2, 3), resource, 0x00010005, OriginalAliases);
         NativeBattleModuleState restored = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(state))!;
         NativeBattleModuleInputs inputs = new(1)
         {
@@ -60,9 +60,9 @@ public sealed class NativeBattleModulePositionTests
     {
         NativeBattleGraphicsModel model = new(0) { Transform = new(new(0, 0, 0), new(1, 2, 3), 0, 0, 4096), Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 };
         Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.TransformModulePosition570CC0(model, new(1, 2, 3)));
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(0, new(1, 2, 3), Resource(), 5);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendPositionResource(OriginalOwner(0), new(1, 2, 3), Resource(), 5, OriginalAliases);
         Assert.Throws<NotSupportedException>(() => state.Advance(new(0) { Resources = [Resource()] }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleModuleState.Clear().AppendPositionResource(7, new(1, 2, 3), Resource(), 5));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModuleState.Clear().AppendPositionResource(new BattleEnemyActorModel(new("unbound")), new(1, 2, 3), Resource(), 5, OriginalAliases));
     }
 
     private static NativeBattleModuleResource Resource()

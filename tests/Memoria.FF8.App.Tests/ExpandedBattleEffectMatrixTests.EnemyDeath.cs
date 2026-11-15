@@ -120,20 +120,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             HashSet<string>? recipientsAtContact = null;
             string[]? resolvedRecipientsAtContact = null;
             int castEventStart = 0;
-            bool usesOriginalSlots = battle.ReadDefinition().UsesOriginalEnemySlots;
             for (int frame = 0; frame < 320 && battle.Outcome == BattleOutcome.Active; frame++)
             {
                 int previousEvents = battle.Events.Count;
                 HashSet<string> eligible = battle.Combatants.Where(actor => actor.IsActive && actor.IsAlive && !actor.Untargetable && (actor.PersistentStatus & 5) == 0).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
-                string[]? resolvedBeforeContact = usesOriginalSlots && recipientsAtContact is null && cast?.AiRecipients is { } selection
-                    ? battle.CurrentExpandedAiTargets(selection, cast.NativeAction).Select(actor => actor.Id).ToArray() : null;
+                string[]? resolvedBeforeContact = recipientsAtContact is null && cast?.TargetRequest is { } selection
+                    ? ReadTargetsWithoutSampling(battle, selection).Select(actor => actor.Id).ToArray() : null;
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 if (restored is not null)
                 {
                     restored.Tick();
                 }
                 deaths += battle.Events.Skip(previousEvents).Count(entry => entry.Kind == "Defeated" && entry.ActorId == attacker.Id && entry.TargetId == enemy.Id);
-                if (cast is null && battle.ActiveAction is { NativeAiCallbackStage: 3, AiRecipients: not null } active && active.ActorId == enemy.Id && scripts.Any(script => MatchesEnemyDispatch(active, script, effect)))
+                if (cast is null && battle.ActiveAction is { NativeAiCallbackStage: 3, TargetRequest.Selection: not BattleTargetSelection.None } active && active.ActorId == enemy.Id && scripts.Any(script => MatchesEnemyDispatch(active, script, effect)))
                 {
                     Assert.True(deaths > 0);
                     Assert.Contains(battle.Events.Skip(beforeAttack), entry => entry.Kind == "Damage" && entry.ActorId == attacker.Id && entry.TargetId == enemy.Id && entry.Amount > 0);
@@ -160,7 +159,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     }
                     if (battle.Events.Skip(previousEvents).Any(entry => entry.Kind == "EffectContact" && entry.ActorId == enemy.Id && entry.Ability == BattleAbility.EnemyAbility))
                     {
-                        if (cast.AiRecipients!.DeathSelfTargetId is string self)
+                        if (cast.TargetRequest.DeathCallbackSelf is { ActorId: string self })
                         {
                             eligible.Add(self);
                         }

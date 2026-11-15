@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -14,13 +13,13 @@ public sealed class ExpandedEffectContactConsumerTests
     {
         BattleSession battle = Create();
         BattleActionPresentation command = Command();
-        NativeBattleContactPacket first = Packet(3, 20);
-        NativeBattleContactPacket second = Packet(3, 30);
+        NativeBattleContactPacket first = Packet(Enemy(0), 20);
+        NativeBattleContactPacket second = Packet(Enemy(0), 30);
         SetContacts(battle, [new("enemy-0", first), new("enemy-0", second)]);
 
         Publish(battle, command, new([first with { Occurrence = new BattleContactOccurrence(0) }], [])
         {
-            Sequences = [new(OriginalOwner(3), NativeBattleForeignSequenceKind.Hit)]
+            Sequences = [new(Enemy(0), NativeBattleForeignSequenceKind.Hit)]
         });
         Assert.Throws<InvalidDataException>(() => Invoke(battle, "ValidateExpandedEffectContactCompletion"));
         Assert.Throws<InvalidDataException>(() => Publish(battle, command, new([first with { Occurrence = new BattleContactOccurrence(0) }], [])));
@@ -38,13 +37,13 @@ public sealed class ExpandedEffectContactConsumerTests
     {
         BattleSession battle = Create();
         BattleActionPresentation command = Command();
-        NativeBattleContactPacket repeated = Packet(3, 20);
-        ExpandedBattleContact[] contacts = [.. Enumerable.Repeat(new ExpandedBattleContact("enemy-0", repeated), 6), new("enemy-0", Packet(0, 35))];
+        NativeBattleContactPacket repeated = Packet(Enemy(0), 20);
+        ExpandedBattleContact[] contacts = [.. Enumerable.Repeat(new ExpandedBattleContact("enemy-0", repeated), 6), new("enemy-0", Packet(Enemy(0), 35))];
         SetContacts(battle, [.. contacts]);
 
         Assert.Throws<NotSupportedException>(() => Publish(battle, command, new([repeated], [])));
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact");
-        Publish(battle, command, new([.. Enumerable.Range(0, 5).Select(index => repeated with { PhysicalContactIndex = index })], []));
+        Publish(battle, command, new([.. Enumerable.Range(0, 5).Select(index => repeated with { Occurrence = new BattleContactOccurrence(index) })], []));
         Assert.Equal(5, battle.Events.Count(entry => entry.Kind == "EffectContact"));
         Publish(battle, command, new([repeated with { Occurrence = new BattleContactOccurrence(5) }], []));
 
@@ -53,17 +52,17 @@ public sealed class ExpandedEffectContactConsumerTests
     }
 
     [Fact]
-    public void SingleTargetHitPassesReuseRowsAndNeverUseRowSeven()
+    public void SingleTargetHitPassesReuseCanonicalOwnersAcrossTheFullRoster()
     {
         BattleSession battle = Create();
         BattleCombatant source = battle.Combatants[0];
         BattleCombatant[] targets = battle.Combatants.Skip(1).ToArray();
-        Assert.Equal(new byte[] { 3, 1, 3, 2, 4, 5 }, ResolveRows(battle, source, [targets[0], targets[1], targets[0], targets[2], targets[3], targets[4]]));
-        Assert.Equal(new byte[] { 3, 1, 2, 4, 5, 6 }, ResolveRows(battle, source, targets));
-        Assert.Equal(new byte[] { 0, 3, 0, 3 }, ResolveRows(battle, source, [source, targets[0], source, targets[0]]));
+        Assert.Equal(new BattleModelOwner[] { Enemy(0), Enemy(1), Enemy(0), Enemy(2), Enemy(3), Enemy(4) }, ResolveOwners(battle, source, [targets[0], targets[1], targets[0], targets[2], targets[3], targets[4]]));
+        Assert.Equal(Enumerable.Range(0, 6).Select(Enemy), ResolveOwners(battle, source, targets));
+        Assert.Equal(new BattleModelOwner[] { new BattlePartyActorModel(new("caster")), Enemy(0), new BattlePartyActorModel(new("caster")), Enemy(0) }, ResolveOwners(battle, source, [source, targets[0], source, targets[0]]));
     }
 
-    private static byte[] ResolveRows(BattleSession battle, BattleCombatant source, BattleCombatant[] singleTargetPasses)
+    private static BattleModelOwner[] ResolveOwners(BattleSession battle, BattleCombatant source, BattleCombatant[] singleTargetPasses)
     {
         BattleNativeAction native = new(2, 1, 1, 1)
         {
@@ -95,18 +94,25 @@ public sealed class ExpandedEffectContactConsumerTests
 
     private static BattleActionPresentation Command()
     {
-        return new("caster", "enemy-0", BattleActionPhase.Recovery, 1) { NativeAction = null };
+        BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy-0")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+        return new("caster", "enemy-0", BattleActionPhase.Recovery, 1, request);
     }
 
-    private static NativeBattleContactPacket Packet(byte row, ushort amount)
+    private static BattleEnemyActorModel Enemy(int index)
     {
-        return new(new(row, 0, 0, 0, 0, amount, 0), new(255, 0, 0, 0, 0, 0, 0));
+        return new(new($"enemy-{index}"));
+    }
+
+    private static NativeBattleContactPacket Packet(BattleModelOwner recipient, ushort amount)
+    {
+        return new(new(recipient, 0, 0, 0, 0, amount, 0), null);
     }
 
     private static void SetContacts(BattleSession battle, ImmutableArray<ExpandedBattleContact> contacts)
     {
         typeof(BattleSession).GetField("expandedExpectedContacts", PrivateInstance)!.SetValue(battle, contacts.Length);
-        Invoke(battle, "SetExpandedEffectContacts", contacts);
+        MethodInfo set = typeof(BattleSession).GetMethod("SetExpandedEffectContacts", PrivateInstance, [typeof(BattleCombatant), typeof(ImmutableArray<ExpandedBattleContact>)])!;
+        set.Invoke(battle, [battle.Combatants.First(), contacts]);
     }
 
     private static void Publish(BattleSession battle, BattleActionPresentation command, NativeBattleEffectPresentationStep step)

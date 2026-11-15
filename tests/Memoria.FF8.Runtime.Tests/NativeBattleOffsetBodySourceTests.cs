@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -60,7 +61,7 @@ public sealed class NativeBattleOffsetBodySourceTests
         {
             staging = staging.WriteResourcePointer(rowAddress + 4, pointer);
         }
-        NativeBattleGraphicsState graphics = new([new(0, 3) { ActiveResourceRow100 = staged ? null : 0, ActiveStagedResourceRow100 = staged ? rowAddress : null }], [], 0, 0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, OriginalOwner(0), new(3) { ActiveResourceRow100 = staged ? null : 0, ActiveStagedResourceRow100 = staged ? rowAddress : null })]);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleOriginalEffectState effect = new((ushort)family, family - 1, new((ushort)family, 1, 1), null, 0);
         object frame = family switch
@@ -71,7 +72,7 @@ public sealed class NativeBattleOffsetBodySourceTests
             _ => throw new ArgumentOutOfRangeException(nameof(family))
         };
         MethodInfo select = typeof(BattleSession).GetMethod($"ReadNativeEffect{family}Geometry", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        NativeBattleModelGeometrySource source = (NativeBattleModelGeometrySource)select.Invoke(session, [graphics, frame, 0])!;
+        NativeBattleModelGeometrySource source = (NativeBattleModelGeometrySource)select.Invoke(session, [graphics, frame, OriginalOwner(0)])!;
         Assert.Same(pointer.CpuPublication, source.Owner.CpuPublication);
         Assert.Equal(bytes, source.Read(0, bytes.Length));
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, fixture.Current);

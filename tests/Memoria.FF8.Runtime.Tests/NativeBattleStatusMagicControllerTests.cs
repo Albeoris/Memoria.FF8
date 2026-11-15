@@ -20,7 +20,7 @@ public sealed class NativeBattleStatusMagicControllerTests
         List<int> contactIndices = [];
         List<int> soundTicks = [];
         List<int> fadeTicks = [];
-        NativeBattleStatusMagicInputs inputs = new(packets, new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, index => models[index], _ => new([], []), (index, flags) => models[index] = models[index] with { Flags0 = flags }, (current, _) => current);
+        NativeBattleStatusMagicInputs inputs = new(packets, new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, index => models[OriginalSlot(index)], _ => new([], []), (index, flags) => models[OriginalSlot(index)] = models[OriginalSlot(index)] with { Flags0 = flags }, (current, _) => current);
         for (int tick = 1; tick <= end; tick++)
         {
             int now = tick;
@@ -34,10 +34,10 @@ public sealed class NativeBattleStatusMagicControllerTests
             } };
             NativeBattleStatusMagicStep step = NativeBattleStatusMagicController.Advance(frame, resources, observed);
             frame = step.Frame;
-            foreach (int contact in step.Contacts)
+            foreach (BattleContactOccurrence contact in step.Contacts)
             {
                 contactTicks.Add(tick);
-                contactIndices.Add(contact);
+                contactIndices.Add(contact.Ordinal);
             }
             soundTicks.AddRange(step.Sounds.Select(_ => tick));
             if (tick == 25)
@@ -79,9 +79,9 @@ public sealed class NativeBattleStatusMagicControllerTests
     [Fact]
     public void Model_pointer_and_size_depth_use_exact_native_widths()
     {
-        Assert.Equal(6, NativeBattleStatusMagicController.ModelIndex(0x1D972C0 + 6 * 156));
-        Assert.Throws<InvalidDataException>(() => NativeBattleStatusMagicController.ModelIndex(0x1D972C1));
-        Assert.Throws<InvalidDataException>(() => NativeBattleStatusMagicController.ModelIndex(0x1D972C0 + 7 * 156));
+        Assert.Equal(6, NativeBattleGraphicsModelAddress.DecodeOriginalCell(0x1D972C0 + 6 * 156).Offset);
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsModelAddress.DecodeOriginalCell(0x1D972C1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsModelAddress.DecodeOriginalCell(0x1D972C0 + 7 * 156));
         NativeBattleGraphicsModel model = new(1) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, -4096) };
         Assert.Equal(64, NativeBattleStatusMagicDrawing.SizeDepth(model));
     }
@@ -105,7 +105,7 @@ public sealed class NativeBattleStatusMagicControllerTests
 
     private static (NativeBattleStatusMagicFrame Frame, NativeBattleStatusMagicResources Resources, NativeBattleActionPacketsState Packets) Fixture(ushort effect, int actions)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int action = 0; action < actions; action++)
         {
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, effect, null));

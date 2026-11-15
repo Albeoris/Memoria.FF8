@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -8,7 +9,7 @@ public sealed class NativeBattleIfritFormEntryTests
     public void Presentation_entry_uses_owned_self_positioning_without_a_combat_action()
     {
         var fixture = NativeBattleIfritEntryTests.Fixture();
-        NativeBattleWaterInitializationInputs inputs = fixture.Inputs with { Caster = 0, FirstHeaderFirstActor = 0, Contacts = [0], ContactCount = 1, FirstHeaderCount = 1 };
+        NativeBattleWaterInitializationInputs inputs = fixture.Inputs with { Selection = fixture.Inputs.Selection with { Caster = OriginalOwner(0), FirstHeaderFirstActor = OriginalOwner(0), Contacts = [OriginalOwner(0)], Header = null, OriginalHeaderAddress = null }, FirstHeaderCount = 1 };
         NativeBattleOriginalEffectState effect = fixture.Effect with { Parameters = null };
         NativeBattleCinematicEntryStep entry = NativeBattleCinematicEntry.InitializeIfritPresentation(fixture.Memory, effect, fixture.Directories, inputs);
         Assert.Null(entry.Effect.Parameters);
@@ -23,8 +24,8 @@ public sealed class NativeBattleIfritFormEntryTests
     public void Presentation_entry_rejects_offensive_or_foreign_positioning()
     {
         var fixture = NativeBattleIfritEntryTests.Fixture();
-        NativeBattleWaterInitializationInputs inputs = fixture.Inputs with { Caster = 0, FirstHeaderFirstActor = 0, Contacts = [0], ContactCount = 1, FirstHeaderCount = 1 };
+        NativeBattleWaterInitializationInputs inputs = fixture.Inputs with { Selection = fixture.Inputs.Selection with { Caster = OriginalOwner(0), FirstHeaderFirstActor = OriginalOwner(0), Contacts = [OriginalOwner(0)], Header = null, OriginalHeaderAddress = null }, FirstHeaderCount = 1 };
         Assert.Throws<InvalidDataException>(() => NativeBattleCinematicEntry.InitializeIfritPresentation(fixture.Memory, fixture.Effect, fixture.Directories, inputs));
-        Assert.Throws<InvalidDataException>(() => NativeBattleCinematicEntry.InitializeIfritPresentation(fixture.Memory, fixture.Effect with { Parameters = null }, fixture.Directories, inputs with { Contacts = [3] }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCinematicEntry.InitializeIfritPresentation(fixture.Memory, fixture.Effect with { Parameters = null }, fixture.Directories, inputs with { Selection = inputs.Selection with { Contacts = [OriginalOwner(3)] } }));
     }
 }

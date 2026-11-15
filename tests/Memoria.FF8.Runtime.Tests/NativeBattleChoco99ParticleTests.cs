@@ -158,18 +158,18 @@ public sealed class NativeBattleChoco99ParticleTests
         }
         return random.Seed;
     }
-    private static NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target)
+    private static NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, int target)
     {
         Assert.Equal(0x1D99A78u, parameters);
         Assert.Equal((sbyte)-2, header);
-        Assert.Equal((sbyte)3, target);
+        Assert.Equal(3, target);
         return OriginalTaskActors(1, 6);
     }
     private static (NativeBattleEffectHierarchy Hierarchy, uint Parent) Hierarchy()
     {
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x256B9D8, 0x256B000, 0x548, 1), NativeBattleEffectTaskPool.Initialize(NativeBattleChoco99Particles.AuxiliaryDescriptor, 0x2566000, 0xB0, 1)]);
         NativeBattleEffectHierarchyAppend parent = hierarchy.Append8DC540(0, 0x71FFB0, 0x548);
-        NativeBattleModulePoolTask task = parent.Hierarchy.Read(parent.Address).WriteDword(0xC, 0x1D99A78).WriteByte(0x2A, 0xFE).WriteByte(0x2B, 3).WriteByte(0x2C, 7).WriteByte(0x2D, 7).WriteWord(0x1C, 100).WriteWord(0x1E, 200).WriteWord(0x20, 300).WriteWord(0x22, 0x4321).WriteWord(0x540, 87).WriteWord(0x542, 215).WriteWord(0x544, 280);
+        NativeBattleModulePoolTask task = parent.Hierarchy.Read(parent.Address).WriteDword(0xC, 0x1D99A78).WriteByte(0x2A, 0xFE).WriteTraversalPosition(0x2B, 3).WriteWord(0x1C, 100).WriteWord(0x1E, 200).WriteWord(0x20, 300).WriteWord(0x22, 0x4321).WriteWord(0x540, 87).WriteWord(0x542, 215).WriteWord(0x544, 280);
         return (parent.Hierarchy.Write(parent.Address, task), parent.Address);
     }
 }

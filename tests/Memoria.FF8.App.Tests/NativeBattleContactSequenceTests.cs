@@ -20,7 +20,7 @@ public sealed class NativeBattleContactSequenceTests
         Assert.Equal((byte)50, before.ModelId4);
         Assert.Equal((byte)4, before.Sequence);
         Assert.Equal((ushort)8, before.SequenceState!.Offset46);
-        NativeBattleGraphicsResource resource = ContactResource(battle, battle.NativeGraphics);
+        NativeBattleGraphicsResource resource = ContactResource(battle, battle.NativeGraphics!);
         Assert.Equal(12, resource.AnimationFrames.Length);
         Assert.False(resource.Contains(9));
         int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
@@ -28,7 +28,7 @@ public sealed class NativeBattleContactSequenceTests
         battle.Tick();
         Assert.Equal(3218, battle.Frame);
         Assert.NotEqual((byte)9, ReadOriginalModelCell(battle.NativeGraphics!, 4).Sequence);
-        Assert.InRange(ReadOriginalModelCell(battle.NativeGraphics, 4).SequenceState!.Pose!.Value, (byte)0, (byte)11);
+        Assert.InRange(ReadOriginalModelCell(battle.NativeGraphics!, 4).SequenceState!.Pose!.Value, (byte)0, (byte)11);
         for (int callback = 1; callback < 30; callback++)
         {
             battle.Tick();

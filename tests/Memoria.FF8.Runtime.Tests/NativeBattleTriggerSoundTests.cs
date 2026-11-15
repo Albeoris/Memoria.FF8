@@ -1,6 +1,5 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -53,10 +52,12 @@ public sealed class NativeBattleTriggerSoundTests
     }
 
     [Fact]
-    public void Pending_shot_retains_its_AB_owner_through_snapshot_serialization()
+    public void Pending_shot_retains_its_AB_owner_through_private_copy()
     {
-        NativeBattleGraphicsState state = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalEffects()) { PendingTriggerSoundActorIndex = 2 };
-        NativeBattleGraphicsState restored = JsonSerializer.Deserialize<NativeBattleGraphicsState>(JsonSerializer.Serialize(state))!;
-        Assert.Equal((byte)2, restored.PendingTriggerSoundActorIndex);
+        BattleModelOwner actor = OriginalOwner(2);
+        NativeBattleGraphicsState state = OriginalGraphics([(2, actor, new(2))]) with { PendingTriggerSoundActor = actor };
+        NativeBattleGraphicsState copied = state with { };
+        Assert.Equal(actor, copied.PendingTriggerSoundActor);
+        Assert.Same(state.ActorModels.Get(actor), copied.ActorModels.Get(actor));
     }
 }

@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -21,11 +20,11 @@ public sealed class NativeBattleIncomingMulticastTests
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         NativeBattleActionGraphicsState graphics = NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(0));
-        Assert.Equal((ushort)1, graphics.TargetMask);
+        Assert.Equal(new BattlePartyActorModel(new("recipient")), Assert.Single(graphics.TargetActors.Enumerate()));
         Assert.Equal(3_780, battle.Combatants.Single(actor => actor.Id == "recipient").CurrentHp);
         Assert.Equal(10_000, battle.Combatants.Single(actor => actor.Id == "caster").CurrentHp);
         Assert.Single(battle.Events, entry => entry.Kind == "Damage");
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 60; frame++)
         {
             battle.Tick();
@@ -43,9 +42,9 @@ public sealed class NativeBattleIncomingMulticastTests
         Assert.Equal((byte)2, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[1].ReadOriginalByte(17));
-        Assert.Equal((ushort)1, NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(0)).TargetMask);
-        Assert.Equal((ushort)8, NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(1)).TargetMask);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.Equal(new BattlePartyActorModel(new("recipient")), Assert.Single(NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(0)).TargetActors.Enumerate()));
+        Assert.Equal(new BattleEnemyActorModel(new("caster")), Assert.Single(NativeBattleActionGraphics.Normalize(battle.NativeActionPackets, new BattleActionHeaderReference(1)).TargetActors.Enumerate()));
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 60; frame++)
         {
             battle.Tick();
@@ -68,14 +67,14 @@ public sealed class NativeBattleIncomingMulticastTests
     {
         BattleSession baseline = Create(0);
         BattleSession battle = Create(status);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         ImmutableArray<NativeBattleContactPacket> expected = Resolve(baseline, attackType);
         ImmutableArray<NativeBattleContactPacket> actual = Resolve(battle, attackType);
         ImmutableArray<NativeBattleContactPacket> resumed = Resolve(restored, attackType);
 
         NativeBattleContactPacket contact = Assert.Single(actual);
-        Assert.Equal((byte)0, contact.Primary.Recipient);
-        Assert.Equal((byte)255, contact.Secondary.Recipient);
+        Assert.Equal(new BattlePartyActorModel(new("recipient")), contact.Primary.Recipient);
+        Assert.Null(contact.Secondary);
         Assert.Equal(expected.ToArray(), actual.Select(packet => packet with { Primary = packet.Primary with { BattleStatuses8 = packet.Primary.BattleStatuses8 & ~0x60000u } }).ToArray());
         Assert.Equal(actual.ToArray(), resumed.ToArray());
         Assert.Equal(baseline.Combatants.Select(actor => actor.CurrentHp), battle.Combatants.Select(actor => actor.CurrentHp));
@@ -108,17 +107,19 @@ public sealed class NativeBattleIncomingMulticastTests
         BattleNativeAction[] actions = reflected ? [incoming, incoming with { Command = 247 }] : [incoming];
         BattleSession initial = new(definition with { Combatants = actors, NativeActions = actions, NativeCommandSequences = NativeBattleCommandSequenceFixture.Values }, BattleAtbMode.TurnBased);
         NativeBattleActionPacketsState packets = initial.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 1, 0, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 5, 0, 0, 0, 77, 0), null));
-        (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), previousCastCount);
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, -1, 1, 0, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 0, 0, 0, 99, 0), null));
-        (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), previousCastCount).ResetCounts();
+        BattleModelOwner recipient = packets.ModelAliases.DecodeLiteral(0);
+        BattleModelOwner caster = packets.ModelAliases.DecodeLiteral(3);
+        for (int i = 0; i < previousCastCount; i++)
+        {
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(recipient, 2, 11, -1, 1, 0, null));
+            (packets, _) = packets.AppendContact(new(new(i == 0 ? recipient : caster, 5, 0, 0, 0, i == 0 ? (ushort)77 : (ushort)99, 0), null));
+            (packets, _) = packets.Publish(1);
+            packets = packets.WritePlayerRepeatMode(header, previousCastCount);
+        }
+        packets = packets.ResetCounts();
         Assert.Equal(previousCastCount - 1, packets.ExportRetained().Headers[0].ReadOriginalByte(17));
-        Assert.Equal((ushort)9, NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(0)).TargetMask);
-        BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(initial.Capture() with { NativeActionPackets = packets }))!);
+        Assert.Equal(new[] { recipient, caster }, NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(0)).TargetActors.Enumerate());
+        BattleSession battle = BattleSession.Restore(initial.Capture() with { NativeActionPackets = packets });
         for (int frame = 0; frame < 20 && battle.NativeActionPackets.ActionCount == 0; frame++)
         {
             battle.Tick();

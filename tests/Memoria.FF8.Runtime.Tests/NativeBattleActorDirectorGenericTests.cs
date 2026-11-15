@@ -192,7 +192,7 @@ public sealed class NativeBattleActorDirectorGenericTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        NativeBattleGraphicsModel Model(int index) => new(0) { Transform = new(new(0, 0, 0), index == 2 ? new(0, 100, 0) : new(-10, -200, 30), 0, -3, 4096), GeometryBounds52 = new(new(-10, -20, -30), new(100, 200, 300)) };
+        NativeBattleGraphicsModel Model(BattleModelOwner owner) => new(0) { Transform = new(new(0, 0, 0), owner == OriginalOwner(2) ? new(0, 100, 0) : new(-10, -200, 30), 0, -3, 4096), GeometryBounds52 = new(new(-10, -20, -30), new(100, 200, 300)) };
         return (new(memory, selected, state), node.Address, resources.GenericNodes(), new(packets, NativeBattleCuragaMatrices.Identity8DD770(), Model, _ => pose));
     }
 }

@@ -82,7 +82,7 @@ public sealed class NativeBattleDrinkMagic37OrbControllerTests
         uint root = hierarchy.Address(0, 0);
         NativeBattleEffectHierarchyAppend orb = hierarchy.Append8DC540(4, 0x85C1F0, 96, root, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = orb.Hierarchy.Write(orb.Address, orb.Hierarchy.Read(orb.Address).WriteWord(0x22, 0xBEEF));
-        NativeBattleDrinkMagic37OrbInputs inputs = new(original.Inputs.Packets, original.Frame.Effect.Parameters!, (_, _) => new(100, 200, 300), _ => 0, actor => actor == 0 ? new(0, 0, 0) : new(3000, 0, 4000));
+        NativeBattleDrinkMagic37OrbInputs inputs = new(original.Inputs.Packets, original.Frame.Effect.Parameters!, (_, _) => new(100, 200, 300), _ => 0, actor => actor == OriginalOwner(0) ? new(0, 0, 0) : new(3000, 0, 4000));
         return (hierarchy, orb.Address, inputs);
     }
 }

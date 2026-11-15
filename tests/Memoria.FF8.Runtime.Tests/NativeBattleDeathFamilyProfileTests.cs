@@ -89,7 +89,7 @@ public sealed class NativeBattleDeathFamilyProfileTests
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, (ushort)effect, null));
         foreach (byte actor in new byte[] { 3, 4 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(1);
         NativeBattleModulePoolTask root = RootTask().WriteWord(0x5A, 2);
@@ -97,7 +97,7 @@ public sealed class NativeBattleDeathFamilyProfileTests
         task = task.WriteByte(0x2A, 0).WriteByte(0x2B, 1).WriteByte(0x2C, 0).WriteWord(0x29C, 2).WriteWord(0x29E, 20).WriteDword(0x34 + 8, 0xDEADBEEF);
         List<int> reads = [];
         NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect((ushort)effect);
-        NativeBattleModulePoolTask initialized = NativeBattleEffectNodeContext.Initialize(task, root, new(0, 1, 0x18, 0, 0, 0), packets, Model, _ => throw new InvalidOperationException(), profile.AuraAddress, singleSelectedTarget: profile.SingleSelectedTarget, dogOrigins: new(new(-1, 0, -2), new(7, 0, 8)));
+        NativeBattleModulePoolTask initialized = NativeBattleEffectNodeContext.Initialize(task, root, new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3), OriginalOwner(4)]), new BattleActionHeaderReference(0), 0, 0), packets, owner => Model(OriginalSlot(owner)), _ => throw new InvalidOperationException(), profile.AuraAddress, singleSelectedTarget: profile.SingleSelectedTarget, dogOrigins: new(new(-1, 0, -2), new(7, 0, 8)));
         Assert.Equal((ushort)expectedCount, initialized.ReadWord(0x34 + 0x1C));
         Assert.Equal((uint)expectedActor, initialized.ReadDword(0x34 + 4));
         Assert.Equal(profile.AuraAddress + 4, initialized.ReadDword(0x34 + 0x224));

@@ -57,10 +57,10 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         List<uint> actors = [];
         NativeBattleCinematicActorAnchorServices services = new((current, actor, restore, linked) =>
         {
-            actors.Add(actor);
+            actors.Add(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(checked((byte)OriginalSlot(actor)))));
             Assert.False(restore);
             Assert.False(linked);
-            return actor == 0x1D972C0 ? Pose(current, -7, 11, -9) : Pose(current, 2, -8, 4);
+            return actor == OriginalOwner(0) ? Pose(current, -7, 11, -9) : Pose(current, 2, -8, 4);
         }, (current, _) => current, (current, address) =>
         {
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);

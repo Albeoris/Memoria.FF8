@@ -21,7 +21,7 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
         Assert.Equal(publish ? 2 : 0, result.Contacts.Length);
         if (publish)
         {
-            Assert.Equal(packets.ReadHeaderContacts506BA0(0), result.Contacts);
+            Assert.Equal(packets.ReadHeaderContacts(new BattleActionHeaderReference(0)), result.Contacts);
         }
         Assert.Equal(publish ? new uint[] { 0x87, 0x88 } : [], result.Sounds.Select(sound => sound.Sound));
         Assert.All(result.Sounds, sound =>
@@ -83,18 +83,14 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
     [InlineData(70)]
     public void Guardian_headers_routed_to_ordinary_casting_have_no_late_parameter81_contact_contract(ushort action)
     {
-        BattleSession owner = Create(203, 3);
-        NativeBattleActionPacketsState packets = owner.NativeActionPackets;
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
-        header = header with { Payload = header.Payload.SetItem(4, unchecked((byte)action)).SetItem(5, unchecked((byte)(action >> 8))) };
-        Field("nativeActionPackets").SetValue(owner, packets with { Headers = packets.Headers.SetItem(0, header) });
+        BattleSession owner = Create(203, 3, action: action);
         NativeBattleEffectPresentationStep result = owner.CompleteEffectPresentationInvocation();
         Assert.Empty(result.Contacts);
         Assert.Empty(result.Sounds);
         Assert.Equal(0, owner.NativeEffectMemory!.Active);
     }
 
-    private static BattleSession Create(ushort effect, byte parameter81, byte command = 254)
+    private static BattleSession Create(ushort effect, byte parameter81, byte command = 254, ushort action = 73)
     {
         BattleSession owner = new(new BattleDefinition
         {
@@ -106,16 +102,18 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
                 new() { Id = "target", Name = "Target" }
             ]
         }, BattleAtbMode.TurnBased);
-        NativeBattleActionPacketsState packets = owner.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), command, 14, -1, 73, effect, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 5, 1, 0, 0, 7, 0), null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 5, 1, 0, 0, 11, 0), null));
+        BattleModelOwner source = new BattlePartyActorModel(new("source"));
+        BattleModelOwner target = new BattleEnemyActorModel(new("target"));
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, new(0)), (3, target, new(0))], 0x10);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(graphics.ActorModels.Roster, owner.NativeActionPackets.ExportRetained(), graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+        (packets, _) = packets.Prepare(new(source, command, 14, -1, action, effect, null));
+        (packets, _) = packets.AppendContact(new(new(source, 5, 1, 0, 0, 7, 0), null));
+        (packets, _) = packets.AppendContact(new(new(target, 5, 1, 0, 0, 11, 0), null));
         (packets, _) = packets.Publish(2);
-        packets = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(packets))!;
         Field("nativeActionPackets").SetValue(owner, packets.ActivateHeader(new BattleActionHeaderReference(0)));
-        Field("presentationForeignActors").SetValue(owner, new Dictionary<int, NativeBattleForeignActor>());
-        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, 1, 0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0), OriginalOwner(1)]), new BattleActionHeaderReference(0), parameter81, 0), 0);
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), ["source", null, null, null, null, null, null], 0x10, 0) { OriginalEffect = selected };
+        Field("presentationForeignActors").SetValue(owner, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, 1, 0), new(source, 0, BattleModelTargets.From([source, target]), new BattleActionHeaderReference(0), parameter81, 0), 0);
+        graphics = graphics with { OriginalEffect = selected };
         SetProperty(owner, nameof(BattleSession.NativeGraphics), graphics);
         SetProperty(owner, nameof(BattleSession.NativeEffectMemory), owner.NativeEffectMemory! with { ReturnedTaskPointer1D96AAC = 0, Active = 1 });
         SetProperty(owner, nameof(BattleSession.EffectPresentationInvoked), true);

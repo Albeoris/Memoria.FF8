@@ -48,7 +48,7 @@ public sealed class NativeBattlePotion52Tests
         for (int callback = 1; callback <= 35; callback++)
         {
             NativeBattleCuragaControllerStep step = NativeBattleCuragaController.Advance87DC50(frame, fixture.Inputs, Resources(), Leaf);
-            Assert.Equal(callback == 35 ? new[] { 0 } : [], step.Contacts);
+            Assert.Equal(callback == 35 ? new[] { new BattleContactCursor(0) } : [], step.Contacts);
             sounds.AddRange(step.Sounds);
             frame = step.Frame;
             if (callback == 24)
@@ -119,15 +119,21 @@ public sealed class NativeBattlePotion52Tests
     }
 
     [Fact]
-    public void XPotion_entry_reads_signed_header_and_contact_selectors_but_counts_from_the_parameter_header()
+    public void XPotion_entry_uses_signed_group_and_nonnegative_contact_position_with_parameter_counts()
     {
         var fixture = Fixture();
-        NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
-        NativeBattleActionHeaderSlot selected = packets.Headers[0] with { FirstContactIndex = 2 };
-        NativeBattleActionHeaderSlot parameter = selected with { Payload = selected.Payload.SetItem(0, (byte)6).SetItem(16, (byte)4).SetItem(17, (byte)2), UnknownByteMask = selected.UnknownByteMask & ~((1u << 0) | (1u << 16) | (1u << 17)) };
-        packets = packets with { Headers = packets.Headers.SetItem(0, selected).SetItem(1, parameter) };
-        NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0].WriteByte(0x2A, 255).WriteByte(0x2B, 254).WriteByte(0x29, 9).WriteWord(0x60, 0xABCD);
-        NativeBattleEffectParameters parameters = fixture.Frame.Effect.Parameters! with { HeaderIndex7C = 1 };
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        NativeBattleContactPacket filler = new(new(OriginalOwner(4), 0, 0, 0, 0, 0, 0), null);
+        NativeBattleContactPacket target = new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null);
+        packets = packets.AppendContacts([filler, filler]);
+        (packets, BattleActionHeaderReference selectedHeader) = packets.Prepare(new(OriginalOwner(2), 4, 0, 0, 1, 52, null));
+        (packets, _) = packets.Publish(1);
+        (packets, BattleActionHeaderReference parameterHeader) = packets.Prepare(new(OriginalOwner(6), 4, 0, 0, 1, 52, null));
+        packets = packets.AppendContacts([filler, filler, target, filler]);
+        (packets, _) = packets.Publish(4);
+        packets = packets.WritePlayerRepeatMode(selectedHeader, 1).WritePlayerRepeatMode(parameterHeader, 3);
+        NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0].WriteByte(0x2A, 255).WriteTraversalPosition(0x2B, 2).WriteByte(0x29, 9).WriteWord(0x60, 0xABCD);
+        NativeBattleEffectParameters parameters = fixture.Frame.Effect.Parameters! with { Header = parameterHeader };
         NativeBattleModulePoolTask initialized = NativeBattleCuragaController.InitializeXPotionRoot817410(task, parameters, packets);
         Assert.Equal((byte)2, initialized.ReadByte(0x2C));
         Assert.Equal((byte)3, initialized.ReadByte(0x2D));
@@ -136,9 +142,9 @@ public sealed class NativeBattlePotion52Tests
         Assert.Equal((ushort)2, initialized.ReadWord(0x58));
         Assert.Equal((byte)3, initialized.ReadByte(0x2F));
         Assert.Equal((byte)255, initialized.ReadByte(0x2A));
-        Assert.Equal((byte)254, initialized.ReadByte(0x2B));
+        Assert.Equal(2, initialized.ReadTraversalPosition(0x2B));
         Assert.Equal((ushort)0xABCD, initialized.ReadWord(0x60));
-        Assert.Throws<NotSupportedException>(() => NativeBattleCuragaController.InitializeXPotionRoot817410(task, parameters with { HeaderIndex7C = 0 }, packets));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleCuragaController.InitializeXPotionRoot817410(task, parameters with { Header = selectedHeader }, packets));
     }
 
     [Fact]

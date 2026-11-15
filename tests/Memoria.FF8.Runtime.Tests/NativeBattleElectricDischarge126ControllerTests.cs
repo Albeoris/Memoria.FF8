@@ -32,7 +32,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         (frame, int result) = NativeBattleElectricDischarge126Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         Assert.Equal(0, result);
         Assert.Equal(ArenaAddress + (uint)offset, frame.State.ReadDword(CursorGlobal));
-        Assert.Equal(new byte[] { 0, 1, 2 }, f.Operations.OfType<NativeBattleElectricDischarge126ActorFlags>().Select(value => value.Actor).ToArray());
+        Assert.Equal(new[] { OriginalOwner(0), OriginalOwner(1), OriginalOwner(2) }, f.Operations.OfType<NativeBattleElectricDischarge126ActorFlags>().Select(value => value.Actor).ToArray());
         Assert.All(f.Operations.OfType<NativeBattleElectricDischarge126ActorFlags>(), value => Assert.Equal((ushort)0x800, value.ClearMask));
         Assert.Equal(new NativeBattleElectricDischarge126Stage(0, 0), Assert.Single(f.Operations.OfType<NativeBattleElectricDischarge126Stage>()));
         Assert.Equal((ushort)1, NativeBattleElectricDischarge126Controller.Read(frame, RootBank).ReadWord(12));
@@ -157,7 +157,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
     public void Dedicated_world_branch_uses_positive_Z_distance_and_retains_returned_state_through_JSON()
     {
         Fixture f = new();
-        (NativeBattleElectricDischarge126Frame frame, uint head) = NativeBattleElectricDischarge126Controller.StartWorld(f.Frame, new(0, 0, 0), new(100, -100, 300), new(100, -100, 300), new(0, 0, 0), -1, 0, 0, 100, 0, 3);
+        (NativeBattleElectricDischarge126Frame frame, uint head) = NativeBattleElectricDischarge126Controller.StartWorld(f.Frame, new(0, 0, 0), new(100, -100, 300), new(100, -100, 300), new(0, 0, 0), null, OriginalAliases, 0, 0, 100, 0, 3);
         uint taskAddress = frame.Effect.Pools[2].BankAddress;
         frame = NativeBattleTestSnapshots.Independent(frame);
         (frame, _) = NativeBattleElectricDischarge126Controller.AdvanceWorldTrail(frame, taskAddress, f.Resources, f.Inputs);
@@ -266,19 +266,19 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
             arena = arena.Write(0x30000, tim);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(0) with { Arena = arena, ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
-            NativeBattleOriginalEffectState effect = new(126, 125, new(126, Entry, Initializer), new(OriginalOwner(3), 0, 1, new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools.ToImmutableArray(), ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
+            NativeBattleOriginalEffectState effect = new(126, 125, new(126, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = pools.ToImmutableArray(), ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             NativeBattleElectricDischarge126State state = NativeBattleElectricDischarge126State.FromColdProcess().WriteDword(CasterGlobal, CasterPointer).WriteDword(WorkingGlobal, ArenaAddress);
             Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(543), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             NativeBattleActionPacketsState packets = OriginalPackets();
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 15, 0, 28, 126, null));
             for (int index = 0; index < 2; index++)
             {
-                (packets, _) = packets.AppendContact(new(new((byte)(index + 3), 1, 0, 0, 0, 7, 0), null));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(index + 3), 1, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(2);
-            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(actor, (ushort)(actor == 1 || actor == Caster ? 2 : 0)) { Color40 = (uint)(0x102030 + actor * 0x101010) }, _ => 30, _ => new(8, null), _ => NativeBattlePackedMatrix32.FromMatrix(identity with { Z = 2000 }, null), (frame, _) => new(frame, new(100, 200, 300, 444)), (frame, actor, selector, _) =>
+            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, state => state, () => { }, () => OriginalRoster.Owners.OfType<BattlePartyModelOwner>(), actor => new((ushort)(actor == OriginalOwner(1) || actor == OriginalOwner(Caster) ? 2 : 0)) { Color40 = (uint)(0x102030 + OriginalSlot(actor) * 0x101010) }, _ => 30, _ => new(8, null), _ => NativeBattlePackedMatrix32.FromMatrix(identity with { Z = 2000 }, null), (frame, _) => new(frame, new(100, 200, 300, 444)), (frame, actor, selector, _) =>
             {
-                Bones.Add((actor, selector));
+                Bones.Add((OriginalSlot(actor), selector));
                 return new(frame, new(100, 200, 300));
             }, (frame, _, context) =>
             {

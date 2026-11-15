@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -48,7 +49,7 @@ public sealed class NativeBattleKiros262TrailTests
     {
         NativeBattleKiros262TrailServices firstServices = Services((current, actor, _) =>
         {
-            Assert.Equal(0x1D972C0u, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             return new(current, new(10, 20, 30), 0, 0, -4096);
         }, (current, _) => current, (_, _, _) => throw new InvalidOperationException());
         NativeBattleKiros262TrailStep first = NativeBattleKiros262Trail.Draw(Fixture(), NativeBattleKiros262TrailState.FromColdProcess(), firstServices);
@@ -153,7 +154,7 @@ public sealed class NativeBattleKiros262TrailTests
         Assert.Empty(NativeBattleStorageSnapshots.Capture(result.State.Memory).Regions);
     }
 
-    private static NativeBattleKiros262TrailServices Services(Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleKiros262Tip> read, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> restore, Func<NativeBattleWaterExecutionFrame, NativeBattleKiros262TrailState, uint, NativeBattleWaterExecutionFrame> emit) => new(read, restore, emit);
+    private static NativeBattleKiros262TrailServices Services(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, ushort, NativeBattleKiros262Tip> read, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterExecutionFrame> restore, Func<NativeBattleWaterExecutionFrame, NativeBattleKiros262TrailState, uint, NativeBattleWaterExecutionFrame> emit) => new(read, restore, emit);
 
     private static NativeBattleWaterExecutionFrame Fixture()
     {
@@ -162,6 +163,9 @@ public sealed class NativeBattleKiros262TrailTests
         uint owner = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
         frame = WaterSchedulerFixture.CoreDword(frame, manager + 0x74, 0x20E4AB8);
         frame = WaterSchedulerFixture.CoreDword(frame, owner + 0x60, 0x1D972C0);
+        BattleActorModels models = OriginalModels([(0, new(0))]).Models;
+        frame = frame with { Core = frame.Core with { PresentationActors = NativeBattleCinematicActorContext.FromGraphics(models) } };
+        frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, OriginalOwner(0), OriginalAliases);
         return frame with { Arena = frame.Arena.Write(0x20B8, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x3000u)).Write(0x3000, [0xF1, 0, 2, 0]).Write(0x2094, BitConverter.GetBytes((short)666)).Write(0x20CC, BitConverter.GetBytes(0x123456u)).Write(0x5000, Enumerable.Repeat((byte)0xA5, 16).ToArray()) };
     }
 }

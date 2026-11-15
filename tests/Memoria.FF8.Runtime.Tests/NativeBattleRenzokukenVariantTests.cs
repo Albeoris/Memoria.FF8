@@ -162,7 +162,7 @@ public sealed class NativeBattleRenzokukenVariantTests
     private static NativeBattleRenzokuken160Frame Frame(ushort selectedEffect = 141)
     {
         NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.ForEffect(selectedEffect);
-        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100, Origin = new(100, -200, 300), Direction = new(0, 0, -4096) };
+        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 100, Origin = new(100, -200, 300), Direction = new(0, 0, -4096) };
         NativeBattleRenzokukenVariantState state = new(core, default, default, null);
         if (profile.HasContactOffsets)
         {

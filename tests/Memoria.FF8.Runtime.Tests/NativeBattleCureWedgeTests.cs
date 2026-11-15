@@ -159,7 +159,7 @@ public sealed class NativeBattleCureWedgeTests
         NativeBattleOriginalEffectState effect = new(1, 0, new(1, 0x8D6A00, 0x8D69E0), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = hierarchy.Pools };
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
         NativeBattleCureFrame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(0, 0, 0, camera));
-        NativeBattleCureControllerInputs controller = new(OriginalPackets(), camera, index => new(index, 0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) }, _ => throw new InvalidOperationException("Wedges use retained first-level bounds."));
+        NativeBattleCureControllerInputs controller = new(OriginalPackets(), camera, _ => new(0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) }, _ => throw new InvalidOperationException("Wedges use retained first-level bounds."));
         NativeBattleCureParticleInputs inputs = new(controller, NativeCrtRandomState.FromColdProcess(), (current, _) => current) { Projection = new(camera, 216, 160, 108) };
         return (frame, wedge.Address, inputs);
     }

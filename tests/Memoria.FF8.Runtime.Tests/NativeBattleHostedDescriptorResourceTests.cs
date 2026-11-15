@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -7,6 +6,9 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedDescriptorResourceTests
 {
     private static readonly MethodInfo ReadByte = typeof(BattleSession).GetMethod("ReadNativeDescriptorByte", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    private static readonly BattlePartyModelOwner Ally = new BattlePartyActorModel(new("ally"));
+    private static readonly BattlePartyModelOwner Extra = new BattlePartyActorModel(new("extra"));
 
     [Theory]
     [InlineData(11)]
@@ -16,21 +18,21 @@ public sealed class NativeBattleHostedDescriptorResourceTests
         BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources cpu = Resources(roster);
         NativeBattleModelCpuResourceRow native = cpu.Rows[0].Set(12, new(0, 0x24) { ResourceOnly = true });
-        NativeBattleModelCpuResourceRow hosted = NativeBattleModelCpuResourceRow.Unknown().Set(12, null).Set(16, new(9, 0x24) { ResourceOnly = true }) with
+        NativeBattleModelCpuResourceRow hosted = NativeBattleModelCpuResourceRow.Unknown().Set(12, null).Set(16, new(cpu.Cpu.PartyBankIndex(Extra), 0x24) { ResourceOnly = true }) with
         {
             PrivateLength4 = 0x03020100,
             SharedLength8 = 0x07060504,
-            LinkedPhysicalIndex36 = 7
+            LinkedPhysicalIndex36 = 0
         };
         cpu = cpu with { Rows = cpu.Rows.SetItem(0, native).SetItem(alias, hosted) };
         cpu.Validate();
         BattleSession session = Session(cpu);
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, Aliases(roster), _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
         uint row = NativeBattleModelResourceRowAddress.Encode(alias, cpu.Rows.Length);
         Assert.Equal((byte)3, Read(session, graphics, row + 7));
         Assert.Equal((byte)6, Read(session, graphics, row + 10));
         Assert.Equal((byte)0, Read(session, graphics, row + 15));
-        Assert.Equal((byte)7, Read(session, graphics, row + 36));
+        Assert.Equal((byte)0, Read(session, graphics, row + 36));
 
         uint nativeRow = NativeBattleModelResourceRowAddress.Encode(0);
         uint nativePointer = NativeBattlePartyCpuLayout.Classic.BaseAddress + 0x24;
@@ -38,7 +40,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
 
         NotSupportedException section = Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => Read(session, graphics, row + 16)).InnerException);
         Assert.Contains("no numeric guest address", section.Message);
-        uint unowned = NativeBattleModelResourceRowAddress.Encode(cpu.Rows.Length, NativeBattleModelResourceRowAddress.MaximumRowCount);
+        uint unowned = NativeBattleModelResourceRowAddress.Encode(cpu.Rows.Length, NativeBattleModelResourceRowAddress.MaximumEncodedRowCount);
         NotSupportedException boundary = Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => Read(session, graphics, unowned)).InnerException);
         Assert.Contains("owned CPU alias array", boundary.Message);
     }
@@ -51,7 +53,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
         uint hole = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1));
         NativeBattleFileStaging staging = NativeBattleFileStaging.FromColdProcess().Write(hole, [0xB3]);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, staging);
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, Aliases(roster), _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
 
         Assert.Equal((byte)0xB3, Read(session, graphics, hole));
     }
@@ -70,8 +72,8 @@ public sealed class NativeBattleHostedDescriptorResourceTests
         }
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(directory, dat).Write(destination, new byte[16]);
         NativeBattleModelCpuResources cpu = Resources(Roster());
-        NativeBattleModelCpuReference skeleton = new(9, 0x40) { ResourceOnly = true };
-        NativeBattleModelCpuReference geometry = new(9, 0x80) { ResourceOnly = true };
+        NativeBattleModelCpuReference skeleton = new(cpu.Cpu.PartyBankIndex(Extra), 0x40) { ResourceOnly = true };
+        NativeBattleModelCpuReference geometry = new(cpu.Cpu.PartyBankIndex(Extra), 0x80) { ResourceOnly = true };
         cpu = cpu with { Rows = cpu.Rows.SetItem(alias, NativeBattleModelCpuResourceRow.Unknown().Set(12, skeleton).Set(16, geometry)) };
         cpu.Validate();
         NativeBattleGraphicsModel model = new(2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = alias, SequenceState = new() { Default2 = 6 } };
@@ -107,19 +109,11 @@ public sealed class NativeBattleHostedDescriptorResourceTests
 
     private static NativeBattleModelCpuResources Resources(BattleModelRoster roster)
     {
-        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(roster);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(roster, Aliases(roster));
         return cpu with { Rows = cpu.Rows.AddRange(Enumerable.Range(0, 37 - cpu.Rows.Length).Select(_ => NativeBattleModelCpuResourceRow.Unknown())) };
     }
 
-    private static BattleModelRoster Roster()
-    {
-        BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new BattlePartyActorModel(new("ally"));
-        rows[7] = new BattlePartyActorModel(new("extra"));
-        for (int row = 8; row < rows.Length; row++)
-        {
-            rows[row] = new BattleEnemyActorModel(new($"enemy-{row}"));
-        }
-        return new(rows.ToImmutableArray());
-    }
+    private static BattleModelRoster Roster() => new(new BattleModelOwner[] { Ally, Extra }.Concat(Enumerable.Range(0, 17).Select(index => new BattleEnemyActorModel(new($"enemy-{index}")))));
+
+    private static NativeBattleModelAliases Aliases(BattleModelRoster roster) => new(roster, [(NativeBattleModelSlot.Decode(0), Ally)]);
 }

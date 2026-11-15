@@ -10,6 +10,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect316ControllerTests
 {
     private const uint Caster = 0x1D97494;
+    private static BattleModelOwner CasterOwner => OriginalOwner(NativeBattleGraphicsModelAddress.DecodeOriginalCell(Caster).Offset);
 
     [Fact]
     public void Entry_queues_both_TIMs_transfers_root_and_retains_warm_native_random()
@@ -102,12 +103,12 @@ public sealed class NativeBattleEffect316ControllerTests
         if (lane == 1)
         {
             NativeBattleEffect316Draw661550 draw = Assert.Single(operations.OfType<NativeBattleEffect316Draw661550>());
-            Assert.Equal((Caster, scale, 11, 0x414), (draw.ModelAddress, draw.X, draw.Y, draw.Z));
+            Assert.Equal((CasterOwner, scale, 11, 0x414), (draw.Model, draw.X, draw.Y, draw.Z));
         }
         if (lane == 2)
         {
             NativeBattleEffect316Draw661CC0 draw = Assert.Single(operations.OfType<NativeBattleEffect316Draw661CC0>());
-            Assert.Equal((CommonAddress, Caster, CommonAddress + ProjectedRowsOffset, scale, 11, 0x414), (draw.MainAddress, draw.ModelAddress, draw.ProjectedRowsAddress, draw.X, draw.Y, draw.Z));
+            Assert.Equal((CommonAddress, CasterOwner, CommonAddress + ProjectedRowsOffset, scale, 11, 0x414), (draw.MainAddress, draw.Model, draw.ProjectedRowsAddress, draw.X, draw.Y, draw.Z));
         }
         Assert.Equal(blend ? 1 : 0, operations.OfType<NativeBattleEffect316Blend56CC00>().Count());
         if (blend)
@@ -115,7 +116,7 @@ public sealed class NativeBattleEffect316ControllerTests
             NativeBattleEffect316Blend56CC00 operation = Assert.Single(operations.OfType<NativeBattleEffect316Blend56CC00>());
             Assert.Equal(CommonAddress + 0x14, operation.Source1Address);
             Assert.Equal(ColorGlobal, operation.Source2Address);
-            Assert.Equal(Caster + 0x2C, operation.DestinationAddress);
+            Assert.Equal(CasterOwner, operation.Destination);
             Assert.Equal(4096, operation.Weight1 + operation.Weight2);
             NativeBattleEffect316WriteModel alpha = Assert.Single(operations.OfType<NativeBattleEffect316WriteModel>());
             Assert.Equal((0x2F, 1), (alpha.Offset, alpha.Length));
@@ -162,9 +163,9 @@ public sealed class NativeBattleEffect316ControllerTests
         Assert.Equal(2, result.Result);
         Assert.Equal(312, Read(result.Frame, CommonAddress).ReadWord(12));
         Assert.Equal(5, operations.Count);
-        Assert.Equal((Caster, 2, (ushort)0xFFF7), (Assert.IsType<NativeBattleEffect316ModelFlags>(operations[0]).ModelAddress, ((NativeBattleEffect316ModelFlags)operations[0]).Width, ((NativeBattleEffect316ModelFlags)operations[0]).AndMask));
+        Assert.Equal((CasterOwner, 2, (ushort)0xFFF7), (Assert.IsType<NativeBattleEffect316ModelFlags>(operations[0]).Model, ((NativeBattleEffect316ModelFlags)operations[0]).Width, ((NativeBattleEffect316ModelFlags)operations[0]).AndMask));
         NativeBattleEffect316WriteModel restore = Assert.IsType<NativeBattleEffect316WriteModel>(operations[1]);
-        Assert.Equal((Caster, 0x2C, 4), (restore.ModelAddress, restore.Offset, restore.Length));
+        Assert.Equal((CasterOwner, 0x2C, 4), (restore.Model, restore.Offset, restore.Length));
         Assert.Equal(0xFE123456u, BinaryPrimitives.ReadUInt32LittleEndian(restore.Data.Read(0, 4)));
         Assert.All(operations.Skip(2).Cast<NativeBattleEffect316ModelFlags>(), operation =>
         {

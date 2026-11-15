@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -32,10 +33,10 @@ public sealed class NativeBattleGilgameshExcalipoorAttackTests
     {
         List<byte> reads = [];
         NativeCrtRandomState random = new(0xFEED1234);
-        NativeBattleGilgameshAttackStep step = NativeBattleGilgameshExcalipoorAttack.Advance5920E0(Task(18), Pool(), random, 0, [5, 3], actor =>
+        NativeBattleGilgameshAttackStep step = NativeBattleGilgameshExcalipoorAttack.Advance5920E0(Task(18), Pool(), random, 0, [OriginalOwner(5), OriginalOwner(3)], actor =>
         {
-            reads.Add(actor);
-            return new((short)(actor * 100), -200, -300, -999);
+            reads.Add(checked((byte)OriginalSlot(actor)));
+            return new((short)(OriginalSlot(actor) * 100), -200, -300, -999);
         });
         Assert.Equal(new byte[] { 5, 3 }, reads);
         for (int contact = 0; contact < 2; contact++)
@@ -100,7 +101,7 @@ public sealed class NativeBattleGilgameshExcalipoorAttackTests
         Assert.Throws<InvalidOperationException>(() => Step(Task(18), pool));
     }
 
-    private static NativeBattleGilgameshAttackStep Step(NativeBattleModulePoolTask task, NativeBattleEffectTaskPool pool, uint flags = 0) => NativeBattleGilgameshExcalipoorAttack.Advance5920E0(task, pool, new(1), flags, [3], _ => new(10, 20, 30, 40));
+    private static NativeBattleGilgameshAttackStep Step(NativeBattleModulePoolTask task, NativeBattleEffectTaskPool pool, uint flags = 0) => NativeBattleGilgameshExcalipoorAttack.Advance5920E0(task, pool, new(1), flags, [OriginalOwner(3)], _ => new(10, 20, 30, 40));
     private static NativeBattleModulePoolTask Task(ushort counter) => new NativeBattleModulePoolTask(1, 0, null, 0x5920E0, Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray()).WriteWord(12, counter);
 
     private static NativeBattleEffectTaskPool Pool()

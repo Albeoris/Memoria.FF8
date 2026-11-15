@@ -224,7 +224,7 @@ public sealed class NativeBattleEffect68LowerTests
     {
         public ushort Held { get; set; }
         public List<NativeBattleEffect68Operation> Operations { get; } = [];
-        public NativeBattleEffect68Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets(), _ => 0, _ => Enumerable.Repeat(NativeBattleEffectArena.Clear(), 7).ToImmutableArray(), (_, _) => NativeBattleEffectArena.Clear(), (_, _) => 1, _ => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), 100, 0, 4096, NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes((ushort)0xCAFE)), NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes((ushort)0xBEEF)), 200), null!, _ => new(null, 100, 160, 108), null!, _ => Held, (frame, _) => new(frame, 2), (_, index) => 0x12340000u + index, (frame, operation) =>
+        public NativeBattleEffect68Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets(), _ => 0, _ => OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(3)))).Models, (_, _) => NativeBattleEffectArena.Clear(), (_, _) => 1, _ => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), 100, 0, 4096, NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes((ushort)0xCAFE)), NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes((ushort)0xBEEF)), 200), null!, _ => new(null, 100, 160, 108), null!, _ => Held, (frame, _) => new(frame, 2), (_, index) => 0x12340000u + index, (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;

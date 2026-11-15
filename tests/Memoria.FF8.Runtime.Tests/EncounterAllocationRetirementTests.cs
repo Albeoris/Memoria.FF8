@@ -1,16 +1,23 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class EncounterAllocationRetirementTests
 {
+    private static readonly BattleModelOwner Party = new BattlePartyActorModel(new("party"));
+    private static readonly BattleModelOwner Original = new BattleEnemyActorModel(new("original"));
+    private static readonly BattleModelOwner Copy = new BattleEnemyActorModel(new("copy"));
+    private static readonly BattleModelOwner Fourth = new BattleEnemyActorModel(new("fourth"));
+    private static readonly BattleModelRoster Roster = new([Party, Original, Copy, Fourth]);
+    private static readonly NativeBattleModelAliases Aliases = new(Roster,
+        [(NativeBattleModelSlot.Decode(0), Party), (NativeBattleModelSlot.Decode(3), Original), (NativeBattleModelSlot.Decode(4), Copy), (NativeBattleModelSlot.Decode(6), Fourth)]);
+
     [Fact]
     public void PublishedCopyHeaderRetainsResourcesUntilItsEventCountsReset()
     {
         EncounterAllocationRetirement retirement = new(4);
-        NativeBattleActionPacketsState packets = Header(4, 0);
+        NativeBattleActionPacketsState packets = Header(Copy, Party);
         NativeBattleGraphicsState graphics = Graphics();
         Assert.True(retirement.HasAcceptedConsumers("copy", packets, graphics));
         Assert.False(retirement.HasAcceptedConsumers("copy", packets.ResetCounts(), graphics));
@@ -21,29 +28,30 @@ public sealed class EncounterAllocationRetirementTests
     public void UnrelatedFourthActorCannotStarveRetirementButAcceptedCopyContactsRetainIt()
     {
         EncounterAllocationRetirement retirement = new(4);
-        NativeBattleGraphicsState graphics = Graphics() with { ActionActorId = "fourth", ActionContext = new(6, 1) { PhysicalTargetMask = 1 } };
-        BattleActionPresentation active = new("fourth", "party", BattleActionPhase.Windup, 10, BattleAbility.EnemyAbility, 1) { NativeTargetMask = 1 };
-        Assert.False(retirement.HasAcceptedConsumers("copy", Header(6, 0), graphics, active));
-        Assert.True(retirement.HasAcceptedConsumers("copy", Header(6, 4), graphics, active));
-        Assert.True(retirement.HasAcceptedConsumers("copy", OriginalPackets(), graphics with { PendingContacts = [Contact(4)] }, active));
+        NativeBattleGraphicsState graphics = Graphics() with { ActionActorId = "fourth", ActionContext = new(Fourth, BattleModelTargets.From([Party]), false) { TargetActors = BattleModelTargets.From([Party]), Target = Party } };
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.None, samplesOriginalSlots: true);
+        BattleActionPresentation active = new("fourth", "party", BattleActionPhase.Windup, 10, request, BattleAbility.EnemyAbility, 1);
+        Assert.False(retirement.HasAcceptedConsumers("copy", Header(Fourth, Party), graphics, active));
+        Assert.True(retirement.HasAcceptedConsumers("copy", Header(Fourth, Copy), graphics, active));
+        Assert.True(retirement.HasAcceptedConsumers("copy", OriginalPackets(), graphics with { PendingContacts = [Contact(Copy)] }, active));
     }
 
-    private static NativeBattleActionPacketsState Header(byte actor, byte target)
+    private static NativeBattleActionPacketsState Header(BattleModelOwner actor, BattleModelOwner target)
     {
-        NativeBattleActionPacketsState packets = OriginalPackets();
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(Roster, NativeBattleRetainedActionPackets.Fresh(), Aliases);
         (packets, _) = packets.Prepare(new(actor, 8, 7, 0, 1, 1, null));
         (packets, _) = packets.AppendContact(Contact(target));
         (packets, _) = packets.Publish(1);
         return packets;
     }
 
-    private static NativeBattleContactPacket Contact(byte target)
+    private static NativeBattleContactPacket Contact(BattleModelOwner target)
     {
-        return new(new(target, 0, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0));
+        return new(new(target, 0, 0, 0, 0, 100, 0), null);
     }
 
     private static NativeBattleGraphicsState Graphics()
     {
-        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray(), new string?[] { "party", null, null, "original", "copy", null, "fourth" }.ToImmutableArray(), 0, 0);
+        return NativeBattleHostedTestFixture.Graphics(Roster, Aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null), BattleContactTaskStorageContract.OriginalArena);
     }
 }

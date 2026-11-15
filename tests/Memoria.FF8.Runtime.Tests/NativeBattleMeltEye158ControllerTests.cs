@@ -198,7 +198,7 @@ public sealed class NativeBattleMeltEye158ControllerTests
                 (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 13, 0, 36, 158, null));
                 for (int contact = 0; contact < header + 1; contact++)
                 {
-                    (packets, _) = packets.AppendContact(new(new((byte)(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
+                    (packets, _) = packets.AppendContact(new(new(OriginalOwner(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
                 }
                 (packets, _) = packets.Publish(checked((byte)(header + 1)));
             }
@@ -206,7 +206,7 @@ public sealed class NativeBattleMeltEye158ControllerTests
             rotationOnly = rotationOnly with { Known = Enumerable.Range(0, 32).Select(index => index < 18).ToImmutableArray() };
             Inputs = new(0, packets, (frame, actor, selector, distance) =>
             {
-                Bones.Add((actor, selector, distance));
+                Bones.Add((OriginalSlot(actor), selector, distance));
                 return new(frame with { Memory = frame.Memory with { ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() with { Material = 0x12345678 } } }, new(100, 200, 300));
             }, (frame, _) => new(frame, new(1000, 0, 2000)), (_, _) => rotationOnly, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (frame, operation) =>
             {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -23,14 +24,14 @@ public sealed class NativeBattleCinematicActorStoreTests
         Assert.Equal((ushort)0x1002, actor.Flags0);
         Assert.Equal((short)8, actor.Rotation12);
 
-        NativeBattleGraphicsModel Read(uint address)
+        NativeBattleGraphicsModel Read(BattleModelOwner owner)
         {
-            Assert.Equal(ActorAddress, address);
+            Assert.Equal(OriginalOwner(0), owner);
             return actor;
         }
-        void Write(uint address, NativeBattleGraphicsModel value)
+        void Write(BattleModelOwner owner, NativeBattleGraphicsModel value)
         {
-            Assert.Equal(ActorAddress, address);
+            Assert.Equal(OriginalOwner(0), owner);
             actor = value;
         }
     }

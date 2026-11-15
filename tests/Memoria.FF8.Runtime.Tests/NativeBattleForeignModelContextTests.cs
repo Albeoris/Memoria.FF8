@@ -26,10 +26,11 @@ public sealed class NativeBattleForeignModelContextTests
         NativeBattleForeignModelFace face = new(new(-256, -256, 0), new(256, -256, 0), new(-256, 256, 0), surface);
         NativeBattleForeignModelGeometry geometry = new(world, new(default, default, 0, new(default, default)), [face]);
         NativeBattleModelTransform transform = new(default, default, 0, 0, 4096);
-        NativeBattleForeignActor actor = new(OriginalOwner(3), transform, new(0, 0, 0, 0), (_, _) => default) { Geometry = geometry };
+        BattleModelOwner enemy = session.ReadPresentationModelOwner("enemy");
+        NativeBattleForeignActor actor = new(enemy, transform, new(0, 0, 0, 0), (_, _) => default) { Geometry = geometry };
         NativeBattleGraphicsModel model = new(0x22) { Transform = transform, Color40 = 0x808080 };
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => index == 3 ? model : new NativeBattleGraphicsModel(0)).ToImmutableArray(), ["party", null, null, "enemy", null, null, null], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, new Dictionary<int, NativeBattleForeignActor> { [3] = actor });
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, session.ReadPresentationModelOwner("party"), new(0)), (3, enemy, model)]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [enemy] = actor });
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         NativeCrtRandomState random = new(123);
         typeof(BattleSession).GetField("nativeCrtRandom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, random);
@@ -37,7 +38,7 @@ public sealed class NativeBattleForeignModelContextTests
         NativeBattleCameraProjection projection = new(identity, 128, 160, 108);
         NativeBattlePilotVisualIdentity visual = new(274, 1, 0, 1, 0);
         string method = compactContext ? "DrawNativeDuel215Body69D100" : "DrawNativeEffectModelContext92";
-        object?[] arguments = compactContext ? [graphics, 3, identity, projection, visual] : [graphics, 3, world, new NativeBattleVector(19, 23, 29), projection, 33, (byte)4, (byte)4, visual];
+        object?[] arguments = compactContext ? [graphics, enemy, identity, projection, visual] : [graphics, enemy, world, new NativeBattleVector(19, 23, 29), projection, 33, (byte)4, (byte)4, visual];
         NativeBattleGraphicsState result = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments)!;
         byte depthShift = compactContext ? (byte)6 : (byte)4;
         NativeBattleRawModelBodyDraw expected = NativeBattleForeignModelDrawing.DrawBody(geometry, world, projection, 0x808080, colors, visual, depthShift, new(0, 0, 320, 216), 17, null);

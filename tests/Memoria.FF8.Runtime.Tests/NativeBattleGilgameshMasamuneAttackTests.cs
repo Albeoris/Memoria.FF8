@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -12,7 +13,7 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
     {
         NativeBattleGilgameshFrame original = Fixture(0);
         List<string> operations = [];
-        NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [5, 3], Execute);
+        NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [OriginalOwner(5), OriginalOwner(3)], Execute);
         Assert.Equal(new[] { "anchor5", "project", "anchor3", "project" }, operations);
         Assert.Equal(original.Random, step.Frame.Random);
         Assert.Equal((ushort)1, Child(step.Frame, 0).ReadWord(12));
@@ -62,10 +63,10 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
     {
         NativeBattleGilgameshFrame original = Fixture(16);
         List<byte> anchors = [];
-        NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [5, 3], (frame, operation) =>
+        NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [OriginalOwner(5), OriginalOwner(3)], (frame, operation) =>
         {
             NativeBattleGilgameshMasamuneAnchor anchor = Assert.IsType<NativeBattleGilgameshMasamuneAnchor>(operation);
-            anchors.Add(anchor.Actor);
+            anchors.Add(checked((byte)OriginalSlot(anchor.Actor)));
             return Anchor(frame, anchor);
         });
         Assert.Equal(new byte[] { 5, 3 }, anchors);
@@ -142,7 +143,7 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
     public void Callback_frame_mutations_and_appended_links_survive_producer_publication()
     {
         NativeBattleGilgameshFrame original = Fixture(0);
-        NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [3], (frame, operation) =>
+        NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [OriginalOwner(3)], (frame, operation) =>
         {
             if (operation is NativeBattleGilgameshMasamuneAnchor anchor)
             {
@@ -196,7 +197,7 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
 
     private static NativeBattleGilgameshFrame Anchor(NativeBattleGilgameshFrame frame, NativeBattleGilgameshMasamuneAnchor anchor)
     {
-        NativeBattleModulePoolTask child = Read(frame, anchor.Address).WriteWord(0x10, (ushort)(anchor.Actor * 100)).WriteWord(0x12, unchecked((ushort)-200)).WriteWord(0x14, unchecked((ushort)-300)).MarkPayloadUnknown(0x16, 2);
+        NativeBattleModulePoolTask child = Read(frame, anchor.Address).WriteWord(0x10, (ushort)(OriginalSlot(anchor.Actor) * 100)).WriteWord(0x12, unchecked((ushort)-200)).WriteWord(0x14, unchecked((ushort)-300)).MarkPayloadUnknown(0x16, 2);
         return Write(frame, anchor.Address, child);
     }
 }

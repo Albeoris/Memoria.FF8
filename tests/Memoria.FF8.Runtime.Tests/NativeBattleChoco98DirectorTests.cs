@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -13,7 +14,8 @@ public sealed class NativeBattleChoco98DirectorTests
             Flags0 = index is 0 or 3 or 5 ? (ushort)2 : (ushort)0,
             Transform = new(new(0, 0, 0), index switch { 0 => new(30000, 999, 30000), 3 => new(-100, 999, -301), 5 => new(25, 999, 100), _ => new(0, 0, 0) }, 0, 0, 4096)
         };
-        NativeBattleChoco97Context actual = NativeBattleChoco98Context.Initialize722150(Model);
+        BattleModelPool<BattleEnemyModelOwner> enemies = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, Model(slot)))).Models.Enemies;
+        NativeBattleChoco97Context actual = NativeBattleChoco98Context.Initialize722150(enemies);
         Assert.Equal(0x54, actual.Data.Length);
         Assert.Equal((ushort)2048, actual.Word(4));
         Assert.Equal(unchecked((ushort)(short)-37), actual.Word(8));
@@ -21,8 +23,8 @@ public sealed class NativeBattleChoco98DirectorTests
         Assert.Equal((ushort)0, actual.Word(10));
         Assert.Equal((ushort)0, actual.Word(14));
         Assert.All(actual.Data.Skip(16), value => Assert.Equal((byte)0, value));
-        Assert.Equal(NativeBattleChoco97Context.Initialize72A350(Model).Data, actual.Data);
-        NativeBattleChoco97Context noEnemies = NativeBattleChoco98Context.Initialize722150(index => Model(index) with { Flags0 = index == 0 ? (ushort)2 : (ushort)0 });
+        Assert.Equal(NativeBattleChoco97Context.Initialize72A350(enemies).Data, actual.Data);
+        NativeBattleChoco97Context noEnemies = NativeBattleChoco98Context.Initialize722150(OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, Model(slot) with { Flags0 = slot == 0 ? (ushort)2 : (ushort)0 }))).Models.Enemies);
         Assert.Equal(Enumerable.Repeat((byte)0, 8), noEnemies.Data.Skip(8).Take(8));
     }
 

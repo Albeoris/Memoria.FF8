@@ -174,7 +174,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
     public void Spider_spiral_emitter_registers_real_row_reuse_without_changing_its_native_CRT_draw_count()
     {
         NativeBattleRenzokuken160Frame owner = Frame(159);
-        NativeBattleRenzokuken159Frame frame = new(owner.Memory with { Renzokuken159 = NativeBattleRenzokuken159State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100 } }, owner.Effect, owner.Random);
+        NativeBattleRenzokuken159Frame frame = new(owner.Memory with { Renzokuken159 = NativeBattleRenzokuken159State.FromColdProcess().Enter(false) with { Duration = 100 } }, owner.Effect, owner.Random);
         NativeBattleRenzokuken159Inputs inputs = new(0, [], _ => new(0), (current, _) => current) { ReadBoneCount = _ => 0, ReadBone = (_, _, _) => new(100, -200, 4096) };
         NativeBattleRenzokuken159ChildStep first = NativeBattleRenzokuken159Controller.Advance601EC0(frame, frame.Effect.Pools[1], 0, inputs);
         NativeCrtRandomState expected = frame.Random;
@@ -376,7 +376,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x3000, 0x4000, 36, 100);
         (children, _) = children.Append(effect == 259 ? 0x5A8340u : 2u);
         children = children.WriteSlot(0, children.Slots[0].WriteWord(20, 4096).WriteWord(28, 4096).WriteWord(32, 4096));
-        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100 };
+        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 100 };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Renzokuken160 = core, RenzokukenVariants = ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState>.Empty.Add(141, new(core, new(0, 0, 4096), new(0, 0, 4096), null)), RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(161, new(core, Resources())) };
         if (effect is 259 or 332 or 333)
         {

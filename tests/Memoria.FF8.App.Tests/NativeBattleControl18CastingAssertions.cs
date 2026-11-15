@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Collections.Immutable;
 using System.Buffers.Binary;
 using Memoria.FF8.Runtime;
@@ -28,7 +29,7 @@ internal static class NativeBattleControl18CastingAssertions
             Assert.True(entry.Identity.Generation > 0 && entry.Identity.Generation < presentation.NextBirth);
             Assert.Equal((ushort)18, entry.Parent.Effect);
             NativeBattleControl18Presentation.Validate(entry.Source);
-            Assert.Equal((byte)0, entry.Source.Actor);
+            Assert.Equal(RequireOriginalModelOwner(snapshot.NativeGraphics!, 0), entry.Source.Actor);
             Assert.Equal(30, entry.Source.Sequence);
             Assert.Equal(0x90, entry.Source.ScriptOffset);
             Assert.Equal((ushort)18, entry.Source.Identity.Effect);

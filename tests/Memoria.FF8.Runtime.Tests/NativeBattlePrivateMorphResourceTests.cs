@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -105,34 +106,35 @@ public sealed class NativeBattlePrivateMorphResourceTests
         typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, new([0, 0]) { PoseSource = source })], []));
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
         NativeBattleGraphicsModel model = new(3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix]) };
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, model), ["party", null, null, "enemy", null, null, null], 0, 0);
+        BattleModelOwner owner = session.ReadPresentationModelOwner("party");
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, owner, model), (3, session.ReadPresentationModelOwner("enemy"), new(0))]);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x100, [17]) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         object frame = family == 314 ? (object)new NativeBattleEffect314Frame(memory, new(314, 313, new(314, NativeBattleEffect314Profile.Entry, NativeBattleEffect314Profile.Initializer), null, 0), new(42), NativeBattleEffect314State.FromColdProcess()) { Staging = staging } : new NativeBattleEffect316Frame(memory, new(316, 315, new(316, NativeBattleEffect316Profile.Entry, NativeBattleEffect316Profile.Initializer), null, 0), new(42), NativeBattleEffect316State.FromColdProcess()) { Staging = staging };
         object Invoke(string suffix, params object?[] arguments) => typeof(BattleSession).GetMethod($"{suffix}", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments)!;
-        NativeBattlePackedMatrix32 packed = (NativeBattlePackedMatrix32)Invoke($"ReadNativeEffect{family}BoneMatrix", graphics, frame, 0x1D972C0u, 0);
+        NativeBattlePackedMatrix32 packed = (NativeBattlePackedMatrix32)Invoke($"ReadNativeEffect{family}BoneMatrix", graphics, frame, owner, 0);
         Assert.Equal(matrix.Rotation, packed.ReadMatrix().Rotation);
         Assert.Equal(matrix.X, packed.ReadMatrix().X);
         Assert.False(packed.Known[18]);
         Assert.False(packed.Known[19]);
         NativeBattleEffectArena unrelated = (NativeBattleEffectArena)Invoke($"ReadNativeEffect{family}Arena", graphics, frame, 0x20DFAB8u + 0x100, 1);
         Assert.Equal((byte)17, unrelated.Read(0, 1)[0]);
-        NativeBattleModelGeometrySource selected = (NativeBattleModelGeometrySource)Invoke($"ReadNativeEffect{family}Geometry", graphics, frame, 0x1D972C0u, true);
-        NativeBattleEffect64GeometryCleanup.Clear(selected, (offset, value) => frame = Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, 0x1D972C0u, offset, BitConverter.GetBytes(value)), NativeBattleEffectArena.Clear());
+        NativeBattleModelGeometrySource selected = (NativeBattleModelGeometrySource)Invoke($"ReadNativeEffect{family}Geometry", graphics, frame, owner, true);
+        NativeBattleEffect64GeometryCleanup.Clear(selected, (offset, value) => frame = Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, owner, offset, BitConverter.GetBytes(value)), NativeBattleEffectArena.Clear());
         Assert.NotSame(bank, session.NativeModelCpuResources!.GetResourceBank(mesh));
         Assert.Equal((byte)0, (byte)(selected.Read(59, 1)[0] & 0x80));
         Assert.Equal((byte)0x80, (byte)(NativeBattleModelResourceView.Open(cpu, staging, new NativeBattleResourcePointer(mesh, null, geometry.Length), geometry.Length).Read(59, 1)[0] & 0x80));
-        Assert.Throws<TargetInvocationException>(() => Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, 0x1D972C0u, geometry.Length, new byte[1]));
+        Assert.Throws<TargetInvocationException>(() => Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, owner, geometry.Length, new byte[1]));
         NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
         Assert.Equal((byte)0, (byte)(NativeBattleModelResourceView.Open(restored, staging, new NativeBattleResourcePointer(mesh, null, geometry.Length), geometry.Length).Read(59, 1)[0] & 0x80));
         if (family == 314)
         {
             string before = NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!);
             NativeBattleActionMatrix replacement = matrix with { X = 999999 };
-            object?[] arguments = [graphics, frame, 0x1D972C0u, 0, NativeBattlePackedMatrix32.FromMatrix(replacement, 77)];
+            object?[] arguments = [graphics, frame, owner, 0, NativeBattlePackedMatrix32.FromMatrix(replacement, 77)];
             typeof(BattleSession).GetMethod("WriteNativeEffect314BoneMatrix", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments);
             graphics = (NativeBattleGraphicsState)arguments[0]!;
-            Assert.Equal(999999, graphics.Models[0].CurrentBodyBoneMatrices!.Matrices[0].X);
+            Assert.Equal(999999, graphics.ActorModels.Get(owner).CurrentBodyBoneMatrices!.Matrices[0].X);
             Assert.Equal(before, NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
         }
     }
@@ -181,7 +183,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
             NativeBattleEffect298BodySource body = typed ? new(pose, new(new(0, 0, 0), [], false), [matrix], selected) : new(pose, new(new(0, 0, 0), [], false), [matrix], 0x1000, (address, length) => NativeBattleEffectArena.Clear().Write(0, numeric.AsSpan((int)(address - 0x1000), length)));
             body = body with { VertexScratchAddress = BodyFixture.Scratch, VertexScratchLength = 32 };
             int writes = 0;
-            NativeBattleEffect314Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, (_, _) => new(0, 3) { GeometryWorldMatrix = matrix.ReadMatrix(), Color40 = 0x123456, SequenceState = new() { MeshMask124 = 3 } }, _ => matrix, null!, _ => 0, NativeBattleEffect314Controller.ReadBytes, null!, (_, _, _) => 0x2000, (current, length) =>
+            NativeBattleEffect314Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, (_, _) => new(3) { GeometryWorldMatrix = matrix.ReadMatrix(), Color40 = 0x123456, SequenceState = new() { MeshMask124 = 3 } }, _ => matrix, null!, _ => 0, NativeBattleEffect314Controller.ReadBytes, null!, (_, _, _) => 0x2000, (current, length) =>
             {
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging!, length);
                 return new(current with { Staging = allocation.Staging }, allocation.Address);
@@ -202,7 +204,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
                     return NativeBattleEffect314Controller.WriteBytes(current, write.Address, write.Data, write.Length);
                 }
                 return current;
-            }) { ReadBody = (_, _) => body, WriteBoneMatrix = typed ? (current, _, _, _) =>
+            }, (_, _) => throw new InvalidOperationException("This fixture does not read a companion."), (_, _, _, _) => throw new InvalidOperationException("This fixture does not read a model field.")) { ReadBody = (_, _) => body, WriteBoneMatrix = typed ? (current, _, _, _) =>
             {
                 writes++;
                 return current;
@@ -261,10 +263,10 @@ public sealed class NativeBattlePrivateMorphResourceTests
         uint program = NativeBattleEffect314Profile.ProgramAddresses[0];
         NativeBattleEffect314Resources resources = new(null!, new("camera", []), new("vibration", []), [], ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(program, [0, 0, 4, 0x10, 0xFF, 0x10]));
         uint offsets = NativeBattleEffect314Controller.CommonAddress + NativeBattleEffect314Profile.MainOffset + 0x20;
-        NativeBattleEffect314AddressStep creation = NativeBattleEffect314Controller.SpawnParticle664CD0(frame, resources, 0x1D972C0, offsets, program);
+        NativeBattleEffect314AddressStep creation = NativeBattleEffect314Controller.SpawnParticle664CD0(frame, resources, OriginalOwner(0), offsets, program, OriginalAliases);
         NativeBattlePackedMatrix32 matrix = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Y = -1000 }, null);
         int reads = 0;
-        NativeBattleEffect314Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, (_, _) => new(0, 3) { GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() }, null!, null!, null!, (_, address, length) =>
+        NativeBattleEffect314Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, (_, _) => new(3) { GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() }, null!, null!, null!, (_, address, length) =>
         {
             Assert.False(typed);
             Assert.Equal(0x2014u, address);
@@ -276,7 +278,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
             Assert.False(typed);
             Assert.Equal(0, bone);
             return 0x2000;
-        }, null!, null!, null!) { ReadBoneMatrix = typed ? (_, _, bone) =>
+        }, null!, null!, null!, (_, _) => throw new InvalidOperationException("This fixture does not read a companion."), (_, _, _, _) => throw new InvalidOperationException("This fixture does not read a model field.")) { ReadBoneMatrix = typed ? (_, _, bone) =>
         {
             Assert.Equal(0, bone);
             reads++;
@@ -334,7 +336,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
                     NativeBattleEffect314WriteArena write => NativeBattleEffect314Controller.WriteBytes(frame, write.Address, write.Data, write.Length),
                     NativeBattleEffect314DrawBatch draw => Capture(frame, draw.Batch),
                     _ => frame
-                }) { ReadGeometrySource = source is { } selected ? (_, _) => selected : null, ReadBoneMatrix = (_, _, _) => bone };
+                }, (_, _) => throw new InvalidOperationException("This fixture does not read a companion."), (_, _, _, _) => throw new InvalidOperationException("This fixture does not read a model field.")) { ReadGeometrySource = source is { } selected ? (_, _) => selected : null, ReadBoneMatrix = (_, _, _) => bone };
                 frame314 = NativeBattleEffect314Body.Draw663590(frame314, inputs, OriginalOwner(0), -1024, 0, 0);
             }
             else
@@ -365,7 +367,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
             frame314 = frame314 with { Staging = frame314.Staging!.Write(offsets, new byte[16]) };
             int writes = 0;
             int prepares = 0;
-            NativeBattleEffect314Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, (_, _) => new(0, 3) { GeometryWorldMatrix = matrix.ReadMatrix(), Color40 = 0x123456, SequenceState = new() { MeshMask124 = 1 } }, _ => matrix, _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), _ => 0, NativeBattleEffect314Controller.ReadBytes, (_, _) => throw new InvalidOperationException("Logical morph must not request a numeric geometry address."), (_, _, _) => throw new InvalidOperationException("Logical morph must not request a numeric matrix address."), (frame, length) =>
+            NativeBattleEffect314Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, (_, _) => new(3) { GeometryWorldMatrix = matrix.ReadMatrix(), Color40 = 0x123456, SequenceState = new() { MeshMask124 = 1 } }, _ => matrix, _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), _ => 0, NativeBattleEffect314Controller.ReadBytes, (_, _) => throw new InvalidOperationException("Logical morph must not request a numeric geometry address."), (_, _, _) => throw new InvalidOperationException("Logical morph must not request a numeric matrix address."), (frame, length) =>
             {
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, length);
                 return new(frame with { Staging = allocation.Staging }, allocation.Address);
@@ -383,7 +385,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
                     default:
                         return frame;
                 }
-            }) { ReadBody = (_, _) => body, WriteBoneMatrix = (frame, model, bone, packed) =>
+            }, (_, _) => throw new InvalidOperationException("This fixture does not read a companion."), (_, _, _, _) => throw new InvalidOperationException("This fixture does not read a model field.")) { ReadBody = (_, _) => body, WriteBoneMatrix = (frame, model, bone, packed) =>
             {
                 Assert.Equal(OriginalOwner(0), model);
                 Assert.Equal(0, bone);

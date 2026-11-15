@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -11,7 +12,7 @@ public sealed class NativeBattleRinoa86SceneMemoryTests
         models[0] = models[0] with { Transform = new(default, new(10, 20, 30), -73, 0, 4096) };
         models[3] = models[3] with { Flags0 = 2, Transform = new(default, new(-101, -200, -100), 0, 0, 4096) };
         models[4] = models[4] with { Flags0 = 2, Transform = new(default, new(100, -400, 99), 0, 0, 4096) };
-        NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(0, models);
+        NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(OriginalOwner(0), OriginalRoster, actor => models[OriginalSlot(actor)]);
         Assert.Equal((short)10, scene.SignedWord(0));
         Assert.Equal((short)20, scene.SignedWord(2));
         Assert.Equal((short)30, scene.SignedWord(4));
@@ -31,7 +32,7 @@ public sealed class NativeBattleRinoa86SceneMemoryTests
     {
         NativeBattleGraphicsModel[] models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToArray();
         models[0] = models[0] with { Transform = new(default, new(10, 20, 30), 31, 0, 4096) };
-        NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(0, models);
+        NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(OriginalOwner(0), OriginalRoster, actor => models[OriginalSlot(actor)]);
         Assert.Equal(new byte[8], scene.Settings.Read(8, 8));
         Assert.True(scene.CanRequestPhase(1));
         scene = scene.WriteWord(68, 1);

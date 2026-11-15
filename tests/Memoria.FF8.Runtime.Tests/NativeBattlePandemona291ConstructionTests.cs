@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -23,7 +24,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         NativeBattlePandemona291Frame source = fixture.Frame with { Effect = fixture.Frame.Effect with { Binding = fixture.Frame.Effect.Binding with { Pandemona291Resources = resources } } };
         source = NativeBattlePandemona291Entry.Initialize6ED250(source, resources, fixture.Packets, Model);
         int vibrations = 0;
-        NativeBattlePandemona291ConstructionInputs inputs = new(fixture.Packets, Model, (frame, actor) => new(frame, new((short)(100 + actor), (short)(-200 - actor))), frame =>
+        NativeBattlePandemona291ConstructionInputs inputs = new(fixture.Packets, Model, (frame, actor) => new(frame, new((short)(100 + OriginalSlot(actor)), (short)(-200 - OriginalSlot(actor)))), frame =>
         {
             vibrations++;
             return new(frame with { Memory = frame.Memory with { Pandemona291 = frame.Memory.Pandemona291! with { Scratch25562EC = 77 } } }, 456);
@@ -51,17 +52,18 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(0x1234, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Pandemona291.Animations.Value[3].Bytes.AsSpan().Slice(14, 2)));
         Assert.Equal(0x231D4, result.Memory.EffectIo!.BaseOffset);
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, result.Memory.Arena!.Read(0x231D4, 5));
-        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(result))!;
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.Independent(result);
         Assert.Equal(arena.ReadSnapshot(record, 32).Known, restored.Memory.Arena!.ReadSnapshot(record, 32).Known);
+        Assert.Equal(OriginalOwner(1), NativeBattlePandemona291Construction.ReadTargetOwner(restored.Memory.Arena, record));
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
 
-        static NativeBattleGraphicsModel Model(int actor) => new(2)
+        static NativeBattleGraphicsModel Model(BattleModelOwner actor) => new(2)
         {
             HasLinkedModelRing140 = false,
             Rotation12 = 3,
             Rotation14 = -1,
             Rotation16 = 5,
-            Transform = new(new(0, 0, 0), new((short)(actor == 0 ? -10 : 20), 3, (short)(actor == 0 ? -103 : 100)), 7, 0, 0)
+            Transform = new(new(0, 0, 0), new((short)(actor == OriginalOwner(0) ? -10 : 20), 3, (short)(actor == OriginalOwner(0) ? -103 : 100)), 7, 0, 0)
         };
     }
 }

@@ -125,6 +125,6 @@ public sealed class NativeBattleRinoaPhysicalRibbonTests
             Modules = modules;
         }
 
-        public NativeBattleRinoaPhysicalRibbonDraw Draw(int first, NativeBattleEffectMemory? currentMemory = null, NativeBattleFileStaging? currentStaging = null) => NativeBattleRinoaPhysicalRibbon.Draw(currentMemory ?? memory, currentStaging ?? staging, Temporary, curve, camera, first, first + 3, new(camera, 256, 160, 108), Modules);
+        public NativeBattleRinoaPhysicalRibbonDraw Draw(int first, NativeBattleEffectMemory? currentMemory = null, NativeBattleFileStaging? currentStaging = null) => NativeBattleRinoaPhysicalRibbon.Draw(currentMemory ?? memory, currentStaging ?? staging, Temporary, curve, camera, first, first + 3, new(camera, 256, 160, 108), Modules, BattleContactTaskStorageContract.OriginalArena);
     }
 }

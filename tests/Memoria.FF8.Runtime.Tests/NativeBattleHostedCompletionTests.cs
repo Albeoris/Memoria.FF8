@@ -26,7 +26,7 @@ public sealed class NativeBattleHostedCompletionTests
         BattleSession.PreparedHostedDispatch staleAction = child.PrepareHostedAction(Header, [Contact]);
         NativeBattleActionPacketsState packets = PopulatedPackets(child.NativeActionPackets);
         Field(child, "nativeActionPackets").SetValue(child, packets);
-        NativeBattleGraphicsState before = child.NativeGraphics;
+        NativeBattleGraphicsState before = Assert.IsType<NativeBattleGraphicsState>(child.NativeGraphics);
         BattleSession.PreparedHostedDispatch prepared = process.PrepareCompletion(callback, Owner, ActorId);
         Assert.Same(before, child.NativeGraphics);
         Assert.Same(packets, child.NativeActionPackets);

@@ -40,10 +40,10 @@ public sealed class ExpandedBattleEnemyItemAdmissionTests
         battle.Tick();
         BattleActionPresentation active = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         Assert.Equal("ally-3", active.TargetId);
-        Assert.Equal(new[] { "ally-3" }, active.AiRecipients!.ActorIds);
-        string midpoint = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(midpoint)!);
-        Assert.Equal(midpoint, JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(new BattlePartyActorReference("ally-3"), Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(active.TargetRequest.Selection).Actors));
+        BattleSnapshot midpoint = battle.Capture();
+        BattleSession restored = BattleSession.Restore(midpoint);
+        Assert.Equal(JsonSerializer.Serialize(midpoint), JsonSerializer.Serialize(restored.Capture()));
 
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {

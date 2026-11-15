@@ -157,7 +157,7 @@ public sealed class NativeBattleModelResourceViewTests
         NativeBattleModelAnimationCopy animation = completed.AnimationCopy!;
         int section = source.Linked ? 7 : 6;
         Assert.Equal(loaded.Bind!.PreparedDat.Bytes.AsMemory().Slice(loaded.Bind.PreparedDat.Section(section), animation.Length), animation.Data);
-        return ((cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation(1, animation), loaded.Staging);
+        return ((cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation((BattlePartyModelOwner)OriginalOwner(1), NativeBattleModelSlot.Decode(1), animation), loaded.Staging);
     }
 
     private static NativeBattleModelDatSource Source(bool linked, byte selector, byte scale)

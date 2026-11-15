@@ -221,7 +221,7 @@ public sealed class NativeBattleRenzokukenFinalLateCaptureTests
         BinaryPrimitives.WriteInt32LittleEndian(rows, -1);
         var meshes = new uint[] { 0xC9FA74, 0xCA1C2C, 0xC99D2C, 0xC98C04, 0xC9B9EC, 0xC9CF24, 0xC91DF4, 0xC8AF84, 0xC852AC }.Select(address => Mesh(0) with { Address = address }).ToImmutableArray();
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], meshes, 0, 0) { SpecialSprites = [Sprite, Sprite], SpecialAlignmentAxis = [0, 0, 4096], ImpactAxis = [0, 0, 4096], ContactOffsets = new NativeBattleVector[10].ToImmutableArray() };
-        var core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 200, Origin = new(100, -200, 6000), Direction = new(2896, 0, 2896) };
+        var core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 200, Origin = new(100, -200, 6000), Direction = new(2896, 0, 2896) };
         var state = new NativeBattleRenzokukenSpecialState(core, resources) { ExtraStorage = rows.ToImmutableArray(), PreviousOrigin = core.Origin, PreviousDirection = core.Direction, CapturedMatrix = Identity, ContactOffsets = new NativeBattleVector[10].ToImmutableArray() };
         var memory = NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(effect, state) };
         var original = new NativeBattleOriginalEffectState(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), null, null) { Pools = [root, children] };

@@ -103,7 +103,8 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         });
 
         int row = ownership == "native" ? 0 : 7;
-        typeof(BattleSession).GetField("presentationSourceIndex", PrivateInstance)!.SetValue(session, row);
+        BattleModelOwner selected = session.ReadPresentationModelOwner("selected");
+        typeof(BattleSession).GetField("presentationSourceOwner", PrivateInstance)!.SetValue(session, selected);
         typeof(BattleSession).GetField("presentationSourceResource", PrivateInstance)!.SetValue(session, resource);
         NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();
         if (ownership != "legacy")
@@ -116,17 +117,14 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
 
-        var rows = new BattleModelOwner?[row == 0 ? 7 : 8].ToImmutableArray().SetItem(row, new("selected", true));
+        NativeBattleGraphicsState graphics = row == 0
+            ? OriginalGraphics([(0, selected, Model(row))])
+            : OriginalGraphics([(3, session.ReadPresentationModelOwner("other"), new(0))]);
         if (row != 0)
         {
-            rows = rows.SetItem(3, new("other", false));
+            graphics = graphics with { ActorModels = graphics.ActorModels.Add(selected, Model(row)) };
         }
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, rows.Length).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray().SetItem(row, Model(row));
-        NativeBattleGraphicsState graphics = new(models, rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
-        {
-            PresentationRoster = row == 0 ? null : new(rows),
-            PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
-        };
+        graphics = graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         return (session, graphics, row);
     }
 
@@ -154,17 +152,17 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         NativeBattleEffectMemory memory = frameMemory ?? session.NativeEffectMemory!;
         if (method == Group)
         {
-            graphics = (NativeBattleGraphicsState)Invoke(Group, session, graphics, row, (byte)0, (byte)15, 0x808080u, null);
-            return (NativeBattleGraphicsState)Invoke(Group, session, graphics, row, (byte)1, (byte)15, 0x808080u, null);
+            graphics = (NativeBattleGraphicsState)Invoke(Group, session, graphics, session.ReadPresentationModelOwner("selected"), (byte)0, (byte)15, 0x808080u, null);
+            return (NativeBattleGraphicsState)Invoke(Group, session, graphics, session.ReadPresentationModelOwner("selected"), (byte)1, (byte)15, 0x808080u, null);
         }
         if (method == Pandemona)
         {
             NativeBattlePandemona291Frame frame = new(memory, Effect(291), new(1));
-            var (_, drawn) = ((NativeBattlePandemona291Frame, NativeBattleGraphicsState))Invoke(Pandemona, session, frame, row, default(NativeBattleVector), default(NativeBattleVector), UnitScale, graphics);
+            var (_, drawn) = ((NativeBattlePandemona291Frame, NativeBattleGraphicsState))Invoke(Pandemona, session, frame, session.ReadPresentationModelOwner("selected"), default(NativeBattleVector), default(NativeBattleVector), UnitScale, graphics);
             return drawn;
         }
         NativeBattleDiablos325Frame diablos = new(memory, Effect(325));
-        var (_, result) = ((NativeBattleDiablos325Frame, NativeBattleGraphicsState))Invoke(Diablos, session, diablos, row, 4096, graphics);
+        var (_, result) = ((NativeBattleDiablos325Frame, NativeBattleGraphicsState))Invoke(Diablos, session, diablos, session.ReadPresentationModelOwner("selected"), 4096, graphics);
         return result;
     }
 

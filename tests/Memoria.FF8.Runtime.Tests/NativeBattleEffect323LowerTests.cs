@@ -53,10 +53,11 @@ public sealed class NativeBattleEffect323LowerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 13, 0, 215, 323, null));
         foreach (byte actor in new byte[] { 0, 4, 4, 3 })
         {
-            (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
         }
+        (NativeBattleActionPacketsState shorter, _) = packets.Publish(2);
         (packets, _) = packets.Publish(4);
-        List<int> delivered = [];
+        List<BattleContactOccurrence> delivered = [];
         NativeBattleEffect323Inputs inputs = fixture.Inputs() with
         {
             ReadPackets = _ => packets,
@@ -65,14 +66,13 @@ public sealed class NativeBattleEffect323LowerTests
                 delivered.Add(Assert.IsType<NativeBattleEffect323Contact506690>(operation).ContactIndex);
                 if (shrinkAfterFirst)
                 {
-                    NativeBattleActionHeaderSlot header = packets.Headers[0];
-                    packets = packets with { Headers = packets.Headers.SetItem(0, header with { Payload = header.Payload.SetItem(16, (byte)2) }) };
+                    packets = shorter;
                 }
                 return frame with { Random = frame.Random with { Seed = frame.Random.Seed + 1 } };
             }
         };
         NativeBattleEffect323Frame result = NativeBattleEffect323Lower.AllMatchingContacts65A5F0(fixture.Frame, OriginalOwner(4), inputs);
-        Assert.Equal(shrinkAfterFirst ? new[] { 1 } : new[] { 1, 2 }, delivered);
+        Assert.Equal(shrinkAfterFirst ? new[] { new BattleContactOccurrence(1) } : new[] { new BattleContactOccurrence(1), new BattleContactOccurrence(2) }, delivered);
         Assert.Equal(fixture.Frame.Random.Seed + (uint)delivered.Count, result.Random.Seed);
     }
 

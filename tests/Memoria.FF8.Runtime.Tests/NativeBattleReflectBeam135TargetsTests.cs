@@ -18,7 +18,7 @@ public sealed class NativeBattleReflectBeam135TargetsTests
         Assert.Equal(contacts, f.Operations.OfType<NativeBattleReflectBeam135Contact>().Count());
         if (contacts != 0)
         {
-            Assert.Equal(new int[] { 0, 2 }, f.Operations.OfType<NativeBattleReflectBeam135Contact>().Select(value => value.Index).ToArray());
+            Assert.Equal(new int[] { 0, 2 }, f.Operations.OfType<NativeBattleReflectBeam135Contact>().Select(value => value.Occurrence.Ordinal).ToArray());
         }
         var context = Assert.Single(f.Acts);
         Assert.Equal((TargetActAddress, 0x1C, 0x310), (context.Source, context.Offset, context.Size));

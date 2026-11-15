@@ -257,7 +257,7 @@ public sealed class NativeBattleEffect313ControllerTests
     private sealed class Harness
     {
         public uint Flags { get; init; }
-        public BattleModelTargets Targets;
+        public BattleModelTargets Targets = BattleModelTargets.Empty;
         public List<(BattleModelOwner, int, int)> Points = [];
         public List<NativeBattleEffect313Operation> Operations = [];
         public NativeBattleActionPacketsState Packets = OriginalPackets();

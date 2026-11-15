@@ -284,8 +284,8 @@ public sealed class NativeBattleThundaraControllerTests
     [Fact]
     public void ExactPointerBoundsAndMissingPendingHeaderCompletionConditionRemainNative()
     {
-        Assert.Equal(6, NativeBattleThundaraController.ActorIndex(0x1D972C0 + 6 * 156));
-        Assert.Throws<NotSupportedException>(() => NativeBattleThundaraController.ActorIndex(0x1D972C1));
+        Assert.Equal(6, NativeBattleGraphicsModelAddress.DecodeOriginalCell(0x1D972C0 + 6 * 156).Offset);
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsModelAddress.DecodeOriginalCell(0x1D972C1));
         Assert.Equal(59, NativeBattleThundaraController.SecondarySlot(NativeBattleThundaraController.SecondaryBank + 59 * 44));
         Assert.Throws<NotSupportedException>(() => NativeBattleThundaraController.SecondarySlot(NativeBattleThundaraController.SecondaryBank + 60 * 44));
         Assert.Throws<NotSupportedException>(() => NativeBattleThundaraController.SecondarySlot(0));
@@ -306,7 +306,7 @@ public sealed class NativeBattleThundaraControllerTests
 
     private static (NativeBattleThundaraFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         for (int index = 0; index < headers; index++)
         {
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 8, 102, null));

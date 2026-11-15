@@ -8,16 +8,22 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSequenceSelectionsTests
 {
     [Theory]
-    [InlineData(0, 2, 1)]
-    [InlineData(6, 2, 64)]
-    [InlineData(7, 5, 0x4010)]
-    [InlineData(255, 5, 0x4010)]
-    public void Opcode92_preserves_native_actor_and_mask_argument_ownership(byte selector, byte expectedActor, ushort expectedMask)
+    [InlineData(0, 2, 0, false)]
+    [InlineData(6, 2, 6, false)]
+    [InlineData(7, 5, 4, true)]
+    [InlineData(255, 5, 4, true)]
+    public void Opcode92_preserves_literal_alias_or_retained_target_arguments(byte selector, byte expectedSource, byte expectedTarget, bool nonActorSelectors)
     {
-        var arguments = NativeBattleSequenceSelections.GeometryArguments92(5, selector, new(2, 0x4010));
-        Assert.Equal(expectedActor, arguments.Actor);
-        Assert.Equal(expectedMask, arguments.TargetMask);
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.GeometryArguments92(5, selector, null));
+        var (models, boundary) = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, new NativeBattleGraphicsModel(2))));
+        BattleModelOwner current = OriginalOwner(5);
+        NativeBattleActionGeometry retained = new(OriginalOwner(2), BattleModelTargets.From([OriginalOwner(4)]), true);
+
+        var arguments = NativeBattleSequenceSelections.GeometryArguments92(models, current, selector, retained, boundary);
+
+        Assert.Equal(OriginalOwner(expectedSource), arguments.Source);
+        Assert.Equal(OriginalOwner(expectedTarget), Assert.Single(arguments.Targets.Enumerate()));
+        Assert.Equal(nonActorSelectors, arguments.SourceHasNonActorSelectors);
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.GeometryArguments92(models, current, selector, null, boundary));
     }
 
     [Fact]
@@ -53,15 +59,18 @@ public sealed class NativeBattleSequenceSelectionsTests
     [Fact]
     public void Model_selector93_matches_all_other_loaded_models_in_physical_order()
     {
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank();
-        models[0] = new(2) { ModelId4 = 77 };
-        models[3] = new(2) { ModelId4 = 77 };
-        models[4] = new(0) { ModelId4 = 77 };
-        models[5] = new(2) { ModelId4 = 78 };
-        models[6] = new(2) { ModelId4 = 77 };
-        Assert.Equal(new[] { 0, 6 }, NativeBattleSequenceSelections.SelectModels93(models, 3, 77));
-        Assert.Equal(new[] { 3 }, NativeBattleSequenceSelections.SelectModels93(models, 3, 3));
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.SelectModels93(models, 3, 7));
+        var (models, boundary) = OriginalModels([
+            (0, new(2) { ModelId4 = 77 }),
+            (3, new(2) { ModelId4 = 77 }),
+            (4, new(0) { ModelId4 = 77 }),
+            (5, new(2) { ModelId4 = 78 }),
+            (6, new(2) { ModelId4 = 77 })
+        ]);
+        BattleModelOwner current = OriginalOwner(3);
+
+        Assert.Equal(new[] { OriginalOwner(0), OriginalOwner(6) }, NativeBattleSequenceSelections.SelectModels93(models, current, 77, boundary).Enumerate());
+        Assert.Equal(current, Assert.Single(NativeBattleSequenceSelections.SelectModels93(models, current, 3, boundary).Enumerate()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.SelectModels93(models, current, 7, boundary));
     }
 
     [Theory]

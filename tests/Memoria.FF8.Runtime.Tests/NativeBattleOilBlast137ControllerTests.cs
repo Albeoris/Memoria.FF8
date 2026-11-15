@@ -73,7 +73,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
         Assert.Equal(contacts, f.Operations.OfType<NativeBattleOilBlast137Contact>().Count());
         if (contacts != 0)
         {
-            Assert.Equal(1, Assert.Single(f.Operations.OfType<NativeBattleOilBlast137Contact>()).Index);
+            Assert.Equal(1, Assert.Single(f.Operations.OfType<NativeBattleOilBlast137Contact>()).Occurrence.Ordinal);
         }
         Assert.Equal((ushort)(expected == 2 ? age : age + 1), f.Main(frame).ReadWord(12));
     }
@@ -224,12 +224,12 @@ public sealed class NativeBattleOilBlast137ControllerTests
             for (int header = 0; header < 2; header++)
             {
                 (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 12, 0, 181, 137, null));
-                (packets, _) = packets.AppendContact(new(new((byte)(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(header == 0 ? 0 : 3), 1, 0, 0, 0, 7, 0), null));
                 (packets, _) = packets.Publish(1);
             }
             Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, (frame, model, selector, _) =>
             {
-                Bones.Add((model, selector));
+                Bones.Add((NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(checked((byte)OriginalSlot(model)))), selector));
                 return new(frame with { Memory = frame.Memory with { ScriptedColorRegisters = frame.Memory.ScriptedColorRegisters! with { Material = 77 } } }, new(100, 700, -300));
             }, _ => NativeBattlePackedMatrix32.FromMatrix(identity with { X = 10, Y = 20, Z = 2000 }, null), _ => 123,
             (frame, _, offset, size, _, context) =>

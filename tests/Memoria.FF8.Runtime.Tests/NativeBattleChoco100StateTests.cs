@@ -73,9 +73,15 @@ public sealed class NativeBattleChoco100StateTests
     public void Entry_uses_parameter_header_base_for_actors_count_and_range()
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
-        NativeBattleActionHeaderSlot first = packets.Headers[0] with { Payload = packets.Headers[0].Payload.SetItem(16, 3).SetItem(17, 5) };
-        NativeBattleActionHeaderSlot selected = packets.Headers[2] with { Payload = packets.Headers[2].Payload.SetItem(0, 4).SetItem(8, 0x44).SetItem(9, 0x83).SetItem(10, 0xD2).SetItem(11, 1).SetItem(16, 1).SetItem(17, 2), FirstContactIndex = 0 };
-        packets = packets with { Headers = packets.Headers.SetItem(0, first).SetItem(2, selected) };
+        (packets, BattleActionHeaderReference first) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 100, null));
+        (packets, _) = packets.Publish(3);
+        packets = packets.WritePlayerRepeatMode(first, 6);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 100, null));
+        (packets, _) = packets.Publish(0);
+        (packets, BattleActionHeaderReference selected) = packets.Prepare(new(OriginalOwner(4), 0, 0, 0, 0, 100, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
+        (packets, _) = packets.Publish(1);
+        packets = packets.WritePlayerRepeatMode(selected, 3);
         NativeBattleOriginalEffectState effect = new(100, 99, new(100, 0x70D390, 0x70D370), new(OriginalOwner(0), 1, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(2), 0, 0), null)
         {
             ResourcePointers = [new(0x255EAC8, 0)]

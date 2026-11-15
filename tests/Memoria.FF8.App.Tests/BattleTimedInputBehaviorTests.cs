@@ -50,7 +50,7 @@ public sealed class BattleTimedInputBehaviorTests
         typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.IsBusy))!.SetValue(battle.Combatants[0], true);
         var duels = (Dictionary<string, BattleNativeDuelState>)typeof(BattleSession).GetField("nativeDuelProcesses", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
         //An older finisher state has no optional UI fields. Its already submitted action must not be replayed.
-        duels.Add("party", new(0, 8, 400, 100, BattleNativeDuelPhase.Finisher));
+        duels.Add("party", new(0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), 400, 100, BattleNativeDuelPhase.Finisher));
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
         Assert.Empty(hud.Commands);
         Assert.True(battle.GetDuelUi("party")!.OwnsInput);

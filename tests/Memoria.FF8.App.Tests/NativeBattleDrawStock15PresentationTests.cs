@@ -178,9 +178,9 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 {
                     contactTransitions++;
                     NativeBattleModulePoolTask target = current.NativeGraphics.OriginalEffect!.Pools[1].Slots.First(task => task.Callback == 0x8B0C70 && task.ReadByte(0x29) == 3);
-                    int contactIndex = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(unchecked((sbyte)target.ReadByte(0x2A)) + current.NativeGraphics.OriginalEffect.Parameters!.Header.Ordinal)).FirstContactIndex!.Value + unchecked((sbyte)target.ReadByte(0x2B));
-                    NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex)).Primary;
-                    Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, half.Recipient));
+                    BattleContactCursor contactIndex = current.NativeActionPackets!.ReadHeader(current.NativeGraphics.OriginalEffect.Parameters!.Header.Advance(unchecked((sbyte)target.ReadByte(0x2A)))).FirstContact.Advance(target.ReadTraversalPosition(0x2B));
+                    NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(contactIndex).Primary;
+                    Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner == half.Recipient);
                     ColdNext("contact", current);
                 }
                 if (after?.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 })

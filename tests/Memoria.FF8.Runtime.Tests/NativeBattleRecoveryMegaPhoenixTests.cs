@@ -54,7 +54,7 @@ public sealed class NativeBattleRecoveryMegaPhoenixTests
         NativeBattleRecoveryControllerStep waiting = NativeBattleRecoveryController.Advance(Target(2, 9), fixture.Inputs, resources);
         Assert.Empty(waiting.Contacts);
         NativeBattleRecoveryControllerStep contact = NativeBattleRecoveryController.Advance(waiting.Frame, fixture.Inputs, resources);
-        Assert.Equal(new[] { 0 }, contact.Contacts);
+        Assert.Equal(new[] { 0 }, contact.Contacts.Select(value => value.Ordinal));
         Assert.Empty(NativeBattleRecoveryController.Advance(contact.Frame, fixture.Inputs, resources).Contacts);
         Assert.Empty(NativeBattleRecoveryController.Advance(Target(2, 0xFFFF), fixture.Inputs, resources).Contacts);
         NativeBattleRecoveryControllerStep sound = NativeBattleRecoveryController.Advance(Target(3, 0), fixture.Inputs, resources);

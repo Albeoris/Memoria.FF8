@@ -15,7 +15,7 @@ public sealed class NativeBattleCinematicActorClone48Tests
         {
             calls.Add("draw");
             Assert.Equal(Address(0x4000), clone);
-            Assert.Equal(0x1D972C0u, actor);
+            Assert.Equal(OriginalOwner(0), actor);
             Assert.Equal((105, 206, 307), (basis.X, basis.Y, basis.Z));
             Assert.Equal(new short[] { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, basis.Rotation);
             Assert.Equal(Address(0x4080), Dword(current, 0x4044));
@@ -26,7 +26,7 @@ public sealed class NativeBattleCinematicActorClone48Tests
             Assert.Throws<NotSupportedException>(() => current.Arena.Read(0x4010, 12));
             Assert.Throws<NotSupportedException>(() => current.Arena.Read(0x4030, 16));
             return new(current, 0x12345698);
-        }));
+        }), OriginalAliases);
         Assert.Equal(new[] { "hide", "resolve", "refresh", "color", "mask", "resolve", "input", "refresh", "draw", "restore" }, calls);
         Assert.Equal(Address(0x4080), WaterSchedulerFixture.ReadCoreDword(result, 0x2797704));
         Assert.Equal(0x12345698u, WaterSchedulerFixture.ReadCoreDword(result, 0x279770C));
@@ -41,7 +41,7 @@ public sealed class NativeBattleCinematicActorClone48Tests
     public void ExistingCloneRefreshesWithoutReallocationAndRotationZUsesReferencePositionZ()
     {
         List<string> calls = [];
-        NativeBattleWaterExecutionFrame frame = NativeBattleCinematicActorClone48.Draw(Fixture(), Services(calls, (current, _, _, _) => new(current, 0x12345678)));
+        NativeBattleWaterExecutionFrame frame = NativeBattleCinematicActorClone48.Draw(Fixture(), Services(calls, (current, _, _, _) => new(current, 0x12345678)), OriginalAliases);
         frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x94, 15);
         frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x96, 25);
         frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x98, 50);
@@ -55,12 +55,12 @@ public sealed class NativeBattleCinematicActorClone48Tests
             Assert.Equal((ushort)0, current.ReadTemporaryWord(0x82));
             Assert.Equal((ushort)30, WaterSchedulerFixture.ReadSlotWord(current, 0, 0xAC));
             return new(current, 0x12345678);
-        }));
+        }), OriginalAliases);
         Assert.Equal(new[] { "resolve", "input", "refresh", "draw", "restore" }, calls);
         Assert.Equal(Address(0x4080), WaterSchedulerFixture.ReadCoreDword(result, 0x2797704));
     }
 
-    private static NativeBattleCinematicActorClone48Services Services(List<string> calls, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleActionMatrix, NativeBattleCinematicActorCloneDraw> draw) => new((_, selector) =>
+    private static NativeBattleCinematicActorClone48Services Services(List<string> calls, Func<NativeBattleWaterExecutionFrame, uint, BattleModelOwner, NativeBattleActionMatrix, NativeBattleCinematicActorCloneDraw> draw) => new((_, selector) =>
     {
         calls.Add("resolve");
         Assert.Equal((ushort)1, selector);
@@ -100,7 +100,7 @@ public sealed class NativeBattleCinematicActorClone48Tests
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797704, Address(0x4000));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x279770C, 0x12345678);
-        frame = WaterSchedulerFixture.CoreDword(frame, 0x27970C8, 0x1D972C0);
+        frame = NativeBattleCinematicTypedTestFixture.BindActor(frame, OriginalOwner(0));
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xBC, 0);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xB8, Address(0x3000));
         frame = frame with { Arena = frame.Arena.Write(0x3000, new byte[] { 1, 0 }) };

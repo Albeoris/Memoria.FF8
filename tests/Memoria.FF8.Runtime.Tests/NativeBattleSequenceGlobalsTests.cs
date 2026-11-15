@@ -64,7 +64,7 @@ public sealed class NativeBattleSequenceGlobalsTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleSequenceInputs inputs = new(null, null)
         {
-            ReadExternal = variable => memory.ReadSequenceGlobal5044B0(variable),
+            ReadExternal = variable => NativeBattleScriptValue.Scalar(memory.ReadSequenceGlobal5044B0(variable)),
             WriteExternal = (variable, value) => memory = memory.WriteSequenceGlobal5048E0(variable, value)
         };
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(3), model, resource, inputs);

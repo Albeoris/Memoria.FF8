@@ -101,7 +101,9 @@ public sealed class NativeBattleDuel274DolphinTests
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (targets, _) = targets.Append(0x689AC0);
-            NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(14, 2).WriteByte(15, 6).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000);
+            NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(14, 2).WriteByte(15, 6).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000);
+            BattleModelOwner target = OriginalOwner(3);
+            task.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(target), OriginalAliases.EncodeAddress(target));
             targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(0, task) });
             NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 6 };
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), parameters, root.DescriptorAddress) { Pools = [root, targets] };
@@ -118,7 +120,7 @@ public sealed class NativeBattleDuel274DolphinTests
             }
             BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(checked((int)(0x110E3B8 - NativeBattleDuel274Resources.Address)) + 3 * 8 + 4), 14);
             Resources = new(raw.ToImmutableArray(), []);
-            inputs = new(actor => Models[actor], (actor, model) => Models[actor] = model, bone =>
+            inputs = new(actor => Models[OriginalSlot(actor)], (actor, model) => Models[OriginalSlot(actor)] = model, bone =>
             {
                 Calls.Add($"bone{bone}");
                 return new(10, 20, 30);

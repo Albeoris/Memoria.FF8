@@ -82,7 +82,7 @@ public sealed class NativeBattleRestorationControllerTests
         {
             ApplyContact = (current, index) =>
             {
-                applied.Add(index);
+                applied.Add(index.Ordinal);
                 NativeBattleEffectTextureState textures = current.Memory.Textures!;
                 return current with { Memory = current.Memory with { Textures = textures.EnqueueCopy505EB0(1, 2, 3, 4, 5, 6) } };
             }
@@ -96,7 +96,7 @@ public sealed class NativeBattleRestorationControllerTests
             });
             frame = step.Frame;
             sounds.AddRange(step.Sounds);
-            Assert.Equal(callback == contactCallback ? new[] { 0 } : [], step.Contacts);
+            Assert.Equal(callback == contactCallback ? new[] { 0 } : [], step.Contacts.Select(contact => contact.Ordinal));
             if (callback == 4 + releaseCounter)
             {
                 Assert.Equal((byte)0, frame.Effect.Pools[0].Slots[0].ReadByte(0x63));

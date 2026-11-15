@@ -119,7 +119,7 @@ public sealed class NativeBattleScanPrimaryTests
         var fixture = Fixture();
         NativeBattleScanPrimaryFrame frame = Write(fixture.Frame, fixture.Address, task => task.WriteByte(0x29, 6).WriteByte(0x2A, 0xFF));
         frame = Write(frame, 0x269AAE0, task => task.WriteWord(0x58, 0xFFFF));
-        frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Parameters = frame.Scan.Effect.Parameters! with { HeaderIndex7C = 1 } } } };
+        frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Parameters = frame.Scan.Effect.Parameters! with { Header = new BattleActionHeaderReference(1) } } } };
         frame = Tick(frame, fixture);
         Assert.Equal(new uint[] { 0x850A30, 0x8507F0 }, Live(frame, 2).Skip(1).Select(task => task.Callback));
         Assert.Equal((byte)0xFF, frame.Scan.Effect.Pools[2].Slots[1].ReadByte(0x2A));
@@ -164,6 +164,6 @@ public sealed class NativeBattleScanPrimaryTests
         NativeBattleEffectHierarchyAppend parent = hierarchy.Append8DC540(1, 0x84D230, 0x58, 0x269AAE0, (_, _, _) => OriginalTaskActors(2, 4));
         NativeBattleEffectHierarchyAppend child = parent.Hierarchy.Append8DC540(2, 0x84D4B0, 0x78, parent.Address, (_, _, _) => OriginalTaskActors(2, 4));
         scan = scan with { Effect = scan.Effect with { Pools = child.Hierarchy.Pools } };
-        return (new(scan, Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0x25)).ToImmutableArray(), 0, null), child.Address, parent.Address, packets);
+        return (new(scan, OriginalModels(Enumerable.Range(0, 7).Select(index => (index, new NativeBattleGraphicsModel(0x25)))).Models, 0, null), child.Address, parent.Address, packets);
     }
 }

@@ -116,7 +116,7 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
 
     private static NativeBattleRenzokuken160Frame Frame()
     {
-        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100 };
+        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 100 };
         NativeBattleRenzokukenSpecialState state = new(core, Resources()) { TargetParticles = Markers(800), BurstParticles = Markers(600) };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(161, state) };
         return new(memory, new(161, 160, new(161, 0x5FD100, 0x5FD0E0), null, null), NativeCrtRandomState.FromColdProcess());

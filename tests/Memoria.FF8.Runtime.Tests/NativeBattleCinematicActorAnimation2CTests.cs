@@ -48,7 +48,7 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
             Assert.Equal((byte)0x5A, frame.Arena.Read(0x4080 + 6, 1)[0]);
             return new(frame, 0x12345698);
         });
-        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnimation2C.Draw(Fixture(animation), services);
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnimation2C.Draw(Fixture(animation), services, OriginalAliases);
         Assert.Equal(1, captures);
         Assert.Equal(original, skeleton);
         Assert.Equal(Base + 0x40F0, WaterSchedulerFixture.ReadCoreDword(result, 0x2797704));
@@ -60,14 +60,14 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
     {
         int captures = 0;
         NativeBattleCinematicActorAnimation2CServices services = Services(Skeleton(), () => captures++, (frame, _) => new(frame, 0x12345678));
-        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services);
-        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first))!;
-        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(first, services);
+        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services, OriginalAliases);
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(first));
+        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(first, services, OriginalAliases);
         Assert.Equal(1, captures);
         Assert.Equal((ushort)2, Word(second, 0x4000));
         Assert.Equal((byte)2, second.Arena.Read(0x4026, 1)[0]);
         Assert.Equal(Base + 0x40F0, WaterSchedulerFixture.ReadCoreDword(second, 0x2797704));
-        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(NativeBattleCinematicActorAnimation2C.Draw(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(NativeBattleCinematicActorAnimation2C.Draw(restored, services, OriginalAliases)));
         Assert.Equal(1, captures);
     }
 
@@ -186,10 +186,10 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
                 ReadAnimationResource = (_, receipt) => NativeBattleModelResourceView.Open(cpu, staging, receipt, receipt.Length!.Value).ReadMemory(0, receipt.Length.Value)
             }
         };
-        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services);
+        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services, OriginalAliases);
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank.BindPartyResource(offset, Enumerable.Repeat((byte)0xFF, data.Length).ToImmutableArray(), 0, data.Length)) } };
         NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first));
-        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(restored, services);
+        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(restored, services, OriginalAliases);
         Assert.Equal(1, captures);
         Assert.Equal((ushort)2, Word(second, 0x4000));
         Assert.Equal((byte)2, second.Arena.Read(0x4026, 1)[0]);
@@ -258,11 +258,11 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
                 ReadAnimationResource = (_, pointer) => NativeBattleModelResourceView.Open(cpu, staging, pointer, pointer.Length!.Value).ReadMemory(0, pointer.Length.Value)
             }
         };
-        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services);
+        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services, OriginalAliases);
         Assert.True(bank.ResourceCapacity > layout.BankLength);
         cpu = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
         NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first));
-        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(restored, services);
+        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(restored, services, OriginalAliases);
         Assert.Equal(2, draws);
         Assert.NotNull(second.Arena.ReadResourcePointer(0x4040)!.CpuPublication);
         Assert.Equal((ushort)2, Word(second, 0x4000));
@@ -320,7 +320,7 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797704, Base + 0x4000);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, frame.TemporaryFrame.Address + 0x100);
-        frame = WaterSchedulerFixture.CoreDword(frame, 0x27970D4, 0x1D97494);
+        frame = NativeBattleCinematicTypedTestFixture.BindActor(frame, OriginalOwner(3));
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xB8, Base + 0x3000);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xCC, 0x00808080);
         return frame with { Arena = frame.Arena.MarkUnknown(0x4000, 0x80).Write(0x201B, [3]).Write(0x3000, BitConverter.GetBytes((short)animation)) };

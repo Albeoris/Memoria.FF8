@@ -13,7 +13,7 @@ public sealed class NativeBattleGilgamesh329VariantTests
         var fixture = Fixture();
         NativeBattleGilgameshProcess retained = fixture.Memory.Gilgamesh! with { Variant = int.MaxValue, VibrationHandle = 123, WorldView = Identity() };
         NativeBattleGilgameshFrame frame = new(fixture.Memory with { Gilgamesh = retained }, fixture.Effect, new(123));
-        NativeBattleGilgameshFrame entered = NativeBattleGilgameshController.Initialize58DCF0(frame, fixture.Packets, fixture.Models);
+        NativeBattleGilgameshFrame entered = NativeBattleGilgameshController.Initialize58DCF0(frame, fixture.Packets, OriginalModels(fixture.Models.Select((model, slot) => (slot, model))).Models);
         Assert.Equal(329, entered.Effect.Binding.Effect);
         Assert.Equal(0x58DB10u, entered.Effect.Binding.Entry);
         Assert.Equal(0x58D720u, entered.Effect.Binding.Initializer);
@@ -33,7 +33,7 @@ public sealed class NativeBattleGilgamesh329VariantTests
         Assert.Equal(0x21FF4A8u, entered.Effect.ReturnedDescriptor);
         Assert.Equal(0x596B70u, entered.Effect.Pools[0].Slots[0].Callback);
         Assert.Equal(0x592300u, entered.Effect.Pools[1].Slots[0].Callback);
-        Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshEntry.Initialize58DCF0(fixture.Memory, fixture.Effect with { ResourcePointers = [new(0x2200EC0, 0x40000)] }, fixture.Packets, fixture.Models));
+        Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshEntry.Initialize58DCF0(fixture.Memory, fixture.Effect with { ResourcePointers = [new(0x2200EC0, 0x40000)] }, fixture.Packets, OriginalModels(fixture.Models.Select((model, slot) => (slot, model))).Models));
     }
 
     [Fact]
@@ -103,11 +103,11 @@ public sealed class NativeBattleGilgamesh329VariantTests
 
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 2, 329, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(329, 328, new(329, 0x58DB10, 0x58D720), new(OriginalOwner(0), 0, 1 << 3, new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2200F9C, 0x40000)] };
+        NativeBattleOriginalEffectState effect = new(329, 328, new(329, 0x58DB10, 0x58D720), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x2200F9C, 0x40000)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x40000, Tim()) };
         ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2)
         {

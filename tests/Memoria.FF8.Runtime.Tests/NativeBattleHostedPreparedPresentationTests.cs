@@ -7,11 +7,14 @@ public sealed class NativeBattleHostedPreparedPresentationTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
+    private static readonly BattleModelOwner Ally = new BattlePartyActorModel(new("ally-3"));
+    private static readonly BattleModelOwner Enemy = new BattleEnemyActorModel(new("enemy-4"));
+
     [Fact]
     public void Child_publishes_current_actor_metadata_with_its_own_palettes_and_graphics_clock()
     {
         var (owner, child, graphics) = Fixture();
-        BattleModelRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.ActorModels.Roster;
         Set(owner, nameof(BattleSession.Frame), 17L);
         BattleCombatant alias = owner.Combatants.Single(actor => actor.Id == "enemy-4");
         alias.SetNativeDisplayName(0);
@@ -30,11 +33,11 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Assert.Null(owner.PreparedPresentation);
         NativeBattlePreparedActor ally = Assert.Single(first.Actors, actor => actor.Id == "ally-3");
         Assert.Equal(("Fourth ally", true, 1, 2, (int?)5, (int?)null), (ally.Name, ally.IsPlayer, ally.ModelId, ally.Costume, ally.WeaponId, ally.SceneSlot));
-        Assert.Same(graphics.Models[7].BodyTextureSlots, ally.BodyTextures);
-        Assert.Same(graphics.Models[7].LinkedTextureSlots, ally.LinkedTextures);
+        Assert.Same(graphics.ActorModels.Get(Ally).BodyTextureSlots, ally.BodyTextures);
+        Assert.Same(graphics.ActorModels.Get(Ally).LinkedTextureSlots, ally.LinkedTextures);
         NativeBattlePreparedActor enemy = Assert.Single(first.Actors, actor => actor.Id == alias.Id);
         Assert.Equal(("Known alias", false, 61), (enemy.Name, enemy.IsPlayer, enemy.ModelId));
-        Assert.Same(graphics.Models[15].BodyTextureSlots, enemy.BodyTextures);
+        Assert.Same(graphics.ActorModels.Get(Enemy).BodyTextureSlots, enemy.BodyTextures);
         Assert.Equal(2, first.Actors.Length);
         Assert.Equal(before, owner.Combatants.Select(actor => (actor.Id, actor.Name, actor.CurrentHp, actor.Atb)).ToArray());
 
@@ -60,7 +63,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(owner, "encounterAllocation", new BattleEncounterAllocationState("batch", "enemy-0", ["enemy-4"], ["target"], BattleEncounterAllocationPhase.Loading, 0));
         graphics = graphics with { Flags = 4 };
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
-        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(graphics.PresentationRoster!);
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
         MethodInfo retain = typeof(BattleSession).GetMethod("RetainNativeSceneReplaySource", PrivateInstance)!;
         using IDisposable visible = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         TargetInvocationException missing = Assert.Throws<TargetInvocationException>(() => retain.Invoke(child, [graphics]));
@@ -81,37 +84,40 @@ public sealed class NativeBattleHostedPreparedPresentationTests
     }
 
     [Fact]
-    public void Prepared_scan_uses_canonical_enemy_identity_and_graphics_row_for_an_extended_viewer()
+    public void Prepared_scan_uses_canonical_enemy_identity_and_bound_text_for_an_extended_viewer()
     {
         var (owner, child, graphics) = Fixture();
         BattleCombatant enemy = owner.Combatants.Single(actor => actor.Id == "enemy-4");
         enemy.SetNativeDisplayName(0);
         NativeBattleScanProcess scan = NativeBattleScanProcess.FromColdProcess();
-        Set(child, nameof(BattleSession.NativeEffectMemory), child.NativeEffectMemory! with { Scan = scan with { Text = scan.Text with { Initialized = true } } });
-        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x269CFC8, 0x269CFD8, 0x78, 20);
-        (pool, int slot) = pool.Append(0x84F860);
-        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x2D, 15));
-        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x575540), null, 0x269ABA8) { Pools = [pool] };
+        NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x575540), null, null) { ScanSelectedModel = Enemy };
+        (NativeBattleEffectMemory memory, uint extraTextAddress) = NativeBattlePresentationTaskStorage.ReserveByteRange(child.NativeEffectMemory!, effect, graphics.ActorModels.Roster, 24);
+        scan = scan with
+        {
+            Text = scan.Text with { Initialized = true },
+            Results = scan.Results with { ExtraTextBindings = [new(extraTextAddress, Enemy, 24)] }
+        };
+        Set(child, nameof(BattleSession.NativeEffectMemory), memory with { Scan = scan });
         graphics = graphics with { OriginalEffect = effect, UiServices = NativeBattleUiServices.Initialize() };
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
 
-        child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(graphics.PresentationRoster!));
+        child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster));
 
         NativeBattlePreparedScan prepared = Assert.IsType<NativeBattlePreparedScan>(child.PreparedPresentation!.Scan);
         Assert.Equal(new NativeBattlePreparedScanActor(61, "Known alias", false, true), prepared.Actor);
-        Assert.Equal((byte)65, prepared.EnemyExtra[15].ReadByte(0));
-        Assert.False(prepared.EnemyExtra.ContainsKey(7));
+        Assert.Equal((byte)65, prepared.BoundEnemyExtra[extraTextAddress].ReadByte(0));
+        Assert.Equal(new[] { 3, 4, 5, 6 }, prepared.EnemyExtra.Keys.Order());
         Assert.Empty(child.Combatants);
         enemy.SetNativeDisplayName(null);
         Assert.Equal("Known alias", prepared.Actor!.Name);
-        Assert.Equal((byte)65, prepared.EnemyExtra[15].ReadByte(0));
+        Assert.Equal((byte)65, prepared.BoundEnemyExtra[extraTextAddress].ReadByte(0));
     }
 
     [Fact]
     public void Missing_frame_opacities_or_a_changed_logical_roster_preserves_prior_publication()
     {
         var (owner, child, graphics) = Fixture();
-        BattleModelRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.ActorModels.Roster;
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
         child.RefreshHostedPreparedPresentation(owner, services);
@@ -141,17 +147,14 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(child, "hostedBattlePresentation", true);
         Set(child, "NativeStage", NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
         Set(child, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
-        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
+        var (roster, aliases) = owner.ReadBattlePresentationPacketBindings();
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray().SetItem(0, 1));
         NativeBattleModelTextureBinding linked = new(new byte?[16].ToImmutableArray().SetItem(0, 2));
-        models[7] = models[7] with { BodyTextureSlots = body, LinkedTextureSlots = linked };
-        models[15] = models[15] with { BodyTextureSlots = body };
-        NativeBattleGraphicsState graphics = new(models.ToImmutableArray(), roster.Rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 11)
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, modelOwner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with
         {
-            PresentationRoster = roster,
-            PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
-        };
+            BodyTextureSlots = modelOwner == Ally || modelOwner == Enemy ? body : null,
+            LinkedTextureSlots = modelOwner == Ally ? linked : null
+        }) with { Callback = 11, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         return (owner, child, graphics);
     }
 

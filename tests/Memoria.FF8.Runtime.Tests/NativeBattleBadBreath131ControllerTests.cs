@@ -136,9 +136,9 @@ public sealed class NativeBattleBadBreath131ControllerTests
                 (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 1, 0, 0, 0, 7, 0), null));
             }
             (packets, _) = packets.Publish(3);
-            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2) { Color40 = 0x123456, Transform = new(new(0, 0, 0), new(unchecked((short)(actor == 4 ? -2000 : actor == 5 ? 0 : 1000)), 0, 30000), 0, 300, 4096) }, _ => 20, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (frame, _) => new(frame, new(500, 600, 700, 888)), (frame, actor, bone, distance) =>
+            Inputs = new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, actor => new(2) { Color40 = 0x123456, Transform = new(new(0, 0, 0), new(unchecked((short)(actor == OriginalOwner(4) ? -2000 : actor == OriginalOwner(5) ? 0 : 1000)), 0, 30000), 0, 300, 4096) }, _ => 20, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (frame, _) => new(frame, new(500, 600, 700, 888)), (frame, actor, bone, distance) =>
             {
-                Bones.Add((actor, bone, distance));
+                Bones.Add((OriginalSlot(actor), bone, distance));
                 return new(frame, new(100, 200, 300));
             }, (frame, _, _, _, _, _) => new(frame, 1), (frame, operation) =>
             {

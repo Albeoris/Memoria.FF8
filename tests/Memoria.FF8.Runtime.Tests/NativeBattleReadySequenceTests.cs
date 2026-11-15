@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -20,7 +21,7 @@ public sealed class NativeBattleReadySequenceTests
     {
         NativeBattleGraphicsModel model = new(2) { ResourceFlags44 = 0x40, Flags8 = 0x300000 };
         Assert.True(NativeBattleSequenceSelections.CanSelectReady505CE0(model));
-        Assert.False(NativeBattleSequenceSelections.CanSelectTargetBF(model));
+        Assert.False(NativeBattleSequenceSelections.CanSelectTargetBF(OriginalModels([(0, model)]).Models, OriginalOwner(0)));
         Assert.True(NativeBattleSequenceSelections.CanSelectReady505CE0(model with { Flags8 = null }));
     }
 

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -49,7 +50,7 @@ internal sealed class NativeBattleEffect301PresentationObserver
         NativeBattleGraphicsState graphics = current.NativeGraphics;
         NativeBattleEffect301State state = current.NativeEffectMemory!.Effect301!;
         NativeBattleEffect301Resources resources = effect.Binding.Effect301Resources!;
-        int caster = effect.Parameters!.Actor78;
+        int caster = ReadOriginalModelOperand(graphics.NativeBindings.CaptureAliases(graphics.ActorModels), effect.Parameters!.Source);
         Assert.InRange(caster, 3, 6);
         Assert.Equal((byte)110, ReadOriginalModelCell(graphics, caster).ModelId4);
         Assert.Equal(40, ReadOriginalModelCell(graphics, caster).CurrentBodyBoneMatrices!.Matrices.Length);

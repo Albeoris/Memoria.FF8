@@ -191,9 +191,11 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
     private static NativeBattleWildCannonBlow156Inputs Inputs(Func<NativeBattleWildCannonBlow156Frame, NativeBattleWildCannonBlow156Operation, NativeBattleWildCannonBlow156Frame>? execute = null)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        byte[] payload = new byte[20];
-        payload[16] = 1;
-        packets = packets with { Headers = packets.Headers.SetItem(0, new(payload.ToImmutableArray(), 0, 2, null)), Contacts = packets.Contacts.SetItem(2, new(new(6, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };
+        NativeBattleContactPacket contact = new(new(OriginalOwner(6), 0, 0, 0, 0, 0, 0), null);
+        packets = packets.AppendContacts([contact, contact]);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 0, null));
+        (packets, _) = packets.AppendContact(contact);
+        (packets, _) = packets.Publish(1);
         return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => NativeBattleCuragaMatrices.Identity8DD770(), (current, _, _, _) => new(current, PointView(new(100, 200, 300))), (current, _) => new(current, PointView(new(400, 500, 600))), execute ?? ((current, _) => current));
     }
     private static NativeBattleWildCannonBlow156Resources Resources()

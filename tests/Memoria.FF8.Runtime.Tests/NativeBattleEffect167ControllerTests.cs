@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect167ControllerTests
         Assert.Equal(0x800, child.ReadWord(0x20));
         Assert.Equal(4, harness.Operations.OfType<NativeBattleEffect167StageGroupFlags>().Count());
         NativeBattleEffect167WriteModelBytes[] writes = harness.Operations.OfType<NativeBattleEffect167WriteModelBytes>().ToArray();
-        Assert.Equal(new[] { 3, 0, 2 }, writes.Select(write => write.Actor));
+        Assert.Equal(new[] { 3, 0, 2 }, writes.Select(write => OriginalSlot(write.Actor)));
         Assert.Equal(new[] { 1, 2, 2 }, writes.Select(write => write.Length));
         Assert.Equal((ushort)0xA506, harness.Models[0].Flags0);
         Assert.Equal((ushort)0xA500, harness.Models[1].Flags0);
@@ -154,19 +154,19 @@ public sealed class NativeBattleEffect167ControllerTests
         public List<(int Actor, int Selector, int Fraction)> LocalPoints { get; } = [];
         public NativeBattleGraphicsModel[] Models { get; } = Enumerable.Range(0, 7).Select(actor => new NativeBattleGraphicsModel((ushort)(actor == 1 ? 0xA500 : 0xA502))).ToArray();
         public NativeBattleEffectArena OriginalPoint { get; } = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)11)).Write(2, BitConverter.GetBytes((short)32760)).Write(4, BitConverter.GetBytes((short)-32760)).Write(6, BitConverter.GetBytes((ushort)0xBEEF));
-        public NativeBattleEffect167Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => Models[actor] with { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, Scale) }, (_, actor) => CopyBytes(OriginalPoint, 0, NativeBattleEffectArena.Clear(), 0x1C, 8), null!, null!, null!, null!, _ => 512, _ => 0, null!, (frame, actor, selector, fraction, retained) =>
+        public NativeBattleEffect167Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => Models[OriginalSlot(actor)] with { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, Scale) }, (_, actor) => CopyBytes(OriginalPoint, 0, NativeBattleEffectArena.Clear(), 0x1C, 8), null!, null!, null!, null!, _ => 512, _ => 0, null!, (frame, actor, selector, fraction, retained) =>
         {
-            LocalPoints.Add((actor, selector, fraction));
+            LocalPoints.Add((OriginalSlot(actor), selector, fraction));
             return new(frame, retained.Write(0, BitConverter.GetBytes((short)10)).Write(2, BitConverter.GetBytes((short)20)).Write(4, BitConverter.GetBytes((short)30)));
         }, (frame, operation) =>
         {
             Operations.Add(NativeBattleStorageSnapshots.Capture(operation));
             if (operation is NativeBattleEffect167WriteModelBytes write && write.Offset == 0)
             {
-                ushort flags = Models[write.Actor].Flags0;
+                ushort flags = Models[OriginalSlot(write.Actor)].Flags0;
                 byte[] bytes = write.Data.Read(0, write.Length);
                 flags = write.Length == 1 ? (ushort)((flags & 0xFF00) | bytes[0]) : BinaryPrimitives.ReadUInt16LittleEndian(bytes);
-                Models[write.Actor] = Models[write.Actor] with { Flags0 = flags };
+                Models[OriginalSlot(write.Actor)] = Models[OriginalSlot(write.Actor)] with { Flags0 = flags };
             }
             return frame;
         });

@@ -158,14 +158,14 @@ public sealed class NativeBattleShockwavePulsar260ControllerTests
         public NativeBattleShockwavePulsar260TaskStep Advance(bool busy = false)
         {
             Operations.Clear();
-            return NativeBattleShockwavePulsar260Controller.AdvanceMain(Frame, MainAddress, Resources, new(OriginalPackets(), 368, actor => Models[actor], _ => throw new InvalidOperationException(), _ => null, _ => throw new InvalidOperationException(), _ => NativeBattleCameraState.FromColdProcess(), (_, _) => throw new InvalidOperationException(), (frame, index) => { LastPoll = index; return new(frame, busy); }, Execute));
+            return NativeBattleShockwavePulsar260Controller.AdvanceMain(Frame, MainAddress, Resources, new(OriginalPackets(), 368, actor => Models[OriginalSlot(actor)], _ => throw new InvalidOperationException(), _ => null, _ => throw new InvalidOperationException(), _ => NativeBattleCameraState.FromColdProcess(), (_, _) => throw new InvalidOperationException(), (frame, index) => { LastPoll = index; return new(frame, busy); }, Execute));
         }
         private NativeBattleShockwavePulsar260Frame Execute(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Operation operation)
         {
             Operations.Add(operation);
             if (operation is NativeBattleShockwavePulsar260ActorFlags flags)
             {
-                Models[flags.Actor] = Models[flags.Actor] with { Flags0 = (ushort)((Models[flags.Actor].Flags0 & ~flags.ClearMask) | flags.SetMask) };
+                Models[OriginalSlot(flags.Actor)] = Models[OriginalSlot(flags.Actor)] with { Flags0 = (ushort)((Models[OriginalSlot(flags.Actor)].Flags0 & ~flags.ClearMask) | flags.SetMask) };
             }
             return frame;
         }

@@ -266,13 +266,13 @@ public sealed class NativeBattleAquaPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsModel? actor = ReadOriginalModelCells(graphics).FirstOrDefault(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x85) == 0);
-        if (actor is null || ReadOriginalModelCells(graphics).Take(actor.Index).Any(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x84) == 0))
+        var (actor, actorSlot) = ReadOriginalModelCells(graphics).Select((model, slot) => (model, slot)).FirstOrDefault(entry => (entry.model.Flags0 & 6) == 2 && entry.model.Flags2 is { } flags && (flags & 0x85) == 0);
+        if (actor is null || ReadOriginalModelCells(graphics).Take(actorSlot).Any(model => (model.Flags0 & 6) == 2 && model.Flags2 is { } flags && (flags & 0x84) == 0))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
         NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
-        NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actor.Index)).Resource;
+        NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actorSlot)).Resource;
         if (actor.ActiveStagedResourceRow100 is not null)
         {
             resource = resolveResource is null ? NativeBattleVictoryResources.Resolve(current.NativeFileStaging!, current.NativeModelCpuResources!, actor, resource) : resolveResource(actor, resource);
@@ -281,7 +281,7 @@ public sealed class NativeBattleAquaPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsModel beforeActor = ReadOriginalModelCell(prior.NativeGraphics!, actor.Index);
+        NativeBattleGraphicsModel beforeActor = ReadOriginalModelCell(prior.NativeGraphics!, actorSlot);
         if (beforeActor.CurrentBodyBoneMatrices is null || beforeActor.GeometryWorldMatrix is null)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;

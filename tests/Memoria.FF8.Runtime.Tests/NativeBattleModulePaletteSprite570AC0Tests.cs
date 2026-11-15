@@ -65,7 +65,7 @@ public sealed class NativeBattleModulePaletteSprite570AC0Tests
     public void Placement_dispatches_the_palette_sprite_child_and_draws_it_in_the_same_pass()
     {
         NativeBattleModuleResource descriptor = new(7, 0x700700, 0x570CC0, 0x570AC0, [0, 0, 0, 2]);
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(3, descriptor, 0x00100007);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(OriginalOwner(3), descriptor, 0x00100007, OriginalAliases);
         NativeBattleModuleStep actual = state.Advance(new(0) { Resources = [descriptor, Sprite(5)], ReadModelAnchor = model =>
         {
             Assert.Equal(OriginalOwner(3), model);

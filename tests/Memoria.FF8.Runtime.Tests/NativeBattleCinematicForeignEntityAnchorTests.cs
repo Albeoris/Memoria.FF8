@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -20,14 +19,15 @@ public sealed class NativeBattleCinematicForeignEntityAnchorTests
             reads++;
             return new(10, 20, 3000);
         });
-        NativeBattleForeignActor foreign = new(OriginalOwner(3), original, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
-        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<int, NativeBattleForeignActor> { [3] = foreign });
+        BattleModelOwner owner = new BattleForeignEnemyModel(new("host"));
+        NativeBattleForeignActor foreign = new(owner, original, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
+        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [owner] = foreign });
         typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, NativeBattleEffectMemory.FromColdProcess());
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, new(3, 2) { Transform = current, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 }), [null, null, null, "host", null, null, null], 0, 0);
+        BattleActorModels models = new([new(owner, new NativeBattleGraphicsModel(2) { Transform = current, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 })]);
+        NativeBattleGraphicsState graphics = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
-        frame = WaterSchedulerFixture.CoreDword(frame, NativeBattleScriptedEffectMemory.Address + 0x60 + 4 * 3, 0x1D972C0 + 156 * 3);
         MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeCinematicEntityAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        NativeBattleCinematicEntityAnchor result = (NativeBattleCinematicEntityAnchor)read.Invoke(battle, [frame, graphics, 3, (short)240])!;
+        NativeBattleCinematicEntityAnchor result = (NativeBattleCinematicEntityAnchor)read.Invoke(battle, [frame, graphics, owner, (short)240])!;
         Assert.Equal(1, reads);
         Assert.Equal(10010, result.Point.X);
         Assert.Equal(20020, result.Point.Y);

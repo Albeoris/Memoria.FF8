@@ -165,7 +165,7 @@ public sealed class NativeBattleEffect70ControllerTests
         public int LastIoIndex { get; private set; } = -1;
         public List<NativeBattleEffect70Operation> Operations { get; } = [];
 
-        public NativeBattleEffect70Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), frame => throw new NotSupportedException(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor == 0 ? (ushort)2 : (ushort)1), (frame, actor) => throw new NotSupportedException(), frame => 0, (frame, source) => throw new NotSupportedException(), (frame, operation) =>
+        public NativeBattleEffect70Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), frame => throw new NotSupportedException(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor == OriginalOwner(0) ? (ushort)2 : (ushort)1), (frame, actor) => throw new NotSupportedException(), frame => 0, (frame, source) => throw new NotSupportedException(), (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;

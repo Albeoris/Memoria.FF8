@@ -20,7 +20,7 @@ public sealed class NativeBattleHostedActionGraphicsTests
         Assert.Equal(0x50BD80u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(header)).Callback);
         NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(packets, header);
         Assert.Equal(count, NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(action));
-        Assert.Equal(target, action.FirstTarget);
+        Assert.Equal(new BattleRetainedModelReference.CanonicalOwner(target), action.FirstTargetBinding);
         Assert.True(action.TargetActors.IsSingle(target));
         Assert.Equal(0x50BD80u, action.Callback);
     }
@@ -48,8 +48,8 @@ public sealed class NativeBattleHostedActionGraphicsTests
         packets = packets.WritePlayerRepeatMode(secondHeader, 1);
 
         NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(packets, secondHeader, previous);
-        Assert.Equal(cover, action.CoverSource);
-        Assert.Equal(second, action.FirstTarget);
+        Assert.Equal(new BattleRetainedModelReference.CanonicalOwner(cover), action.CoverSourceBinding);
+        Assert.Equal(new BattleRetainedModelReference.CanonicalOwner(second), action.FirstTargetBinding);
         Assert.True(action.TargetActors.IsSingle(second));
         Assert.True(action.CoverActors.IsEmpty);
         Assert.Equal(new BattleContactCursor(1), action.FirstContact);

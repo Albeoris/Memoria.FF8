@@ -78,9 +78,9 @@ public sealed class NativeBattleSlotsContinuationTests
                 }
                 if (count % 8 == 0)
                 {
-                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.NativeGraphics?.ActionGraphics?.HeaderIndex, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.NativeGraphics?.Descriptors.Queue.Select(index => current.NativeGraphics.Descriptors.Packets[index].Command).ToArray() }));
+                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.NativeGraphics?.Descriptors.Queue.Select(index => current.NativeGraphics.Descriptors.Packets[index].Command).ToArray() }));
                 }
-                if (!restoredMidpoint && current.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.HeaderIndex7C: 0 })
+                if (!restoredMidpoint && current.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.Header.Ordinal: 0 })
                 {
                     string midpoint = Path.Combine(evidence!, "midpoint.battle.json");
                     File.WriteAllBytes(midpoint, JsonSerializer.SerializeToUtf8Bytes(current));

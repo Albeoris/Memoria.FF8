@@ -210,7 +210,7 @@ public sealed class NativeBattleEffect321ControllerTests
         public NativeBattleVector Anchor { get; init; } = new(100, 200, 300);
         public bool VibrationActive { get; init; }
         public int QueriedHandle { get; private set; }
-        public BattleModelTargets Targets { get; private set; }
+        public BattleModelTargets Targets { get; private set; } = BattleModelTargets.Empty;
         public List<BattleModelOwner> Anchors { get; } = [];
         public List<NativeBattleEffect321Operation> Operations { get; } = [];
         public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();

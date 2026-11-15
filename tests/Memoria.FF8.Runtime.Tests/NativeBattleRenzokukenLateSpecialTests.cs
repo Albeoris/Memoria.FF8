@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -17,10 +18,10 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
             ResourceFlags44 = 1,
             SequenceState = new() { Offset46 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 }
         };
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null));
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(3), model, resource, new(null, null));
         Assert.Equal(unchecked((short)0xE55D6E), step.Model.Rotation14);
         Assert.Equal((ushort)5, step.Model.SequenceState!.Offset46);
-        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(model, resource with { SequenceSectionAddress = null }, new(null, null)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(OriginalOwner(3), model, resource with { SequenceSectionAddress = null }, new(null, null)));
     }
 
     [Theory]
@@ -215,7 +216,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
             TargetResources = Enumerable.Range(0, effect == 339 ? 2 : 1).Select(_ => new BattleNativeRenzokukenTargetResource(0, [], [], new([]))).ToImmutableArray()
         };
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), actor, [], [], new int[10].ToImmutableArray(), [], 0, 0) { ImpactAxis = [0, 0, -4096], ContactOffsets = new NativeBattleVector[10].ToImmutableArray() };
-        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 200, Origin = new(100, -200, 300), Direction = new(0, 0, -4096) };
+        NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 200, Origin = new(100, -200, 300), Direction = new(0, 0, -4096) };
         NativeBattleRenzokukenSpecialState state = new(core, resources) { ExtraStorage = new byte[3200].ToImmutableArray(), ContactOffsets = new NativeBattleVector[10].ToImmutableArray() };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(effect, state) };
         NativeBattleOriginalEffectState original = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), null, null);

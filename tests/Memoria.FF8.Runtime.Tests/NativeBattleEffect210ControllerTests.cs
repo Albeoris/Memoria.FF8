@@ -210,7 +210,7 @@ public sealed class NativeBattleEffect210ControllerTests
         public int Polls { get; private set; }
         public int Selected { get; private set; }
         public List<NativeBattleEffect210Operation> Operations { get; } = [];
-        public NativeBattleEffect210Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => 0x201, _ => Packets(Contact), (_, actor) => new(actor, 2), (_, _) => NativeBattleEffectArena.Clear().Write(28, new byte[] { 10, 0, 20, 0, 30, 0, 0xEF, 0xBE }).Write(38, BitConverter.GetBytes((short)700)), (_, _) => [], _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, _, _, retained) => new(frame, PutPoint(retained, 0, new(100, 200, 300))), (frame, _, retained) => new(frame, PutPoint(retained, 0, new(100, 200, 300))), frame =>
+        public NativeBattleEffect210Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => 0x201, _ => Packets(Contact), (_, _) => new(2), (_, _) => NativeBattleEffectArena.Clear().Write(28, new byte[] { 10, 0, 20, 0, 30, 0, 0xEF, 0xBE }).Write(38, BitConverter.GetBytes((short)700)), (_, _) => [], _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, _, _, retained) => new(frame, PutPoint(retained, 0, new(100, 200, 300))), (frame, _, retained) => new(frame, PutPoint(retained, 0, new(100, 200, 300))), frame =>
         {
             Polls++;
             return new(frame, Busy);
@@ -222,7 +222,7 @@ public sealed class NativeBattleEffect210ControllerTests
         {
             Operations.Add(operation);
             return frame;
-        });
+        }, (_, owner) => OriginalOwner(OriginalSlot(owner) + 1));
 
         private static NativeBattleActionPacketsState Packets(bool contact)
         {

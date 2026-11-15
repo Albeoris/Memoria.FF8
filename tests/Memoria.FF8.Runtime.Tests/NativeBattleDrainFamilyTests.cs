@@ -90,14 +90,14 @@ public sealed class NativeBattleDrainFamilyTests
         Assert.Equal(profile.Pools.Select(pool => pool.Descriptor), fixture.Frame.Effect.Pools.Select(pool => pool.DescriptorAddress));
         Assert.Equal(profile.Pools.Select(pool => pool.Bank), fixture.Frame.Effect.Pools.Select(pool => pool.BankAddress));
         NativeBattleDrain39Frame frame = fixture.Frame;
-        List<int> contacts = [];
+        List<BattleContactCursor> contacts = [];
         for (int index = 1; index <= 35; index++)
         {
             NativeBattleDrain39ControllerStep step = NativeBattleDrain39Controller.Advance851510(frame, fixture.Inputs, resources, (current, _) => new(current, 0));
             contacts.AddRange(step.Contacts);
             frame = step.Frame;
         }
-        Assert.Equal(new[] { 0 }, contacts);
+        Assert.Equal(new BattleContactCursor(0), Assert.Single(contacts));
         NativeBattleModulePoolTask generic = Assert.Single(frame.Effect.Pools[3].Slots, task => task.Callback == profile.GenericCallback);
         Assert.Equal(profile.DirectoryAddress, generic.ReadDword(0x30));
         Assert.Equal((ushort)0, generic.ReadWord(0x298));

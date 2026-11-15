@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -237,7 +238,7 @@ public sealed class NativeBattleWaterChildCommandTests
         uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
         frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 3 }).Write(header + 0x48, new byte[] { 5, 2, 7 }) };
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected, OriginalAliases);
         for (int child = 1; child <= 3; child++)
         {
             Assert.Equal(Pc + 8, WaterSchedulerFixture.ReadSlotDword(result, child, 0));
@@ -259,7 +260,7 @@ public sealed class NativeBattleWaterChildCommandTests
         NativeBattleWaterExecutionFrame frame = Fixture(0x5D);
         uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
         frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { count }).MarkUnknown(header + 0x48, 16).MarkUnknown(0x2797624, 4).MarkUnknown(0x27973EC, 4), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 2, Pc), Bank, 0, UpdateSelected);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 2, Pc), Bank, 0, UpdateSelected, OriginalAliases);
         Assert.Same(frame.Arena, result.Arena);
         Assert.Equal(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
@@ -272,7 +273,7 @@ public sealed class NativeBattleWaterChildCommandTests
         uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
         frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 3 }).Write(header + 0x48, new byte[] { 5, 7, 9 }).Write(0x2797457, new byte[] { 2 }).MarkUnknown(0x27973EC, 4), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 2, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 2, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected, OriginalAliases);
         Assert.Equal((byte)5, result.ReadTemporaryByte(0x11B));
         Assert.Equal((byte)7, result.ReadTemporaryByte(0x20));
         Assert.Equal((byte)9, result.ReadTemporaryByte(0x22));
@@ -289,8 +290,8 @@ public sealed class NativeBattleWaterChildCommandTests
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
         frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 2 }).Write(header + 0x48, new byte[] { 4, 6 }) };
         NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
-        NativeBattleWaterExecutionFrame first = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
-        NativeBattleWaterExecutionFrame second = NativeBattleWaterChildCommands.Execute5D(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100, UpdateSelected);
+        NativeBattleWaterExecutionFrame first = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected, OriginalAliases);
+        NativeBattleWaterExecutionFrame second = NativeBattleWaterChildCommands.Execute5D(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100, UpdateSelected, OriginalAliases);
         Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
     }
 

@@ -40,10 +40,10 @@ public sealed class ExpandedCompelledActionsTests
         battle.Tick();
         BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         Assert.Equal((caster, targetId), (action.ActorId, action.TargetId));
-        Assert.Equal(BattleAiTargetPolicy.Compelled, action.AiRecipients!.TargetPolicy);
-        Assert.Equal(0, action.NativeTargetMask);
+        Assert.Equal(BattleTargetEligibility.CompelledAction, action.TargetRequest.Eligibility);
+        Assert.Null(action.TargetRequest.OriginalProjection);
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
         {
             battle.Tick();

@@ -132,7 +132,7 @@ public sealed class NativeBattleEffect83ControllerTests
             step = AdvanceTargetBody(step.Frame, address, harness.Inputs());
         }
         Assert.Equal(2, step.Result);
-        Assert.Equal(new NativeBattleEffect83TargetFlags[] { new(PhysicalModelAddress(target), 0xFF, 4, false), new(PhysicalModelAddress(target), 0xFF, 0x20, false), new(PhysicalModelAddress(target), 0xFFFB, 0, true) }, harness.Operations.OfType<NativeBattleEffect83TargetFlags>());
+        Assert.Equal(new NativeBattleEffect83TargetFlags[] { new(OriginalOwner(target), 0xFF, 4, false), new(OriginalOwner(target), 0xFF, 0x20, false), new(OriginalOwner(target), 0xFFFB, 0, true) }, harness.Operations.OfType<NativeBattleEffect83TargetFlags>());
         Assert.Equal(90, harness.Operations.OfType<NativeBattleEffect83TargetDraw79DA20>().Count());
         Assert.Equal((ushort)0, Read(step.Frame, address).ReadWord(0xC0));
     }

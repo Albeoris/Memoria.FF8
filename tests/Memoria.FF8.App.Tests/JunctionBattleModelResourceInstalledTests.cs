@@ -52,7 +52,7 @@ public sealed class JunctionBattleModelResourceInstalledTests
                     Assert.Equal(model.Bones, linked.Bones);
                 }
             }
-            NativeBattleModelLoadStep requested = NativeBattleModelLoader.Queue507080((ushort)character, 0, 0, 0, body.Selector).Poll507070(-1, [body], NativeBattleFileStaging.Unknown());
+            NativeBattleModelLoadStep requested = NativeBattleModelLoader.Queue507080((ushort)character, new BattlePartyActorModel(new("party")), NativeBattleModelSlot.Decode(0), 0, 0, body.Selector).Poll507070(-1, [body], NativeBattleFileStaging.Unknown());
             Assert.Equal(expected, requested.Staging.Read(NativeBattleFileStaging.Address, expected.Length));
             NativeBattleModelLoadStep prepared = requested.State.Poll507070(expected.Length, [body], requested.Staging);
             Assert.NotNull(prepared.TextureUpload);

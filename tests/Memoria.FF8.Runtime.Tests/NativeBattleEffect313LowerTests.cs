@@ -193,7 +193,7 @@ public sealed class NativeBattleEffect313LowerTests
         Assert.Equal(2, done.Result);
         Assert.Equal(33, Signed(Read(done.Frame, fixture.Address), 12));
         Assert.IsType<NativeBattleEffect313Contact506690>(fixture.Operations[^1]);
-        Assert.Equal(2, ((NativeBattleEffect313Contact506690)fixture.Operations[^1]).HeaderRelativeIndex);
+        Assert.Equal(2, ((NativeBattleEffect313Contact506690)fixture.Operations[^1]).Occurrence.Ordinal);
         Assert.Equal(100, Word313(fixture.Model, 28));
         Assert.Equal(200, Word313(fixture.Model, 30));
         Assert.Equal(300, Word313(fixture.Model, 32));

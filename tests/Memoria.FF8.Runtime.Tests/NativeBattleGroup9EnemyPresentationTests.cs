@@ -76,7 +76,7 @@ public sealed class NativeBattleGroup9EnemyPresentationTests
         NativeBattleRayBomb10Resources resources = new(new("camera", []), [], [], [], [], [], [], [], [], 0, 0);
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
         List<NativeBattleRayBomb10Mesh> meshes = [];
-        NativeBattleRayBomb10Inputs inputs = new(0, OriginalPackets(), new(view, 256, 160, 108), 0, new(0, 0, 0), index => new(index, 0), _ => view, (_, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (current, operation) =>
+        NativeBattleRayBomb10Inputs inputs = new(0, OriginalPackets(), new(view, 256, 160, 108), 0, new(0, 0, 0), _ => new(0), _ => view, (_, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (current, operation) =>
         {
             meshes.Add(Assert.IsType<NativeBattleRayBomb10Mesh>(operation));
             return current;

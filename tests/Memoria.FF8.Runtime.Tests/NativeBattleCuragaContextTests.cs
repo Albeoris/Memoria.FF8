@@ -22,7 +22,7 @@ public sealed class NativeBattleCuragaContextTests
         {
             ObserveBoneAnchor = (current, actor, selector) =>
             {
-                calls.Add((actor, selector));
+                calls.Add((OriginalSlot(actor), selector));
                 return current with { Memory = current.Memory with { Parameter80 = checked((byte)(current.Memory.Parameter80!.Value + 1)) } };
             }
         };
@@ -144,7 +144,7 @@ public sealed class NativeBattleCuragaContextTests
             return new(0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
         }
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, child.Address, new(packets, camera, Model, _ => source));
+        return (frame, child.Address, new(packets, camera, actor => Model(OriginalSlot(actor)), _ => source));
     }
     private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
     private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);

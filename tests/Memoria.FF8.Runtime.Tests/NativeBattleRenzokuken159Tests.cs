@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -34,14 +35,14 @@ public sealed class NativeBattleRenzokuken159Tests
     {
         NativeBattleRenzokuken159Frame frame = Frame();
         (NativeBattleEffectTaskPool pool, int slot) = Controller(84);
-        int target = -1;
+        BattleModelOwner? target = null;
         NativeBattleRenzokuken159Inputs inputs = Inputs() with { ReadAnchor = actor =>
             {
                 target = actor;
                 return new(1000, -2000, 3000, 0);
             } };
         NativeBattleRenzokuken159ChildStep step = NativeBattleRenzokuken159Controller.Advance600CC0(frame, pool, slot, inputs, Resources());
-        Assert.Equal(3, target);
+        Assert.Equal(OriginalOwner(3), target);
         Assert.Equal(Advance(frame.Random, 32), step.Frame.Random);
         for (int index = 0; index < 8; index++)
         {
@@ -135,8 +136,8 @@ public sealed class NativeBattleRenzokuken159Tests
 
     private static NativeBattleRenzokuken159Frame Frame()
     {
-        NativeBattleRenzokuken159State state = NativeBattleRenzokuken159State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100, Origin = new(100, -200, 300), Direction = new(4096, 0, 0) };
-        return new(NativeBattleEffectMemory.FromColdProcess() with { Renzokuken159 = state }, new(159, 158, new(159, 0x600BC0, 0x600BA0), null, null), NativeCrtRandomState.FromColdProcess());
+        NativeBattleRenzokuken159State state = NativeBattleRenzokuken159State.FromColdProcess().Enter(false) with { Duration = 100, Origin = new(100, -200, 300), Direction = new(4096, 0, 0) };
+        return new(NativeBattleEffectMemory.FromColdProcess() with { Renzokuken159 = state }, new(159, 158, new(159, 0x600BC0, 0x600BA0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { EntryFirstRecipient = OriginalOwner(3) }, NativeCrtRandomState.FromColdProcess());
     }
 
     private static NativeBattleRenzokuken159Inputs Inputs() => new(0, [], _ => new(0), (frame, _) => frame);

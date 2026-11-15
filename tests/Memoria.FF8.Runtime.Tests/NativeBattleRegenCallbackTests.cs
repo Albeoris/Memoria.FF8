@@ -66,7 +66,7 @@ public sealed class NativeBattleRegenCallbackTests
     {
         BattleSession battle = Create(zombie, hp);
         Method("DispatchNativeStatusTimers").Invoke(battle, null);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleTestSnapshots.Independent(battle.Capture()));
         List<BattleDiagnosticResolution> resolutions = [];
         battle.DiagnosticResolution += resolutions.Add;
 
@@ -76,9 +76,9 @@ public sealed class NativeBattleRegenCallbackTests
         Assert.Equal(primary, restoredPrimary);
         Assert.Equal(expected, battle.Combatants[0].CurrentHp);
         Assert.Equal(expected, restored.Combatants[0].CurrentHp);
-        Assert.Equal((byte)0, primary.Recipient);
+        Assert.Equal(battle.ReadPresentationModelOwner("party"), primary.Recipient);
         Assert.Equal((ushort)50, primary.Amount6);
-        Assert.Equal(zombie ? 0 : 1, primary.HitFlags3 & 1);
+        Assert.Equal(zombie ? 0 : 1, primary.HitFlags & 1);
         BattleDiagnosticResolution formula = Assert.Single(resolutions, resolution => resolution.ResolvedAmount == 50);
         Assert.Equal("party", formula.ActorId);
         Assert.Equal("party", formula.OriginalTargetId);
@@ -107,7 +107,7 @@ public sealed class NativeBattleRegenCallbackTests
         battle.Combatants[0].NativeStatus0 |= 0x40;
         NativeBattleContactHalf primary = Produce(battle);
         Assert.Equal(450, battle.Combatants[0].CurrentHp);
-        Assert.Equal(0, primary.HitFlags3 & 1);
+        Assert.Equal(0, primary.HitFlags & 1);
     }
 
     [Theory]
@@ -124,13 +124,11 @@ public sealed class NativeBattleRegenCallbackTests
         BattleDefinition definition = (BattleDefinition)Field("definition").GetValue(battle)!;
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
         Field("definition").SetValue(battle, definition with { NativeGraphics = new(rules, [], []) });
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray();
-        models = models.SetItem(0, models[0] with { Flags0 = 8, ModelId4 = 0 });
-        NativeBattleGraphicsState graphics = new(models, ["party", null, null, "enemy", null, null, null], 0, 0);
+        NativeBattleGraphicsState graphics = Graphics(battle);
 
-        graphics = (NativeBattleGraphicsState)Method("BeginNativeActionGraphics").Invoke(battle, [graphics, 0x1D280C4u])!;
+        graphics = (NativeBattleGraphicsState)Method("BeginNativeActionGraphics").Invoke(battle, [graphics, new BattleActionHeaderReference(0)])!;
         Assert.Equal(0x50BD80u, graphics.ActionGraphics!.Callback);
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[0].ReadByte(17));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
         Assert.Equal(500, battle.ReadPresentedVital("party").HitPoints);
 
         var result = ((NativeBattleGraphicsState Graphics, byte Phase, bool Complete))Method("PollNativeActionGraphics").Invoke(battle, [graphics, (byte)0])!;
@@ -163,11 +161,21 @@ public sealed class NativeBattleRegenCallbackTests
         // Attach this contact-consumer fixture only after that valid boundary.
         int hp = battle.Combatants[0].CurrentHp;
         Field("nativePartyPresentation").SetValue(battle, new NativeBattlePartyPresentation([new(checked((ushort)hp), 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0));
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, Graphics(battle));
         TakeAndDispatch(battle);
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[0].ReadByte(1));
+        Assert.Equal((byte)0, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
         return battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+    }
+
+    private static NativeBattleGraphicsState Graphics(BattleSession battle)
+    {
+        var (roster, aliases) = battle.ReadBattlePresentationPacketBindings();
+        return NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with
+        {
+            Flags0 = owner.Side == BattleSide.Allies ? (ushort)8 : (ushort)0,
+            ModelId4 = 0
+        }, BattleContactTaskStorageContract.OriginalArena);
     }
 
     private static void TakeAndDispatch(BattleSession battle)

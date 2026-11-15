@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect9Controller;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -74,7 +75,7 @@ public sealed class NativeBattleEffect9ParticleLifecycleTests
     public void D8_draw_publishes_actual_temporary_and_registers_then_releases_without_consuming_unknown_packed_W()
     {
         Fixture fixture = new();
-        NativeBattleEffectHierarchyAppend append = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(5, 0x8C3E00, 92, fixture.Birth, (_, _, _) => new(0, 3));
+        NativeBattleEffectHierarchyAppend append = new NativeBattleEffectHierarchy(fixture.Frame.Effect.Pools).Append8DC540(5, 0x8C3E00, 92, fixture.Birth, (_, _, _) => OriginalTaskActors(0, 3));
         NativeBattleEffect9Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = append.Hierarchy.Pools } };
         frame = Write(frame, append.Address, Read(frame, append.Address).MarkPayloadUnknown(0x22, 2));
         uint cursor = Cursor(frame);
@@ -120,18 +121,17 @@ public sealed class NativeBattleEffect9ParticleLifecycleTests
 
         public Fixture()
         {
-            byte[] header = new byte[20];
-            header[16] = 1;
-            NativeBattleContactHalf half = new(3, 0, 0, 0, 0, 7, 0);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-            Packets = packets with { Headers = packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, 0, null)), Contacts = packets.Contacts.SetItem(0, new(half, half)) };
+            NativeBattleContactHalf half = new(OriginalOwner(3), 0, 0, 0, 0, 7, 0);
+            (NativeBattleActionPacketsState packets, _) = OriginalPackets().Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 0, null));
+            (packets, _) = packets.AppendContact(new(half, half));
+            (Packets, _) = packets.Publish(1);
             NativeBattleEffectHierarchy hierarchy = new(NativeBattleEffect9State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
             NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, RootCallback, 100);
             Root = root.Address;
             hierarchy = root.Hierarchy.Write(Root, root.Hierarchy.Read(Root).WriteDword(0xC, 0x1D99A78));
-            NativeBattleEffectHierarchyAppend birth = hierarchy.Append8DC540(4, 0x8C3D40, 124, Root, (_, _, _) => new(0, 3));
+            NativeBattleEffectHierarchyAppend birth = hierarchy.Append8DC540(4, 0x8C3D40, 124, Root, (_, _, _) => OriginalTaskActors(0, 3));
             Birth = birth.Address;
-            NativeBattleOriginalEffectState effect = new(9, 2, new(9, Entry, 0x8C0360), new(0, 0, 0, 0, 0, 0), NativeBattleEffect9State.Pools[0].Descriptor) { Pools = birth.Hierarchy.Pools };
+            NativeBattleOriginalEffectState effect = new(9, 2, new(9, Entry, 0x8C0360), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleEffect9State.Pools[0].Descriptor) { Pools = birth.Hierarchy.Pools };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             Frame = new(memory, effect, new(1), NativeBattleEffect9State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             byte[] bytes = new byte[38];

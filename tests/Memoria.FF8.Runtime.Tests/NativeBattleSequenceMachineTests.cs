@@ -104,7 +104,7 @@ public sealed class NativeBattleSequenceMachineTests
                 distance = 12345;
                 return current with { Rotation14 = 2048 };
             },
-            ReadExternal = variable => variable == 16 ? distance : throw new InvalidDataException()
+            ReadExternal = variable => variable == 16 ? NativeBattleScriptValue.Scalar(distance) : throw new InvalidDataException()
         });
         Assert.Equal(1, calls);
         Assert.Equal((short)12345, step.Model.SequenceState!.Locals[0]);
@@ -198,7 +198,7 @@ public sealed class NativeBattleSequenceMachineTests
         {
             ScheduleModelParticle = (current, program) =>
             {
-                Assert.Equal(3, current.Index);
+                Assert.Equal((ushort)3, current.Flags0);
                 Assert.Equal((byte)255, program.Source[program.Offset]);
                 return (current with { Flags8 = 0x1234 }, program.Offset + 2);
             },
@@ -241,7 +241,7 @@ public sealed class NativeBattleSequenceMachineTests
         List<int> variants = [];
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(3), Model(1), Resource((1, "9B0010C310D00400E500A1")), new(null, null)
         {
-            ReadExternal = variable => variable == 16 ? 70000 : throw new InvalidDataException(),
+            ReadExternal = variable => variable == 16 ? NativeBattleScriptValue.Scalar(70000) : throw new InvalidDataException(),
             ApplyTexture = (_, variant) => variants.Add(variant)
         });
         Assert.Equal(new[] { 70000 }, variants);
@@ -314,7 +314,7 @@ public sealed class NativeBattleSequenceMachineTests
             ReadExternal = variable =>
             {
                 Assert.Equal((byte)25, variable);
-                return NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets);
+                return NativeBattleScriptValue.Scalar(NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
             }
         };
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(3), Model(1), Resource((1, "C319E500A1")), inputs);
@@ -407,7 +407,7 @@ public sealed class NativeBattleSequenceMachineTests
         Assert.Equal((byte)1, entry.Model.SequenceState!.PoseFrame114);
         Assert.NotEqual(0, entry.Model.ResourceFlags44!.Value & 0x40);
         byte completion = 0;
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, Enumerable.Range(0, 7).Select(index => index == 3 ? entry.Model.CompletionInputs() : new NativeBattleGraphicsModelCompletion(0, 0, 0, null)).ToArray(), 0, ref completion));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, OriginalModels([(3, entry.Model)]).Models, 0, ref completion));
     }
 
     [Fact]

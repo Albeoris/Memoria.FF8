@@ -83,17 +83,18 @@ public sealed class NativeBattleMeltingBubble43ControllerTests
         Fixture fixture = new();
         NativeBattleMeltingBubble43Frame frame = fixture.TargetFrame(2, 61, out _, out uint target);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        hierarchy = hierarchy.Write(target, hierarchy.Read(target).WriteByte(0x2B, selected));
+        hierarchy = hierarchy.Write(target, hierarchy.Read(target).WriteTraversalPosition(0x2B, selected));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         NativeBattleActionPacketsState packets = fixture.Inputs.Packets;
         NativeBattleContactPacket packet = packets.ReadContact(new BattleContactOccurrence(0));
+        NativeBattleActionHeaderSlot retained = packets.ReadHeader(new BattleActionHeaderReference(0));
+        packets = packets.ResetCounts();
+        (packets, _) = packets.Prepare(new(retained.Source, retained.Command, retained.Sequence, retained.CameraChoice, retained.Action, retained.Effect, retained.Data));
         while (packets.ContactCount < 3)
         {
             (packets, _) = packets.AppendContact(packet);
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[0];
-        header = header with { Payload = header.Payload.SetItem(16, 3), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) };
-        packets = packets with { Headers = packets.Headers.SetItem(0, header) };
+        (packets, _) = packets.Publish(3);
         NativeBattleMeltingBubble43Inputs inputs = fixture.Inputs with { Packets = packets, Execute = (current, operation) =>
         {
             fixture.Operations.Add(operation);
@@ -101,7 +102,7 @@ public sealed class NativeBattleMeltingBubble43ControllerTests
         } };
         NativeCrtRandomState expected = frame.Random.Draw(out _);
         frame = NativeBattleMeltingBubble43Controller.Advance(frame, fixture.Resources, inputs);
-        Assert.Equal((int)selected, Assert.Single(fixture.Operations.OfType<NativeBattleMeltingBubble43Contact>()).Index);
+        Assert.Equal((int)selected, Assert.Single(fixture.Operations.OfType<NativeBattleMeltingBubble43Contact>()).Occurrence.Ordinal);
         Assert.Equal(expected, frame.Random);
         Assert.Equal((byte)3, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(target).ReadByte(0x29));
     }

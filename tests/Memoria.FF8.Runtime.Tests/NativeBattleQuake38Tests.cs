@@ -90,12 +90,12 @@ public sealed class NativeBattleQuake38Tests
     public void Enemy_restoration_uses_original_shifted_source_and_its_own_visibility_gate()
     {
         ImmutableArray<uint> saved = [0x1800, 4, 0, 0, 0x1020, 4, 0];
-        Assert.Equal((ushort)0x1000, NativeBattleQuake38ActorFlags.Restore8DBE80(3, 0x1020, saved, false));
-        Assert.Equal((ushort)4, NativeBattleQuake38ActorFlags.Restore8DBE80(4, 0, saved, true));
-        Assert.Equal((ushort)0x1020, NativeBattleQuake38ActorFlags.Restore8DBE80(5, 0x1020, saved, false));
-        Assert.Equal((ushort)0x800, NativeBattleQuake38ActorFlags.Restore8DC180(3, 0, saved, true));
-        Assert.Equal((ushort)0, NativeBattleQuake38ActorFlags.Restore8DC180(3, 0, saved, false));
-        Assert.Equal((ushort)0x800, NativeBattleQuake38ActorFlags.Restore8DC180(5, 0x800, saved, true));
+        Assert.Equal((ushort)0x1000, NativeBattleQuake38ActorFlags.Restore8DBE80(false, 0x1020, saved[3], saved[0], false));
+        Assert.Equal((ushort)4, NativeBattleQuake38ActorFlags.Restore8DBE80(false, 0, saved[4], saved[1], true));
+        Assert.Equal((ushort)0x1020, NativeBattleQuake38ActorFlags.Restore8DBE80(false, 0x1020, saved[5], saved[2], false));
+        Assert.Equal((ushort)0x800, NativeBattleQuake38ActorFlags.Restore8DC180(false, 0, saved[3], saved[0], true));
+        Assert.Equal((ushort)0, NativeBattleQuake38ActorFlags.Restore8DC180(false, 0, saved[3], saved[0], false));
+        Assert.Equal((ushort)0x800, NativeBattleQuake38ActorFlags.Restore8DC180(false, 0x800, saved[5], saved[2], true));
     }
 
     [Fact]

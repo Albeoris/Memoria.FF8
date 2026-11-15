@@ -196,9 +196,11 @@ public sealed class NativeBattleBreath157ControllerTests
     private static NativeBattleBreath157Inputs Inputs(Func<NativeBattleBreath157Frame, NativeBattleBreath157Operation, NativeBattleBreath157Frame>? execute = null)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
-        byte[] payload = new byte[20];
-        payload[16] = 1;
-        packets = packets with { Headers = packets.Headers.SetItem(0, new(payload.ToImmutableArray(), 0, 2, null)), Contacts = packets.Contacts.SetItem(2, new(new(6, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };
+        NativeBattleContactPacket earlier = new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null);
+        packets = packets.AppendContacts([earlier, earlier]);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 0, -1, 1, 0, null));
+        (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 0, 0, 0, 0, 0, 0), null));
+        (packets, _) = packets.Publish(1);
         return new(packets, NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => NativeBattleCuragaMatrices.Identity8DD770(), (current, _, _, _) => new(current, PointView(new(0, 0, 0))), (current, _) => new(current, PointView(new(0, 550, 360), 1234)), execute ?? ((current, _) => current));
     }
     private static NativeBattleBreath157Resources Resources()

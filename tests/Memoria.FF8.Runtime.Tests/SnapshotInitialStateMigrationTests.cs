@@ -79,7 +79,7 @@ public sealed class SnapshotInitialStateMigrationTests
         JsonObject saved = HistoricalBattle(1);
         JsonObject process = saved["Battle"]!["NativeEffectMemory"]!["Shiva"]!.AsObject();
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        process["Entry"] = JsonSerializer.SerializeToNode(new NativeBattleShivaEntryState(0, 1, new(0, 0, 0), matrix, 7), Options);
+        process["Entry"] = JsonSerializer.SerializeToNode(new NativeBattleShivaEntryState(new(0, 0, 0), matrix, 7), Options);
         process.Remove("SpawnedChildD32508");
         JsonException error = Assert.Throws<JsonException>(() => Deserialize(saved));
         Assert.Contains("SpawnedChildD32508", error.Message);

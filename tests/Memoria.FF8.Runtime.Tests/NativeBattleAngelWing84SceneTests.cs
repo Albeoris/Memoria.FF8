@@ -34,7 +34,7 @@ public sealed class NativeBattleAngelWing84SceneTests
         models[0] = models[0] with { Flags0 = 2 };
         models[3] = models[3] with { Flags0 = 0x42 };
         List<ushort> births = [];
-        NativeBattleAngelWing84SceneInputs inputs = new(fixture.Inputs with { ReadModel = index => models[index] }, (current, operation) =>
+        NativeBattleAngelWing84SceneInputs inputs = new(fixture.Inputs with { ReadModel = owner => models[OriginalSlot(owner)] }, (current, operation) =>
         {
             switch (operation)
             {
@@ -42,7 +42,7 @@ public sealed class NativeBattleAngelWing84SceneTests
                     births.Add(birth.Phase);
                     break;
                 case NativeBattleAngelWing84ModelFlags flags:
-                    models[flags.Actor] = models[flags.Actor] with { Flags0 = flags.Flags };
+                    models[OriginalSlot(flags.Actor)] = models[OriginalSlot(flags.Actor)] with { Flags0 = flags.Flags };
                     break;
                 default:
                     throw new InvalidOperationException("Unexpected scene operation in the selected handshake.");

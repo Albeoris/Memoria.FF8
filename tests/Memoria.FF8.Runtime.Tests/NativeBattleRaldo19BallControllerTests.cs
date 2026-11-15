@@ -130,7 +130,7 @@ public sealed class NativeBattleRaldo19BallControllerTests
                     break;
             }
             return current;
-        }, (_, _, _) => new(0, 3));
+        }, (_, _, _) => OriginalTaskActors(0, 3), OriginalPackets());
         return (frame, ball.Address, fixture.Resources, inputs, operations);
     }
 

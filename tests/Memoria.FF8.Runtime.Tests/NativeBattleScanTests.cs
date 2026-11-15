@@ -49,8 +49,8 @@ public sealed class NativeBattleScanTests
             battle.Tick();
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
-        NativeBattleContactPacket packet = battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactPacket packet = battle.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal(flags, packet.Primary.Flags2);
         Assert.Equal(messages, battle.Events.Count(entry => entry.Kind == "Scan"));
         NativeScannedModels after = battle.Capture().NativeScannedModels!;

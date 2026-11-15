@@ -23,13 +23,13 @@ public sealed class NativeBattleCinematicContactBranch46Tests
     public void Mode_table_selects_the_native_contact_byte_or_lazy_battle_status(int mode, byte flags2, byte flags3, uint status, bool branch)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(mode, 1, -12);
-        frame = frame with { Arena = frame.Arena.Write(0x6000, [3]).Write(0x6002, [flags2, flags3]) };
+        NativeBattleActionPacketsState packets = Packets(1, [Half(3, flags2, flags3)]);
         if (!branch)
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 2) };
         }
         int statusReads = 0;
-        NativeBattleWaterExecutionFrame result = NativeBattleCinematicContactBranch46.Execute(frame, Program, UnexpectedActionRead, (_, actor) =>
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicContactBranch46.Execute(frame, Program, Services(packets), (_, actor) =>
         {
             Assert.Equal(4, mode);
             Assert.Equal(OriginalOwner(3), actor);
@@ -45,12 +45,8 @@ public sealed class NativeBattleCinematicContactBranch46Tests
     public void Unsigned_count_scans_past_127_and_stops_at_the_first_matching_record()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(1, 0x81, 18);
-        for (int index = 0; index < 128; index++)
-        {
-            frame = frame with { Arena = frame.Arena.Write(0x6000 + 24 * index, [(byte)(index == 127 ? 3 : 1)]) };
-        }
-        frame = frame with { Arena = frame.Arena.Write(0x6000 + 24 * 127 + 3, [4]) };
-        NativeBattleWaterExecutionFrame result = Run(frame);
+        NativeBattleActionPacketsState packets = Packets(129, Enumerable.Range(0, 129).Select(index => Half(index == 127 ? 3 : 1, 0, index == 127 ? (byte)4 : (byte)0)));
+        NativeBattleWaterExecutionFrame result = Run(frame, packets);
         Assert.Equal(Address(0x1012), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
     }
 
@@ -60,48 +56,44 @@ public sealed class NativeBattleCinematicContactBranch46Tests
     public void Exhausted_scan_still_reads_the_next_record_flags_instead_of_inventing_no_match(byte count)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(1, count, 12);
-        for (int index = 0; index < count; index++)
-        {
-            frame = frame with { Arena = frame.Arena.Write(0x6000 + 24 * index, [1]) };
-        }
-        Assert.Throws<NotSupportedException>(() => Run(frame));
-        frame = frame with { Arena = frame.Arena.Write(0x6000 + 24 * count + 3, [4]) };
-        Assert.Equal(Address(0x100C), WaterSchedulerFixture.ReadCoreDword(Run(frame), 0x2797450));
+        NativeBattleContactHalf[] scanned = Enumerable.Repeat(Half(1, 0, 0), count).ToArray();
+        Assert.Throws<ArgumentOutOfRangeException>(() => Run(frame, Packets(count, scanned)));
+        Assert.Equal(Address(0x100C), WaterSchedulerFixture.ReadCoreDword(Run(frame, Packets(count, [.. scanned, Half(3, 0, 4)])), 0x2797450));
     }
 
     [Fact]
-    public void Byte_three_is_consumed_before_the_mode_two_byte_two_test()
+    public void An_unknown_hit_flag_byte_cannot_be_bound_as_a_live_contact()
     {
-        NativeBattleWaterExecutionFrame frame = Fixture(2, 1, 12);
-        frame = frame with { Arena = frame.Arena.Write(0x6000, [3]).Write(0x6002, [8]) };
-        Assert.Throws<NotSupportedException>(() => Run(frame));
+        NativeBattleRawContactPacket contact = Assert.IsType<NativeBattleRawContactPacket>(Packets(1, [Half(3, 8, 0)]).ExportRetained().Contacts[0]);
+        byte[] unknown = new byte[24];
+        unknown[3] = 0xFF;
+        var (models, boundary) = OriginalModels([(3, new NativeBattleGraphicsModel(0))]);
+        Assert.Throws<InvalidDataException>(() => NativeBattleContactPacketCodec.DecodeOriginal(contact with { UnknownBits = [.. unknown] }, boundary, models));
     }
 
     [Fact]
-    public void External_packet_reader_observes_only_the_actual_ordered_fields()
+    public void Live_packet_owners_supply_the_contact_even_with_unmapped_original_action_pointer()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(2, 1, -4);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x279775C, 0x30000000);
-        List<(uint Address, int Length)> reads = [];
-        NativeBattleWaterExecutionFrame result = NativeBattleCinematicContactBranch46.Execute(frame, Program, (_, address, length) =>
-        {
-            reads.Add((address, length));
-            return address switch
-            {
-                0x30000008 => BitConverter.GetBytes(0x30000100u),
-                0x30000010 => [1],
-                0x30000100 => [3],
-                0x30000103 => [0],
-                0x30000102 => [8],
-                _ => throw new InvalidOperationException()
-            };
-        }, (_, _) => throw new InvalidOperationException());
-        Assert.Equal(new[] { (0x30000008u, 4), (0x30000010u, 1), (0x30000100u, 1), (0x30000103u, 1), (0x30000102u, 1) }, reads);
+        NativeBattleWaterExecutionFrame result = Run(frame, Packets(1, [Half(3, 8, 0)]));
         Assert.Equal(Address(0xFFC), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
     }
 
-    private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame) => NativeBattleCinematicContactBranch46.Execute(frame, Program, UnexpectedActionRead, (_, _) => throw new InvalidOperationException());
-    private static byte[] UnexpectedActionRead(NativeBattleWaterExecutionFrame frame, uint address, int length) => throw new InvalidOperationException();
+    private static NativeBattleContactHalf Half(int owner, byte flags2, byte flags) => new(OriginalOwner(owner), 0, flags2, flags, 0, 0, 0);
+
+    private static NativeBattleActionPacketsState Packets(int count, IEnumerable<NativeBattleContactHalf> contacts)
+    {
+        (NativeBattleActionPacketsState packets, _) = OriginalPackets().Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 0, null));
+        packets = packets.AppendContacts(contacts.Select(contact => new NativeBattleContactPacket(contact, null)));
+        return packets.Publish(count).State;
+    }
+
+    private static NativeBattleWaterContextServices Services(NativeBattleActionPacketsState packets) =>
+        NativeBattleCinematicTypedTestFixture.Services() with { ReadCurrentHeader = _ => new BattleActionHeaderReference(0), ReadPackets = () => packets };
+
+    private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame, NativeBattleActionPacketsState packets) =>
+        NativeBattleCinematicContactBranch46.Execute(frame, Program, Services(packets), (_, _) => throw new InvalidOperationException());
 
     private static NativeBattleWaterExecutionFrame Fixture(int mode, byte count, short displacement)
     {
@@ -114,6 +106,6 @@ public sealed class NativeBattleCinematicContactBranch46Tests
         byte[] program = [0x46, 0, 0, 0];
         BinaryPrimitives.WriteUInt16LittleEndian(program, unchecked((ushort)(0x46 | mode << 9)));
         BinaryPrimitives.WriteInt16LittleEndian(program.AsSpan(2), displacement);
-        return frame with { Arena = frame.Arena.Write(0x1000, program) };
+        return NativeBattleCinematicTypedTestFixture.BindActor(frame with { Arena = frame.Arena.Write(0x1000, program) }, OriginalOwner(3));
     }
 }

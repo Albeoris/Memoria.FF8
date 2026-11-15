@@ -21,12 +21,8 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         AssertOutOfExtent();
         Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => Address(session, native with { ActiveResourceRow100 = null })).InnerException);
 
-        BattleModelOwner?[] rows = new BattleModelOwner?[7];
-        for (int row = 0; row < rows.Length; row++)
-        {
-            rows[row] = new BattlePartyActorModel(new($"party-{row}"));
-        }
-        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(new([.. rows]));
+        BattleModelRoster roster = new(Enumerable.Range(0, 7).Select(index => new BattlePartyActorModel(new($"party-{index}"))));
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(roster, new(roster, []));
         PropertyInfo owner = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!;
         owner.SetValue(session, cpu);
         Assert.Equal(NativeBattleModelResourceRowAddress.Encode(11, cpu.Rows.Length), Address(session, extended));
@@ -42,7 +38,6 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
     [Fact]
     public void Breath_body_capture_passes_hosted_alias_to_the_body_publisher()
     {
-        const uint actor = 0x1D972C0;
         int capacity = 12;
         uint row = NativeBattleModelResourceRowAddress.Encode(11, capacity);
         NativeBattleBreath129Frame frame = NativeBattleBreath129LowerTests.Frame();
@@ -75,20 +70,22 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
     {
         const int capacity = 37;
         uint expected = NativeBattleModelResourceRowAddress.Encode(36, capacity);
-        uint modelAddress = NativeBattleGraphicsModelAddress.Encode(24);
+        BattleModelOwner model = new BattlePartyActorModel(new("added-party"));
+        BattleModelRoster roster = new([model]);
+        NativeBattleModelAliases aliases = new(roster, []);
         NativeBattleMegaSpark279Resources resources = NativeBattleMegaSpark279StateTests.Resources();
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown() };
-        NativeBattleMegaSpark279State state = NativeBattleMegaSpark279State.FromColdProcess().WriteDword(NativeBattleMegaSpark279Profile.CasterGlobal, modelAddress);
+        NativeBattleMegaSpark279State state = NativeBattleMegaSpark279State.FromColdProcess().WriteModelOwner(NativeBattleMegaSpark279Profile.CasterGlobal, model, aliases);
         NativeBattleMegaSpark279Frame frame = new(memory, new(279, 278, new(279, NativeBattleMegaSpark279Profile.Entry, NativeBattleMegaSpark279Profile.Initializer), null, 0), new(123), state);
         List<uint> observed = [];
         NativeBattleMegaSpark279Inputs inputs = new(
-            OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270,
+            NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases), NativeBattleGteColorInterpolation.CodeConstants45F270,
             _ => throw new InvalidOperationException(),
             _ => throw new InvalidOperationException(),
             (_, address) =>
             {
-                Assert.Equal(modelAddress, address);
-                return new(24, 0) { ActiveResourceRow100 = 36 };
+                Assert.Equal(model, address);
+                return new(0) { ActiveResourceRow100 = 36 };
             },
             (_, _) => throw new InvalidOperationException(),
             (_, handle, _) =>

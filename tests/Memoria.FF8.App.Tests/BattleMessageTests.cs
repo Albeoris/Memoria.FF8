@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -68,7 +69,7 @@ public sealed class BattleMessageTests
     public void Native_message_duration_and_guardian_seconds_use_fixed_callback_units(int displayRate)
     {
         BattleSession battle = Create([1, 0, 0]);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0));
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]));
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
         hud.BuildView();
         Assert.Equal(15.5, hud.BattleCallbackRate);

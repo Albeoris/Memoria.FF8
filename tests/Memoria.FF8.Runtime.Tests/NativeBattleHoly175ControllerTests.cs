@@ -180,7 +180,7 @@ public sealed class NativeBattleHoly175ControllerTests
             for (int index = 0; index < headers; index++)
             {
                 (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, (ushort)(1 << (3 + index)), 175, null));
-                (packets, _) = packets.AppendContact(new(new((byte)(3 + index), 0, 0, 0, 0, 0, 0), null));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(3 + index), 0, 0, 0, 0, 0, 0), null));
                 (packets, _) = packets.Publish(1);
             }
             Packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), (byte)headers);
@@ -196,10 +196,10 @@ public sealed class NativeBattleHoly175ControllerTests
 
         public NativeBattleHoly175Frame Initialize() => NativeBattleHoly175Controller.Initialize5D1AD0(Frame, Inputs(), Resources);
 
-        public NativeBattleHoly175Inputs Inputs(uint flags = 0) => new(flags, Packets, _ => new byte[8].ToImmutableArray(), _ => 4096, actor => Models[actor].Flags0, (frame, task) =>
+        public NativeBattleHoly175Inputs Inputs(uint flags = 0) => new(flags, Packets, _ => new byte[8].ToImmutableArray(), _ => 4096, () => OriginalModels(Models.Select((model, slot) => (slot, model))).Models, () => OriginalModels(Models.Select((model, slot) => (slot, model))).Boundary, (frame, task) =>
         {
-            NativeBattleHoly175ModelColorStep step = NativeBattleHoly175ModelColors.Advance(task, Models, flags, 0x00808080, 0x32808080, NativeBattleGteColorInterpolation.CodeConstants45F270);
-            Models = step.Models;
+            NativeBattleHoly175ModelColorStep step = NativeBattleHoly175ModelColors.Advance(task, OriginalModels(Models.Select((model, slot) => (slot, model))).Models, flags, 0x00808080, 0x32808080, NativeBattleGteColorInterpolation.CodeConstants45F270);
+            Models = Enumerable.Range(0, Models.Length).Select(slot => step.Models.Get(OriginalOwner(slot))).ToImmutableArray();
             return new(frame, step.Task, step.Result);
         }, (frame, _, _) => frame, (frame, _, row) =>
         {

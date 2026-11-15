@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -15,10 +14,11 @@ public sealed class NativeBattleSlotsTargetTests
         BattleSession battle = Create(Spell(2, 0x50) with { Statuses0 = 8, StatusAttack = 250 }, cards,
             Ally("selphie", 500), Enemy("first") with { NativeStatus0 = 8 }, Enemy("second") with { NativeStatus0 = 8 });
         Queue(ref battle, cards, repetitions);
-        ushort originalMask = Assert.Single(battle.QueuedActions).NativeTargetMask;
+        BattleTargetRequest request = Assert.Single(battle.QueuedActions).TargetRequest;
+        ushort originalMask = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, target => battle.Combatants.Single(actor => actor.Id == target.ActorId).Slot) ?? throw new InvalidDataException("The original Slots fixture requires a target WORD.");
         BattleCombatant original = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && (originalMask & (1 << actor.EncodeNativeSlot())) != 0);
         original.MutableNativeStatusResistances[3] = 200;
-        Assert.DoesNotContain((byte)original.EncodeNativeSlot(), Resolve(battle, repetitions));
+        Assert.DoesNotContain(new BattleEnemyActorModel(new(original.Id)), Resolve(battle, repetitions));
     }
 
     [Theory]
@@ -31,7 +31,7 @@ public sealed class NativeBattleSlotsTargetTests
         BattleSession battle = Create(Spell(4, 0x10) with { Power = 2 }, cards,
             Ally("selphie", 100), Ally("second", 150), Ally("ko", 0), Enemy("enemy"));
         Queue(ref battle, cards, repetitions);
-        Assert.Equal(new byte[] { 0, 1, 0 }.Take(repetitions), Resolve(battle, repetitions));
+        Assert.Equal(new BattleModelOwner[] { new BattlePartyActorModel(new("selphie")), new BattlePartyActorModel(new("second")), new BattlePartyActorModel(new("selphie")) }.Take(repetitions), Resolve(battle, repetitions));
         Assert.Equal(0, battle.Combatants[2].CurrentHp);
     }
 
@@ -45,9 +45,9 @@ public sealed class NativeBattleSlotsTargetTests
         BattleSession battle = Create(Spell(2, 0x10) with { Statuses1 = 0x20, StatusAttack = 255 }, cards,
             Ally("selphie", 500), Ally("second", 500), Ally("third", 500), Enemy("enemy"));
         Queue(ref battle, cards, repetitions);
-        byte[] targets = Resolve(battle, repetitions);
+        BattleModelOwner[] targets = Resolve(battle, repetitions);
         Assert.Equal(repetitions, targets.Distinct().Count());
-        Assert.All(targets, target => Assert.NotEqual(0u, battle.Combatants[target].NativeStatus1 & 0x20));
+        Assert.All(targets, target => Assert.NotEqual(0u, battle.Combatants.Single(actor => actor.Id == Assert.IsType<BattlePartyActorModel>(target).Actor.ActorId).NativeStatus1 & 0x20));
     }
 
     [Theory]
@@ -62,9 +62,9 @@ public sealed class NativeBattleSlotsTargetTests
         BattleSession battle = Create(Spell(2, 0x50) with { Statuses0 = 8, StatusAttack = 250 }, cards,
             Ally("selphie", 500), Enemy("immune") with { NativeStatusResistances = immune }, Enemy("affected") with { NativeStatus0 = 8 }, Enemy("fresh"));
         Queue(ref battle, cards, repetitions);
-        byte[] targets = Resolve(battle, repetitions);
-        Assert.Equal(5, targets[0]);
-        Assert.DoesNotContain((byte)3, targets);
+        BattleModelOwner[] targets = Resolve(battle, repetitions);
+        Assert.Equal(new BattleEnemyActorModel(new("fresh")), targets[0]);
+        Assert.DoesNotContain(new BattleEnemyActorModel(new("immune")), targets);
         Assert.NotEqual(0, battle.Combatants.Single(actor => actor.Id == "fresh").NativeStatus0 & 8);
     }
 
@@ -78,10 +78,10 @@ public sealed class NativeBattleSlotsTargetTests
         BattleSession battle = Create(Spell(2, 0x50) with { Power = 1, Element = 1 }, cards,
             Ally("selphie", 500), Enemy("absorber") with { ElementDefenses = [1000, 800, 800, 800, 800, 800, 800, 800] }, Enemy("vulnerable"));
         Queue(ref battle, cards, repetitions);
-        Assert.All(Resolve(battle, repetitions), target => Assert.Equal(4, target));
+        Assert.All(Resolve(battle, repetitions), target => Assert.Equal(new BattleEnemyActorModel(new("vulnerable")), target));
     }
 
-    private static byte[] Resolve(BattleSession battle, int repetitions)
+    private static BattleModelOwner[] Resolve(BattleSession battle, int repetitions)
     {
         for (int frame = 0; frame < 300 && battle.NativeActionPackets.ActionCount < repetitions; frame++)
         {
@@ -89,7 +89,7 @@ public sealed class NativeBattleSlotsTargetTests
         }
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         Assert.Equal(repetitions, packets.ActionCount);
-        return packets.Headers.Take(repetitions).Select(header => packets.Contacts[header.FirstContactIndex!.Value]!.Primary.ActorIndex).ToArray();
+        return Enumerable.Range(0, repetitions).Select(index => packets.ReadContact(packets.ReadHeader(new BattleActionHeaderReference(index)).FirstContact).Primary.Recipient).ToArray();
     }
 
     private static void Queue(ref BattleSession battle, bool cards, int repetitions)
@@ -107,7 +107,7 @@ public sealed class NativeBattleSlotsTargetTests
             battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", 4) { Slots = roll }] });
             battle.QueueNativePlayerCommand("selphie", "selphie", 16, 1);
         }
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle = BattleSession.Restore(battle.Capture());
     }
 
     private static BattleSession Create(BattleNativeAction spell, bool cards, params BattleCombatantDefinition[] actors)

@@ -38,7 +38,7 @@ public sealed class NativeBattleDrain39NodeTests
         var fixture = Fixture();
         NativeBattleDrain39ControllerInputs inputs = fixture.Inputs with
         {
-            ReadForeignActorGeometry = actor => new(new((short)(actor * 10), -700, 30), new((short)(actor * 20), -300, 40), 0, new(default, default)),
+            ReadForeignActorGeometry = actor => new(new((short)(OriginalSlot(actor) * 10), -700, 30), new((short)(OriginalSlot(actor) * 20), -300, 40), 0, new(default, default)),
             ReadPoseSource = _ => throw new InvalidOperationException("The host has no source-game skeleton.")
         };
         NativeBattleDrain39NodeStep result = Advance(fixture.Frame, fixture.Address, Resources(), inputs);
@@ -176,6 +176,6 @@ public sealed class NativeBattleDrain39NodeTests
             return new(0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
         }
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame with { Memory = frame.Memory with { SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(camera, null) } }, child.Address, new(packets, camera, Model, _ => source) { PackedCamera = NativeBattlePackedMatrix32.FromMatrix(camera, null) });
+        return (frame with { Memory = frame.Memory with { SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(camera, null) } }, child.Address, new(packets, camera, actor => Model(OriginalSlot(actor)), _ => source) { PackedCamera = NativeBattlePackedMatrix32.FromMatrix(camera, null) });
     }
 }

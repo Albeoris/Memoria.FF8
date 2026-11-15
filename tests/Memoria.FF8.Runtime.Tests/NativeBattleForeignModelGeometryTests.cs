@@ -15,8 +15,11 @@ public sealed class NativeBattleForeignModelGeometryTests
         NativeBattleEffectActorGeometry geometry = new(new(10, -700, 30), new(20, -300, 40), 50, new(new(-90, -700, -40), new(130, 0, 60)));
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 100, 1);
         (pool, int slot) = pool.Append(0x3000);
-        NativeBattleModulePoolTask task = pool.Slots[slot].WriteByte(0x2D, 3);
-        NativeBattleModulePoolTask actual = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, NativeBattleGraphicsModels.ClearBank(), _ => throw new InvalidOperationException("A host skeleton is not an FFVIII animation bank."), index => index == 3 ? geometry : null);
+        BattleModelOwner target = new BattleForeignEnemyModel(new BattleForeignPresentationKey("geometry"));
+        NativeBattleModulePoolTask task = pool.Slots[slot];
+        task.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(target));
+        BattleActorModels models = new([new(target, new(3))]);
+        NativeBattleModulePoolTask actual = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, models.Get, _ => throw new InvalidOperationException("A host skeleton is not an FFVIII animation bank."), owner => owner == target ? geometry : null);
         Assert.Equal((short)10, unchecked((short)actual.ReadWord(0x40)));
         Assert.Equal((short)-700, unchecked((short)actual.ReadWord(0x42)));
         Assert.Equal((short)20, unchecked((short)actual.ReadWord(0x30)));

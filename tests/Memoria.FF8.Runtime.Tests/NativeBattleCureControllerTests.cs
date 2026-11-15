@@ -35,7 +35,7 @@ public sealed class NativeBattleCureControllerTests
         var fixture = Fixture();
         NativeBattleCureFrame frame = fixture.Frame;
         List<int> applied = [];
-        NativeBattleCureControllerInputs inputs = fixture.Inputs with { ApplyContact = applied.Add };
+        NativeBattleCureControllerInputs inputs = fixture.Inputs with { ApplyContact = occurrence => applied.Add(occurrence.Ordinal) };
         int leaves = 0;
         List<int> contacts = [];
         List<NativeBattleModuleSound> sounds = [];
@@ -48,7 +48,7 @@ public sealed class NativeBattleCureControllerTests
                 return new(current, 0);
             });
             frame = step.Frame;
-            contacts.AddRange(step.Contacts);
+            contacts.AddRange(step.Contacts.Select(contact => contact.Ordinal));
             sounds.AddRange(step.Sounds);
             if (callback < 4)
             {
@@ -130,7 +130,7 @@ public sealed class NativeBattleCureControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 2, 11, 0, 21, 1, null));
         for (int target = 0; target < Math.Max(1, (int)targets); target++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)(3 + target), 1, 0, 0, 0, 100, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3 + target), 1, 0, 0, 0, 100, 0), null));
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), repeatMode);
         (packets, _) = packets.Publish(targets);

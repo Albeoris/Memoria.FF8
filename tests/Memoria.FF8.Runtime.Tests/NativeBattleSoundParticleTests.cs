@@ -14,7 +14,7 @@ public sealed class NativeBattleSoundParticleTests
         NativeGlobalRandomState initial = new(7);
         NativeGlobalRandomState expected = initial.Draw(out ushort roll);
         NativeBattleAuxiliaryProgram program = new([2, 0x44, 0x86, 255], 0);
-        (NativeBattleAuxiliaryState state, NativeGlobalRandomState after, bool allocated) = NativeBattleAuxiliaryState.Clear().AppendCameraBlend(10).AppendSoundParticle(3, soundTwo, 240, program, initial);
+        (NativeBattleAuxiliaryState state, NativeGlobalRandomState after, bool allocated) = NativeBattleAuxiliaryState.Clear().AppendCameraBlend(10).AppendSoundParticle(OriginalOwner(3), soundTwo, 240, program, initial, OriginalAliases);
         Assert.True(allocated);
         Assert.Equal(expected, after);
         Assert.Equal((int?)1, state.Slots[0].Next);
@@ -64,7 +64,7 @@ public sealed class NativeBattleSoundParticleTests
             state = state.AppendCameraBlend(30);
         }
         NativeGlobalRandomState random = new(0);
-        var result = state.AppendSoundParticle(0, true, 0, new([1, 2, 255, 0xAA], 0), random);
+        var result = state.AppendSoundParticle(OriginalOwner(0), true, 0, new([1, 2, 255, 0xAA], 0), random, OriginalAliases);
         Assert.False(result.Allocated);
         Assert.Equal(random, result.Random);
         Assert.Same(state, result.State);
@@ -81,10 +81,10 @@ public sealed class NativeBattleSoundParticleTests
         NativeBattleGraphicsModel model = new(3) { Flags2 = 4, Flags8 = 0, ModelId4 = 37, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
         NativeBattleAuxiliaryState tasks = NativeBattleAuxiliaryState.Clear();
         NativeGlobalRandomState random = new(0);
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null) { ScheduleSoundParticle = (program, mode, bone) =>
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(OriginalOwner(3), model, resource, new(null, null) { ScheduleSoundParticle = (program, mode, bone) =>
         {
             Assert.Equal(soundTwo, mode);
-            var result = tasks.AppendSoundParticle(3, mode, bone, program, random);
+            var result = tasks.AppendSoundParticle(OriginalOwner(3), mode, bone, program, random, OriginalAliases);
             tasks = result.State;
             random = result.Random;
         } });

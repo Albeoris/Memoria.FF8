@@ -29,14 +29,14 @@ public sealed class NativeBattleEffect166ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect166Frame frame = Frame(0);
-        int[] selectedRows = hosted ? [0, 7, 16, 24] : [0];
+        BattleModelOwner[] selected = hosted ? [OriginalOwner(0), new BattlePartyActorModel(new("extra-ally")), new BattleEnemyActorModel(new("extra-enemy-a")), new BattleEnemyActorModel(new("extra-enemy-b"))] : [OriginalOwner(0)];
         if (hosted)
         {
-            frame = frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { PresentationTargets = new BattleModelTargets(1).Add(7).Add(16).Add(24) } } };
+            frame = frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { TargetActors = BattleModelTargets.From(selected) } } };
         }
         NativeBattleEffect166Step step = AdvanceMain5E4F60(frame, ChildBank, Resources(), harness.Inputs());
         NativeBattleEffect166TargetCenter5020A0 center = Assert.Single(harness.Operations.OfType<NativeBattleEffect166TargetCenter5020A0>());
-        Assert.Equal(selectedRows, center.Targets.EnumerateRows());
+        Assert.Equal(selected, center.Targets.Enumerate());
         Assert.Equal(TargetPointAddress, center.DestinationAddress);
         Assert.Equal(900, step.Frame.State.ReadWord(TargetPointAddress));
         Assert.Equal(77u, step.Frame.State.ReadDword(TargetGlobal));
@@ -153,9 +153,9 @@ public sealed class NativeBattleEffect166ControllerTests
         public uint Flags { get; init; }
         public List<(int Actor, int Bone)> Bones { get; } = [];
         public List<NativeBattleEffect166Operation> Operations { get; } = [];
-        public NativeBattleEffect166Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new(actor, (ushort)(actor == 1 ? 0 : 2)), (_, actor, bone) =>
+        public NativeBattleEffect166Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new((ushort)(actor == OriginalOwner(1) ? 0 : 2)), (_, actor, bone) =>
         {
-            Bones.Add((actor, bone));
+            Bones.Add((OriginalSlot(actor), bone));
             return NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 1, Y = 2, Z = 3 }, null);
         }, (_, _) => NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 10, Y = 20, Z = 30 }, null), (_, _) => 6, _ => NativeBattlePackedMatrix32.FromMatrix(Identity(), null), null!, (frame, operation) =>
         {
@@ -165,7 +165,7 @@ public sealed class NativeBattleEffect166ControllerTests
                 return frame with { State = frame.State.WriteWord(TargetPointAddress, 900).WriteDword(TargetGlobal, 77) };
             }
             return frame;
-        });
+        }, () => OriginalRoster.Owners.OfType<BattlePartyModelOwner>());
 
         private static NativeBattleActionPacketsState Packets()
         {

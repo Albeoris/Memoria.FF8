@@ -9,7 +9,7 @@ public sealed class NativeBattleEffect60ActTests
     public void Target_shift_waits_age6_then_saves_rotation_and_packed_position_without_resolving_W()
     {
         NativeBattleEffect60ControllerTests.Fixture fixture = new();
-        fixture.Positions[3] = fixture.Positions[3].MarkUnknown(6, 2);
+        fixture.Positions[OriginalOwner(3)] = fixture.Positions[OriginalOwner(3)].MarkUnknown(6, 2);
         NativeBattleEffect60Frame frame = Append(fixture, out uint address);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteWord(0x24, 5));
@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect60ActTests
         Assert.Equal((byte)1, task.ReadByte(0x29));
         Assert.Equal((short)900, unchecked((short)task.ReadWord(0x184)));
         Assert.Equal((short)1412, unchecked((short)task.ReadWord(0x17C)));
-        Assert.Equal((short)1412, NativeBattleEffect60ControllerTests.Fixture.Word(fixture.Positions[3], 4));
+        Assert.Equal((short)1412, NativeBattleEffect60ControllerTests.Fixture.Word(fixture.Positions[OriginalOwner(3)], 4));
         Assert.Throws<NotSupportedException>(() => task.ReadWord(0x186));
         Assert.Throws<NotSupportedException>(() => task.ReadWord(0x17E));
         Assert.Throws<NotSupportedException>(() => frame.State.SavedRotation8.Read(6, 2));
@@ -65,13 +65,13 @@ public sealed class NativeBattleEffect60ActTests
         NativeBattleEffect60Frame frame = Append(fixture, out uint address);
         NativeBattleEffectArena original = NativeBattleEffect60ControllerTests.Fixture.Packed(300, 10, 900, 0xABCD).MarkUnknown(6, 2);
         NativeBattleEffectArena shifted = NativeBattleEffect60ControllerTests.Fixture.Packed(100, -10, 1400, 0x4321);
-        fixture.Positions[3] = shifted;
+        fixture.Positions[OriginalOwner(3)] = shifted;
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address).WriteByte(0x29, 2).WriteWord(0x84, index).WriteDword(0x98, 31).WriteWord(0x1C, 50).WriteWord(0x1E, 60).WriteWord(0x20, 70);
         task = Copy(original, task, 0x180);
         task = Copy(shifted, task, 0x178);
         hierarchy = hierarchy.Write(address, task);
-        NativeBattleEffectArena saved = fixture.Rotations[3];
+        NativeBattleEffectArena saved = fixture.Rotations[OriginalOwner(3)];
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools }, State = frame.State with { SavedRotation8 = saved } };
         NativeBattleEffect60Inputs inputs = fixture.Inputs with { Execute = (current, operation) =>
         {
@@ -79,10 +79,10 @@ public sealed class NativeBattleEffect60ActTests
             {
                 Assert.Empty(fixture.Operations.OfType<NativeBattleEffect60RestoreRotation>());
                 int expectedZ = index == 7 ? 900 : 1400 + unchecked((900 - 1400) * ratio) / 4096;
-                Assert.Equal((short)expectedZ, NativeBattleEffect60ControllerTests.Fixture.Word(fixture.Positions[3], 4));
+                Assert.Equal((short)expectedZ, NativeBattleEffect60ControllerTests.Fixture.Word(fixture.Positions[OriginalOwner(3)], 4));
                 if (index == 7)
                 {
-                    Assert.Throws<NotSupportedException>(() => fixture.Positions[3].Read(6, 2));
+                    Assert.Throws<NotSupportedException>(() => fixture.Positions[OriginalOwner(3)].Read(6, 2));
                 }
             }
             return fixture.Inputs.Execute(current, operation);
@@ -103,7 +103,7 @@ public sealed class NativeBattleEffect60ActTests
         Assert.Equal((byte)3, task.ReadByte(0x29));
         Assert.Equal(1, task.ReadByte(0x26) & 1);
         Assert.Single(fixture.Operations.OfType<NativeBattleEffect60RestoreRotation>());
-        Assert.Same(saved, fixture.Rotations[3]);
+        Assert.Same(saved, fixture.Rotations[OriginalOwner(3)]);
         Assert.IsType<NativeBattleEffect60SetPackedPosition>(fixture.Operations[0]);
         Assert.IsType<NativeBattleEffect60ActDraw>(fixture.Operations[1]);
         Assert.IsType<NativeBattleEffect60RestoreRotation>(fixture.Operations[2]);

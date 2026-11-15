@@ -15,7 +15,7 @@ public sealed class NativeBattleCompelledActionTests
         Assert.Equal("party", battle.ActiveAction!.ActorId);
         Assert.Equal(BattleAbility.Attack, battle.ActiveAction.Ability);
         Assert.Equal((byte)1, battle.ActiveAction.NativeQueuedCommand);
-        Assert.Equal((ushort)8, battle.ActiveAction.NativeTargetMask);
+        Assert.Equal((ushort)8, ReadOriginalTargetWord(battle, battle.ActiveAction.TargetRequest));
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class NativeBattleCompelledActionTests
         battle.Tick();
 
         Assert.Equal((byte)2, battle.ActiveAction!.NativeQueuedCommand);
-        Assert.Equal((ushort)0x80F8, battle.ActiveAction.NativeTargetMask);
+        Assert.Equal((ushort)0x80F8, ReadOriginalTargetWord(battle, battle.ActiveAction.TargetRequest));
         Assert.True(battle.ActiveAction.FreeNativeMagic);
         for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
         {
@@ -44,7 +44,7 @@ public sealed class NativeBattleCompelledActionTests
 
         BattleActionPresentation action = battle.ActiveAction!;
         Assert.Equal((byte)1, action.NativeQueuedCommand);
-        Assert.Contains(action.NativeTargetMask, new ushort[] { 1, 8 });
+        Assert.Contains(ReadOriginalTargetWord(battle, action.TargetRequest), new ushort[] { 1, 8 });
         Assert.Equal(action, BattleSession.Restore(battle.Capture()).ActiveAction);
     }
 
@@ -77,7 +77,7 @@ public sealed class NativeBattleCompelledActionTests
 
         Assert.Equal((byte)2, battle.ActiveAction!.NativeQueuedCommand);
         AssertSilencedMagicAttempt(battle);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
         {
             battle.Tick();
@@ -104,22 +104,30 @@ public sealed class NativeBattleCompelledActionTests
 
     private static void AssertSilencedMagicAttempt(BattleSession battle)
     {
-        int header = battle.ActiveAction!.NativeHeader!.Value;
-        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(1));
-        Assert.Equal((byte)10, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(2));
-        Assert.Equal((byte)9, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(4));
-        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(5));
-        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(6));
-        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(7));
-        Assert.Equal(0x47E970u, battle.NativeActionPackets.Headers[header].Data!.ProducerAddress);
-        Assert.Equal((ushort)2, battle.NativeActionPackets.Headers[header].Data!.Argument);
+        BattleActionHeaderReference header = battle.ActiveAction!.NativeHeader!.Value;
+        NativeBattleRetainedActionHeaderSlot original = battle.NativeActionPackets.ExportRetained().Headers[header.Ordinal];
+        NativeBattleActionDataReference data = Assert.IsType<NativeBattleActionDataReference>(battle.NativeActionPackets.ReadHeader(header).Data);
+        Assert.Equal((byte)0, original.ReadOriginalByte(1));
+        Assert.Equal((byte)10, original.ReadOriginalByte(2));
+        Assert.Equal((byte)9, original.ReadOriginalByte(4));
+        Assert.Equal((byte)0, original.ReadOriginalByte(5));
+        Assert.Equal((byte)0, original.ReadOriginalByte(6));
+        Assert.Equal((byte)0, original.ReadOriginalByte(7));
+        Assert.Equal(0x47E970u, data.ProducerAddress);
+        Assert.Equal((ushort)2, data.Argument);
         BattleEvent message = Assert.Single(battle.Events, item => item.Kind == "NativeText");
         Assert.Equal("Message100", message.Message);
         Assert.Equal(16, message.Amount);
-        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[header].ReadOriginalByte(16));
+        Assert.Equal((byte)0, original.ReadOriginalByte(16));
         Assert.Equal(3, Assert.Single(battle.Combatants[0].MagicStocks).Count);
         Assert.Equal(500, battle.Combatants[1].CurrentHp);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
+    }
+
+    private static ushort ReadOriginalTargetWord(BattleSession battle, BattleTargetRequest request)
+    {
+        return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, reference => battle.Combatants.Single(actor => actor.Id == reference.ActorId).Slot)
+            ?? throw new InvalidDataException("The original compelled action has no target WORD projection.");
     }
 
     private static BattleSession Create(ushort saved, uint transient, bool magicOnly = false)

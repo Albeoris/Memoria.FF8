@@ -69,7 +69,7 @@ public sealed class NativeBattleCuragaControllerTests
         {
             ApplyContact = (current, index) =>
             {
-                applied.Add(index);
+                applied.Add(index.Ordinal);
                 return current;
             }
         };
@@ -78,7 +78,7 @@ public sealed class NativeBattleCuragaControllerTests
         {
             NativeBattleCuragaControllerStep step = NativeBattleCuragaController.Advance87DC50(frame, inputs, Resources(), Leaf);
             sounds.AddRange(step.Sounds);
-            Assert.Equal(callback == 35 ? new[] { 0 } : [], step.Contacts);
+            Assert.Equal(callback == 35 ? new[] { 0 } : [], step.Contacts.Select(contact => contact.Ordinal));
             frame = step.Frame;
         }
         Assert.Equal(new[] { 0 }, applied);

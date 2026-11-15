@@ -60,7 +60,7 @@ public sealed class NativeBattleCpuTrailsTests
     public void World_birth_uses_actual_layout_three_shared_draws_and_preserves_unwritten_point_lanes()
     {
         Fixture fixture = new();
-        NativeBattleCpuTrailAddressStep actual = NativeBattleCpuTrails.StartWorld(fixture.Frame, fixture.Layout, new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), null, 2, 100, 50, 80, 16, 3);
+        NativeBattleCpuTrailAddressStep actual = NativeBattleCpuTrails.StartWorld(fixture.Frame, fixture.Layout, new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), null, OriginalOwner(2), OriginalAliases, 100, 50, 80, 16, 3);
         Assert.Equal(fixture.Layout.WorldBankAddress, actual.Address);
         NativeBattleModulePoolTask task = actual.Frame.Effect.Pools[2].Slots[0];
         Assert.Equal(WorldTrailCallback, task.Callback);
@@ -85,7 +85,7 @@ public sealed class NativeBattleCpuTrailsTests
         Fixture fixture = new();
         uint cached = fixture.Layout.WorldBankAddress + 5 * 40;
         NativeBattleCpuTrailFrame frame = fixture.Dword(fixture.Frame, fixture.Layout.WorldFreePointerAddress, cached);
-        NativeBattleCpuTrailAddressStep actual = NativeBattleCpuTrails.StartWorld(frame, fixture.Layout, new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), new(10, 11, 12), 0, 0, 1, 80, 0, 0);
+        NativeBattleCpuTrailAddressStep actual = NativeBattleCpuTrails.StartWorld(frame, fixture.Layout, new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), new(10, 11, 12), OriginalOwner(0), OriginalAliases, 0, 1, 80, 0, 0);
         Assert.Equal(cached, actual.Address);
         Assert.Equal(frame.Memory.SharedEffectRandom, actual.Frame.Memory.SharedEffectRandom);
         Assert.Equal(0u, fixture.ReadDword(actual.Frame, fixture.Layout.WorldFreePointerAddress));
@@ -94,7 +94,7 @@ public sealed class NativeBattleCpuTrailsTests
         {
             (frame, _) = NativeBattleCpuTrails.Append(frame, 2, WorldTrailCallback);
         }
-        actual = NativeBattleCpuTrails.StartWorld(frame, fixture.Layout, new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), null, 0, 0, 1, 80, 0, 0);
+        actual = NativeBattleCpuTrails.StartWorld(frame, fixture.Layout, new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), null, OriginalOwner(0), OriginalAliases, 0, 1, 80, 0, 0);
         Assert.Equal(0u, actual.Address);
         Assert.Equal((short)-1, fixture.Word(actual.Frame, fixture.Layout.WorldBankAddress + 6));
         Assert.Equal(frame.Memory.SharedEffectRandom, actual.Frame.Memory.SharedEffectRandom);

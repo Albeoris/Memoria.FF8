@@ -183,11 +183,11 @@ public sealed class NativeBattleBadBreath300ControllerTests
             callback = source.callback;
         }
 
-        public NativeBattleBadBreath300Frame Step(NativeBattleBadBreath300Frame frame, bool hostSkeleton = false) => NativeBattleBadBreath300Controller.Advance(frame, Resources, new(Packets, actor => actor < 3 ? Model with { Index = actor, Flags0 = 0 } : hostSkeleton ? Model with { MinimumY146 = null } : Model, _ => hostSkeleton ? throw new InvalidOperationException("The host skeleton has no native animation bank.") : Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, _) => new(current, new(0, 100, 100, 0)), current => new(current, new(17, 100, 0)), (current, actor, selector, _) =>
+        public NativeBattleBadBreath300Frame Step(NativeBattleBadBreath300Frame frame, bool hostSkeleton = false) => NativeBattleBadBreath300Controller.Advance(frame, Resources, new(Packets, actor => actor is BattlePartyModelOwner ? Model with { Flags0 = 0 } : hostSkeleton ? Model with { MinimumY146 = null } : Model, _ => hostSkeleton ? throw new InvalidOperationException("The host skeleton has no native animation bank.") : Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, _) => new(current, new(0, 100, 100, 0)), current => new(current, new(17, 100, 0)), (current, actor, selector, _) =>
         {
             if (hostSkeleton)
             {
-                HostBoneQueries.Add((actor, selector));
+                HostBoneQueries.Add((OriginalSlot(actor), selector));
             }
             return new(current, new(0, 100, 100));
         }, (current, operation) =>
@@ -202,6 +202,6 @@ public sealed class NativeBattleBadBreath300ControllerTests
                 HostTargetCenters.Add(BinaryPrimitives.ReadInt16LittleEndian(context.Read(2, 2)));
             }
             return current;
-        }, ++callback) { ReadBoneCount = hostSkeleton ? actor => actor == 3 ? 7 : throw new InvalidOperationException("The target particle selected another actor.") : null, ReadTargetCenterY = hostSkeleton ? _ => 123 : null });
+        }, ++callback, () => OriginalRoster.Owners.OfType<BattlePartyModelOwner>()) { ReadBoneCount = hostSkeleton ? actor => actor == OriginalOwner(3) ? 7 : throw new InvalidOperationException("The target particle selected another actor.") : null, ReadTargetCenterY = hostSkeleton ? _ => 123 : null });
     }
 }

@@ -134,16 +134,15 @@ public sealed class NativeBattleMagmaBreath48ControllerTests
         uint address = Pools[1].Bank;
         frame = Write(frame, address, Read(frame, address).WriteWord(0x24, age).WriteByte(0x2B, 1));
         List<NativeBattleMagmaBreath48Operation> operations = [];
-        var packets = Packets();
-        packets = packets with { ContactCount = 0, Headers = packets.Headers.SetItem(1, packets.Headers[1] with { UnknownByteMask = 1u << 16 }) };
+        var packets = Packets(unknownCount: true).RestartContactPublication();
         var actual = AdvanceTask(frame, address, Resources(), Inputs(operations) with { Packets = packets });
         Assert.Equal(contact ? 2 : 0, actual.Result);
         if (contact)
         {
             var selected = Assert.Single(operations.OfType<NativeBattleMagmaBreath48Contact506690>());
-            Assert.Equal(2, selected.ContactIndex);
-            Assert.Equal((byte)1, packets.ReadContact(selected.ContactIndex).Primary.ActorIndex);
-            Assert.Equal((byte)4, packets.ReadContact(selected.ContactIndex).Secondary.ActorIndex);
+            Assert.Equal(2, selected.Occurrence.Ordinal);
+            Assert.Equal(OriginalOwner(1), packets.ReadContact(selected.Occurrence).Primary.Recipient);
+            Assert.Equal(OriginalOwner(4), packets.ReadContact(selected.Occurrence).Secondary!.Recipient);
         }
         else
         {
@@ -334,13 +333,13 @@ public sealed class NativeBattleMagmaBreath48ControllerTests
         return new(memory, effect, new(123), NativeBattleMagmaBreath48State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleMagmaBreath48Inputs Inputs(List<NativeBattleMagmaBreath48Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2), (frame, actor, selector, distance) => new(frame, PointView(new((short)actor, (short)selector, (short)distance))), _ => 0, (frame, operation) =>
+    private static NativeBattleMagmaBreath48Inputs Inputs(List<NativeBattleMagmaBreath48Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2), (frame, actor, selector, distance) => new(frame, PointView(new((short)OriginalSlot(actor), (short)selector, (short)distance))), _ => 0, (frame, operation) =>
     {
         operations.Add(operation);
         return frame;
     });
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(bool unknownCount = false)
     {
         var packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 120, 48, null));
@@ -350,7 +349,10 @@ public sealed class NativeBattleMagmaBreath48ControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 120, 48, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
-        (packets, _) = packets.Publish(2);
+        if (!unknownCount)
+        {
+            (packets, _) = packets.Publish(2);
+        }
         return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 

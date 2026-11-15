@@ -20,9 +20,10 @@ public sealed class ExpandedEnemyDeathCallbackTests
         Assert.Equal("party-10", enemy.LastAttackerId);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         BattleAttackCommand command = Assert.Single(battle.QueuedActions);
-        Assert.Equal(recipient, Assert.Single(command.AiRecipients!.ActorIds));
-        Assert.Equal(selector == 200 ? enemy.Id : null, command.AiRecipients.DeathSelfTargetId);
-        Assert.Equal(0, command.NativeTargetMask);
+        BattleActorReference target = Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(command.TargetRequest.Selection).Actors);
+        Assert.Equal(recipient, target.ActorId);
+        Assert.Equal(selector == 200 ? enemy.Id : null, command.TargetRequest.DeathCallbackSelf?.ActorId);
+        Assert.Null(command.TargetRequest.OriginalProjection);
         Assert.True(battle.Capture().Combatants.Single(actor => actor.Id == enemy.Id).NativeParticipant!.DeathHandled);
         BattleSession queuedRestore = RoundTrip(battle);
 
@@ -218,7 +219,7 @@ public sealed class ExpandedEnemyDeathCallbackTests
 
     private static BattleSession RoundTrip(BattleSession battle)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        return BattleSession.Restore(battle.Capture());
     }
 
     private static void Until(BattleSession battle, Func<bool> condition)

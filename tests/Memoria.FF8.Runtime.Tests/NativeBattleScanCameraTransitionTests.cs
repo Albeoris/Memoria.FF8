@@ -17,10 +17,10 @@ public sealed class NativeBattleScanCameraTransitionTests
         List<int> sampled = [];
         NativeBattleScanCameraInputs inputs = Inputs() with { ReadBone502170 = (actor, selector, fraction) =>
         {
-            sampled.Add(actor);
+            sampled.Add(OriginalSlot(actor));
             Assert.Equal((byte)0xF1, selector);
             Assert.Equal(0, fraction);
-            return actor == 1 ? new(10, 20, 30) : new(100, 200, 300);
+            return actor == OriginalOwner(1) ? new(10, 20, 30) : new(100, 200, 300);
         } };
         NativeBattleScanCameraStep step = NativeBattleScanCameraTransition.Advance84E810(fixture.Frame, fixture.Address, inputs);
         NativeBattleScanByteOwner camera = Camera(step.Frame);
@@ -136,10 +136,9 @@ public sealed class NativeBattleScanCameraTransitionTests
 
     private static NativeBattleScanCameraInputs Inputs()
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = Enumerable.Range(0, 7).Select(_ => Zero(156)).ToImmutableArray();
-        models = models.SetItem(1, models[1].WriteWord(0x0E, 0).WriteWord(0x1C, 1000).WriteWord(0x1E, 2000).WriteWord(0x20, 3000).WriteWord(0x22, 0xCAFE));
+        BattleActorModels models = OriginalModels([(1, new(0) { Rotation14 = 0, Transform = new(default, new(1000, 2000, 3000), unchecked((short)0xCAFE), 0, 0) })]).Models;
         NativeBattleScanByteOwner profile = Zero(16).WriteWord(0, 1000).WriteWord(2, 80).WriteWord(4, 10).WriteWord(8, 1);
-        return new(models, profile, 87, 4096, 0, (actor, _, _) => actor == 1 ? new(10, 20, 30) : new(100, 200, 300));
+        return new(models, profile, 87, 4096, 0, (actor, _, _) => actor == OriginalOwner(1) ? new(10, 20, 30) : new(100, 200, 300));
     }
 
     private static NativeBattleScanByteOwner Eye() => Zero(8).WriteWord(0, 100).WriteWord(2, 500).WriteWord(4, 300);

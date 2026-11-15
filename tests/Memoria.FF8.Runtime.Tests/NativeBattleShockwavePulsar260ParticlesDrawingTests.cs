@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -107,7 +108,7 @@ public sealed class NativeBattleShockwavePulsar260ParticlesDrawingTests
             return target;
         }, pointer =>
         {
-            Assert.Equal(0x1D97000u, pointer);
+            Assert.Equal(OriginalOwner(0), pointer);
             return new(100, 10, 300);
         }, (current, batch) =>
         {

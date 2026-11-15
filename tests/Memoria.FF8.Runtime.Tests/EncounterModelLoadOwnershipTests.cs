@@ -57,11 +57,12 @@ public sealed class EncounterModelLoadOwnershipTests
         owner.SetValue(battle, batch with { LoadingIndex = batch.ActorIds.Length });
         for (int index = 4; index <= 5; index++)
         {
-            NativeBattleGraphicsModel model = graphics.Models[index] with { Flags0 = 7, Flags2 = 0, Kind5 = 0, EffectCounter97 = 2, Sequence = 1, SequenceState = new() { Default2 = 1 } };
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            BattleModelOwner modelOwner = battle.ReadPresentationModelOwner(batch.ActorIds[index - 4]);
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(modelOwner) with { Flags0 = 7, Flags2 = 0, Kind5 = 0, EffectCounter97 = 2, Sequence = 1, SequenceState = new() { Default2 = 1 } };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelOwner, model) };
         }
         NativeBattleGraphicsModel last = ReadOriginalModelCell(graphics, 5) with { Flags2 = (ushort)flags, Kind5 = (byte)kind, Sequence = (byte)sequence };
-        graphics = graphics with { Models = graphics.Models.SetItem(5, last) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(battle.ReadPresentationModelOwner(batch.ActorIds[1]), last) };
         typeof(BattleSession).GetMethod("AdvanceEncounterAllocationPreparation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [graphics]);
         Assert.Equal(ready ? BattleEncounterAllocationPhase.Ready : BattleEncounterAllocationPhase.Loading, battle.EncounterAllocation!.Phase);
         Assert.All(batch.ActorIds, id => Assert.False(battle.Combatants.Single(actor => actor.Id == id).IsActive));
@@ -77,7 +78,7 @@ public sealed class EncounterModelLoadOwnershipTests
         BattleEncounterAllocationState batch = battle.BeginEncounterAllocation("fixture.batch", "original", "support", "assault");
         typeof(BattleSession).GetField("encounterAllocation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, batch with { Phase = BattleEncounterAllocationPhase.Loading, LoadingIndex = 0 });
         BattleCombatant copy = battle.Combatants.Single(actor => actor.Id == batch.ActorIds[0]);
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(0)).ToImmutableArray(), new string?[] { "party", null, null, "original", copy.Id, batch.ActorIds[1], null }.ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, battle.ReadPresentationModelOwner("party"), new(0)), (3, battle.ReadPresentationModelOwner("original"), new(0)), (4, battle.ReadPresentationModelOwner(copy.Id), new(0)), (5, battle.ReadPresentationModelOwner(batch.ActorIds[1]), new(0))]);
         return (battle, copy, graphics);
     }
 

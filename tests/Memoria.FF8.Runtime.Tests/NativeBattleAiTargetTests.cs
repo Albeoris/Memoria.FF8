@@ -104,12 +104,12 @@ public sealed class NativeBattleAiTargetTests
         Assert.Null(battle.ActiveAction);
         battle.Tick();
         Assert.Equal("enemy", battle.ActiveAction!.ActorId);
-        Assert.Equal((ushort)1, battle.ActiveAction.NativeTargetMask);
+        Assert.Equal((ushort)1, NativeBattleTargetRequestAdapter.ProjectOriginalWord(battle.ActiveAction.TargetRequest, _ => null));
         Assert.Equal((byte)7, battle.ActiveAction.NativeSequence);
     }
 
     [Fact]
-    public void DirectAiTargetKeepsTheFourthEnemySlotAndContactAcrossJsonRestore()
+    public void DirectAiTargetKeepsTheFourthEnemySlotAndContactAcrossPrivateRestore()
     {
         BattleSession battle = Create([43, 6], fullRosters: true);
         BattleSnapshot snapshot = battle.Capture();
@@ -118,13 +118,13 @@ public sealed class NativeBattleAiTargetTests
         Assert.Equal(BattleRosterSlot.Ally(2), actors[4].Slot);
         Assert.Equal(BattleRosterSlot.Enemy(3), actors[6].Slot);
         Assert.Equal((ushort)0x40, ReadPublishedTargetMask(snapshot));
-        int header = snapshot.ActiveAction?.NativeHeaderIndex ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeader is not null).NativeHeaderIndex!.Value;
-        NativeBattleContactPacket contact = Assert.Single(snapshot.NativeActionPackets!.ReadHeaderContacts506BA0(header));
-        Assert.Equal((byte)6, contact.Primary.Recipient);
+        BattleActionHeaderReference header = snapshot.ActiveAction?.NativeHeader ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeader is not null).NativeHeader!.Value;
+        NativeBattleContactPacket contact = Assert.Single(snapshot.NativeActionPackets!.ReadHeaderContacts(header));
+        Assert.Equal(snapshot.NativeActionPackets!.ModelAliases.DecodeLiteral(6), contact.Primary.Recipient);
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(actors.Select(actor => actor.Slot), restored.Combatants.Select(actor => actor.Slot));
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(contact.Primary.Recipient, Assert.Single(restored.NativeActionPackets.ReadHeaderContacts(header)).Primary.Recipient);
         battle.Tick();
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -135,7 +135,8 @@ public sealed class NativeBattleAiTargetTests
     {
         Assert.Null(NativeBattleSlots.TryEncode(BattleRosterSlot.Ally(3)));
         Assert.Null(NativeBattleSlots.TryEncode(BattleRosterSlot.Enemy(4)));
-        Assert.Throws<NotSupportedException>(() => NativeBattlePhysicalTargets.Single(BattleRosterSlot.Ally(3)));
+        BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("extra")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+        Assert.Null(NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, _ => BattleRosterSlot.Ally(3)));
         Assert.Equal(BattleRosterSlot.Enemy(0), NativeBattleSlots.Decode(3));
     }
 
@@ -143,9 +144,14 @@ public sealed class NativeBattleAiTargetTests
     {
         Assert.Equal((byte)1, snapshot.NativeActionPackets!.ActionCount);
         BattleAttackCommand[] queued = snapshot.QueuedActions.Where(command => command.NativeHeader is not null).ToArray();
-        bool active = snapshot.ActiveAction?.NativeHeaderIndex is not null;
+        bool active = snapshot.ActiveAction?.NativeHeader is not null;
         Assert.Equal(1, queued.Length + (active ? 1 : 0));
-        return active ? snapshot.ActiveAction!.NativeTargetMask : Assert.Single(queued).NativeTargetMask;
+        BattleTargetRequest request = active ? snapshot.ActiveAction!.TargetRequest : Assert.Single(queued).TargetRequest;
+        return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, reference =>
+        {
+            int? original = snapshot.Combatants.Single(actor => actor.Id == reference.ActorId).NativeParticipant?.ActorIndex;
+            return original is >= 0 and <= 6 ? NativeBattleSlots.Decode(original.Value) : null;
+        }) ?? throw new InvalidDataException("The original AI command has no raw WORD projection.");
     }
 
     private static BattleSession Create(byte[] select, ushort partyStatus = 0, int partyHp = 100, bool fullRosters = false)

@@ -56,14 +56,16 @@ public sealed class NativeBattleTypedGraphicsValidationTests
             action with { Actor = RetiredSource },
             action with { TargetActors = wrongTargets },
             action with { CoverActors = wrongTargets },
-            action with { CoverSource = RetiredSource },
-            action with { FirstTarget = WrongSideTarget },
             action with { CameraActor = RetiredSource },
             action with { HiddenPartyActors = BattleModelTargets.From([Target]) }
         })
         {
             Assert.Throws<InvalidDataException>(() => (graphics with { ActionGraphics = invalid }).Validate());
         }
+        BattleRetainedModelReference missing = new BattleRetainedModelReference.CanonicalOwner(RetiredSource);
+        BattleRetainedModelReference wrongSide = new BattleRetainedModelReference.CanonicalOwner(WrongSideTarget);
+        Assert.Throws<InvalidDataException>(() => missing.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Throws<InvalidDataException>(() => wrongSide.Resolve(graphics.ActorModels, graphics.NativeBindings));
         foreach (NativeBattleActionGeometry invalid in new[]
         {
             geometry with { Source = RetiredSource },
@@ -136,7 +138,7 @@ public sealed class NativeBattleTypedGraphicsValidationTests
 
         return new(models, boundary, 0, 0, NativeBattleEffectsState.Clear(storageContract))
         {
-            ActionGraphics = new(new(0), Source, new(0), targets, party, Source, recipient, 0, null, 0) { HiddenPartyActors = party },
+            ActionGraphics = new(new(0), Source, new(0), targets, party, new BattleRetainedModelReference.CanonicalOwner(Source), new BattleRetainedModelReference.CanonicalOwner(recipient), 0, null, 0) { HiddenPartyActors = party },
             ActionContext = new(Source, party, false) { TargetActors = targets, Target = recipient },
             OriginalEffect = new(2, 1, new(2, 0x6298A0, 0x629880), new(Source, 0, targets, new(0), 0, 0), null)
             {

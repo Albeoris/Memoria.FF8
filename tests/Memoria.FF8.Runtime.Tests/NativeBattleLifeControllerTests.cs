@@ -85,7 +85,7 @@ public sealed class NativeBattleLifeControllerTests
         while (frame.Effect.ReturnedDescriptor != 0 && callbacks < 120)
         {
             NativeBattleLifeStep step = NativeBattleLifeController.Advance864AB0(frame, fixture.Resources, inputs with { Random = random });
-            contacts.AddRange(step.Contacts);
+            contacts.AddRange(step.Contacts.Select(contact => contact.Ordinal));
             sounds.AddRange(step.Sounds);
             frame = step.Frame;
             random = step.Random;

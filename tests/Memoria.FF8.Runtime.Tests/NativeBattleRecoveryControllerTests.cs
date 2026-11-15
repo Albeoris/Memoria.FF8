@@ -124,7 +124,7 @@ public sealed class NativeBattleRecoveryControllerTests
         NativeBattleRecoveryControllerStep waiting = NativeBattleRecoveryController.Advance(contact, fixture.Inputs, Resources(effect));
         Assert.Empty(waiting.Contacts);
         NativeBattleRecoveryControllerStep reached = NativeBattleRecoveryController.Advance(waiting.Frame, fixture.Inputs, Resources(effect));
-        Assert.Equal(new[] { 0 }, reached.Contacts);
+        Assert.Equal(new[] { 0 }, reached.Contacts.Select(value => value.Ordinal));
         Assert.Empty(NativeBattleRecoveryController.Advance(reached.Frame, fixture.Inputs, Resources(effect)).Contacts);
         NativeBattleRecoveryFrame release = MakeTarget(1, unchecked((ushort)(profile.TargetReleaseCounter + 1)));
         release = NativeBattleRecoveryController.Advance(release, fixture.Inputs, Resources(effect)).Frame;

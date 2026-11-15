@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -50,7 +51,7 @@ public sealed class NativeBattlePsychoBlast23ControllerTests
     {
         Fixture fixture = new();
         NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0].WriteByte(0x2D, 3);
-        NativeBattlePsychoBlast23Inputs inputs = fixture.Inputs with { ReadModel = actor => actor == 3 ? new(0) { Transform = new(new(0, 0, 0), new(120, -300, 400), unchecked((short)0xABCD), 0, 4096) } : throw new InvalidOperationException("Caster must not be read.") };
+        NativeBattlePsychoBlast23Inputs inputs = fixture.Inputs with { ReadModel = actor => actor == OriginalOwner(3) ? new(0) { Transform = new(new(0, 0, 0), new(120, -300, 400), unchecked((short)0xABCD), 0, 4096) } : throw new InvalidOperationException("Caster must not be read.") };
         NativeBattlePsychoBlast23State state = NativeBattlePsychoBlast23Controller.InitializeShared(fixture.Frame.State.WithWord(0, 300).WithWord(0x48, 1), task, inputs);
         Assert.Equal((short)0, state.Word(0));
         Assert.Equal((short)0, state.Word(2));

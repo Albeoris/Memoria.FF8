@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -32,12 +33,13 @@ public sealed class NativeBattleEnemyConsumerTests
         NativeBattleResourcePointer held = new NativeBattleResourcePointer(reference, null, 64).Pin(cpu);
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         Set(nameof(BattleSession.NativeModelCpuResources), cpu);
-        NativeBattleGraphicsState graphics = new([new(0, 16) { ActiveResourceRow100 = 0 }], ["enemy"], 0, 0);
+        BattleModelOwner enemy = new BattleEnemyActorModel(new("enemy"));
+        NativeBattleGraphicsState graphics = OriginalGraphics([(3, enemy, new(16) { ActiveResourceRow100 = 0 })]);
         NativeBattleOriginalEffectState effect = new((ushort)family, family - 1, new((ushort)family, 1, 1), null, 0);
         object frame = family == 290
             ? (object)new NativeBattleEffect290Frame(NativeBattleEffectMemory.FromColdProcess(), effect, new(42), NativeBattleEffect290State.FromColdProcess()) { Staging = staging }
             : new NativeBattleEffect308Frame(NativeBattleEffectMemory.FromColdProcess(), effect, new(42), NativeBattleEffect308State.FromColdProcess()) { Staging = staging };
-        frame = typeof(BattleSession).GetMethod($"WriteNativeEffect{family}BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, frame, 0, 0, (ushort)0x5678])!;
+        frame = typeof(BattleSession).GetMethod($"WriteNativeEffect{family}BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, frame, enemy, 0, (ushort)0x5678])!;
         staging = (NativeBattleFileStaging)frame.GetType().GetProperty("Staging")!.GetValue(frame)!;
         NativeBattleResourcePointer current = new(reference, null, 64);
         Assert.Equal((ushort)0x5678, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, staging, current, 64).Read(50, 2)));
@@ -99,9 +101,10 @@ public sealed class NativeBattleEnemyConsumerTests
         NativeBattleResourcePointer held = new NativeBattleResourcePointer(reference, null, bytes.Length).Pin(cpu);
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
-        NativeBattleGraphicsState graphics = new([new(0, 16) { ActiveResourceRow100 = 0 }], ["enemy"], 0, 0);
+        BattleModelOwner enemy = new BattleEnemyActorModel(new("enemy"));
+        NativeBattleGraphicsState graphics = OriginalGraphics([(3, enemy, new(16) { ActiveResourceRow100 = 0 })]);
         NativeBattleEffect64Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), new(64, 63, new(64, 1, 1), null, 0), new(42), NativeBattleEffect64State.FromColdProcess()) { Staging = staging };
-        frame = (NativeBattleEffect64Frame)typeof(BattleSession).GetMethod("ClearNativeEffect64Geometry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, frame, 0x1D972C0u])!;
+        frame = (NativeBattleEffect64Frame)typeof(BattleSession).GetMethod("ClearNativeEffect64Geometry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, frame, enemy])!;
         Assert.Equal(0, NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, frame.Staging!, new NativeBattleResourcePointer(reference, null, bytes.Length), bytes.Length).Read(59, 1)[0] & 0x80);
         if (owned)
         {

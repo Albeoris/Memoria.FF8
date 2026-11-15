@@ -69,9 +69,9 @@ public sealed class NativeBattleCinematicEntityPositionTests
         List<int> actors = [];
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicEntityPosition.FromTargetJointAverage6E(frame, Program(4), (current, actor, selector) =>
         {
-            actors.Add(actor);
+            actors.Add(OriginalSlot(actor));
             Assert.Equal((short)-123, selector);
-            return new(current, actor == -1 ? new(-9, int.MaxValue, 10, 0) : new(4, int.MaxValue, -3, 0));
+            return new(current, actor == OriginalOwner(0) ? new(-9, int.MaxValue, 10, 0) : new(4, int.MaxValue, -3, 0));
         }, (current, kind) =>
         {
             Assert.Equal((byte)3, kind);

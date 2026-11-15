@@ -80,7 +80,7 @@ public sealed class NativeBattleQuake38StateTests
         Assert.Throws<InvalidOperationException>(state.BeginCheckpoint);
         state.SetWord(0x278C916, 8);
         state.SetDword(0x2792B40, 0x12345678);
-        state.SetSavedActors(Enumerable.Range(0, 7).Select(_ => NativeBattleQuake38SavedActor.FromColdProcess() with { Velocity = 12 }).ToImmutableArray());
+        state.SetSavedActors(OriginalRoster.Owners.ToImmutableDictionary(owner => owner, _ => NativeBattleQuake38SavedActor.FromColdProcess() with { Velocity = 12 }));
         state.SetSavedActor(OriginalOwner(1), state.SavedActors[OriginalOwner(1)] with { Velocity = 13 });
         Assert.Throws<InvalidOperationException>(() => NativeBattleStorageSnapshots.Capture(state));
         state.RollbackCheckpoint();

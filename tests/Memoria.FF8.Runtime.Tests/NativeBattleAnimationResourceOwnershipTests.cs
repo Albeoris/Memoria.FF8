@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -57,15 +58,15 @@ public sealed class NativeBattleAnimationResourceOwnershipTests
         Assert.Equal(new byte[] { 2, 3 }, old.ReadAnimationHeader(8, 1, 2));
         Assert.Throws<NotSupportedException>(() => old.ReadAnimationHeader(8, 2, 2));
         Assert.Throws<NotSupportedException>(() => old.ReadAnimationHeader(24, 0, 1));
-        NativeBattleModelCpuResources current = old.BindAnimation(0, new(0x20, ImmutableArray.Create((byte)9), 8));
+        NativeBattleModelCpuResources current = old.BindAnimation((BattlePartyModelOwner)OriginalOwner(0), NativeBattleModelSlot.Decode(0), new(0x20, ImmutableArray.Create((byte)9), 8));
         Assert.Equal(new byte[] { 9 }, current.ReadAnimationHeader(8, 0, 1));
         Assert.Equal(new byte[] { 1, 2, 3 }, current.AnimationFrames.ReadGuest(0x20, 3));
         Assert.Equal(old.AnimationPointers, current.AnimationPointers);
         Assert.Equal(new byte[] { 1 }, old.ReadAnimationHeader(8, 0, 1));
-        NativeBattleModelCpuResources absent = old.BindAnimation(0, new(0x20, [], 8));
+        NativeBattleModelCpuResources absent = old.BindAnimation((BattlePartyModelOwner)OriginalOwner(0), NativeBattleModelSlot.Decode(0), new(0x20, [], 8));
         Assert.Throws<NotSupportedException>(() => absent.ReadAnimationHeader(8, 0, 0));
-        Assert.Throws<InvalidDataException>(() => old.BindAnimation(3, new(0, [], 8)));
-        Assert.Throws<InvalidDataException>(() => old.BindAnimation(0, new(0, [], 12)));
+        Assert.Throws<InvalidDataException>(() => old.BindAnimation((BattlePartyModelOwner)OriginalOwner(0), NativeBattleModelSlot.Decode(3), new(0, [], 8)));
+        Assert.Throws<InvalidDataException>(() => old.BindAnimation((BattlePartyModelOwner)OriginalOwner(0), NativeBattleModelSlot.Decode(0), new(0, [], 12)));
     }
 
     [Theory]
@@ -85,9 +86,9 @@ public sealed class NativeBattleAnimationResourceOwnershipTests
     private static NativeBattleModelCpuResources Complete(NativeBattleModelCpuResources cpu, NativeBattleModelDatSource source)
     {
         uint callback = source.Linked ? 0x507BF0u : 0x5077B0u;
-        NativeBattleModelResourceBind bind = new(new(0, 1, 0, 0, callback, 2), source, new([]));
+        NativeBattleModelResourceBind bind = new(new(0, OriginalOwner(1), NativeBattleModelSlot.Decode(1), 0, 0, callback, 2), source, new([]));
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(bind, cpu.Cpu, cpu.Rows, 0, source.Linked ? 1 : null);
-        return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation(1, completed.AnimationCopy!);
+        return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation((BattlePartyModelOwner)OriginalOwner(1), NativeBattleModelSlot.Decode(1), completed.AnimationCopy!);
     }
 
     private static NativeBattleModelDatSource Source(bool linked, byte value)

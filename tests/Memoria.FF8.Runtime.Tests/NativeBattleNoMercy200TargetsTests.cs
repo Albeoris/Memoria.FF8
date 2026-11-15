@@ -56,16 +56,17 @@ public sealed class NativeBattleNoMercy200TargetsTests
         Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(completed.Frame.Staging.Read(0xE33D7C, 4)));
     }
 
-    private static NativeBattleNoMercy200TargetInputs Inputs() => new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), _ => new(100, -3000, 200, 0), _ => 4096, _ => 0);
+    private static NativeBattleNoMercy200TargetInputs Inputs() => new(NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases), _ => new(100, -3000, 200, 0), _ => 4096, _ => 0);
 
     private static (NativeBattleNoMercy200Frame Frame, NativeBattleEffectTaskPool Pool) Fixture(ushort phase, byte locked)
     {
         NativeBattleEffectParameters parameters = new(OriginalOwner(2), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleNoMercy200Controller.Children, 0x24F99A0, 36, 250);
         (pool, _) = pool.Append(0x639FD0);
-        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase).WriteWord(14, 0).WriteWord(32, 3).WriteWord(34, 0)) });
+        NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(12, phase).WriteWord(14, 0).WriteWord(34, 0);
+        task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(OriginalOwner(3)), [3, 0]);
         NativeBattleOriginalEffectState effect = new(200, 199, new(200, 0x6391D0, 0x575530), parameters, NativeBattleNoMercy200Controller.Root) { Pools = [pool] };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { NoMercy200 = new(true) { Parameters = parameters } };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { NoMercy200 = new(true) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0xE33D7C, new byte[] { locked, 0, 0, 0 });
         return (new(memory, effect, staging, NativeCrtRandomState.FromColdProcess()), pool);
     }

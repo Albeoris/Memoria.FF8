@@ -35,7 +35,7 @@ public sealed class NativeBattleResonance49ProgrammeTests
         {
             ReadBone502170 = (current, selected, selector, distance) =>
             {
-                Assert.Equal(actor, selected);
+                Assert.Equal(OriginalOwner(actor), selected);
                 Assert.Equal(0xF0, selector);
                 Assert.Equal(4096, distance);
                 return new(current, PointView(new(10, 20, 30)));

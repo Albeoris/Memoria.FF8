@@ -170,16 +170,17 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
     private static object[] Inventory(BattleSession battle, BattleDefinition definition)
     {
         NativeBattleGraphicsState graphics = battle.NativeGraphics!;
-        return ReadOriginalModelCells(graphics).Where(model => ReadOriginalModelActorId(graphics, model.Index) is not null).Select(model =>
+        return ReadOriginalModelCells(graphics).Select((model, slot) => (model, slot)).Where(entry => ReadOriginalModelActorId(graphics, entry.slot) is not null).Select(entry =>
         {
-            string actorId = ReadOriginalModelActorId(graphics, model.Index)!;
+            var (model, slot) = entry;
+            string actorId = ReadOriginalModelActorId(graphics, slot)!;
             NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
             byte? sequence = model.Sequence;
             int? offset = sequence is byte current && current * 2 + 2 <= resource.SequenceSection.Length ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(current * 2, 2)) : null;
             int? directory11 = resource.SequenceSection.Length >= 24 ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(22, 2)) : null;
             int? directory4 = resource.SequenceSection.Length >= 10 ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(8, 2)) : null;
             int? directory5 = resource.SequenceSection.Length >= 12 ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(10, 2)) : null;
-            return (object)new { Actor = actorId, PhysicalIndex = model.Index, model.ModelId4, model.Flags0, model.Flags8, model.ResourceFlags44, Sequence = sequence, model.SequenceFrame, State = model.SequenceState is { } state ? new { state.Offset46, state.Default2, state.Pending3, state.Wait1, state.Pose, state.PoseFrame114, state.Callback42 } : null, SequenceCount = BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan()), Directory4 = directory4, Directory5 = directory5, Directory11 = directory11, CurrentSequenceOffset = offset, AnimationCount = resource.AnimationFrames.IsDefault ? -1 : resource.AnimationFrames.Length, Pose13Frames = !resource.AnimationFrames.IsDefault && resource.AnimationFrames.Length > 13 ? resource.AnimationFrames[13] : (byte?)null };
+            return (object)new { Actor = actorId, PhysicalIndex = slot, model.ModelId4, model.Flags0, model.Flags8, model.ResourceFlags44, Sequence = sequence, model.SequenceFrame, State = model.SequenceState is { } state ? new { state.Offset46, state.Default2, state.Pending3, state.Wait1, state.Pose, state.PoseFrame114, state.Callback42 } : null, SequenceCount = BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan()), Directory4 = directory4, Directory5 = directory5, Directory11 = directory11, CurrentSequenceOffset = offset, AnimationCount = resource.AnimationFrames.IsDefault ? -1 : resource.AnimationFrames.Length, Pose13Frames = !resource.AnimationFrames.IsDefault && resource.AnimationFrames.Length > 13 ? resource.AnimationFrames[13] : (byte?)null };
         }).ToArray();
     }
 }
