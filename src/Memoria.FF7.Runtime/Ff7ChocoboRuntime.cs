@@ -4,10 +4,12 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed class Ff7ChocoboRuntime
+public sealed partial class Ff7ChocoboRuntime
 {
     private readonly byte[] parameters;
     private readonly Ff7ChocoboSimulation simulation;
+    private readonly Ff7ChocoboNativeData native;
+    private readonly int[] riderAnimations = new int[6];
     private int fadeStep = -16;
     private bool automaticFadeRequested;
     private ushort input;
@@ -27,11 +29,31 @@ public sealed class Ff7ChocoboRuntime
         Request = request;
         this.parameters = parameters.ToArray();
         Course = course;
+        this.native = native;
         carry?.Validate();
         simulation = new(course, native, parameters, seed, saved?.Simulation, carry?.Simulation.Racers);
         RecoverySide = carry?.RecoverySide ?? false;
         RecoveryCount = carry?.RecoveryCount ?? 0;
-        simulation.Audio += (opcode, first, second) => Audio?.Invoke(opcode, first, second);
+        Camera = new(simulation, native, saved?.Camera, carry?.Camera);
+        simulation.CameraEvent += (_, _) => Camera.NativeEvent();
+        simulation.CollisionVolume = Camera.CollisionVolume;
+        simulation.RacerAdvanced += Camera.UpdateVisibility;
+        InitializeScenery(saved?.Scenery);
+        simulation.Audio += (opcode, first, second) => Audio?.Invoke(new(opcode, first, second));
+        Camera.SoundEvent += index =>
+        {
+            IReadOnlyList<Ff7ChocoboSoundEvent> sounds = parameters[7] == 0 ? native.LongSounds : native.ShortSounds;
+            if ((uint)index >= sounds.Count)
+            {
+                throw new InvalidDataException("The FFVII Chocobo track references an absent native sound event.");
+            }
+            Ff7ChocoboSoundEvent sound = sounds[index];
+            if (sound.Parameters[5] != 0)
+            {
+                throw new NotSupportedException("FFVII Chocobo sound events require their original zero sixth operand.");
+            }
+            Audio?.Invoke(new(sound.Operation, sound.Parameters[0], sound.Parameters[1], sound.Parameters[2], sound.Parameters[3], sound.Parameters[4]));
+        };
         if (saved is not null)
         {
             saved.Validate();
@@ -43,6 +65,7 @@ public sealed class Ff7ChocoboRuntime
             Countdown = saved.Countdown;
             Started = saved.Started;
             FadeAlpha = saved.FadeAlpha;
+            DisplayedFadeAlpha = saved.DisplayedFadeAlpha ?? saved.FadeAlpha;
             fadeStep = saved.FadeStep;
             RecoverySide = saved.RecoverySide;
             RecoveryCount = saved.RecoveryCount;
@@ -52,6 +75,16 @@ public sealed class Ff7ChocoboRuntime
             Phase = saved.Phase;
             automaticFadeRequested = saved.AutomaticFadeRequested;
             FrameCounter = saved.FrameCounter;
+            saved.RiderAnimations?.CopyTo(riderAnimations, 0);
+            if (saved.RiderAnimations is null)
+            {
+                for (int index = 0; index < simulation.Racers.Length; index++)
+                {
+                    Ff7ChocoboRacerState racer = simulation.Racers[index];
+                    int count = Presentation.Models[racer.Model].Animations.Count;
+                    riderAnimations[index] = racer.Animation < count ? racer.Animation : racer.PreviousAnimation < count ? racer.PreviousAnimation : 0;
+                }
+            }
         }
     }
 
@@ -59,6 +92,7 @@ public sealed class Ff7ChocoboRuntime
     public int Countdown { get; private set; }
     public bool Started { get; private set; }
     public int FadeAlpha { get; private set; } = 255;
+    public int DisplayedFadeAlpha { get; private set; } = 255;
     public Ff7ChocoboPhase Phase { get; private set; }
     public bool RecoverySide { get; private set; }
     public int RecoveryCount { get; private set; }
@@ -68,11 +102,14 @@ public sealed class Ff7ChocoboRuntime
     public bool SecondFinished => simulation.SecondFinished;
     public bool Finished => Phase == Ff7ChocoboPhase.Completed;
     public PcChocoboCourse Course { get; }
+    public Ff7ChocoboCamera Camera { get; }
+    public int PlayerColor => parameters[17];
+    public IReadOnlyList<int> RiderAnimations => Array.AsReadOnly(riderAnimations);
     public IReadOnlyList<Ff7ChocoboRacerState> Racers => Array.AsReadOnly(simulation.Racers.Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray());
     public Ff7ChocoboRacerState Player => simulation.Racers[0] with { Name = simulation.Racers[0].Name.ToArray() };
     internal FieldHostRequest Request { get; }
     internal uint RandomSeed => simulation.RandomSeed;
-    internal event Action<int, int, int>? Audio;
+    internal event Action<FieldAudioCommand>? Audio;
 
     internal void SetInput(ushort value)
     {
@@ -81,7 +118,7 @@ public sealed class Ff7ChocoboRuntime
 
     public Ff7ChocoboSnapshot Capture()
     {
-        return new(Request, parameters.ToArray(), simulation.Capture(), Tick, Countdown, Started, FadeAlpha, fadeStep, RecoverySide, RecoveryCount, held, previousInput, input, Phase, automaticFadeRequested, FrameCounter);
+        return new(Request, parameters.ToArray(), simulation.Capture(), Tick, Countdown, Started, FadeAlpha, fadeStep, RecoverySide, RecoveryCount, held, previousInput, input, Phase, automaticFadeRequested, FrameCounter) { Camera = Camera.Capture(), RiderAnimations = riderAnimations.ToArray(), Scenery = CaptureScenery(), DisplayedFadeAlpha = DisplayedFadeAlpha };
     }
 
     internal void Advance()
@@ -98,13 +135,13 @@ public sealed class Ff7ChocoboRuntime
                 racer.Stamina = unchecked(racer.Stamina * 2);
                 racer.MaxStamina = unchecked(racer.MaxStamina * 2);
             }
-            Audio?.Invoke(0x10, 8, 0);
+            Audio?.Invoke(new(0x10, 8));
             Phase = Ff7ChocoboPhase.Racing;
         }
         if (Phase == Ff7ChocoboPhase.Results)
         {
             CompletePlacements();
-            Audio?.Invoke(0xE4, 64, 0);
+            Audio?.Invoke(new(0xE4, 64));
             Phase = Ff7ChocoboPhase.Completed;
             return;
         }
@@ -113,11 +150,23 @@ public sealed class Ff7ChocoboRuntime
             fadeStep = 16;
             if (!automaticFadeRequested)
             {
-                Audio?.Invoke(0xC1, 60, 0);
+                Audio?.Invoke(new(0xC1, 60));
                 automaticFadeRequested = true;
             }
         }
+        Camera.BeforeMotion(FrameCounter);
         simulation.AdvanceRacers(Started, held, Countdown);
+        Camera.AfterMotion(Started);
+        AdvanceScenery();
+        IReadOnlyList<Ff7ChocoboPresentationModel> models = parameters[7] == 0 ? native.LongPresentation.Models : native.ShortPresentation.Models;
+        for (int index = 0; index < simulation.Racers.Length; index++)
+        {
+            Ff7ChocoboRacerState racer = simulation.Racers[index];
+            if (Camera.IsVisible(index) && racer.Animation < models[racer.Model].Animations.Count)
+            {
+                riderAnimations[index] = racer.Animation;
+            }
+        }
         Countdown++;
         if (Countdown == 60)
         {
@@ -131,7 +180,7 @@ public sealed class Ff7ChocoboRuntime
         if ((held & 0x800) != 0 && simulation.SecondFinished)
         {
             fadeStep = 16;
-            Audio?.Invoke(0xC1, 60, 0);
+            Audio?.Invoke(new(0xC1, 60));
         }
         held = input;
         if (previousInput != held && (held & 0x100) != 0)
@@ -157,6 +206,7 @@ public sealed class Ff7ChocoboRuntime
         }
         simulation.Racers[0].SoundCounter--;
         FrameCounter++;
+        DisplayedFadeAlpha = FadeAlpha;
         FadeAlpha += fadeStep;
         if (FadeAlpha < 0)
         {

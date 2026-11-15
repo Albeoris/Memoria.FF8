@@ -209,7 +209,7 @@ internal static class NativeChocoboSimulationTests
         };
     }
 
-    private static byte[] Encode(Ff7ChocoboRacerState racer)
+    internal static byte[] Encode(Ff7ChocoboRacerState racer)
     {
         byte[] result = new byte[0xA4];
         void Word(int offset, short value) => BinaryPrimitives.WriteInt16LittleEndian(result.AsSpan(offset), value);

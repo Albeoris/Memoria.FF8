@@ -13,6 +13,8 @@ internal sealed partial class Ff7ChocoboSimulation
     internal event Action<int, int>? CameraEvent;
     internal event Action<int>? AnimationEvent;
     internal event Action<int, int, int>? Audio;
+    internal Func<int, int>? CollisionVolume;
+    internal event Action<int>? RacerAdvanced;
 
     internal void AdvanceRacers(bool started, ushort held, int countdown)
     {
@@ -66,6 +68,7 @@ internal sealed partial class Ff7ChocoboSimulation
                 }
             }
             Collide(index);
+            RacerAdvanced?.Invoke(index);
         }
     }
 
@@ -101,6 +104,7 @@ internal sealed partial class Ff7ChocoboSimulation
                     racer.SoundCounter = 30;
                     // Volume is selected by the presentation camera; sample choice owns a shared CRT draw.
                     int sample = (NextRandom() & 1) + 0x114;
+                    Audio?.Invoke(0xA3, CollisionVolume?.Invoke(index) ?? 127, 0);
                     Audio?.Invoke(0x2B, racer.Lane / 2, sample);
                 }
                 if (otherInverse != 0)
@@ -242,7 +246,7 @@ internal sealed partial class Ff7ChocoboSimulation
         racer.Position = (racer.Position.X, racer.PreviousY, racer.Position.Z);
     }
 
-    private static (int X, int Y, int Z) Cross(int ax, int ay, int az, int bx, int by, int bz)
+    internal static (int X, int Y, int Z) Cross(int ax, int ay, int az, int bx, int by, int bz)
     {
         float x = (float)((double)(ay / 4096f) * (bz / 4096f) - (double)(az / 4096f) * (by / 4096f));
         float y = (float)((double)(az / 4096f) * (bx / 4096f) - (double)(ax / 4096f) * (bz / 4096f));

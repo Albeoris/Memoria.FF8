@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--chocobo-camera-only", StringComparer.Ordinal))
+{
+    NativeChocoboCameraTests.Run();
+    return 0;
+}
+
 if (args.Contains("--minigame-return-only", StringComparer.Ordinal))
 {
     NativeMinigameTests.RunReturnOnly();

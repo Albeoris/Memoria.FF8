@@ -6,6 +6,17 @@ public static class Ff7ChocoboResources
 {
     public static PcChocoboCourse LoadCourse(Ff7Installation installation, bool shortCourse)
     {
+        using LgpArchive archive = Open(installation);
+        IReadOnlyList<LgpEntry> entries = archive.Find("chocobo.wat");
+        if (entries.Count != 1)
+        {
+            throw new InvalidDataException("The FFVII Chocobo course requires one unambiguous chocobo.wat member.");
+        }
+        return PcChocoboCourse.Read(archive.ReadEntry(entries[0]), shortCourse);
+    }
+
+    public static LgpArchive Open(Ff7Installation installation)
+    {
         ArgumentNullException.ThrowIfNull(installation);
         string name = installation.Language switch
         {
@@ -15,12 +26,6 @@ public static class Ff7ChocoboResources
             "es" => "schocobo.lgp",
             _ => throw new NotSupportedException($"FFVII Chocobo archive for language '{installation.Language}' is unsupported.")
         };
-        using LgpArchive archive = LgpArchive.Open(Path.Combine(installation.DataDirectory, "minigame", name));
-        IReadOnlyList<LgpEntry> entries = archive.Find("chocobo.wat");
-        if (entries.Count != 1)
-        {
-            throw new InvalidDataException("The FFVII Chocobo course requires one unambiguous chocobo.wat member.");
-        }
-        return PcChocoboCourse.Read(archive.ReadEntry(entries[0]), shortCourse);
+        return LgpArchive.Open(Path.Combine(installation.DataDirectory, "minigame", name));
     }
 }

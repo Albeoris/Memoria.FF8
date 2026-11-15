@@ -160,6 +160,7 @@ internal sealed partial class Ff7ChocoboSimulation
     }
 
     internal Ff7ChocoboRacerState[] Racers { get; }
+    internal PcChocoboCourse Course => course;
     internal uint RandomSeed => random;
 
     internal Ff7ChocoboSimulationState Capture()
@@ -173,13 +174,13 @@ internal sealed partial class Ff7ChocoboSimulation
         return (int)(random >> 16) & 0x7FFF;
     }
 
-    private Ff7ChocoboPoint Sample(int index, int lane)
+    internal Ff7ChocoboPoint Sample(int index, int lane)
     {
         PcChocoboTrackElement section = course.Track[index];
         return (S((section.Left.X * lane + section.Right.X * (256 - lane)) / 256), S((section.Left.Y * lane + section.Right.Y * (256 - lane)) / 256), S((section.Left.Z * lane + section.Right.Z * (256 - lane)) / 256));
     }
 
-    private short Direction(int x, int y, int z)
+    internal short Direction(int x, int y, int z)
     {
         float squared = (float)((double)x * x + (double)y * y + (double)z * z);
         float length = (float)Math.Sqrt(squared);

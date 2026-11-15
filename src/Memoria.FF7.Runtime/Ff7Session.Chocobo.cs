@@ -27,7 +27,7 @@ public sealed partial class Ff7Session
 
     private void BindChocoboAudio(Ff7ChocoboRuntime race)
     {
-        race.Audio += (opcode, first, second) => Host.SubmitNativeAudio(new(opcode, first, second));
+        race.Audio += command => Host.SubmitNativeAudio(command);
     }
 
     private void AdvanceChocobo(FieldHostRequest request, bool advanceClock)
@@ -69,7 +69,7 @@ public sealed partial class Ff7Session
         variables.WriteByte(FieldBank.Persistent2Byte, 0x19, checked((byte)(race.Player.Placement - 1)));
         Ff7Progress progress = Progress with { BattleRng = (Progress.BattleRng ?? new(new byte[8])) with { CrtSeed = race.RandomSeed } };
         CompleteMinigameFieldReturn(((FieldMinigameCommand)request.Command).Return, variables, progress);
-        chocoboCarry = new(completed.Simulation, completed.Parameters[7] != 0, completed.RecoverySide, completed.RecoveryCount);
+        chocoboCarry = new(completed.Simulation, completed.Parameters[7] != 0, completed.RecoverySide, completed.RecoveryCount) { Camera = completed.Camera };
         ChocoboRace = null;
     }
 }
