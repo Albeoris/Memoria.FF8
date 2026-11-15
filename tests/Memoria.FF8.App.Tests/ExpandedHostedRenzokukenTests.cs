@@ -588,9 +588,12 @@ public sealed class ExpandedHostedRenzokukenTests
         GameWorld world = new(session, directory, sharedAssets: game);
         try
         {
+            BattleEncounter encounter = world.BattleResources.LoadEncounter(formation);
+            (_, BattleEncounterRosterAdmission admission) = GameWorld.InspectEncounterRoster(encounter, model => world.BattleResources.ReadEnemyAi(model, 0), world.BattleResources.NativeActions);
+            byte[] selectedRows = admission.UsesPrimaryPartyOnly ? [1, 2, 0, 3] : [1, 2, 3, 0];
             ExpandedBattleInstalledEntry.Prepare(world, session, current =>
             {
-                NativeCharacterVitals vitals = (current.State.CharacterVitals! with { CombatParty = [1, 2, 3] }).WithGuestBattleRecords().Rest();
+                NativeCharacterVitals vitals = (current.State.CharacterVitals! with { CombatParty = selectedRows[..3] }).WithGuestBattleRecords().Rest();
                 NativeCharacterVital[] records = vitals.Records.ToArray();
                 foreach (int ally in new[] { 1, 2, 3 })
                 {
@@ -607,7 +610,7 @@ public sealed class ExpandedHostedRenzokukenTests
                             return (assets.ReadPlayerNativeStatRules(vitals with { Records = records }, 0).WeaponRecord[2] & (1 << selected)) != 0;
                         });
                 }
-                current.SetCharacterVitals((vitals with { Records = records }).WithBattleParty([1, 2, 3, 0], 4));
+                current.SetCharacterVitals((vitals with { Records = records }).WithBattleParty(selectedRows, 4));
                 NativeLimitProgress limits = current.State.LimitProgress!;
                 ushort options = Assert.IsType<ushort>(limits.Options978);
                 current.SetLimitProgress(limits with { Options978 = (ushort)((options & ~0x8001) | (automatic ? 1 : 0)) });
@@ -624,7 +627,7 @@ public sealed class ExpandedHostedRenzokukenTests
             Assert.Null(battle.ActiveAction);
             Assert.Empty(battle.QueuedActions);
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == Squall);
-            Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(caster.Id), out _));
+            Assert.Equal(admission.UsesPrimaryPartyOnly, process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(caster.Id), out _));
             BattleCombatant target;
             if (targetModel is int model)
             {
