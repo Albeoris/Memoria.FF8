@@ -11,13 +11,24 @@ public sealed class ExpandedNativePresentationTests
     [InlineData(11)]
     public void Installed_presentation_uses_the_owning_device_and_full_typed_roster(ushort effect)
     {
+        VerifyScenario(effect, effect == 7 ? MegaPhoenixScenario : world => CreateScenario(world, effect));
+    }
+
+    [Fact]
+    public void Installed_cinematic_branch_reads_the_live_typed_participant_status()
+    {
+        VerifyScenario(233, ArmadodoScenario);
+    }
+
+    private static void VerifyScenario(ushort effect, Func<GameWorld, DiagnosticBattleRequest> createScenario)
+    {
         string directory = TestResources.GameDirectory;
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
         GameWorld world = new(session, directory);
         try
         {
-            DiagnosticBattleRequest request = effect == 7 ? MegaPhoenixScenario(world) : CreateScenario(world, effect);
+            DiagnosticBattleRequest request = createScenario(world);
             DiagnosticBattleDriverRecipe driver = request.Driver!;
             BattleSession battle = world.StartDiagnosticBattle(request);
             for (int tick = 0; tick < 1200 && !RecreateGame.DiagnosticCommandReady(battle, driver); tick++)
@@ -131,6 +142,23 @@ public sealed class ExpandedNativePresentationTests
             Target = new("enemy-1", 128, 6, 1, 3, 0xC3u, 1, null, null),
             Roster = new(donors, 1),
             Driver = new(command, 7) { ExpectedNativeCommand = 4, ExpectedNativeAction = 8 }
+        };
+    }
+
+    private static DiagnosticBattleRequest ArmadodoScenario(GameWorld world)
+    {
+        (int Formation, int Slot)[] donorSlots = [(324, 1), (437, 1), (680, 1), (402, 0), (20, 0)];
+        ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(slot => new BattleEnemyRosterSource(slot.Formation, slot.Slot, world.BattleResources.FormationSourceHash(slot.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation character = new(0, 0, [], [0]) { HitPoints = 486, Level = 7, MagicCommand = new(0, 20) };
+        BattleInput command = new(BattleInputKind.Action, ActorId: "enemy-0", TargetId: "party-0", Ability: BattleAbility.EnemyAbility, ActionId: 49);
+        return new(185, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([new(0, true)], [character], true),
+            Target = new("enemy-0", 48, 27, 0, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 0),
+            Driver = new(command, 233) { ExpectedNativeCommand = 8, ExpectedNativeAction = 49, EnemyAbility = new(27, 0, 0, 4, 8, 49, 12, 204) }
         };
     }
 }

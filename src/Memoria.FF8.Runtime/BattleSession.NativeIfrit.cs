@@ -368,7 +368,7 @@ public sealed partial class BattleSession
                     graphics = anchored.Graphics;
                     return anchored.Frame;
                 case 0x46:
-                    return NativeBattleCinematicContactBranch46.Execute(current, program, context, (_, actor) => NativeBattleStatusBits(GraphicsActor(graphics, actor)));
+                    return NativeBattleCinematicContactBranch46.Execute(current, program, context, (_, actor) => ReadCinematicParticipantBattleStatus(graphics, actor));
                 case 0x49:
                     return NativeBattleCinematicActorStore48.BranchScale49(current, program, actor => graphics.ActorModels.Get(actor));
                 case 0x5F:
@@ -1238,5 +1238,17 @@ public sealed partial class BattleSession
             NativeCamera = NativeCamera! with { Projection = NativeCamera!.Projection! with { FocalLength = unchecked((ushort)focal) } };
             return current;
         }
+    }
+
+    private uint ReadCinematicParticipantBattleStatus(NativeBattleGraphicsState graphics, BattleModelOwner owner)
+    {
+        if (!hostedBattlePresentation)
+        {
+            return NativeBattleStatusBits(GraphicsActor(graphics, owner));
+        }
+
+        NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted cinematic status reads require the current frame's actor facts.");
+        return RequireHostedContactActorFacts(graphics, services, owner).RawBattleStatuses
+            ?? throw new InvalidDataException("Hosted cinematic status reads require the participant's current battle status.");
     }
 }
