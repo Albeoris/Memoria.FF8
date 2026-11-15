@@ -35,7 +35,7 @@ public sealed partial class Ff7BattleSession
 
     public short ActorProjectedScreenX(int slot) => ActorModelState(slot).Render?.ProjectedScreenX ?? -1;
 
-    public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready && model.Fade is null);
+    public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready && model.Fade is null) && state.ActorSizePresentation?.ActiveSlot is null;
     public Ff7BattleActorModelModifiers ActorModelOutput(int slot) => ActorModelState(slot).Render?.Modifiers ?? LiveActorModelOutput(slot);
     public (int Clip, int Frame) RenderActorPose(int slot) => ActorModelState(slot).Render is { } render ? (render.Clip, render.Frame) : VisualPose(slot);
     public Ff7BattlePlacement RenderActorPlacement(int slot) => ActorModelState(slot).Render is { } render ? new(render.Position.ToVector(), render.Yaw) : PosedActorPlacement(slot);
@@ -48,7 +48,7 @@ public sealed partial class Ff7BattleSession
             || state.PrimaryEffects?.Slots.Any(callback => callback is Ff7BattlePrimaryDeathController death && death.State.Target == slot) == true;
     }
 
-    private Ff7BattleActorModelModifiers LiveActorModelOutput(int slot) => ActorModelState(slot).Modifiers!;
+    private Ff7BattleActorModelModifiers LiveActorModelOutput(int slot) => ActorModelState(slot).Modifiers! with { NativeScale = GetActorScale(slot) };
 
     private void InitializeActorModels(bool fresh = false)
     {
@@ -446,7 +446,7 @@ public sealed partial class Ff7BattleSession
         foreach (Ff7BattleActorModelState current in state.ActorModels.ToArray())
         {
             Ff7BattleActorModelState model = current;
-            Ff7BattleActorModelModifiers modifiers = model.Modifiers!;
+            Ff7BattleActorModelModifiers modifiers = LiveActorModelOutput(model.Slot);
             if (deferred && !deferredActorSubmissions.Contains(model.Slot))
             {
                 continue;

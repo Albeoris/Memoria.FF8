@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Memoria.FF7.Formats;
 
-public readonly record struct BattleActorPoseTransform(float AngleX = 0, float AngleY = 0, float AngleZ = 0, float X = 0, float Y = 0, float Z = 0);
+public readonly record struct BattleActorPoseTransform(float AngleX = 0, float AngleY = 0, float AngleZ = 0, float X = 0, float Y = 0, float Z = 0, float? Scale = null);
 
 public static class BattleRigidPose
 {
@@ -15,7 +15,7 @@ public static class BattleRigidPose
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)bone, (uint)model.Bones.Count);
         Span<Matrix4x4> transforms = stackalloc Matrix4x4[model.Bones.Count];
-        Matrix4x4 world = Matrix4x4.CreateRotationY(facingRadians) * Matrix4x4.CreateTranslation(actorPosition);
+        Matrix4x4 world = Matrix4x4.CreateScale(extra?.Scale ?? 1) * Matrix4x4.CreateRotationY(facingRadians) * Matrix4x4.CreateTranslation(actorPosition);
         if (bone == 0)
         {
             return Vector3.Transform(localPoint, FrameTransform(frame, extra) * world);
@@ -43,7 +43,7 @@ public static class BattleRigidPose
 
     public static Vector3 WeaponPosition(BattleClipFrame frame, Vector3 actorPosition, float facingRadians, Vector3 point, BattleActorPoseTransform? extra = null)
     {
-        Matrix4x4 world = Matrix4x4.CreateRotationY(facingRadians) * Matrix4x4.CreateTranslation(actorPosition);
+        Matrix4x4 world = Matrix4x4.CreateScale(extra?.Scale ?? 1) * Matrix4x4.CreateRotationY(facingRadians) * Matrix4x4.CreateTranslation(actorPosition);
         return Vector3.Transform(point, FrameTransform(frame, extra) * world);
     }
 

@@ -6,7 +6,7 @@ public sealed partial class Ff7BattleSession
 {
     public Ff7BattlePrimaryState? PrimaryEffects => state.PrimaryEffects;
 
-    private bool HasPrimaryPresentationCallbacks => state.PrimaryEffects?.HasCallbacks == true;
+    private bool HasPrimaryPresentationCallbacks => state.PrimaryEffects?.HasCallbacks == true || state.ActorSizePresentation is { } size && (size.ActiveSlot is not null || state.Action is null && size.Pending.Length != 0);
 
     private Ff7BattleActionState StartPrimaryElectromag(Ff7BattleActionState action)
     {
@@ -103,6 +103,7 @@ public sealed partial class Ff7BattleSession
 
     private void AdvancePrimaryPresentation()
     {
+        AdvanceActorSizePresentation();
         if (animations is null)
         {
             if (state.Action is { Applied: true, Command.GuestAttack: false } numerical)

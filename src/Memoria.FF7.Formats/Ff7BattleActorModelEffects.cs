@@ -8,8 +8,12 @@ public sealed record Ff7BattleActorModelModifiers(bool ScaleOverride = false, by
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<int, uint>? TexturePalette { get; init; }
 
+    public short NativeScale { get; init; } = 4096;
+
     [JsonIgnore]
-    public BattleActorPoseTransform? PoseTransform => ExtraEnabled ? new(ExtraAngleX, ExtraAngleY, ExtraAngleZ, ExtraX, ExtraY, ExtraZ) : null;
+    public BattleActorPoseTransform? PoseTransform => ExtraEnabled
+        ? new(ExtraAngleX, ExtraAngleY, ExtraAngleZ, ExtraX, ExtraY, ExtraZ, NativeScale / 4096f)
+        : NativeScale != 4096 ? new(Scale: NativeScale / 4096f) : null;
 
     [JsonIgnore]
     public byte Alpha => Transparency >> 4 >= 256 ? (byte)0 : (byte)(255 - (Transparency >> 4));

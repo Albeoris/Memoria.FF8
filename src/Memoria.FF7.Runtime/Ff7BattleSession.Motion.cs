@@ -157,9 +157,9 @@ public sealed partial class Ff7BattleSession
         (int clip, int frame) = VisualPose(slot);
         if (VisualLimit(slot) is not null)
         {
-            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, PosedActorPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
+            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, PosedActorPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero, LiveActorModelOutput(slot).PoseTransform);
         }
-        return animations!.BonePosition(ActorModel(slot), clip, frame, PosedActorPlacement(slot), bone, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
+        return animations!.BonePosition(ActorModel(slot), clip, frame, PosedActorPlacement(slot), bone, LiveActorModelOutput(slot).PoseTransform);
     }
 
     private Ff7BattlePlacement HomePlacement(int slot)
@@ -198,7 +198,7 @@ public sealed partial class Ff7BattleSession
             center += Ff7BattlePosition.FromVector(placement.Position);
             double direction = Math.Atan2(placement.Position.X - origin.X, placement.Position.Z - origin.Z);
             angle += (int)Math.Round(direction * 4096 / Math.Tau);
-            radii += animations!.CollisionRadius(Ff7BattleAnimationResources.ModelPrefix(target.Identity, target.Actor.Slot >= 4));
+            radii += CollisionRadius(target.Actor.Slot);
         }
         center /= targets.Length;
         int distance = standoff + radii / targets.Length;
@@ -223,7 +223,7 @@ public sealed partial class Ff7BattleSession
         int target = state.ModelPrimaryTarget;
         Ff7BattlePlacement placement = VisualPlacement(target);
         Ff7BattlePosition position = Ff7BattlePosition.FromVector(placement.Position);
-        int distance = BinaryPrimitives.ReadInt16LittleEndian(operands) + animations!.CollisionRadius(ActorModel(target));
+        int distance = BinaryPrimitives.ReadInt16LittleEndian(operands) + CollisionRadius(target);
         int angle = (0x800 - placement.Yaw) & 0xFFF;
         double radians = angle * Math.Tau / 4096;
         int sine = (int)(Math.Sin(radians) * 4096);

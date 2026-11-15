@@ -18,7 +18,7 @@ internal sealed record CrossoverGunbladeHostPlacement(Ff7BattlePosition Anchor, 
     public Matrix4x4 Matrix => Matrix4x4.CreateTranslation(0, 1, -2200) * Matrix4x4.CreateScale(OriginToHostScale)
         * Matrix4x4.CreateRotationY(Yaw * MathF.Tau / 4096) * Matrix4x4.CreateTranslation(Anchor.ToVector() + new Vector3(0, 2.0688171f, 0));
 
-    public (NativeBattleVector Target, short Yaw, short TargetScale, int Distance) ResolveContact(Ff7BattlePlacement target, ushort collisionRadius)
+    public (NativeBattleVector Target, short Yaw, short TargetScale, int Distance) ResolveContact(Ff7BattlePlacement target, int collisionRadius)
     {
         NativeBattleVector source = new(0, 0, 2200);
         NativeBattleVector nativeTarget = ResolvePosition(target.Position) with { Y = 0 };

@@ -11,7 +11,7 @@ public sealed record Ff7BattleGuestInvocation(long RequestId, int FormationId, l
     public byte? GuestCommand { get; init; }
     public bool Reflected { get; init; }
 }
-public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, ushort CollisionRadius)
+public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, int CollisionRadius)
 {
     public int JointCount { get; init; }
     public ushort OriginSavedStatuses { get; init; }
@@ -526,7 +526,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleAnimationResources resources = animations ?? throw new InvalidOperationException("Guest targeting requires the original host model geometry.");
         string model = ActorModel(slot);
-        return new(slot, slot >= 4 ? Enemy(slot) : null, Actor(slot).Actor, VisualPlacement(slot), resources.CollisionRadius(model)) { JointCount = resources.BoneCount(model), OriginSavedStatuses = GetOriginSavedStatuses(slot) };
+        return new(slot, slot >= 4 ? Enemy(slot) : null, Actor(slot).Actor, VisualPlacement(slot), unchecked(resources.CollisionRadius(model) * GetActorScale(slot)) >> 12) { JointCount = resources.BoneCount(model), OriginSavedStatuses = GetOriginSavedStatuses(slot) };
     }
 
     public Ff7BattleGuestAttackTarget GuestAbilityTarget(int slot) => DescribeGuestTarget(slot);

@@ -8,6 +8,8 @@ public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, 
 {
     public byte? ElementReaction { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? Size { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? CoveredCharacter { get; init; }
 }
 public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null)
@@ -434,6 +436,7 @@ public static class Ff7BattleAi
                 (1, 0x4278) => actor.PresentationByte ?? 0xFF,
                 (1, 0x4080) => actor.IdleAction,
                 (1, 0x4088) => actor.HurtAction,
+                (1, 0x4098) => actor.Size ?? 16,
                 (2, 0x40D0) => actor.LastAttackerMask,
                 (2, 0x40E0) => actor.LastPhysicalAttackerMask ?? 0,
                 (2, 0x40F0) => actor.LastMagicAttackerMask ?? 0,
@@ -567,6 +570,7 @@ public static class Ff7BattleAi
                     (3, 0x4300) => actor with { CaptureMask = value },
                     (1, 0x4080) => actor with { IdleAction = (byte)value },
                     (1, 0x4088) => actor with { HurtAction = (byte)value },
+                    (1, 0x4098) => actor with { Size = (byte)value },
                     (2, 0x4100) => actor with { Defense = (ushort)value },
                     (2, 0x4110) => actor with { MagicDefense = (ushort)value },
                     _ => throw new NotSupportedException($"FFVII battle AI actor write to 0x{reference.Scalar:X4} width {reference.Width} has no native owner.")

@@ -21,6 +21,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleIntroState intro = state.Intro!;
         BeginCameraPresentation();
         AdvanceCameraPresentation();
+        AdvanceActorSizePresentation();
         FinishCameraPresentation();
         state = state with { Intro = intro with { Callbacks = checked((byte)(intro.Callbacks + 1)) } };
     }

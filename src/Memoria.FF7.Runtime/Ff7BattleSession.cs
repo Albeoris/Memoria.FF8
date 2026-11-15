@@ -83,6 +83,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? InitialFormationId { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleSizePresentation? ActorSizePresentation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeBattleSpeed { get; init; }
     public Ff7BattleGlobalStatusClock? GlobalStatusClock { get; init; }
     public System.Collections.Immutable.ImmutableArray<Ff7BattleGuestMagicSequence> GuestMagicSequences { get; init; } = [];
@@ -650,6 +652,7 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { FormationAiPending = (byte)(state.FormationAiPending | 1 << callback) };
         }
+        PublishActorSizeChanges(actors, result.ActorUpdates);
         foreach (Ff7BattleAiActor updated in result.ActorUpdates)
         {
             Ff7BattleActorState previous = Actor(updated.Slot);
@@ -785,6 +788,10 @@ public sealed partial class Ff7BattleSession
         ValidateSummonSnapshot(snapshot);
         ValidateCamera(snapshot);
         ValidateActorModels(snapshot);
+        if (snapshot.ActorSizePresentation is { } size)
+        {
+            Ff7NativeBattleActorSize.Validate(size);
+        }
         if (snapshot.Hitmarks is null || snapshot.Hitmarks.Any(hitmark => hitmark is null || hitmark.Target is < 0 or > 9 or 3 || hitmark.Definition?.Cues is null || hitmark.Frame < -1 || hitmark.Frame > hitmark.Definition.FrameCount || snapshot.Actors.All(actor => actor.Actor.Slot != hitmark.Target)))
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid target hitmark.");

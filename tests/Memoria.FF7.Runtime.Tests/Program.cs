@@ -375,6 +375,12 @@ if (args.Contains("--color-transition-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--corel-ai-scale-only", StringComparer.Ordinal))
+{
+    NativeCorelAiScaleTests.Run();
+    return 0;
+}
+
 if (args.Contains("--devil-ride-ai-flags-only", StringComparer.Ordinal))
 {
     DevilRideAiFlagsTests.Run();
@@ -659,6 +665,7 @@ var tests = new (string Name, Action Run)[]
     ("native music status, finite timing and local changes", NativeMusicStatusTests.Run),
     ("native model color transition", NativeColorTransitionTests.Run),
     ("native covered-character byte and Grasslands counters", DevilRideAiFlagsTests.Run),
+    ("native size byte and original Corel growth counters", NativeCorelAiScaleTests.Run),
     ("native opening condition costs and status immunity", NativeConditionConsumerTests.Run),
     ("native opening party AI aliases and counters", PartyAiAliasTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),

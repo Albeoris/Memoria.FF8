@@ -15,6 +15,7 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("Native battle continuation has an invalid actor or status owner.");
         }
+        state = state with { Actors = state.Actors.Select(actor => actor with { Actor = actor.Actor with { Size = actor.Actor.Size ?? 16 } }).ToArray() };
         byte[] globals = state.AiGlobalMemory?.ToArray() ?? new byte[64];
         if (state.AiGlobalMemory is null)
         {
@@ -99,6 +100,7 @@ public sealed partial class Ff7BattleSession
             state = state with { FormationAiMemory = result.LocalMemory, AiGlobalMemory = result.GlobalMemory.ToArray() };
             ApplyNativeSaveWrites(result);
             ApplyNativeAiTransfers(result.TransferUpdates);
+            PublishActorSizeChanges(actors, result.ActorUpdates);
             foreach (Ff7BattleAiActor updated in result.ActorUpdates)
             {
                 Ff7BattleActorState previous = Actor(updated.Slot);

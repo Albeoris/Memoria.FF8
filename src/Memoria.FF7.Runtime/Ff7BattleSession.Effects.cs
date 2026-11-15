@@ -152,7 +152,7 @@ public sealed partial class Ff7BattleSession
         return new((short)(x / count), (short)(y / count), (short)(z / count));
     }
     private Vector3 JointPoint(int slot, int selector) => BonePosition(slot, animations!.JointSelector(ActorModel(slot), selector));
-    private int CollisionRadius(int slot) => animations!.CollisionRadius(ActorModel(slot));
+    private int CollisionRadius(int slot) => unchecked(animations!.CollisionRadius(ActorModel(slot)) * GetActorScale(slot)) >> 12;
 
     private Vector3 LimitWeaponPoint(Ff7BattleActionState action, Vector3 point)
     {
@@ -163,7 +163,7 @@ public sealed partial class Ff7BattleSession
         {
             placement = placement with { Position = motion.Position.ToVector() };
         }
-        return animations!.LimitWeaponPosition(ActorModel(slot), clip, frame, placement, action.Command.Argument, point);
+        return animations!.LimitWeaponPosition(ActorModel(slot), clip, frame, placement, action.Command.Argument, point, LiveActorModelOutput(slot).PoseTransform);
     }
 
 

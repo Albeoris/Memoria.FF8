@@ -86,7 +86,7 @@ public sealed partial class Ff7BattleRenderer
     private void VisitActorGeometry(Ff7BattleActorVisual actor, Action<PcPolygonModel, IReadOnlyList<PcTexture>, Matrix4x4> visit, Action<ImmutableArray<Vector3>>? captureSkeleton = null, Action<ImmutableArray<Matrix4x4>>? captureBones = null)
     {
         ActorModel resource = LoadActor(actor.ModelPrefix);
-        Matrix4x4 world = Matrix4x4.CreateRotationY(actor.FacingRadians) * Matrix4x4.CreateTranslation(actor.Position);
+        Matrix4x4 world = Matrix4x4.CreateScale((actor.ModelModifiers?.NativeScale ?? 4096) / 4096f) * Matrix4x4.CreateRotationY(actor.FacingRadians) * Matrix4x4.CreateTranslation(actor.Position);
         if (actor.PresentationTransform is { } presentation)
         {
             world *= presentation;

@@ -157,7 +157,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState actor = Actor(slot);
         short action = state.ActorModels.Length != 0 ? ActorModelState(slot).Action : checked((short)actor.Actor.IdleAction);
-        return new(animations!.CameraModelParameters(ActorModel(slot)), 0x1000, unchecked((short)VisualPlacement(slot).Yaw), unchecked((short)HomePlacement(slot).Yaw), action);
+        return new(animations!.CameraModelParameters(ActorModel(slot)), GetActorScale(slot), unchecked((short)VisualPlacement(slot).Yaw), unchecked((short)HomePlacement(slot).Yaw), action);
     }
 
     private Ff7BattleCameraPoint CameraTargetOffset(int slot, int index, bool focus)
