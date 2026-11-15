@@ -79,6 +79,51 @@ public sealed class NewGameOptionsNavigationTests
         Assert.False(bottom.ShowDown);
     }
 
+    [Theory]
+    [InlineData(100)]
+    [InlineData(150)]
+    public void Hardcore_rule_help_shows_the_description_above_the_lock_warning(int scale)
+    {
+        MenuData data = new();
+        data.SupportedActions.Add("config");
+        data.Settings["Difficulty"] = "Normal";
+        data.Settings["Text scale"] = scale + "%";
+        MenuController menus = new(() => data, _ => { });
+        menus.Open("new-game-options");
+        menus.Navigate(MenuInput.Down);
+        menus.Navigate(MenuInput.Down);
+        menus.Navigate(MenuInput.Down);
+        Assert.Equal("Limit once per turn", menus.SelectedEntry!.Id);
+        string description = Assert.IsType<UiLabel>(Assert.Single(HelpPanel(menus.BuildView()).Children)).Text;
+        Assert.Contains("Check Limit Break availability", description);
+
+        data.Settings["Difficulty"] = "Hardcore";
+        menus.InvalidateLiveData();
+        menus.Navigate(MenuInput.Confirm);
+        UiView view = menus.BuildView();
+        view.Resize(1280, 720);
+        UiGrid help = Assert.IsType<UiGrid>(Assert.Single(HelpPanel(view).Children));
+        Assert.Collection(help.Children,
+            element => Assert.Equal(description, Assert.IsType<UiLabel>(element).Text),
+            icon =>
+            {
+                Assert.Equal(1, icon.GridRow);
+                Assert.Equal(0, icon.GridColumn);
+                Assert.False(icon.Bounds.IsEmpty);
+            },
+            element =>
+            {
+                UiLabel warning = Assert.IsType<UiLabel>(element);
+                Assert.Contains("Hardcore requires this gameplay rule", warning.Text);
+                Assert.Equal(1, warning.GridRow);
+                Assert.Equal(1, warning.GridColumn);
+                Assert.True(warning.Bounds.Y > help.Children[0].Bounds.Y);
+                Assert.True(warning.Bounds.X > help.Children[1].Bounds.X);
+            });
+    }
+
+    private static UiPanel HelpPanel(UiView view) => Assert.Single(Descendants(view.Root).OfType<UiPanel>(), panel => panel.Caption == "HELP");
+
     private static IEnumerable<UiElement> Descendants(UiElement element)
     {
         yield return element;

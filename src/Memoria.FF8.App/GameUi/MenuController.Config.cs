@@ -85,12 +85,18 @@ public sealed partial class MenuController
                 "Shared magic stock" or "Infinite magic" => Data.MagicPreferencesUnavailableReason,
                 _ => null
             };
-            if (NewGameSettings.IsLocked(setting.Id, Enum.Parse<Memoria.FF8.Runtime.BattleDifficulty>(ConfigValue("Difficulty")), newGame))
+            bool hardcoreLocked = IsConfigHardcoreLocked(setting.Id, newGame);
+            if (hardcoreLocked)
             {
-                unavailableReason = SystemText("ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay", "Hardcore requires this gameplay rule to stay On; difficulty becomes permanent after Begin.");
+                unavailableReason = HardcoreConfigLockReason();
             }
             bool enabled = unavailableReason is null;
-            string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + LocalizeSettingHelp(setting.Id, setting.Description) : LocalizeSettingHelp(setting.Id, setting.Description));
+            string description = LocalizeSettingHelp(setting.Id, setting.Description);
+            if (setting.Id is "UI font" or "Dialogue font")
+            {
+                description = FontDisplayValue(setting.Id) + ". " + description;
+            }
+            string help = newGame && hardcoreLocked ? description : unavailableReason ?? description;
             if (setting.Id == "Graphics backend")
             {
                 Memoria.FF8.Platform.GraphicsBackend backend = Memoria.FF8.Platform.GraphicsBackendSelection.Parse(value);
@@ -111,6 +117,37 @@ public sealed partial class MenuController
     }
 
     private string ConfigValue(string id) => id == "UI font" ? (IsFixtureContext ? demoFontPreferences : _readPreferences?.Invoke() ?? demoFontPreferences).GetUiFontFamily(Presentation) : Data.Settings.GetValueOrDefault(id, MenuSettings.Definitions.Single(setting => setting.Id == id).Values[0]);
+
+    private bool IsConfigHardcoreLocked(string id, bool newGame) => NewGameSettings.IsLocked(id, Enum.Parse<Memoria.FF8.Runtime.BattleDifficulty>(ConfigValue("Difficulty")), newGame);
+
+    private string HardcoreConfigLockReason() => SystemText("ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay", "Hardcore requires this gameplay rule to stay On; difficulty becomes permanent after Begin.");
+
+    private UiElement BuildConfigHelp(bool newGame)
+    {
+        MenuEntry? selected = SelectedEntry;
+        if (!newGame || selected is null || !IsConfigHardcoreLocked(selected.Id, newGame))
+        {
+            return Label(Message.Length > 0 ? Message : selected?.Help ?? CurrentScreen.Help, 18, UiTextFlow.Wrap);
+        }
+
+        UiGrid help = new() { Gap = 4 * TextScale };
+        help.RowDefinitions.Add(UiGridLength.Auto);
+        help.RowDefinitions.Add(UiGridLength.Auto);
+        help.ColumnDefinitions.Add(UiGridLength.Pixel(16 * TextScale));
+        help.ColumnDefinitions.Add(UiGridLength.Star());
+        Place(help, Label(selected.Help, 18, UiTextFlow.Wrap), 0, 0, 1, 2);
+        Place(help, new ConfigHelpLockIcon { Height = 20 * TextScale, VerticalAlignment = UiAlignment.Start }, 1);
+        Place(help, Label(HardcoreConfigLockReason(), 18, UiTextFlow.Wrap), 1, 1);
+        return help;
+    }
+
+    private sealed class ConfigHelpLockIcon : UiElement
+    {
+        protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
+        {
+            UiLockGlyph.Draw(canvas, Bounds);
+        }
+    }
 
     private MenuSetting ResolveConfigSetting(MenuSetting setting)
     {
@@ -247,10 +284,9 @@ public sealed partial class MenuController
             };
         }
         bool hardcore = ConfigValue("Difficulty") == "Hardcore";
-        bool locked = NewGameSettings.IsLocked(setting.Id, Memoria.FF8.Runtime.BattleDifficulty.Hardcore, ScreenId == "new-game-options") && hardcore;
         if (row is UiSettingRow settingRow)
         {
-            settingRow.LabelLocked = locked;
+            settingRow.LabelLocked = IsConfigHardcoreLocked(setting.Id, ScreenId == "new-game-options");
         }
         if (row is UiChoiceRow choice && setting.Id == "Difficulty" && hardcore)
         {

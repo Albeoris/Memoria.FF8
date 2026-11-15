@@ -61,8 +61,7 @@ public sealed partial class MenuController
         bool newGame = ScreenId == "new-game-options";
         var page = Grid(ScreenId == "config-text" ? [1.7f * TextScale, 4, 3] : [1.4f * TextScale, 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
-        string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
-        Place(header, Panel(SystemText("ui.buildsecondaryconfig.panel.help", "HELP"), new UiLabel { Text = help, FontSize = 18 * TextScale, TextFlow = UiTextFlow.Wrap }), 0);
+        Place(header, Panel(SystemText("ui.buildsecondaryconfig.panel.help", "HELP"), BuildConfigHelp(newGame)), 0);
         Place(header, Panel(null, Label(ScreenId == "new-game-options" ? SystemText("ui.buildsecondaryconfig.label.new.game", "New Game") : SettingsPlacement.Pages.TryGetValue(ScreenId, out SettingsPage? pageDefinition) ? pageDefinition.Label : SystemText("ui.buildsecondaryconfig.label.config", "Config"), 27, UiTextFlow.Wrap)), 0, 1);
         Place(page, header, 0);
         int count = Math.Min(Math.Max(1, Entries.Count), ConfigRowsPerPage);
