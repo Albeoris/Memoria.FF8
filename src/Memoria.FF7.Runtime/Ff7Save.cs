@@ -100,6 +100,8 @@ public sealed record Ff7SessionSave
     public bool? WorldPartyMenuPending { get; init; }
     public AutoPlayEventCoverageState? EventCoverage { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7AutoPlayState? AutoPlay { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleSnapshot? Battle { get; init; }
 
     public void Validate()
@@ -138,6 +140,7 @@ public sealed record Ff7SessionSave
             Ff7BattleSession.ValidateGuestVitalsSnapshot(battle);
         }
         AudioPresentation?.Validate();
+        AutoPlay?.Validate();
         if (EventCoverage is not null)
         {
             AutoPlayEventCoverageLedger.Validate(EventCoverage);

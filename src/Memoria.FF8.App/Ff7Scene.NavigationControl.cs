@@ -25,6 +25,7 @@ internal sealed partial class Ff7Scene
             process.Tick,
             session.HasPendingTick,
             Error,
+            AutoPlay = new { Status = AutoPlayStatus, Running = AutoPlayRunning, Paused = AutoPlayPaused, Error = AutoPlayError },
             Player = process.Actors.Where(actor => actor.PlayerControlled).Select(ObserveActor).SingleOrDefault(),
             Locks = new { process.PlayerLocked, process.MenuDisabled, process.MapJumpDisabled, process.LineBlocked, process.Join, process.GlobalCommand, process.Transition },
             Actors = process.Actors.Take(256).Select(ObserveActor).ToArray(),

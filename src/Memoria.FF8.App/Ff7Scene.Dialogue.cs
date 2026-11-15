@@ -22,7 +22,8 @@ internal sealed partial class Ff7Scene
 
     private SystemTextRenderer? ownedDialogueText;
     private MonoGameUiCanvas? ownedDialogueCanvas;
-    private readonly Dictionary<(long Generation, long Request), (int NativePage, int RetiredRows, string Key, IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager)> commonDialoguePages = [];
+    private sealed record CommonDialoguePresentation(int NativePage, int RetiredRows, string Key, IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager, float LineHeight);
+    private readonly Dictionary<(long Generation, long Request), CommonDialoguePresentation> commonDialoguePages = [];
     private Action<UiPreferences>? setDialoguePreferences;
     private Func<UiPreferences>? dialoguePreferences;
     private Func<UiTheme>? dialogueTheme;
@@ -98,7 +99,19 @@ internal sealed partial class Ff7Scene
         setDialoguePreferences(current with { TextFontMode = native ? GameTextFontMode.Native : GameTextFontMode.System, TextLayoutMode = native ? GameTextLayoutMode.OriginalCompatible : GameTextLayoutMode.Adaptive });
     }
 
-    private void DrawCommonDialogue(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds, Action<Ff7SpecialWindowView>? overlay = null)
+    private void PrepareAutoPlayDialogue()
+    {
+        if (UseNativeDialogue)
+        {
+            return;
+        }
+        foreach (Ff7Dialogue dialogue in ActiveDialogues.Where(dialogue => !dialogue.Completed && dialogue.TextVisible && dialogue.Presentation?.NativeState is not (0 or 7)))
+        {
+            PrepareCommonDialogue(dialogue, ActiveWindows.Single(window => window.Id == dialogue.Window));
+        }
+    }
+
+    private CommonDialoguePresentation PrepareCommonDialogue(Ff7Dialogue dialogue, Ff7Window window)
     {
         UiPreferences preferences = dialoguePreferences?.Invoke() ?? throw new InvalidOperationException("FFVII dialogue requires the shared host presentation context.");
         IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
@@ -106,22 +119,32 @@ internal sealed partial class Ff7Scene
         DialogueDocument document = content.Document;
         DialogueState state = new(dialogue.Window, dialogue.Text, document.Text, window.X, window.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected);
         DialogueWindow nativeWindow = new(dialogue.Window, window.X, window.Y, window.Width, window.Height);
-        using var measurer = SystemTextLayout.CreateMeasurer(preferences.DialogueFontSize, preferences.DialogueFontFamily);
-        IReadOnlyList<DialogueVisualPage> pages = preferences.TextLayoutMode == GameTextLayoutMode.OriginalCompatible
-            ? DialogueLayout.CreateNative(document, state, nativeWindow, measurer.LineHeight, measurer.Measure)
-            : DialogueLayout.Create(document, state, nativeWindow, measurer.LineHeight, measurer.Measure);
         var identity = (DialogueGeneration, dialogue.RequestId);
         string key = document.Text + "\u0001" + preferences.DialogueFontFamily + ":" + preferences.DialogueFontSize + ":" + preferences.TextLayoutMode;
         if (!commonDialoguePages.TryGetValue(identity, out var presentation) || presentation.NativePage != dialogue.Page || presentation.Key != key || presentation.RetiredRows != content.RetiredRows)
         {
+            using var measurer = SystemTextLayout.CreateMeasurer(preferences.DialogueFontSize, preferences.DialogueFontFamily);
+            IReadOnlyList<DialogueVisualPage> pages = preferences.TextLayoutMode == GameTextLayoutMode.OriginalCompatible
+                ? DialogueLayout.CreateNative(document, state, nativeWindow, measurer.LineHeight, measurer.Measure)
+                : DialogueLayout.Create(document, state, nativeWindow, measurer.LineHeight, measurer.Measure);
             DialoguePager pager = new();
-            if (presentation.Pager is not null && presentation.NativePage == dialogue.Page)
+            if (presentation is not null && presentation.NativePage == dialogue.Page)
             {
                 pager = Ff7DialoguePresentationPolicy.ReflowCommonPager(presentation.Pager, presentation.Pages, pages, presentation.RetiredRows != content.RetiredRows);
             }
-            presentation = (dialogue.Page, content.RetiredRows, key, pages, pager);
+            presentation = new(dialogue.Page, content.RetiredRows, key, pages, pager, measurer.LineHeight);
             commonDialoguePages[identity] = presentation;
         }
+        return presentation;
+    }
+
+    private void DrawCommonDialogue(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds, Action<Ff7SpecialWindowView>? overlay = null)
+    {
+        CommonDialoguePresentation presentation = PrepareCommonDialogue(dialogue, window);
+        UiPreferences preferences = dialoguePreferences!.Invoke();
+        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, Tokens(dialogue), token => Session!.ExpandDialogueToken(dialogue, token), ButtonLabel);
+        DialogueState state = new(dialogue.Window, dialogue.Text, content.Document.Text, window.X, window.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected);
+        DialogueWindow nativeWindow = new(dialogue.Window, window.X, window.Y, window.Width, window.Height);
         DialogueVisualPage visual = presentation.Pages[presentation.Pager.PageIndex];
         float scale = bounds.Width / 320f;
         Vector2 contentSize = new(visual.Width, visual.Height);
@@ -149,7 +172,7 @@ internal sealed partial class Ff7Scene
             return;
         }
         int remaining = Math.Max(0, content.VisibleCharacters - presentation.Pages.Take(presentation.Pager.PageIndex).Sum(DialoguePager.CharacterCount));
-        float lineHeight = measurer.LineHeight * scale;
+        float lineHeight = presentation.LineHeight * scale;
         Vector2 origin = new(panel.X + DialoguePresentation.Padding * scale, panel.Y + DialoguePresentation.Padding * scale + Ff7DialoguePresentationPolicy.CommonScrollOffset(dialogue, lineHeight));
         dialogueCanvas!.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));
         try

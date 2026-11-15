@@ -27,14 +27,35 @@ internal sealed partial class Ff7Scene
 
     public void StepDiagnostic(int ticks, Func<KeyboardState> readKeys)
     {
+        StepDiagnostic(ticks, readKeys, true);
+    }
+
+    public void StepAutoPlay(int ticks)
+    {
+        if (!AutoPlayRunning || AutoPlayPaused)
+        {
+            throw new InvalidOperationException("Start or resume automatic play before advancing it.");
+        }
+        StepDiagnostic(ticks, () => new KeyboardState(), false);
+    }
+
+    private void StepDiagnostic(int ticks, Func<KeyboardState> readKeys, bool resetIdleDeadline)
+    {
         if (ticks is < 1 or > 900)
         {
             throw new ArgumentOutOfRangeException(nameof(ticks));
         }
-        autoPlay?.ResetIdleDeadline();
+        if (resetIdleDeadline)
+        {
+            autoPlay?.ResetIdleDeadline();
+        }
         for (int tick = 0; tick < ticks; tick++)
         {
             Update(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / 30d))), readKeys(), default, default, inputActive: true);
+            if (!resetIdleDeadline && (!AutoPlayRunning || AutoPlayPaused || Error is not null))
+            {
+                break;
+            }
         }
     }
 }

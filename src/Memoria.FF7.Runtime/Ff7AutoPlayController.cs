@@ -223,11 +223,12 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         {
             foreach (Ff7Dialogue dialogue in world.Process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput && world.CanConfirmDialogue(dialogue.RequestId)).ToArray())
             {
-                if (advanceDialoguePresentation?.Invoke(dialogue) == true)
+                Ff7Dialogue selected = chooseDialogueSelection?.Invoke(dialogue) is int selection ? Ff7DialogueCursor.Select(dialogue, selection) : dialogue;
+                world.UpdateDialogue(selected);
+                if (advanceDialoguePresentation?.Invoke(selected) == true)
                 {
                     continue;
                 }
-                Ff7Dialogue selected = chooseDialogueSelection?.Invoke(dialogue) is int selection ? Ff7DialogueCursor.Select(dialogue, selection) : dialogue;
                 world.UpdateDialogue(Ff7DialogueCursor.Confirm(selected, FieldText.Read(world.Texts[dialogue.Text].Span)));
             }
             return;
@@ -238,11 +239,12 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         }
         foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput && session.Host.CanConfirmDialogue(dialogue.RequestId)).ToArray())
         {
-            if (advanceDialoguePresentation?.Invoke(dialogue) == true)
+            Ff7Dialogue selected = chooseDialogueSelection?.Invoke(dialogue) is int selection ? Ff7DialogueCursor.Select(dialogue, selection) : dialogue;
+            session.Host.UpdateDialogue(selected);
+            if (advanceDialoguePresentation?.Invoke(selected) == true)
             {
                 continue;
             }
-            Ff7Dialogue selected = chooseDialogueSelection?.Invoke(dialogue) is int selection ? Ff7DialogueCursor.Select(dialogue, selection) : dialogue;
             Ff7Dialogue confirmed = Ff7DialogueCursor.Confirm(selected, FieldText.Read(session.Field.Scripts.Texts[dialogue.Text].Span));
             session.Host.UpdateDialogue(confirmed);
         }

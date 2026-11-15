@@ -73,24 +73,18 @@ internal sealed partial class AutoPlayController
 
     internal static BattleInput PlanBattleInput(BattleSession active)
     {
-        if (active.CanReturnToField)
+        bool canChoose = !active.CanReturnToField && active.Outcome == BattleOutcome.Active && active.NativeEntryReady && active.NativeGraphics?.UiServices?.PauseDE9 != true;
+        BattleCombatant[] actors = canChoose ? active.ReadyPlayerCommandOrder.ToArray() : [];
+        BattleCombatant[] targets = canChoose ? active.Combatants.ToArray() : [];
+        AutoPlayBattleDecision decision = AutoPlayBattlePolicy.Choose(active.CanReturnToField, active.Outcome == BattleOutcome.Active, active.Outcome.ToString(), active.NativeEntryReady, active.NativeGraphics?.UiServices?.PauseDE9 == true,
+            actors.Select(actor => new AutoPlayBattleActor(active.CanChoosePlayerCommand(actor.Id), actor.IsReady, actor.CanAct, actor.IsBusy, actor.Abilities.Contains(BattleAbility.Attack))).ToArray(),
+            targets.Select(target => new AutoPlayBattleTarget(!target.IsPlayer, target.IsActive, target.IsAlive, target.Untargetable)).ToArray());
+        return decision.Kind switch
         {
-            return new(BattleInputKind.Return);
-        }
-        if (active.Outcome != BattleOutcome.Active)
-        {
-            throw new NotSupportedException($"Automatic combat stopped at its actual {active.Outcome} outcome.");
-        }
-        if (active.NativeEntryReady && active.NativeGraphics?.UiServices?.PauseDE9 != true)
-        {
-            BattleCombatant? actor = active.ReadyPlayerCommandOrder.FirstOrDefault(candidate => active.CanChoosePlayerCommand(candidate.Id) && candidate.IsReady && candidate.CanAct && !candidate.IsBusy && candidate.Abilities.Contains(BattleAbility.Attack));
-            BattleCombatant? target = active.Combatants.FirstOrDefault(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable);
-            if (actor is not null && target is not null)
-            {
-                return new(BattleInputKind.Action, ActorId: actor.Id, TargetId: target.Id, Ability: BattleAbility.Attack);
-            }
-        }
-        return new(BattleInputKind.Tick);
+            AutoPlayBattleDecisionKind.Return => new(BattleInputKind.Return),
+            AutoPlayBattleDecisionKind.Attack => new(BattleInputKind.Action, ActorId: actors[decision.ActorIndex].Id, TargetId: targets[decision.TargetIndex].Id, Ability: BattleAbility.Attack),
+            _ => new(BattleInputKind.Tick)
+        };
     }
 
     private static (bool EntryReady, BattleOutcome Outcome, string Actors) BattleProgress(BattleSession active)

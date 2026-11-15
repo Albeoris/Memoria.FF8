@@ -55,25 +55,6 @@ internal sealed class AutoPlayInputSearchFrame
     public bool Exhausted { get; set; }
 }
 
-internal sealed class AutoPlayInputSearchContext
-{
-    public string? Visit { get; set; }
-    public string? Navigation { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AutoPlayNavigationEventSource? NavigationSource { get; set; }
-    public string? Event { get; set; }
-    public int Field { get; set; }
-    public int? Story { get; set; }
-    public int ObjectId { get; set; }
-    public string? Conditions { get; set; }
-    public string? BeforeCheckpoint { get; set; }
-    public string? Target { get; set; }
-    public string? AbsenceGuard { get; set; }
-    public string? Availability { get; set; }
-    public bool ObservedControlLoss { get; set; }
-    public List<string> SceneChoices { get; set; } = [];
-}
-
 internal sealed class AutoPlayInputSearch
 {
     public int Version { get; set; } = 1;

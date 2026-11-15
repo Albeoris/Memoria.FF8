@@ -1,24 +1,24 @@
 using System.Text.Json.Serialization;
 
-namespace Memoria.FF8;
+namespace Memoria.AutoPlay;
 
-internal enum AutoPlayEventKind
+public enum AutoPlayEventKind
 {
     Interaction,
     Transition
 }
 
-internal enum AutoPlayBlockKind
+public enum AutoPlayBlockKind
 {
     Walking
 }
 
-internal sealed record AutoPlayVisit(string Key, string Region);
+public sealed record AutoPlayVisit(string Key, string Region);
 
 /// <summary>ChangesStory is supplied by script-write analysis; Order permits explicit policy overrides.</summary>
-internal sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null, IReadOnlyList<string>? Variants = null);
+public sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null, IReadOnlyList<string>? Variants = null);
 
-internal sealed class AutoPlayConditionCoverage
+public sealed class AutoPlayConditionCoverage
 {
     public HashSet<string> ConsumedEntries { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ConsumedExits { get; set; } = new(StringComparer.Ordinal);
@@ -27,14 +27,14 @@ internal sealed class AutoPlayConditionCoverage
     public bool HasExecutedEntry(string signature) => ConsumedEntries.Contains(signature);
 }
 
-internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
-internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
-internal sealed record AutoPlayRetiredRoute(AutoPlayEventRoute Route, string ActualChoiceKey, int FirstChoice, int LastChoice, IReadOnlyList<AutoPlayChoiceSelection> ExecutedPrefix);
-internal sealed record AutoPlayTravelGoal(string NavigationKey, string? EventId = null, string? Conditions = null);
-internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null, AutoPlayTravelGoal? Goal = null);
-internal sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
+public sealed record AutoPlayChoiceSelection(string Key, int Selection);
+public sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
+public sealed record AutoPlayRetiredRoute(AutoPlayEventRoute Route, string ActualChoiceKey, int FirstChoice, int LastChoice, IReadOnlyList<AutoPlayChoiceSelection> ExecutedPrefix);
+public sealed record AutoPlayTravelGoal(string NavigationKey, string? EventId = null, string? Conditions = null);
+public sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null, AutoPlayTravelGoal? Goal = null);
+public sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
-internal sealed class AutoPlayEventCoverage
+public sealed class AutoPlayEventCoverage<TDeferral> where TDeferral : class, IAutoPlayParticipantPolicyDeferral
 {
     public AutoPlayEvent Event { get; set; } = new(string.Empty, AutoPlayEventKind.Interaction);
     public bool Available { get; set; }
@@ -53,7 +53,7 @@ internal sealed class AutoPlayEventCoverage
     public HashSet<string> UnavailableVariants { get; set; } = new(StringComparer.Ordinal);
     public string? AvailabilityFingerprint { get; set; }
     public HashSet<string> CompletedAvailabilityFingerprints { get; set; } = new(StringComparer.Ordinal);
-    public List<AutoPlayParticipantPolicyDeferral> ParticipantPolicyDeferrals { get; set; } = [];
+    public List<TDeferral> ParticipantPolicyDeferrals { get; set; } = [];
     public HashSet<string> PolicyDeferredVariants { get; set; } = new(StringComparer.Ordinal);
     public bool PolicyDeferred { get; set; }
 
@@ -61,13 +61,13 @@ internal sealed class AutoPlayEventCoverage
     internal bool AllowHistoricalTravelConditions { get; set; }
 }
 
-internal sealed class AutoPlayVisitCoverage
+public sealed class AutoPlayVisitCoverage<TDeferral> where TDeferral : class, IAutoPlayParticipantPolicyDeferral
 {
     public AutoPlayVisit Visit { get; set; } = new(string.Empty, string.Empty);
-    public List<AutoPlayEventCoverage> Events { get; set; } = [];
+    public List<AutoPlayEventCoverage<TDeferral>> Events { get; set; } = [];
 }
 
-internal enum AutoPlayChoiceStepKind
+public enum AutoPlayChoiceStepKind
 {
     SaveBeforeChoice,
     Select,
@@ -77,10 +77,10 @@ internal enum AutoPlayChoiceStepKind
     PolicyDeferred
 }
 
-internal sealed record AutoPlayChoiceStep(AutoPlayChoiceStepKind Kind, int? Selection = null, string? Checkpoint = null);
-internal sealed record AutoPlayPolicyChoiceCheckpoint(string? BeforeCheckpoint, bool InputCheckpointPrepared, string? ContinuationCheckpoint, IReadOnlyList<AutoPlayChoiceSelection>? BeforeSelections, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AutoPlayInputSearchContext? BeforeContext = null);
+public sealed record AutoPlayChoiceStep(AutoPlayChoiceStepKind Kind, int? Selection = null, string? Checkpoint = null);
+public sealed record AutoPlayPolicyChoiceCheckpoint(string? BeforeCheckpoint, bool InputCheckpointPrepared, string? ContinuationCheckpoint, IReadOnlyList<AutoPlayChoiceSelection>? BeforeSelections, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AutoPlayInputSearchContext? BeforeContext = null);
 
-internal sealed class AutoPlayChoiceCoverage
+public sealed class AutoPlayChoiceCoverage
 {
     public string Key { get; set; } = string.Empty;
     public int OptionCount { get; set; }
@@ -101,9 +101,9 @@ internal sealed class AutoPlayChoiceCoverage
     public Dictionary<string, AutoPlayPolicyChoiceCheckpoint> PolicyCheckpoints { get; set; } = new(StringComparer.Ordinal);
 }
 
-internal sealed class AutoPlayPlannerState
+public sealed class AutoPlayPlannerState<TDeferral> where TDeferral : class, IAutoPlayParticipantPolicyDeferral
 {
-    public List<AutoPlayVisitCoverage> Visits { get; set; } = [];
+    public List<AutoPlayVisitCoverage<TDeferral>> Visits { get; set; } = [];
     public List<AutoPlayChoiceCoverage> Choices { get; set; } = [];
     public List<AutoPlayNavigationVisit> NavigationVisits { get; set; } = [];
     public List<AutoPlayNavigationRoute> NavigationRoutes { get; set; } = [];
@@ -111,27 +111,27 @@ internal sealed class AutoPlayPlannerState
 }
 
 /// <summary>A deterministic frontier planner with stable visit graphs and separately consumed event conditions.</summary>
-internal sealed partial class AutoPlayPlanner
+public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, IAutoPlayParticipantPolicyDeferral
 {
-    internal const int CurrentWalkingSearchRevision = 6;
+    public const int CurrentWalkingSearchRevision = 6;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
-    private sealed record PlanCandidate(AutoPlayVisitCoverage Visit, AutoPlayEventCoverage Coverage);
+    private sealed record PlanCandidate(AutoPlayVisitCoverage<TDeferral> Visit, AutoPlayEventCoverage<TDeferral> Coverage);
 
-    public AutoPlayPlannerState State { get; }
+    public AutoPlayPlannerState<TDeferral> State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true)
+    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true)
     {
     }
 
-    private AutoPlayPlanner(AutoPlayPlannerState? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes)
+    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes)
     {
-        State = state ?? new AutoPlayPlannerState();
+        State = state ?? new AutoPlayPlannerState<TDeferral>();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
         this.progressionOrder = progressionOrder ?? ((_, _) => 0);
         if (normalizeLegacyRoutes)
         {
-            foreach (AutoPlayEventCoverage item in State.Visits.SelectMany(visit => visit.Events))
+            foreach (AutoPlayEventCoverage<TDeferral> item in State.Visits.SelectMany(visit => visit.Events))
             {
                 NormalizeLegacyRoute(item);
             }
@@ -145,24 +145,24 @@ internal sealed partial class AutoPlayPlanner
         {
             throw new ArgumentException("Event identifiers must be unique within a visit.", nameof(events));
         }
-        AutoPlayVisitCoverage? coverage = State.Visits.SingleOrDefault(item => item.Visit.Key == visit.Key);
+        AutoPlayVisitCoverage<TDeferral>? coverage = State.Visits.SingleOrDefault(item => item.Visit.Key == visit.Key);
         if (coverage is null)
         {
-            coverage = new AutoPlayVisitCoverage { Visit = visit };
+            coverage = new AutoPlayVisitCoverage<TDeferral> { Visit = visit };
             State.Visits.Add(coverage);
         }
         coverage.Visit = visit;
-        foreach (AutoPlayEventCoverage item in coverage.Events)
+        foreach (AutoPlayEventCoverage<TDeferral> item in coverage.Events)
         {
             item.Available = false;
         }
         foreach (AutoPlayEvent item in events.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(item.Id);
-            AutoPlayEventCoverage? previous = coverage.Events.SingleOrDefault(candidate => candidate.Event.Id == item.Id);
+            AutoPlayEventCoverage<TDeferral>? previous = coverage.Events.SingleOrDefault(candidate => candidate.Event.Id == item.Id);
             if (previous is null)
             {
-                coverage.Events.Add(new AutoPlayEventCoverage { Event = item, Available = true, Conditions = item.ConditionSignature is null ? null : new AutoPlayConditionCoverage() });
+                coverage.Events.Add(new AutoPlayEventCoverage<TDeferral> { Event = item, Available = true, Conditions = item.ConditionSignature is null ? null : new AutoPlayConditionCoverage() });
             }
             else
             {
@@ -207,7 +207,7 @@ internal sealed partial class AutoPlayPlanner
 
     public void BeginEvent(string visitKey, string eventId)
     {
-        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         if (item.Event.ConditionSignature is string signature)
         {
             item.Conditions ??= new AutoPlayConditionCoverage();
@@ -217,7 +217,7 @@ internal sealed partial class AutoPlayPlanner
 
     public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null, bool? observedStoryChanged = null, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool entrySignatureAuthoritative = false, string? entryAvailabilityFingerprint = null, bool availabilityFingerprintAuthoritative = false, string? targetId = null)
     {
-        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         item.Completed = true;
         item.RouteNeedsRediscovery = false;
         item.BlockedReason = null;
@@ -249,14 +249,14 @@ internal sealed partial class AutoPlayPlanner
     public void Block(string visitKey, string eventId, string reason, AutoPlayBlockKind? kind = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         item.BlockedReason = reason;
         item.BlockKind = kind;
         item.WalkingSearchRevision = kind == AutoPlayBlockKind.Walking ? CurrentWalkingSearchRevision : null;
         ConsumeConditions(item, null);
     }
 
-    internal static bool IsSoftWalkingBlock(AutoPlayEventCoverage item)
+    public static bool IsSoftWalkingBlock(AutoPlayEventCoverage<TDeferral> item)
     {
         if (item.BlockedReason is null || item.Unavailable || item.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature))
         {
@@ -271,7 +271,7 @@ internal sealed partial class AutoPlayPlanner
         ArgumentException.ThrowIfNullOrWhiteSpace(actualChoiceKey);
         ArgumentOutOfRangeException.ThrowIfNegative(first);
         ArgumentOutOfRangeException.ThrowIfLessThan(last, first);
-        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         if (route.Selections is null || executedPrefix is null || executedPrefix.Count > route.Selections.Count || !route.Selections.Take(executedPrefix.Count).SequenceEqual(executedPrefix))
         {
             throw new InvalidOperationException("Route retirement requires the exact authenticated executed prefix of its recorded choices.");
@@ -301,7 +301,7 @@ internal sealed partial class AutoPlayPlanner
 
     public void MarkUnavailable(string visitKey, string eventId, AutoPlayUnavailableAttempt attempt)
     {
-        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         string targetId = attempt.TargetId ?? item.Event.Id;
         if (item.Event.ConditionSignature != attempt.SourceConditionSignature || string.IsNullOrWhiteSpace(attempt.GuardKey) || string.IsNullOrWhiteSpace(attempt.GuardFingerprint) || !ObservedVariants(item).Contains(targetId, StringComparer.Ordinal))
         {
@@ -322,9 +322,9 @@ internal sealed partial class AutoPlayPlanner
 
     public void RefreshUnavailable(string visitKey, IReadOnlyDictionary<string, string> guardFingerprints)
     {
-        AutoPlayVisitCoverage visit = FindVisit(visitKey);
-        List<(AutoPlayEventCoverage Event, HashSet<string> Variants, string? Fingerprint)> updates = [];
-        foreach (AutoPlayEventCoverage item in visit.Events.Where(item => item.Available))
+        AutoPlayVisitCoverage<TDeferral> visit = FindVisit(visitKey);
+        List<(AutoPlayEventCoverage<TDeferral> Event, HashSet<string> Variants, string? Fingerprint)> updates = [];
+        foreach (AutoPlayEventCoverage<TDeferral> item in visit.Events.Where(item => item.Available))
         {
             AutoPlayUnavailableAttempt[] attempts = item.UnavailableAttempts.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && ObservedVariants(item).Contains(attempt.TargetId ?? item.Event.Id, StringComparer.Ordinal)).ToArray();
             if (attempts.Length == 0)
@@ -351,7 +351,7 @@ internal sealed partial class AutoPlayPlanner
         }
     }
 
-    private static IReadOnlyList<string> ObservedVariants(AutoPlayEventCoverage item)
+    private static IReadOnlyList<string> ObservedVariants(AutoPlayEventCoverage<TDeferral> item)
     {
         return item.Event.Variants is { Count: > 0 } variants ? variants : [item.Event.Id];
     }
@@ -359,8 +359,8 @@ internal sealed partial class AutoPlayPlanner
     /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
     public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null)
     {
-        Dictionary<string, AutoPlayVisitCoverage> visits = IndexVisits(State.Visits, item => item.Visit.Key);
-        if (!visits.TryGetValue(currentVisitKey, out AutoPlayVisitCoverage? current))
+        Dictionary<string, AutoPlayVisitCoverage<TDeferral>> visits = IndexVisits(State.Visits, item => item.Visit.Key);
+        if (!visits.TryGetValue(currentVisitKey, out AutoPlayVisitCoverage<TDeferral>? current))
         {
             throw new InvalidOperationException($"Unknown visit '{currentVisitKey}'.");
         }
@@ -371,8 +371,8 @@ internal sealed partial class AutoPlayPlanner
         pending.Enqueue(currentVisitKey);
         while (pending.TryDequeue(out string? key))
         {
-            AutoPlayVisitCoverage visit = visits[key];
-            foreach (AutoPlayEventCoverage edge in OrderedEvents(visit))
+            AutoPlayVisitCoverage<TDeferral> visit = visits[key];
+            foreach (AutoPlayEventCoverage<TDeferral> edge in OrderedEvents(visit))
             {
                 if (NeedsExecution(edge))
                 {
@@ -460,7 +460,7 @@ internal sealed partial class AutoPlayPlanner
             {
                 continue;
             }
-            AutoPlayVisitCoverage? visit = State.Visits.SingleOrDefault(item => item.Visit.Key == key);
+            AutoPlayVisitCoverage<TDeferral>? visit = State.Visits.SingleOrDefault(item => item.Visit.Key == key);
             if (visit is null)
             {
                 continue;
@@ -469,7 +469,7 @@ internal sealed partial class AutoPlayPlanner
             {
                 count++;
             }
-            foreach (AutoPlayEventCoverage item in OrderedEvents(visit))
+            foreach (AutoPlayEventCoverage<TDeferral> item in OrderedEvents(visit))
             {
                 if ((key != excludedVisit || item.Event.Id != excludedEvent) && NeedsExecution(item))
                 {
@@ -604,10 +604,10 @@ internal sealed partial class AutoPlayPlanner
         choice.PolicyExhausted = !choice.Finished && deferred.Count > 0 && Enumerable.Range(choice.FirstOption, choice.OptionCount).All(option => choice.CompletedOptions.Contains(option) || deferred.Contains(option));
     }
 
-    public bool DeferParticipantAction(string visitKey, string eventId, AutoPlayParticipantPolicyDeferral deferral)
+    public bool DeferParticipantAction(string visitKey, string eventId, TDeferral deferral)
     {
-        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
-        if (item.ParticipantPolicyDeferrals.Any(previous => previous.TargetId == deferral.TargetId && previous.SourceConditionSignature == deferral.SourceConditionSignature && previous.Guard.Fingerprint == deferral.Guard.Fingerprint && previous.Selections.SequenceEqual(deferral.Selections)))
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
+        if (item.ParticipantPolicyDeferrals.Any(previous => previous.TargetId == deferral.TargetId && previous.SourceConditionSignature == deferral.SourceConditionSignature && previous.GuardFingerprint == deferral.GuardFingerprint && previous.Selections.SequenceEqual(deferral.Selections)))
         {
             return false;
         }
@@ -615,34 +615,34 @@ internal sealed partial class AutoPlayPlanner
         return true;
     }
 
-    public void RefreshParticipantPolicy(string visitKey, Func<AutoPlayParticipantPolicyDeferral, bool> matches)
+    public void RefreshParticipantPolicy(string visitKey, Func<TDeferral, bool> matches)
     {
-        AutoPlayVisitCoverage visit = State.Visits.Single(item => item.Visit.Key == visitKey);
-        foreach (AutoPlayEventCoverage item in visit.Events)
+        AutoPlayVisitCoverage<TDeferral> visit = State.Visits.Single(item => item.Visit.Key == visitKey);
+        foreach (AutoPlayEventCoverage<TDeferral> item in visit.Events)
         {
-            AutoPlayParticipantPolicyDeferral[] current = item.ParticipantPolicyDeferrals.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && matches(attempt)).ToArray();
+            TDeferral[] current = item.ParticipantPolicyDeferrals.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && matches(attempt)).ToArray();
             item.PolicyDeferredVariants = current.GroupBy(attempt => attempt.TargetId).Where(group => group.Any(attempt => attempt.Selections.Count == 0) || group.Where(attempt => attempt.Selections.Count == 1 && attempt.ChoiceKey is not null).GroupBy(attempt => (attempt.ChoiceKey, attempt.FirstOption, attempt.OptionCount)).Any(options => Enumerable.Range(options.Key.FirstOption, options.Key.OptionCount).All(option => options.Any(attempt => attempt.Selections[0].Selection == option)))).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
             item.PolicyDeferred = ObservedVariants(item).All(item.PolicyDeferredVariants.Contains);
         }
     }
 
-    private static IOrderedEnumerable<AutoPlayEventCoverage> OrderedEvents(AutoPlayVisitCoverage visit)
+    private static IOrderedEnumerable<AutoPlayEventCoverage<TDeferral>> OrderedEvents(AutoPlayVisitCoverage<TDeferral> visit)
     {
         return visit.Events.Where(item => item.Available && !item.Unavailable && !item.PolicyDeferred && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
     }
 
-    private static bool NeedsExecution(AutoPlayEventCoverage item)
+    private static bool NeedsExecution(AutoPlayEventCoverage<TDeferral> item)
     {
         bool conditionsChanged = item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.HasExecutedEntry(signature) : !item.Completed;
         return item.RouteNeedsRediscovery || conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);
     }
 
-    private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage item)
+    private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage<TDeferral> item)
     {
         return item.Routes.Where(route => item.Completed && (item.AllowHistoricalTravelConditions || StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature)) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 && item.PolicyDeferredVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId) && !item.PolicyDeferredVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
     }
 
-    private static void NormalizeLegacyRoute(AutoPlayEventCoverage item)
+    private static void NormalizeLegacyRoute(AutoPlayEventCoverage<TDeferral> item)
     {
         if (item.Completed && item.Routes.Count == 0 && item.RetiredRoutes.Count == 0 && item.Event.DestinationVisitKey is string destination)
         {
@@ -651,7 +651,7 @@ internal sealed partial class AutoPlayPlanner
         }
     }
 
-    private static void ConsumeConditions(AutoPlayEventCoverage item, string? exitSignature, string? entrySignature = null, bool entrySignatureAuthoritative = false)
+    private static void ConsumeConditions(AutoPlayEventCoverage<TDeferral> item, string? exitSignature, string? entrySignature = null, bool entrySignatureAuthoritative = false)
     {
         if (item.Event.ConditionSignature is not string && !entrySignatureAuthoritative)
         {
@@ -671,7 +671,7 @@ internal sealed partial class AutoPlayPlanner
         item.Conditions.ActiveEntry = null;
     }
 
-    private AutoPlayVisitCoverage FindVisit(string key)
+    private AutoPlayVisitCoverage<TDeferral> FindVisit(string key)
     {
         return State.Visits.SingleOrDefault(item => item.Visit.Key == key) ?? throw new InvalidOperationException($"Unknown visit '{key}'.");
     }
@@ -688,7 +688,7 @@ internal sealed partial class AutoPlayPlanner
         }
     }
 
-    private AutoPlayEventCoverage FindEvent(string visitKey, string eventId)
+    private AutoPlayEventCoverage<TDeferral> FindEvent(string visitKey, string eventId)
     {
         return FindVisit(visitKey).Events.SingleOrDefault(item => item.Event.Id == eventId) ?? throw new InvalidOperationException($"Unknown event '{eventId}'.");
     }

@@ -47,6 +47,10 @@ internal sealed partial class Ff7Scene
     {
         Ff7Session session = Session!;
         EnsureMixedBattle(battle);
+        if (TryAdvanceAutoPlayBattle(gameTime, battle))
+        {
+            return;
+        }
         bool mouseHeld = pointerState.LeftButton == ButtonState.Pressed;
         bool mouseClicked = mouseHeld && !battlePointerPressed;
         battlePointerPressed = mouseHeld;

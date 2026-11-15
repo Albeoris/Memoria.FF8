@@ -228,6 +228,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateHighway(gameTime);
                 return;
             }
+            if (TryAdvanceAutoPlayPartyMenu())
+            {
+                return;
+            }
             if (UpdateShop(gameTime, keys, pad) || UpdatePlayerMenu(gameTime, keys, pad))
             {
                 return;
@@ -401,7 +405,7 @@ internal sealed partial class Ff7Scene : IDisposable
     private void Attach(Ff7Session session, Ff7AudioPresentationState? savedAudio = null, bool restoring = false)
     {
         highwayOwner = null;
-        autoPlay = null;
+        ResetAutoPlay();
         DisposeNamingPresentation();
         DisposePlayerMenu();
         DisposeShopMenu();
@@ -759,6 +763,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public void Dispose()
     {
+        ResetAutoPlay();
         ResetMixedCombat();
         StopMovie();
         DisposeNamingPresentation();

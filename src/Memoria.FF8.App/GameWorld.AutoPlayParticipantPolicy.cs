@@ -7,7 +7,10 @@ using Memoria.FF8.Events;
 namespace Memoria.FF8;
 
 internal sealed record AutoPlayParticipantPolicyGuard(int Version, int FieldId, string ProgramHash, ImmutableArray<NativePersistentPredicateRead> Reads, string Fingerprint, int[] SavedBindings, int[] RetainedActors, int[] CharacterIds);
-internal sealed record AutoPlayParticipantPolicyDeferral(string TargetId, string SourceConditionSignature, AutoPlayParticipantPolicyGuard Guard, IReadOnlyList<AutoPlayChoiceSelection> Selections, NativePartyActionRequest Request, string? ChoiceKey = null, int FirstOption = 0, int OptionCount = 0);
+internal sealed record AutoPlayParticipantPolicyDeferral(string TargetId, string SourceConditionSignature, AutoPlayParticipantPolicyGuard Guard, IReadOnlyList<AutoPlayChoiceSelection> Selections, NativePartyActionRequest Request, string? ChoiceKey = null, int FirstOption = 0, int OptionCount = 0) : IAutoPlayParticipantPolicyDeferral
+{
+    string IAutoPlayParticipantPolicyDeferral.GuardFingerprint => Guard.Fingerprint;
+}
 
 internal sealed partial class GameWorld
 {

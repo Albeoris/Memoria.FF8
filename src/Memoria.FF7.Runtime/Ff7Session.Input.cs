@@ -107,6 +107,11 @@ public sealed partial class Ff7Session
 
     internal Ff7Actor? PreviewTalkTarget(Ff7Actor player)
     {
+        return PreviewTalkTarget(player, Host.Process.Actors);
+    }
+
+    internal Ff7Actor? PreviewTalkTarget(Ff7Actor player, IEnumerable<Ff7Actor> candidates)
+    {
         if (Host.Process.PlayerLocked || Host.Process.Join is not null)
         {
             return null;
@@ -114,7 +119,7 @@ public sealed partial class Ff7Session
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement direction tables.");
         int best = 64;
         Ff7Actor? selected = null;
-        foreach (Ff7Actor actor in Host.Process.Actors.OrderBy(actor => actor.Slot))
+        foreach (Ff7Actor actor in candidates.OrderBy(actor => actor.Slot))
         {
             if (actor.Slot == player.Slot || !actor.TalkEnabled)
             {

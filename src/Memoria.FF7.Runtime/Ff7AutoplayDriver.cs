@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
@@ -8,6 +10,42 @@ public readonly record struct Ff7AutoplayInput(int Horizontal = 0, int Vertical 
 /// <summary>Native FFVII navigation and interaction adapter. The host owns scheduling, recording and presentation.</summary>
 public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 {
+    public string ReadPhysicalAvailabilityFingerprint(Ff7AutoPlayTarget target, IReadOnlyList<int>? blockingEntities = null)
+    {
+        if (target.Kind is Ff7AutoPlayTargetKind.ActorTalk or Ff7AutoPlayTargetKind.ActorContact)
+        {
+            return ReadPhysicalAvailabilityFingerprint(target.Entity, blockingEntities);
+        }
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways);
+    }
+
+    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways)
+    {
+        int component = ReachableTriangles(walkmesh, blockedTriangles, player.Triangle).Min();
+        StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Id}:{target.Kind}");
+        if (target.Kind == Ff7AutoPlayTargetKind.Gateway)
+        {
+            if (target.GatewayIndex is int index && (uint)index < gateways.Count)
+            {
+                PcFieldGateway gateway = gateways[index];
+                facts.Append($"|gateway:{index}:{BitConverter.SingleToInt32Bits(gateway.A.X)}:{BitConverter.SingleToInt32Bits(gateway.A.Y)}:{BitConverter.SingleToInt32Bits(gateway.A.Z)}:{BitConverter.SingleToInt32Bits(gateway.B.X)}:{BitConverter.SingleToInt32Bits(gateway.B.Y)}:{BitConverter.SingleToInt32Bits(gateway.B.Z)}:{gateway.DestinationField}:{gateway.DestinationTriangle}:{gateway.DestinationX}:{gateway.DestinationY}:{gateway.Direction}");
+            }
+            else
+            {
+                facts.Append("|gateway:absent");
+            }
+        }
+        else
+        {
+            foreach (Ff7Line line in lines.Where(line => line.Entity == target.Entity).OrderBy(line => line.Slot))
+            {
+                facts.Append($"|line:{line.Slot}:{line.Entity}:{line.X1}:{line.Y1}:{line.Z1}:{line.X2}:{line.Y2}:{line.Z2}:{line.Enabled}:{line.SlipDisabled}");
+            }
+        }
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts.ToString())));
+    }
+
     private long waypointGeneration = -1;
     private int waypointDestination = -1;
     private Vector3? committedWaypoint;
@@ -204,7 +242,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         int next = previous[player.Triangle];
         if (next < 0 && !finalApproach)
         {
-            throw new NotSupportedException("FFVII navigation target has no unblocked native walkmesh path.");
+            throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII navigation target has no unblocked native walkmesh path.", destination: target, destinationTriangle: destination);
         }
         Vector3 waypoint = target;
         if (next != player.Triangle && !finalApproach)

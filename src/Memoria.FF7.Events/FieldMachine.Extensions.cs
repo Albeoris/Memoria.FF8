@@ -20,6 +20,18 @@ public sealed partial class FieldMachine
 
     private bool Host(int id, FieldCommand command, int length, bool yieldAfter = false, bool firstCallYields = false, Action<int>? result = null, bool applyPendingResult = false, Action<FieldHostReply>? replyResult = null)
     {
+        if (inspection is not null)
+        {
+            if (inspection.StopAtHost)
+            {
+                throw new InputInspectionBoundaryException();
+            }
+            inspection.Commands.Add(command);
+            result?.Invoke(0);
+            replyResult?.Invoke(new(true, Position: new(0, 0, 0, 0)));
+            Advance(id, length);
+            return false;
+        }
         if (host is null)
         {
             throw new NotSupportedException($"Required FFVII host operation {command.GetType().Name} has no binding.");

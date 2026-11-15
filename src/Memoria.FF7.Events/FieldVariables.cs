@@ -18,7 +18,7 @@ public enum FieldBank : byte
     Persistent4Byte = 15
 }
 
-public sealed class FieldVariables
+public sealed partial class FieldVariables
 {
     private readonly byte[] persistent;
     private readonly byte[] map;
@@ -43,6 +43,7 @@ public sealed class FieldVariables
 
     public byte ReadByte(FieldBank bank, byte address)
     {
+        ReadObserved?.Invoke(new(bank, address, false));
         if (bank == FieldBank.Immediate)
         {
             return address;
@@ -53,6 +54,7 @@ public sealed class FieldVariables
 
     public short ReadWord(FieldBank bank, ushort operand)
     {
+        ReadObserved?.Invoke(new(bank, operand, true));
         if (bank == FieldBank.Immediate)
         {
             return unchecked((short)operand);
@@ -64,12 +66,14 @@ public sealed class FieldVariables
 
     public void WriteByte(FieldBank bank, byte address, byte value)
     {
+        WriteObserved?.Invoke(new(bank, address, false));
         var (storage, index, _) = Locate(bank, address);
         storage[index] = value;
     }
 
     public void WriteWord(FieldBank bank, byte address, short value)
     {
+        WriteObserved?.Invoke(new(bank, address, true));
         var (storage, index, word) = Locate(bank, address);
         CheckWord(storage, index, word);
         storage[index] = unchecked((byte)value);

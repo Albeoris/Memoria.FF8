@@ -3,6 +3,48 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--autoplay-discovery-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayDiscoveryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-choice-only", StringComparer.Ordinal))
+{
+    AutoPlayChoiceWorkflowTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-input-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayScriptedInputTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-host-reads-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayHostReadTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-physical-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayPhysicalAvailabilityTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-planning-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayPolicyPlanningTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-world-terrain-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldTerrainTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-transport-only", StringComparer.Ordinal))
 {
     WorldTransportContinuationTests.Run();
@@ -455,6 +497,12 @@ var tests = new (string Name, Action Run)[]
     ("native materia acquisition and cold continuation", NativeMateriaTests.Run),
     ("native equipment removal and cold continuation", NativeEquipmentRemovalTests.Run),
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
+    ("native generic autoplay discovery", NativeAutoPlayDiscoveryTests.Run),
+    ("native autoplay choice workflow", AutoPlayChoiceWorkflowTests.Run),
+    ("native autoplay scripted input", NativeAutoPlayScriptedInputTests.Run),
+    ("native autoplay host read dependencies", NativeAutoPlayHostReadTests.Run),
+    ("native autoplay physical availability guards", NativeAutoPlayPhysicalAvailabilityTests.Run),
+    ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
     ("native autoplay successful target completion", NativeAutoPlayTests.RunCompletion),
     ("native autoplay observed church target", NativeAutoPlayTests.RunGoal),
     ("native autoplay crowd escape and pure previews", NativeAutoPlayCrowdTests.Run),
@@ -736,4 +784,3 @@ static void Throws<T>(Action action) where T : Exception
     }
     throw new InvalidOperationException("Expected " + typeof(T).Name);
 }
-
