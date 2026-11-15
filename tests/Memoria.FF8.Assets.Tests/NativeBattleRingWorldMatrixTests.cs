@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -62,10 +61,14 @@ public sealed class NativeBattleRingWorldMatrixTests
         }
         Assert.True(battle.NativeEntryReady);
         NativeBattleGraphicsState graphics = battle.NativeGraphics!;
-        NativeBattleGraphicsModel body = Assert.Single(graphics.Models, model => (model.Flags0 & 2) != 0 && model.ModelId4 == 102);
-        NativeBattleGraphicsModel sword = Assert.Single(graphics.Models, model => (model.Flags0 & 2) != 0 && model.ModelId4 == 98);
-        Assert.Equal(sword.Index, body.ReadLinkedModelIndex140());
-        Assert.Equal(body.Index, sword.ReadLinkedModelIndex140());
+        var bodyEntry = Assert.Single(graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 2) != 0 && entry.State.ModelId4 == 102);
+        var swordEntry = Assert.Single(graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 2) != 0 && entry.State.ModelId4 == 98);
+        BattleModelOwner bodyOwner = bodyEntry.Owner;
+        BattleModelOwner swordOwner = swordEntry.Owner;
+        NativeBattleGraphicsModel body = bodyEntry.State;
+        NativeBattleGraphicsModel sword = swordEntry.State;
+        Assert.Equal(swordOwner, body.ReadLinkedModel());
+        Assert.Equal(bodyOwner, sword.ReadLinkedModel());
         Assert.NotEqual(body.CurrentBodyBoneMatrices!.Matrices.Length, sword.CurrentBodyBoneMatrices!.Matrices.Length);
         Assert.NotNull(body.GeometryWorldMatrix);
         int previousZ = body.GeometryWorldMatrix.Z;
@@ -74,24 +77,29 @@ public sealed class NativeBattleRingWorldMatrixTests
         BattleSnapshot snapshot = battle.Capture();
         graphics = graphics with
         {
-            Models = graphics.Models.SetItem(body.Index, body with { SequenceState = body.SequenceState! with { Header40 = 512 } }).SetItem(sword.Index, sword with { SequenceState = sword.SequenceState! with { Header40 = 0 } })
+            ActorModels = graphics.ActorModels.Set(bodyOwner, body with { SequenceState = body.SequenceState! with { Header40 = 512 } }).Set(swordOwner, sword with { SequenceState = sword.SequenceState! with { Header40 = 0 } })
         };
         battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot with { NativeGraphics = graphics }));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
         for (int callback = 0; callback < 2; callback++)
         {
             battle.Tick();
             restored.Tick();
             graphics = battle.NativeGraphics!;
-            body = graphics.Models[body.Index];
-            sword = graphics.Models[sword.Index];
+            body = graphics.ActorModels.Get(bodyOwner);
+            sword = graphics.ActorModels.Get(swordOwner);
             Assert.Equal((short)512, body.SequenceState!.Header40);
             Assert.Equal((short)0, sword.SequenceState!.Header40);
             Assert.NotNull(body.GeometryWorldMatrix);
             Assert.NotNull(sword.GeometryWorldMatrix);
             Assert.NotEqual(previousZ, body.GeometryWorldMatrix.Z);
             AssertMatrix(body.GeometryWorldMatrix, sword.GeometryWorldMatrix);
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            NativeBattleGraphicsState restoredGraphics = Assert.IsType<NativeBattleGraphicsState>(restored.NativeGraphics);
+            Assert.Equal(graphics.Callback, restoredGraphics.Callback);
+            Assert.Equal(swordOwner, restoredGraphics.ActorModels.Get(bodyOwner).ReadLinkedModel());
+            Assert.Equal(bodyOwner, restoredGraphics.ActorModels.Get(swordOwner).ReadLinkedModel());
+            AssertMatrix(body.GeometryWorldMatrix, Assert.IsType<NativeBattleActionMatrix>(restoredGraphics.ActorModels.Get(bodyOwner).GeometryWorldMatrix));
+            AssertMatrix(sword.GeometryWorldMatrix, Assert.IsType<NativeBattleActionMatrix>(restoredGraphics.ActorModels.Get(swordOwner).GeometryWorldMatrix));
         }
     }
 

@@ -1168,19 +1168,25 @@ public sealed partial class BattleSession
         byte duration = unchecked((byte)(8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native50A750 requires the saved message-speed BYTE.")) + 8));
         if (duration != 0)
         {
-            BattleCombatant actor = GraphicsActor(graphics, context.ActorIndex);
-            byte command = nativeActionPackets.Headers[context.HeaderIndex].ReadByte(1);
-            bool isPlayerLimitTitle = actor.IsPlayer && (actor.ModelId == 0 && command == 5 || actor.ModelId == 4 && command == 19);
             BattleTextIdentity? identity = context.PendingData.ProducerAddress switch
             {
                 0x47E970 when context.PendingData.Argument < 64 => new("kernel_magicspells_name", context.PendingData.Argument),
                 0x4950A0 => new("kernel_enemyattacks_name", context.PendingData.Argument),
                 _ => null
             };
-            if (!actor.IsPlayer || isPlayerLimitTitle)
+            if (hostedBattlePresentation)
             {
-                events.Add(new(Frame, "NativeText", actor.Id, null, duration, text) { NativeMessageMode = 1, IsEnemyActionTitle = !actor.IsPlayer, NativeTextIdentity = identity });
+                NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidDataException("Hosted command title requires the current frame services.");
+                NativeBattleModelActorFacts actor = services.Facts.GetValueOrDefault(context.Actor) ?? throw new InvalidDataException("Hosted command title requires its current source model owner.");
+                services.EmitDescriptorText(Title(actor.ActorId, actor.IsParty));
             }
+            else
+            {
+                BattleCombatant actor = GraphicsActor(graphics, context.Actor);
+                events.Add(Title(actor.Id, actor.IsPlayer));
+            }
+
+            BattleEvent Title(string actorId, bool isParty) => new(Frame, "NativeText", actorId, null, duration, text) { NativeMessageMode = 1, IsEnemyActionTitle = !isParty, NativeTextIdentity = identity };
         }
         return graphics with { ActionGraphics = context with { PendingData = null } };
     }

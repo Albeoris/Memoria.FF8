@@ -206,9 +206,9 @@ public sealed partial class BattleSession
                     },
                     SchedulePendingSequence = (current, selected) =>
                     {
-                        graphics = ScheduleNativeRingSequence505C00(graphics with { Models = models.SetItem(index, current) }, checked((byte)index), selected);
-                        models = graphics.Models;
-                        return models[index];
+                        graphics = ScheduleNativeRingSequence505C00(graphics with { ActorModels = models.Set(owner, current) }, owner, selected);
+                        models = graphics.ActorModels;
+                        return models.Get(owner);
                     },
                     ApplyNextContact = current =>
                     {
@@ -229,6 +229,14 @@ public sealed partial class BattleSession
                 model = step.Model with { Flags2 = (ushort)(step.Model.Flags2!.Value & ~4) };
                 foreach (NativeBattleSequenceCue cue in step.Cues)
                 {
+                    if (cue.Kind == NativeBattleSequenceCueKind.CommandTitle)
+                    {
+                        if (graphics.ActionGraphics is { } titleContext)
+                        {
+                            graphics = PublishNativeOriginalEffectTitle(graphics, titleContext);
+                        }
+                        continue;
+                    }
                     if (actorFacts is not null)
                     {
                         graphics = PublishHostedModelLifecycleCue(graphics, owner, model, actorFacts, cue, services!);
@@ -239,10 +247,6 @@ public sealed partial class BattleSession
                     {
                         string text = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native91 lost its original actor resource binding.")).Resource.ReadText91(cue.First);
                         events.Add(new BattleEvent(Frame, "NativeText", actor.Id, null, cue.Second, text) { NativeMessageMode = 3, NativeTextIdentity = actor.IsPlayer ? null : BattleTextIdentity.Enemy(actor.ModelId, cue.First) });
-                    }
-                    else if (cue.Kind == NativeBattleSequenceCueKind.CommandTitle && graphics.ActionGraphics is { } titleContext)
-                    {
-                        graphics = PublishNativeOriginalEffectTitle(graphics, titleContext);
                     }
                     else if (cue.Kind == NativeBattleSequenceCueKind.SuspendParticipant)
                     {
@@ -274,7 +278,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { ActorModels = models.Set(owner, model) }, owner);
                 model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source."), ReadNativeModelScaleVector502AB0(graphics, model)) };
-                model = NativeBattleModelRings.BindWorldMatrix502AB0(models, model);
+                model = NativeBattleModelRings.BindWorldMatrix502AB0(models, owner, model);
             }
             models = models.Set(owner, model);
         }

@@ -143,6 +143,6 @@ public sealed partial class BattleSession
         model = model with { SequenceState = sequence };
         model = NativeBattleBodyBoneMatrices.Publish508F60(model, source, resource.LinkedPoseSource);
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source, ReadNativeModelScaleVector502AB0(graphics, model)) };
-        return NativeBattleModelRings.BindWorldMatrix502AB0(graphics.Models, model);
+        return NativeBattleModelRings.BindWorldMatrix502AB0(graphics.ActorModels, owner, model);
     }
 }

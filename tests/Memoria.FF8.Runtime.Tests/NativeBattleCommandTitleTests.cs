@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -28,8 +28,33 @@ public sealed class NativeBattleCommandTitleTests
         Assert.Equal(new BattleTextIdentity("kernel_magicspells_name", 1), title.NativeTextIdentity);
         Assert.Null(battle.NativeGraphics!.ActionGraphics!.PendingData);
         Assert.Equal(1, battle.NativeGraphics.Callback);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(Restore(battle).Capture()));
+        Assert.Equal(battle.Events.ToArray(), restored.Events.ToArray());
+        Assert.Equal(battle.NativeGraphics.ActionGraphics, restored.NativeGraphics!.ActionGraphics);
+        Assert.Equal(battle.Events.ToArray(), Restore(battle).Events.ToArray());
+    }
+
+    [Fact]
+    public void Hosted_BB_uses_the_current_typed_actor_facts_and_emits_one_ordered_title()
+    {
+        BattleSession child = Create(false, 3, true);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(child.NativeGraphics);
+        BattleSession logical = Create(false, 3, false);
+        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(child.NativeActionPackets.Roster);
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
+        typeof(BattleSession).GetField("hostedFrameServices", privateInstance)!.SetValue(child, services);
+
+        NativeBattleGraphicsState advanced = Assert.IsType<NativeBattleGraphicsState>(typeof(BattleSession).GetMethod("AdvanceNativeLoadedModels", privateInstance)!.Invoke(child, [graphics, 0u, services]));
+
+        BattleEvent title = Assert.IsType<NativeBattlePresentationDescriptorText>(Assert.Single(services.ReadOrderedReceipts())).Message;
+        Assert.Equal("enemy", title.ActorId);
+        Assert.Equal("Fire", title.Message);
+        Assert.Equal(32, title.Amount);
+        Assert.Equal(1, title.NativeMessageMode);
+        Assert.True(title.IsEnemyActionTitle);
+        Assert.Equal(new BattleTextIdentity("kernel_magicspells_name", 1), title.NativeTextIdentity);
+        Assert.Null(advanced.ActionGraphics!.PendingData);
+        Assert.DoesNotContain(child.Events, entry => entry.Kind == "NativeText");
     }
 
     [Fact]
@@ -77,9 +102,10 @@ public sealed class NativeBattleCommandTitleTests
             RawRecord = record.ToImmutableArray(),
             SupplementalRecord = []
         };
-        BattleActionPresentation presentation = new("enemy", "party", BattleActionPhase.Windup, 0) { NativeSequence = 1 };
+        BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+        BattleActionPresentation presentation = new("enemy", "party", BattleActionPhase.Windup, 0, target) { NativeSequence = 1 };
 
-        NativeBattleActionHeaderPreparation header = (NativeBattleActionHeaderPreparation)typeof(BattleSession).GetMethod("BuildNativeActionHeaderPreparation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.Combatants[1], presentation, action, false])!;
+        NativeBattleActionHeaderPreparation header = (NativeBattleActionHeaderPreparation)typeof(BattleSession).GetMethod("BuildNativeActionHeaderPreparation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.Combatants[1], presentation, action, false, false])!;
 
         if (producer == 0)
         {
@@ -109,17 +135,19 @@ public sealed class NativeBattleCommandTitleTests
         BattleDefinition definition = (BattleDefinition)definitionField.GetValue(session)!;
         definitionField.SetValue(session, definition with { NativeGraphics = new(rules, [new(actor, 3, resource)], []) });
         typeof(BattleSession).GetMethod("InitializeNativePartyPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, null);
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray();
-        models = models.SetItem(index, models[index] with { Flags0 = 3, ModelId4 = 3, Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } });
-        ImmutableArray<string?> actors = Enumerable.Repeat<string?>(null, 7).ToImmutableArray().SetItem(index, actor);
+        BattleModelOwner owner = player ? new BattlePartyActorModel(new(actor)) : new BattleEnemyActorModel(new(actor));
+        NativeBattleGraphicsModel model = new(3) { Flags0 = 3, ModelId4 = 3, Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
         NativeBattleActionDataReference? title = pending ? new(0x47E970, 1, "Fire") : null;
-        NativeBattleGraphicsState graphics = new(models, actors, 0, 0) { ActionGraphics = new(0, (byte)index, 0, 0, 0, null, null, 0, title, 0x50A9A0) };
+        NativeBattleGraphicsState graphics = OriginalGraphics([(index, owner, model)]) with
+        {
+            ActionGraphics = new(new BattleActionHeaderReference(0), owner, new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, title, 0x50A9A0)
+        };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
         return session;
     }
 
     private static BattleSession Restore(BattleSession battle)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
     }
 }

@@ -21,7 +21,7 @@ public sealed class NativeBattleRingSequenceSchedulingTests
         NativeBattleGraphicsModel companion = (fixture.Graphics.ActorModels.Get(Enemy) with { Flags0 = 2, ModelId4 = 98, ResourceFlags44 = 0x40, Sequence = 1, SequenceState = source.SequenceState! with { Pending3 = 0 } }).WriteLinkedModel(Party);
         NativeBattleGraphicsState graphics = fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Party, source).Set(Enemy, companion) };
         int requests = 0;
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source, resource, new(null, null)
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Party, source, resource, new(null, null)
         {
             SchedulePendingSequence = (current, requested) =>
             {
@@ -65,7 +65,7 @@ public sealed class NativeBattleRingSequenceSchedulingTests
         foreach (uint status in new uint[] { 0, 0x18 })
         {
             NativeBattleGraphicsModel source = fixture.Graphics.ActorModels.Get(Party) with { Flags8 = status, Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
-            NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source, resource, new(null, null)
+            NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Party, source, resource, new(null, null)
             {
                 SchedulePendingSequence = (current, requested) => Schedule(fixture.Session, fixture.Graphics with { ActorModels = fixture.Graphics.ActorModels.Set(Party, current) }, requested).ActorModels.Get(Party)
             });

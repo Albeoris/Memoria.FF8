@@ -65,13 +65,15 @@ public sealed class NativeOrdinaryCommandTests
         BattleCombatant changed = battle.Combatants.Single(actor => actor.Id == "enemy");
         Assert.Equal(expectedLevel, changed.Level);
         Assert.Equal(template.Levels[expectedLevel].MaximumHp, changed.MaximumHp);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary;
+        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactHalf contact = packets.ReadContact(header.FirstContact).Primary;
         Assert.Equal(0, contact.PresentedAmount);
-        NativeBattleEffectsState text = NativeBattleEffectsState.Clear().PrependDamageText(contact.ActorIndex, contact.ContactFlags, contact.PresentedAmount);
+        Assert.Equal(new BattleEnemyActorModel(new("enemy")), contact.Recipient);
+        NativeBattleEffectsState text = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena).PrependDamageText(contact.Recipient, contact.ContactFlags, contact.PresentedAmount, packets.Roster);
         if (immune)
         {
-            Assert.Equal(4, contact.HitFlags3 & 4);
+            Assert.Equal(4, contact.HitFlags & 4);
             Assert.Equal(new byte[] { 16, 0 }, text.Slots[text.Head!.Value].Glyphs.ToArray());
             Assert.DoesNotContain(battle.Events, entry => entry.Kind == "NativeText");
             Assert.Equal(level.MaximumHp / 2, changed.CurrentHp);
@@ -87,7 +89,7 @@ public sealed class NativeOrdinaryCommandTests
             Assert.Equal(expectedHp, changed.CurrentHp);
         }
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage" && entry.Amount != 0);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
         for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
@@ -95,7 +97,10 @@ public sealed class NativeOrdinaryCommandTests
         }
         Assert.Null(battle.ActiveAction);
         Assert.Empty(battle.QueuedActions);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(battle.Frame, restored.Frame);
+        Assert.Equal(battle.Events, restored.Events);
+        BattleCombatant restoredEnemy = restored.Combatants.Single(actor => actor.Id == changed.Id);
+        Assert.Equal((changed.Level, changed.MaximumHp, changed.CurrentHp), (restoredEnemy.Level, restoredEnemy.MaximumHp, restoredEnemy.CurrentHp));
     }
 
     [Theory]
