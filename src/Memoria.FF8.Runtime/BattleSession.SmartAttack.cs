@@ -45,7 +45,6 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("The displayed Smart Attack choice changed; select the target again.");
         }
-        BattleCombatant actor = GetActor(preview.ActorId);
         if (preview.Ability is BattleAbility.Magic or BattleAbility.Draw)
         {
             pendingSmartAttack = preview;
@@ -64,10 +63,6 @@ public sealed partial class BattleSession
             {
                 pendingSmartAttack = null;
             }
-        }
-        else if (!UsesExpandedRoster && PhysicalCommand(actor) == 12)
-        {
-            QueueNativePlayerCommand(preview.ActorId, preview.TargetId, 12, 0);
         }
         else
         {

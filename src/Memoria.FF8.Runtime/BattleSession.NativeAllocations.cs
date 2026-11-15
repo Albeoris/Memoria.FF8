@@ -155,10 +155,7 @@ public sealed partial class BattleSession
             ValidateEncounterAllocationDefinition(allocation, resolved, prototype);
             prototype = CloneDefinition(definition with { Combatants = [resolved] }).Combatants[0];
         }
-        BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
-        actor.NativeActionMemoryOwner = UsesExpandedRoster ? null : nativeActionMemory;
-        actor.NativePresentationStatusOwner = UsesExpandedRoster ? null : nativePresentationStatusMemory;
-        InitializeNativeAtb(actor);
+        BattleCombatant actor = CreateCombatant(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
         combatants.Add(actor);
         enemies.Add(actor);
         byId.Add(actor.Id, actor);

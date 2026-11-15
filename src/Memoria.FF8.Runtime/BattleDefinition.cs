@@ -497,10 +497,11 @@ public sealed partial class BattleCombatant
     internal short[] NativeStatusTimers { get; } = Enumerable.Repeat((short)-1111, 14).ToArray();
     internal byte[] MutableNativeStatusResistances { get; private set; }
 
-    internal BattleCombatant(BattleCombatantDefinition definition)
+    internal BattleCombatant(BattleCombatantDefinition definition, ExpandedEnemyLevelProfile? enemyLevels)
     {
         MutableGuardianForceCompatibility = definition.GuardianForceCompatibility?.ToArray();
         this.definition = definition;
+        ExpandedEnemyLevels = enemyLevels;
         NativePendingReaction = definition.InitialActive ? new(0, 0) : new(null, null);
         MutableNativeStatusResistances = InitialNativeStatusResistances();
         NativeGrowth = definition.NativeGrowth;
@@ -638,12 +639,12 @@ public sealed partial class BattleCombatant
 
     internal int? ResolvedNativeLevel { get; set; }
     internal bool ExpandedAiRemovalPending { get; set; }
-    internal ExpandedEnemyLevelProfile? ExpandedEnemyLevels { get; set; }
+    internal ExpandedEnemyLevelProfile? ExpandedEnemyLevels { get; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 
     internal void BindNativeLevel(int level)
     {
-        if (ExpandedEnemyLevels is { } expanded)
+        if (definition.NativeTemplate is null && ExpandedEnemyLevels is { } expanded)
         {
             if (level is < 1 or > 100)
             {

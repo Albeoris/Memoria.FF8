@@ -47,7 +47,7 @@ public sealed class BattlePartyProjectionTests
             Assert.Same(saved.QueuedActions, corrected.QueuedActions);
             Assert.Equal(JsonSerializer.Serialize(saved.MagicVitals), JsonSerializer.Serialize(corrected.MagicVitals));
             Assert.Same(corrected, BattlePartyProjection.RestoreLegacyCommandProjection(corrected, resources));
-            battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(corrected))!);
+            battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(corrected));
         }
         Assert.Empty(battle.GetNativePlayerActionChoices(actor.Id, false));
         BattleSmartAttackPreview preview = battle.PreviewSmartAttack(actor.Id, "enemy", forcePhysical);
@@ -167,7 +167,7 @@ public sealed class BattlePartyProjectionTests
             Assert.Same(snapshot.QueuedActions, corrected.QueuedActions);
             Assert.Same(snapshot.ActiveAction, corrected.ActiveAction);
             Assert.Same(corrected, BattlePartyProjection.RestoreLegacyCommandProjection(corrected, resources));
-            BattleSession session = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(corrected))!);
+            BattleSession session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(corrected));
             Assert.DoesNotContain(ability, session.Combatants.Single(actor => actor.IsPlayer).Abilities);
             Assert.Empty(session.GetNativePlayerActionChoices(current.Id, false));
             return session;

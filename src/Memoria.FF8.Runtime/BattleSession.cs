@@ -62,17 +62,10 @@ public sealed partial class BattleSession
         InitializeNativeRetainedMemory();
         nativeScannedModels = this.definition.NativeScannedModels;
         nativeKnownMagic = this.definition.NativeKnownMagic;
-        combatants = this.definition.Combatants.Select(actor => new BattleCombatant(actor)).ToList();
+        combatants = this.definition.Combatants.Select(CreateCombatant).ToList();
         foreach (BattleCombatant actor in combatants)
         {
             (actor.IsPlayer ? allies : enemies).Add(actor);
-            actor.NativeActionMemoryOwner = UsesExpandedRoster ? null : nativeActionMemory;
-            actor.NativePresentationStatusOwner = UsesExpandedRoster ? null : nativePresentationStatusMemory;
-            if (!actor.IsPlayer)
-            {
-                actor.ExpandedEnemyLevels = this.definition.ExpandedEnemyLevels?.GetValueOrDefault(actor.ModelId);
-            }
-            InitializeNativeAtb(actor);
         }
         Combatants = combatants.AsReadOnly();
         byId = combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
@@ -176,6 +169,18 @@ public sealed partial class BattleSession
             Outcome = DetermineOutcome();
         }
         RefreshPreparedPresentation();
+    }
+
+    private BattleCombatant CreateCombatant(BattleCombatantDefinition source)
+    {
+        ExpandedEnemyLevelProfile? enemyLevels = source.IsPlayer ? null : definition.ExpandedEnemyLevels?.GetValueOrDefault(source.ModelId);
+        BattleCombatant actor = new(source, enemyLevels)
+        {
+            NativeActionMemoryOwner = UsesExpandedRoster ? null : nativeActionMemory,
+            NativePresentationStatusOwner = UsesExpandedRoster ? null : nativePresentationStatusMemory
+        };
+        InitializeNativeAtb(actor);
+        return actor;
     }
 
     public bool UsesExpandedRoster => definition.UsesExpandedRoster;

@@ -138,6 +138,33 @@ public sealed class NativeBattleAllocationTests
     }
 
     [Fact]
+    public void ExpandedReplacementAcceptsSameBandLevelChangesAcrossPrivateRestore()
+    {
+        BattleSession battle = CreateExpanded([52, 6, 59, 6, 4, 0], levelCommands: true);
+        battle.Combatants.Single(actor => actor.Id == "enemy-2").Suspended = true;
+        BattleCombatant replacement = Assert.Single(battle.Combatants, actor => actor.Id == "native-allocation-2");
+        Assert.True(replacement.IsActive);
+        Assert.Equal(5, replacement.Level);
+
+        battle.QueueNativePlayerCommand("party-0", replacement.Id, 34, 0);
+        BattleSession restored = DetachedExpandedAiFixture.Restore(battle.Capture());
+        foreach (BattleSession candidate in new[] { battle, restored })
+        {
+            DetachedExpandedAiFixture.AdvanceTo(candidate, () => candidate.ActiveAction is null && candidate.QueuedActions.Count == 0, "The queued level increase must complete.");
+            Assert.Equal(10, candidate.Combatants.Single(actor => actor.Id == replacement.Id).Level);
+            Assert.Single(candidate.Events, item => item.Kind == "LevelChanged" && item.TargetId == replacement.Id);
+            BattleSession afterIncrease = DetachedExpandedAiFixture.Restore(candidate.Capture());
+            Assert.Equal(10, afterIncrease.Combatants.Single(actor => actor.Id == replacement.Id).Level);
+            candidate.Combatants[0].Atb = BattleSession.AtbMaximum;
+            candidate.QueueNativePlayerCommand("party-0", replacement.Id, 33, 0);
+            DetachedExpandedAiFixture.AdvanceTo(candidate, () => candidate.ActiveAction is null && candidate.QueuedActions.Count == 0, "The queued level decrease must complete.");
+            Assert.Equal(5, candidate.Combatants.Single(actor => actor.Id == replacement.Id).Level);
+            Assert.Equal(2, candidate.Events.Count(item => item.Kind == "LevelChanged" && item.TargetId == replacement.Id));
+        }
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
+    }
+
+    [Fact]
     public void ExpandedDirectTargetResolvesAnOriginalPartySlotAlongsideExtraAllies()
     {
         byte[] turn = [43, 2, 7, 1, 6, 0];
@@ -254,7 +281,7 @@ public sealed class NativeBattleAllocationTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
-    private static BattleSession CreateExpanded(byte[] init, bool hiddenActor = false, byte[]? turn = null, bool untargetableAlly = false, int untargetableOriginalAllies = 0, bool releasesOnDeath = false)
+    private static BattleSession CreateExpanded(byte[] init, bool hiddenActor = false, byte[]? turn = null, bool untargetableAlly = false, int untargetableOriginalAllies = 0, bool releasesOnDeath = false, bool levelCommands = false)
     {
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
         NativeBattleEnemyLevel level = new(100, 10, 10, 10, 10, 10, new int[8], [], [], 0);
@@ -272,7 +299,35 @@ public sealed class NativeBattleAllocationTests
             Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, PowerModifier = null,
             LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
-        return new(new() { UsesExpandedRoster = true, UsesOriginalEnemySlots = true, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = combatants, NativeActions = [action] }, BattleAtbMode.Normal);
+        BattleDefinition definition = new() { UsesExpandedRoster = true, UsesOriginalEnemySlots = true, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = combatants, NativeActions = [action] };
+        if (levelCommands)
+        {
+            combatants[0] = combatants[0] with { InitialAtb = BattleSession.AtbMaximum, NativeCommands = [new(33, "Level Down", 0x50, 0), new(34, "Level Up", 0x50, 0)] };
+            BattleNativeAction levelUp = action with { Command = 34, ActionId = 0, Name = "Level Up", AttackType = 16, Power = 16, KernelSection = 10, StatusAttack = 255, TargetFlags = 0x50 };
+            BattleNativeAction levelDown = levelUp with { Command = 33, Name = "Level Down", AttackType = 13, Power = 4 };
+            ImmutableArray<NativeBattleDrawSlot> drawBand = [new(0, 0), new(0, 0), new(0, 0), new(0, 0)];
+            ExpandedEnemyLevelProfile profile = new([.. Enumerable.Repeat(new ExpandedEnemyLevel(100, [10, 10, 10, 10, 10, 10], 0), 100)], [drawBand, drawBand, drawBand]);
+            string?[] messages = new string?[96];
+            messages[11] = " 0123456789";
+            messages[88] = " Level ";
+            messages[89] = "raised";
+            messages[90] = "lowered";
+            definition = definition with
+            {
+                NativeActions = [action, levelUp, levelDown],
+                ExpandedEnemyLevels = ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Empty.Add(prototype.ModelId, profile),
+                NativeGlobalMessages = messages,
+                NativeMessageSpeed = 0,
+                NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+                NativeFieldBattleMode = 0x200
+            };
+        }
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        if (levelCommands)
+        {
+            DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        }
+        return battle;
     }
 
     private static void AssertExpandedContinuation(BattleSession battle)

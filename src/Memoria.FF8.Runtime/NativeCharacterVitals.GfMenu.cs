@@ -11,11 +11,11 @@ public sealed partial record NativeCharacterVitals
     }
 
     /// <summary>Combines equipped party abilities with the party-wide GF passive abilities.</summary>
-    public byte GetEncounterAbilityFlags()
+    public byte GetEncounterAbilityFlags(IReadOnlyList<byte>? battleRows = null)
     {
         Validate();
         byte flags = 0;
-        foreach (byte row in CombatParty.Where(row => row != 255))
+        foreach (byte row in (battleRows ?? CombatParty).Where(row => row != byte.MaxValue))
         {
             for (int slot = 0; slot < 4; slot++)
             {

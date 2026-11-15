@@ -79,7 +79,7 @@ public sealed class BattleNativeActorBindingTests
     {
         NativeBattleActionMemoryOwner action = new() { State = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
         NativeBattlePresentationStatusMemoryOwner presentation = new();
-        BattleCombatant actor = new(new BattleCombatantDefinition { Id = "ally", Name = "Ally", IsPlayer = true })
+        BattleCombatant actor = new(new BattleCombatantDefinition { Id = "ally", Name = "Ally", IsPlayer = true }, null)
         {
             NativeActionMemoryOwner = action,
             NativePresentationStatusOwner = presentation

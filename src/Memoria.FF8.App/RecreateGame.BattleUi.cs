@@ -427,14 +427,7 @@ internal sealed partial class RecreateGame
                 }
                 break;
             case BattleInputKind.Attack:
-                if (input.SmartAttackPreview is { } preview)
-                {
-                    debugBattle.QueueSmartAttack(preview);
-                }
-                else
-                {
-                    debugBattle.QueueSmartAttack(input.ActorId!, input.TargetId!, input.ForcePhysical);
-                }
+                GameWorld.ExecuteBattleCommand(debugBattle, input);
                 break;
             case BattleInputKind.Action:
                 debugBattle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast, input.MagicTargets.IsEmpty ? null : input.MagicTargets);
