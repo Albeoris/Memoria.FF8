@@ -8,6 +8,7 @@ public sealed record NativeBattleBadBreath131State([property: JsonRequired] Nati
 {
     public const uint BaseAddress = 0x2520FF0;
     public const int Length = 0xB8;
+    internal ImmutableArray<int> ExtendedTargetOrder { get; init; }
     [JsonRequired] public bool? PendingColdSources { get; init; }
     public static NativeBattleBadBreath131State FromColdProcess() => new(NativeBattleEffectArena.Clear(), null, null) { PendingColdSources = true };
     public static NativeBattleBadBreath131State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, Length), null, null) { PendingColdSources = null };

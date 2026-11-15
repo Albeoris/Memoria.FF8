@@ -83,6 +83,28 @@ public sealed class NativeBattleGravija214ControllerTests
     }
 
     [Fact]
+    public void Sixth_contact_contributes_to_the_mean_without_overwriting_the_five_physical_pointers()
+    {
+        var packets = Packets(6);
+        var frame = Initialize(Inactive(), Resources(), Inputs([], packets));
+        frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 1));
+        List<BattleModelOwner> seen = [];
+        var inputs = Inputs([], packets) with { ReadAnchor571400 = (current, model) =>
+        {
+            seen.Add(model);
+            return new(current, PointView(new((short)(seen.Count * 100), 73, -840)));
+        } };
+        frame = AdvanceTask(frame, RootBank, Resources(), inputs).Frame;
+        NativeBattleModulePoolTask main = Read(frame, Pools[2].Bank);
+        Assert.Equal(Enumerable.Range(0, 6).Select(OriginalOwner), seen);
+        Assert.Equal((ushort)6, main.ReadWord(16));
+        Assert.Equal(Enumerable.Range(0, 5).Select(ModelAddressFor), Enumerable.Range(0, 5).Select(index => main.ReadDword(20 + index * 4)));
+        Assert.Equal((ushort)350, main.ReadWord(40));
+        Assert.Equal((ushort)73, main.ReadWord(42));
+        Assert.Equal(unchecked((ushort)-840), main.ReadWord(44));
+    }
+
+    [Fact]
     public void Age_eighteen_births_sixty_four_particles_with_six_CRT_draws_each_and_partial_payloads()
     {
         var frame = MainAt(18);

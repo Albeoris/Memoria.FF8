@@ -8,6 +8,13 @@ public static partial class NativeBattleBadBreath131Controller
 {
     public static (NativeBattleBadBreath131Frame Frame, int Result) AdvanceMain(NativeBattleBadBreath131Frame frame, uint address, NativeBattleBadBreath131Resources resources, NativeBattleBadBreath131Inputs inputs)
     {
+        if (Signed(Read(frame, address), 12) > 65 && !frame.State.ExtendedTargetOrder.IsDefault)
+        {
+            // The original sweep has ended. Wait for the physical bank to admit each remaining target.
+            frame = AdmitTarget(frame, address, resources, inputs, null);
+            NativeBattleModulePoolTask tail = Read(frame, address);
+            return (frame, Signed(tail, 0x26) == Signed(tail, 14) ? 2 : 0);
+        }
         NativeBattleBadBreath131PointStep mouth = inputs.ReadBone(frame, frame.State.ReadModel(CasterGlobal), 11, 8192);
         frame = mouth.Frame;
         NativeBattleModulePoolTask task = Vector(Read(frame, address), 0x2C, mouth.Position);
@@ -21,29 +28,9 @@ public static partial class NativeBattleBadBreath131Controller
             frame = LoadRotationZeroTranslation(frame, RotationZ7012C0(Signed(task, 0x22)));
             frame = Deform6B4140(frame, MeshAAddress, Signed(task, 0x24), resources);
             short sweep = unchecked((short)(NativeBattleCameraMath.Cosine(phase * 4096 / 50) >> 1));
-            task = Read(frame, address);
-            int selected = Signed(task, 0x26);
-            if (phase >= 25 && selected < Signed(task, 14))
+            if (phase >= 25)
             {
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + selected * 4, 4).Owner;
-                if (sweep >= Transform(inputs.ReadModel(actor)).Position28.X - 1000)
-                {
-                    (frame, uint childAddress) = Append(frame, 2, TargetCallback);
-                    if (childAddress != 0)
-                    {
-                        uint savedColor = inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Bad Breath requires its actual saved target color.");
-                        NativeBattleModulePoolTask pending = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x1C + selected)).WriteDword(0x18, savedColor);
-                        pending.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
-                        frame = Write(frame, childAddress, pending);
-                        NativeBattleBadBreath131AnchorStep anchor = inputs.ReadAnchor(frame, actor);
-                        frame = anchor.Frame;
-                        short angle = unchecked((short)(Transform(inputs.ReadModel(actor)).Angle36 - 200));
-                        NativeBattleModulePoolTask child = Vector(Read(frame, childAddress), 16, new(anchor.Anchor.X, anchor.Anchor.Y, anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)angle));
-                        child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x1C, NativeBattleGfAnimationWorkspace.Borrow(child, 0x1C, 0x128).Initialize7016B0(resources.Target, 0x128));
-                        frame = Write(frame, childAddress, child);
-                    }
-                    frame = Write(frame, address, Read(frame, address).WriteWord(0x26, unchecked((ushort)(selected + 1))));
-                }
+                frame = AdmitTarget(frame, address, resources, inputs, sweep);
             }
             task = Read(frame, address);
             int dx = sweep - Signed(task, 0x2C);
@@ -105,7 +92,50 @@ public static partial class NativeBattleBadBreath131Controller
         }
         task = Read(frame, address).WriteWord(0x22, unchecked((ushort)(Read(frame, address).ReadWord(0x22) - 50))).WriteWord(0x24, unchecked((ushort)(Read(frame, address).ReadWord(0x24) + 200)));
         frame = Write(frame, address, task);
-        return age >= 65 ? (frame, 2) : (Write(frame, address, task.WriteWord(12, unchecked((ushort)(age + 1)))), 0);
+        bool pendingExtendedTargets = !frame.State.ExtendedTargetOrder.IsDefault && Signed(task, 0x26) < Signed(task, 14);
+        return age >= 65 && !pendingExtendedTargets ? (frame, 2) : (Write(frame, address, task.WriteWord(12, unchecked((ushort)(age + 1)))), 0);
+    }
+
+    private static NativeBattleBadBreath131Frame AdmitTarget(NativeBattleBadBreath131Frame frame, uint address, NativeBattleBadBreath131Resources resources, NativeBattleBadBreath131Inputs inputs, short? sweep)
+    {
+        NativeBattleModulePoolTask task = Read(frame, address);
+        int selected = Signed(task, 0x26);
+        if (selected >= Signed(task, 14))
+        {
+            return frame;
+        }
+        int occurrence;
+        BattleModelOwner actor;
+        if (selected < TargetCount)
+        {
+            occurrence = task.ReadByte(0x1C + selected);
+            actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + selected * 4, 4).Owner;
+        }
+        else
+        {
+            occurrence = frame.State.ExtendedTargetOrder[selected];
+            actor = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(occurrence)).Primary.Recipient;
+        }
+        if (sweep is short position && position < Transform(inputs.ReadModel(actor)).Position28.X - 1000)
+        {
+            return frame;
+        }
+        (frame, uint childAddress) = Append(frame, 2, TargetCallback);
+        if (childAddress == 0)
+        {
+            return frame;
+        }
+        uint savedColor = inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Bad Breath requires its actual saved target color.");
+        NativeBattleModulePoolTask pending = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, checked((byte)occurrence)).WriteDword(0x18, savedColor);
+        pending.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
+        frame = Write(frame, childAddress, pending);
+        NativeBattleBadBreath131AnchorStep anchor = inputs.ReadAnchor(frame, actor);
+        frame = anchor.Frame;
+        short angle = unchecked((short)(Transform(inputs.ReadModel(actor)).Angle36 - 200));
+        NativeBattleModulePoolTask child = Vector(Read(frame, childAddress), 16, new(anchor.Anchor.X, anchor.Anchor.Y, anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)angle));
+        child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x1C, NativeBattleGfAnimationWorkspace.Borrow(child, 0x1C, 0x128).Initialize7016B0(resources.Target, 0x128));
+        frame = Write(frame, childAddress, child);
+        return Write(frame, address, Read(frame, address).WriteWord(0x26, checked((ushort)(selected + 1))));
     }
 
     private static NativeBattleFileStaging RequireStaging(NativeBattleBadBreath131Frame frame) => frame.Staging ?? throw new NotSupportedException("Bad Breath requires its actual temporary stack.");

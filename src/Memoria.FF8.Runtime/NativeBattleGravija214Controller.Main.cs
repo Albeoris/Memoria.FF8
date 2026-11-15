@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleGravija214Controller
 {
+    private const int PhysicalRecipientCount = 5;
+
     private static (NativeBattleGravija214Frame Frame, int Result) AdvanceRoot(NativeBattleGravija214Frame frame, uint address, NativeBattleGravija214Resources resources, NativeBattleGravija214Inputs inputs)
     {
         NativeBattleModulePoolTask root = Read(frame, address);
@@ -30,9 +32,9 @@ public static partial class NativeBattleGravija214Controller
                 workspace = workspace.Initialize7016B0(resources.Programme, 756);
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 0x30, workspace);
                 int count = Header(frame, inputs.ReadPackets(frame)).ReadContactCount();
-                if (count == 0 || count > 5)
+                if (count == 0)
                 {
-                    throw new NotSupportedException("Gravija's recipient mean requires one to five physical contact records.");
+                    throw new NotSupportedException("Gravija's recipient mean requires actual captured contacts.");
                 }
                 frame = Write(frame, main, Read(frame, main).WriteWord(0x10, checked((ushort)count)));
                 for (int index = 0; index < count; index++)
@@ -40,9 +42,12 @@ public static partial class NativeBattleGravija214Controller
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleContactCursor first = Header(frame, packets).FirstContact;
                     BattleModelOwner model = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                    NativeBattleModulePoolTask recipientTask = Read(frame, main);
-                    recipientTask.WriteExecutionReference(0x14 + index * 4, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
-                    frame = Write(frame, main, recipientTask);
+                    if (index < PhysicalRecipientCount)
+                    {
+                        NativeBattleModulePoolTask recipientTask = Read(frame, main);
+                        recipientTask.WriteExecutionReference(0x14 + index * 4, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
+                        frame = Write(frame, main, recipientTask);
+                    }
                     NativeBattleGravija214PointStep anchor = inputs.ReadAnchor571400(frame, model);
                     frame = anchor.Frame;
                     NativeBattleModulePoolTask task = Read(frame, main);
@@ -145,9 +150,22 @@ public static partial class NativeBattleGravija214Controller
         NativeBattleEffectArena rect = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)32767)).Write(2, BitConverter.GetBytes((short)32767)).Write(4, BitConverter.GetBytes((short)-32767)).Write(6, BitConverter.GetBytes((short)-32767));
         int minimumDepth = 65536;
         bool included = false;
-        for (int index = 0; index < Signed(Read(frame, address), 16); index++)
+        NativeBattleModulePoolTask recipients = Read(frame, address);
+        int count = Signed(recipients, 16);
+        for (int index = 0; index < count; index++)
         {
-            NativeBattleGravija214BoundsStep bounds = Bounds69E860(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(20 + index * 4, 4).Owner, rect, minimumDepth, inputs);
+            BattleModelOwner recipient;
+            if (index < PhysicalRecipientCount)
+            {
+                recipient = recipients.ReadExecutionReference<BattleExecutionReference.Model>(20 + index * 4, 4).Owner;
+            }
+            else
+            {
+                // The mean fields follow the original five pointers. The held header owns further recipients.
+                NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+                recipient = packets.ReadContact(Header(frame, packets).FirstContact.Advance(index)).Primary.Recipient;
+            }
+            NativeBattleGravija214BoundsStep bounds = Bounds69E860(frame, recipient, rect, minimumDepth, inputs);
             frame = bounds.Frame;
             rect = bounds.Rect8;
             minimumDepth = bounds.MinimumDepth;
