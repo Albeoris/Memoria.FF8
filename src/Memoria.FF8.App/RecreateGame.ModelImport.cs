@@ -13,7 +13,7 @@ internal sealed partial class RecreateGame
     {
         try
         {
-            string? path = await ModelBrowserDialogs.ImportAsync(Window.Handle, LocalizeUiText);
+            string? path = await ModelBrowserDialogs.ImportAsync(Window.Handle, globalSettings, LocalizeUiText);
             if (path is null)
             {
                 return;

@@ -22,6 +22,8 @@ internal sealed class GlobalSettingsPaths
     public string DirectoryPath { get; }
     public string UiPreferencesPath => Path.Combine(DirectoryPath, "ui-settings.json");
     public string ControlsPreferencesPath => Path.Combine(DirectoryPath, "controls.json");
+    public string ModelImportDirectoryPath => Path.Combine(DirectoryPath, "model-import-directory.txt");
+    public string ModelExportDirectoryPath => Path.Combine(DirectoryPath, "model-export-directory.txt");
     public string TripleTriadDeckHistoryPath => Path.Combine(DirectoryPath, "triple-triad-decks.json");
     public string SaveBanksPath => Path.Combine(DirectoryPath, "save-banks.json");
 

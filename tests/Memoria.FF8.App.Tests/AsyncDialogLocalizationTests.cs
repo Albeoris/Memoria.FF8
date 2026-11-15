@@ -17,15 +17,17 @@ public sealed class AsyncDialogLocalizationTests
         try
         {
             ModelBrowserDialogs.Desktop = desktop;
+            GlobalSettingsPaths settings = new(isolatedDirectory: directory);
             Dictionary<string, string> translations = Translations();
             string Translate(string key, string fallback) => translations.GetValueOrDefault(key, fallback);
-            Assert.Null(await ModelBrowserDialogs.ImportAsync(0, Translate));
-            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "model", Translate));
+            Assert.Null(await ModelBrowserDialogs.ImportAsync(0, settings, Translate));
+            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "model", settings, Translate));
             Assert.Null(await ModelBrowserDialogs.DestinationAsync(0, directory, Translate));
             Assert.Equal("訳 Import from Blender (as mod)", desktop.Requests[0].Title);
             Assert.Equal("訳 Export to Blender", desktop.Requests[1].Title);
             Assert.Equal("訳 Choose a mod package folder (or create one)", desktop.Requests[2].Title);
             Assert.All(desktop.Requests.Take(2), request => Assert.Equal("訳 glTF binary model (*.glb)", Assert.Single(request.Filters!).Name));
+            Assert.Null(desktop.Requests[0].InitialPath);
             Assert.Equal("model.glb", desktop.Requests[1].InitialPath);
             Assert.Equal(directory, desktop.Requests[2].InitialPath);
         }
@@ -35,6 +37,50 @@ public sealed class AsyncDialogLocalizationTests
             if (Directory.Exists(directory))
             {
                 Directory.Delete(directory);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Model_file_dialogs_remember_independent_directories_after_selection()
+    {
+        IDesktopDialogs previous = ModelBrowserDialogs.Desktop;
+        string root = Path.Combine(Path.GetTempPath(), "Memoria-model-dialogs-" + Guid.NewGuid().ToString("N"));
+        string settingsDirectory = Path.Combine(root, "settings");
+        GlobalSettingsPaths settings = new(isolatedDirectory: settingsDirectory);
+        RecordingDialogs desktop = new();
+        try
+        {
+            string importDirectory = Directory.CreateDirectory(Path.Combine(root, "import")).FullName;
+            string exportDirectory = Directory.CreateDirectory(Path.Combine(root, "export")).FullName;
+            string importPath = Path.Combine(importDirectory, "source.glb");
+            string exportPath = Path.Combine(exportDirectory, "target");
+            ModelBrowserDialogs.Desktop = desktop;
+            desktop.Result = new(DialogStatus.Selected, importPath);
+            Assert.Equal(importPath, await ModelBrowserDialogs.ImportAsync(0, settings));
+            desktop.Result = new(DialogStatus.Selected, exportPath);
+            Assert.Equal(exportPath + ".glb", await ModelBrowserDialogs.ExportAsync(0, "first", settings));
+            Assert.Equal("first.glb", desktop.Requests[1].InitialPath);
+
+            settings = new(isolatedDirectory: settingsDirectory);
+            desktop.Result = new(DialogStatus.Cancelled);
+            Assert.Null(await ModelBrowserDialogs.ImportAsync(0, settings));
+            Assert.Equal(importDirectory + Path.DirectorySeparatorChar, desktop.Requests[2].InitialPath);
+            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "second", settings));
+            Assert.Equal(Path.Combine(exportDirectory, "second.glb"), desktop.Requests[3].InitialPath);
+
+            Assert.Null(await ModelBrowserDialogs.ImportAsync(0, settings));
+            Assert.Equal(importDirectory + Path.DirectorySeparatorChar, desktop.Requests[4].InitialPath);
+            Directory.Delete(exportDirectory);
+            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "third", settings));
+            Assert.Equal("third.glb", desktop.Requests[5].InitialPath);
+        }
+        finally
+        {
+            ModelBrowserDialogs.Desktop = previous;
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
             }
         }
     }
@@ -85,6 +131,7 @@ public sealed class AsyncDialogLocalizationTests
     private sealed class RecordingDialogs : IDesktopDialogs
     {
         internal List<FileDialogRequest> Requests { get; } = [];
+        internal DialogResult Result { get; set; } = new(DialogStatus.Cancelled);
 
         public Task<DialogResult> OpenFileAsync(FileDialogRequest request, CancellationToken cancellationToken = default) => Record(request);
         public Task<DialogResult> SaveFileAsync(FileDialogRequest request, CancellationToken cancellationToken = default) => Record(request);
@@ -93,7 +140,7 @@ public sealed class AsyncDialogLocalizationTests
         private Task<DialogResult> Record(FileDialogRequest request)
         {
             Requests.Add(request);
-            return Task.FromResult(new DialogResult(DialogStatus.Cancelled));
+            return Task.FromResult(Result);
         }
     }
 }

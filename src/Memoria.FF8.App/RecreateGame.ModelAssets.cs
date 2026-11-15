@@ -242,7 +242,7 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Select geometry or at least one clip component.");
             }
-            string? path = await ModelBrowserDialogs.ExportAsync(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'), LocalizeUiText);
+            string? path = await ModelBrowserDialogs.ExportAsync(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'), globalSettings, LocalizeUiText);
             if (path is null)
             {
                 return;

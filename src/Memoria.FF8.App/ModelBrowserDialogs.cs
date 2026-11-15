@@ -13,18 +13,67 @@ internal static class ModelBrowserDialogs
         return [new(SystemTextCatalog.Translate(localizeText, "model.dialog.filter.glb", "glTF binary model (*.glb)"), ["glb"])];
     }
 
-    public static async Task<string?> ExportAsync(nint owner, string name, Func<string, string, string>? localizeText = null)
+    public static async Task<string?> ExportAsync(nint owner, string name, GlobalSettingsPaths settings, Func<string, string, string>? localizeText = null)
     {
         string title = SystemTextCatalog.Translate(localizeText, "model.dialog.export.title", "Export to Blender");
         string filename = string.Concat(name.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character)) + ".glb";
-        string? result = await PathAsync(Desktop.SaveFileAsync(new(title, filename, ModelFilters(localizeText))));
+        string? directory = ReadDirectory(settings.ModelExportDirectoryPath);
+        string initialPath = directory is null ? filename : Path.Combine(directory, filename);
+        string? result = await PathAsync(Desktop.SaveFileAsync(new(title, initialPath, ModelFilters(localizeText))));
+        RememberDirectory(settings.ModelExportDirectoryPath, result);
         return result is null || Path.HasExtension(result) ? result : result + ".glb";
     }
 
-    public static Task<string?> ImportAsync(nint owner, Func<string, string, string>? localizeText = null)
+    public static async Task<string?> ImportAsync(nint owner, GlobalSettingsPaths settings, Func<string, string, string>? localizeText = null)
     {
         string title = SystemTextCatalog.Translate(localizeText, "model.dialog.import.title", "Import from Blender (as mod)");
-        return PathAsync(Desktop.OpenFileAsync(new(title, Filters: ModelFilters(localizeText))));
+        string? directory = ReadDirectory(settings.ModelImportDirectoryPath);
+        if (directory is not null && !Path.EndsInDirectorySeparator(directory))
+        {
+            directory += Path.DirectorySeparatorChar;
+        }
+        string? result = await PathAsync(Desktop.OpenFileAsync(new(title, directory, ModelFilters(localizeText))));
+        RememberDirectory(settings.ModelImportDirectoryPath, result);
+        return result;
+    }
+
+    private static string? ReadDirectory(string historyPath)
+    {
+        try
+        {
+            string directory = File.ReadAllText(historyPath);
+            return Path.IsPathFullyQualified(directory) && Directory.Exists(directory) ? directory : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static void RememberDirectory(string historyPath, string? selectedPath)
+    {
+        if (selectedPath is null || Path.GetDirectoryName(selectedPath) is not string directory)
+        {
+            return;
+        }
+        string temporary = historyPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(historyPath)!);
+            try
+            {
+                File.WriteAllText(temporary, directory);
+                File.Move(temporary, historyPath, overwrite: true);
+            }
+            finally
+            {
+                File.Delete(temporary);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Directory history is optional and must not prevent using the selected file.
+        }
     }
 
     public static Task<string?> DestinationAsync(nint owner, string root, Func<string, string, string>? localizeText = null)
