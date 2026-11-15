@@ -10,6 +10,7 @@ internal static class WorldScriptAnalysisTests
         RequestsReuseNativeExecution();
         HostDependenciesRemainIncomplete();
         ReloadAndAmbientClassification();
+        PureFieldTransferProof();
         BoundsAndSourcePreservation();
         Console.WriteLine("PASS read-only native world mesh CFG, selectors, typed guards, request closure and explicit incomplete dependencies");
     }
@@ -23,7 +24,7 @@ internal static class WorldScriptAnalysisTests
         string before = JsonSerializer.Serialize(machine.Capture());
         byte[] beforePersistent = persistent.ToArray();
         WorldScriptAnalysis analysis = machine.AnalyzeMeshDispatch(0, 0, 3);
-        Check(analysis.Complete && analysis.MayEnterField && !analysis.MayReloadWorld, "A canonical bank branch must expose both potential native field-entry arms.");
+        Check(analysis.Complete && analysis.MayEnterField && !analysis.MayReloadWorld && analysis.IsPureFieldTransfer, "A canonical read-only bank branch must expose both pure potential native field-entry arms.");
         Check(analysis.Transitions.Select(transition => transition.Selector).Order().SequenceEqual(new ushort?[] { 0x201, 0x300 }), "Native high/low selector operands or a branch arm were lost.");
         Check(analysis.Reads.SequenceEqual(new[] { new WorldVariableRead(0x114, 64) }), "The persistent bit dependency lost its native typed address.");
         string fingerprint = machine.ReadPredicateFingerprint(analysis.Reads);
@@ -50,6 +51,7 @@ internal static class WorldScriptAnalysisTests
         string before = JsonSerializer.Serialize(source.Capture());
         WorldScriptAnalysis analysis = source.AnalyzeMeshDispatch(0, 0, 3);
         Check(analysis.Complete && analysis.Transitions.Single().Selector == 0x100 && analysis.ProgramCounters.Contains(14), "A native requested model-script closure lost its field-entry packet.");
+        Check(!analysis.IsPureFieldTransfer, "A requested transfer with native model allocation was falsely proved side-effect free.");
         Check(before == JsonSerializer.Serialize(source.Capture()) && rejected.Calls == 0, "Request inspection allocated a live model or dispatched a native host command.");
         RecordingHost native = new();
         WorldMachine oracle = new(new(events), new byte[1280], native);
@@ -93,6 +95,25 @@ internal static class WorldScriptAnalysisTests
         Check(!unsupported.AnalyzeMeshDispatch(0, 0, 3).Complete, "An unsupported native instruction must remain explicit.");
         WorldMachine bounded = Machine([0, 0x100, 0x110, 43, 0x31D, 0x203], new byte[1280], host);
         Check(bounded.AnalyzeMeshDispatch(0, 0, 3, instructionBudget: 1) is { Complete: false, Reason: not null }, "World CFG inspection must enforce its instruction budget.");
+    }
+
+    private static void PureFieldTransferProof()
+    {
+        RejectHost host = new();
+        byte[] persistent = new byte[1280];
+        WorldMachine pure = Machine([0, 0x100, 0x110, 2, 0x110, 1, 0x318, 0x203], persistent, host);
+        Check(pure.AnalyzeMeshDispatch(0, 0, 3) is { Complete: true, IsPureFieldTransfer: true }, "A complete literal field handoff was not proved pure.");
+        WorldMachine assignment = Machine([0, 0x118, 8, 0x110, 1, 0xE0, 0x100, 0x110, 2, 0x110, 1, 0x318, 0x203], persistent, host);
+        string before = JsonSerializer.Serialize(assignment.Capture());
+        byte[] bytes = persistent.ToArray();
+        Check(assignment.AnalyzeMeshDispatch(0, 0, 3) is { Complete: true, MayEnterField: true, IsPureFieldTransfer: false }, "A native variable assignment before handoff was classified as a pure transfer.");
+        WorldMachine audio = Machine([0, 0x110, 43, 0x31D, 0x100, 0x110, 2, 0x110, 1, 0x318, 0x203], persistent, host);
+        Check(audio.AnalyzeMeshDispatch(0, 0, 3) is { Complete: true, MayEnterField: true, IsPureFieldTransfer: false }, "Another native host operation before handoff was classified as a pure transfer.");
+        WorldMachine unresolved = Machine([0, 0x110, 2, 0x113, 16, 0x318, 0x203], persistent, host);
+        Check(unresolved.AnalyzeMeshDispatch(0, 0, 3) is { Complete: false, IsPureFieldTransfer: false }, "An unresolved host dependency was treated as a pure transfer proof.");
+        Check(!pure.AnalyzeMeshDispatch(0, 0, 3, instructionBudget: 1).IsPureFieldTransfer, "A truncated CFG inspection fabricated a pure transfer proof.");
+        Check(!pure.AnalyzeMeshDispatch(1, 0, 3).IsPureFieldTransfer, "An absent native handler fabricated a pure transfer proof.");
+        Check(before == JsonSerializer.Serialize(assignment.Capture()) && bytes.SequenceEqual(persistent) && host.Calls == 0, "Pure-transfer proof inspection changed live execution, variables or host state.");
     }
 
     private static WorldMachine Machine(ushort[] code, byte[] persistent, IWorldHost host)

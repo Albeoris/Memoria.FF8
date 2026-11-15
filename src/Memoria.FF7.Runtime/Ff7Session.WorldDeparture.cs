@@ -28,6 +28,7 @@ public sealed partial class Ff7Session
         }
 
         (FieldTransitionCommand entry, byte[] persistent) = source.PrepareFieldDeparture(request);
+        WorldFieldDeparting?.Invoke(request, unchecked((short)(persistent[0] | persistent[1] << 8)));
         AdoptWorldField(source, entry, new FieldVariables(persistent, new byte[256]), Progress);
     }
 

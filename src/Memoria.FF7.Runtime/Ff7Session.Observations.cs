@@ -12,6 +12,7 @@ public sealed partial class Ff7Session
     public event Action<Ff7NativeTickObservation>? NativeTickCompleted;
     public event Action<int, int, bool>? InteractionScriptRequested;
     public event Action? WorldBattleStarting;
+    internal event Action<Ff7WorldFieldDeparture, short>? WorldFieldDeparting;
     public AutoPlayEventCoverageState? EventCoverage { get; internal set; }
     internal Ff7AutoPlayEventCoverage? CoverageOwner { get; set; }
 

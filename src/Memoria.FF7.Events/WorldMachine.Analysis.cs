@@ -20,6 +20,7 @@ public sealed record WorldTransitionObservation(int ProgramCounter, WorldOperati
 public sealed record WorldScriptAnalysis(bool Complete, string? Reason, int Header, int Entry, WorldVariableRead[] Reads, WorldHostDependency[] HostReads, WorldTransitionObservation[] Transitions, int[] ProgramCounters)
 {
     public WorldHostReadValue[] HostValues { get; init; } = [];
+    public bool IsPureFieldTransfer { get; init; }
     public bool MayEnterField => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition);
     public bool MayReloadWorld => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransitionSelector);
 }
@@ -122,6 +123,7 @@ public sealed partial class WorldMachine
         Dictionary<WorldHostDependency, int?> hostValues = [];
         HashSet<WorldTransitionObservation> transitions = [];
         HashSet<int> counters = [];
+        bool hasSideEffects = false;
         string? reason = null;
         int instructions = 0;
         while (pending.TryDequeue(out WorldMachine? machine))
@@ -140,6 +142,7 @@ public sealed partial class WorldMachine
                 }
                 WorldInstruction instruction = program.ReadInstruction(owner.Pc);
                 counters.Add(instruction.Address);
+                hasSideEffects |= instruction.Opcode == 0xE0 || instruction.Opcode >= 0x300 && instruction.Opcode != (ushort)WorldOperation.FieldTransition;
                 if (instruction.Opcode == 0x203 && owner.Calls.Count == 0)
                 {
                     continue;
@@ -147,6 +150,7 @@ public sealed partial class WorldMachine
                 WorldInspection observation = machine.inspection!;
                 observation.BeginInstruction();
                 bool yielded = machine.ExecuteInstruction(owner);
+                hasSideEffects |= observation.Commands.Any(command => command.Command.Operation != WorldOperation.FieldTransition);
                 reads.UnionWith(observation.Reads);
                 hostReads.UnionWith(observation.HostReads);
                 foreach (var value in observation.HostValues)
@@ -212,7 +216,11 @@ public sealed partial class WorldMachine
                 reason ??= error.Message;
             }
         }
-        return new(reason is null, reason, header, entry, reads.OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray(), hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Model).ThenBy(read => read.Selector).ThenBy(read => read.FreeModelIndex).ToArray(), transitions.OrderBy(transition => transition.ProgramCounter).ThenBy(transition => transition.Operation).ThenBy(transition => transition.Selector).ToArray(), counters.Order().ToArray()) { HostValues = hostValues.OrderBy(value => value.Key.Kind).ThenBy(value => value.Key.Model).ThenBy(value => value.Key.Selector).ThenBy(value => value.Key.FreeModelIndex).Select(value => new WorldHostReadValue(value.Key, value.Value)).ToArray() };
+        return new(reason is null, reason, header, entry, reads.OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray(), hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Model).ThenBy(read => read.Selector).ThenBy(read => read.FreeModelIndex).ToArray(), transitions.OrderBy(transition => transition.ProgramCounter).ThenBy(transition => transition.Operation).ThenBy(transition => transition.Selector).ToArray(), counters.Order().ToArray())
+        {
+            HostValues = hostValues.OrderBy(value => value.Key.Kind).ThenBy(value => value.Key.Model).ThenBy(value => value.Key.Selector).ThenBy(value => value.Key.FreeModelIndex).Select(value => new WorldHostReadValue(value.Key, value.Value)).ToArray(),
+            IsPureFieldTransfer = reason is null && !hasSideEffects && transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition)
+        };
     }
 
     /// <summary>Reads exact typed native bank dependencies without evaluating host or stochastic selectors.</summary>

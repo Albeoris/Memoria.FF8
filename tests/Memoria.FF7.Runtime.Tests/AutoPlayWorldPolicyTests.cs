@@ -10,6 +10,7 @@ internal static class AutoPlayWorldPolicyTests
 {
     public static void Run()
     {
+        HistoricalPureTransfersRequireSourceReobservation();
         IncompleteDiscoveryRemainsARefreshFrontier();
         NativeHandoffsRequireTheirOwners();
         ControlledOwnerProjectionIsGuardedAndReadOnly();
@@ -39,6 +40,53 @@ internal static class AutoPlayWorldPolicyTests
         _ = policy.ChooseInput(new(session));
         Check(before.SequenceEqual(JsonSerializer.SerializeToUtf8Bytes(session.Capture() with { AutoPlay = null })), "Rehydrating a remote world goal changed native state or RNG.");
         Check(original.SequenceEqual(File.ReadAllBytes(path)), "Rehydrating a remote world goal changed the supplied source.");
+    }
+
+    private static void HistoricalPureTransfersRequireSourceReobservation()
+    {
+        WorldProgram program = new(new([new(0x8000, 1)], new ushort[] { 0, 0x110, 1, 0x110, 0, 0x318, 0x203 }));
+        WorldMachine native = new(program, new byte[1280], new RejectHost());
+        string beforeNative = JsonSerializer.Serialize(native.Capture());
+        WorldScriptAnalysis analysis = native.AnalyzeMeshDispatch(0, 0, 3);
+        Check(analysis.Complete && analysis.IsPureFieldTransfer, "The authored native packet-only callback must provide proved pure-transfer analysis.");
+        Ff7AutoPlayWorldScriptObservation source = new("mesh:0:0:script:3", 3, [], analysis, "canonical", "geometry", [new(5, 0x100, new(0, 0, 0, 91, 0))], true, null);
+        string condition = Ff7AutoPlayPolicy.WorldCondition(source);
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        AutoPlayEvent entrance = new(source.Id, AutoPlayEventKind.Transition, ConditionSignature: condition);
+        planner.Observe(new("world", "world-resource"), [entrance]);
+        planner.ObserveNavigation("world", "world-nav", [entrance]);
+        planner.Observe(new("field", "field-resource"), [new("forward", AutoPlayEventKind.Transition, ConditionSignature: "ready")]);
+        planner.ObserveNavigation("field", "field-nav", [new("forward", AutoPlayEventKind.Transition, ConditionSignature: "ready")]);
+        planner.Completed("world", source.Id, "field", observedStoryChanged: true, entrySignature: condition, entrySignatureAuthoritative: true);
+        AutoPlayVisitCoverage<Ff7AutoPlayDeferral> visit = state.Coverage.Visits.Single(item => item.Visit.Key == "world");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = visit.Events.Single();
+        AutoPlayEventRoute old = coverage.Routes.Single();
+        planner.RecordNavigationRoute("world-nav", "field-nav", source.Id, old);
+        Check(planner.PlanNavigation("world-nav") is null, "Historical story-changing metadata must initially exclude this travel edge.");
+        string[] consumed = coverage.Conditions!.ConsumedEntries.ToArray();
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
+        Check(coverage.RouteNeedsRediscovery && coverage.Completed && coverage.Conditions.ConsumedEntries.SetEquals(consumed) && coverage.Routes.SequenceEqual(new[] { old }), "Scheduling source reobservation must retain completion, consumed entries and every historical route observation.");
+        Check(planner.PlanNavigation("world-nav") is { IsTravel: false } probe && probe.Event.Id == source.Id, "A pure historical transfer must become a real native source probe instead of a fabricated reusable route.");
+        planner.Completed("world", source.Id, "field", observedStoryChanged: false, entrySignature: condition, entrySignatureAuthoritative: true);
+        planner.RecordNavigationRoute("world-nav", "field-nav", source.Id, coverage.Routes.Single());
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
+        Check(!coverage.RouteNeedsRediscovery && planner.PlanNavigation("world-nav") is { IsTravel: true, Goal.EventId: "forward" }, "Fresh source-only unchanged-story evidence must resolve the probe and restore ordinary shared travel.");
+        coverage.Routes.Add(old);
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
+        Check(!coverage.RouteNeedsRediscovery, "A fresh current-condition false route must prevent historical true observations from reopening rediscovery.");
+        coverage.Routes = [old];
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source with { Analysis = analysis with { IsPureFieldTransfer = false } }]);
+        Check(!coverage.RouteNeedsRediscovery, "Impure source callbacks must not be reclassified as ordinary world transfers.");
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source with { Complete = false, Analysis = analysis with { Complete = false, Reason = "Unresolved native host." } }]);
+        Check(!coverage.RouteNeedsRediscovery, "Incomplete native analysis must not schedule a purity-based source repair.");
+        coverage.Routes = [old with { ConditionSignature = "different-entry" }];
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
+        Check(!coverage.RouteNeedsRediscovery, "A different executed condition must not authorize current-source rediscovery.");
+        coverage.Routes = [old];
+        Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source], new HashSet<string>(StringComparer.Ordinal) { source.Id + ":" + condition });
+        Check(!coverage.RouteNeedsRediscovery && coverage.Routes.Single() == old, "An attributed native source story change, including unload side effects, must remain true without perpetual rediscovery.");
+        Check(beforeNative == JsonSerializer.Serialize(native.Capture()), "Historical route reobservation metadata must not execute or alter the native world VM.");
     }
 
     private static void IncompleteDiscoveryRemainsARefreshFrontier()

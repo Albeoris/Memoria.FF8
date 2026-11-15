@@ -7,7 +7,7 @@ using Memoria.FF7.Events;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayWorldChunk(int X, int Z);
-public sealed record Ff7AutoPlayWorldDispatchReceipt(string VisitId, string EventId, int Entry, int CallDepth, long Tick, int[] HandoffOperations, Ff7WorldFieldDeparture? Departure = null, int? DestinationField = null);
+public sealed record Ff7AutoPlayWorldDispatchReceipt(string VisitId, string EventId, int Entry, int CallDepth, long Tick, int[] HandoffOperations, Ff7WorldFieldDeparture? Departure = null, int? DestinationField = null, int? DepartureStory = null);
 public sealed class Ff7AutoPlayWorldVisitState
 {
     public string ProgramIdentity { get; set; } = string.Empty;
@@ -17,6 +17,7 @@ public sealed class Ff7AutoPlayWorldVisitState
     public WorldVariableRead[] GlobalReads { get; set; } = [];
     public string? GlobalFingerprint { get; set; }
     public HashSet<string> PhysicalGuards { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> SourceProgressEntries { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed partial class Ff7AutoPlayPolicy
@@ -249,12 +250,27 @@ public sealed partial class Ff7AutoPlayPolicy
             }
         }
         planner.Observe(new(worldVisit, vm.ProgramIdentity), events.Values.ToArray());
+        ReobserveUnattributedWorldTransfers(State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit), worldCatalogs.Values.SelectMany(catalog => catalog.Scripts), visited.SourceProgressEntries);
         string navigation = worldVisit + ":nav:world";
         planner.ObserveNavigation(worldVisit, navigation, events.Values.ToArray());
         visited.GlobalReads = visited.GlobalReads.Concat(worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).SelectMany(script => script.Analysis.Reads).Where(read => (read.Opcode & 3) == 0)).Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray();
         visited.GlobalFingerprint = world.Machine.ReadPredicateFingerprint(visited.GlobalReads);
         bool ready = world.Process.Initialized && world.Process.MovementEnabled && world.Process.ControlLock == 0 && world.Process.MainState == 1 && world.Process.Dialogue is not { Completed: false };
         return new(worldVisit, vm.ProgramIdentity, session.FieldGeneration, [], ready, true) { NavigationKey = navigation };
+    }
+
+    internal static void ReobserveUnattributedWorldTransfers(AutoPlayVisitCoverage<Ff7AutoPlayDeferral> visit, IEnumerable<Ff7AutoPlayWorldScriptObservation> scripts, IReadOnlySet<string>? sourceProgressEntries = null)
+    {
+        foreach (Ff7AutoPlayWorldScriptObservation script in scripts.Where(script => script.Complete && script.Analysis.IsPureFieldTransfer))
+        {
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = visit.Events.SingleOrDefault(item => item.Event.Id == script.Id);
+            string condition = WorldCondition(script);
+            if (coverage is { Completed: true } && sourceProgressEntries?.Contains(script.Id + ":" + condition) != true && coverage.Routes.Any(route => route.ConditionSignature == condition && route.ObservedStoryChanged == true) && !coverage.Routes.Any(route => route.ConditionSignature == condition && route.ObservedStoryChanged == false))
+            {
+                // Rediscover source-only travel evidence; retain historical observations and consumed entries.
+                coverage.RouteNeedsRediscovery = true;
+            }
+        }
     }
 
     private void ObserveWorldChunk(Ff7WorldRuntime world, Ff7AutoPlayWorldChunk chunk)
@@ -370,6 +386,15 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (changed)
         {
+            Publish();
+        }
+    }
+
+    private void ObserveWorldFieldDeparture(Ff7WorldFieldDeparture departure, short story)
+    {
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: true } active && State.WorldDispatch is { } dispatch && dispatch.EventId == active.EventId && dispatch.Departure == departure)
+        {
+            State.WorldDispatch = dispatch with { DepartureStory = story };
             Publish();
         }
     }

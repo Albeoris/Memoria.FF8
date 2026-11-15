@@ -29,6 +29,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         session.InteractionScriptRequested += ObserveInteraction;
         session.NativeTickCompleted += ObserveTick;
         session.WorldBattleStarting += SaveWorldBattleBoundary;
+        session.WorldFieldDeparting += ObserveWorldFieldDeparture;
         ObserveWorldAllocation();
         Publish();
     }
@@ -251,7 +252,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             string? exit = changedField ? null : observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint;
             bool changedComponent = active.NavigationKey is string source && source != observation.NavigationKey;
-            bool progressChanged = active.BeforeStory != Story();
+            int completionStory = active.Kind == Ff7AutoPlayTargetKind.WorldMesh && State.WorldDispatch is { DepartureStory: int departureStory } ? departureStory : Story();
+            bool progressChanged = active.BeforeStory != completionStory;
+            if (active.Kind == Ff7AutoPlayTargetKind.WorldMesh && State.WorldDispatch?.DepartureStory is not null && State.WorldVisits.TryGetValue(active.VisitId, out Ff7AutoPlayWorldVisitState? worldVisit))
+            {
+                worldVisit.SourceProgressEntries.Add(active.EventId + ":" + active.ConditionFingerprint);
+            }
             bool navigationProbe = !changedField && observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.MayChangeNavigation == true;
             bool navigationReceipt = changedField || changedComponent || navigationProbe;
             RecordControlReturn(planner, active, observation, navigationReceipt, exit, progressChanged, choices.Selections);
@@ -394,6 +400,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         session.InteractionScriptRequested -= ObserveInteraction;
         session.NativeTickCompleted -= ObserveTick;
         session.WorldBattleStarting -= SaveWorldBattleBoundary;
+        session.WorldFieldDeparting -= ObserveWorldFieldDeparture;
         if (observedWorld is not null)
         {
             observedWorld.NativeMeshDispatched -= ObserveWorldDispatch;
