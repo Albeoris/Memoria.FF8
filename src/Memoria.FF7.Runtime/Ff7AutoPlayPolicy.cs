@@ -204,7 +204,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         int? selectedLineOwner = selectedTarget.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? selectedTarget.Entity : null;
         driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
-        driver.AvoidLinePush(observation.Events.Where(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && target.ChangesField && target.Entity != selectedLineOwner && !(selectedTarget.Kind == Ff7AutoPlayTargetKind.Gateway && selectedTarget.DestinationField == target.DestinationField)).Select(target => target.Entity).Distinct().ToArray());
+        driver.AvoidLinePush(observation.Events.Where(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && target.ChangesField && target.Entity != selectedLineOwner && !(selectedTarget.Kind == Ff7AutoPlayTargetKind.Gateway && selectedTarget.DestinationField == target.DestinationField) && RequiresMovementLineAvoidance(target, selectedTarget, session.Machine.Input)).Select(target => target.Entity).Distinct().ToArray());
         if (DetectMovementCycle(current))
         {
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);

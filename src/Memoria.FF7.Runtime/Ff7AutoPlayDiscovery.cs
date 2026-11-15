@@ -22,6 +22,7 @@ public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7Aut
 {
     public int[]? SpatialDestinations { get; init; }
     public bool TriangleOnly { get; init; }
+    public FieldScriptInputDemand? EntryInputDemand { get; init; }
 }
 public sealed record Ff7AutoPlayObservation(string VisitId, string ProgramIdentity, long Generation, Ff7AutoPlayTarget[] Events, bool CanAcceptInput, bool AnalysisComplete, string? SupportReason = null)
 {
@@ -187,7 +188,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0));
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EntryInputDemand = entryInput });
         }
     }
 }

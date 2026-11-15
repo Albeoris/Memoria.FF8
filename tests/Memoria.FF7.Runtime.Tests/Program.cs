@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--line-entry-avoidance-only", StringComparer.Ordinal))
+{
+    NativeLineEntryAvoidanceTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-transparency-only", StringComparer.Ordinal))
 {
     NativeTransparencyTests.Run();

@@ -62,7 +62,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         Ff7Actor player = actors.Single(actor => actor.PlayerControlled);
         bool inside = player.X4096 >= failure.MinX && player.X4096 <= failure.MaxX && player.Y4096 >= failure.MinY && player.Y4096 <= failure.MaxY && (failure.MinZ is not int minZ || player.Z4096 >= minZ) && (failure.MaxZ is not int maxZ || player.Z4096 <= maxZ);
-        StringBuilder witness = new($"{physical}|movement-region:{inside}");
+        StringBuilder witness = new($"{physical}|movement-region:{inside}|movement-entry-admission:1");
         foreach (Ff7Actor actor in actors.Where(actor => !actor.PlayerControlled && actor.CollisionEnabled && (blockingEntities is not { Count: > 0 } || blockingEntities.Contains(actor.Entity))).OrderBy(actor => actor.Entity))
         {
             witness.Append($"|occupancy:{actor.Entity}:{actor.Model}:{actor.X4096}:{actor.Y4096}:{actor.Z4096}:{actor.Triangle}:{actor.CollisionRadius}");
