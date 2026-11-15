@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 
 namespace Memoria.FF8.Runtime;
 
@@ -28,16 +29,12 @@ public static class NativeBattleWaterStopCommand
         }
         byte index = frame.ReadTemporaryByte(0x142);
         int masked = index & 0x7F;
-        int active = Find(0x2797454, masked, false);
-        if (active < 0)
-        {
-            throw new NotSupportedException("Native slot removal requires its requested physical slot within the bounded active-order owner.");
-        }
-        Shift(0x2797454, active);
+        uint active = FindOrderEntry(frame.Core, 0x2797454, masked, stopAtTerminator: false) ?? throw new InvalidDataException("Native active-order search cannot stop on FF.");
+        ShiftOrder(frame.Core, active);
         uint manager = NativeBattleWaterExecutionFields.CoreDword(frame, 0x27973EC);
         uint bank = NativeBattleWaterExecutionFields.CoreDword(frame, checked(manager + 0x90));
         uint idAddress = unchecked(bank + (uint)(0x100 * masked) + 0x12);
-        ushort activeId = BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(idAddress, 2), 2));
+        NodeKey activeId = NativeBattleCinematicNodeKeys.Read(frame.Arena, NativeBattleWaterExecutionFields.ArenaOffset(idAddress, 2));
         ClearId(activeId, true);
         frame = RemoveDrawB65270(frame, index);
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
@@ -46,48 +43,19 @@ public static class NativeBattleWaterStopCommand
         frame = frame.WriteTemporaryWord(0x13E, NativeBattleWaterExecutionFields.SlotWord(frame, 0xC8));
         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, 0);
         frame = frame.WriteTemporaryByte(0x144, unchecked((byte)(frame.ReadTemporaryByte(0x144) - 1)));
-        ClearId(NativeBattleWaterExecutionFields.SlotWord(frame, 0x12), false);
+        ClearId(NativeBattleCinematicNodeKeys.Read(frame.Arena, NativeBattleWaterExecutionFields.SlotOffset(frame, 0x12, 2)), false);
         return frame;
 
-        int Find(uint address, int wanted, bool stopAtTerminator)
-        {
-            for (int cursor = 0; cursor < 128; cursor++)
-            {
-                byte entry = frame.Core.Read(address + (uint)cursor, 1)[0];
-                if (stopAtTerminator && entry == 0xFF)
-                {
-                    return -1;
-                }
-                if ((entry & 0x7F) == wanted)
-                {
-                    return cursor;
-                }
-            }
-            return -1;
-        }
-
-        void Shift(uint address, int cursor)
-        {
-            for (; cursor < 127; cursor++)
-            {
-                byte next = frame.Core.Read(address + (uint)cursor + 1, 1)[0];
-                frame = frame with { Core = frame.Core.Write(address + (uint)cursor, new byte[] { next }) };
-                if (next == 0xFF)
-                {
-                    return;
-                }
-            }
-            throw new NotSupportedException("Native slot removal exhausted its bounded order owner before the shifted terminator.");
-        }
-
-        void ClearId(ushort id, bool signedTable)
+        void ClearId(NodeKey id, bool signedTable)
         {
             for (int cursor = 0; cursor < 64; cursor++)
             {
                 uint address = 0x2797204 + (uint)(2 * cursor);
-                ushort raw = NativeBattleWaterExecutionFields.CoreWord(frame, address);
-                int candidate = signedTable ? unchecked((short)raw) : raw;
-                if (candidate == id)
+                NodeKey stored = frame.Core.ReadCinematicNodeKey(address);
+                bool matches = signedTable && stored is NodeKey.Literal raw && id is NodeKey.Literal literal
+                    ? unchecked((short)raw.Value) == literal.Value
+                    : stored == id;
+                if (matches)
                 {
                     frame = NativeBattleWaterExecutionFields.WriteCoreWord(frame, address, 0);
                     return;
@@ -98,29 +66,45 @@ public static class NativeBattleWaterStopCommand
 
     public static NativeBattleWaterExecutionFrame RemoveDrawB65270(NativeBattleWaterExecutionFrame frame, byte index)
     {
-        for (int cursor = 0; cursor < 128; cursor++)
+        if (FindOrderEntry(frame.Core, 0x2797554, index, stopAtTerminator: true) is uint address)
         {
-            byte entry = frame.Core.Read(0x2797554 + (uint)cursor, 1)[0];
-            if (entry == 0xFF)
-            {
-                return frame;
-            }
-            if ((entry & 0x7F) != index)
-            {
-                continue;
-            }
-            for (; cursor < 127; cursor++)
-            {
-                byte next = frame.Core.Read(0x2797554 + (uint)cursor + 1, 1)[0];
-                frame = frame with { Core = frame.Core.Write(0x2797554 + (uint)cursor, new byte[] { next }) };
-                if (next == 0xFF)
-                {
-                    return frame;
-                }
-            }
-            throw new NotSupportedException("Native draw removal exhausted its bounded order owner before the shifted terminator.");
+            ShiftOrder(frame.Core, address);
         }
-        throw new NotSupportedException("Native draw removal left its bounded order owner without a match or terminator.");
+        return frame;
     }
 
+    private const uint CoreEnd = NativeBattleScriptedEffectMemory.Address + NativeBattleScriptedEffectMemory.Length;
+
+    private static uint? FindOrderEntry(NativeBattleScriptedEffectMemory core, uint start, int wanted, bool stopAtTerminator)
+    {
+        for (uint address = start; address < CoreEnd; address++)
+        {
+            byte entry = core.Read(address, 1)[0];
+            if (stopAtTerminator && entry == 0xFF)
+            {
+                return null;
+            }
+            if ((entry & 0x7F) == wanted)
+            {
+                return address;
+            }
+        }
+        throw new NotSupportedException("Native order removal exhausted its scripted core before finding the requested index or a usable terminator.");
+    }
+
+    private static void ShiftOrder(NativeBattleScriptedEffectMemory core, uint destination)
+    {
+        uint source = destination + 1;
+        // Native compaction follows the actual FF byte, which can lie beyond the nominal order table.
+        for (uint address = source; address < CoreEnd; address++)
+        {
+            if (core.Read(address, 1)[0] == 0xFF)
+            {
+                byte[] shifted = core.Read(source, checked((int)(address - source + 1)));
+                core.Write(destination, shifted);
+                return;
+            }
+        }
+        throw new NotSupportedException("Native order removal exhausted its scripted core before the shifted terminator.");
+    }
 }

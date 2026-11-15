@@ -142,6 +142,52 @@ public sealed class NativeBattleWaterScriptSchedulerTests
         Assert.Equal(new byte[4], frame.Core.Read(0x2797204, 4));
     }
 
+    [Theory]
+    [InlineData(true, 128)]
+    [InlineData(false, 129)]
+    public void Script_order_reaches_the_physical_terminator_beyond_the_original_prefix(bool prePass, int terminator)
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryByte(0x145, 1);
+        frame.Core.Write(0x2797454, new byte[terminator]).Write(0x2797454u + (uint)terminator, [0xFF]);
+
+        frame = NativeBattleWaterScriptScheduler.RunScriptPass(prePass, frame, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+
+        Assert.Equal((byte)terminator, frame.ReadTemporaryByte(0x144));
+    }
+
+    [Fact]
+    public void Script_consumes_callback_cursor_and_order_writes_before_reading_the_next_entry()
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.SlotDword(WaterSchedulerFixture.Create(), 0, 0, 0x1000);
+        frame.Core.Write(0x27974D4, [0]);
+        int callbacks = 0;
+
+        frame = NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, (_, _) => 9, (current, _) =>
+        {
+            callbacks++;
+            current.Core.Write(0x27974D4, [0xFF]);
+            return current.WriteTemporaryByte(0x144, 127).WriteTemporaryWord(0x13E, 3);
+        });
+
+        Assert.Equal(1, callbacks);
+        Assert.Equal((byte)128, frame.ReadTemporaryByte(0x144));
+    }
+
+    [Fact]
+    public void Script_budget_stops_a_BYTE_wrap_with_no_instruction_and_keeps_unknown_reads_strict()
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryByte(0x145, 1);
+        frame.Core.Write(0x2797454, new byte[256]);
+        NotSupportedException budget = Assert.Throws<NotSupportedException>(() => NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException()));
+        Assert.Contains("traversal budget", budget.Message);
+        Assert.Equal((byte)0, frame.ReadTemporaryByte(0x144));
+
+        frame.Core.MarkUnknown(0x27974D4, 1);
+        NotSupportedException unknown = Assert.Throws<NotSupportedException>(() => NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException()));
+        Assert.Contains("unknown physical bytes", unknown.Message);
+        Assert.Equal((byte)128, frame.ReadTemporaryByte(0x144));
+    }
+
     [Fact]
     public void DiagnosticBudgetDoesNotManufactureYieldOrPcAdvance()
     {

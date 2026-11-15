@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleCinematicStageShatter49Services services = new((current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
-            int index = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int index = NativeBattleWaterSlots.LookupB65370(current, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, index));
         }, (_, group) => NativeBattleCinematicStageShatter49.RestoreStageGroup508C90(group), current =>
         {

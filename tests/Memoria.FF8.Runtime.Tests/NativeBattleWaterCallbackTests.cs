@@ -224,6 +224,65 @@ public sealed class NativeBattleWaterCallbackTests
     }
 
     [Theory]
+    [InlineData(128)]
+    [InlineData(129)]
+    public void Physics_and_draw_follow_actual_order_terminators_after_the_prefix(int terminator)
+    {
+        NativeBattleWaterExecutionFrame physics = Create().WriteTemporaryByte(0x145, 1);
+        physics.Core.Write(0x2797454, new byte[terminator]).Write(0x2797454u + (uint)terminator, [0xFF]);
+        physics = NativeBattleWaterCallback.RunPhysicsA9BB90(physics, Resources, UnexpectedUpdate);
+        Assert.Equal((byte)terminator, physics.ReadTemporaryByte(0x144));
+
+        NativeBattleWaterExecutionFrame draw = Create();
+        draw.Core.Write(0x2797554, new byte[terminator]).Write(0x2797554u + (uint)terminator, [0xFF]);
+        int draws = 0;
+        draw = NativeBattleWaterCallback.RunDrawAA0030(draw, (current, _) =>
+        {
+            draws++;
+            return current;
+        });
+        Assert.Equal(terminator, draws);
+        Assert.Equal((uint)terminator, draw.ReadTemporaryDword(0));
+    }
+
+    [Fact]
+    public void Physics_wraps_the_BYTE_cursor_and_draw_reloads_the_full_DWORD_after_a_callback()
+    {
+        NativeBattleWaterExecutionFrame physics = Create();
+        int updates = 0;
+        physics = NativeBattleWaterCallback.RunPhysicsA9BB90(physics, Resources, (current, _) =>
+        {
+            updates++;
+            current.Core.Write(0x2797454, [0xFF]);
+            return current.WriteTemporaryByte(0x144, 255);
+        });
+        Assert.Equal(1, updates);
+        Assert.Equal((byte)0, physics.ReadTemporaryByte(0x144));
+
+        NativeBattleWaterExecutionFrame draw = Create();
+        draw.Core.Write(0x2797554, [0]);
+        draw = NativeBattleWaterCallback.RunDrawAA0030(draw, (current, _) =>
+        {
+            current.Core.Write(0x2797654, [0xFF]);
+            return current.WriteTemporaryDword(0, 255);
+        });
+        Assert.Equal(256u, draw.ReadTemporaryDword(0));
+    }
+
+    [Fact]
+    public void Draw_checks_the_real_shared_window_and_reached_knownness()
+    {
+        NativeBattleWaterExecutionFrame draw = Create();
+        draw.Core.Write(0x2797554, [0]).MarkUnknown(0x27975D4, 1);
+        NotSupportedException unknown = Assert.Throws<NotSupportedException>(() => NativeBattleWaterCallback.RunDrawAA0030(draw, (current, _) => current.WriteTemporaryDword(0, 127)));
+        Assert.Contains("unknown physical bytes", unknown.Message);
+
+        uint lastCursor = NativeBattleScriptedEffectMemory.Address + NativeBattleScriptedEffectMemory.Length - 0x2797554u - 1;
+        InvalidDataException outside = Assert.Throws<InvalidDataException>(() => NativeBattleWaterCallback.RunDrawAA0030(draw, (current, _) => current.WriteTemporaryDword(0, lastCursor)));
+        Assert.Contains("shared physical window", outside.Message);
+    }
+
+    [Theory]
     [InlineData(0, 2u)]
     [InlineData(0x7FFF, 2u)]
     [InlineData(0x8000, 0u)]

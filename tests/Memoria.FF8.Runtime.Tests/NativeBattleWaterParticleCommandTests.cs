@@ -27,6 +27,20 @@ public sealed class NativeBattleWaterParticleCommandTests
     }
 
     [Theory]
+    [InlineData((byte)0xFF, (byte)1)]
+    [InlineData((byte)0x81, (byte)0x81)]
+    public void Append_draw_stops_at_the_first_physical_terminator_or_matching_entry_beyond_128(byte adjacent, byte expected)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture();
+        frame.Core.Write(0x2797554, new byte[128]).Write(0x27975D4, [adjacent]).MarkUnknown(0x27975D5, 1);
+
+        frame = NativeBattleWaterParticleCommands.AppendDrawB652E0(frame, 1);
+
+        Assert.Equal(expected, frame.Core.Read(0x27975D4, 1)[0]);
+        Assert.Throws<NotSupportedException>(() => frame.Core.Read(0x27975D5, 1));
+    }
+
+    [Theory]
     [InlineData(16)]
     [InlineData(32)]
     public void Allocation_initializes_only_native_bank_and_record_fields_without_clearing_unknown_payload(short count)

@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -9,7 +8,7 @@ public static class NativeBattleCinematicRangeBranch94
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, NativeBattleWaterScriptProgram program)
     {
         short selector = Operand(2);
-        int selected = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+        int selected = NativeBattleWaterSlots.LookupB65370(frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), selector);
         int selectedOffset = bank.SlotOffset(frame.Arena, selected);
         int selectedX = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(selectedOffset + 0x94, 2));
         int toleranceX = Operand(4);

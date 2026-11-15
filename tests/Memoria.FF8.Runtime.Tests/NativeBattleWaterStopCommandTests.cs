@@ -70,6 +70,71 @@ public sealed class NativeBattleWaterStopCommandTests
         Assert.Equal((ushort)0xFFFF, BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(0x2797080, 2)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FullActiveAndDrawOrdersShiftThroughTheirActualAdjacentTerminator(bool spills)
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
+        byte[] order = Enumerable.Range(0, 128).Select(index => (byte)index).ToArray();
+        byte[] activeTail = spills ? [0x38, 0xFF, 0x92] : [0xFF, 0x92];
+        byte[] drawTail = spills ? [0x57, 0xFF, 0xA3] : [0xFF, 0xA3];
+        frame.Core.Write(0x2797454, [.. order, .. activeTail]);
+        frame.Core.Write(0x2797554, [.. order, .. drawTail]);
+
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterStopCommand.StopRemoveAA5120(frame);
+
+        Assert.Equal(new byte[] { 0x7F, activeTail[0], 0xFF }, result.Core.Read(0x2797454 + 126, 3));
+        Assert.Equal(new byte[] { 0x7F, drawTail[0], 0xFF }, result.Core.Read(0x2797554 + 126, 3));
+        Assert.Equal(order.Skip(1).Take(126), result.Core.Read(0x2797454, 126));
+        Assert.Equal(order.Skip(1).Take(126), result.Core.Read(0x2797554, 126));
+        Assert.Equal(activeTail.Skip(1), result.Core.Read(0x2797454 + 129, activeTail.Length - 1));
+        Assert.Equal(drawTail.Skip(1), result.Core.Read(0x2797554 + 129, drawTail.Length - 1));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void UnknownOrAbsentPhysicalTerminatorLeavesOrderBytesUnchanged(bool draw, bool unknown)
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
+        uint start = draw ? 0x2797554u : 0x2797454u;
+        int length = checked((int)(NativeBattleScriptedEffectMemory.Address + NativeBattleScriptedEffectMemory.Length - start));
+        byte[] order = Enumerable.Repeat((byte)0x4B, length).ToArray();
+        order[0] = 0;
+        frame.Core.Write(start, order);
+        if (unknown)
+        {
+            frame.Core.Write(start + 128, [0xFF]);
+            frame.Core.MarkUnknown(start + 128, 1);
+        }
+        var before = frame.Core.ReadSnapshot(start, length);
+
+        Assert.Throws<NotSupportedException>(() => draw
+            ? NativeBattleWaterStopCommand.RemoveDrawB65270(frame, 0)
+            : NativeBattleWaterStopCommand.StopRemoveAA5120(frame));
+
+        var after = frame.Core.ReadSnapshot(start, length);
+        Assert.Equal(before.Bytes, after.Bytes);
+        Assert.Equal(before.Known, after.Known);
+    }
+
+    [Fact]
+    public void ActiveRemovalMasksFfAs127WhileDrawRemovalStopsAtFf()
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryByte(0x142, 127);
+        frame.Core.Write(0x2797454, [0xFF, 9, 0x7F, 0xFF]);
+        frame.Core.Write(0x2797554, [0xFF, 9, 0x7F, 0xFF]);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973E8, NativeBattleEffectNodeMemory.ArenaAddress + 0x9F00);
+
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterStopCommand.StopRemoveAA5120(frame);
+
+        Assert.Equal(new byte[] { 9, 0x7F, 0xFF, 0xFF }, result.Core.Read(0x2797454, 4));
+        Assert.Equal(new byte[] { 0xFF, 9, 0x7F, 0xFF }, result.Core.Read(0x2797554, 4));
+    }
+
     [Fact]
     public void ZeroTickDoesNotInventYieldAndSchedulerAttemptsPcZeroFetch()
     {

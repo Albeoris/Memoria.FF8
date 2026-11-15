@@ -120,15 +120,12 @@ public static class NativeBattleCinematicControlCommands
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 
-    public static NativeBattleWaterExecutionFrame SetRelativeActorIdCE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleModelAliases aliases)
+    public static NativeBattleWaterExecutionFrame SetRelativeActorIdCE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
-        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
-        if (!aliases.TryEncodeExact(actor, out byte original))
-        {
-            throw new NotSupportedException("Cinematic slot-relative node ID requires its authored original actor alias.");
-        }
         ushort displacement = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
-        frame = WriteSlotWord(frame, 0x12, unchecked((ushort)(original + displacement)));
+        int actorOffset = SlotOffset(frame, 0x1B, 1);
+        var key = NativeBattleCinematicNodeKeys.Relative(frame.Arena, actorOffset, displacement);
+        frame = frame with { Arena = NativeBattleCinematicNodeKeys.Write(frame.Arena, SlotOffset(frame, 0x12, 2), key) };
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 

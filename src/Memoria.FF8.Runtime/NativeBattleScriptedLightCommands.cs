@@ -32,7 +32,7 @@ public static class NativeBattleScriptedLightCommands
                 }
                 continue;
             }
-            int referenced = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, currentIndex, frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int referenced = NativeBattleWaterSlots.LookupB65370(frame, bank, currentIndex, selector);
             int offset = bank.SlotOffset(frame.Arena, referenced);
             for (int row = 0; row < 3; row++)
             {

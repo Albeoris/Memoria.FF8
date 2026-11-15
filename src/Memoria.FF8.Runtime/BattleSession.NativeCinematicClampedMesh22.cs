@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -17,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native clamped mesh requires its current camera projection.");
         NativeBattleScriptedMeshProjected projected = NativeBattleCinematicClampedMesh22.Project(frame, (current, selector) =>
         {
-            int found = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int found = NativeBattleWaterSlots.LookupB65370(current, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, found));
         }, (current, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, selector).Selected, projection, controls, lighting, step, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank)));
         frame = projected.Frame;

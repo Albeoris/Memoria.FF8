@@ -429,13 +429,13 @@ public sealed partial class BattleSession
                 case 0x82:
                     return NativeBattleCinematicVelocity82.Execute(current, program, (frame, selector) =>
                     {
-                        int selected = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, index, frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+                        int selected = NativeBattleWaterSlots.LookupB65370(frame, bank, index, selector);
                         return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, selected));
                     });
                 case 0xA4:
                     return NativeBattleCinematicPositionModeA4.Execute(current, program, (frame, selector) =>
                     {
-                        int selected = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, index, frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+                        int selected = NativeBattleWaterSlots.LookupB65370(frame, bank, index, selector);
                         return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, selected));
                     }, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
                 case 0x89:
@@ -448,13 +448,13 @@ public sealed partial class BattleSession
                 case 0x72:
                     return NativeBattleCinematicActorRotation72.Execute(current, graphics.ActorModels.Get);
                 case 0xCE:
-                    return NativeBattleCinematicControlCommands.SetRelativeActorIdCE(current, program, context.CaptureAliases());
+                    return NativeBattleCinematicControlCommands.SetRelativeActorIdCE(current, program);
                 case 0xD3:
                     return NativeBattleCinematicControlCommands.ScaleReferencedPositionColorD3(current, program, ResolveCurrentNode);
                 case 0x7C:
                     return NativeBattleCinematicPolar7C.Execute(current, program);
                 case 0x9C:
-                    return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot);
+                    return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot, context.CaptureAliases);
                 case 0x5D:
                     return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot, context.CaptureAliases());
                 case 0x70:
@@ -579,7 +579,7 @@ public sealed partial class BattleSession
                 case 0x26:
                 case 0x32:
                 case 0x8B:
-                    return NativeBattleWaterChildCommands.Execute(current, program, bank, opcode == 0x32 ? checked(current.TemporaryFrame.Address + 0x100) : 0, UpdateSlot);
+                    return NativeBattleWaterChildCommands.Execute(current, program, bank, opcode == 0x32 ? checked(current.TemporaryFrame.Address + 0x100) : 0, UpdateSlot, context.CaptureAliases);
                 case 0x6D:
                     NativeBattleScriptedProcessFlagsStep flags = NativeBattleScriptedProcessFlags.Execute(current, NativeStage ?? throw new NotSupportedException("Native cinematic flags require their current four stage groups."));
                     NativeStage = flags.State;
@@ -681,7 +681,7 @@ public sealed partial class BattleSession
                         ResolveBoneB65370 = (frame, selector) =>
                         {
                             NativeBattleWaterSlotBank currentBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, assets[1].Data.Length);
-                            int found = NativeBattleWaterSlots.LookupB65370(frame.Arena, currentBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, currentBank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+                            int found = NativeBattleWaterSlots.LookupB65370(frame, currentBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, currentBank), selector);
                             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)currentBank.SlotOffset(frame.Arena, found));
                         },
                         ReadGraphicsFlags = _ => graphics.Flags,
@@ -843,10 +843,9 @@ public sealed partial class BattleSession
             }
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
-            ImmutableArray<byte> active = kind is 3 or 5 or 7 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
             try
             {
-                return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, index, active) };
+                return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current, bank, index) };
             }
             catch (NotSupportedException error)
             {
@@ -1189,7 +1188,7 @@ public sealed partial class BattleSession
         uint ResolveCurrentNode(NativeBattleWaterExecutionFrame frame, short selector)
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, assets[1].Data.Length);
-            int found = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int found = NativeBattleWaterSlots.LookupB65370(frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, found));
         }
 

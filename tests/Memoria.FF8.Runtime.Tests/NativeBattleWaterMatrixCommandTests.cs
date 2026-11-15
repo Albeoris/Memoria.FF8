@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -72,6 +73,30 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Equal(MatrixBase + 32, allocated.MatrixAddress);
         Assert.Equal(id, ReadWord(allocated.Frame, 0x2797206));
         Assert.Throws<NotSupportedException>(() => allocated.Frame.Core.Read(MatrixBase + 32, 1));
+    }
+
+    [Fact]
+    public void MatrixAllocationLookupAndStopUseExactOpaqueOwnerAcrossPrivateCopy()
+    {
+        var actor = new BattlePartyActorModel(new BattlePartyActorReference("extra-actor"));
+        var other = new BattlePartyActorModel(new BattlePartyActorReference("other-extra"));
+        var key = new NodeKey.ActorRelative(actor, 0);
+        var otherKey = new NodeKey.ActorRelative(other, 0);
+        NativeBattleWaterExecutionFrame frame = Fixture(0x67);
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(actor)) };
+        frame = frame with { Arena = NativeBattleCinematicNodeKeys.Write(frame.Arena, 0x2012, key) };
+        frame = frame with { Core = frame.Core.WriteCinematicNodeKey(0x2797206, otherKey) };
+        (NativeBattleWaterExecutionFrame allocated, uint address) = NativeBattleWaterMatrixCommands.AllocateB65480(frame);
+        Assert.Equal(MatrixBase + 2 * 32u, address);
+        Assert.Equal(key, allocated.Core.ReadCinematicNodeKey(0x2797208));
+        Assert.Throws<NotSupportedException>(() => allocated.Core.Read(0x2797208, 2));
+        NativeBattleWaterExecutionFrame copied = NativeBattleTestSnapshots.Independent(allocated);
+        Assert.Equal(address, NativeBattleWaterMatrixCommands.ResolveB65520(copied, Bank, 0x4000));
+
+        NativeBattleWaterExecutionFrame stopped = NativeBattleWaterStopCommand.StopRemoveAA5120(copied);
+        Assert.Equal(new NodeKey.Literal(0), stopped.Core.ReadCinematicNodeKey(0x2797208));
+        Assert.Equal(otherKey, stopped.Core.ReadCinematicNodeKey(0x2797206));
+        Assert.Equal(key, allocated.Core.ReadCinematicNodeKey(0x2797208));
     }
 
     [Fact]

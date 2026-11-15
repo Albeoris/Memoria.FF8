@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -76,7 +75,7 @@ public static class NativeBattleWaterFieldControl
                 {
                     throw new InvalidDataException("Native field lookup requires the actual current slot in its cached bank.");
                 }
-                int reference = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, currentIndex, ActiveOrder(frame), selector);
+                int reference = NativeBattleWaterSlots.LookupB65370(frame, bank, currentIndex, selector);
                 int referenceOffset = bank.SlotOffset(frame.Arena, reference);
                 uint packed = 0;
                 for (int lane = 0; lane < 3; lane++)
@@ -97,12 +96,7 @@ public static class NativeBattleWaterFieldControl
                 {
                     frame = frame.WriteTemporaryByte(0x145, 0);
                 }
-                int cursor = frame.ReadTemporaryByte(0x144);
-                if (cursor >= 128)
-                {
-                    throw new NotSupportedException("Native field control left its bounded active-order owner.");
-                }
-                uint entryAddress = 0x2797454 + (uint)cursor;
+                uint entryAddress = checked(0x2797454u + frame.ReadTemporaryByte(0x144));
                 frame = frame with { Core = frame.Core.Write(entryAddress, new byte[] { (byte)(frame.Core.Read(entryAddress, 1)[0] | 0x80) }) };
                 advance = 2;
                 break;
@@ -136,18 +130,4 @@ public static class NativeBattleWaterFieldControl
 
     private static NativeBattleWaterExecutionFrame WriteSlotByte(NativeBattleWaterExecutionFrame frame, int offset, byte value) => frame with { Arena = frame.Arena.Write(NativeBattleWaterExecutionFields.SlotOffset(frame, offset, 1), new byte[] { value }) };
 
-    private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
-    {
-        // Preserve the full order when every entry is present. A known terminator ends the required prefix.
-        byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-        for (int index = 0; index < order.Length; index++)
-        {
-            order[index] = frame.Core.Read(0x2797454 + (uint)index, 1)[0];
-            if (order[index] == 0xFF)
-            {
-                return order.ToImmutableArray();
-            }
-        }
-        return order.ToImmutableArray();
-    }
 }

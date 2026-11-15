@@ -48,6 +48,8 @@ public sealed partial class BattleSession
 
         hostedBattlePresentation = true;
         presentationCameraMode = NativeBattleEffectCameraMode.NativeCinematic;
+        // Hosted presentation derives ribbon runs directly from projected geometry.
+        presentationRibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns;
         hostedEntryDescriptors = new();
         hostedModelPackets = new();
         combatants = [];

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -11,11 +12,11 @@ public static class NativeBattleWaterMatrixCommands
 
     public static uint ResolveB65520(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int currentIndex, ushort selector)
     {
-        int reference = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, currentIndex, ActiveOrder(frame), selector);
-        ushort id = BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(bank.SlotOffset(frame.Arena, reference) + 0x12, 2));
+        int reference = NativeBattleWaterSlots.LookupB65370(frame, bank, currentIndex, selector);
+        NodeKey id = NativeBattleCinematicNodeKeys.Read(frame.Arena, bank.SlotOffset(frame.Arena, reference) + 0x12);
         for (int row = 0; row < 64; row++)
         {
-            if (CoreWord(frame, 0x2797204 + (uint)(row * 2)) == id)
+            if (frame.Core.ReadCinematicNodeKey(0x2797204 + (uint)(row * 2)) == id)
             {
                 return 0x27979E8 + (uint)(row * 32);
             }
@@ -25,10 +26,10 @@ public static class NativeBattleWaterMatrixCommands
 
     public static (NativeBattleWaterExecutionFrame Frame, uint MatrixAddress) AllocateB65480(NativeBattleWaterExecutionFrame frame)
     {
-        ushort id = SlotWord(frame, 0x12);
+        NodeKey id = NativeBattleCinematicNodeKeys.Read(frame.Arena, SlotOffset(frame, 0x12, 2));
         for (int row = 1; row < 64; row++)
         {
-            if (CoreWord(frame, 0x2797204 + (uint)(row * 2)) == id)
+            if (frame.Core.ReadCinematicNodeKey(0x2797204 + (uint)(row * 2)) == id)
             {
                 return (frame, 0x27979E8 + (uint)(row * 32));
             }
@@ -36,13 +37,13 @@ public static class NativeBattleWaterMatrixCommands
         int selected = 63;
         for (int row = 1; row < 64; row++)
         {
-            if (CoreWord(frame, 0x2797204 + (uint)(row * 2)) == 0)
+            if (frame.Core.ReadCinematicNodeKey(0x2797204 + (uint)(row * 2)) is NodeKey.Literal { Value: 0 })
             {
                 selected = row;
                 break;
             }
         }
-        frame = WriteCoreWord(frame, 0x2797204 + (uint)(selected * 2), id);
+        frame = frame with { Core = frame.Core.WriteCinematicNodeKey(0x2797204 + (uint)(selected * 2), id) };
         return (frame, 0x27979E8 + (uint)(selected * 32));
     }
 
@@ -168,10 +169,9 @@ public static class NativeBattleWaterMatrixCommands
                 break;
             case 0x63:
                 uint original = CoreDword(frame, 0x27973E8);
-                ImmutableArray<byte> order = ActiveOrder(frame);
-                int reference = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, CurrentIndex(frame, bank), order, unchecked((short)Operand(2)));
+                int reference = NativeBattleWaterSlots.LookupB65370(frame, bank, CurrentIndex(frame, bank), unchecked((short)Operand(2)));
                 frame = WriteCoreDword(frame, 0x27973E8, unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, reference)));
-                int basisIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, reference, order, SlotWord(frame, 0x9C));
+                int basisIndex = NativeBattleWaterSlots.LookupB65370(frame, bank, reference, SlotWord(frame, 0x9C));
                 short mode = unchecked((short)Operand(4));
                 int basisOffset = bank.SlotOffset(frame.Arena, basisIndex);
                 NativeBattleActionMatrix basis;
@@ -184,7 +184,7 @@ public static class NativeBattleWaterMatrixCommands
                 frame = WriteSlotDword(frame, 0x5C, unchecked((uint)world.X << 16));
                 frame = WriteSlotDword(frame, 0x60, unchecked((uint)world.Y << 16));
                 frame = WriteSlotDword(frame, 0x64, unchecked((uint)world.Z << 16));
-                frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, CurrentIndex(frame, bank), order) };
+                frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame, bank, CurrentIndex(frame, bank)) };
                 advance = 6;
                 break;
             default:
@@ -318,17 +318,4 @@ public static class NativeBattleWaterMatrixCommands
         return index;
     }
 
-    private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
-    {
-        byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-        for (int index = 0; index < order.Length; index++)
-        {
-            order[index] = frame.Core.Read(0x2797454 + (uint)index, 1)[0];
-            if (order[index] == 0xFF)
-            {
-                return order.ToImmutableArray();
-            }
-        }
-        throw new NotSupportedException("Native matrix lookup requires its terminated active order.");
-    }
 }

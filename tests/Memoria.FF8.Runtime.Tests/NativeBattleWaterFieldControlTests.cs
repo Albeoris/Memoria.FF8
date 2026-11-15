@@ -109,7 +109,7 @@ public sealed class NativeBattleWaterFieldControlTests
     }
 
     [Fact]
-    public void ReferencedColor40UsesFullActiveOrderAndRejectsAnExhaustedLookup()
+    public void ReferencedColor40UsesFullActiveOrderAndFallsBackOnlyAtAnActualTerminator()
     {
         byte[] order = Enumerable.Repeat((byte)0x81, 128).ToArray();
         NativeBattleWaterExecutionFrame frame = Fixture(0x40, 42);
@@ -121,14 +121,46 @@ public sealed class NativeBattleWaterFieldControlTests
         frame = frame with { Arena = frame.Arena.Write(0x20CF, new byte[] { 0xAB }) };
         NativeBattleWaterExecutionFrame missing = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         missing = WaterSchedulerFixture.SlotWord(missing, 1, 0x12, 43);
+        missing = WaterSchedulerFixture.SlotWord(missing, 0, 0x94, 13);
+        missing.Core.Write(0x27974D4, [0, 0xFF]);
 
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(0xAB21160Bu, WaterSchedulerFixture.ReadSlotDword(result, 0, 0xCC));
         Assert.Equal(2u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal(order, result.Core.Read(0x2797454, 128));
 
-        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => Run(missing));
-        Assert.Contains("exhausted its bounded active order", exception.Message);
+        NativeBattleWaterExecutionFrame fallback = Run(missing);
+        Assert.Equal(0xAB00000Du, WaterSchedulerFixture.ReadSlotDword(fallback, 0, 0xCC));
+    }
+
+    [Fact]
+    public void ReferencedColor40_can_match_after_128_and_checks_only_reached_owned_bytes()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x40, 42);
+        frame.Core.Write(0x2797454, new byte[128]).Write(0x27974D4, [1]).MarkUnknown(0x27974D5, 1);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x12, 42);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x94, 11);
+
+        Assert.Equal(11u, WaterSchedulerFixture.ReadSlotDword(Run(frame), 0, 0xCC));
+
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x12, 43);
+        NotSupportedException unknown = Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.LookupB65370(frame, Bank, 0, 42));
+        Assert.Contains("unknown physical bytes", unknown.Message);
+
+        int orderExtent = (int)(NativeBattleScriptedEffectMemory.Address + NativeBattleScriptedEffectMemory.Length - 0x2797454u);
+        frame.Core.Write(0x2797454, new byte[orderExtent]);
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.LookupB65370(frame, Bank, 0, 42));
+    }
+
+    [Fact]
+    public void Filter47_marks_the_current_BYTE_index_beyond_the_first_128()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x47).WriteTemporaryByte(0x144, 128);
+        frame.Core.Write(0x27974D3, [0x17, 0x23, 0xFF]);
+
+        frame = Run(frame, 0);
+
+        Assert.Equal(new byte[] { 0x17, 0xA3, 0xFF }, frame.Core.Read(0x27974D3, 3));
     }
 
     [Theory]

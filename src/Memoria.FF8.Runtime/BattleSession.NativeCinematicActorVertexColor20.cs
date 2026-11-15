@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         uint state = SlotDword(0xC0);
         short selector = unchecked((short)Word(state + 8));
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
-        int referenceIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+        int referenceIndex = NativeBattleWaterSlots.LookupB65370(frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), selector);
         uint referenceAddress = unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, referenceIndex));
         NativeBattleVector referenceVector = NativeBattleScriptedMeshPreparation.Vector(frame.Arena.Read(ArenaOffset(referenceAddress + 0x94, 6), 6));
         uint colorBase = CoreDword(frame, manager + 0x74);

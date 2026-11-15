@@ -1,16 +1,16 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>The two signed-PC scheduling passes around an explicit finite command service.</summary>
 public static class NativeBattleWaterScriptScheduler
 {
-    public static NativeBattleWaterExecutionFrame RunScriptPass(bool prePass, NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, uint, ushort> readInstruction, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleWaterExecutionFrame> executeOne, int instructionBudget = 4096)
+    public static NativeBattleWaterExecutionFrame RunScriptPass(bool prePass, NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, uint, ushort> readInstruction, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleWaterExecutionFrame> executeOne, int instructionBudget = 4096, int traversalBudget = 256)
     {
         ArgumentNullException.ThrowIfNull(readInstruction);
         ArgumentNullException.ThrowIfNull(executeOne);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(instructionBudget);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(traversalBudget);
         frame = frame.WriteTemporaryWord(0x13E, 0);
         if (prePass)
         {
@@ -18,17 +18,18 @@ public static class NativeBattleWaterScriptScheduler
         }
         frame = frame.WriteTemporaryByte(0x144, 0);
         int executed = 0;
+        int traversed = 0;
         while (true)
         {
-            int cursor = frame.ReadTemporaryByte(0x144);
-            if (cursor >= 128)
-            {
-                throw new NotSupportedException("Native script traversal left its bounded active-order owner before its terminator.");
-            }
-            byte entry = frame.Core.Read(0x2797454 + (uint)cursor, 1)[0];
+            byte cursor = frame.ReadTemporaryByte(0x144);
+            byte entry = frame.Core.Read(checked(0x2797454u + cursor), 1)[0];
             if (entry == 0xFF)
             {
                 return frame;
+            }
+            if (++traversed > traversalBudget)
+            {
+                throw new NotSupportedException("Native script diagnostic traversal budget was exhausted before its terminator.");
             }
             if (frame.ReadTemporaryByte(0x145) == 0 || (entry & 0x80) != 0)
             {

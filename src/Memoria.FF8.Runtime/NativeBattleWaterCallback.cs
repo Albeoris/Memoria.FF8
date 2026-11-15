@@ -163,11 +163,7 @@ public static class NativeBattleWaterCallback
 
     private static byte OrderByte(NativeBattleWaterExecutionFrame frame, uint address, uint index)
     {
-        if (index >= 128)
-        {
-            throw new NotSupportedException("Native effect iteration leaves its current physical order owner.");
-        }
-        return CoreByte(frame, address + index);
+        return CoreByte(frame, checked(address + index));
     }
 
     private static void RequireTraversal(ref int count, int budget)

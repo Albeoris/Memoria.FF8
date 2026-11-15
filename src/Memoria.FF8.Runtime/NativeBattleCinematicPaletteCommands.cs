@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -29,7 +28,7 @@ public static class NativeBattleCinematicPaletteCommands
         uint sourceBone = CoreDword(frame, 0x27973E8);
         if (mode == 1)
         {
-            int selected = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, currentIndex, frame.Core.Read(0x2797454, 128).ToImmutableArray(), Operand(8));
+            int selected = NativeBattleWaterSlots.LookupB65370(frame, bank, currentIndex, Operand(8));
             sourceBone = unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, selected));
         }
         int[] additions = new int[3];

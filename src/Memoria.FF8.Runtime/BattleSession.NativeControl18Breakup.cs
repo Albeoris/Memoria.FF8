@@ -451,7 +451,7 @@ public sealed partial class BattleSession
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
             int currentIndex = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
-            int selected = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, currentIndex, current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int selected = NativeBattleWaterSlots.LookupB65370(current, bank, currentIndex, selector);
             return checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, selected));
         }
         byte[] Read(uint address, int length) => frame.Arena.Read(ArenaOffset(address, length), length);

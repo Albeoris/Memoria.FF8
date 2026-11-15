@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -51,7 +50,7 @@ public sealed partial class BattleSession
         uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
         NativeBattleScriptedMeshMorphServices morph = new((current, selector) =>
         {
-            int referenced = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int referenced = NativeBattleWaterSlots.LookupB65370(current, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, referenced));
         }, (current, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected);
         NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8, NativeBattleCinematicVisualIdentity.SelectedResource(NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, index) with { ResourceGeneration = profile.Effect is 18 or 208 or 211 ? shape : 0 }, shape));

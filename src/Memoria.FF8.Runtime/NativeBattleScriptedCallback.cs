@@ -66,9 +66,9 @@ public static class NativeBattleScriptedCallback
         frame = WriteCoreByte(frame, Manager(frame) + 0xD2, 0);
         if (CoreByte(frame, Manager(frame) + 0x35) == 0)
         {
-            frame = NativeBattleWaterScriptScheduler.RunScriptPass(true, frame, services.ReadInstruction, services.ExecuteInstruction, instructionBudget);
+            frame = NativeBattleWaterScriptScheduler.RunScriptPass(true, frame, services.ReadInstruction, services.ExecuteInstruction, instructionBudget, traversalBudget);
             frame = NativeBattleWaterCallback.RunPhysicsA9BB90(frame, input.Resource1Length, services.UpdateSlot, traversalBudget);
-            frame = NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, services.ReadInstruction, services.ExecuteInstruction, instructionBudget);
+            frame = NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, services.ReadInstruction, services.ExecuteInstruction, instructionBudget, traversalBudget);
         }
         frame = WriteCoreWord(frame, CoreDword(frame, 0x27973BC) + 4, 0);
         frame = frame.WriteTemporaryWord(0x146, 0);

@@ -197,14 +197,30 @@ public sealed class NativeBattleCinematicControlCommandsTests
     public void Relative_actor_CE_zero_extends_the_actor_and_wraps_the_full_WORD_operand(byte actor, ushort offset, ushort expected)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xF0CE, offset);
-        frame = frame with { Arena = frame.Arena.Write(0x201B, [actor]).MarkUnknown(0x2012, 2).MarkUnknown(0x1004, 2) };
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(OriginalOwner(0)), [actor]).MarkUnknown(0x2012, 2).MarkUnknown(0x1004, 2) };
         NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
-        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.SetRelativeActorIdCE(frame, Program, OriginalAliases);
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.SetRelativeActorIdCE(frame, Program);
         Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x2012, 2)));
         Assert.Equal(0x1004u, Pc(result));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.SetRelativeActorIdCE(replayFrame, Program, OriginalAliases)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.SetRelativeActorIdCE(replayFrame, Program)));
+    }
+
+    [Fact]
+    public void Relative_actor_CE_keeps_an_unaliased_owner_in_private_copies_and_raw_overlap_invalidates_it()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xCE, 0x1234);
+        BattleModelOwner owner = new BattlePartyActorModel(new BattlePartyActorReference("extra-party"));
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(owner)) };
+        frame = NativeBattleCinematicControlCommands.SetRelativeActorIdCE(frame, Program);
+        var expected = new BattleExecutionReference.CinematicNodeKey.ActorRelative(owner, 0x1234);
+        Assert.Equal(expected, NativeBattleCinematicNodeKeys.Read(frame.Arena, 0x2012));
+        Assert.Equal(new[] { false, false }, frame.Arena.ReadSnapshot(0x2012, 2).Known);
+        NativeBattleWaterExecutionFrame copy = NativeBattleTestSnapshots.Independent(frame);
+        frame.Arena.Write(0x2013, [0x99]);
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicNodeKeys.Read(frame.Arena, 0x2012));
+        Assert.Equal(expected, NativeBattleCinematicNodeKeys.Read(copy.Arena, 0x2012));
     }
 
     [Theory]

@@ -81,7 +81,7 @@ public sealed partial class BattleSession
         uint counters = Slot32(0xC4);
         frame = frame.WriteTemporaryDword(0x80, payload).WriteTemporaryDword(0x84, clone).WriteTemporaryDword(0x88, state).WriteTemporaryDword(0x8C, counters);
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
-        int referenceIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), SignedWord(payload + 2));
+        int referenceIndex = NativeBattleWaterSlots.LookupB65370(frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), SignedWord(payload + 2));
         uint reference = unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, referenceIndex));
         RefreshClone();
         short boundary = unchecked((short)SlotWord(frame, 0x94));

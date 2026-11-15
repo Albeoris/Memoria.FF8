@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 
 namespace Memoria.FF8.Runtime;
 
@@ -39,54 +40,73 @@ public static class NativeBattleWaterSlots
 
     public static int LookupB65370(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int currentIndex, ImmutableArray<byte> activeOrder, int operand)
     {
+        return LookupB65370(arena, bank, currentIndex, index => ReadFiniteOrder(activeOrder, index), operand);
+    }
+
+    internal static int LookupB65370(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int currentIndex, int operand)
+    {
+        return LookupB65370(frame.Arena, bank, currentIndex, index => ReadActiveOrder(frame.Core, index), operand);
+    }
+
+    private static int LookupB65370(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int currentIndex, Func<uint, byte> readOrder, int operand)
+    {
         SlotAccess current = new(arena, bank, currentIndex);
-        if (activeOrder.IsDefault || activeOrder.Length != 128)
-        {
-            throw new NotSupportedException("Native slot lookup requires its complete active-order owner.");
-        }
         ushort selector = unchecked((ushort)operand);
-        int id;
+        NodeKey id;
         if (selector < 0xFFF0)
         {
-            id = (selector & 0x4000) != 0 ? (selector & 0x3FFF) + current.Byte(0x1B) : selector;
+            id = (selector & 0x4000) != 0
+                ? NativeBattleCinematicNodeKeys.Relative(arena, current.Offset + 0x1B, (ushort)(selector & 0x3FFF))
+                : new NodeKey.Literal(selector);
         }
         else
         {
             int kind = ~selector & 3;
             if (kind < 2)
             {
-                id = current.Word(kind == 0 ? 0x14 : 0x16);
+                id = NativeBattleCinematicNodeKeys.Read(arena, current.Offset + (kind == 0 ? 0x14 : 0x16));
             }
             else
             {
-                if (!Find(current.Word(0x16), out int parent))
+                if (!Find(NativeBattleCinematicNodeKeys.Read(arena, current.Offset + 0x16), out int parent))
                 {
                     return 0;
                 }
                 SlotAccess reference = new(arena, bank, parent);
-                id = reference.Word(kind == 2 ? 0x14 : 0x16);
+                id = NativeBattleCinematicNodeKeys.Read(arena, reference.Offset + (kind == 2 ? 0x14 : 0x16));
             }
         }
         return Find(id, out int found) ? found : 0;
 
-        bool Find(int wanted, out int foundIndex)
+        bool Find(NodeKey wanted, out int foundIndex)
         {
-            foreach (byte entry in activeOrder)
+            for (uint cursor = 0; ; cursor = checked(cursor + 1))
             {
+                byte entry = readOrder(cursor);
                 if (entry == 0xFF)
                 {
                     foundIndex = 0;
                     return false;
                 }
                 int index = entry & 0x7F;
-                if (new SlotAccess(arena, bank, index).Word(0x12) == wanted)
+                if (NativeBattleCinematicNodeKeys.Read(arena, bank.SlotOffset(arena, index) + 0x12) == wanted)
                 {
                     foundIndex = index;
                     return true;
                 }
             }
+        }
+    }
+
+    private static byte ReadActiveOrder(NativeBattleScriptedEffectMemory core, uint index) => core.Read(checked(0x2797454u + index), 1)[0];
+
+    private static byte ReadFiniteOrder(ImmutableArray<byte> order, uint index)
+    {
+        if (order.IsDefault || index >= (uint)order.Length)
+        {
             throw new NotSupportedException("Native slot lookup exhausted its bounded active order without a matching ID or terminator.");
         }
+        return order[(int)index];
     }
 
     public static NativeBattleEffectArena CachePositionAA17D0(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index)
@@ -116,6 +136,16 @@ public static class NativeBattleWaterSlots
 
     public static NativeBattleEffectArena UpdateSelected(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index, ImmutableArray<byte> activeOrder)
     {
+        return UpdateSelected(arena, bank, index, cursor => ReadFiniteOrder(activeOrder, cursor));
+    }
+
+    internal static NativeBattleEffectArena UpdateSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index)
+    {
+        return UpdateSelected(frame.Arena, bank, index, cursor => ReadActiveOrder(frame.Core, cursor));
+    }
+
+    private static NativeBattleEffectArena UpdateSelected(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index, Func<uint, byte> readOrder)
+    {
         SlotAccess slot = new(arena, bank, index);
         switch (slot.Byte(0x18))
         {
@@ -129,7 +159,7 @@ public static class NativeBattleWaterSlots
             case 5:
                 uint copyBlock = unchecked((uint)slot.Dword(0xA0));
                 short copySelector = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(copyBlock, 2), 2));
-                int copyIndex = LookupB65370(arena, bank, index, activeOrder, copySelector);
+                int copyIndex = LookupB65370(arena, bank, index, readOrder, copySelector);
                 SlotAccess copySource = new(arena, bank, copyIndex);
                 for (int lane = 0; lane < 3; lane++)
                 {
@@ -142,7 +172,7 @@ public static class NativeBattleWaterSlots
                 {
                     int blockOffset = NativeBattleWaterExecutionFields.ArenaOffset(updateBlock, 2);
                     short selector = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(blockOffset, 2));
-                    int selectedIndex = LookupB65370(arena, bank, index, activeOrder, selector);
+                    int selectedIndex = LookupB65370(arena, bank, index, readOrder, selector);
                     SlotAccess selected = new(arena, bank, selectedIndex);
                     for (int lane = 0; lane < 3; lane++)
                     {
@@ -151,7 +181,7 @@ public static class NativeBattleWaterSlots
                 }
                 break;
             case 3:
-                int referenceIndex = LookupB65370(arena, bank, index, activeOrder, unchecked((short)slot.Word(0xB0)));
+                int referenceIndex = LookupB65370(arena, bank, index, readOrder, unchecked((short)slot.Word(0xB0)));
                 SlotAccess reference = new(arena, bank, referenceIndex);
                 int angle = slot.Dword(0x64) >> 16;
                 int radius = slot.Dword(0x5C) >> 8;

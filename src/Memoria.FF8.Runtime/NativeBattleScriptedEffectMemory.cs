@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 
 namespace Memoria.FF8.Runtime;
 
@@ -38,6 +39,19 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     {
         Validate();
         Core.Write(Offset(address, bytes.Length), bytes);
+        return this;
+    }
+
+    internal NodeKey ReadCinematicNodeKey(uint address)
+    {
+        Validate();
+        return NativeBattleCinematicNodeKeys.Read(Core, Offset(address, 2));
+    }
+
+    internal NativeBattleScriptedEffectMemory WriteCinematicNodeKey(uint address, NodeKey key)
+    {
+        Validate();
+        NativeBattleCinematicNodeKeys.Write(Core, Offset(address, 2), key);
         return this;
     }
 

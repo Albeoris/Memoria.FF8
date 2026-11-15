@@ -100,7 +100,7 @@ public static class NativeBattleWaterParticles
                 break;
             case 0x14:
                 short vectorSelector = unchecked((short)ProgramWord(frame, program, unchecked(pc + 2)));
-                int vectorIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, CurrentIndex(frame, bank), ActiveOrder(frame), vectorSelector);
+                int vectorIndex = NativeBattleWaterSlots.LookupB65370(frame, bank, CurrentIndex(frame, bank), vectorSelector);
                 int vectorSlot = bank.SlotOffset(frame.Arena, vectorIndex);
                 bool angles = (instruction & 0x8000) != 0;
                 int vectorSource = angles ? 0x8C : 0x94;
@@ -119,7 +119,7 @@ public static class NativeBattleWaterParticles
                 break;
             case 0x15:
                 short positionSelector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
-                int positionIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), positionSelector);
+                int positionIndex = NativeBattleWaterSlots.LookupB65370(frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), positionSelector);
                 int positionSlot = bank.SlotOffset(frame.Arena, positionIndex);
                 for (int lane = 0; lane < 3; lane++)
                 {
@@ -175,7 +175,7 @@ public static class NativeBattleWaterParticles
             case 0x12:
                 short selector = unchecked((short)ProgramWord(frame, program, unchecked(pc + 2)));
                 int current = CurrentIndex(frame, bank);
-                int reference = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, current, ActiveOrder(frame), selector);
+                int reference = NativeBattleWaterSlots.LookupB65370(frame, bank, current, selector);
                 int referenceOffset = bank.SlotOffset(frame.Arena, reference);
                 int mask = unchecked((ushort)(instruction << 1));
                 for (int lane = 0; lane < 3; lane++)
@@ -197,7 +197,7 @@ public static class NativeBattleWaterParticles
                 break;
             case 0x0E:
                 short aimSelector = unchecked((short)ProgramWord(frame, program, unchecked(pc + 2)));
-                int aimIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, CurrentIndex(frame, bank), ActiveOrder(frame), aimSelector);
+                int aimIndex = NativeBattleWaterSlots.LookupB65370(frame, bank, CurrentIndex(frame, bank), aimSelector);
                 int aimSlot = bank.SlotOffset(frame.Arena, aimIndex);
                 int targetX = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(aimSlot + 0x94, 2)) << 8;
                 int targetZ = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(aimSlot + 0x98, 2)) << 8;
@@ -436,19 +436,6 @@ public static class NativeBattleWaterParticles
         return index;
     }
 
-    private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
-    {
-        byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-        for (int i = 0; i < order.Length; i++)
-        {
-            order[i] = frame.Core.Read(0x2797454 + (uint)i, 1)[0];
-            if (order[i] == 0xFF)
-            {
-                return order.ToImmutableArray();
-            }
-        }
-        throw new NotSupportedException("Native particle lookup requires its terminated active-order prefix.");
-    }
 
     private static NativeBattleWaterExecutionFrame ParticleByte(NativeBattleWaterExecutionFrame frame, int offset, byte value) => frame with { Arena = frame.Arena.Write(ParticleOffset(frame, offset, 1), new byte[] { value }) };
     private static NativeBattleWaterExecutionFrame ParticleWord(NativeBattleWaterExecutionFrame frame, int offset, ushort value)

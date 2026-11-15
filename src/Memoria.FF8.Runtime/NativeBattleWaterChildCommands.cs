@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 
 namespace Memoria.FF8.Runtime;
 
@@ -11,7 +12,7 @@ public static class NativeBattleWaterChildCommands
         int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, header);
         for (int index = 0; index < count; index++)
         {
-            frame = Spawn(frame, program, bank, incomingEcx, updateSelected);
+            frame = Spawn(frame, program, bank, incomingEcx, updateSelected, () => aliases);
             uint temporary = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797624);
             header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
             uint pointer = frame.ReadTemporaryDword(0xFC);
@@ -32,24 +33,24 @@ public static class NativeBattleWaterChildCommands
         return NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450) + 4));
     }
 
-    public static NativeBattleWaterExecutionFrame Execute9C(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
+    public static NativeBattleWaterExecutionFrame Execute9C(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected, Func<NativeBattleModelAliases> captureAliases)
     {
-        frame = Spawn(frame, program, bank, incomingEcx, updateSelected);
+        frame = Spawn(frame, program, bank, incomingEcx, updateSelected, captureAliases);
         uint pointer = frame.ReadTemporaryDword(0xFC);
-        ushort predecessor = ReadAddressedWord(frame, unchecked(pointer - 0xEE));
-        frame = WriteAddressedWord(frame, unchecked(pointer + 0x14), predecessor);
-        ushort ancestor = ReadAddressedWord(frame, unchecked(pointer - 0xEC));
-        return WriteAddressedWord(frame, unchecked(pointer + 0x16), ancestor);
+        NodeKey predecessor = ReadAddressedNodeKey(frame, unchecked(pointer - 0xEE));
+        frame = WriteAddressedNodeKey(frame, unchecked(pointer + 0x14), predecessor);
+        NodeKey ancestor = ReadAddressedNodeKey(frame, unchecked(pointer - 0xEC));
+        return WriteAddressedNodeKey(frame, unchecked(pointer + 0x16), ancestor);
     }
 
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected, Func<NativeBattleModelAliases> captureAliases)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         uint pc = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450);
         switch (instruction & 0x1FF)
         {
             case 0x32:
-                return Spawn(frame, program, bank, incomingEcx, updateSelected);
+                return Spawn(frame, program, bank, incomingEcx, updateSelected, captureAliases);
             case 0x26:
             case 0x8B:
                 int stream = unchecked((short)Operand(2));
@@ -91,7 +92,7 @@ public static class NativeBattleWaterChildCommands
         }
     }
 
-    public static NativeBattleWaterExecutionFrame Spawn(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint? incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
+    public static NativeBattleWaterExecutionFrame Spawn(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint? incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected, Func<NativeBattleModelAliases> captureAliases)
     {
         uint pc = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450);
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
@@ -147,13 +148,23 @@ public static class NativeBattleWaterChildCommands
         CopyParent(0x18, 0x18, 1);
         CopyParent(0x48, 0x48, 2);
         int parentActorOffset = NativeBattleWaterExecutionFields.SlotOffset(frame, 0x1B, 1);
-        BattleExecutionReference.Model parentActor = frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(parentActorOffset, 1);
+        BattleExecutionReference.Model parentActor;
+        if (parentActorOffset == childOffset + 0x1B)
+        {
+            // Initialization has just written the original slot operand into this same field.
+            byte operand = frame.Arena.Read(parentActorOffset, 1)[0];
+            parentActor = new(captureAliases().DecodeLiteral(operand));
+        }
+        else
+        {
+            parentActor = frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(parentActorOffset, 1);
+        }
         var actorSnapshot = frame.Arena.ReadSnapshot(parentActorOffset, 1);
         frame = frame with { Arena = frame.Arena.WriteExecutionReference(childOffset + 0x1B, 1, parentActor, actorSnapshot.Known[0] ? [actorSnapshot.Data[0]] : null) };
         CopyParent(0xB0, 0xB0, 4);
         CopyParent(0xB4, 0xB4, 4);
-        CopyParent(0x12, 0x14, 2);
-        CopyParent(0x14, 0x16, 2);
+        CopyParentKey(0x12, 0x14);
+        CopyParentKey(0x14, 0x16);
         ushort id = NativeBattleWaterExecutionFields.CoreWord(frame, header);
         WriteChildWord(0x12, id);
         frame = NativeBattleWaterExecutionFields.WriteCoreWord(frame, header, unchecked((ushort)(id + 1)));
@@ -166,6 +177,17 @@ public static class NativeBattleWaterChildCommands
         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x27973E8, parent);
         frame = frame.WriteTemporaryDword(0xFC, childAddress);
         return NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450) + 4));
+
+        void CopyParentKey(int source, int destination)
+        {
+            int sourceOffset = NativeBattleWaterExecutionFields.SlotOffset(frame, source, 2);
+            if (frame.Arena.TryReadExecutionReference<NodeKey>(sourceOffset, 2, out NodeKey? key))
+            {
+                frame = frame with { Arena = NativeBattleCinematicNodeKeys.Write(frame.Arena, childOffset + destination, key) };
+                return;
+            }
+            CopyParent(source, destination, 2);
+        }
 
         void CopyParent(int source, int destination, int length)
         {
@@ -228,32 +250,34 @@ public static class NativeBattleWaterChildCommands
         return frame with { Arena = frame.Arena.Write(NativeBattleWaterExecutionFields.ArenaOffset(address, 1), [value]) };
     }
 
-    private static ushort ReadAddressedWord(NativeBattleWaterExecutionFrame frame, uint address)
+    private static NodeKey ReadAddressedNodeKey(NativeBattleWaterExecutionFrame frame, uint address)
     {
         if (address >= frame.TemporaryFrame.Address && (long)address - frame.TemporaryFrame.Address <= 0x17E)
         {
-            return frame.ReadTemporaryWord(checked((int)(address - frame.TemporaryFrame.Address)));
+            return new NodeKey.Literal(frame.ReadTemporaryWord(checked((int)(address - frame.TemporaryFrame.Address))));
         }
         if (address >= NativeBattleScriptedEffectMemory.Address && (long)address - NativeBattleScriptedEffectMemory.Address <= NativeBattleScriptedEffectMemory.Length - 2)
         {
-            return NativeBattleWaterExecutionFields.CoreWord(frame, address);
+            return new NodeKey.Literal(NativeBattleWaterExecutionFields.CoreWord(frame, address));
         }
-        return BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, 2), 2));
+        return NativeBattleCinematicNodeKeys.Read(frame.Arena, NativeBattleWaterExecutionFields.ArenaOffset(address, 2));
     }
 
-    private static NativeBattleWaterExecutionFrame WriteAddressedWord(NativeBattleWaterExecutionFrame frame, uint address, ushort value)
+    private static NativeBattleWaterExecutionFrame WriteAddressedNodeKey(NativeBattleWaterExecutionFrame frame, uint address, NodeKey key)
     {
         if (address >= frame.TemporaryFrame.Address && (long)address - frame.TemporaryFrame.Address <= 0x17E)
         {
-            return frame.WriteTemporaryWord(checked((int)(address - frame.TemporaryFrame.Address)), value);
+            return frame.WriteTemporaryWord(checked((int)(address - frame.TemporaryFrame.Address)), RequireLiteral(key));
         }
         if (address >= NativeBattleScriptedEffectMemory.Address && (long)address - NativeBattleScriptedEffectMemory.Address <= NativeBattleScriptedEffectMemory.Length - 2)
         {
-            return NativeBattleWaterExecutionFields.WriteCoreWord(frame, address, value);
+            return NativeBattleWaterExecutionFields.WriteCoreWord(frame, address, RequireLiteral(key));
         }
-        byte[] bytes = new byte[2];
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return frame with { Arena = frame.Arena.Write(NativeBattleWaterExecutionFields.ArenaOffset(address, 2), bytes) };
+        return frame with { Arena = NativeBattleCinematicNodeKeys.Write(frame.Arena, NativeBattleWaterExecutionFields.ArenaOffset(address, 2), key) };
+
+        static ushort RequireLiteral(NodeKey value) => value is NodeKey.Literal literal
+            ? literal.Value
+            : throw new NotSupportedException("Native addressed child scratch requires an original WORD.");
     }
 
 }

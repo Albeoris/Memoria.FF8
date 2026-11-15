@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -102,6 +103,31 @@ public sealed class NativeBattleWaterSlotCommandTests
         Assert.Equal(3, NativeBattleWaterSlots.LookupB65370(arena, Bank, 1, order, 100));
         Assert.Equal(0, NativeBattleWaterSlots.LookupB65370(arena, Bank, 1, order, 999));
         Assert.Equal(0, NativeBattleWaterSlots.LookupB65370(arena, Bank, 1, Order(3), 0xFFFD));
+    }
+
+    [Fact]
+    public void LookupDistinguishesUnaliasedOwnersWithEqualDisplacementsAndFollowsOpaqueAncestry()
+    {
+        BattleModelOwner first = new BattlePartyActorModel(new BattlePartyActorReference("extra-first"));
+        BattleModelOwner second = new BattlePartyActorModel(new BattlePartyActorReference("extra-second"));
+        var firstKey = new NodeKey.ActorRelative(first, 0);
+        var secondKey = new NodeKey.ActorRelative(second, 0);
+        NativeBattleEffectArena arena = Word(Create(), 3, 0x12, 0);
+        arena = NativeBattleCinematicNodeKeys.Write(arena, Address(1, 0x12), firstKey);
+        arena = NativeBattleCinematicNodeKeys.Write(arena, Address(2, 0x12), secondKey);
+        arena = NativeBattleCinematicNodeKeys.Write(arena, Address(1, 0x14), secondKey);
+        arena = NativeBattleCinematicNodeKeys.Write(arena, Address(0, 0x14), secondKey);
+        arena = NativeBattleCinematicNodeKeys.Write(arena, Address(0, 0x16), firstKey);
+        arena = arena.WriteExecutionReference(Address(1, 0x1B), 1, new BattleExecutionReference.Model(first));
+        arena = arena.WriteExecutionReference(Address(2, 0x1B), 1, new BattleExecutionReference.Model(second));
+        ImmutableArray<byte> order = Order(0x82, 1, 3);
+
+        Assert.Equal(1, NativeBattleWaterSlots.LookupB65370(arena, Bank, 1, order, 0x4000));
+        Assert.Equal(2, NativeBattleWaterSlots.LookupB65370(arena, Bank, 2, order, 0x4000));
+        Assert.Equal(2, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, order, 0xFFFF));
+        Assert.Equal(1, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, order, 0xFFFE));
+        Assert.Equal(2, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, order, 0xFFFD));
+        Assert.Equal(3, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, order, 0));
     }
 
     [Fact]

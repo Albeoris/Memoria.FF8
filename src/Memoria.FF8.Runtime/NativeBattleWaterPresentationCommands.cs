@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -111,21 +110,7 @@ public static class NativeBattleWaterPresentationCommands
             {
                 return selectedUpdate(current, kind);
             }
-            ImmutableArray<byte> active = [];
-            if (kind is 3 or 5 or 7)
-            {
-                byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-                for (int i = 0; i < order.Length; i++)
-                {
-                    order[i] = current.Core.Read(0x2797454 + (uint)i, 1)[0];
-                    if (order[i] == 0xFF)
-                    {
-                        break;
-                    }
-                }
-                active = order.ToImmutableArray();
-            }
-            return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, currentIndex, active) };
+            return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current, bank, currentIndex) };
         }
     }
 

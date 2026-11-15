@@ -133,19 +133,6 @@ public static class NativeBattleWaterActorAnchor
         {
             throw new InvalidDataException("Native actor anchor update requires its current physical slot in the cached bank.");
         }
-        if (ReadSlot(frame, 0x18, 1)[0] is not (3 or 5 or 7))
-        {
-            return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, offset / 0x100, []) };
-        }
-        byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-        for (int index = 0; index < order.Length; index++)
-        {
-            order[index] = frame.Core.Read(0x2797454 + (uint)index, 1)[0];
-            if (order[index] == 0xFF)
-            {
-                return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, offset / 0x100, order.ToImmutableArray()) };
-            }
-        }
-        return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, offset / 0x100, order.ToImmutableArray()) };
+        return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame, bank, offset / 0x100) };
     }
 }

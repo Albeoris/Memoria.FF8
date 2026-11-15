@@ -125,7 +125,7 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x26:
             case 0x32:
             case 0x8B:
-                return NativeBattleWaterChildCommands.Execute(frame, Program(), CurrentBank(frame, resources), opcode == 0x32 ? services.ReadIncomingEcx(frame) : 0, (step, _) => UpdateCurrent(step, resources));
+                return NativeBattleWaterChildCommands.Execute(frame, Program(), CurrentBank(frame, resources), opcode == 0x32 ? services.ReadIncomingEcx(frame) : 0, (step, _) => UpdateCurrent(step, resources), services.Context.CaptureAliases);
             case 0x27:
                 return ExecuteTexturePair(frame, Program(), resources, services);
             case 0x2B:
@@ -207,7 +207,7 @@ public static class NativeBattleWaterInstructionDispatcher
     public static uint ResolveCurrentSlot(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, short selector)
     {
         NativeBattleWaterSlotBank bank = CurrentBank(frame, resources);
-        int found = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, CurrentIndex(frame, bank), ActiveOrder(frame), selector);
+        int found = NativeBattleWaterSlots.LookupB65370(frame, bank, CurrentIndex(frame, bank), selector);
         return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, found));
     }
 
@@ -219,8 +219,7 @@ public static class NativeBattleWaterInstructionDispatcher
     public static NativeBattleWaterExecutionFrame UpdateCurrent(NativeBattleWaterExecutionFrame frame, int resource1Length)
     {
         NativeBattleWaterSlotBank bank = CurrentBank(frame, resource1Length);
-        ImmutableArray<byte> active = ReadSlot(frame, 0x18, 1)[0] is 3 or 5 or 7 ? ActiveOrder(frame) : [];
-        return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, CurrentIndex(frame, bank), active) };
+        return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame, bank, CurrentIndex(frame, bank)) };
     }
 
     public static NativeBattleWaterExecutionFrame CacheCurrent(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources)
@@ -307,19 +306,6 @@ public static class NativeBattleWaterInstructionDispatcher
         return new(ArenaOffset(address, length), length, address);
     }
 
-    private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
-    {
-        byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-        for (int index = 0; index < order.Length; index++)
-        {
-            order[index] = frame.Core.Read(0x2797454 + (uint)index, 1)[0];
-            if (order[index] == 0xFF)
-            {
-                return order.ToImmutableArray();
-            }
-        }
-        return order.ToImmutableArray();
-    }
 
     private static byte[] ReadProgram(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, uint address, int count)
     {

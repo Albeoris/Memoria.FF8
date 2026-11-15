@@ -245,8 +245,7 @@ public static class NativeBattleWaterMeshPreparation
         return NativeBattleScriptedMeshMorph.Morph(frame, new(
             (current, selector) =>
             {
-                ImmutableArray<byte> order = current.Core.Read(0x2797454, 128).ToImmutableArray();
-                int reference = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, index, order, selector);
+                int reference = NativeBattleWaterSlots.LookupB65370(current, bank, index, selector);
                 return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, reference));
             },
             (current, shape) => NativeBattleWaterShapeSelection.ResolveB657E0(current, resources, shapeResourceMap, shape)));

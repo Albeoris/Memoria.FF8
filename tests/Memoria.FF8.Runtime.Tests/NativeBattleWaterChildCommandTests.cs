@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using NodeKey = Memoria.FF8.Runtime.BattleExecutionReference.CinematicNodeKey;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -71,9 +72,23 @@ public sealed class NativeBattleWaterChildCommandTests
         Assert.Equal(new byte[24], result.Arena.Read(0x2050, 24));
         Assert.Equal((byte)0, result.Arena.Read(0x2018, 1)[0]);
         Assert.Equal((byte)3, result.Arena.Read(0x201B, 1)[0]);
+        Assert.Equal(OriginalOwner(3), result.Arena.ReadExecutionReference<BattleExecutionReference.Model>(0x201B, 1).Owner);
+        Assert.NotEqual(OriginalOwner(6), result.Arena.ReadExecutionReference<BattleExecutionReference.Model>(0x201B, 1).Owner);
         Assert.Equal((ushort)0, WaterSchedulerFixture.ReadSlotWord(result, 0, 0x14));
         Assert.Equal((ushort)0, WaterSchedulerFixture.ReadSlotWord(result, 0, 0x16));
         Assert.Equal(Pc + 8, WaterSchedulerFixture.ReadSlotDword(result, 0, 0));
+    }
+
+    [Fact]
+    public void SelfParentRejectsAnUnboundOriginalOperandAfterInitialization()
+    {
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x32, 8));
+        frame = WaterSchedulerFixture.SlotDword(frame, 0, 0, 0);
+        NativeBattleModelAliases aliases = new(OriginalRoster, [(NativeBattleModelSlot.Decode(6), OriginalOwner(6))]);
+        InvalidDataException failure = Assert.Throws<InvalidDataException>(() => NativeBattleWaterChildCommands.Spawn(frame, new(0x1000, 4, Pc), Bank, 0, UpdateSelected, () => aliases));
+        Assert.Contains("no original model alias", failure.Message);
+        Assert.Equal((byte)3, frame.Arena.Read(0x201B, 1)[0]);
+        Assert.False(frame.Arena.TryReadExecutionReference<BattleExecutionReference.Model>(0x201B, 1, out _));
     }
 
     [Theory]
@@ -133,14 +148,14 @@ public sealed class NativeBattleWaterChildCommandTests
     }
 
     [Fact]
-    public void ActiveAppendIsVisibleInSameSchedulerPassAndJsonContinuationMatches()
+    public void ActiveAppendIsVisibleInSameSchedulerPassAndPrivateContinuationMatches()
     {
         NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x32, 0x10));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0, 0x1000);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0xC8, 3);
         frame = WaterSchedulerFixture.CoreWord(frame, 0x2797634, 3);
-        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.Independent(frame);
         List<uint> fetched = [];
         NativeBattleWaterExecutionFrame a = Pass(frame, fetched);
         NativeBattleWaterExecutionFrame b = Pass(restored, []);
@@ -153,7 +168,7 @@ public sealed class NativeBattleWaterChildCommandTests
             {
                 fetched.Add(pc);
                 return pc == 0x1000 ? (ushort)0x32 : (ushort)9;
-            }, (step, selector) => selector == 0x32 ? NativeBattleWaterChildCommands.Execute(step, new(0x1000, 4, 0x1000), Bank, step.TemporaryFrame.Address + 0x100, UpdateSelected) : step.WriteTemporaryWord(0x13E, 3));
+            }, (step, selector) => selector == 0x32 ? NativeBattleWaterChildCommands.Execute(step, new(0x1000, 4, 0x1000), Bank, step.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases) : step.WriteTemporaryWord(0x13E, 3));
         }
     }
 
@@ -165,7 +180,7 @@ public sealed class NativeBattleWaterChildCommandTests
         frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x12, 0xA1B2);
         frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x14, 0xC3D4);
         frame = frame with { Core = frame.Core.Write(0x2797454, new byte[] { 0, 1, 0xFF, 0xFF }) };
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x2200, result.ReadTemporaryDword(0xFC));
         Assert.Equal((ushort)0xA1B2, WaterSchedulerFixture.ReadSlotWord(result, 2, 0x14));
         Assert.Equal((ushort)0xC3D4, WaterSchedulerFixture.ReadSlotWord(result, 2, 0x16));
@@ -173,6 +188,33 @@ public sealed class NativeBattleWaterChildCommandTests
         Assert.Equal((ushort)100, WaterSchedulerFixture.ReadSlotWord(result, 2, 0x94));
         Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal((ushort)0x9C, result.ReadTemporaryWord(0x14A));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ChildSpawnAnd9CPreserveTheWholeAncestryKey(bool addressed)
+    {
+        var predecessor = new NodeKey.ActorRelative(new BattlePartyActorModel(new BattlePartyActorReference("extra-party")), 12);
+        var ancestor = new NodeKey.ActorRelative(new BattleEnemyActorModel(new BattleEnemyActorReference("extra-enemy")), 12);
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(addressed ? (ushort)0x9C : (ushort)0x32, 8));
+        int source = 0x2000;
+        if (addressed)
+        {
+            source += 0x100;
+            frame = WaterSchedulerFixture.SlotDword(frame, 1, 0, 1);
+            frame = frame with { Core = frame.Core.Write(0x2797454, [0, 1, 0xFF, 0xFF]) };
+        }
+        frame = frame with { Arena = NativeBattleCinematicNodeKeys.Write(frame.Arena, source + 0x12, predecessor) };
+        frame = frame with { Arena = NativeBattleCinematicNodeKeys.Write(frame.Arena, source + 0x14, ancestor) };
+        NativeBattleWaterExecutionFrame result = addressed
+            ? NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases)
+            : Run(frame, 4);
+        int child = source + 0x100;
+        Assert.Equal(predecessor, NativeBattleCinematicNodeKeys.Read(result.Arena, child + 0x14));
+        Assert.Equal(ancestor, NativeBattleCinematicNodeKeys.Read(result.Arena, child + 0x16));
+        Assert.Equal(new[] { false, false, false, false }, result.Arena.ReadSnapshot(child + 0x14, 4).Known);
+        Assert.IsType<NodeKey.Literal>(NativeBattleCinematicNodeKeys.Read(result.Arena, child + 0x12));
     }
 
     [Theory]
@@ -200,7 +242,7 @@ public sealed class NativeBattleWaterChildCommandTests
             pointer = NativeBattleEffectNodeMemory.ArenaAddress + 0x5000;
             frame = frame with { Arena = frame.Arena.Write(0x4F12, new byte[] { 0x34, 0x12, 0x78, 0x56 }).MarkUnknown(0x4F16, 2) };
         }
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 2, Pc), Bank, pointer, UpdateSelected);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 2, Pc), Bank, pointer, UpdateSelected, () => OriginalAliases);
         ushort first = owner == 0 ? result.ReadTemporaryWord(0x114) : owner == 1 ? BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(pointer + 0x14, 2)) : BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x5014, 2));
         ushort second = owner == 0 ? result.ReadTemporaryWord(0x116) : owner == 1 ? BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(pointer + 0x16, 2)) : BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x5016, 2));
         Assert.Equal((ushort)0x1234, first);
@@ -215,7 +257,7 @@ public sealed class NativeBattleWaterChildCommandTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x9C);
         frame = frame with { Core = frame.Core.Write(0x2797457, new byte[] { 2 }) };
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 2, Pc), Bank, 0x12345678, UpdateSelected));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 2, Pc), Bank, 0x12345678, UpdateSelected, () => OriginalAliases));
     }
 
     [Fact]
@@ -223,11 +265,11 @@ public sealed class NativeBattleWaterChildCommandTests
     {
         NativeBattleWaterExecutionFrame ordinary = Parent(Fixture(0x32, 8));
         NativeBattleWaterExecutionFrame ordinaryReplay = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(ordinary));
-        Assert.Equal(NativeBattleTestSnapshots.Json(Run(ordinary)), NativeBattleTestSnapshots.Json(NativeBattleWaterChildCommands.Spawn(ordinaryReplay, new(0x1000, 6, Pc), Bank, ordinaryReplay.TemporaryFrame.Address + 0x100, UpdateSelected)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(ordinary)), NativeBattleTestSnapshots.Json(NativeBattleWaterChildCommands.Spawn(ordinaryReplay, new(0x1000, 6, Pc), Bank, ordinaryReplay.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases)));
         NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x9C, 8));
-        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
-        NativeBattleWaterExecutionFrame a = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
-        NativeBattleWaterExecutionFrame b = NativeBattleWaterChildCommands.Execute9C(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100, UpdateSelected);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.Independent(frame);
+        NativeBattleWaterExecutionFrame a = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases);
+        NativeBattleWaterExecutionFrame b = NativeBattleWaterChildCommands.Execute9C(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases);
         Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
     }
 
@@ -356,7 +398,7 @@ public sealed class NativeBattleWaterChildCommandTests
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x48, 0xBEEF);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xB0, 0x11223344);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xB4, 0x55667788);
-        return frame with { Arena = frame.Arena.Write(0x201B, new byte[] { 6 }) };
+        return frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(OriginalOwner(6)), [6]) };
     }
 
     private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
@@ -380,5 +422,5 @@ public sealed class NativeBattleWaterChildCommandTests
         return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, Bank, index, kind is 3 or 5 or 7 ? ActiveOrder(frame) : []) };
     }
 
-    private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame, int length = 6, uint? incoming = null) => NativeBattleWaterChildCommands.Execute(frame, new(0x1000, length, Pc), Bank, incoming ?? frame.TemporaryFrame.Address + 0x100, UpdateSelected);
+    private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame, int length = 6, uint? incoming = null) => NativeBattleWaterChildCommands.Execute(frame, new(0x1000, length, Pc), Bank, incoming ?? frame.TemporaryFrame.Address + 0x100, UpdateSelected, () => OriginalAliases);
 }

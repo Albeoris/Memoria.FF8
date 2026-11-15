@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleCinematicGrid28Services services = new((current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => new(current, NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture)), (current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
-            int selected = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int selected = NativeBattleWaterSlots.LookupB65370(current, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), selector);
             if (graphics.OriginalEffect!.Binding.Effect == 219)
             {
                 referencedSlotBirth = NativeBattleCinematicVisualIdentity.Identity(219, current, bank, selected).Generation;

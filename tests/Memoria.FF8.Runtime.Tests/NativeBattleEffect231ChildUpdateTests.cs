@@ -15,7 +15,7 @@ public sealed class NativeBattleEffect231ChildUpdateTests
     {
         NativeBattleWaterExecutionFrame frame = Create();
         int calls = 0;
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Spawn(frame, new(0x1000, 4, Pc), Bank, 0x12345678, Update);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Spawn(frame, new(0x1000, 4, Pc), Bank, 0x12345678, Update, () => OriginalAliases);
         Assert.Equal(1, calls);
         Assert.Equal(Address(0x2000), WaterSchedulerFixture.ReadCoreDword(result, 0x27973E8));
         Assert.Equal(Address(0x2100), result.ReadTemporaryDword(0xFC));
@@ -46,7 +46,7 @@ public sealed class NativeBattleEffect231ChildUpdateTests
     {
         NativeBattleWaterExecutionFrame frame = Create();
         frame = frame with { Core = frame.Core.Write(0x2797457, [2]), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
-        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Spawn(frame, new(0x1000, 2, Pc), Bank, 0x12345678, (_, _) => throw new InvalidOperationException("A failed birth must not update a child."));
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Spawn(frame, new(0x1000, 2, Pc), Bank, 0x12345678, (_, _) => throw new InvalidOperationException("A failed birth must not update a child."), () => throw new InvalidOperationException("A failed birth must not read its actor aliases."));
         Assert.Same(frame.Arena, result.Arena);
         Assert.Equal(0x12345678u, result.ReadTemporaryDword(0xFC));
         Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
@@ -76,7 +76,7 @@ public sealed class NativeBattleEffect231ChildUpdateTests
 
         NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame input) => contact
             ? NativeBattleWaterChildCommands.Execute5D(input, new(0x1000, 4, Pc), Bank, 0x12345678, Update, OriginalAliases)
-            : NativeBattleWaterChildCommands.Execute9C(input, new(0x1000, 4, Pc), Bank, 0x12345678, Update);
+            : NativeBattleWaterChildCommands.Execute9C(input, new(0x1000, 4, Pc), Bank, 0x12345678, Update, () => OriginalAliases);
 
         NativeBattleWaterExecutionFrame Update(NativeBattleWaterExecutionFrame child, byte kind)
         {

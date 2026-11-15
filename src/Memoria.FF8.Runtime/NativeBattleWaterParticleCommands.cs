@@ -24,9 +24,9 @@ public static class NativeBattleWaterParticleCommands
 
     public static NativeBattleWaterExecutionFrame AppendDrawB652E0(NativeBattleWaterExecutionFrame frame, byte current)
     {
-        for (int index = 0; index < 128; index++)
+        for (uint index = 0; ; index = checked(index + 1))
         {
-            uint address = 0x2797554 + (uint)index;
+            uint address = checked(0x2797554u + index);
             byte entry = frame.Core.Read(address, 1)[0];
             if (entry == 0xFF)
             {
@@ -37,7 +37,6 @@ public static class NativeBattleWaterParticleCommands
                 return frame;
             }
         }
-        throw new NotSupportedException("Native draw registration left its actual bounded draw-order owner.");
     }
 
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, short, uint>? resolveSlot = null)

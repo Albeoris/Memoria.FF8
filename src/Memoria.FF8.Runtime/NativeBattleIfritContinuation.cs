@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -114,11 +113,10 @@ public static class NativeBattleIfritContinuation
         int postFlagTicks = (ReadWord(0x14A) >> 9) + (ReadWord(0x14C) >> 9);
         byte remainingShakeIterations = checked((byte)(ReadWord(0x6F4) - (postFlagTicks - ReadWord(0x6CC) - ReadWord(0x6E0))));
         frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x20, 1), [remainingShakeIterations]) };
-        ImmutableArray<byte> activeOrder = order.Concat(Enumerable.Repeat((byte)0xFF, 128 - order.Length)).ToImmutableArray();
         foreach (byte entry in order)
         {
             int index = entry & 0x7F;
-            frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, index, activeOrder) };
+            frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame, bank, index) };
             frame = frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, index) };
         }
         Select(5);

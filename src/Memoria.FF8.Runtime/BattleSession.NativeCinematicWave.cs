@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -12,7 +11,7 @@ public sealed partial class BattleSession
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
-            int selected = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, index, current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            int selected = NativeBattleWaterSlots.LookupB65370(current, bank, index, selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, selected));
         }, current =>
         {
