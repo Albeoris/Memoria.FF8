@@ -149,13 +149,13 @@ public sealed partial class BattleSession
                 nativeDuelProcesses[actorId] = next;
                 if (next.RemainingTimer <= 0)
                 {
-                    if (UsesExpandedRoster)
+                    if (UsesExpandedRoster && !OwnsExpandedHostedInvocation)
                     {
                         CompleteExpandedDuelTimeout(actorId);
                     }
-                    else if (NativeGraphics is not null)
+                    else if (NativeGraphics is not null || OwnsExpandedHostedInvocation)
                     {
-                        nativeDuelProcesses[actorId] = next with { Selection1D28DEF = 255, Phase = BattleNativeDuelPhase.Finisher, Ui = new(BattleTimedInputUiPhase.Closing) };
+                        QueueNativeDuelCloseSelection(actorId);
                     }
                     else
                     {
@@ -205,7 +205,7 @@ public sealed partial class BattleSession
     private void QueueNativeDuelChoice(string actorId, BattleNativeDuelChoice choice)
     {
         BattleNativeDuelState state = nativeDuelProcesses[actorId];
-        if (NativeGraphics is not null)
+        if (NativeGraphics is not null || OwnsExpandedHostedInvocation)
         {
             if (state.Selection1D28DEF != 254)
             {
@@ -233,6 +233,15 @@ public sealed partial class BattleSession
         nativeDuelProcesses[actorId] = state with { MoveSetId = choice.MoveSetId, Phase = choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect, Ui = choice.Finisher ? new(BattleTimedInputUiPhase.Closing) : state.Ui };
     }
 
+    private void QueueNativeDuelCloseSelection(string actorId)
+    {
+        BattleNativeDuelState state = nativeDuelProcesses[actorId];
+        if (state.Phase != BattleNativeDuelPhase.Finisher)
+        {
+            nativeDuelProcesses[actorId] = state with { Selection1D28DEF = 255, Phase = BattleNativeDuelPhase.Finisher, Ui = new(BattleTimedInputUiPhase.Closing) };
+        }
+    }
+
     private void EndNativeDuel(string actorId)
     {
         nativeDuelProcesses.Remove(actorId);
@@ -253,7 +262,7 @@ public sealed partial class BattleSession
             EndNativeDuel(action.ActorId);
             return false;
         }
-        if (NativeGraphics is null && action.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
+        if (NativeGraphics is null && !OwnsExpandedHostedInvocation && action.NativeLimitCallback is (NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect))
         {
             //TODO(TD-009): Graphicsless components project48E5A0/48E5E0 readiness at their declared action completion.
             nativeDuelProcesses[action.ActorId] = ResetNativeDuelInput(state);
@@ -284,20 +293,21 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RestoreNativeDuel(string actorId, byte crisis, BattleNativeDuelState state)
+    private void RestoreNativeDuel(string actorId, byte crisis, BattleNativeDuelState state, ExpandedHostedEvent? hostedEvent)
     {
         BattleCombatant actor = GetActor(actorId);
+        bool hosted = OwnsHostedDuelRestore(hostedEvent, actorId);
         NativeLimitProgress progress = RequireNativeDuelProgress();
         if ((progress.Options978!.Value & 2) != 0 && definition.NativeBattleUiRandom is null)
         {
             throw new InvalidDataException("Saved automatic Duel lacks its actual4A7080 battle UI random owner.");
         }
-        if (Outcome != BattleOutcome.Active || !actor.IsAlive || actor.NativeLimit is not { Command: 11 } rules || crisis == 0 || state.InitialTimer != NativeBattleDuelRules.Timer(rules, crisis) || state.InitialTimer == 0 || (state.RemainingTimer <= 0 && !(state.Selection1D28DEF is not null && state.Phase == BattleNativeDuelPhase.Finisher)) || state.RemainingTimer > state.InitialTimer || !Enum.IsDefined(state.Phase) || state.InputRing.IsDefault || state.InputRing.Length != 8 || state.InputCursor >= 8 || state.AutomaticCountdown > 120 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond)
+        if (Outcome != BattleOutcome.Active || !actor.IsAlive && !(hosted && state.Phase == BattleNativeDuelPhase.Finisher) || actor.NativeLimit is not { Command: 11 } rules || crisis == 0 || state.InitialTimer != NativeBattleDuelRules.Timer(rules, crisis) || state.InitialTimer == 0 || (state.RemainingTimer <= 0 && !(state.Selection1D28DEF is not null && state.Phase == BattleNativeDuelPhase.Finisher)) || state.RemainingTimer > state.InitialTimer || !Enum.IsDefined(state.Phase) || state.InputRing.IsDefault || state.InputRing.Length != 8 || state.InputCursor >= 8 || state.AutomaticCountdown > 120 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond)
         {
             throw new InvalidDataException("Saved Duel process contradicts its native character, timer or raw input ring.");
         }
         _ = NativeBattleDuelRules.ActionId(rules, state.MoveSetId);
-        if (state.TargetRequest is null || UsesExpandedRoster && (state.Selection1D28DEF is not null || state.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || FindTargetActor(target) is null))
+        if (state.TargetRequest is null || UsesExpandedRoster && (hosted != state.Selection1D28DEF.HasValue || state.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || FindTargetActor(target) is null))
         {
             throw new InvalidDataException("Saved Duel target disagrees with the battle roster.");
         }
@@ -309,6 +319,10 @@ public sealed partial class BattleSession
             if (selection < 254)
             {
                 _ = NativeBattleDuelRules.ActionId(rules, selection);
+            }
+            if (hosted)
+            {
+                return;
             }
             if (NativeGraphics is null)
             {

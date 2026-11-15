@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted frame publication requires the current presentation process and expanded logical owner.");
         }
-        services.Validate(logicalOwner.ReadBattlePresentationRoster(), graphics);
+        services.ValidateCurrentModels(HostedPlannedModelRoster, graphics);
         RefreshPreparedPresentation(logicalOwner, services);
     }
 

@@ -17,15 +17,20 @@ public sealed partial class BattleSession
         internal sealed record AllocationGate : HostedDispatchControl;
         internal sealed record Message(BattleEvent Event, byte Tag, byte Priority = 128) : HostedDispatchControl;
         internal sealed record ShotReadiness(uint Callback) : HostedDispatchControl;
+        internal sealed record DuelReadiness(HostedDuelPoll Poll) : HostedDispatchControl;
+        internal sealed record DuelSelection(HostedDuelPoll Poll) : HostedDispatchControl;
         internal sealed record Complete(HostedDispatchCompletion Completion) : HostedDispatchControl;
     }
 
     internal sealed record HostedDispatchControls(ImmutableArray<HostedDispatchControl> BeforeAction, ImmutableArray<HostedDispatchControl> AfterAction);
-    internal sealed record HostedControlPacket(int Slot, byte Serial, ushort Command, uint? Callback, bool Retired = false);
+    internal sealed record HostedControlPacket(int Slot, byte Serial, ushort Command, uint? Callback, bool Retired = false)
+    {
+        internal HostedDuelPoll? DuelPoll { get; init; }
+    }
     private ImmutableArray<HostedControlPacket> hostedControlPackets = [];
     internal sealed record HostedDispatchAction(HostedPresentationInvocation Invocation, BattleModelOwner SourceOwner, NativeBattleGraphicsResource Source, byte? ModelId, bool IsParty, int PartyActorCount);
 
-    internal sealed class PreparedHostedDispatch(BattleSession owner, NativeBattleGraphicsState graphics, NativeBattleActionPacketsState originalPackets, long epoch, long nextEpoch, long issuedAction, long issuedCompletion, NativeBattleGraphicsState admitted, NativeBattleActionPacketsState packets, HostedDispatchAction? action, HostedCompletionInvocation? completion, PreparedHostedCompletionAck? acknowledgment, ImmutableArray<BattleActionHeaderReference> appendedHeaders, ImmutableArray<HostedControlPacket> controls, PreparedHostedModelRegistry? registry)
+    internal sealed class PreparedHostedDispatch(BattleSession owner, NativeBattleGraphicsState graphics, NativeBattleActionPacketsState originalPackets, long epoch, long nextEpoch, long issuedAction, long issuedCompletion, NativeBattleGraphicsState admitted, NativeBattleActionPacketsState packets, HostedDispatchAction? action, HostedCompletionInvocation? completion, PreparedHostedCompletionAck? acknowledgment, ImmutableArray<BattleActionHeaderReference> appendedHeaders, ImmutableArray<HostedControlPacket> controls, PreparedHostedModelRegistry? registry, NativeBattleDuelSelectionReached? duelSelection)
     {
         internal BattleSession Owner { get; } = owner;
         internal NativeBattleGraphicsState Graphics { get; } = graphics;
@@ -42,12 +47,14 @@ public sealed partial class BattleSession
         internal ImmutableArray<BattleActionHeaderReference> AppendedHeaders { get; } = appendedHeaders;
         internal ImmutableArray<HostedControlPacket> Controls { get; } = controls;
         internal PreparedHostedModelRegistry? Registry { get; } = registry;
+        internal NativeBattleDuelSelectionReached? DuelSelection { get; } = duelSelection;
     }
 
-    internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default)
+    internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null && acknowledgment is null ||
+            !ReferenceEquals(pendingHostedDuelSelection, duelSelection) ||
             !HostedControlPrefixRetired && (controls is not null || acknowledgment is null || headerReference is not null || dispatchAppended || completion is not null))
         {
             throw new InvalidOperationException("Hosted dispatch requires an idle presentation process after entry.");
@@ -113,13 +120,14 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsState admitted = ReferenceEquals(graphics.Descriptors, descriptors) ? graphics : graphics with { Descriptors = descriptors };
         ImmutableArray<HostedControlPacket> prefix = HostedControlPrefixRetired ? queuedControls.ToImmutable() : hostedControlPackets;
-        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry);
+        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection);
 
         void EnqueueControls(ImmutableArray<HostedDispatchControl> operations)
         {
             foreach (HostedDispatchControl operation in operations)
             {
                 int slot;
+                HostedDuelPoll? duelPoll = null;
                 switch (operation)
                 {
                     case HostedDispatchControl.Complete finish:
@@ -154,11 +162,19 @@ public sealed partial class BattleSession
                     case HostedDispatchControl.ShotReadiness { Callback: 0x48D1A0 or 0x4AD7C0 } shot:
                         (descriptors, slot) = descriptors.Enqueue(10, 128, shot.Callback);
                         break;
+                    case HostedDispatchControl.DuelReadiness duel when duel.Poll.ReadinessCallback is 0x48E5A0 or 0x48E5E0 && roster.Contains(duel.Poll.Owner):
+                        duelPoll = duel.Poll;
+                        (descriptors, slot) = descriptors.Enqueue(10, 128, duelPoll.ReadinessCallback);
+                        break;
+                    case HostedDispatchControl.DuelSelection duel when roster.Contains(duel.Poll.Owner):
+                        duelPoll = duel.Poll;
+                        (descriptors, slot) = descriptors.Enqueue(10, 128, 0x4852B0);
+                        break;
                     default:
                         throw new InvalidDataException("Hosted dispatch control lacks its original command or loaded model owner.");
                 }
                 NativeBattleDescriptorPacket packet = descriptors.Packets[slot];
-                queuedControls.Add(new(slot, packet.Serial, packet.Command, packet.Command == 10 ? packet.Argument : null));
+                queuedControls.Add(new(slot, packet.Serial, packet.Command, packet.Command == 10 ? packet.Argument : null) { DuelPoll = duelPoll });
             }
         }
 
@@ -225,7 +241,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                (FindHostedAllocationBinding(registry, write.Header.Source)?.Resource ?? ReadHostedPresentationModelResource(write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its original source resource.")).Validate();
+                (FindHostedAllocationBinding(registry, write.Header.Source)?.Resource ?? ReadOriginalPresentationModelResource(write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its original source resource.")).Validate();
             }
             appended.Add(reference);
         }
@@ -250,6 +266,7 @@ public sealed partial class BattleSession
             prepared.IssuedAction != lastHostedActionIssued || prepared.IssuedCompletion != lastHostedCompletionIssued ||
             prepared.Registry is { } registry && !ReferenceEquals(registry.Original, hostedModelRegistry) ||
             !hostedBattlePresentation || hostedFrameServices is not null || hostedPresentationInvocation is not null ||
+            !ReferenceEquals(pendingHostedDuelSelection, prepared.DuelSelection) ||
             hostedCompletionInvocation is not null && prepared.Acknowledgment is null ||
             !HostedControlPrefixRetired && (prepared.Acknowledgment is null || prepared.Controls != hostedControlPackets))
         {
@@ -267,6 +284,7 @@ public sealed partial class BattleSession
         nativeActionPackets = prepared.Packets;
         NativeGraphics = prepared.Admitted;
         hostedControlPackets = prepared.Controls;
+        pendingHostedDuelSelection = null;
         if (prepared.Action is { } action)
         {
             presentationSourceOwner = action.SourceOwner;

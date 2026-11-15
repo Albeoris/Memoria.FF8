@@ -21,7 +21,7 @@ public static class NativeBattleWater222Controller
         return new(memory, frame.Effect with { Pools = [pool], ReturnedDescriptor = request.DescriptorAddress }, frame.Random);
     }
 
-    public static NativeBattleWater222Frame AdvanceA9B870(NativeBattleWater222Frame frame, NativeBattleWaterCallbackInput input, NativeBattleWaterCallbackServices services, uint temporaryFrameAddress, Func<NativeBattleEffectMemory> readCurrentMemory, int instructionBudget = 4096, int traversalBudget = 256)
+    public static NativeBattleWater222Frame AdvanceA9B870(NativeBattleWater222Frame frame, NativeBattleWaterCallbackInput input, NativeBattleWaterCallbackServices services, uint temporaryFrameAddress, Func<NativeBattleEffectMemory> readCurrentMemory, int instructionBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticInstructionBudget, int traversalBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticTraversalBudget)
     {
         RequireBinding(frame.Effect);
         ArgumentNullException.ThrowIfNull(readCurrentMemory);

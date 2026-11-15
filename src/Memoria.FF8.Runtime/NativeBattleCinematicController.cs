@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The selected single-task cinematic callback publishes only its own retained filter and shared live registers.</summary>
 public static class NativeBattleCinematicController
 {
-    public static NativeBattleCinematicFrame Advance(NativeBattleCinematicProfile profile, NativeBattleCinematicFrame frame, NativeBattleScriptedCallbackInput input, NativeBattleScriptedCallbackServices services, uint temporaryFrameAddress, Func<NativeBattleEffectMemory> readCurrentMemory, int instructionBudget = 4096, int traversalBudget = 256)
+    public static NativeBattleCinematicFrame Advance(NativeBattleCinematicProfile profile, NativeBattleCinematicFrame frame, NativeBattleScriptedCallbackInput input, NativeBattleScriptedCallbackServices services, uint temporaryFrameAddress, Func<NativeBattleEffectMemory> readCurrentMemory, int instructionBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticInstructionBudget, int traversalBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticTraversalBudget)
     {
         NativeBattleCinematicEntry.RequireBinding(profile, frame.Effect);
         ArgumentNullException.ThrowIfNull(readCurrentMemory);

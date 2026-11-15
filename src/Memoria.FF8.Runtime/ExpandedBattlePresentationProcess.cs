@@ -106,15 +106,16 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default)
+    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations);
+        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations, duelSelection: duelSelection);
     }
 
     internal BattleModelRoster PlannedModelRoster => presentation.HostedPlannedModelRoster;
 
     internal bool IsControlPrefixRetired => presentation.HostedControlPrefixRetired;
+    internal NativeBattleDuelSelectionReached? PendingDuelSelection => presentation.PendingHostedDuelSelection;
 
     internal void AppendScriptMessage(BattleEvent message, byte tag, byte priority)
     {
@@ -214,6 +215,10 @@ public sealed partial class ExpandedBattlePresentationProcess
         RequireLogicalOwner(logicalOwner);
         RequireIdle();
         RequireCompletionAcknowledged();
+        if (PendingDuelSelection is not null)
+        {
+            throw new InvalidOperationException("A reached hosted Duel selection must commit before its next graphics frame.");
+        }
 
         advancing = true;
         try

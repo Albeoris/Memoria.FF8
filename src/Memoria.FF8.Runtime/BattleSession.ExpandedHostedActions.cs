@@ -22,7 +22,10 @@ public sealed partial class BattleSession
         internal BattleContactCursor FirstContact { get; init; }
     }
 
-    private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null);
+    private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null)
+    {
+        internal HostedDuelPoll? DuelPoll { get; init; }
+    }
 
     private bool preparingExpandedHostedAction;
     private ImmutableArray<ExpandedHostedOperation> expandedHostedOperations = [];
@@ -113,6 +116,11 @@ public sealed partial class BattleSession
 
     private static ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (command.NativeQueuedCommand == 11 && header is { Command: 11, Action: 65531 } ||
+            command.NativeQueuedCommand == 241 && header is { Command: 241, Action: 65530 })
+        {
+            return ExpandedHostedContactDisposition.ContextOnly;
+        }
         if (command is { NativeQueuedCommand: 14, NativeLimitCallback: NativeLimitCallback.ShotOpening } && header.Command == 14)
         {
             // Shot's opening launches the module and publishes readiness without applying the header contacts.
@@ -266,6 +274,12 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattleShotReadinessReached shot:
                     ApplyExpandedHostedShotReadiness(services, shot, actionToken);
+                    break;
+                case NativeBattleDuelReadinessReached duelReadiness:
+                    ApplyExpandedHostedDuelReadiness(services, duelReadiness);
+                    break;
+                case NativeBattleDuelSelectionReached duelSelection:
+                    ApplyExpandedHostedDuelSelection(services, duelSelection, actionToken);
                     break;
                 case NativeBattlePresentationCompletionRequested completion:
                     CompleteExpandedHostedEvent(completion, actionToken);

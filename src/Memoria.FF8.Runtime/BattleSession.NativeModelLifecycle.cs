@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState AdvanceNativeLoadedModels(NativeBattleGraphicsState graphics, uint flags, NativeBattleModelLifecycleServices? services = null)
     {
-        services?.Validate(nativeActionPackets.Roster, graphics);
+        services?.ValidateCurrentModels(HostedPlannedModelRoster, graphics);
         BattleActorModels models = graphics.ActorModels;
         foreach (BattleModelOwner owner in models.Owners)
         {
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
             }
             if (!encounterArrivalActive && (model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
             {
-                NativeBattleGraphicsResource originalResource = ReadHostedPresentationModelResource(owner) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
+                NativeBattleGraphicsResource originalResource = ReadOriginalPresentationModelResource(owner) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
                 NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(owner, model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
                 {

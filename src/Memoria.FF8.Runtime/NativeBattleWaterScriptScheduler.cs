@@ -5,7 +5,11 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The two signed-PC scheduling passes around an explicit finite command service.</summary>
 public static class NativeBattleWaterScriptScheduler
 {
-    public static NativeBattleWaterExecutionFrame RunScriptPass(bool prePass, NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, uint, ushort> readInstruction, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleWaterExecutionFrame> executeOne, int instructionBudget = 4096, int traversalBudget = 256)
+    // Managed per-pass execution limits are independent of the physical slot banks.
+    internal const int DefaultDiagnosticInstructionBudget = 16_384;
+    internal const int DefaultDiagnosticTraversalBudget = 16_384;
+
+    public static NativeBattleWaterExecutionFrame RunScriptPass(bool prePass, NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, uint, ushort> readInstruction, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleWaterExecutionFrame> executeOne, int instructionBudget = DefaultDiagnosticInstructionBudget, int traversalBudget = DefaultDiagnosticTraversalBudget)
     {
         ArgumentNullException.ThrowIfNull(readInstruction);
         ArgumentNullException.ThrowIfNull(executeOne);
@@ -58,7 +62,7 @@ public static class NativeBattleWaterScriptScheduler
                             {
                                 if (executed >= instructionBudget)
                                 {
-                                    throw new NotSupportedException("Native script diagnostic instruction budget was exhausted without a native yield.");
+                                    throw new NotSupportedException("Native script exhausted its per-pass diagnostic instruction budget.");
                                 }
                                 ushort instruction = readInstruction(frame, NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450));
                                 frame = frame.WriteTemporaryWord(0x14A, instruction);

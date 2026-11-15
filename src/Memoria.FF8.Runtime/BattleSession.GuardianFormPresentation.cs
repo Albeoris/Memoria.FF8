@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         IEnumerable<NativeBattleModelDatSource> sources = definition.NativeGraphics!.Bindings.SelectMany(binding => binding.Resource.ModelLoadSources ?? []);
         if (NativeModelTextureCache?.PresentationRoster is { } roster)
         {
-            sources = sources.Concat(roster.Owners.SelectMany(owner => ReadHostedPresentationModelResource(owner)?.ModelLoadSources ?? []));
+            sources = sources.Concat(roster.Owners.SelectMany(owner => ReadOriginalPresentationModelResource(owner)?.ModelLoadSources ?? []));
             if (definition.GuardianFormsEnabled)
             {
                 sources = sources.Concat(definition.GuardianFormResources.SelectMany(resource => resource.VisualResource.ModelLoadSources ?? []));

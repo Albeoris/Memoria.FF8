@@ -14,7 +14,7 @@ public sealed record NativeBattleWaterCallbackResult(NativeBattleWaterExecutionF
 /// <summary>The callback order around explicit proved command, update, draw and graphics services.</summary>
 public static class NativeBattleWaterCallback
 {
-    public static NativeBattleWaterCallbackResult RunA9B870(NativeBattleWaterExecutionFrame frame, NativeBattleWaterCallbackInput input, NativeBattleWaterCallbackServices services, int instructionBudget = 4096, int traversalBudget = 256)
+    public static NativeBattleWaterCallbackResult RunA9B870(NativeBattleWaterExecutionFrame frame, NativeBattleWaterCallbackInput input, NativeBattleWaterCallbackServices services, int instructionBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticInstructionBudget, int traversalBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticTraversalBudget)
     {
         input.Resources.Validate();
         ArgumentNullException.ThrowIfNull(services.DrawSlot);

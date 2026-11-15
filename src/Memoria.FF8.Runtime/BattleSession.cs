@@ -553,6 +553,11 @@ public sealed partial class BattleSession
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var completion = hostedProof as HostedEventCompletionCandidateProof;
+        var duel = hostedProof as HostedDuelCandidateProof;
+        if (duel is not null)
+        {
+            ValidateExpandedHostedDuelProof(snapshot, duel);
+        }
         if (completion is not null && (!ReferenceEquals(snapshot, completion.Snapshot) || !snapshot.Definition.UsesExpandedRoster || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
             completion.Event.CompletionToken != completion.Receipt.Token || completion.Event.Callback != completion.Receipt.Callback || completion.Event.Command.ActorId != completion.Receipt.ActorId))
         {
@@ -573,7 +578,7 @@ public sealed partial class BattleSession
             session.originalParticipantSlotsInitialized = snapshot.OriginalParticipantSlotsInitialized;
             session.RestoreNativeEntry(snapshot);
             session.RestoreNativeCamera(snapshot);
-            session.expandedHostedEvent = completion?.Event;
+            session.expandedHostedEvent = completion?.Event ?? duel?.Event;
             session.RestoreValidated(snapshot, (hostedProof as HostedTerminalCandidateProof)?.Terminal);
             session.ValidateBattleMagicSnapshot(completion is null ? null : snapshot.ActiveAction, completion?.Event.Command.MagicReservationId);
             session.expandedHostedEvent = null;
@@ -1825,7 +1830,7 @@ public sealed partial class BattleSession
         random.Validate();
         nativeLastAllocatedTarget = snapshot.NativeLastAllocatedTarget;
         ValidateNativeSavedBattleFlagEffects();
-        RestoreNativeLimits(snapshot.NativeLimits ?? throw new InvalidDataException("Saved Limit selection is missing."));
+        RestoreNativeLimits(snapshot.NativeLimits ?? throw new InvalidDataException("Saved Limit selection is missing."), expandedHostedEvent);
         ValidateNativeDuelControlOwners();
         RestoreNativeBattleUiRandom(snapshot.NativeBattleUiRandom);
         RestoreNativeGuardianBoost(snapshot.NativeGuardianBoost);
@@ -2099,7 +2104,7 @@ public sealed partial class BattleSession
         NativeModelCpuResources = candidate.NativeModelCpuResources;
         nativeActionScratch = candidate.nativeActionScratch;
         RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
-        RestoreNativeLimits(candidate.CaptureNativeLimits());
+        RestoreNativeLimits(candidate.CaptureNativeLimits(), preparedExpandedAction ? candidate.expandedHostedEvent : null);
         nativeCards = candidate.nativeCards?.DeepCopy();
         nativeCrtRandom = candidate.nativeCrtRandom;
         nativeBattleUiRandom = candidate.nativeBattleUiRandom;

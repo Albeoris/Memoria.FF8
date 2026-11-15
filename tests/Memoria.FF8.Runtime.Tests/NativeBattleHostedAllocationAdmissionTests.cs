@@ -38,6 +38,17 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         Assert.True(reboundReady);
         Assert.False(rebound.ActorModels.Contains(Old));
         Assert.True(rebound.ActorModels.Contains(New));
+        NativeBattleModelLifecycleServices frame = new(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts>.Empty
+            .Add(Ally, new("ally", true, 1, 0, 0))
+            .Add(Old, new("enemy", false, 0, 0, 0))
+            .Add(New, new("native-allocation-1", false, 0, 0, 0)));
+        frame.Validate(prepared.Packets.Roster, prepared.Admitted);
+        frame.ValidateCurrentModels(child.HostedPlannedModelRoster, rebound);
+        Assert.True(frame.Facts.ContainsKey(Old));
+        Assert.Throws<InvalidDataException>(() => frame.Validate(child.HostedPlannedModelRoster, rebound));
+        Assert.Throws<InvalidDataException>(() => frame.ValidateCurrentModels(child.HostedPlannedModelRoster, prepared.Admitted));
+        BattleEnemyActorModel future = new(new("native-allocation-2"));
+        Assert.Throws<InvalidDataException>(() => frame.ValidateCurrentModels(new([Ally, New, future]), rebound));
         Assert.Equal(New, child.NativeActionPackets.ModelAliases.DecodeLiteral(3));
         Assert.Equal(Ally, child.NativeActionPackets.ModelAliases.DecodeLiteral(0));
     }

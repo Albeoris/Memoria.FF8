@@ -138,7 +138,13 @@ public sealed class ExpandedHostedShotTests
             string survivors = string.Join(", ", battle.Combatants.Where(IsAvailableEnemy).Select(enemy => $"{enemy.Id}/model{enemy.ModelId}:hp={enemy.CurrentHp}"));
             string impacts = string.Join(", ", contacts[237].Select(contact => $"{contact.Primary.Recipient}:amount={contact.Primary.PresentedAmount}/flags={contact.Primary.HitFlags:X2}"));
             Assert.True(!battle.Combatants.Any(IsAvailableEnemy), $"The final group shot left eligible enemies: {survivors}. Header contacts: {impacts}.");
-            Assert.DoesNotContain((byte)238, contacts.Keys);
+            NativeBattleContactPacket[] closing = contacts[238];
+            Assert.Equal(enemies.Select(enemy => battle.ReadPresentationModelOwner(enemy.Id)), closing.Select(contact => contact.Primary.Recipient));
+            Assert.All(closing, contact =>
+            {
+                Assert.Equal(0, contact.Primary.PresentedAmount);
+                Assert.Contains(receipts.OfType<NativeBattlePresentationContactReceived>(), receipt => receipt.Packet.Occurrence == contact.Occurrence && receipt.Packet.Primary.PresentedAmount == 0);
+            });
             AdvanceUntil(() => battle.Outcome == BattleOutcome.Victory);
             Assert.True(process.TerminalFinished);
             world.ApplyBattleInput(new(BattleInputKind.Return));

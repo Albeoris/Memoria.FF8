@@ -61,7 +61,7 @@ public sealed partial class BattleSession
         bool loaded = loadStage;
         foreach (BattleModelOwner index in graphics.ActorModels.Owners.OrderBy(index => graphics.ActorModels.Get(index).ModelId4 == 143))
         {
-            if (ReadHostedPresentationModelResource(index) is { ModelLoadSources.IsEmpty: false } resource)
+            if (ReadOriginalPresentationModelResource(index) is { ModelLoadSources.IsEmpty: false } resource)
             {
                 graphics = LoadHostedPresentationModel(graphics, index, resource);
                 loaded = true;

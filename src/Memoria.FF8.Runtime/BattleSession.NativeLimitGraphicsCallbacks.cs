@@ -22,6 +22,11 @@ public sealed partial class BattleSession
             }
             return graphics;
         }
+        if (hostedBattlePresentation && callback is (0x48E5A0 or 0x48E5E0))
+        {
+            EmitExpandedHostedDuelReadiness(graphics, callback);
+            return graphics;
+        }
         if (callback is not (0x48E5A0 or 0x48E5E0) || nativeDuelProcesses.Count != 1)
         {
             throw new InvalidDataException("Native Duel readiness requires its single current widget owner.");

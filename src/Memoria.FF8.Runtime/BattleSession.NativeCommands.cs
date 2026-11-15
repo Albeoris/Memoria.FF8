@@ -367,10 +367,16 @@ public sealed partial class BattleSession
 
     private BattleNativeLimitState[] CaptureNativeLimits()
     {
-        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value) { Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key), Shot = GetNativeShot(pair.Key), Duel = GetNativeDuel(pair.Key), Renzokuken = GetNativeRenzokuken(pair.Key) }).ToArray();
+        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value)
+        {
+            Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key),
+            Shot = GetNativeShot(pair.Key),
+            Duel = OwnsHostedDuelRestore(expandedHostedEvent, pair.Key) ? nativeDuelProcesses.GetValueOrDefault(pair.Key) : GetNativeDuel(pair.Key),
+            Renzokuken = GetNativeRenzokuken(pair.Key)
+        }).ToArray();
     }
 
-    private void RestoreNativeLimits(BattleNativeLimitState[] states)
+    private void RestoreNativeLimits(BattleNativeLimitState[] states, ExpandedHostedEvent? hostedEvent)
     {
         if (states is not null && states.Sum(state => (state?.Shot is null ? 0 : 1) + (state?.Duel is null ? 0 : 1) + (state?.Renzokuken is null ? 0 : 1)) > 1)
         {
@@ -403,7 +409,7 @@ public sealed partial class BattleSession
             }
             if (state.Duel is { } duel)
             {
-                RestoreNativeDuel(state.ActorId, state.CrisisLevel, duel);
+                RestoreNativeDuel(state.ActorId, state.CrisisLevel, duel, hostedEvent);
             }
             if (state.Renzokuken is { } renzokuken)
             {

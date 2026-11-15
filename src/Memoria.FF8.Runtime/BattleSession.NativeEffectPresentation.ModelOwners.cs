@@ -63,16 +63,16 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleGraphicsResource? ReadHostedPresentationModelResource(BattleModelOwner owner)
+    private NativeBattleGraphicsResource? ReadOriginalPresentationModelResource(BattleModelOwner owner)
     {
-        if (owner == presentationSourceOwner && presentationSourceResource is not null)
-        {
-            return presentationSourceResource;
-        }
         if (hostedBattlePresentation)
         {
             string actorId = RequireCanonicalGraphicsActorId(owner);
             return FindHostedAllocationBinding(hostedModelRegistry, owner)?.Resource ?? definition.NativeGraphics?.Bindings.SingleOrDefault(binding => binding.ActorId == actorId)?.Resource;
+        }
+        if (owner == presentationSourceOwner && presentationSourceResource is not null)
+        {
+            return presentationSourceResource;
         }
         if (presentationNativeTargets?.TryGetValue(owner, out NativeBattleEffectModelBinding? target) == true)
         {

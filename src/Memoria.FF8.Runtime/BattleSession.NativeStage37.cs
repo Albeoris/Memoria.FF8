@@ -41,7 +41,7 @@ public sealed partial class BattleSession
 
     private IEnumerable<BattleEnemyModelOwner> ReadStageContactEnemies(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices? services)
     {
-        services?.Validate(nativeActionPackets.Roster, graphics);
+        services?.ValidateCurrentModels(HostedPlannedModelRoster, graphics);
         return graphics.ActorModels.Enemies.Entries.Select(entry => entry.Owner);
     }
 

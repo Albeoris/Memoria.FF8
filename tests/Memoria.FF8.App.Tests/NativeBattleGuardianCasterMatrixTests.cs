@@ -149,7 +149,13 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
         Run(15, 206, character, slot);
     }
 
-    private void Run(int guardian, ushort effect, int character, int slot)
+    [Fact]
+    public void Installed_Bahamut_completes_against_all_four_original_enemy_slots()
+    {
+        Run(12, 202, 0, 0, 4);
+    }
+
+    private void Run(int guardian, ushort effect, int character, int slot, int enemyCount = 1)
     {
         GameAssets game = resources.Game;
         BattleAssets assets = resources.Battle;
@@ -163,8 +169,15 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             int? weapon = model == 7 ? null : assets.WeaponDefinitions.First(item => item.CharacterId == model).Id;
             actors.Add(source.Combatants[0] with { Id = index == slot ? "caster" : "spectator-" + index, Name = "Character " + model, ModelId = model, WeaponId = weapon, Speed = 80, EquipmentIds = index == slot ? [guardian] : [] });
         }
-        actors.Add(source.Combatants[1] with { NativeCombatantFlags = 8, MaximumHp = 60000, CurrentHp = 60000 });
-        BattleDefinition definition = source with { Combatants = actors.ToArray(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)) };
+        BattleEncounter formation = assets.LoadEncounter(94);
+        BattleCombatantDefinition enemy = source.Combatants[1] with { NativeCombatantFlags = 8, MaximumHp = 60000, CurrentHp = 60000 };
+        actors.Add(enemy);
+        foreach (BattleEnemyPlacement placement in formation.Slots.Where(placement => placement.Slot != enemy.SceneSlot && placement.NativePosition is not null).Take(enemyCount - 1))
+        {
+            actors.Add(enemy with { Id = $"enemy-{placement.Slot}", SceneSlot = placement.Slot });
+        }
+        Assert.Equal(enemyCount, actors.Count(actor => !actor.IsPlayer));
+        BattleDefinition definition = source with { Combatants = actors.ToArray(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation) };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         bool selected = false;
         bool restoredLive = false;
@@ -189,8 +202,15 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
                 NativeBattleGraphicsState graphics = battle.NativeGraphics!;
                 if (graphics.OriginalEffect is { ReturnedDescriptor: > 0 } original && original.Binding.Effect == effect)
                 {
+                    NativeBattleEffectParameters parameters = Assert.IsType<NativeBattleEffectParameters>(original.Parameters);
+                    if (!selected && enemyCount > 1)
+                    {
+                        NativeBattleContactPacket[] prepared = battle.NativeActionPackets.ReadHeaderContacts(parameters.Header).ToArray();
+                        Assert.Equal(enemyCount, prepared.Length);
+                        Assert.Equal(enemyCount, prepared.Select(contact => contact.Primary.Recipient).Distinct().Count());
+                    }
                     selected = true;
-                    Assert.Equal((byte)slot, ReadOriginalModelOperand(battle.NativeActionPackets.ModelAliases, original.Parameters!.Source));
+                    Assert.Equal((byte)slot, ReadOriginalModelOperand(battle.NativeActionPackets.ModelAliases, parameters.Source));
                     if (!restoredLive && callback > 40)
                     {
                         RoundTripNext();

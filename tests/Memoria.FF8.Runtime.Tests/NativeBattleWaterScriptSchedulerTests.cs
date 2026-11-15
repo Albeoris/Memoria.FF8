@@ -178,7 +178,7 @@ public sealed class NativeBattleWaterScriptSchedulerTests
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryByte(0x145, 1);
         frame.Core.Write(0x2797454, new byte[256]);
-        NotSupportedException budget = Assert.Throws<NotSupportedException>(() => NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException()));
+        NotSupportedException budget = Assert.Throws<NotSupportedException>(() => NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), traversalBudget: 256));
         Assert.Contains("traversal budget", budget.Message);
         Assert.Equal((byte)0, frame.ReadTemporaryByte(0x144));
 

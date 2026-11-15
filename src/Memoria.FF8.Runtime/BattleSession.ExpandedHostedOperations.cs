@@ -26,7 +26,7 @@ public sealed partial class BattleSession
     }
 
     private ExpandedHostedPrefix PrepareExpandedHostedPrefix(ExpandedBattlePresentationProcess process,
-        PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default)
+        PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null)
     {
         var headers = ImmutableArray.CreateBuilder<HostedDispatchHeader>();
         int firstUnpublished = -1;
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         }
         HostedDispatchControls? controls = acknowledgeOnly ? null : new(before.ToImmutable(), after.ToImmutable());
         PreparedHostedDispatch dispatch = process.PrepareDispatch(headers.ToImmutable(), headerReference: reference, dispatchAppended: dispatchAppended,
-            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations);
+            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations, duelSelection: duelSelection);
         ImmutableArray<ExpandedHostedOperation> operations = expandedHostedOperations;
         int appended = 0;
         for (int i = 0; i < expandedHostedOperations.Length; i++)
@@ -138,6 +138,10 @@ public sealed partial class BattleSession
         }
         if (expandedHostedNextOperation == expandedHostedOperations.Length)
         {
+            if (hostedEvent.DuelPoll is { } poll && ReferenceEquals(process.PendingDuelSelection?.Frame.Poll, poll))
+            {
+                return;
+            }
             if (!hostedEvent.LogicallyComplete)
             {
                 throw new InvalidDataException("Hosted event retired without reaching native combat completion.");

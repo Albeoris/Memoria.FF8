@@ -12,7 +12,7 @@ public sealed record NativeBattleScriptedCallbackServices(Func<NativeBattleWater
 /// <summary>Shared scripted cinematic callback ordering, with the selected clone's explicit dispatch and draw services.</summary>
 public static class NativeBattleScriptedCallback
 {
-    public static NativeBattleWaterCallbackResult Run(NativeBattleWaterExecutionFrame frame, NativeBattleScriptedCallbackInput input, NativeBattleScriptedCallbackServices services, int instructionBudget = 4096, int traversalBudget = 256)
+    public static NativeBattleWaterCallbackResult Run(NativeBattleWaterExecutionFrame frame, NativeBattleScriptedCallbackInput input, NativeBattleScriptedCallbackServices services, int instructionBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticInstructionBudget, int traversalBudget = NativeBattleWaterScriptScheduler.DefaultDiagnosticTraversalBudget)
     {
         input.Directories.Validate();
         ArgumentNullException.ThrowIfNull(services.DrawSlots);

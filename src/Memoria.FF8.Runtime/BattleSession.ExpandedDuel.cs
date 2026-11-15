@@ -81,6 +81,15 @@ public sealed partial class BattleSession
         }
         int queuedCallbacks = actions.Count(command => IsDuelCallback(command.NativeLimitCallback));
         int activeCallbacks = IsDuelCallback(ActiveAction?.NativeLimitCallback) ? 1 : 0;
+        if (expandedHostedEvent is { Command.NativeDuel: not null } hosted)
+        {
+            if (queuedCallbacks + activeCallbacks != 0 || nativeDuelProcesses.Count != 1 || !nativeDuelProcesses.ContainsKey(hosted.Command.ActorId) ||
+                !OwnsHostedDuelRestore(hosted, hosted.Command.ActorId))
+            {
+                throw new InvalidDataException("Hosted Duel recovery contradicts its stable event and single widget.");
+            }
+            return;
+        }
         if (queuedCallbacks + activeCallbacks > 1 || nativeDuelProcesses.Count != 0 && ActiveAction is not null && activeCallbacks == 0)
         {
             throw new InvalidDataException("Saved Duel phase contradicts its single action callback owner.");
@@ -89,6 +98,11 @@ public sealed partial class BattleSession
 
     private void StartExpandedDuelInvocation(BattleCombatant actor, BattleAttackCommand command)
     {
+        if (expandedPresentationProcess is { } process)
+        {
+            PrepareAndPublishExpandedHostedDuel(actor, command, process);
+            return;
+        }
         BattleCombatant target = GetActor(command.TargetId);
         if (!CanNativeBattleActorAct(actor) || !IsExpandedDuelTarget(target))
         {
@@ -179,6 +193,11 @@ public sealed partial class BattleSession
         string actorId = nativeDuelProcesses.Single().Key;
         if (CanNativeBattleActorAct(GetActor(actorId)))
         {
+            return;
+        }
+        if (OwnsExpandedHostedInvocation)
+        {
+            QueueNativeDuelCloseSelection(actorId);
             return;
         }
         if (ActiveAction?.ActorId == actorId && IsDuelCallback(ActiveAction.NativeLimitCallback))

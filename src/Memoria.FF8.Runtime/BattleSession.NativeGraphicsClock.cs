@@ -335,8 +335,8 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
     {
-        BattleModelRoster roster = nativeActionPackets.Roster;
-        services.Validate(roster, graphics);
+        BattleModelRoster roster = HostedPlannedModelRoster;
+        services.ValidateCurrentModels(roster, graphics);
         if (graphics.PendingContacts.IsDefault)
         {
             throw new InvalidDataException("Hosted graphics contacts require their pending packet list.");

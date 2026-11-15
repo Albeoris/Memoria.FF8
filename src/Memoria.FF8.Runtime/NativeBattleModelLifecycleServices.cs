@@ -46,6 +46,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal HostedNativeAllocationFrame? Allocation { get; init; }
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
     internal HostedShotFrameOwner? Shot { get; init; }
+    internal HostedDuelFrameOwner? Duel { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanDescriptor { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanExtra { get; init; }
 
@@ -69,11 +70,18 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal void Validate(BattleModelRoster roster, NativeBattleGraphicsState graphics)
     {
         ArgumentNullException.ThrowIfNull(roster);
-        ArgumentNullException.ThrowIfNull(graphics);
         if (Facts.Count != roster.Count)
         {
             throw new InvalidDataException("Hosted model lifecycle requires actor facts for its complete planned roster.");
         }
+        ValidateCurrentModels(roster, graphics);
+    }
+
+    internal void ValidateCurrentModels(BattleModelRoster roster, NativeBattleGraphicsState graphics)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(graphics);
+        // The current frame can still carry receipts from a model retired by 102 earlier in that frame.
         foreach (BattleModelOwner owner in roster.Owners)
         {
             (string actorId, bool isParty) = owner switch

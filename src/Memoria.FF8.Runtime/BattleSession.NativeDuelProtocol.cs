@@ -6,6 +6,10 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeDuelSelection4852B0(NativeBattleGraphicsState graphics)
     {
+        if (hostedBattlePresentation)
+        {
+            return RunExpandedHostedDuelSelection(graphics);
+        }
         if (nativeDuelProcesses.Count != 1)
         {
             throw new InvalidDataException("Native4852B0 requires its single Duel input owner.");

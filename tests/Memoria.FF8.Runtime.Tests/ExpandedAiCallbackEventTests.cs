@@ -276,6 +276,42 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Same(command, logical.ActiveAction);
     }
 
+    [Fact]
+    public void Shot_close_with_no_saved_status_targets_releases_the_widget_without_publishing_a_header()
+    {
+        var (logical, child, process) = Fixture(Program());
+        BattleCombatant actor = Actor(logical, "ally");
+        BattleCombatant enemy = Actor(logical, Enemy);
+        enemy.CurrentHp = 0;
+        enemy.NativeStatus0 = 1;
+        actor.IsBusy = true;
+        BattleTargetRequest selected = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(Enemy)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        BattleTargetRequest ending = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        var shots = Assert.IsType<Dictionary<string, BattleNativeShotState>>(Field(logical, "nativeShotProcesses").GetValue(logical));
+        shots.Add(actor.Id, new(0, selected, 20, -1, 1, BattleNativeShotPhase.Ending));
+        var stock = Assert.IsType<NativeItemStock[]>(Field(logical, "nativeItems").GetValue(logical));
+        stock[0] = new(101, 1);
+        BattleAttackCommand close = new(actor.Id, enemy.Id, ending, BattleAbility.LimitBreak, 238 << 16)
+        {
+            NativeAction = FixedHit(100) with { Command = 238, ActionId = 0 },
+            NativeQueuedCommand = 238,
+            NativeLimitCallback = NativeLimitCallback.ShotEnding
+        };
+        NativeBattleActionPacketsState packets = child.NativeActionPackets;
+        NativeBattleDescriptorState descriptors = child.NativeGraphics!.Descriptors;
+        int start = logical.Events.Count;
+        Invoke(logical, "StartExpandedAction", actor, close);
+
+        Assert.Empty(shots);
+        Assert.False(actor.IsBusy);
+        Assert.Null(logical.ActiveAction);
+        Assert.Null(process.ActiveActionToken);
+        Assert.Same(packets, child.NativeActionPackets);
+        Assert.Same(descriptors, child.NativeGraphics!.Descriptors);
+        Assert.Equal(new NativeItemStock(101, 1), stock[0]);
+        Assert.Single(logical.Events.Skip(start), entry => entry.Kind == "ActionComplete" && entry.ActorId == actor.Id);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
