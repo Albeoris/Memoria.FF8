@@ -33,6 +33,99 @@ internal static class NativeAutoPlayPolicyPlanningTests
         CheckStoryFrontierPrecedesRefresh();
         CheckCompletedStoryDoesNotStarvePartyFrontier();
         CheckMovementFailureScope();
+        CheckMultipleMovementFailureRegions();
+        CheckFailedApproachDoesNotStarveFreshGateway();
+    }
+
+    private static void CheckFailedApproachDoesNotStarveFreshGateway()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent contact = new("contact", AutoPlayEventKind.Interaction, ConditionSignature: "entry");
+        AutoPlayEvent gateway = new("gateway", AutoPlayEventKind.Transition, Order: 1, ConditionSignature: "gateway-entry");
+        AutoPlayVisit visit = new("field", "resource");
+        planner.Observe(visit, [contact, gateway]);
+        planner.ObserveNavigation(visit.Key, "component", [contact, gateway]);
+        planner.MarkUnavailable(visit.Key, contact.Id, new("entry", visit.Key, "guard", "blocked", contact.Id));
+        planner.RefreshUnavailable(visit.Key, new Dictionary<string, string> { ["guard"] = "outside-region" });
+        AutoPlayTravelGoal contactGoal = new("component", contact.Id, "entry");
+        Check(planner.PlanNavigation("component", preferredGoal: contactGoal)?.Event.Id == gateway.Id, "A rearmed failed contact and its retained travel goal must yield to an untouched gateway.");
+        planner.Completed(visit.Key, gateway.Id, entrySignature: "gateway-entry", entrySignatureAuthoritative: true);
+        Check(planner.PlanNavigation("component", preferredGoal: contactGoal)?.Event.Id == contact.Id, "A rearmed failed contact must remain eligible after fresh frontiers are exhausted.");
+        AutoPlayEvent changed = contact with { ConditionSignature = "new-entry" };
+        AutoPlayEvent fresh = new("fresh", AutoPlayEventKind.Interaction, Order: 2, ConditionSignature: "fresh-entry");
+        planner.Observe(visit, [changed, gateway, fresh]);
+        planner.ObserveNavigation(visit.Key, "component", [changed, gateway, fresh]);
+        planner.RefreshUnavailable(visit.Key, new Dictionary<string, string> { ["guard"] = "outside-region" });
+        Check(planner.PlanNavigation("component")?.Event.Id == contact.Id, "A genuinely new entry condition must regain untouched-frontier priority.");
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, Order: 3, ConditionSignature: "story-entry");
+        planner.Observe(visit, [changed, gateway, fresh, story]);
+        planner.ObserveNavigation(visit.Key, "component", [changed, gateway, fresh, story]);
+        Check(planner.PlanNavigation("component", preferredGoal: new("component", contact.Id, "new-entry"))?.Event.Id == story.Id, "An untouched native story frontier must retain priority over other untouched events and retained travel goals.");
+        planner.Completed(visit.Key, contact.Id, entrySignature: "new-entry", entrySignatureAuthoritative: true);
+        planner.Completed(visit.Key, fresh.Id, entrySignature: "fresh-entry", entrySignatureAuthoritative: true);
+        planner.Completed(visit.Key, story.Id, entrySignature: "story-entry", entrySignatureAuthoritative: true);
+        state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == gateway.Id).RouteNeedsRediscovery = true;
+        Check(planner.PlanNavigation("component")?.Event.Id == gateway.Id, "Exhausting untouched frontiers must preserve a known transport's pending navigation probe.");
+    }
+
+    private static void CheckMultipleMovementFailureRegions()
+    {
+        foreach (string kind in new[] { "physical", "movement-cycle" })
+        {
+            Ff7AutoPlayState state = new();
+            AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+            planner.Observe(new("visit", "resource"), [new("blocked", AutoPlayEventKind.Interaction, ConditionSignature: "entry"), new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit-entry")]);
+            Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = true, X4096 = 100, Y4096 = 100, Z4096 = 100 };
+            Ff7Actor obstacle = new() { Slot = 1, Entity = 1, Model = 1, CollisionEnabled = true, X4096 = 500 };
+            Ff7AutoPlayMovementFailure first = new(0, 200, 0, 200, 0, 200);
+            Ff7AutoPlayMovementFailure second = first with { MinZ = 300, MaxZ = 500 };
+            Record(first, player);
+            Refresh(state, planner, player, obstacle);
+            Check(planner.Plan("visit")?.Event.Id == "exit", "A local failed contact must yield to the unconsumed exit.");
+            Ff7Actor upperPlayer = player with { Z4096 = 400 };
+            Refresh(state, planner, upperPlayer, obstacle);
+            Check(!state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Leaving the first failed region must permit a new local approach.");
+            Ff7AutoPlayActiveEvent active = new("visit", "blocked", "selected-before-scratch-change", 1, 2, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before");
+            Ff7AutoPlayObservation observation = new("visit", "native", 1, [new("blocked", 2, 1, Ff7AutoPlayTargetKind.ActorTalk, "entry", false, default)], true, true);
+            state.Active = active;
+            Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation) && state.Active == active, "An eligible outside-region approach must retain its active target.");
+            Refresh(state, planner, player, obstacle);
+            state.Active = active with { Accepted = true };
+            Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation) && state.Active is { Accepted: true }, "A refreshed local guard must preserve accepted native script callbacks.");
+            state.Active = active;
+            Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation with { Generation = 2 }), "A local guard must not cancel another field generation's active target.");
+            Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation with { VisitId = "other-visit" }), "A local guard must not cancel another visit's active target.");
+            Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation with { Events = [observation.Events[0] with { ConditionFingerprint = "unobserved-entry" }] }), "A stale coverage signature must not cancel an active target under another current predicate.");
+            Check(Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation) && state.Active is null && planner.Plan("visit")?.Event.Id == "exit", "Reentering the exact refreshed failed variant must cancel its unaccepted approach and expose the exit even if its original selection signature differs.");
+            Record(second, upperPlayer);
+            Refresh(state, planner, upperPlayer, obstacle);
+            Check(planner.Plan("visit")?.Event.Id == "exit", "A second local failure must yield to the exit.");
+            Refresh(state, planner, player, obstacle);
+            Check(planner.Plan("visit")?.Event.Id == "exit", "A second region must not overwrite the original failure and reopen the futile first approach.");
+            Ff7AutoPlayState cold = state.Clone();
+            AutoPlayPlanner<Ff7AutoPlayDeferral> coldPlanner = Ff7AutoPlayPolicy.CreatePlanner(cold);
+            Refresh(cold, coldPlanner, player, obstacle);
+            Check(coldPlanner.Plan("visit")?.Event.Id == "exit", "Cold restoration must retain both local failure regions.");
+            Refresh(state, planner, player with { Z4096 = 600 }, obstacle);
+            Check(!state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Outside both failed regions the contact must remain eligible for another approach.");
+            Refresh(state, planner, player, obstacle with { CollisionEnabled = false });
+            Check(!state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Changed relevant collider admission must rearm a remembered region.");
+
+            void Record(Ff7AutoPlayMovementFailure region, Ff7Actor source)
+            {
+                string key = Ff7AutoPlayPolicy.ReadMovementFailureGuardKey("navigation", "blocked", kind, region, [obstacle.Entity]);
+                state.NavigationGuards[key] = new("visit", 2, [obstacle.Entity], "blocked", "navigation", 0, region);
+                string fingerprint = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", region, [source, obstacle], [obstacle.Entity]);
+                planner.MarkUnavailable("visit", "blocked", new("entry", "visit", key, fingerprint, "blocked"));
+            }
+        }
+
+        static void Refresh(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7Actor player, Ff7Actor obstacle)
+        {
+            Dictionary<string, string> fingerprints = state.NavigationGuards.ToDictionary(entry => entry.Key, entry => Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", entry.Value.MovementFailure, [player, obstacle], entry.Value.BlockingEntities));
+            planner.RefreshUnavailable("visit", fingerprints);
+        }
     }
 
     private static void CheckMovementFailureScope()

@@ -43,9 +43,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return new(state.Coverage, phaseOrder: phaseOrder, progressionOrder: (visit, target) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
-            if (target.ChangesStory && coverage?.Completed != true)
+            if (coverage?.Completed != true)
             {
-                return -1;
+                bool attempted = coverage?.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == target.ConditionSignature && (target.Variants is { Count: > 0 } variants ? variants : [target.Id]).Contains(attempt.TargetId ?? target.Id, StringComparer.Ordinal)) == true;
+                return attempted ? 0 : target.ChangesStory ? -2 : -1;
             }
             return coverage is not { Completed: true, RouteNeedsRediscovery: false } ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
         }, observationsCoverWholeVisit: true);
@@ -154,6 +155,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
             }
         }
+        if (DeferUnavailableActiveNavigation(State, observation))
+        {
+            Publish();
+        }
         if (State.Active is null)
         {
             Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal);
@@ -195,7 +200,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
             int margin = checked(player.CollisionRadius * 4096);
             Ff7AutoPlayMovementFailure failure = new(recentPositions.Min(position => position.X) - margin, recentPositions.Max(position => position.X) + margin, recentPositions.Min(position => position.Y) - margin, recentPositions.Max(position => position.Y) + margin);
-            string key = observation.NavigationKey + ":" + current.EventId + ":movement-cycle";
+            string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "movement-cycle", failure);
             State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, [], selectedTarget.Id, observation.NavigationKey, player.Triangle, failure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget), failure, session.Host.Process.Actors);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(current.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
@@ -220,7 +225,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
-            string key = observation.NavigationKey + ":" + current.EventId + ":physical";
+            string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
             State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle, absence.MovementFailure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(current.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
