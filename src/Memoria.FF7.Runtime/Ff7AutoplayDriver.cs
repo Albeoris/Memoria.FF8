@@ -339,26 +339,36 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     {
         int[] previous = Enumerable.Repeat(-1, mesh.Count).ToArray();
         int[] distance = Enumerable.Repeat(int.MaxValue, mesh.Count).ToArray();
-        if (spatialBoundaries?.Contains(destination) == true && destination != source && destination != admittedSpatialTriangle)
+        bool IsRestricted(int triangle)
+        {
+            return (blockedTriangles[triangle >> 3] & (1 << (triangle & 7))) != 0 || spatialBoundaries?.Contains(triangle) == true && triangle != admittedSpatialTriangle;
+        }
+        if (destination != source && IsRestricted(destination))
         {
             return (previous, distance);
         }
         Queue<int> queue = new();
         previous[destination] = destination;
         distance[destination] = 0;
-        queue.Enqueue(destination);
+        if (!IsRestricted(destination))
+        {
+            queue.Enqueue(destination);
+        }
         while (queue.TryDequeue(out int current))
         {
             PcWalkmeshTriangle triangle = mesh[current];
             foreach (int adjacent in new int[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
             {
-                if (adjacent < 0 || previous[adjacent] >= 0 || (blockedTriangles[adjacent >> 3] & (1 << (adjacent & 7))) != 0 || spatialBoundaries?.Contains(adjacent) == true && adjacent != source && adjacent != admittedSpatialTriangle)
+                if (adjacent < 0 || previous[adjacent] >= 0 || adjacent != source && IsRestricted(adjacent))
                 {
                     continue;
                 }
                 previous[adjacent] = current;
                 distance[adjacent] = distance[current] + 1;
-                queue.Enqueue(adjacent);
+                if (!IsRestricted(adjacent))
+                {
+                    queue.Enqueue(adjacent);
+                }
             }
         }
         return (previous, distance);

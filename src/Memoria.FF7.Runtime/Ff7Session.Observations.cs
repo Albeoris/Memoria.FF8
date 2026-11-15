@@ -5,7 +5,9 @@ using Memoria.AutoPlay;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null);
+public sealed record Ff7NativeTransitionOwnership(int RootEntity, int RootScript, int OwnerEntity, int OwnerPriority);
+
+public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null, Ff7NativeTransitionOwnership? TransitionOwnership = null);
 
 public sealed partial class Ff7Session
 {
@@ -37,14 +39,25 @@ public sealed partial class Ff7Session
         tickContinuation = tickContinuation with { ScriptReturns = [.. prior, returned] };
     }
 
-    private Ff7NativeTickObservation? CompleteNativeObservation(Ff7TickContinuation continuation)
+    private Ff7NativeTickObservation? CompleteNativeObservation(Ff7TickContinuation continuation, FieldVmSnapshot sourceVm)
     {
         if (NativeTickCompleted is null)
         {
             return null;
         }
         FieldHostRequest? transitionOwner = Host.Process.Transition is null ? null : Host.Capture().Receipts.FirstOrDefault(receipt => receipt.Request.Id == Host.Process.GlobalRequestId)?.Request;
-        return new(Field.Name, FieldGeneration, Machine.Tick, continuation.ScriptReturns?.ToArray() ?? [], Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner);
+        FieldScriptReturn[] returns = continuation.ScriptReturns?.ToArray() ?? [];
+        Ff7NativeTransitionOwnership? ownership = ReadTransitionOwnership(sourceVm, transitionOwner, AutoPlayState?.Active, FieldGeneration, returns);
+        return new(Field.Name, FieldGeneration, Machine.Tick, returns, Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner, ownership);
+    }
+
+    internal static Ff7NativeTransitionOwnership? ReadTransitionOwnership(FieldVmSnapshot sourceVm, FieldHostRequest? owner, Ff7AutoPlayActiveEvent? active, long generation, IReadOnlyList<FieldScriptReturn> returns)
+    {
+        if (owner is not { Command: FieldTransitionCommand } || active is null || returns.Any(returned => returned.Entity == active.Entity && returned.Priority == 1) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(sourceVm, active, generation).TryGetValue(owner.Entity, out int priority) || priority != owner.Priority)
+        {
+            return null;
+        }
+        return new(active.Entity, active.Script, owner.Entity, owner.Priority);
     }
 
     internal string CaptureEventProgressWitness()

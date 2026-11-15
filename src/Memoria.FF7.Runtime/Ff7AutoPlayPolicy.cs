@@ -14,6 +14,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Action<Ff7SessionSave>? checkpointBeforeWorldBattle;
     private readonly Queue<(int X, int Y, int Z, int Triangle)> recentPositions = new();
     private readonly Dictionary<(string Visit, string Event), int> nativeDestinationHints = [];
+    private readonly Ff7AutoPlayNativeReadiness nativeReadiness = new();
     private string? movementEvent;
 
     public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
@@ -167,9 +168,16 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), isCurrent: vertex => vertex.VisitKey != observation.VisitId || vertex.Key.StartsWith(topologyPrefix, StringComparison.Ordinal), allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal);
             if (next is null)
             {
+                if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
+                {
+                    State.Status = "Waiting for existing native setup to finish";
+                    Publish();
+                    return default;
+                }
                 string reason = observation.AnalysisComplete ? "No reachable unconsumed native event remains in the observed frontier." : observation.SupportReason ?? "Native event analysis remains incomplete.";
                 throw new NotSupportedException(reason);
             }
+            nativeReadiness.Reset();
             Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == next.Event.Id && target.AnalysisComplete);
             if (target is null)
             {
@@ -362,12 +370,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return;
         }
         bool returned = active.Accepted && observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1);
-        bool transition = active.Accepted && observation.TransitionOwner is { Priority: 1 } owner && owner.Entity == active.Entity;
+        bool transition = IsOwnedTransition(observation, active);
         if (returned || transition)
         {
             State.Active = active with { Returned = active.Returned || returned, TransitionOwned = active.TransitionOwned || transition };
             Publish();
         }
+    }
+
+    internal static bool IsOwnedTransition(Ff7NativeTickObservation observation, Ff7AutoPlayActiveEvent active)
+    {
+        return active is { Accepted: true, Returned: false } && active.Generation == observation.Generation && observation.Transition is not null && observation.TransitionOwner is { } owner && owner.Command == observation.Transition && observation.TransitionOwnership is { } proof && proof.RootEntity == active.Entity && proof.RootScript == active.Script && proof.OwnerEntity == owner.Entity && proof.OwnerPriority == owner.Priority;
     }
 
     private Ff7AutoplayInput ChooseLineInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target)

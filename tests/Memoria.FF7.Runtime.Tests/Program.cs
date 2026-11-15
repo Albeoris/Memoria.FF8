@@ -39,6 +39,24 @@ if (args.Contains("--autoplay-discovery-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-readiness-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-transition-ownership-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayTransitionOwnershipTests.Run();
+    return 0;
+}
+
+if (args.Contains("--blocked-source-navigation-only", StringComparer.Ordinal))
+{
+    NativeBlockedSourceNavigationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-spatial-only", StringComparer.Ordinal))
 {
     NativeAutoPlaySpatialTests.Run();

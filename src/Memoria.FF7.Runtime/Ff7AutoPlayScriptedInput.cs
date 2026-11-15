@@ -63,11 +63,17 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
 
     internal static bool IsInteractionInputOwner(FieldScriptInputDemand demand, FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation)
     {
-        if (active is not { Accepted: true, Returned: false } || active.Generation != generation || (uint)active.Entity >= vm.Entities.Length)
+        return ReadInteractionOwners(vm, active, generation).TryGetValue(demand.Entity, out int priority) && priority == demand.Priority;
+    }
+
+    internal static IReadOnlyDictionary<int, int> ReadInteractionOwners(FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation)
+    {
+        Dictionary<int, int> owners = [];
+        if (active is not { Accepted: true, Returned: false } || active.Generation != generation || (uint)active.Entity >= vm.Entities.Length || vm.Entities[active.Entity].Priority != 1)
         {
-            return false;
+            return owners;
         }
-        HashSet<int> owners = [active.Entity];
+        owners.Add(active.Entity, 1);
         bool added;
         do
         {
@@ -75,17 +81,15 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
             for (int entity = 0; entity < vm.Entities.Length; entity++)
             {
                 FieldEntitySnapshot target = vm.Entities[entity];
-                for (int priority = 0; priority < target.SyncOwners.Length; priority++)
+                int priority = target.Priority;
+                if ((uint)priority < 7 && priority < target.SyncOwners.Length && priority < target.SyncStates.Length && target.SyncStates[priority] == FieldSyncState.Waiting && owners.ContainsKey(target.SyncOwners[priority]))
                 {
-                    if (target.Priority == priority && target.SyncStates[priority] == FieldSyncState.Waiting && owners.Contains(target.SyncOwners[priority]))
-                    {
-                        added |= owners.Add(entity);
-                    }
+                    added |= owners.TryAdd(entity, priority);
                 }
             }
         }
         while (added);
-        return owners.Contains(demand.Entity) && (demand.Entity != active.Entity || demand.Priority < 7);
+        return owners;
     }
 
     internal static FieldScriptInputDemand? SelectDemand(IEnumerable<FieldScriptInputDemand> demands)

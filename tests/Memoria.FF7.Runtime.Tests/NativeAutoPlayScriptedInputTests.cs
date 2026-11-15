@@ -47,6 +47,7 @@ internal static class NativeAutoPlayScriptedInputTests
         FieldMachine machine = new(program);
         machine.Initialize();
         FieldVmSnapshot vm = machine.Capture();
+        vm.Entities[0] = vm.Entities[0] with { Priority = 1 };
         FieldScriptInputDemand demand = new("interaction-input", program.Identity, 0, 1, 0, FieldScriptInputKind.Held, 0x20, true, true);
         Ff7AutoPlayActiveEvent active = new("field-visit", "actor:0:script:1", "native-condition", 4, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before-native-request", Accepted: true);
         Check(!Owned(null), "An unlocked background input poller acquired interaction ownership without an active event.");

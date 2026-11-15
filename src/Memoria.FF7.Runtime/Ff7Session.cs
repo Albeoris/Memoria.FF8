@@ -257,7 +257,7 @@ public sealed partial class Ff7Session : IDisposable
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
         tickTailInProgress = false;
-        Ff7NativeTickObservation? observation = CompleteNativeObservation(completedContinuation);
+        Ff7NativeTickObservation? observation = CompleteNativeObservation(completedContinuation, snapshot);
         CompleteFieldTransition();
         if (observation is not null)
         {
