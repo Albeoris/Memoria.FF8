@@ -213,9 +213,13 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
         List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts = [];
         bool producedContacts = false;
+        int firstOperation = expandedOperationCursor.Operations.Length;
 
         //485610 produces the whole group before484180 post-action status work or pending reactions.
-        BeginNativeReactionBatch();
+        if (!producingExpandedAiCallback)
+        {
+            BeginNativeReactionBatch();
+        }
         nativeActionCommitDepth++;
         try
         {
@@ -240,6 +244,10 @@ public sealed partial class BattleSession
                 producedContacts |= hasContacts;
                 return completed;
             });
+            if (hosted && !actor.IsPlayer && HasEncounterPolicy(actor) && producedContacts)
+            {
+                GroupCompiledMagicCasts(firstOperation, action.NativeAction!);
+            }
             if (!hosted && producedContacts)
             {
                 resolvingNativeAction = command;
@@ -255,6 +263,10 @@ public sealed partial class BattleSession
         if (!hosted)
         {
             FlushExpandedEnemyReactions();
+        }
+        if (producingExpandedAiCallback)
+        {
+            return;
         }
         if (!producedContacts)
         {
@@ -276,6 +288,49 @@ public sealed partial class BattleSession
             PublishExpandedImpacts(cast, contacts);
         }
         CompleteActionPresentation(command, "Repeated magic completed.");
+    }
+
+    private void GroupCompiledMagicCasts(int firstOperation, BattleNativeAction native)
+    {
+        ImmutableArray<ExpandedHostedOperation> operations = expandedOperationCursor.Operations;
+        if (operations.Length - firstOperation <= 1)
+        {
+            return;
+        }
+        if (!SupportsHostedNativeMagicRepeat(native, definition.NativeEffectCatalog) ||
+            operations[firstOperation] is not ExpandedHostedInvocation first)
+        {
+            throw new NotSupportedException("The compiled spell requires its native repeated presentation group.");
+        }
+
+        ImmutableArray<ExpandedHostedInvocation>.Builder following = ImmutableArray.CreateBuilder<ExpandedHostedInvocation>(operations.Length - firstOperation - 1);
+        foreach (ExpandedHostedOperation operation in operations.Skip(firstOperation + 1))
+        {
+            if (operation is not ExpandedHostedInvocation next || next.Header.Command != 2 || next.Header.Source != first.Header.Source ||
+                next.Header.Effect != first.Header.Effect || next.Header.Action != first.Header.Action || next.EnemyDraw is not null)
+            {
+                throw new NotSupportedException("The compiled repeat requires contiguous original spell headers and no separate reflected action.");
+            }
+            following.Add(next);
+        }
+
+        expandedOperationCursor.Operations = operations.SetItem(firstOperation, first with { FollowingCasts = following.MoveToImmutable() })
+            .RemoveRange(firstOperation + 1, operations.Length - firstOperation - 1);
+    }
+
+    /// <summary>Checks the compiled action's complete spell pool against the installed hosted action bindings.</summary>
+    public static bool SupportsHostedEncounterSpellRule(EncounterCompiledAction action, ImmutableArray<NativeBattleEffectBinding> catalog)
+    {
+        return action.Kind is EncounterCompiledActionKind.Cast or EncounterCompiledActionKind.CastFromPool &&
+            !action.Spells.IsDefaultOrEmpty && action.Dispel is null &&
+            action.Spells.All(spell => ExpandedBattleActionRules.SupportsContacts(spell.NativeAction) &&
+                (!action.NativeDouble || SupportsHostedNativeMagicRepeat(spell.NativeAction, catalog)));
+    }
+
+    private static bool SupportsHostedNativeMagicRepeat(BattleNativeAction action, ImmutableArray<NativeBattleEffectBinding> catalog)
+    {
+        return action is { Command: 2, MagicId: > 0 } && !catalog.IsDefaultOrEmpty && action.MagicId <= catalog.Length &&
+            catalog[action.MagicId - 1].Entry == NativeBattleFireEffect.Entry;
     }
 
     private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, bool hosted,
@@ -362,12 +417,18 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GetActor(actorId);
         BattleActionDefinition action = FindAction(ability, actionId);
-        if (!actor.IsPlayer || casts.Length < 2 || casts[0].FallbackAnchor.ActorId != targetId || !SupportsExpandedAction(action))
+        bool compiledEnemy = !actor.IsPlayer && HasEncounterPolicy(actor);
+        if ((!actor.IsPlayer && !compiledEnemy) || casts.Length < 2 || casts[0].FallbackAnchor.ActorId != targetId || !SupportsExpandedAction(action))
         {
             throw new InvalidDataException("Saved repeated magic lacks its original spell and logical recipient order.");
         }
         foreach (BattleMagicCastInvocation cast in casts)
         {
+            if (compiledEnemy && cast.PreflightSelection is BattleTargetSelection.Explicit explicitActors &&
+                !explicitActors.Actors.IsEmpty && explicitActors.Actors[0] == cast.FallbackAnchor && explicitActors.Actors.All(reference => FindTargetActor(reference) is not null))
+            {
+                continue;
+            }
             if (cast.PreflightSelection is not BattleTargetSelection.Explicit { Actors: [var selected] } || cast.FallbackAnchor != selected || FindTargetActor(selected) is not { } target ||
                 (NativeBattleLimitRules.IsFixedAllyTarget(action.NativeAction!.TargetFlags!.Value) ? target.Id != actorId : !CanSelectEitherTargetSide(action) && (target.IsPlayer == actor.IsPlayer) != action.Allies))
             {

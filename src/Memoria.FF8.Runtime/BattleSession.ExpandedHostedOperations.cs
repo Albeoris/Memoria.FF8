@@ -39,7 +39,11 @@ public sealed partial class BattleSession
                 {
                     firstUnpublished = i;
                 }
-                headers.Add(new(invocation.Header, invocation.Contacts.Select(contact => contact.Packet).ToImmutableArray()));
+                headers.Add(new(invocation.Header, invocation.Contacts.Select(contact => contact.Packet).ToImmutableArray(), checked((byte)(invocation.FollowingCasts.Length + 1))));
+                foreach (ExpandedHostedInvocation cast in invocation.FollowingCasts)
+                {
+                    headers.Add(new(cast.Header, cast.Contacts.Select(contact => contact.Packet).ToImmutableArray()));
+                }
             }
         }
         var before = ImmutableArray.CreateBuilder<HostedDispatchControl>();
@@ -86,7 +90,8 @@ public sealed partial class BattleSession
         {
             if (expandedOperationCursor.Operations[i] is ExpandedHostedInvocation { HeaderReference: null } invocation)
             {
-                BattleActionHeaderReference header = dispatch.AppendedHeaders[appended++];
+                BattleActionHeaderReference header = dispatch.AppendedHeaders[appended];
+                appended += 1 + invocation.FollowingCasts.Length;
                 operations = operations.SetItem(i, invocation with
                 {
                     HeaderReference = header,

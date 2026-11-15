@@ -16,10 +16,13 @@ public sealed partial class BattleSession
     private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw, ExpandedHostedContactDisposition ContactDisposition) : ExpandedHostedOperation
     {
         internal ExpandedAiInvocationReservation? Reservation { get; init; }
+        internal ImmutableArray<ExpandedHostedInvocation> FollowingCasts { get; init; } = [];
         internal bool PendingGunblade { get; init; }
         internal bool PendingGuardian { get; init; }
         internal BattleActionHeaderReference? HeaderReference { get; init; }
         internal BattleContactCursor FirstContact { get; init; }
+        internal int ContactCount => Contacts.Length + FollowingCasts.Sum(cast => cast.Contacts.Length);
+        internal IEnumerable<ExpandedBattleContact> AllContacts => Contacts.Concat(FollowingCasts.SelectMany(cast => cast.Contacts));
     }
 
     private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null)
@@ -31,7 +34,7 @@ public sealed partial class BattleSession
     private sealed class ExpandedInvocationProgress(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
     {
         internal BattleActionPresentation Command => invocation.Command;
-        internal int ExpectedContacts => invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts ? invocation.Contacts.Length : 0;
+        internal int ExpectedContacts => invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts ? invocation.ContactCount : 0;
         internal BattleModelRoster Roster { get; } = roster;
         internal NativeBattleEffectContactBridge<string>? Bridge { get; set; } = bridge;
         internal HashSet<int> Occurrences { get; } = [];
@@ -197,13 +200,17 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted invocation header does not identify its canonical caster.");
             }
             ValidateExpandedEffectContacts(invocation.Header.Source, invocation.Contacts, roster);
+            foreach (ExpandedHostedInvocation cast in invocation.FollowingCasts)
+            {
+                ValidateExpandedEffectContacts(invocation.Header.Source, cast.Contacts, roster);
+            }
         }
     }
 
 
     private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, BattleModelRoster roster)
     {
-        return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster, invocation.FirstContact);
+        return invocation.Contacts.IsEmpty ? null : new(invocation.AllContacts.Select(contact => (contact.RecipientId, contact.Packet)), roster, invocation.FirstContact);
     }
 
     private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)

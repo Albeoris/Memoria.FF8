@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The original6298A0 physical pool setup and62A610 scheduler, independent of its unported draw callbacks.</summary>
 public static partial class NativeBattleFireEffect
 {
+    internal const uint Entry = 0x6298A0;
     private const ushort NativeChildCapacity = 150;
     internal const ushort ChildStride = 36;
 
@@ -34,7 +35,7 @@ public static partial class NativeBattleFireEffect
         effect.Validate(packets.Roster);
         packets.Validate();
         int childCapacity = hostedChildrenAddress.HasValue ? RequiredChildCapacity(effect, packets) : NativeChildCapacity;
-        if (effect.Binding.Entry != 0x6298A0)
+        if (effect.Binding.Entry != Entry)
         {
             throw new ArgumentException("Native Fire pools require the actual6298A0 module entry.", nameof(effect));
         }

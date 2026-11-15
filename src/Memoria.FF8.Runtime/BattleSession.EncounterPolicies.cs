@@ -45,7 +45,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<EncounterPolicyActor> EncounterPolicyCandidates()
     {
-        return combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
+        return combatants.Where(actor => UsesExpandedRoster ? actor.Slot is not null : actor.NativeActorIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
     }
 
     private int NextEncounterRandomIndex(int count)
@@ -210,7 +210,7 @@ public sealed partial class BattleSession
                 selections.Add(SelectTargets(next.TargetIds));
                 targets = targets.Concat(next.TargetIds).Distinct(StringComparer.Ordinal).ToImmutableArray();
             }
-            repeats = selections.ToImmutable();
+            repeats = UsesExpandedRoster && selections.Count == 1 ? [] : selections.ToImmutable();
         }
         BattleAttackCommand command = new(actor.Id, targets[0], Request(firstSelection), BattleAbility.Magic, spell.NativeAction.ActionId)
         {
@@ -218,8 +218,24 @@ public sealed partial class BattleSession
             NativeQueuedCommand = 2,
             NativeSequence = mod.CastingSequence,
             NativeAction = spell.NativeAction,
-            MagicCasts = repeats.Select(selection => new BattleMagicCastInvocation(Request(selection), selection, TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
+            MagicCasts = repeats.Select(selection => new BattleMagicCastInvocation(Request(selection), selection,
+                selection is BattleTargetSelection.Explicit { Actors: [var first, ..] } ? first : TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
         };
+        if (UsesExpandedRoster)
+        {
+            if (producingExpandedAiCallback)
+            {
+                ProduceExpandedAiCallbackCommand(command);
+            }
+            else
+            {
+                actor.Atb = 0;
+                actor.IsBusy = true;
+                actions.Enqueue(command);
+            }
+            return targets;
+        }
+
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         BattleActionHeaderReference firstHeader = nativeActionPackets.NextHeader;
         if (repeats.Length > 1)

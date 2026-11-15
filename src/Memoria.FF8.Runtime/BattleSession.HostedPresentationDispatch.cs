@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed record HostedDispatchHeader(NativeBattleActionHeaderPreparation Header, ImmutableArray<NativeBattleContactPacket> Contacts);
+    internal sealed record HostedDispatchHeader(NativeBattleActionHeaderPreparation Header, ImmutableArray<NativeBattleContactPacket> Contacts, byte RepeatCount = 1);
     internal sealed record HostedDispatchCompletion(uint Callback, BattleModelOwner Owner, string ActorId, bool CapturedBeforeAi = false);
     internal abstract record HostedDispatchControl
     {
@@ -262,25 +262,29 @@ public sealed partial class BattleSession
     private (NativeBattleActionPacketsState Packets, ImmutableArray<BattleActionHeaderReference> Appended) AppendHostedHeaders(NativeBattleGraphicsState graphics, NativeBattleActionPacketsState packets, ImmutableArray<HostedDispatchHeader> append, bool publishEventHeaders, HostedModelRegistry? registry = null)
     {
         ImmutableArray<BattleActionHeaderReference>.Builder appended = ImmutableArray.CreateBuilder<BattleActionHeaderReference>(append.Length);
-        foreach (HostedDispatchHeader write in append)
+        for (int index = 0; index < append.Length; index++)
         {
-            if (write.Contacts.IsDefault)
+            HostedDispatchHeader write = append[index];
+            if (write.Contacts.IsDefault || write.RepeatCount == 0 || write.RepeatCount > append.Length - index)
             {
-                throw new InvalidDataException("Hosted action admission requires its explicit contact list.");
+                throw new InvalidDataException("Hosted action admission requires its explicit contact list and complete header group.");
             }
             (packets, BattleActionHeaderReference reference) = packets.Prepare(write.Header);
             packets = packets.AppendContacts(write.Contacts);
             (packets, _) = packets.Publish(write.Contacts.Length);
-            packets = packets.WritePlayerRepeatMode(reference, 1);
-            if (!publishEventHeaders)
-            {
-                _ = ReadHostedDispatchSource(graphics, packets, reference, registry);
-            }
-            else
+            packets = packets.WritePlayerRepeatMode(reference, write.RepeatCount);
+            if (publishEventHeaders)
             {
                 (FindHostedAllocationBinding(registry, write.Header.Source)?.Resource ?? ReadStandingPresentationModelResource(graphics, write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its standing source resource.")).Validate();
             }
             appended.Add(reference);
+        }
+        if (!publishEventHeaders)
+        {
+            foreach (BattleActionHeaderReference reference in appended)
+            {
+                _ = ReadHostedDispatchSource(graphics, packets, reference, registry);
+            }
         }
         return (packets, appended.MoveToImmutable());
     }

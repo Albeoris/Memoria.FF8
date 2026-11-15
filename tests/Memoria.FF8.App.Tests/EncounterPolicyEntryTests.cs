@@ -67,7 +67,7 @@ public sealed class EncounterPolicyEntryTests
     }
 
     [Fact]
-    public void Expanded_entry_reports_a_published_policy_that_requires_original_camera_services()
+    public void Expanded_entry_retains_published_camera_elevation_for_original_camera_services()
     {
         const string surround = """
                 { "id": "camera", "kind": "SetCameraProperty", "property": "elevationDegrees", "expectedValue": 0, "value": 12 },
@@ -79,8 +79,9 @@ public sealed class EncounterPolicyEntryTests
         using GameWorld world = new(session, directory, resources: resources.Resources, applyEncounterMods: resources.ApplyEncounterMods);
         world.EnsureField();
 
-        NotSupportedException failure = Assert.Throws<NotSupportedException>(() => world.CreateEncounterBattle(136, 4));
-        Assert.Contains("encounter camera elevation", failure.Message);
+        BattleDefinition definition = world.CreateEncounterBattle(136, 4);
+        Assert.True(definition.UsesExpandedRoster);
+        Assert.Equal(12, definition.EncounterMod!.Camera!.ElevationDegrees);
         Assert.Null(world.Battle);
     }
 

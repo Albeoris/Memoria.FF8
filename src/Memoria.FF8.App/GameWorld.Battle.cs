@@ -382,15 +382,17 @@ internal sealed partial class GameWorld
         }
         if (definition.UsesExpandedRoster && definition.EncounterMod is { } mod)
         {
-            ValidateExpandedEncounterPolicy(mod);
+            ValidateExpandedEncounterPolicy(mod, definition.NativeEffectCatalog);
         }
         return definition;
     }
 
-    private static void ValidateExpandedEncounterPolicy(EncounterCompiledDefinition mod)
+    private static void ValidateExpandedEncounterPolicy(EncounterCompiledDefinition mod, ImmutableArray<NativeBattleEffectBinding> effects)
     {
         List<string> unsupported = [];
-        if (mod.NormalActionPolicies.Count != 0)
+        if (mod.NormalActionPolicies.Count != 0 &&
+            (mod.NativeEvents is not null || mod.EventGates.Count != 0 || mod.Templates.Count != 0 ||
+                mod.Policies.Values.SelectMany(policy => policy.Rules).Any(rule => !BattleSession.SupportsHostedEncounterSpellRule(rule.Action, effects))))
         {
             unsupported.Add("encounter AI and its native event callbacks");
         }

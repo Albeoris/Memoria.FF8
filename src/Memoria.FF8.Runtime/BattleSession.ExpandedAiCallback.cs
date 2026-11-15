@@ -142,7 +142,8 @@ public sealed partial class BattleSession
             NativeAction = packet.NativeAction,
             NativeGraphic = packet.NativeGraphic,
             NativeAiCallbackStage = packet.NativeAiCallbackStage,
-            NativeSequence = packet.NativeSequence
+            NativeSequence = packet.NativeSequence,
+            MagicCasts = packet.MagicCasts
         };
         BattleActionPresentation? outer = resolvingNativeAction;
         bool outerImpacts = deferringExpandedImpacts;
