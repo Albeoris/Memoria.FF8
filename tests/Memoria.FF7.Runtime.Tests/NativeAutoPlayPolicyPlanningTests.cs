@@ -6,6 +6,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
     public static void Run()
     {
         AutoPlayNavigationRefreshTests.Run();
+        CheckDerivedConnectionProbePriority();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
         AutoPlayVisit visit = new("current", "region");
@@ -35,6 +36,40 @@ internal static class NativeAutoPlayPolicyPlanningTests
         CheckMovementFailureScope();
         CheckMultipleMovementFailureRegions();
         CheckFailedApproachDoesNotStarveFreshGateway();
+    }
+
+    private static void CheckDerivedConnectionProbePriority()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        AutoPlayEvent repeat = new("repeat", AutoPlayEventKind.Interaction, ConditionSignature: "before");
+        planner.Observe(new("source", "region"), [exit, repeat]);
+        planner.ObserveNavigation("source", "old-source-nav", [exit, repeat]);
+        planner.Observe(new("destination", "region"), []);
+        planner.ObserveNavigation("destination", "destination-nav", []);
+        planner.Completed("source", exit.Id, "destination", observedStoryChanged: false, entrySignature: "entry", entrySignatureAuthoritative: true);
+        AutoPlayEventRoute route = state.Coverage.Visits.Single(visit => visit.Visit.Key == "source").Events.Single(item => item.Event.Id == exit.Id).Routes.Single();
+        planner.RecordNavigationRoute("old-source-nav", "destination-nav", exit.Id, route);
+        planner.Completed("source", repeat.Id, entrySignature: "before", entrySignatureAuthoritative: true);
+        repeat = repeat with { ConditionSignature = "after" };
+        planner.Observe(new("source", "region"), [exit, repeat]);
+        planner.ObserveNavigation("source", "new-source-nav", [exit, repeat]);
+        AutoPlayTravelGoal preferred = new("new-source-nav", repeat.Id, repeat.ConditionSignature);
+        AutoPlayPlanStep probe = planner.PlanNavigation("new-source-nav", preferredGoal: preferred)!;
+        Check(probe.Event.Id == exit.Id && probe.IsTravel, "A derived native connectivity probe must interrupt a completed changed-predicate goal.");
+        Check(!state.Coverage.Visits.Single(visit => visit.Visit.Key == "source").Events.Single(item => item.Event.Id == exit.Id).RouteNeedsRediscovery, "A scoped native probe must not alter aggregate progress metadata.");
+
+        AutoPlayEvent retry = new("retry", AutoPlayEventKind.Interaction, ConditionSignature: "retry");
+        planner.Observe(new("source", "region"), [exit, repeat, retry]);
+        planner.ObserveNavigation("source", "new-source-nav", [exit, repeat, retry]);
+        planner.MarkUnavailable("source", retry.Id, new("retry", "source", "physical", "blocked", retry.Id));
+        planner.RefreshUnavailable("source", new Dictionary<string, string> { ["physical"] = "changed" });
+        Check(planner.PlanNavigation("new-source-nav", preferredGoal: preferred)?.Event.Id == retry.Id, "An eligible rank-zero retry must retain its aggregate attempt history and precede a connectivity-only probe.");
+        AutoPlayEvent fresh = new("fresh", AutoPlayEventKind.Interaction, ConditionSignature: "fresh");
+        planner.Observe(new("source", "region"), [exit, repeat, retry, fresh]);
+        planner.ObserveNavigation("source", "new-source-nav", [exit, repeat, retry, fresh]);
+        Check(planner.PlanNavigation("new-source-nav", preferredGoal: preferred)?.Event.Id == fresh.Id, "A never-attempted frontier must retain its priority ahead of rank-zero retries and connectivity probes.");
     }
 
     private static void CheckFailedApproachDoesNotStarveFreshGateway()

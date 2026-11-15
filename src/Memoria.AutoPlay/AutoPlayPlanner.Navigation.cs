@@ -279,7 +279,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         {
             return aggregateByKey[navigationByKey[visit.Key].VisitKey].Visit;
         }
-        return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false, observationsCoverWholeVisit);
+        return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false, observationsCoverWholeVisit, candidateProgressionOrder is null ? null : (visit, _, candidate) => ProgressionOrder(AggregateVisit(visit), candidate));
     }
 
     private IEnumerable<AutoPlayEventRoute> UnconfirmedNavigationRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage<TDeferral> scoped, IReadOnlySet<string> valid)

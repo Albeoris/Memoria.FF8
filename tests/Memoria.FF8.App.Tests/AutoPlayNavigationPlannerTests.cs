@@ -4,6 +4,99 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayNavigationPlannerTests
 {
+    [Fact]
+    public void CandidateProgressionReceivesDerivedConnectionProbeWithoutChangingAggregateCoverage()
+    {
+        bool observedProbe = false;
+        AutoPlayPlanner planner = new(candidateProgressionOrder: (visit, target, candidate) =>
+        {
+            if (target.Id == "exit" && candidate.RouteNeedsRediscovery)
+            {
+                Assert.Equal("source", visit.Key);
+                observedProbe = true;
+            }
+            return candidate.RouteNeedsRediscovery ? 0 : 1;
+        });
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        AutoPlayEvent repeat = new("repeat", AutoPlayEventKind.Interaction, ConditionSignature: "before");
+        planner.Observe(new("source", "region"), [exit, repeat]);
+        planner.ObserveNavigation("source", "old-source-nav", [exit, repeat]);
+        planner.Observe(new("destination", "region"), []);
+        planner.ObserveNavigation("destination", "destination-nav", []);
+        Connect(planner, "source", exit.Id, "destination", "old-source-nav", "destination-nav");
+        planner.Completed("source", repeat.Id, entrySignature: "before", entrySignatureAuthoritative: true);
+        repeat = repeat with { ConditionSignature = "after" };
+        planner.Observe(new("source", "region"), [exit, repeat]);
+        planner.ObserveNavigation("source", "new-source-nav", [exit, repeat]);
+        string beforePlanning = JsonSerializer.Serialize(planner.State);
+
+        AutoPlayPlanStep plan = planner.PlanNavigation("new-source-nav", preferredGoal: new("new-source-nav", repeat.Id, repeat.ConditionSignature))!;
+
+        Assert.Equal(exit.Id, plan.Event.Id);
+        Assert.True(plan.IsTravel);
+        Assert.True(observedProbe);
+        Assert.False(planner.State.Visits.Single(visit => visit.Visit.Key == "source").Events.Single(item => item.Event.Id == exit.Id).RouteNeedsRediscovery);
+        Assert.Equal(beforePlanning, JsonSerializer.Serialize(planner.State));
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(0, true)]
+    [InlineData(-1, true)]
+    public void APreferredCompletedRemoteEventYieldsOnlyToStrictlyHigherPriorityFrontiers(int remotePriority, bool retainsGoal)
+    {
+        AutoPlayPlanner planner = new(progressionOrder: (_, target) => target.Id == "remote" ? remotePriority : 0);
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit");
+        AutoPlayEvent retry = new("retry", AutoPlayEventKind.Interaction, ConditionSignature: "retry");
+        AutoPlayEvent remote = new("remote", AutoPlayEventKind.Interaction, ConditionSignature: "before");
+        planner.Observe(new("source", "region"), [exit, retry]);
+        planner.ObserveNavigation("source", "source-nav", [exit, retry]);
+        planner.MarkUnavailable("source", retry.Id, new("retry", "source", "retry-physical", "blocked", retry.Id));
+        planner.RefreshUnavailable("source", new Dictionary<string, string> { ["retry-physical"] = "changed" });
+        planner.Observe(new("destination", "region"), [remote]);
+        planner.BeginEvent("destination", remote.Id);
+        planner.Completed("destination", remote.Id, observedStoryChanged: false);
+        remote = remote with { ConditionSignature = "after" };
+        planner.Observe(new("destination", "region"), [remote]);
+        planner.ObserveNavigation("destination", "destination-nav", [remote]);
+        Connect(planner, "source", exit.Id, "destination", "source-nav", "destination-nav");
+        AutoPlayTravelGoal preferred = new("destination-nav", remote.Id, remote.ConditionSignature);
+        string beforePlanning = JsonSerializer.Serialize(planner.State);
+
+        AutoPlayPlanStep plan = planner.PlanNavigation("source-nav", preferredGoal: preferred)!;
+
+        Assert.Equal(retainsGoal ? exit.Id : retry.Id, plan.Event.Id);
+        Assert.Equal(retainsGoal, plan.IsTravel);
+        Assert.Equal(retainsGoal ? preferred : null, plan.Goal);
+        Assert.Equal(beforePlanning, JsonSerializer.Serialize(planner.State));
+        Assert.True(planner.State.Visits.Single(visit => visit.Visit.Key == "destination").Events.Single().Completed);
+        if (remotePriority >= 0)
+        {
+            Assert.Equal(retry.Id, planner.PlanNavigation("source-nav")!.Event.Id);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(-1, false)]
+    public void APreferredRefreshRetainsItsExistingProgressionThreshold(int localPriority, bool retainsRefresh)
+    {
+        AutoPlayPlanner planner = new(progressionOrder: (_, _) => localPriority);
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit");
+        AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction);
+        planner.Observe(new("source", "region"), [exit, frontier]);
+        planner.ObserveNavigation("source", "source-nav", [exit, frontier]);
+        planner.Observe(new("destination", "region"), []);
+        planner.ObserveNavigation("destination", "destination-nav", []);
+        Connect(planner, "source", exit.Id, "destination", "source-nav", "destination-nav");
+        AutoPlayTravelGoal preferred = new("destination-nav");
+
+        AutoPlayPlanStep plan = planner.PlanNavigation("source-nav", needsRefresh: _ => true, preferredGoal: preferred)!;
+
+        Assert.Equal(retainsRefresh ? exit.Id : frontier.Id, plan.Event.Id);
+        Assert.Equal(retainsRefresh ? preferred : null, plan.Goal);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

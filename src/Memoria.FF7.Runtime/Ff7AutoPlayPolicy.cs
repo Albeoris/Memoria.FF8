@@ -40,7 +40,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null)
     {
-        return new(state.Coverage, phaseOrder: phaseOrder, progressionOrder: (visit, target) =>
+        return new(state.Coverage, phaseOrder: phaseOrder, candidateProgressionOrder: (visit, target, candidate) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
             if (coverage?.Completed != true)
@@ -48,7 +48,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 bool attempted = coverage?.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == target.ConditionSignature && (target.Variants is { Count: > 0 } variants ? variants : [target.Id]).Contains(attempt.TargetId ?? target.Id, StringComparer.Ordinal)) == true;
                 return attempted ? 0 : target.ChangesStory ? -2 : -1;
             }
-            return coverage is not { Completed: true, RouteNeedsRediscovery: false } ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
+            return candidate.RouteNeedsRediscovery ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
         }, observationsCoverWholeVisit: true);
     }
 
