@@ -13,7 +13,7 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
     private byte inputCursor;
     private bool awaitingButton;
 
-    internal bool NeedsInput => Receipt.ReadyAfterBasic is null && (Receipt.Inputs.Length == 0 || Receipt.Inputs[^1].Choice.ActionId != Receipt.Declaration.BasicAction) && pendingChoice is null;
+    internal bool NeedsInput => Receipt.Dispatches.Length >= 2 && Receipt.ReadyAfterBasic is null && (Receipt.Inputs.Length == 0 || Receipt.Inputs[^1].Choice.ActionId != Receipt.Declaration.BasicAction) && pendingChoice is null;
 
     internal void Observe(DiagnosticDuelObservation observation, bool drained)
     {

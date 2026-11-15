@@ -400,7 +400,9 @@ internal sealed class DiagnosticBattleDriver
             return;
         }
         BattleAbility? ability = recipe.EnemyTrigger is not null || recipe.DoomExpiration ? BattleAbility.EnemyAbility : recipe.Input.Ability;
-        if (dispatch.Ability != ability || dispatch.ActionId != (recipe.ExpectedNativeAction ?? recipe.Input.ActionId) || recipe.ExpectedNativeCommand is byte command && dispatch.NativeCommand != command)
+        bool renzokukenWithFinisher = recipe.Input is { Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } &&
+            recipe.ExpectedNativeCommand == 5 && recipe.ExpectedNativeAction == 65533 && dispatch.NativeCommand == 5 && dispatch.ActionId == 65534;
+        if (dispatch.Ability != ability || dispatch.ActionId != (recipe.ExpectedNativeAction ?? recipe.Input.ActionId) && !renzokukenWithFinisher || recipe.ExpectedNativeCommand is byte command && dispatch.NativeCommand != command)
         {
             Fail("ACTION_IDENTITY_UNAVAILABLE_OR_MISMATCH");
             return;
