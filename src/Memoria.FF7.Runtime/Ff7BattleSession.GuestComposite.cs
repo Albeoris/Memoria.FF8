@@ -223,6 +223,7 @@ public sealed partial class Ff7BattleSession
             }
             CompleteGuestMagic(active.Command);
             state = state with { Action = null };
+            CompleteEconomyStatusPhase();
             FlushFormationAi();
         }
         else

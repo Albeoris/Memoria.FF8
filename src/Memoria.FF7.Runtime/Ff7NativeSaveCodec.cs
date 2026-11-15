@@ -61,7 +61,7 @@ public static class Ff7NativeSaveCodec
             InitialKernelData = initialKernelData.ToArray(),
             Characters = native.Characters.Select((character, index) => new Ff7CharacterState(index, Ff7NativeSaveSlot.ReadText(character.EncodedName.Span), character.Level, character.Experience, character.CurrentHp, character.CurrentMp, character.Raw.ToArray())).ToArray(),
             Party = native.Party.Select(value => (int)value).ToArray(),
-            Inventory = native.Inventory.Where(item => item.Encoded != ushort.MaxValue && item.Quantity > 0).Select(item => new Ff7InventorySlot(item.ItemId, item.Quantity)).ToArray(),
+            Inventory = native.Inventory.Select((item, index) => (item, index)).Where(value => value.item.Encoded != ushort.MaxValue).Select(value => new Ff7InventorySlot(value.item.ItemId, value.item.Quantity, value.index)).ToArray(),
             Materia = native.Materia.Select((materia, index) => (materia, index)).Where(value => value.materia.MateriaId != 255).Select(value => new Ff7MateriaState(value.materia.MateriaId, value.materia.AbilityPoints, value.index)).ToArray(),
             Gil = native.Gil,
             Clock = new(Read32(data, 0xB80), Read32(data, 0xB84), Read16(data, 0xB88), Read16(data, 0xB8C)),
@@ -112,10 +112,9 @@ public static class Ff7NativeSaveCodec
             data[5 + index] = checked((byte)progress.Party[index]);
         }
         data.AsSpan(0x4FC, 640).Fill(255);
-        for (int index = 0; index < progress.Inventory.Length; index++)
+        foreach (Ff7InventorySlot item in Ff7NativeInventory.Normalize(progress.Inventory))
         {
-            Ff7InventorySlot item = progress.Inventory[index];
-            Write16(data, 0x4FC + index * 2, (ushort)(item.ItemId | item.Quantity << 9));
+            Write16(data, 0x4FC + item.NativeSlot!.Value * 2, (ushort)(item.ItemId | item.Quantity << 9));
         }
         data.AsSpan(0x77C, 800).Fill(255);
         foreach (Ff7MateriaState materia in Ff7NativeMateriaInventory.Normalize(progress.Materia))

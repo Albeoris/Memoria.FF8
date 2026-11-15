@@ -4,7 +4,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7BattleSession
 {
-    internal bool FormationTransitionReady => Outcome == Ff7BattleOutcome.Victory && Formation.NextBattleId != -1 && state.TerminalFrames >= TerminalDuration;
+    internal bool FormationTransitionReady => Outcome == Ff7BattleOutcome.Victory && Formation.NextBattleId != -1 && state.TerminalFrames >= TerminalDuration && EconomyTerminalReady;
 
     private void CarryFormationState(Ff7BattleSnapshot previous)
     {
@@ -27,6 +27,7 @@ public sealed partial class Ff7BattleSession
             InitialFormationId = previous.InitialFormationId ?? previous.FormationId,
             Queue = queue with { Slots = slots },
             Inventory = previous.Inventory.ToArray(),
+            Economy = previous.Economy is null ? null : Ff7BattleEconomy.Copy(previous.Economy) with { TerminalPasses = 0 },
             AiGlobalMemory = globals,
             WithdrawnMask = previous.WithdrawnMask,
             PartyAiAliases = previous.PartyAiAliases?.ToArray() ?? state.PartyAiAliases,

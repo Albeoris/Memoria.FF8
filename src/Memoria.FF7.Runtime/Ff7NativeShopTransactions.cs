@@ -95,7 +95,7 @@ public static class Ff7NativeShopTransactions
             }
             else
             {
-                updated = progress with { Gil = (uint)Math.Min(uint.MaxValue, (ulong)progress.Gil + total), Inventory = progress.Inventory.Where(entry => entry.ItemId != transaction.NativeId || entry.Quantity != transaction.Quantity).Select(entry => entry.ItemId == transaction.NativeId ? entry with { Quantity = entry.Quantity - transaction.Quantity } : entry).ToArray() };
+                updated = progress with { Gil = (uint)Math.Min(uint.MaxValue, (ulong)progress.Gil + total), Inventory = Ff7NativeInventory.Normalize(progress.Inventory).Where(entry => entry.ItemId != transaction.NativeId || entry.Quantity != transaction.Quantity).Select(entry => entry.ItemId == transaction.NativeId ? entry with { Quantity = entry.Quantity - transaction.Quantity } : entry).ToArray() };
             }
             updated.Validate();
         }

@@ -664,6 +664,7 @@ public sealed partial class Ff7BattleSession
             ReplaceActorModel(model with { Motion = motion });
         }
         state = state with { Action = null, DisplayedHit = active.PendingDisplayHit is { } undisplayed ? undisplayed with { Tick = Tick } : state.DisplayedHit };
+        CompleteEconomyStatusPhase();
         FlushFormationAi();
     }
 
@@ -789,11 +790,12 @@ public sealed partial class Ff7BattleSession
         }
         if (command.CommandId == (byte)Ff7BattleCommand.Item)
         {
-            if (!Ff7NativeBattleActionResolver.TrySpendItem(state.Inventory, command.Argument, out Ff7InventorySlot[] remaining))
+            if (!Ff7NativeBattleActionResolver.TrySpendItem(state.Inventory, command.Argument, out _))
             {
                 return;
             }
-            state = state with { Inventory = remaining };
+            Ff7BattleInventorySlot[] working = Ff7NativeBattleInventory.Spend(state.Economy!.Inventory, command.Argument);
+            state = state with { Economy = state.Economy with { Inventory = working }, Inventory = Ff7NativeBattleInventory.Project(working) };
         }
         byte limitGauge = command.CommandId == (byte)Ff7BattleCommand.Limit ? Ff7NativeBattleLimits.Consume(source.LimitGauge) : source.LimitGauge;
         Dictionary<byte, int>? allUses = source.AllUses;
@@ -846,6 +848,7 @@ public sealed partial class Ff7BattleSession
         PublishNativeStatusContext(record);
         action = action with { NativeElements = elements == ushort.MaxValue ? (ushort)0 : elements, IsItem = command.CommandId == (byte)Ff7BattleCommand.Item };
         ValidateGuestIncoming(command, targetSlot, record);
+        ValidateTheftContact(record, targetSlot);
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Ff7BattleActorState target = Actor(targetSlot);
         if (action.Formula >> 4 is 1 or 0xB)
@@ -876,6 +879,10 @@ public sealed partial class Ff7BattleSession
         {
             result = Ff7NativeBattleActionResolver.Resolve(Stats(source), sourceVitals, Stats(target), targetVitals, action, record, random, source.Actor.Slot == targetSlot, GetOriginBattleStatuses(targetSlot));
         }
+        if (result.TheftEffect is not null && targetSlot < 3 && record is { Power: 0 })
+        {
+            result = result with { NativeResultMarker = unchecked((sbyte)target.Actor.HurtAction) };
+        }
         if (source.Actor.Slot != targetSlot)
         {
             Replace(source with { Actor = source.Actor with { HitPoints = result.Source.Hp, MagicPoints = result.Source.Mp, Statuses = result.Source.Statuses } });
@@ -883,6 +890,7 @@ public sealed partial class Ff7BattleSession
         cameraTargetRows?.Add(targetSlot);
         CaptureImpactPresentation(command, targetSlot, source, result, action, record);
         PublishHit(command, target, action, result);
+        ApplyTheftContact(command.ActorSlot, targetSlot, result.TheftEffect);
     }
 
     private void PublishHit(Ff7BattleQueuedCommand command, Ff7BattleActorState target, Ff7BattleDamageAction action, Ff7BattleActionReceipt result, bool runCounters = true)
@@ -1002,7 +1010,7 @@ public sealed partial class Ff7BattleSession
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(48), native.MagicPoints);
             updated[index] = original with { NativeRecord = record, HitPoints = (int)native.HitPoints, MagicPoints = native.MagicPoints };
         }
-        return progress with { Characters = updated, Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), BattleRng = random.Capture(), PartyAiAliases = state.PartyAiAliases?.ToArray() };
+        return progress with { Characters = updated, Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), Gil = BattleGil, BattleRng = random.Capture(), PartyAiAliases = state.PartyAiAliases?.ToArray() };
     }
 
     internal Ff7VictoryProjection ProjectVictory(Ff7Progress progress, long fieldGeneration)

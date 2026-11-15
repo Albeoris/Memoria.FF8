@@ -72,7 +72,7 @@ public sealed partial class Ff7Session
             return false;
         }
 
-        Ff7InventorySlot[] inventory = Progress.Inventory;
+        Ff7InventorySlot[] inventory = Ff7NativeInventory.Normalize(Progress.Inventory);
         if (incoming is not null)
         {
             inventory = incoming.Quantity == 1

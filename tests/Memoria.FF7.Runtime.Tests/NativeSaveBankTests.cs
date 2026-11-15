@@ -39,7 +39,7 @@ internal static class NativeSaveBankTests
         Check(encoded[0x10B0] == 0xA5 && encoded[2] == 0xCC && encoded.AsSpan(0xBA4, 26).SequenceEqual(persistent.AsSpan(0, 26)), "Opaque native bytes or persistent variables were lost.");
         Check(BinaryPrimitives.ReadInt16LittleEndian(encoded.AsSpan(0xB9A)) == -321 && BinaryPrimitives.ReadUInt16LittleEndian(encoded.AsSpan(0xB9E)) == 7, "Native field position was not encoded.");
         Ff7Progress imported = Ff7NativeSaveCodec.ImportProgress(slot, progress.InitialKernelData);
-        Check(imported.Gil == progress.Gil && imported.Party.SequenceEqual(progress.Party) && imported.Characters[0].HitPoints == 777 && imported.Characters[0].Experience == 123456 && imported.Materia.Single() == progress.Materia.Single() && imported.Inventory.SequenceEqual(progress.Inventory) && imported.Clock == progress.Clock && imported.LockedCharacters == 4 && imported.AvailableCharacters == 0x105, "Native progress roundtrip failed.");
+        Check(imported.Gil == progress.Gil && imported.Party.SequenceEqual(progress.Party) && imported.Characters[0].HitPoints == 777 && imported.Characters[0].Experience == 123456 && imported.Materia.Single() == progress.Materia.Single() && imported.Inventory.SequenceEqual(Ff7NativeInventory.Normalize(progress.Inventory)) && imported.Clock == progress.Clock && imported.LockedCharacters == 4 && imported.AvailableCharacters == 0x105, "Native progress roundtrip failed.");
         foreach (byte speed in new byte[] { 0, 128, 255 })
         {
             Ff7NativeSaveSlot configured = Ff7NativeSaveCodec.ExportField(progress with { NativeBattleSpeed = speed }, persistent, 123, -321, 456, 7, 128, baseData);
@@ -76,7 +76,7 @@ internal static class NativeSaveBankTests
         Ff7SessionSave imported = Ff7NativeSaveCodec.Import(native, installation);
         int[] changedVariables = Enumerable.Range(0, 1280).Where(index => imported.Vm.PersistentVariables[index] != save.Vm.PersistentVariables[index]).ToArray();
         Check(changedVariables.Length == 0, "The configured native field roundtrip changed persistent variables during initialization: " + string.Join(',', changedVariables.Select(index => $"{index:X3}")));
-        Check(imported.FieldName == save.FieldName && imported.Progress.Gil == save.Progress.Gil && imported.Progress.Inventory.SequenceEqual(save.Progress.Inventory), "Installed native import changed field or progress.");
+        Check(imported.FieldName == save.FieldName && imported.Progress.Gil == save.Progress.Gil && imported.Progress.Inventory.SequenceEqual(Ff7NativeInventory.Normalize(save.Progress.Inventory)), "Installed native import changed field or progress.");
         Ff7Actor expected = save.Process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Actor actual = imported.Process.Actors.Single(actor => actor.PlayerControlled);
         Check(actual.X4096 >> 12 == expected.X4096 >> 12 && actual.Y4096 >> 12 == expected.Y4096 >> 12 && actual.Triangle == expected.Triangle && actual.Direction == expected.Direction, "Installed native import changed field entry coordinates.");

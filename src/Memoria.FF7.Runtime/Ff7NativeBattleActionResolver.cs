@@ -27,6 +27,8 @@ public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Sourc
     public bool ToggleTargetRow { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool SuppressNumericPopup { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? TheftEffect { get; init; }
 }
 
 /// <summary>Resolves the native target transaction. The action owner publishes the receipt and spends costs once.</summary>
@@ -97,7 +99,7 @@ public static class Ff7NativeBattleActionResolver
     public static bool TrySpendItem(IReadOnlyList<Ff7InventorySlot> inventory, ushort itemId, out Ff7InventorySlot[] remaining)
     {
         ArgumentNullException.ThrowIfNull(inventory);
-        remaining = inventory.ToArray();
+        remaining = Ff7NativeInventory.Normalize(inventory);
         int index = Array.FindIndex(remaining, slot => slot.ItemId == itemId);
         if (index < 0 || remaining[index].Quantity <= 0)
         {
@@ -250,7 +252,13 @@ public static class Ff7NativeBattleActionResolver
     }
 
     private static Ff7BattleActionReceipt CompletePhase4(Ff7BattleActionReceipt receipt, Ff7BattleAttack? record, Ff7BattleDamageAction action)
-        => receipt with { WithdrawTarget = !receipt.Damage.Missed && record is { AdditionalEffect: 0x1B }, ToggleTargetRow = !receipt.Damage.Missed && record is { AdditionalEffect: 0x19 }, SuppressNumericPopup = record is { AdditionalEffect: 0x19 } && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0 };
+        => receipt with
+        {
+            WithdrawTarget = !receipt.Damage.Missed && record is { AdditionalEffect: 0x1B },
+            ToggleTargetRow = !receipt.Damage.Missed && record is { AdditionalEffect: 0x19 },
+            TheftEffect = !receipt.Damage.Missed && record is { AdditionalEffect: 0x06 or 0x07 } ? record.AdditionalEffect : null,
+            SuppressNumericPopup = record is { AdditionalEffect: 0x06 or 0x07, Power: 0 } || record is { AdditionalEffect: 0x19 } && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0
+        };
 
     private static Ff7BattleActionReceipt ApplyConditionImmunity(Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleActionReceipt receipt)
     {
@@ -260,7 +268,7 @@ public static class Ff7NativeBattleActionResolver
         }
         bool pendingStatuses = (receipt.NativePendingStatuses | receipt.AddedStatuses | receipt.RemovedStatuses | receipt.AddedOriginBattleStatuses | receipt.RemovedOriginBattleStatuses | receipt.AddedOriginSavedStatuses | receipt.RemovedOriginSavedStatuses | receipt.RemovedParameterStatus) != 0 || receipt.AddedParameterStatus is not null;
         bool missed = receipt.Damage.Missed || pendingStatuses || (action.NativeElements & 8) != 0;
-        return new(source, target, new(missed, false, 0), 0, 0) { WithdrawTarget = receipt.WithdrawTarget, ToggleTargetRow = receipt.ToggleTargetRow, SuppressNumericPopup = receipt.SuppressNumericPopup };
+        return new(source, target, new(missed, false, 0), 0, 0) { WithdrawTarget = receipt.WithdrawTarget, ToggleTargetRow = receipt.ToggleTargetRow, SuppressNumericPopup = receipt.SuppressNumericPopup, TheftEffect = receipt.TheftEffect };
     }
 
     private static Ff7BattleActionReceipt ResolveCoreTransaction(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances, uint originBattleStatuses)
@@ -291,7 +299,7 @@ public static class Ff7NativeBattleActionResolver
         }
         action = ApplyFacingEffect(action, record, targetStats.NativeConditions);
         // The original 0x87 entry has no handler in any native damage-resolution phase.
-        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 } or { AdditionalEffect: 0x19 or 0x1B });
+        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 } or { AdditionalEffect: 0x06 or 0x07 or 0x19 or 0x1B });
         if ((mask & ~supportedStatuses) != 0 || unsupportedEffect)
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect 0x{record?.AdditionalEffect ?? byte.MaxValue:X2} (modifier 0x{record?.AdditionalEffectModifier ?? byte.MaxValue:X2}, formula 0x{action.Formula:X2}) or status mask 0x{mask:X8}.");

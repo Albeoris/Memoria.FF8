@@ -28,24 +28,13 @@ public static class KernelTextArchive
 
     public static IReadOnlyList<string> ReadPlainStrings(ReadOnlySpan<byte> source, int count, int maximumStringBytes = 65536)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        ArgumentOutOfRangeException.ThrowIfNegative(maximumStringBytes);
-        if (count > source.Length / 2)
-        {
-            throw new InvalidDataException("The kernel text offset directory is truncated.");
-        }
-        byte[] data = source.ToArray();
+        IReadOnlyList<ReadOnlyMemory<byte>> expandedStrings = ReadExpandedStrings(source, count, maximumStringBytes);
         List<string> strings = new(count);
-        for (int index = 0; index < count; index++)
+        foreach (ReadOnlyMemory<byte> expandedString in expandedStrings)
         {
-            int offset = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(index * 2));
-            List<byte> expanded = new();
-            if (!Expand(offset, data.Length, 0))
-            {
-                throw new InvalidDataException("A kernel text string has no native terminator.");
-            }
+            ReadOnlySpan<byte> expanded = expandedString.Span;
             StringBuilder text = new();
-            for (int position = 0; position < expanded.Count; position++)
+            for (int position = 0; position < expanded.Length; position++)
             {
                 byte code = expanded[position];
                 if (code == 0xFF)
@@ -58,7 +47,7 @@ public static class KernelTextArchive
                 }
                 else if (code == 0xF8)
                 {
-                    if (++position >= expanded.Count)
+                    if (++position >= expanded.Length)
                     {
                         throw new InvalidDataException("A kernel color token is truncated.");
                     }
@@ -69,6 +58,30 @@ public static class KernelTextArchive
                 }
             }
             strings.Add(text.ToString());
+        }
+        return strings.AsReadOnly();
+    }
+
+    /// <summary>Expands native dictionary references while preserving text controls and their operands.</summary>
+    public static IReadOnlyList<ReadOnlyMemory<byte>> ReadExpandedStrings(ReadOnlySpan<byte> source, int count, int maximumStringBytes = 65536)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumStringBytes);
+        if (count > source.Length / 2)
+        {
+            throw new InvalidDataException("The kernel text offset directory is truncated.");
+        }
+        byte[] data = source.ToArray();
+        List<ReadOnlyMemory<byte>> strings = new(count);
+        for (int index = 0; index < count; index++)
+        {
+            int offset = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(index * 2));
+            List<byte> expanded = new();
+            if (!Expand(offset, data.Length, 0))
+            {
+                throw new InvalidDataException("A kernel text string has no native terminator.");
+            }
+            strings.Add(expanded.ToArray());
 
             bool Expand(int start, int end, int depth)
             {
@@ -100,7 +113,7 @@ public static class KernelTextArchive
                         {
                             return true;
                         }
-                        int operands = code is >= 0xEA and <= 0xF0 ? 2 : code == 0xF8 ? 1 : 0;
+                        int operands = code is >= 0xEA and <= 0xF1 ? 2 : code == 0xF8 ? 1 : 0;
                         if (operands > end - position)
                         {
                             throw new InvalidDataException("A kernel text control token is truncated.");

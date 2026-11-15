@@ -397,6 +397,7 @@ public sealed partial class Ff7BattleSession
             PublishGuestSourceInteraction(active.Command, invocation.TargetSlot);
             CompleteGuestMagic(active.Command);
             state = state with { Action = null };
+            CompleteEconomyStatusPhase();
             FlushFormationAi();
         }
         else

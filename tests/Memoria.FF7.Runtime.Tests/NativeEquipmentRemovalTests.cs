@@ -20,7 +20,7 @@ internal static class NativeEquipmentRemovalTests
         Ff7EquipmentRemovalResult result = Ff7NativeEquipmentRemoval.Apply(original, 1, types, classes);
         Check(result.MateriaFlags == 3, "Returned materia must publish the native acquisition flags.");
         Check(result.Progress.Materia.SequenceEqual(new[] { new Ff7MateriaState(1, 0x123456), new Ff7MateriaState(44, 0xABCDEF) }), "Weapon/armor materia order or AP changed.");
-        Check(result.Progress.Inventory.Single() == new Ff7InventorySlot(292, 1), "Accessory must return as one native inventory item.");
+        Check(result.Progress.Inventory.Single() == new Ff7InventorySlot(292, 1, 0), "Accessory must return as one native inventory item.");
         byte[] expectedRecord = record.ToArray();
         expectedRecord.AsSpan(64, 64).Fill(255);
         expectedRecord[30] = 255;
@@ -36,7 +36,7 @@ internal static class NativeEquipmentRemovalTests
         unmatchedRecord[30] = 50;
         Ff7Progress unmatched = full with { Characters = [full.Characters[0] with { NativeRecord = unmatchedRecord }, full.Characters[1]] };
         Ff7Progress discarded = Ff7NativeEquipmentRemoval.Apply(unmatched, 1, types, classes).Progress;
-        Check(discarded.Inventory.SequenceEqual(full.Inventory) && discarded.Characters[0].NativeRecord[30] == 255, "An unmatched accessory must be lost when native item slots are full.");
+        Check(discarded.Inventory.SequenceEqual(Ff7NativeInventory.Normalize(full.Inventory)) && discarded.Characters[0].NativeRecord[30] == 255, "An unmatched accessory must be lost when native item slots are full.");
         Check(JsonSerializer.Serialize(result.Progress) == JsonSerializer.Serialize(Ff7NativeEquipmentRemoval.Apply(result.Progress, 1, types, classes).Progress), "Empty equipment removal must be idempotent.");
         MenuLifecycle(original, types, classes);
         InstalledContinuation();

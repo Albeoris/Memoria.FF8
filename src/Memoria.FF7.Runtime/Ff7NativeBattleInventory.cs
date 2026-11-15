@@ -16,15 +16,11 @@ public static class Ff7NativeBattleInventory
         ArgumentNullException.ThrowIfNull(inventory);
         ArgumentNullException.ThrowIfNull(kernel);
         ValidateKernel(kernel);
-        if (inventory.Count > SlotCount || inventory.Any(slot => slot is null || slot.ItemId is < 0 or > 511 || slot.Quantity is < 0 or > 127 || slot.ItemId == 511 && slot.Quantity == 127) || inventory.Select(slot => slot.ItemId).Distinct().Count() != inventory.Count)
-        {
-            throw new InvalidDataException("FFVII battle inventory requires a valid ordered field inventory.");
-        }
+        Ff7InventorySlot[] normalized = Ff7NativeInventory.Normalize(inventory);
         Ff7BattleInventorySlot[] working = Enumerable.Range(0, SlotCount).Select(_ => new Ff7BattleInventorySlot(EmptyItem, 0, 0x0B)).ToArray();
-        for (int index = 0; index < inventory.Count; index++)
+        foreach (Ff7InventorySlot slot in normalized)
         {
-            Ff7InventorySlot slot = inventory[index];
-            working[index] = new(checked((ushort)slot.ItemId), checked((byte)slot.Quantity), ReadFlags(slot.ItemId, kernel));
+            working[slot.NativeSlot!.Value] = new(checked((ushort)slot.ItemId), checked((byte)slot.Quantity), ReadFlags(slot.ItemId, kernel));
         }
         return working;
     }
@@ -32,7 +28,7 @@ public static class Ff7NativeBattleInventory
     public static Ff7InventorySlot[] Project(IReadOnlyList<Ff7BattleInventorySlot> inventory)
     {
         Validate(inventory);
-        return inventory.Where(slot => slot.ItemId != EmptyItem).Select(slot => new Ff7InventorySlot(slot.ItemId, slot.Quantity)).ToArray();
+        return inventory.Select((slot, index) => (slot, index)).Where(value => value.slot.ItemId != EmptyItem).Select(value => new Ff7InventorySlot(value.slot.ItemId, value.slot.Quantity, value.index)).ToArray();
     }
 
     public static Ff7BattleInventorySlot[] Spend(IReadOnlyList<Ff7BattleInventorySlot> inventory, ushort itemId)

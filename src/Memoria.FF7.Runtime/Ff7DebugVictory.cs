@@ -101,7 +101,7 @@ public static class Ff7DebugVictory
             }
             items.Add(new(item.ItemId, acceptedQuantity, item.Quantity - acceptedQuantity));
         }
-        Ff7Progress result = progress with { Characters = characters, Inventory = inventory.ToArray(), Materia = materia.ToArray(), Gil = unchecked(progress.Gil + reward.Gil), BattleRng = random.Capture(), CompletedBattles = [.. progress.CompletedBattles, new(fieldGeneration, requestId, checked((ushort)formation.FormationId), reward)] };
+        Ff7Progress result = progress with { Characters = characters, Inventory = Ff7NativeInventory.Normalize(inventory), Materia = materia.ToArray(), Gil = unchecked(progress.Gil + reward.Gil), BattleRng = random.Capture(), CompletedBattles = [.. progress.CompletedBattles, new(fieldGeneration, requestId, checked((ushort)formation.FormationId), reward)] };
         result.Validate();
         return new(result, reward, characterGrowth, materiaGrowth, items);
     }

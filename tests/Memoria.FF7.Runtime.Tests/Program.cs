@@ -142,6 +142,28 @@ if (args.Contains("--battle-inventory-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--inventory-slots-only", StringComparer.Ordinal))
+{
+    NativeInventorySlotTests.Run();
+    NativeBattleInventoryTests.Run();
+    NativeItemTests.Run();
+    NativeEquipmentRemovalTests.Run();
+    NativeSaveBankTests.Run();
+    return 0;
+}
+
+if (args.Contains("--battle-economy-queues-only", StringComparer.Ordinal))
+{
+    NativeBattleEconomyQueueTests.Run();
+    return 0;
+}
+
+if (args.Contains("--battle-theft-only", StringComparer.Ordinal))
+{
+    NativeBattleTheftTests.Run();
+    return 0;
+}
+
 if (args.Contains("--window-defaults-only", StringComparer.Ordinal))
 {
     NativeWindowDefaultsTests.Run();
@@ -636,6 +658,7 @@ var tests = new (string Name, Action Run)[]
     ("native window parameter binding and numeric cursor", NativeWindowParameterTests.Run),
     ("native window defaults and legacy ownership", NativeWindowDefaultsTests.Run),
     ("native ordered battle inventory", NativeBattleInventoryTests.Run),
+    ("native inventory slot ownership", NativeInventorySlotTests.Run),
     ("native post-initialization party presentation", NativePartyPresentationTests.Run),
     ("native shop autoplay cadence and clock ownership", NativeShopAutoPlayTests.Run),
     ("native optional inn production tour and return receipts", NativeOptionalInnTourTests.Run),

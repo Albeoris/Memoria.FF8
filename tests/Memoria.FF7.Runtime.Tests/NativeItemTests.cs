@@ -8,22 +8,23 @@ internal static class NativeItemTests
     public static void Run()
     {
         Ff7InventorySlot[] source = [new(0, 98), new(2, 1)];
+        Ff7InventorySlot[] normalized = Ff7NativeInventory.Normalize(source);
         Ff7InventorySlot[] merged = Ff7NativeInventory.Acquire(source, 0x0400);
         Check(merged[0].Quantity == 99 && source[0].Quantity == 98, "Existing native stacks must saturate at99 without mutating the prior snapshot.");
-        Check(merged[1] == source[1], "An acquisition changed a different item.");
+        Check(merged[1] == normalized[1], "An acquisition changed a different item.");
         Ff7InventorySlot[] inserted = Ff7NativeInventory.Acquire(source, (127 << 9) | 400);
-        Check(inserted[^1] == new Ff7InventorySlot(400, 127), "A new native stack must preserve all7 quantity bits.");
-        Check(Ff7NativeInventory.Acquire([], 1).Single() == new Ff7InventorySlot(1, 0), "A zero-quantity nonempty native slot was dropped.");
+        Check(inserted[^1] == new Ff7InventorySlot(400, 127, 2), "A new native stack must preserve all7 quantity bits.");
+        Check(Ff7NativeInventory.Acquire([], 1).Single() == new Ff7InventorySlot(1, 0, 0), "A zero-quantity nonempty native slot was dropped.");
         Check(Ff7NativeInventory.Acquire([], ushort.MaxValue).Length == 0, "Native FFFF insertion must remain an empty slot.");
         Check(Ff7NativeInventory.Acquire([new(511, 1)], ushort.MaxValue).Single().Quantity == 99, "Native ID511 matching must occur before empty insertion handling.");
         Check(Ff7NativeInventory.Acquire([new(1, 127)], 1).Single().Quantity == 99, "Even a zero addition reclamps a matching oversized native stack.");
         Ff7InventorySlot[] full = Enumerable.Range(0, Ff7NativeInventory.SlotCount).Select(id => new Ff7InventorySlot(id, 1)).ToArray();
-        Check(Ff7NativeInventory.Acquire(full, (1 << 9) | 400).SequenceEqual(full), "A full inventory must silently retain unmatched offers.");
+        Check(Ff7NativeInventory.Acquire(full, (1 << 9) | 400).SequenceEqual(Ff7NativeInventory.Normalize(full)), "A full inventory must silently retain unmatched offers.");
         Check(Ff7NativeInventory.Acquire(full, 1 << 9)[0].Quantity == 2, "A full inventory must still merge an existing item.");
         Check(Ff7NativeInventory.Quantity(inserted, 400) == 127 && Ff7NativeInventory.Quantity(source, 400) == 0, "Native quantity query must read all seven bits and return zero for a missing slot.");
         Check(Ff7NativeInventory.Remove(source, (3 << 9) | 0)[0].Quantity == 95 && source[0].Quantity == 98, "A partial removal must preserve the prior snapshot.");
-        Check(Ff7NativeInventory.Remove(source, (2 << 9) | 2).SequenceEqual([source[0]]), "A removal greater than the stack must clear that slot.");
-        Check(Ff7NativeInventory.Remove(source, (1 << 9) | 400).SequenceEqual(source), "A missing removal must preserve inventory.");
+        Check(Ff7NativeInventory.Remove(source, (2 << 9) | 2).SequenceEqual([normalized[0]]), "A removal greater than the stack must clear that slot.");
+        Check(Ff7NativeInventory.Remove(source, (1 << 9) | 400).SequenceEqual(normalized), "A missing removal must preserve inventory.");
         Check(Ff7NativeInventory.Remove([new(1, 0)], 1).Length == 0, "A matching zero-count native slot must retire on a zero removal.");
         InstalledContinuation();
     }

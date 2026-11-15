@@ -173,6 +173,7 @@ public sealed partial class Ff7BattleSession
         }
         FinishTurn(active.Command.ActorSlot);
         state = state with { Action = null };
+        CompleteEconomyStatusPhase();
     }
 
     private static void ValidateGuestLimitSnapshot(Ff7BattleSnapshot snapshot)

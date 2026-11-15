@@ -25,7 +25,7 @@ internal static class NativeBattleInventoryTests
         Ff7BattleInventorySlot[] slots = Ff7NativeBattleInventory.Create(source, kernel);
         Check(slots.Length == 320 && slots.Take(5).Select(slot => slot.Flags).SequenceEqual(new byte[] { 2, 0x0B, 8, 2, 0x0B }), "Working inventory lost its resource-backed restriction directory, category offsets or native flag mask.");
         Check(slots.Skip(5).All(slot => slot == new Ff7BattleInventorySlot(ushort.MaxValue, 0, 0x0B)), "Initial native inventory holes lost their sentinel or metadata.");
-        Check(source.SequenceEqual(Ff7NativeBattleInventory.Project(slots)), "Initial native inventory projection changed item order or quantities.");
+        Check(Ff7NativeInventory.Normalize(source).SequenceEqual(Ff7NativeBattleInventory.Project(slots)), "Initial native inventory projection changed item order or quantities.");
         Ff7BattleInventorySlot[] stolen = Ff7NativeBattleInventory.SelectStealable(slots, 1, out ushort item);
         Check(item == 257 && stolen[2].Quantity == 2 && stolen[0].Quantity == 99, "Theft ignored the native restriction bit or selected by quantity rather than ordered eligible slots.");
         Check(Ff7NativeBattleInventory.Spend(slots, 130)[1] == new Ff7BattleInventorySlot(ushort.MaxValue, 0, 0x0A), "Ordinary consumption incorrectly applied the theft eligibility restriction.");
@@ -42,7 +42,7 @@ internal static class NativeBattleInventoryTests
         Ff7BattleInventorySlot[] next = Ff7NativeBattleInventory.SelectStealable(first, ushort.MaxValue, out ushort nextItem);
         Check(nextItem == 70 && next[2].Quantity == 1 && next[1].ItemId == ushort.MaxValue, "A depleted native slot was counted by the next cached-roll selection.");
         Check(before == JsonSerializer.Serialize(slots), "Native inventory selection mutated its immutable source array.");
-        Check(Ff7NativeBattleInventory.Project(first).SequenceEqual(new Ff7InventorySlot[] { new(90, 99), new(70, 2) }), "Field publication sorted or retained an empty native working slot.");
+        Check(Ff7NativeBattleInventory.Project(first).SequenceEqual(new Ff7InventorySlot[] { new(90, 99, 0), new(70, 2, 2) }), "Field publication sorted or retained an empty native working slot.");
         Ff7BattleInventorySlot[] spent = Ff7NativeBattleInventory.Spend(slots, 70);
         Check(spent[2] == (slots[2] with { Quantity = 1 }) && spent[0] == slots[0], "Ordinary native item consumption did not remove exactly one selected item.");
         Check(Ff7NativeBattleInventory.Spend(slots, 10).SequenceEqual(slots), "Consuming an absent native item changed working inventory.");
@@ -86,7 +86,7 @@ internal static class NativeBattleInventoryTests
         Check(item == 20 && selected[1].Quantity == 1 && selected[0].Quantity == 0, "Theft lost an explicit native zero-quantity slot's ordered position.");
         Ff7BattleInventorySlot[] empty = Ff7NativeBattleInventory.Create([], Kernel());
         Check(Ff7NativeBattleInventory.SelectStealable(empty, ushort.MaxValue, out ushort emptyItem).SequenceEqual(empty) && emptyItem == ushort.MaxValue, "An empty working inventory fabricated an item or modulo operation.");
-        Check(Ff7NativeBattleInventory.Project(slots).SequenceEqual(new Ff7InventorySlot[] { new(10, 0), new(20, 2) }), "Publication silently discarded an explicit nonempty native item record with zero quantity.");
+        Check(Ff7NativeBattleInventory.Project(slots).SequenceEqual(new Ff7InventorySlot[] { new(10, 0, 0), new(20, 2, 1) }), "Publication silently discarded an explicit nonempty native item record with zero quantity.");
     }
 
     private static void CheckValidationAndColdRestoration()

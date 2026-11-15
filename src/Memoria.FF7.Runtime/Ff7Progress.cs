@@ -1,7 +1,7 @@
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7CharacterState(int Id, string Name, int Level, uint Experience, int HitPoints, int MagicPoints, byte[] NativeRecord);
-public sealed record Ff7InventorySlot(int ItemId, int Quantity);
+public sealed record Ff7InventorySlot(int ItemId, int Quantity, int? NativeSlot = null);
 public sealed record Ff7MateriaState(int MateriaId, uint AbilityPoints, int? NativeSlot = null);
 public sealed record Ff7RewardItem(int ItemId, int Quantity);
 public sealed record Ff7BattleReward(uint Gil, uint Experience, uint AbilityPoints, Ff7RewardItem[] Items)
@@ -78,10 +78,11 @@ public sealed record Ff7Progress
         {
             throw new InvalidDataException("FFVII character progression is invalid.");
         }
-        if (Party.Any(character => character != 255 && Characters.All(candidate => candidate.Id != Ff7NativeCharacterIdentity.RecordId(character))) || Inventory.Length > Ff7NativeInventory.SlotCount || Inventory.Any(item => item.ItemId is < 0 or > 511 || item.Quantity is < 0 or > 127 || item.ItemId == 511 && item.Quantity == 127) || Inventory.Select(item => item.ItemId).Distinct().Count() != Inventory.Length || Materia.Length > 200 || Materia.Any(materia => materia.MateriaId is < 0 or > 254 || materia.AbilityPoints > 0xFFFFFF))
+        if (Party.Any(character => character != 255 && Characters.All(candidate => candidate.Id != Ff7NativeCharacterIdentity.RecordId(character))) || Inventory.Length > Ff7NativeInventory.SlotCount || Inventory.Any(item => item is null || item.ItemId is < 0 or > 511 || item.Quantity is < 0 or > 127 || item.ItemId == 511 && item.Quantity == 127) || Inventory.Select(item => item.ItemId).Distinct().Count() != Inventory.Length || Materia.Length > 200 || Materia.Any(materia => materia.MateriaId is < 0 or > 254 || materia.AbilityPoints > 0xFFFFFF))
         {
             throw new InvalidDataException("FFVII party or inventory is invalid.");
         }
+        _ = Ff7NativeInventory.Normalize(Inventory);
         if (CompletedBattles.Any(receipt => receipt.FieldGeneration < 0 || receipt.RequestId < 1 || receipt.Reward is null) || CompletedBattles.Select(receipt => (receipt.FieldGeneration, receipt.RequestId)).Distinct().Count() != CompletedBattles.Length)
         {
             throw new InvalidDataException("FFVII battle receipts are invalid.");

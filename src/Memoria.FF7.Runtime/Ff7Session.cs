@@ -65,7 +65,7 @@ public sealed partial class Ff7Session : IDisposable
                 InitialKernelData = initial.NativeData.ToArray(),
                 Characters = initial.Characters.Select((character, slot) => new Ff7CharacterState(slot, names[slot], character.Level, character.Experience, character.CurrentHp, character.CurrentMp, character.Raw.ToArray())).ToArray(),
                 Party = session.executable.InitialParty.Select(character => (int)character).ToArray(),
-                Inventory = initial.Inventory.Where(item => item.Encoded != 0xFFFF && item.Quantity > 0).Select(item => new Ff7InventorySlot(item.ItemId, item.Quantity)).ToArray(),
+                Inventory = initial.Inventory.Select((item, index) => (item, index)).Where(value => value.item.Encoded != 0xFFFF).Select(value => new Ff7InventorySlot(value.item.ItemId, value.item.Quantity, value.index)).ToArray(),
                 Materia = initial.Materia.Where(materia => materia.MateriaId != 255).Select(materia => new Ff7MateriaState(materia.MateriaId, materia.AbilityPoints)).ToArray(),
                 Gil = initial.Gil,
                 Clock = new Ff7ClockState(),
