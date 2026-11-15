@@ -82,7 +82,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = candidate.GetActor(owner.ActorId);
         const uint callback = 0x47DE70;
         BattleNativeAction action = candidate.FindAction(BattleAbility.GuardianForce, owner.GuardianForceId).NativeAction!;
-        BattleActionPresentation entry = new(owner.ActorId, owner.ActorId, BattleActionPhase.Recovery, 0, SelectBattleTarget(actor), BattleAbility.GuardianForce, owner.GuardianForceId)
+        BattleActionPresentation entry = new(owner.ActorId, owner.ActorId, BattleActionPhase.Recovery, 1, SelectBattleTarget(actor), BattleAbility.GuardianForce, owner.GuardianForceId)
         {
             GuardianFormInvocation = new(owner.InvocationId, owner.GuardianForceId, GuardianFormInvocationMode.EntryOnly),
             NativeQueuedCommand = 254,

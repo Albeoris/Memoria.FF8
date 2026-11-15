@@ -101,11 +101,11 @@ public static class NativeBattleIfritContinuation
         frame = NativeBattleWaterFieldControl.Execute(frame, new(resource0.ArenaOffset, resource0.Length, resource0.Address), bank, 19);
         frame = WriteSlotWord(frame, 0x9C, ReadWord(0x902));
         Select(17);
-        byte caster = frame.Arena.Read(bank.SlotOffset(frame.Arena, 0) + 0x1B, 1)[0];
-        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
+        var caster = ReadCaster(frame, bank);
+        frame = WriteCaster(frame, caster);
         frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, 18, tick, CoreWord(frame, command + 0xE), CoreWord(frame, header + 0x1C)) };
         Select(18);
-        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
+        frame = WriteCaster(frame, caster);
         frame = WriteSlotWord(frame, 0x12, 0x800F);
         frame = WriteSlotWord(frame, 0x14, 0x8001);
         frame = WriteSlotDword(frame, 0, checked(resource0.Address + 0x702));
@@ -181,7 +181,7 @@ public static class NativeBattleIfritContinuation
         ushort tick = CoreWord(frame, command + 0xC);
         ushort secondaryTick = CoreWord(frame, command + 0xE);
         ushort flags = CoreWord(frame, header + 0x1C);
-        byte caster = frame.Arena.Read(bank.SlotOffset(frame.Arena, 0) + 0x1B, 1)[0];
+        var caster = ReadCaster(frame, bank);
         int postFlagTicks = Wait(ReadWord(0x14A)) + Wait(ReadWord(0x14C));
         // Only persistent source dependencies are allocated; identifiers for newly created children remain local to this invocation.
         Create(1, 0x8000, 0, 0, 0x2B0);
@@ -225,7 +225,7 @@ public static class NativeBattleIfritContinuation
             frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, index, tick, secondaryTick, flags) };
             frame = WriteCoreDword(frame, 0x27973E8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, index)));
             frame = frame.WriteTemporaryByte(0x142, checked((byte)index));
-            frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
+            frame = WriteCaster(frame, caster);
             frame = WriteSlotWord(frame, 0x12, id);
             frame = WriteSlotWord(frame, 0x14, parent);
             frame = WriteSlotWord(frame, 0x16, ancestor);
@@ -257,6 +257,25 @@ public static class NativeBattleIfritContinuation
         int ReadSigned(int offset) => unchecked((short)ReadWord(offset));
         ushort ReadWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(resource0.ArenaOffset + offset, 2));
         static int Wait(ushort instruction) => instruction >> 9;
+    }
+
+    private static (BattleExecutionReference.Model Model, byte Data, bool Known) ReadCaster(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank)
+    {
+        int offset = bank.SlotOffset(frame.Arena, 0) + 0x1B;
+        BattleExecutionReference.Model model = frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(offset, 1);
+        var projection = frame.Arena.ReadSnapshot(offset, 1);
+        return (model, projection.Data[0], projection.Known[0]);
+    }
+
+    private static NativeBattleWaterExecutionFrame WriteCaster(NativeBattleWaterExecutionFrame frame, (BattleExecutionReference.Model Model, byte Data, bool Known) caster)
+    {
+        int offset = SlotOffset(frame, 0x1B, 1);
+        NativeBattleEffectArena arena = frame.Arena;
+        if (!caster.Known)
+        {
+            arena = arena.Write(offset, [caster.Data]);
+        }
+        return frame with { Arena = arena.WriteExecutionReference(offset, 1, caster.Model, caster.Known ? [caster.Data] : null) };
     }
 
     public static NativeBattleWaterExecutionFrame InitializeModelDependency(NativeBattleWaterExecutionFrame frame, NativeBattleWaterInitializationResource resource0, NativeBattleWaterInitializationResource resource1, NativeBattleCinematicModelServices services, int modelSlot = 17)

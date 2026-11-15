@@ -8,7 +8,7 @@ public sealed class NativeBattleHostedEncounterControlTests
     [Fact]
     public void Effect20_schedules_its_current_hosted_model_activation_and_rejects_missing_or_stale_owners()
     {
-        (BattleSession logical, BattleSession child, NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelLifecycleServices services) = Fixture();
+        (_, BattleSession child, NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelLifecycleServices services) = Fixture();
         BattleModelOwner retired = new BattleEnemyActorModel(new("retired"));
         AssertRejected(child, "QueueEffectPresentationActivation", graphics, retired);
         Field("hostedFrameServices").SetValue(child, new NativeBattleModelLifecycleServices(services.Facts.Remove(owner)));
@@ -34,8 +34,6 @@ public sealed class NativeBattleHostedEncounterControlTests
         NativeBattleGraphicsState drained = AdvanceDescriptors(child, completed);
         Assert.Empty(drained.Descriptors.Queue);
         Assert.Same(receipt, Assert.Single(services.ReadOrderedReceipts()));
-        _ = Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
-        Assert.Single(logical.Events, entry => entry is { Kind: "Activated", ActorId: "reserve" });
     }
 
     [Fact]

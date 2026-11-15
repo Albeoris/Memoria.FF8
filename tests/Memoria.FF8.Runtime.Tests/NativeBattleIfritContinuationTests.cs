@@ -1,16 +1,19 @@
 using System.Buffers.Binary;
-using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleIfritContinuationTests
 {
     [Theory]
-    [InlineData(512, -62)]
-    [InlineData(2048, 52)]
-    public void Scene_dependencies_derive_motion_from_source_operands_without_advancing_random_or_callbacks(ushort acceleration, int expectedCameraAngle)
+    [InlineData(512, -62, true)]
+    [InlineData(2048, 52, true)]
+    [InlineData(512, -62, false)]
+    public void Scene_dependencies_derive_motion_from_source_operands_without_advancing_random_or_callbacks(ushort acceleration, int expectedCameraAngle, bool originalProjection)
     {
-        NativeBattleWaterExecutionFrame input = Fixture(acceleration);
+        BattleModelOwner caster = originalProjection ? OriginalOwner(6) : new BattlePartyActorModel(new("added-caster"));
+        NativeBattleWaterExecutionFrame input = Fixture(acceleration, caster, originalProjection);
+        NativeBattleWaterExecutionFrame independent = NativeBattleTestSnapshots.Independent(input);
         NativeBattleWaterInitializationResource first = new(0x1000, 0x1000, NativeBattleEffectNodeMemory.ArenaAddress + 0x1000);
         NativeBattleWaterInitializationResource second = new(0x2000, 0x10000, NativeBattleEffectNodeMemory.ArenaAddress + 0x2000);
         NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame) => NativeBattleIfritContinuation.InitializeSceneDependencies(frame, first, second, NativeBattleEffectNodeMemory.ArenaAddress + 0x70000);
@@ -22,13 +25,37 @@ public sealed class NativeBattleIfritContinuationTests
         Assert.Equal(32 << 16, unchecked((int)WaterSchedulerFixture.ReadSlotDword(result, 7, 0x60)));
         Assert.Equal(48 << 16, unchecked((int)WaterSchedulerFixture.ReadSlotDword(result, 15, 0x60)));
         Assert.Equal((ushort)(7 * 128), WaterSchedulerFixture.ReadSlotWord(result, 4, 0xC));
-        Assert.Equal((ushort)6, (ushort)(WaterSchedulerFixture.ReadSlotDword(result, 5, 0x18) >> 24));
+        if (originalProjection)
+        {
+            Assert.Equal((ushort)6, (ushort)(WaterSchedulerFixture.ReadSlotDword(result, 5, 0x18) >> 24));
+        }
         Assert.Equal(first.Address + 0x90Cu, WaterSchedulerFixture.ReadSlotDword(result, 19, 0));
         Assert.Equal(first.Address + 0x92Eu, WaterSchedulerFixture.ReadSlotDword(result, 19, 4));
         Assert.Equal((ushort)0x800E, WaterSchedulerFixture.ReadSlotWord(result, 19, 0x14));
         Assert.Equal(input.Random, result.Random);
         Assert.Equal(input.ReadTemporaryByte(0x145), result.ReadTemporaryByte(0x145));
-        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(input))!)));
+        NativeBattleWaterExecutionFrame resumed = Run(independent);
+        NativeBattleWaterExecutionFrame resultSnapshot = NativeBattleStorageSnapshots.Capture(result);
+        NativeBattleWaterExecutionFrame resumedSnapshot = NativeBattleStorageSnapshots.Capture(resumed);
+        Assert.Equivalent(resultSnapshot.Core.Core.Regions.ToArray(), resumedSnapshot.Core.Core.Regions.ToArray(), strict: true);
+        Assert.Equivalent(resultSnapshot.Core.Core.UnknownRegions.ToArray(), resumedSnapshot.Core.Core.UnknownRegions.ToArray(), strict: true);
+        Assert.Equivalent(resultSnapshot.Arena.Regions.ToArray(), resumedSnapshot.Arena.Regions.ToArray(), strict: true);
+        Assert.Equivalent(resultSnapshot.Arena.UnknownRegions.ToArray(), resumedSnapshot.Arena.UnknownRegions.ToArray(), strict: true);
+        Assert.Equal(resultSnapshot.TemporaryFrame.Address, resumedSnapshot.TemporaryFrame.Address);
+        Assert.Equal(resultSnapshot.TemporaryFrame.Bytes.ToArray(), resumedSnapshot.TemporaryFrame.Bytes.ToArray());
+        Assert.Equal(resultSnapshot.TemporaryFrame.Known.ToArray(), resumedSnapshot.TemporaryFrame.Known.ToArray());
+        Assert.Equal(result.Random, resumed.Random);
+        foreach (int index in new[] { 1, 2, 3, 4, 5, 6, 7, 8, 14, 15, 19 })
+        {
+            int offset = 0x2000 + index * 0x100 + 0x1B;
+            Assert.Equal(caster, result.Arena.ReadExecutionReference<BattleExecutionReference.Model>(offset, 1).Owner);
+            Assert.Equal(caster, resumed.Arena.ReadExecutionReference<BattleExecutionReference.Model>(offset, 1).Owner);
+            var projection = result.Arena.ReadSnapshot(offset, 1);
+            Assert.Equal((byte)6, projection.Data[0]);
+            Assert.Equal(originalProjection, projection.Known[0]);
+            Assert.Equal(projection.Data, resumed.Arena.ReadSnapshot(offset, 1).Data);
+            Assert.Equal(projection.Known, resumed.Arena.ReadSnapshot(offset, 1).Known);
+        }
     }
 
     [Theory]
@@ -67,7 +94,7 @@ public sealed class NativeBattleIfritContinuationTests
 
     private static NativeBattleWaterExecutionFrame InitializationFixture()
     {
-        NativeBattleWaterExecutionFrame frame = Fixture(512);
+        NativeBattleWaterExecutionFrame frame = Fixture(512, OriginalOwner(6), originalProjection: true);
         byte[] source = new byte[0x2000];
         frame.Arena.Read(0x1000, 0x1000).CopyTo(source, 0);
         foreach ((int offset, ushort instruction) in new (int, ushort)[]
@@ -85,7 +112,7 @@ public sealed class NativeBattleIfritContinuationTests
         return frame with { Arena = frame.Arena.Write(0x10000, source) };
     }
 
-    private static NativeBattleWaterExecutionFrame Fixture(ushort acceleration)
+    private static NativeBattleWaterExecutionFrame Fixture(ushort acceleration, BattleModelOwner caster, bool originalProjection)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         frame = WaterSchedulerFixture.CoreDword(frame, 0x27973C0, 0x2797628);
@@ -94,6 +121,7 @@ public sealed class NativeBattleIfritContinuationTests
         frame = WaterSchedulerFixture.CoreWord(frame, 0x2797634, 128);
         frame = WaterSchedulerFixture.CoreWord(frame, 0x2797636, 1024);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0x18, 0x06000000);
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(0x201B, 1, new BattleExecutionReference.Model(caster), originalProjection ? OriginalAliases.EncodeOperand(caster, 1) : null) };
         byte[] source = new byte[0x1000];
         Word(0xFE, 0x21);
         Word(0x106, 0x1021);

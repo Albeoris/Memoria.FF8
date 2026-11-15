@@ -113,9 +113,16 @@ public sealed class ExpandedHostedRenzokukenTests
             {
                 Assert.Null(process.Graphics.ActorModels.Get(companion).ResourceRenzokukenTargetBank);
             }
-            BattleCombatant next = battle.Combatants.First(IsAvailableEnemy);
-            AttackAndDrain(world, battle, process, caster, next);
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            if (magic == 337)
+            {
+                VerifyDefeatContinuation(world, battle, process, caster, target, initialEvent);
+            }
+            else
+            {
+                BattleCombatant next = battle.Combatants.First(IsAvailableEnemy);
+                AttackAndDrain(world, battle, process, caster, next);
+                Assert.Same(process, battle.ExpandedPresentationProcess);
+            }
 
             void VerifyRestoredModel(BattleModelOwner owner, int? original)
             {
@@ -499,6 +506,37 @@ public sealed class ExpandedHostedRenzokukenTests
     private static bool IsIdle(BattleSession battle, ExpandedBattlePresentationProcess process)
     {
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && process.ActiveActionToken is null && process.IsControlPrefixRetired;
+    }
+
+    private static void VerifyDefeatContinuation(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleCombatant attacker, int initialEvent)
+    {
+        Assert.Equal("native-allocation-10", attacker.Id);
+        BattleEvent damage = Assert.Single(battle.Events.Skip(initialEvent), entry => entry.Kind == "Damage" && entry.ActorId == attacker.Id && entry.TargetId == caster.Id);
+        Assert.True(damage.Amount > 0);
+        Assert.Single(battle.Events.Skip(initialEvent), entry => entry.Kind == "Defeated" && entry.ActorId == attacker.Id && entry.TargetId == caster.Id);
+        Assert.Equal(0, caster.CurrentHp);
+        Assert.False(caster.IsAlive);
+
+        bool sawFade = false;
+        for (int callback = 0; callback < CallbackBudget && world.Battle is not null; callback++)
+        {
+            Assert.Same(process, battle.ExpandedPresentationProcess);
+            sawFade |= process.Graphics.NativeOutcome?.FadeDurationB0C is > 0 and < 255;
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.True(sawFade);
+        Assert.Equal(BattleOutcome.Defeat, battle.Outcome);
+        Assert.Equal((byte)1, process.Graphics.NativeOutcome?.ResultByte6E7);
+        Assert.Equal((byte)0, process.Graphics.NativeOutcome?.FadeDurationB0C);
+        Assert.Single(battle.Events.Skip(initialEvent), entry => entry.Kind == "Outcome");
+        Assert.Null(world.Battle);
+        Assert.Equal(75, world.Field?.Id);
+        BattleRewardSummary rewards = Assert.IsType<BattleRewardSummary>(world.LastBattleRewards);
+        Assert.Empty(rewards.CharacterExperience);
+        Assert.Empty(rewards.GuardianForceExperience);
+        Assert.Empty(rewards.GuardianForceAbilityPoints);
+        Assert.Empty(rewards.Items);
+        Assert.Empty(rewards.Cards);
     }
 
     private static void AttackAndDrain(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleCombatant target)
