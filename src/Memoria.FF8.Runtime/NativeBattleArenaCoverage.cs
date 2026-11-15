@@ -134,13 +134,27 @@ internal sealed class NativeBattleArenaCoverage : INativeBattleCheckpointPartici
             return;
         }
         int end = checked(offset + length);
-        for (int index = 0; index < Ranges.Count; index++)
+        if (Ranges.Count == 0 || Ranges[^1].End <= offset || Ranges[0].Offset >= end)
+        {
+            return;
+        }
+        int first = 0;
+        int last = Ranges.Count;
+        while (first < last)
+        {
+            int middle = first + (last - first) / 2;
+            if (Ranges[middle].End <= offset)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                last = middle;
+            }
+        }
+        for (int index = first; index < Ranges.Count && Ranges[index].Offset < end; index++)
         {
             var range = Ranges[index];
-            if (range.End <= offset || range.Offset >= end)
-            {
-                continue;
-            }
             if (range.Offset < offset && range.End > end)
             {
                 Set(index, (range.Offset, offset));

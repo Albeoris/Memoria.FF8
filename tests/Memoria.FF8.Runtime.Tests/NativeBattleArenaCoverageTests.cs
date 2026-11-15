@@ -90,6 +90,26 @@ public sealed class NativeBattleArenaCoverageTests
     }
 
     [Fact]
+    public void Removal_preserves_touching_gaps_and_can_rollback_a_middle_write()
+    {
+        NativeBattleArenaCoverage coverage = new();
+        coverage.Add(0, 4);
+        coverage.Add(6, 4);
+        coverage.Add(12, 4);
+        coverage.Add(20, 4);
+        var original = coverage.Ranges.ToArray();
+        coverage.Remove(4, 2);
+        coverage.Remove(24, 8);
+        Assert.Equal(original, coverage.Ranges);
+
+        coverage.BeginCheckpoint();
+        coverage.Remove(7, 14);
+        Assert.Equal(new[] { (0, 4), (6, 7), (21, 24) }, coverage.Ranges);
+        coverage.RollbackCheckpoint();
+        Assert.Equal(original, coverage.Ranges);
+    }
+
+    [Fact]
     public void Reservation_capacity_failure_precedes_range_mutation_and_checkpoint_can_continue()
     {
         NativeBattleArenaCoverage coverage = new();
