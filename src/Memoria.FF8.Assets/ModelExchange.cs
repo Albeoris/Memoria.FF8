@@ -81,7 +81,8 @@ public static partial class ModelExchange
             {
                 AddFace(vertices, indices, face.Vertices.Take(face.Quad ? 4 : 3).Select((index, corner) => Vertex(model.Vertices[index].Position, model.Vertices[index].Bone, face.TextureCoordinates[corner] / ResourceTextureList.LogicalSize(model.Textures, face.Texture), face.VertexColors?[corner] ?? Vector4.One, bind)).ToArray());
             }
-            meshes.Add(new EditableMesh($"mesh_{meshes.Count}", vertices, indices, group.Key.Texture, Matrix4x4.Identity) { Skinned = bones.Length != 0, Transparent = group.Key.Transparent });
+            // Native opaque field polygons discard zero texels without enabling primitive transparency.
+            meshes.Add(new EditableMesh($"mesh_{meshes.Count}", vertices, indices, group.Key.Texture, Matrix4x4.Identity) { Skinned = bones.Length != 0, Transparent = group.Key.Transparent, AlphaCutoff = group.Key.Transparent ? null : 1f / 255 });
         }
         EditableAnimation[] animations = model.Animations.Select((animation, index) => Animation($"animation_{index}", bones, animation.Frames.Count, (bone, frame) =>
         {
