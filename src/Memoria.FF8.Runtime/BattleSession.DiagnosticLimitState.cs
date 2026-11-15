@@ -60,8 +60,11 @@ public sealed partial class BattleSession
 
     private ushort ReadDiagnosticOriginalTargetWord(BattleTargetRequest request)
     {
-        return !UsesExpandedRoster && NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot) is ushort word
-            ? word
-            : throw new InvalidOperationException("The original Limit diagnostic requires its physical target WORD.");
+        if (UsesExpandedRoster && (request.Selection is not BattleTargetSelection.Explicit selected || selected.Actors.Any(actor => ReadOriginalTargetSlot(actor) is null)))
+        {
+            throw new InvalidOperationException("The expanded Limit diagnostic requires explicit targets with actual physical aliases.");
+        }
+        return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot)
+            ?? throw new InvalidOperationException("The original Limit diagnostic requires its physical target WORD.");
     }
 }

@@ -18,7 +18,7 @@ internal sealed record DiagnosticBattleRoster([property: JsonRequired] Immutable
             Donors.Select(source => (source.Formation, source.SceneSlot)).Distinct().Count() != Donors.Length ||
             OriginalSceneSlot is < 0 or >= ExpandedBattleFormation.OriginalEnemyPrototypeCount)
         {
-            throw new InvalidDataException("Diagnostic roster requires distinct installed donor placements and at most one original enemy.");
+            throw new InvalidDataException("Diagnostic roster requires distinct installed donor placements and one declared active original enemy.");
         }
         foreach (BattleEnemyRosterSource source in Donors)
         {

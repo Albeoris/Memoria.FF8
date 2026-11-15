@@ -431,7 +431,8 @@ internal sealed class DiagnosticBattleDriver
             return false;
         }
         previousCallback = observation.Callback;
-        if (observation.Terminal && (recipe.FreshEntry is null || Stage is not (DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) || currentFocalDispatch is null))
+        bool singleNativeInvocation = recipe.FreshEntry is not null || recipe.IndependentRosterEntry || recipe.EnemyTrigger is not null;
+        if (observation.Terminal && (!singleNativeInvocation || Stage is not (DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) || currentFocalDispatch is null))
         {
             Fail("REPEAT_PRECONDITION_UNSATISFIED");
             return false;
