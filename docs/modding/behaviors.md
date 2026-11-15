@@ -46,7 +46,7 @@ The writable package's `config.json` contains only user value overrides:
 }
 ```
 
-Open **Mods > Memoria** and expand **Battle** to enable Meltdown and adjust both percentages. Save applies the draft and Cancel discards it. User-installed behavior packages expose their own settings through the Mods catalog. Both parameters have engine hard limits of 0 through 100. A descriptor can narrow the range and choose an integer step. `slider` and `%` are the supported control and unit for percentage settings. Nonempty labels and descriptions, ordered bounds, and aligned defaults and overrides are validated before publication. Unknown or duplicate fields, fractional values and unsupported controls are rejected.
+Open **Mods > Memoria** and expand **Battle** to enable Meltdown and adjust both percentages. Changes are saved and applied as you edit. Back returns to the Mods catalog. User-installed behavior packages expose their own settings through the Mods catalog. Both parameters have engine hard limits of 0 through 100. A descriptor can narrow the range and choose an integer step. `slider` and `%` are the supported control and unit for percentage settings. Nonempty labels and descriptions, ordered bounds, and aligned defaults and overrides are validated before publication. Unknown or duplicate fields, fractional values and unsupported controls are rejected.
 
 The shipped defaults reduce Vitality by 50% and Spirit by 25%. Each current resolved stat uses `floor(stat * (100 - reductionPercent) / 100)`. The two stats are independent: zero keeps that stat unchanged, and 100 reduces it to zero. Existing stat/resource modifications therefore compose before the reduction. Physical damage uses the Vitality percentage; magical damage and magical status resistance use the Spirit percentage. Smart Attack forecasts use the same rules and give no status priority when neither stat would benefit.
 
@@ -77,7 +77,7 @@ Each numeric behavior parameter and the selected status-name binding has one act
 
 The built-in components appear under one **Memoria** entry with the silver Griever crest. Its settings group the components into collapsible categories. Bundled defaults live in `Data/BundledMods/Memoria` with the same resource paths and precedence. Choices saved through the Memoria settings live in `Mods/Memoria/memoria-settings.json` and take precedence over the corresponding older package preferences. Existing package preferences still supply values for settings you have yet to change in Memoria.
 
-**Girl Next Door** is enabled by default. To turn it off, go to **Mods > Memoria > Items**. Opening the magazine from the FFVIII Item menu displays the cover at its original aspect ratio and preserves the item quantity. Cancel returns to inventory.
+**Girl Next Door** is enabled by default. To turn it off, go to **Mods > Memoria > Items**. Opening the magazine from the FFVIII Item menu displays the cover at its original aspect ratio on a black background and preserves the item quantity. Cancel returns to inventory.
 
 Under **FFVII**, the FFVII Enemy Integration toggle controls availability of the bundled enemy extensions. The campaign's **Automatic** preference requires the extensions after a transition from FFVIII and locks this component for that segment. Outside that rule, the saved component toggle and campaign preference determine availability for the next encounter.
 

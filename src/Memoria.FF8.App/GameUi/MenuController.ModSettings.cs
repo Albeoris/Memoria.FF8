@@ -6,8 +6,7 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private string? modSettingsPackageId;
-    private BehaviorModSetting[] modSettingsOriginal = [];
-    private BehaviorModSetting[] modSettingsDraft = [];
+    private BehaviorModSetting[] modSettings = [];
     private IGrouping<string, int>[] modSettingsCategories = [];
     private readonly HashSet<string> modSettingsExpanded = new(StringComparer.Ordinal);
     private readonly Dictionary<int, bool> modSettingsComponentExpansion = [];
@@ -33,7 +32,7 @@ public sealed partial class MenuController
         {
             Id = "mod-settings",
             Title = packageName is null ? SystemText("mods.settings.screen-title", "Mods · Settings") : FormatSystemText("mods.settings.package-title", "Mods · {0} · Settings", packageName),
-            Help = SystemText("mods.settings.help", "Adjust the draft, then choose Save. Cancel discards your changes."),
+            Help = SystemText("mods.settings.auto-apply", "Changes are applied automatically."),
             Entries = _ => ModSettingsRows().Select(row => row.Entry).ToArray(),
             BuildContent = (_, root) =>
             {
@@ -77,10 +76,10 @@ public sealed partial class MenuController
                 }
             }
             int depth = category.Key.Length > 0 ? 1 : 0;
-            var children = category.Where(index => modSettingsDraft[index].ParentComponent is not null).ToLookup(index => modSettingsDraft[index].ParentComponent, StringComparer.Ordinal);
+            var children = category.Where(index => modSettings[index].ParentComponent is not null).ToLookup(index => modSettings[index].ParentComponent, StringComparer.Ordinal);
             foreach (int settingIndex in category)
             {
-                BehaviorModSetting setting = modSettingsDraft[settingIndex];
+                BehaviorModSetting setting = modSettings[settingIndex];
                 if (setting.ParentComponent is not null)
                 {
                     continue;
@@ -93,15 +92,12 @@ public sealed partial class MenuController
                 }
             }
         }
-        bool canSave = modSettingsDraft.Any(setting => ModSettingLockReason(setting) is null);
-        rows.Add(new(new("save", SystemText("mods.settings.save", "Save"), "", Action: new("mod-settings-save"), Enabled: canSave)));
-        rows.Add(new(new("cancel", SystemText("mods.settings.cancel", "Cancel"), "", Action: new("menu-back"))));
         return rows;
     }
 
     private ModSettingsRow ModSettingRow(int index, int depth, bool? expanded = null)
     {
-        BehaviorModSetting setting = modSettingsDraft[index];
+        BehaviorModSetting setting = modSettings[index];
         string? lockReason = ModSettingLockReason(setting);
         string description = ModSettingDescription(setting);
         string help = lockReason is null ? description : string.IsNullOrWhiteSpace(description) ? lockReason : lockReason + "\n" + description;
@@ -126,16 +122,33 @@ public sealed partial class MenuController
         }
     }
 
-    private void ChangeModSettingsDraft(int index, int value, bool expandable = false)
+    private void ApplyModSetting(int index, int value, bool expandable = false)
     {
-        BehaviorModSetting setting = modSettingsDraft[index];
-        if (ModSettingLockReason(setting) is null)
+        if (modService is null || modSettingsPackageId is null)
         {
-            modSettingsDraft[index] = setting with { Value = Math.Clamp(value, setting.Min, setting.Max) };
-            if (expandable)
-            {
-                SetModSettingsComponentExpanded(index, value != 0);
-            }
+            return;
+        }
+        BehaviorModSetting setting = modSettings[index];
+        if (setting.Value == value)
+        {
+            return;
+        }
+        ModOperationResult result = modService.SetBehaviorSetting(modSettingsPackageId, setting.Behavior, setting.Parameter, value);
+        if (!result.Success)
+        {
+            Message = result.Error ?? SystemText("mods.settings.save-failed", "The mod settings could not be saved.");
+            _view = null;
+            return;
+        }
+        modSettings[index] = setting with { Value = value };
+        if (Message.Length > 0)
+        {
+            Message = "";
+            _view = null;
+        }
+        if (expandable)
+        {
+            SetModSettingsComponentExpanded(index, value != 0);
         }
     }
 
@@ -236,12 +249,11 @@ public sealed partial class MenuController
             string? packageId = action.SubjectId.Length > 0 ? action.SubjectId : selectedModId;
             if (packageId is not null && modService is not null)
             {
-                modSettingsOriginal = modService.ReadBehaviorSettings(packageId).ToArray();
-                modSettingsDraft = (BehaviorModSetting[])modSettingsOriginal.Clone();
-                if (modSettingsDraft.Length > 0)
+                modSettings = modService.ReadBehaviorSettings(packageId).ToArray();
+                if (modSettings.Length > 0)
                 {
                     modSettingsPackageId = packageId;
-                    modSettingsCategories = Enumerable.Range(0, modSettingsDraft.Length).GroupBy(index => modSettingsDraft[index].Category, StringComparer.Ordinal).ToArray();
+                    modSettingsCategories = Enumerable.Range(0, modSettings.Length).GroupBy(index => modSettings[index].Category, StringComparer.Ordinal).ToArray();
                     modSettingsExpanded.Clear();
                     modSettingsComponentExpansion.Clear();
                     modSettingsScrollOffset = 0;
@@ -251,31 +263,7 @@ public sealed partial class MenuController
             }
             return true;
         }
-        if (action.Kind != "mod-settings-save")
-        {
-            return false;
-        }
-        if (ScreenId != "mod-settings" || modService is null || modSettingsPackageId is null)
-        {
-            return true;
-        }
-        if (modSettingsDraft.All(setting => ModSettingLockReason(setting) is not null))
-        {
-            return true;
-        }
-        BehaviorModSetting[] changes = modSettingsDraft.Where((setting, index) => setting.Value != modSettingsOriginal[index].Value && ModSettingLockReason(setting) is null).ToArray();
-        if (changes.Length > 0)
-        {
-            ModOperationResult result = modService.SetBehaviorSettings(modSettingsPackageId, changes);
-            if (!result.Success)
-            {
-                Message = result.Error ?? SystemText("mods.settings.save-failed", "The mod settings could not be saved.");
-                _view = null;
-                return true;
-            }
-        }
-        Back();
-        return true;
+        return false;
     }
 
     private sealed record ModSettingsRow(MenuEntry Entry, int? SettingIndex = null, int Depth = 0, bool? Expanded = null);

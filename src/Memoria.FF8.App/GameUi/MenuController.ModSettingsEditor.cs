@@ -11,8 +11,6 @@ public sealed partial class MenuController
         private readonly UiGrid options;
         private readonly UiLabel title;
         private readonly UiLabel help;
-        private readonly UiButton save;
-        private readonly UiButton cancel;
         private readonly List<UiElement> navigationControls = [];
 
         internal IEnumerable<UiElement> NavigationControls => navigationControls;
@@ -34,7 +32,7 @@ public sealed partial class MenuController
             Scroll.Children.Add(options);
             Children.Add(title);
             Children.Add(Scroll);
-            for (int index = 0; index < rows.Count - 2; index++)
+            for (int index = 0; index < rows.Count; index++)
             {
                 ModSettingsRow row = rows[index];
                 UiElement control;
@@ -54,29 +52,23 @@ public sealed partial class MenuController
                 Place(options, item, index);
                 options.RowDefinitions.Add(row.SettingIndex.HasValue ? UiGridLength.Auto : UiGridLength.Pixel(32 * scale));
             }
-            save = ActionButton(rows[^2].Entry, rows.Count - 2);
-            cancel = ActionButton(rows[^1].Entry, rows.Count - 1);
-            TrackControl(save, rows.Count - 2);
-            TrackControl(cancel, rows.Count - 1);
             string helpText = menus.Message.Length > 0 ? menus.Message : menus.CurrentScreen.Help;
-            if (!save.Enabled && menus.Message.Length == 0)
+            if (menus.Message.Length == 0 && menus.modSettings.All(setting => menus.ModSettingLockReason(setting) is not null))
             {
-                helpText = menus.modSettingsDraft.Select(menus.ModSettingLockReason).FirstOrDefault(reason => reason is not null) ?? helpText;
+                helpText = menus.modSettings.Select(menus.ModSettingLockReason).FirstOrDefault() ?? helpText;
             }
             help = menus.Label(helpText, 15, UiTextFlow.Wrap);
             help.Id = "mod-settings-help";
             help.Muted = true;
-            Children.Add(save);
-            Children.Add(cancel);
             Children.Add(help);
         }
 
-        private UiButton ActionButton(MenuEntry entry, int index, string? text = null)
+        private UiButton ActionButton(MenuEntry entry, int index, string text)
         {
             return new UiButton
             {
                 Id = entry.Id,
-                Text = text ?? entry.Label,
+                Text = text,
                 Enabled = entry.Enabled,
                 TextInset = 16,
                 FontSize = 17 * menus.TextScale,
@@ -93,7 +85,7 @@ public sealed partial class MenuController
         private UiElement SettingControl(ModSettingsRow row, int index)
         {
             MenuEntry entry = row.Entry;
-            BehaviorModSetting setting = menus.modSettingsDraft[index];
+            BehaviorModSetting setting = menus.modSettings[index];
             float scale = menus.TextScale;
             if (setting.Control == "toggle")
             {
@@ -114,7 +106,7 @@ public sealed partial class MenuController
                     Enabled = entry.Enabled || row.Expanded.HasValue,
                     ReadOnly = !entry.Enabled,
                     DrawBackground = row.Expanded.HasValue,
-                    ValueChanged = value => menus.ChangeModSettingsDraft(index, value ? 1 : 0, row.Expanded.HasValue)
+                    ValueChanged = value => menus.ApplyModSetting(index, value ? 1 : 0, row.Expanded.HasValue)
                 };
             }
             return new UiNumericSlider
@@ -132,7 +124,7 @@ public sealed partial class MenuController
                 PointerSize = 12 * scale,
                 ValueWidth = 72 * scale,
                 LabelWidthRatio = 0.52f,
-                ValueChanged = value => menus.ChangeModSettingsDraft(index, (int)value)
+                ValueChanged = value => menus.ApplyModSetting(index, (int)value)
             };
         }
 
@@ -168,19 +160,13 @@ public sealed partial class MenuController
             float top = bounds.Y + 10;
             float gap = 8;
             float titleHeight = 36 * scale;
-            float buttonHeight = 32 * scale;
             title.Arrange(new UiRect(x, top, width, titleHeight));
             top += titleHeight + gap;
 
             float helpHeight = help.Measure(new UiSize(width, bounds.Height / 4)).Height;
             float helpTop = Math.Max(top, bounds.Bottom - 10 - helpHeight);
             help.Arrange(new UiRect(x, helpTop, width, helpHeight));
-            float buttonTop = Math.Max(top, helpTop - buttonHeight - gap);
-            float buttonWidth = Math.Max(0, Math.Min(145 * scale, (width - gap) / 2));
-            save.Arrange(new UiRect(x + width - 2 * buttonWidth - gap, buttonTop, buttonWidth, buttonHeight));
-            cancel.Arrange(new UiRect(x + width - buttonWidth, buttonTop, buttonWidth, buttonHeight));
-
-            float viewportHeight = Math.Max(0, buttonTop - gap - top);
+            float viewportHeight = Math.Max(0, helpTop - gap - top);
             float offset = menus.modSettingsScrollOffset;
             float contentHeight = options.Measure(new UiSize(width, float.MaxValue)).Height;
             if (contentHeight > viewportHeight)

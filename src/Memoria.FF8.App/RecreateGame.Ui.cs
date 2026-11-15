@@ -935,10 +935,7 @@ internal sealed partial class RecreateGame
         SynchronizeMenuPresentation();
         if (gameMenus?.IsOpen == true && uiCanvas is not null)
         {
-            if (!gameMenus.IsBookOpen)
-            {
-                batch.Draw(pixel, bounds, Color.Black);
-            }
+            batch.Draw(pixel, bounds, Color.Black);
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas, gameMenus.CreateTheme());

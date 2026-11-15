@@ -10,7 +10,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
     private const string PackageId = "Memoria/Balance";
 
     [Fact]
-    public void SliderStagesKeyboardChangesAndCancelRestoresSavedValue()
+    public void KeyboardChangesApplyImmediatelyAndSurviveGoingBack()
     {
         using ModRuntime runtime = Runtime();
         MenuController menu = Menu(runtime);
@@ -36,61 +36,69 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.Contains("5%", description);
         menu.Navigate(MenuInput.Right);
         Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
-        Assert.Equal(50, runtime.ReadBehaviorSettings(PackageId)[0].Value);
+        Assert.Equal(51, runtime.ReadBehaviorSettings(PackageId)[0].Value);
         menu.Navigate(MenuInput.Down);
         menu.Navigate(MenuInput.Right);
         Assert.Equal(30, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
+        Assert.Equal(30, runtime.ReadBehaviorSettings(PackageId)[1].Value);
         menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("mods", menu.ScreenId);
         menu.Execute(new("mod-settings-open"));
-        Assert.Equal(25, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
-        Assert.Equal(50, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
-        Assert.False(runtime.IsReloadPending);
+        Assert.Equal(30, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
+        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
+        Assert.True(runtime.IsReloadPending);
     }
 
     [Fact]
-    public void PointerDraftAndControllerSavePersistOnlyOnSave()
+    public void PointerChangesPersistAndNavigationStaysOnSettings()
     {
         using ModRuntime runtime = Runtime();
         MenuController menu = Menu(runtime);
         menu.Execute(new("mod-settings-open"));
         UiNumericSlider slider = Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0"));
         slider.Pointer(slider.Bounds.X + slider.Bounds.Width * 0.72f, slider.Bounds.Y + slider.Bounds.Height / 2);
-        int draft = (int)Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value;
-        Assert.NotEqual(50, draft);
-        Assert.Equal(50, runtime.ReadBehaviorSettings(PackageId)[0].Value);
+        int value = (int)Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value;
+        Assert.NotEqual(50, value);
+        Assert.Equal(value, runtime.ReadBehaviorSettings(PackageId)[0].Value);
         menu.Navigate(MenuInput.Down);
         Assert.Equal("mod-setting-1", menu.SelectedEntry?.Id);
         menu.Navigate(MenuInput.Right);
         Assert.Equal(30, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
         menu.Navigate(MenuInput.Down);
-        Assert.Equal("save", menu.SelectedEntry?.Id);
-        menu.Navigate(MenuInput.Confirm);
-        Assert.Equal("mods", menu.ScreenId);
-        Assert.Equal(draft, runtime.ReadBehaviorSettings(PackageId)[0].Value);
+        Assert.Equal("mod-setting-1", menu.SelectedEntry?.Id);
+        Assert.Equal("mod-settings", menu.ScreenId);
+        Assert.DoesNotContain(Descendants(menu.BuildView().Root), element => element.Id is "save" or "cancel");
         Assert.Equal(30, runtime.ReadBehaviorSettings(PackageId)[1].Value);
         Assert.True(runtime.IsReloadPending);
         Assert.True(File.Exists(Path.Combine(root, "Mods/Memoria/Balance/config.json")));
         Assert.False(File.Exists(Path.Combine(root, "BundledMods/Memoria/Balance/config.json")));
+        using ModRuntime reopened = new(root, watch: false, debounce: TimeSpan.Zero);
+        Assert.True(reopened.PreparePending(force: true));
+        Assert.True(reopened.CommitPending());
+        Assert.Equal(new[] { value, 30 }, reopened.ReadBehaviorSettings(PackageId).Select(setting => setting.Value));
     }
 
     [Fact]
-    public void FailedSaveKeepsDraftAndShowsError()
+    public void FailedChangeKeepsSavedValueAndShowsErrorUntilRetrySucceeds()
     {
         using ModRuntime runtime = Runtime();
         MenuController menu = Menu(runtime);
         menu.Execute(new("mod-settings-open"));
-        menu.Navigate(MenuInput.Right);
         string config = Path.Combine(root, "Mods/Memoria/Balance/config.json");
         Directory.CreateDirectory(config);
-        menu.Execute(new("mod-settings-save"));
+        menu.Navigate(MenuInput.Right);
         Assert.Equal("mod-settings", menu.ScreenId);
         Assert.NotEmpty(menu.Message);
-        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
+        Assert.Equal(50, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
         Assert.False(runtime.IsReloadPending);
+        Directory.Delete(config);
+        menu.Navigate(MenuInput.Right);
+        Assert.Empty(menu.Message);
+        Assert.Equal(51, runtime.ReadBehaviorSettings(PackageId)[0].Value);
     }
 
     [Fact]
-    public void LockedOptionsExplainHardcoreAndRejectPointerKeyboardAndSaveWrites()
+    public void LockedOptionsExplainHardcoreAndRejectPointerAndKeyboardWrites()
     {
         using ModRuntime runtime = Runtime();
         LockedMods service = new(runtime);
@@ -111,10 +119,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
             Assert.Equal(before, slider.Value);
         }
         Assert.Equal(LockedMods.Reason, Assert.IsType<UiLabel>(Element(menu, "mod-settings-help")).Text);
-        Assert.False(Element(menu, "save").Enabled);
-        Assert.True(Element(menu, "cancel").Enabled);
         menu.Navigate(MenuInput.Right);
-        menu.Execute(new("mod-settings-save"));
         Assert.Equal(0, service.Writes);
         Assert.False(runtime.IsReloadPending);
         Assert.False(File.Exists(Path.Combine(root, "Mods/Memoria/Balance/config.json")));
@@ -123,7 +128,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
     }
 
     [Fact]
-    public void MeltdownExpansionFollowsToggleAndCardButtonPreservesDraft()
+    public void MeltdownExpansionFollowsToggleAndCardButtonPreservesAppliedValue()
     {
         WriteBundled("Meltdown/mod.ini", "enabled=0");
         WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
@@ -171,13 +176,12 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.True(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
         Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, vitalityId)).Value);
         menu.Navigate(MenuInput.Alternate);
-        menu.Execute(new("mod-settings-save"));
         Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Meltdown").Value);
         Assert.Equal(51, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == BehaviorMods.VitalityReductionParameter).Value);
     }
 
     [Fact]
-    public void MemoriaCategoriesCollapseAndScrollWhileUnlockedChangesSave()
+    public void MemoriaCategoriesCollapseAndScrollWhileUnlockedChangesApply()
     {
         WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
         WriteBundled("Girl Next Door/mod.ini", "enabled=0");
@@ -194,7 +198,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.False(Element(menu, "mod-selected-toggle").Visible);
         menu.Navigate(MenuInput.Confirm);
         Assert.Equal("mod-settings", menu.ScreenId);
-        Assert.Equal(new[] { "Field", "Battle", "Party", "Items", "FFVII", "Save", "Cancel" }, menu.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Field", "Battle", "Party", "Items", "FFVII" }, menu.Entries.Select(entry => entry.Label));
 
         menu.Navigate(MenuInput.Down);
         menu.Navigate(MenuInput.Confirm);
@@ -210,7 +214,6 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         menu.Navigate(MenuInput.Alternate);
         Assert.False(Element(menu, lockedSliderId).Enabled);
         Assert.Contains("Hardcore", Assert.IsType<UiLabel>(Element(menu, "mod-setting-description-" + lockedSliderId["mod-setting-".Length..])).Text);
-        Assert.True(Element(menu, "save").Enabled);
         menu.Navigate(MenuInput.Up);
         menu.Navigate(MenuInput.Left);
         Assert.DoesNotContain(menu.Entries, entry => entry.Id == lockedSliderId);
@@ -224,7 +227,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.Equal(bookId, menu.SelectedEntry?.Id);
         menu.Navigate(MenuInput.Confirm);
         Assert.True(Assert.IsType<UiToggle>(Element(menu, bookId)).Value);
-        Assert.Equal(0, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Girl Next Door").Value);
+        Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Girl Next Door").Value);
 
         foreach (string category in new[] { "Field", "Battle", "Party", "FFVII" })
         {
@@ -235,8 +238,8 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.IsType<UiToggle>(view.FocusedElement);
         UiScrollPanel scroll = Assert.IsType<UiScrollPanel>(Descendants(view.Root).Single(element => element.Id == "mod-settings-options"));
         Assert.True(scroll.MaximumOffset > 0);
-        UiRect saveBounds = Descendants(view.Root).Single(element => element.Id == "save").Bounds;
-        Assert.True(saveBounds.Y >= scroll.Bounds.Bottom && saveBounds.Bottom <= 768);
+        UiRect helpBounds = Descendants(view.Root).Single(element => element.Id == "mod-settings-help").Bounds;
+        Assert.True(helpBounds.Y >= scroll.Bounds.Bottom && helpBounds.Bottom <= 768);
         int wheelX = (int)(scroll.Bounds.X + 5);
         int wheelY = (int)(scroll.Bounds.Y + 5);
         menu.HandleModsWheel(wheelX, wheelY, -12000);
@@ -246,9 +249,9 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         menu.Navigate(MenuInput.PageDown);
         Assert.True(scroll.Offset > 0);
         Assert.False(scroll.Bounds.Intersect(view.FocusedElement!.Bounds).IsEmpty);
-        Assert.Equal(saveBounds, Descendants(view.Root).Single(element => element.Id == "save").Bounds);
+        Assert.Equal(helpBounds, Descendants(view.Root).Single(element => element.Id == "mod-settings-help").Bounds);
 
-        menu.Execute(new("mod-settings-save"));
+        menu.Navigate(MenuInput.Cancel);
         Assert.Equal("mods", menu.ScreenId);
         Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Girl Next Door").Value);
     }
