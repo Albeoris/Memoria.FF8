@@ -7,6 +7,7 @@ public sealed class ExpandedBattlePresentationProcess
 {
     private readonly BattleSession logicalOwner;
     private readonly BattleSession presentation;
+    private bool entryMusicPublished;
     private bool advancing;
     private bool canonicalHandoff;
 
@@ -47,6 +48,20 @@ public sealed class ExpandedBattlePresentationProcess
         if (!ReferenceEquals(logicalOwner, owner))
         {
             throw new InvalidOperationException("Hosted presentation requires its original logical battle owner.");
+        }
+    }
+
+    internal NativeBattleMusicProcessState? ReadPendingEntryMusic()
+    {
+        return entryMusicPublished ? null : presentation.RequireHostedEntryMusic(logicalOwner);
+    }
+
+    internal void PublishEntryMusic(NativeBattleMusicProcessState? music)
+    {
+        if (music is not null)
+        {
+            logicalOwner.PublishHostedEntryMusic(music);
+            entryMusicPublished = true;
         }
     }
 
@@ -194,6 +209,7 @@ public sealed class ExpandedBattlePresentationProcess
         advancing = true;
         try
         {
+            PublishEntryMusic(ReadPendingEntryMusic());
             LastPostUiVitalsAdmitted = false;
             presentation.ImportHostedPresentationSharedState(logicalOwner);
             presentation.SetGunbladeMode(logicalOwner.GunbladeMode);

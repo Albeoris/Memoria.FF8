@@ -15,6 +15,10 @@ public static partial class NativeBattleEvilEye282Controller
         if (remaining < 28 && (remaining & 3) == 0)
         {
             (frame, uint child) = Append(frame, 0x2507EA0, 0x67DC60);
+            if (child == 0 && inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
+            {
+                throw new InvalidDataException("Evil-Eye exhausted its reserved sprite task bank.");
+            }
             if (child != 0)
             {
                 while (true)

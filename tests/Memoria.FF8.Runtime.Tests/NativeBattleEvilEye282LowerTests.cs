@@ -236,7 +236,9 @@ public sealed class NativeBattleEvilEye282LowerTests
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[384].ToImmutableArray()).Initialize7016B0(resources.ProgrammeB, 384);
         byte[] cache = NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(cache.AsSpan(4), 31 - remaining);
-        var task = Read(frame, address).WriteWord(12, 100).WriteWord(14, 200).WriteWord(16, 300).WriteDword(20, 0x1D972C0);
+        var task = Read(frame, address).WriteWord(12, 100).WriteWord(14, 200).WriteWord(16, 300);
+        BattleModelOwner recipient = OriginalOwner(0);
+        task.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(recipient), OriginalAliases.EncodeAddress(recipient));
         task = CopyTask(task, 24, NativeBattleEffectArena.Clear().Write(0, cache), 384);
         return (Write(frame, address, task), resources, address);
     }
@@ -263,7 +265,7 @@ public sealed class NativeBattleEvilEye282LowerTests
         var effect = new NativeBattleOriginalEffectState(282, 281, new(282, Entry, Initializer), null, 0) { Pools = pools };
         var identity = Identity();
         var memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity.ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = identity };
-        var state = NativeBattleEvilEye282State.FromColdProcess().WriteDword(CasterGlobal, 0x1D97668).WriteView(NormalizedViewAddress, PackedArena(identity), 32);
+        var state = NativeBattleEvilEye282State.FromColdProcess().WriteModel(CasterGlobal, OriginalOwner(6), OriginalAliases).WriteView(NormalizedViewAddress, PackedArena(identity), 32);
         return new(memory, effect, new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
     private static NativeBattleEvilEye282Inputs Inputs(Func<NativeBattleEvilEye282Frame, NativeBattleEvilEye282Operation, NativeBattleEvilEye282Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => Identity(), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException(), (_, _) => 40, (_, _, _) => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _) => Identity(), (_, _) => Identity(), (_, _, _, _) => throw new InvalidOperationException(), _ => OriginalPackets(), execute ?? ((current, _) => current));

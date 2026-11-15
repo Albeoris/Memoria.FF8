@@ -5,6 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEvilEye282Controller
 {
+    private const int SpritePoolIndex = 1;
+    private const int ProgrammeBPoolIndex = 2;
+    private const int ProgrammeAPoolIndex = 3;
+
     public static NativeBattleEvilEye282Frame Initialize(NativeBattleEvilEye282Frame frame, NativeBattleEvilEye282Resources resources, NativeBattleEvilEye282Inputs inputs)
     {
         RequireBinding(frame);
@@ -37,13 +41,26 @@ public static partial class NativeBattleEvilEye282Controller
         {
             throw new InvalidDataException("Evil-Eye requires its exclusive active module bank owners.");
         }
+        int count = 0;
+        if (frame.Effect.Pools.Length == 4 && inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
+        {
+            NativeBattleEffectTaskPool main = frame.Effect.Pools[ProgrammeAPoolIndex];
+            ValidatePool(main, Pools[ProgrammeAPoolIndex], Pools[ProgrammeAPoolIndex].Capacity);
+            count = main.Slots[0].ReadContactCount(14);
+        }
         for (int index = 0; index < frame.Effect.Pools.Length; index++)
         {
-            NativeBattleCureFamilyPool expected = Pools[index];
-            NativeBattleEffectTaskPool actual = frame.Effect.Pools[index];
-            if (actual.DescriptorAddress != expected.Descriptor || actual.BankAddress != expected.Bank || actual.Stride != expected.Stride || actual.Slots.Length != expected.Capacity)
+            ValidatePool(frame.Effect.Pools[index], Pools[index], RequiredCapacity(index, count));
+        }
+        if (frame.Effect.Pools.Length == 4 && RequiredCapacity(SpritePoolIndex, count) > Pools[SpritePoolIndex].Capacity)
+        {
+            NativeBattleEffectTaskPool sprites = frame.Effect.Pools[SpritePoolIndex];
+            NativeBattleEffectTaskPool targets = frame.Effect.Pools[ProgrammeBPoolIndex];
+            ulong spritesEnd = sprites.BankAddress + (ulong)sprites.Stride * (uint)sprites.Slots.Length;
+            ulong targetsEnd = targets.BankAddress + (ulong)targets.Stride * (uint)targets.Slots.Length;
+            if (sprites.BankAddress < targetsEnd && targets.BankAddress < spritesEnd)
             {
-                throw new InvalidDataException("Evil-Eye module pool leaves its physical descriptor contract.");
+                throw new InvalidDataException("Evil-Eye hosted module banks overlap.");
             }
         }
         (frame, int survivors) = AdvancePool(frame, 0, resources, inputs);
@@ -77,18 +94,56 @@ public static partial class NativeBattleEvilEye282Controller
 
     public static NativeBattleEvilEye282Frame ClearDwords701200(NativeBattleEvilEye282Frame frame, uint address, int count) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[checked(count * 4)]), checked(count * 4));
 
-    private static NativeBattleEvilEye282Frame InitializeSecondaryBanks(NativeBattleEvilEye282Frame frame)
+    private static NativeBattleEvilEye282Frame InitializeSecondaryBanks(NativeBattleEvilEye282Frame frame, BattleModelRoster? roster = null, int count = 0)
     {
         if (frame.Effect.Pools.Length != 1)
         {
             throw new InvalidDataException("Evil-Eye secondary reset requires its inactive COMMON-backed banks.");
         }
-        ImmutableArray<NativeBattleEffectTaskPool>.Builder pools = frame.Effect.Pools.ToBuilder();
-        foreach (NativeBattleCureFamilyPool profile in Pools.Skip(1))
-        {
-            pools.Add(NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity));
-        }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Evil-Eye reset requires its actual COMMON owner.");
-        return frame with { Memory = frame.Memory with { Arena = arena.MarkUnknown(0, 0x142C) }, Effect = frame.Effect with { Pools = pools.ToImmutable() } };
+        var layouts = new (uint Address, ushort Capacity)[Pools.Length];
+        NativeBattleEffectMemory memory = frame.Memory;
+        for (int index = 1; index < Pools.Length; index++)
+        {
+            NativeBattleCureFamilyPool profile = Pools[index];
+            ushort capacity = RequiredCapacity(index, count);
+            uint address = profile.Bank;
+            if (capacity > profile.Capacity)
+            {
+                (memory, address) = NativeBattlePresentationTaskStorage.Reserve(memory, frame.Effect, roster!, profile.Stride, capacity);
+            }
+            layouts[index] = (address, capacity);
+        }
+        ImmutableArray<NativeBattleEffectTaskPool>.Builder pools = frame.Effect.Pools.ToBuilder();
+        for (int index = 1; index < Pools.Length; index++)
+        {
+            NativeBattleCureFamilyPool profile = Pools[index];
+            (uint address, ushort capacity) = layouts[index];
+            pools.Add(NativeBattleEffectTaskPool.Initialize(profile.Descriptor, address, profile.Stride, capacity));
+        }
+        return frame with { Memory = memory with { Arena = arena.MarkUnknown(0, ScratchOffset) }, Effect = frame.Effect with { Pools = pools.ToImmutable() } };
+    }
+
+    private static ushort RequiredCapacity(int index, int count)
+    {
+        // Sprites advance on the birth frame and survive sixteen callbacks; each programme emits every fourth callback.
+        int required = index switch
+        {
+            SpritePoolIndex => checked(count * 4),
+            ProgrammeBPoolIndex => count,
+            _ => 0
+        };
+        return checked((ushort)Math.Max(Pools[index].Capacity, required));
+    }
+
+    private static void ValidatePool(NativeBattleEffectTaskPool pool, NativeBattleCureFamilyPool profile, ushort capacity)
+    {
+        bool located = capacity == profile.Capacity
+            ? pool.BankAddress == profile.Bank
+            : NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, profile.Stride, capacity);
+        if (!located || pool.DescriptorAddress != profile.Descriptor || pool.Stride != profile.Stride || pool.Slots.Length != capacity)
+        {
+            throw new InvalidDataException("Evil-Eye module pool leaves its physical descriptor contract.");
+        }
     }
 }

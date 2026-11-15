@@ -136,6 +136,38 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(0L, other.NativeHostCallbacks);
     }
 
+    [Fact]
+    public void Attachment_publishes_initialized_music_once_before_the_first_shared_import()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        NativeBattleMusicProcessState entry = Assert.IsType<NativeBattleMusicProcessState>(logical.NativeMusicProcess);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        Assert.Same(entry, logical.NativeMusicProcess);
+
+        PropertyInfo music = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeMusicProcess))!;
+        NativeBattleMusicProcessState stale = entry.QueueStop501A70();
+        music.SetValue(logical, stale);
+        Assert.Throws<InvalidOperationException>(() => logical.AttachExpandedPresentationProcess(process));
+        Assert.Same(stale, logical.NativeMusicProcess);
+        Assert.Null(logical.ExpandedPresentationProcess);
+        Assert.Equal(0L, logical.NativeHostCallbacks);
+
+        music.SetValue(logical, entry);
+        logical.AttachExpandedPresentationProcess(process);
+        NativeBattleMusicProcessState initialized = Assert.IsType<NativeBattleMusicProcessState>(logical.NativeMusicProcess);
+        Assert.Equal(entry.InitializeCommands501C60(), initialized);
+
+        music.SetValue(logical, initialized.QueueStop501A70());
+        logical.Tick();
+
+        Assert.Contains(logical.Events, item => item.NativeMusicCommand is { Command: 1 });
+        Assert.False(logical.NativeMusicProcess!.Commands!.Pending);
+        Assert.Equal(initialized.Commands!.TargetBufferAddress, logical.NativeMusicProcess.Commands.TargetBufferAddress);
+    }
+
     [Theory]
     [InlineData(4, 5, 4)]
     [InlineData(11, 14, 4)]
@@ -503,12 +535,17 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             graphics = graphics with { Bindings = bindings.ToImmutable(), InitialLoadOrder = [.. enemies.Select(actor => actor.Id), .. party.Select(actor => actor.Id)] };
         }
         NativeBattleMusicEntryPreparation music = NativeBattleMusicFixture.Prepare(game, encounter.Id);
+        NativeBattleRetainedMemory retained = game.ReadColdProcessNativeBattleMemory();
+        logical = logical with
+        {
+            NativeMusicProcess = music.MusicProcess,
+            NativeGlobalSoundProcess = music.SoundProcess,
+            NativeVibrationProcess = retained.VibrationProcess
+        };
         BattleDefinition selected = logical with
         {
             NativeGraphics = graphics,
-            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
-            NativeMusicProcess = music.MusicProcess,
-            NativeGlobalSoundProcess = music.SoundProcess,
+            NativeRetainedMemory = retained,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeStageSource = stage.NativeSource,
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,

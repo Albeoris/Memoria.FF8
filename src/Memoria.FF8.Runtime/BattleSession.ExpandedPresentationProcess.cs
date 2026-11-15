@@ -17,7 +17,9 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Hosted presentation can attach only before the expanded logical battle's first callback.");
         }
 
+        NativeBattleMusicProcessState? entryMusic = process.ReadPendingEntryMusic();
         InitializeExpandedPartyPresentation();
+        process.PublishEntryMusic(entryMusic);
         NativeExamTimer = definition.NativeExamTimerAtEntry;
         expandedPresentationProcess = process;
     }

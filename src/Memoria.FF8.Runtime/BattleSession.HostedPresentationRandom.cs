@@ -26,6 +26,22 @@ public sealed partial class BattleSession
         logicalOwner.NativeGlobalRandomChange!.Validate();
     }
 
+    internal NativeBattleMusicProcessState RequireHostedEntryMusic(BattleSession logicalOwner)
+    {
+        if (!hostedBattlePresentation || definition.NativeMusicProcess != logicalOwner.NativeMusicProcess ||
+            NativeMusicProcess is not { Commands: { Pending: false, Loading: false } } initialized)
+        {
+            throw new InvalidOperationException("Hosted entry requires its original selected music owner before publishing initialized commands.");
+        }
+
+        return initialized;
+    }
+
+    internal void PublishHostedEntryMusic(NativeBattleMusicProcessState music)
+    {
+        NativeMusicProcess = music;
+    }
+
     internal void ImportHostedPresentationSharedState(BattleSession logicalOwner)
     {
         ValidateHostedPresentationRandomOwner(logicalOwner);

@@ -66,6 +66,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(world.BattleResources.ReadNativePcUiIcons().Binding, selected.NativeGraphics!.PcUiIcons);
         Assert.False(process.EntryReady);
 
+        bool observedSparseModelLoad = false;
         NativeExamTimerState timer = session.ExamTimer!;
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
@@ -75,7 +76,20 @@ public sealed class ExpandedBattleProcessResourcesTests
             Assert.True(displayed.HasSameClock(session.ExamTimer!));
             Assert.Same(process.PreparedPresentation, logical.PreparedPresentation);
             timer = displayed;
+            BattleActorModels loaded = process.Graphics.ActorModels;
+            if (!observedSparseModelLoad && loaded.Roster.Count > 0)
+            {
+                Assert.True(loaded.Roster.Count < roster.Count);
+                NativeBattleActionPacketsState packets = presentation.NativeActionPackets;
+                Assert.Equal(roster.Owners, packets.Roster.Owners);
+                foreach (BattleModelOwner pending in roster.Owners.Where(owner => !loaded.Contains(owner)))
+                {
+                    Assert.False(packets.ModelAliases.TryEncodeExact(pending, out _));
+                }
+                observedSparseModelLoad = true;
+            }
         }
+        Assert.True(observedSparseModelLoad);
         Assert.True(process.EntryReady, $"Entry stalled at lifecycle {process.Graphics.EntryLifecycle}, callback {process.Graphics.Callback}.");
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
         Assert.Equal(entry.StageId, process.Stage.ResourceStageId);

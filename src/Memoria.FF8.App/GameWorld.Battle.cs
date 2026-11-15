@@ -272,7 +272,7 @@ internal sealed partial class GameWorld
                     ((definition.LimitProgress?.AngeloFlags ?? 0) & 0x0E) != 0 && combatants.Any(actor => actor is { IsPlayer: true, ModelId: 4, InitialActive: true })))
                 ? BattleResources.ReadNativeSupportRules() : null,
             NativeGraphics = expanded ? null : BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
-            NativeClockRules = expanded ? null : BattleResources.ReadNativeClockRules(),
+            NativeClockRules = BattleResources.ReadNativeClockRules(),
             NativeRetainedMemory = session.CaptureNativeFieldMemory(),
             NativeVibrationProcess = session.State.VibrationProcess,
             NativeGlobalSoundProcess = session.State.GlobalSoundProcess,

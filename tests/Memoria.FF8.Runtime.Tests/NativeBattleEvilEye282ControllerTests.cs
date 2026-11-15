@@ -159,6 +159,105 @@ public sealed class NativeBattleEvilEye282ControllerTests
         Assert.Equal(frame.Random, actual.Random);
     }
 
+    [Theory]
+    [InlineData(4)]
+    [InlineData(33)]
+    public void Expanded_programmes_preserve_ordered_births_and_retire_only_the_original_bank_prefixes(int count)
+    {
+        BattleModelOwner extra = new BattlePartyActorModel(new("extra"));
+        BattleModelRoster roster = new(OriginalRoster.Owners.Append(extra));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, 7).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        BattleModelOwner[] recipients = Enumerable.Range(0, count).Select(index => index % 2 == 0 ? extra : OriginalOwner(0)).ToArray();
+        NativeBattleActionPacketsState packets = Packets(NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases), recipients, count);
+        List<BattleModelOwner> births = [];
+        List<NativeBattleEvilEye282Operation> operations = [];
+        var inputs = Inputs(operations, packets) with
+        {
+            StorageContract = BattleContactTaskStorageContract.ExpandableArena,
+            ReadModelWorld = (_, _) => Identity(),
+            ReadBone502170 = (current, owner, _, _) =>
+            {
+                births.Add(owner);
+                return new(current, PointView(new(101, -202, 303)), 0);
+            }
+        };
+        var resources = Resources();
+        var inactive = Inactive();
+        inactive = inactive with { Effect = inactive.Effect with { Parameters = inactive.Effect.Parameters! with { TargetActors = BattleModelTargets.From(recipients.Distinct()) } } };
+        var frame = Initialize(inactive, resources, inputs);
+        byte[] spare = [0x71, 0xB2];
+        frame.Memory.Arena!.Write(ScratchOffset + ScratchLength - spare.Length, spare);
+        frame = Advance(frame, resources, inputs);
+        frame = Advance(frame, resources, inputs);
+        NativeBattleEffectTaskPool sprites = frame.Effect.Pools[1];
+        NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
+        Assert.Equal(Pools[1].Descriptor, sprites.DescriptorAddress);
+        Assert.Equal(Pools[2].Descriptor, targets.DescriptorAddress);
+        Assert.Equal(Math.Max(128, count * 4), sprites.Slots.Length);
+        Assert.Equal(count == 4, sprites.BankAddress == Pools[1].Bank);
+        if (count > 32)
+        {
+            Assert.True(NativeBattlePresentationTaskStorage.IsHostedBank(sprites.BankAddress, 20, sprites.Slots.Length));
+            Assert.True(sprites.BankAddress + (uint)(sprites.Stride * sprites.Slots.Length) <= targets.BankAddress);
+        }
+        Assert.Equal(count, targets.Slots.Length);
+        Assert.True(NativeBattlePresentationTaskStorage.IsHostedBank(targets.BankAddress, 408, count));
+        Assert.Equal(Pools[3].Bank, frame.Effect.Pools[3].BankAddress);
+        for (int age = 1; age < 10; age++)
+        {
+            frame = Advance(frame, resources, inputs);
+        }
+        Assert.Empty(births);
+        Assert.Null(targets.Head);
+        frame = Advance(frame, resources, inputs);
+        Assert.Equal(recipients, births);
+        Assert.Equal(0, targets.Head);
+        Assert.Equal(count - 1, targets.Tail);
+        for (int index = 0; index < count; index++)
+        {
+            uint child = targets.BankAddress + (uint)(index * targets.Stride);
+            Assert.Equal(recipients[index], Read(frame, child).ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner);
+            Assert.Equal(ProgrammeBAddress, Read(frame, child).ReadDword(24));
+        }
+        Assert.All(ReadBytes(frame, targets.BankAddress + 20, 4).ReadSnapshot(0, 4).Known, known => Assert.False(known));
+        if (count == 33)
+        {
+            NativeBattleEvilEye282Frame original = frame;
+            NativeBattleEffectTaskPool originalTargets = targets;
+            uint originalAge = Read(original, targets.BankAddress).ReadDword(28);
+            frame = Advance(NativeBattleTestSnapshots.Independent(original), resources, inputs);
+            sprites = frame.Effect.Pools[1];
+            targets = frame.Effect.Pools[2];
+            Assert.NotSame(originalTargets.RequireOwner(), targets.RequireOwner());
+            Assert.Equal(originalTargets.BankAddress, targets.BankAddress);
+            Assert.Equal(originalAge + 1, Read(frame, targets.BankAddress).ReadDword(28));
+            Assert.Equal(originalAge, Read(original, targets.BankAddress).ReadDword(28));
+            Assert.Equal(extra, Read(frame, targets.BankAddress).ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner);
+            Assert.All(ReadBytes(frame, targets.BankAddress + 20, 4).ReadSnapshot(0, 4).Known, known => Assert.False(known));
+            var captured = Read(frame, Pools[3].Bank).ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4);
+            var expected = packets.ReadHeaderContacts(new BattleActionHeaderReference(1)).Select(packet => (packet.Primary.Recipient, packet.Occurrence!.Value));
+            Assert.Equal(expected, captured.Recipients);
+        }
+        int peak = 0;
+        for (int callback = 0; callback < 64 && !frame.Effect.Pools.IsEmpty; callback++)
+        {
+            frame = Advance(frame, resources, inputs);
+            if (!frame.Effect.Pools.IsEmpty)
+            {
+                peak = Math.Max(peak, sprites.Slots.Count(task => (task.Flags & 1) != 0));
+            }
+        }
+        Assert.Equal(count * 4, peak);
+        Assert.Single(operations.OfType<NativeBattleEvilEye282ContactsAll506BA0>());
+        Assert.Empty(frame.Effect.Pools);
+        Assert.NotNull(frame.State.RootBankStorage);
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
+        Assert.Equal(spare, arena.Read(ScratchOffset + ScratchLength - spare.Length, spare.Length));
+        Assert.All(arena.ReadSnapshot(0xA00 + 20, 4).Known, known => Assert.False(known));
+        Assert.Equal(BitConverter.GetBytes(ModelAddressFor(0)), arena.Read(0xA00 + 408 + 20, 4));
+        Assert.Equal(BitConverter.GetBytes(ProgrammeAAddress), arena.Read(0xEC8 + 28, 4));
+    }
+
     [Fact]
     public void Last_main_callback_applies_current_counted_header_before_root_stages_zero()
     {
@@ -234,17 +333,21 @@ public sealed class NativeBattleEvilEye282ControllerTests
 
     private static NativeBattleActionPacketsState Packets(int count, int? declaredCount = null)
     {
-        var packets = OriginalPackets();
+        return Packets(OriginalPackets(), Enumerable.Range(0, count).Select(OriginalOwner), declaredCount ?? count);
+    }
+
+    private static NativeBattleActionPacketsState Packets(NativeBattleActionPacketsState packets, IEnumerable<BattleModelOwner> recipients, int declaredCount)
+    {
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 152, 282, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 152, 282, null));
-        for (int index = 0; index < count; index++)
+        foreach (BattleModelOwner recipient in recipients)
         {
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index), 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(recipient, 4, 0, 0, 0, 7, 0), null));
         }
-        (packets, _) = packets.Publish(declaredCount ?? count);
+        (packets, _) = packets.Publish(declaredCount);
         return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 

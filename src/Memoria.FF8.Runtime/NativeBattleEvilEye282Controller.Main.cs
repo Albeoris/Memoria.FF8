@@ -8,21 +8,33 @@ public static partial class NativeBattleEvilEye282Controller
     {
         NativeBattleModulePoolTask root = Read(frame, address);
         bool alternate = root.ReadDword(16) != 0;
+        NativeBattleActionPacketsState? expandedPackets = null;
+        int? expandedCount = null;
+        if (inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena && Signed(root, 12) == 1 && root.ReadByte(15) == 0)
+        {
+            expandedPackets = inputs.ReadPackets(frame);
+            int required = Header(frame, expandedPackets).ReadContactCount();
+            frame = InitializeSecondaryBanks(frame, expandedPackets.Roster, required);
+            expandedCount = required;
+        }
         frame = Dword(frame, 0x2507EF4, unchecked(frame.State.ReadDword(0x2507F00) + (alternate ? 0x162Cu : 0x1162Cu)));
         frame = Dword(frame, 0x2507EFC, 0);
         frame = Write(frame, address, root.WriteDword(16, alternate ? 0u : 1u));
         if (Signed(root, 12) == 1 && root.ReadByte(15) == 0)
         {
             frame = Write(frame, address, Read(frame, address).WriteByte(15, 1));
-            frame = InitializeSecondaryBanks(frame);
+            if (expandedPackets is null)
+            {
+                frame = InitializeSecondaryBanks(frame);
+            }
             (frame, uint main) = Append(frame, 0x2507EC0, 0x67D680);
             if (main == 0)
             {
                 throw new InvalidDataException("Evil-Eye's freshly reset main pool must admit its sole task.");
             }
             frame = ClearDwords701200(frame, main + 12, 342);
-            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int count = Header(frame, packets).ReadContactCount();
+            NativeBattleActionPacketsState packets = expandedPackets ?? inputs.ReadPackets(frame);
+            int count = expandedCount ?? Header(frame, packets).ReadContactCount();
             NativeBattleModulePoolTask director = Read(frame, main).WriteContactCount(14, count);
             var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
             ImmutableArray<byte>? originalFirst = [0, 0, 0, 0];
@@ -109,7 +121,11 @@ public static partial class NativeBattleEvilEye282Controller
                 (frame, uint child) = Append(frame, 0x2507EB0, 0x67DB20);
                 if (child == 0)
                 {
-                    throw new NotSupportedException("Evil-Eye exhausted its original ProgrammeB task bank.");
+                    if (inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
+                    {
+                        throw new InvalidDataException("Evil-Eye exhausted its reserved ProgrammeB task bank.");
+                    }
+                    continue;
                 }
                 NativeBattleModulePoolTask target = Read(frame, child);
                 target.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(model), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(model));

@@ -63,7 +63,7 @@ public static partial class NativeBattleEvilEye282Controller
         {
             if (address >= pool.BankAddress && (ulong)address + (uint)length <= (ulong)pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length))
             {
-                return NativeBattleEffectNodeContextMemory.Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), checked((int)(address - pool.BankAddress)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+                return NativeBattleEffectNodeContextMemory.Copy(BorrowBankWindow(pool, checked((int)(address - pool.BankAddress)), length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
             }
         }
         if (address >= NativeBattleEffectNodeMemory.ArenaAddress && (ulong)address + (uint)length <= (ulong)NativeBattleEffectNodeMemory.ArenaAddress + NativeBattleEffectArena.Length)
@@ -180,9 +180,17 @@ public static partial class NativeBattleEvilEye282Controller
         for (int index = 1; index < frame.Effect.Pools.Length; index++)
         {
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
-            arena = NativeBattleEffectNodeContextMemory.Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), 0, arena, checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress)), pool.Stride * pool.Slots.Length);
+            NativeBattleCureFamilyPool original = Pools[index];
+            int prefix = original.Stride * original.Capacity;
+            arena = NativeBattleEffectNodeContextMemory.Copy(BorrowBankWindow(pool, 0, prefix), 0, arena, checked((int)(original.Bank - ArenaAddress)), prefix);
         }
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[0]) } };
+    }
+
+    private static NativeBattleEffectArena BorrowBankWindow(NativeBattleEffectTaskPool pool, int offset, int length)
+    {
+        NativeBattleTaskBankOwner owner = pool.RequireOwner();
+        return NativeBattleEffectArena.BorrowWorking(owner.Storage, checked(owner.StorageOffset + offset), length);
     }
 
 }

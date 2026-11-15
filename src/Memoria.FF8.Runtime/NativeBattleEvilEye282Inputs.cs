@@ -10,6 +10,7 @@ public sealed record NativeBattleEvilEye282PointStep(NativeBattleEvilEye282Frame
 public sealed record NativeBattleEvilEye282Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleEvilEye282Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEvilEye282Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEvilEye282Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEvilEye282Frame, BattleModelOwner, int> ReadBoneCount, Func<NativeBattleEvilEye282Frame, BattleModelOwner, int, short> ReadBoneParent, Func<NativeBattleEvilEye282Frame, BattleModelOwner, int, byte> ReadBoneAlias, Func<NativeBattleEvilEye282Frame, BattleModelOwner, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix, Func<NativeBattleEvilEye282Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadModelWorld, Func<NativeBattleEvilEye282Frame, BattleModelOwner, int, int, NativeBattleEvilEye282PointStep> ReadBone502170, Func<NativeBattleEvilEye282Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEvilEye282Frame, NativeBattleEvilEye282Operation, NativeBattleEvilEye282Frame> Execute)
 {
     public bool CapturePresentation { get; init; }
+    internal BattleContactTaskStorageContract StorageContract { get; init; }
 }
 
 public abstract record NativeBattleEvilEye282Operation;

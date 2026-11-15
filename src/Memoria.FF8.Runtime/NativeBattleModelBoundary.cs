@@ -100,7 +100,19 @@ public sealed partial class NativeBattleModelBoundary
     internal NativeBattleModelAliases CaptureAliases(BattleActorModels models)
     {
         ArgumentNullException.ThrowIfNull(models);
+        return CaptureAliases(models, models.Roster);
+    }
+
+    internal NativeBattleModelAliases CaptureAliases(BattleActorModels models, BattleModelRoster plannedRoster)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        ArgumentNullException.ThrowIfNull(plannedRoster);
         ValidateBindings(models);
+        if (models.Owners.Any(owner => !plannedRoster.Contains(owner)))
+        {
+            throw new InvalidDataException("A loaded model must belong to the planned packet roster.");
+        }
+
         var mappings = new List<(NativeBattleModelSlot Slot, BattleModelOwner Owner)>();
         for (byte offset = 0; offset < CellCount; offset++)
         {
@@ -109,7 +121,7 @@ public sealed partial class NativeBattleModelBoundary
                 mappings.Add((NativeBattleModelSlot.Decode(offset), owner));
             }
         }
-        return new(models.Roster, mappings);
+        return new(plannedRoster, mappings);
     }
 
     internal ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility> CaptureUnboundVisibility()

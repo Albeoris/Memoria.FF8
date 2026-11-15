@@ -302,8 +302,13 @@ public sealed partial class BattleSession
                         if (hostedBattlePresentation)
                         {
                             graphics = graphics with { ActorModels = OrderHostedEntryModels(graphics.ActorModels) };
+                            BattleModelRoster plannedRoster = nativeActionPackets.Roster;
+                            nativeActionPackets = nativeActionPackets.WithRoster(plannedRoster, graphics.NativeBindings.CaptureAliases(graphics.ActorModels, plannedRoster));
                         }
-                        nativeActionPackets = nativeActionPackets.WithRoster(graphics.ActorModels.Roster, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+                        else
+                        {
+                            nativeActionPackets = nativeActionPackets.WithRoster(graphics.ActorModels.Roster, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+                        }
                         QueueNativeModelResource507080(graphics, packet.Value, loadingOwner, packet.Argument);
                         phase = 1;
                     }

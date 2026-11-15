@@ -10,6 +10,69 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ExpandedBattleHostTests
 {
+    [Fact]
+    public void Expanded_random_entry_activates_installed_clock_and_advances_the_fourth_ally_at_native_speed()
+    {
+        const ushort formation = 87;
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
+        using GameAssets assets = new(directory);
+        GameSession initial = GameSession.CreateColdProcess();
+        initial.StartNewGame();
+        using (GameWorld bootstrap = new(initial, directory, sharedAssets: assets))
+        {
+            bootstrap.EnsureField();
+            initial.SetEventState(bootstrap.Events.Capture());
+        }
+        GameSession session = new(initial.State with { FieldId = 133, FieldName = "cavern-component", EventState = null, DepartingFieldState = initial.State.EventState, FieldLoadContext = null, FieldRequestPacket = null });
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: assets);
+        world.EnsureField();
+        world.Apply(new(PlayerActionKind.Wait, Frames: 4));
+        NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords().Rest();
+        byte[] rows = [0, 1, 2, 3];
+        foreach (byte row in rows)
+        {
+            vitals.Records[row] = vitals.Records[row] with { MemberFlags = (ushort)(vitals.Records[row].MemberFlags | 1) };
+        }
+        session.SetCharacterVitals(vitals.WithBattleParty(rows, rows.Length));
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 4, AdditionalEnemies = 4 });
+        string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
+        session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
+
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 4));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        Assert.True(battle.UsesExpandedRoster);
+        Assert.Null(battle.NativeGraphics);
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattleDefinition definition = battle.ReadDefinition();
+        NativeBattleClockRules rules = world.BattleResources.ReadNativeClockRules();
+        byte configuredSpeed = (session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte)!.Value;
+        Assert.Equal(rules, definition.NativeClockRules);
+        Assert.Equal(configuredSpeed, definition.NativeBattleSpeed);
+        Assert.All(battle.Combatants, actor => Assert.Equal(4000 * (configuredSpeed + 1), Assert.IsType<NativeBattleAtbState>(actor.NativeAtb).Maximum));
+
+        BattleCombatant ally = Assert.Single(battle.Combatants, actor => actor.Id == "party-3");
+        ally.Atb = 0;
+        int gain = rules.AtbSpeedMultiplier * (ally.NativeAtbSpeed + 30) / 10;
+        Assert.True(gain > 0);
+        Assert.False(battle.NativeEntryReady);
+        Assert.Equal((byte)0, battle.Capture().NativeClock!.Active);
+        for (int callback = 0; callback < 1200 && process.Graphics.EntryLifecycle != 3; callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.False(battle.NativeEntryReady);
+            Assert.Equal(0, ally.NativeAtb!.Current);
+        }
+        Assert.Equal((byte)3, process.Graphics.EntryLifecycle);
+        Assert.Equal((byte)0, battle.Capture().NativeClock!.Active);
+
+        world.ApplyBattleInput(new(BattleInputKind.Tick));
+        Assert.True(battle.NativeEntryReady);
+        Assert.Equal((byte)1, battle.Capture().NativeClock!.Active);
+        Assert.Equal(gain, ally.NativeAtb!.Current);
+    }
+
     [Theory]
     [InlineData(4, 2, false)]
     [InlineData(4, 4, true)]
