@@ -12,6 +12,7 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattleHitmarkOwnerCallback), "HitmarkOwner")]
 [JsonDerivedType(typeof(Ff7BattleHitmarkSpriteCallback), "HitmarkSprite")]
 [JsonDerivedType(typeof(Ff7BattleDelayedSoundCallback), "Sound")]
+[JsonDerivedType(typeof(Ff7BattleDelayedActorHitmarkCallback), "DelayedActorHitmark")]
 [JsonDerivedType(typeof(Ff7BattleBossDeathShakeCallback), "BossDeathShake")]
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationEntry), "LimitPreparationEntry")]
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationEmitter), "LimitPreparationEmitter")]
@@ -34,6 +35,7 @@ public sealed record Ff7BattleGunDustCallback(Ff7BattleBraverPoint Position, int
 public sealed record Ff7BattleHitmarkOwnerCallback(int Target, Ff7BattleHitmarkDefinition Definition, Ff7BattleBraverPoint Anchor, int CollisionRadius, bool Flipped) : Ff7BattleSecondaryCallback;
 public sealed record Ff7BattleHitmarkSpriteCallback(int Target, Ff7BattleHitmarkCue Cue, Ff7BattleBraverPoint Anchor, int CollisionRadius, bool Flipped) : Ff7BattleSecondaryCallback;
 public sealed record Ff7BattleDelayedSoundCallback(ushort Sound, int Delay) : Ff7BattleSecondaryCallback;
+public sealed record Ff7BattleDelayedActorHitmarkCallback(int Actor, Ff7BattleHitmarkDefinition Definition, int Delay) : Ff7BattleSecondaryCallback;
 
 public sealed record Ff7BattleGunMuzzle(Ff7BattleBraverPoint Origin, Ff7BattleBraverPoint XAxis, Ff7BattleBraverPoint YAxis, Ff7BattleBraverPoint ZAxis);
 public sealed record Ff7BattleGunCasing(Ff7BattleBraverPoint Position, short Yaw);
@@ -96,6 +98,15 @@ public static partial class Ff7BattleSecondaryEffects
         return Schedule(state, new Ff7BattleDelayedSoundCallback(sound, delay));
     }
 
+    public static Ff7BattleSecondaryState ScheduleActorHitmark(Ff7BattleSecondaryState state, int actor, Ff7BattleHitmarkDefinition definition, int delay)
+    {
+        ValidateActor(actor);
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentOutOfRangeException.ThrowIfNegative(delay);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(delay, 255);
+        return Schedule(state, new Ff7BattleDelayedActorHitmarkCallback(actor, definition, delay));
+    }
+
     public static Ff7BattleSecondaryState ScheduleHitmark(Ff7BattleSecondaryState state, int target, Ff7BattleHitmarkDefinition definition, Vector3 frozenAnchor, int collisionRadius, bool flipped = false)
     {
         ValidateActor(target);
@@ -125,7 +136,7 @@ public static partial class Ff7BattleSecondaryEffects
         return state with { Hitmarks = [.. state.Hitmarks, previous], DrawOrder = [.. state.DrawOrder, new(Ff7BattleSecondaryDrawKind.Hitmark, state.Hitmarks.Count)] };
     }
 
-    public static Ff7BattleSecondaryState Advance(Ff7BattleSecondaryState state, Func<int, int, Vector3, Vector3> actorPoint, Func<int, BattleRotationWords> actorRotation, Func<int> nextCrt)
+    public static Ff7BattleSecondaryState Advance(Ff7BattleSecondaryState state, Func<int, int, Vector3, Vector3> actorPoint, Func<int, BattleRotationWords> actorRotation, Func<int> nextCrt, Func<int, (Vector3 Position, int CollisionRadius)>? actorHitmark = null)
     {
         ArgumentNullException.ThrowIfNull(actorPoint);
         ArgumentNullException.ThrowIfNull(actorRotation);
@@ -254,6 +265,18 @@ public static partial class Ff7BattleSecondaryEffects
                     drawOrder.Add(new(Ff7BattleSecondaryDrawKind.Dust, dust.Count));
                     dust.Add(new(particle.Position, particle.Age, particle.MinimumScale, particle.MaximumScale));
                     slots[cursor] = particle.Age >= 7 ? null : particle with { Age = particle.Age + 1 };
+                    break;
+                case Ff7BattleDelayedActorHitmarkCallback delayed:
+                    if (delayed.Age >= delayed.Delay)
+                    {
+                        var anchor = (actorHitmark ?? throw new NotSupportedException("A delayed actor hitmark requires its current native joint and collision-radius owner."))(delayed.Actor);
+                        Allocate(new Ff7BattleHitmarkOwnerCallback(delayed.Actor, delayed.Definition, Ff7BattleBraverPoint.At(anchor.Position), anchor.CollisionRadius, false));
+                        slots[cursor] = null;
+                    }
+                    else
+                    {
+                        slots[cursor] = delayed with { Age = delayed.Age + 1 };
+                    }
                     break;
                 case Ff7BattleHitmarkOwnerCallback owner:
                     foreach (Ff7BattleHitmarkCue cue in owner.Definition.Cues)

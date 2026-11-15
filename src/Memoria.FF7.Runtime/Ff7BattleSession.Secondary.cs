@@ -83,6 +83,7 @@ public sealed partial class Ff7BattleSession
                 Ff7BattleGunMuzzleCallback muzzle => muzzle.Actor,
                 Ff7BattleHitmarkOwnerCallback owner => owner.Target,
                 Ff7BattleHitmarkSpriteCallback sprite => sprite.Target,
+                Ff7BattleDelayedActorHitmarkCallback delayed => delayed.Actor,
                 Ff7BattleBossDeathShakeCallback shake => shake.State.Target,
                 Ff7BattleLimitPreparationEntry preparation => preparation.Actor,
                 _ => -1
@@ -90,6 +91,10 @@ public sealed partial class Ff7BattleSession
             if (callback.Age is < 0 or int.MaxValue || actor != -1 && snapshot.Actors.All(candidate => candidate.Actor.Slot != actor) || callback is Ff7BattleBossDeathShakeCallback { State.Remaining: < 0 or > 64 } || callback is Ff7BattleLimitPreparationEntry { Bone: < 0 } || callback is Ff7BattleWaveSpark { Age: > 7 } || callback is Ff7BattleTailLaserSecondary && !IsValidTailLaserSecondary(callback) || (callback is Ff7BattleElectromagFragment or Ff7BattleElectromagSpinningFragment) && !IsValidElectromagSecondary(callback) || callback is Ff7BattleDelayedSoundCallback { Delay: < 0 or > 255 } || callback is Ff7BattleGunEmitter { Bone: < -1 } || callback is Ff7BattleGunMuzzleCallback { Bone: < -1 } || callback is Ff7BattleGunCasingCallback { Bounces: < 0 or > 1 } || callback is Ff7BattleHitmarkOwnerCallback { Definition: null } or Ff7BattleHitmarkOwnerCallback { Definition.Cues: null })
             {
                 throw new InvalidDataException("FFVII secondary effect callback has an invalid owner or cursor.");
+            }
+            if (callback is Ff7BattleDelayedActorHitmarkCallback hitmark && (hitmark.Delay is < 0 or > 255 || hitmark.Definition?.Cues is null))
+            {
+                throw new InvalidDataException("FFVII delayed actor hitmark has an invalid definition or delay.");
             }
         }
     }
