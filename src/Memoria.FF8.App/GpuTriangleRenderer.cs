@@ -622,6 +622,14 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         public GpuVertex(TriangleVertex vertex)
         {
             position = new Vector3(vertex.Position.X, vertex.Position.Y, vertex.Depth);
+            if (vertex.TextureScreenRectangle.Z > 0)
+            {
+                // Point-sampled rectangles cover whole destination pixels. Keep every
+                // MSAA sample on the pixel-center-selected side of each tile edge.
+                // The original rectangle below still owns source texel selection.
+                position.X = MathF.Ceiling(position.X - 0.5f);
+                position.Y = MathF.Ceiling(position.Y - 0.5f);
+            }
             color = new Vector4(vertex.Color.X, vertex.Color.Y, vertex.Color.Z, vertex.Color.W);
             textureScreenRectangle = new Vector4(vertex.TextureScreenRectangle.X, vertex.TextureScreenRectangle.Y, vertex.TextureScreenRectangle.Z, vertex.TextureScreenRectangle.W);
             textureTexelRectangle = new Vector4(vertex.TextureTexelRectangle.X, vertex.TextureTexelRectangle.Y, vertex.TextureTexelRectangle.Z, vertex.TextureTexelRectangle.W);
