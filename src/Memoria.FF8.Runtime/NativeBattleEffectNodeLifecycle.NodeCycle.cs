@@ -38,7 +38,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 FollowParent(node, source);
                 break;
             case 4:
-                NativeBattleEffectAnimatedAnchor.Advance(memory, node, source.ToArray(), bank.Read);
+                NativeBattleEffectAnimatedAnchor.Advance(memory, node, source, bank.Read);
                 break;
         }
         EmitGeometry(node, source, ref random);

@@ -24,7 +24,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
     private readonly Dictionary<int, NodeByte> cells = new();
     private readonly HashSet<int> dirtyCells = new();
     private readonly Dictionary<int, BattleExecutionReference.TraversalPosition> traversalPositions = new();
-    private readonly record struct NodeByte(byte Value, bool Known, bool StoreValue);
+    private readonly record struct NodeByte(byte Value, bool Known);
     private bool disposed;
     private readonly Dictionary<int, byte> contextBytes = new();
     private readonly List<ContextStore> contextStores = new();
@@ -133,11 +133,11 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         BattleExecutionReference.TraversalPosition position = new(value);
         if (position.EncodeOriginalByte() is { } bytes)
         {
-            Store(offset, new(bytes[0], true, true));
+            Store(offset, new(bytes[0], true));
         }
         else
         {
-            Store(offset, Cell(offset) with { Known = false, StoreValue = true });
+            Store(offset, Cell(offset) with { Known = false });
         }
         traversalPositions[offset] = position;
     }
@@ -163,7 +163,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         Require(offset, 4);
         for (int index = 0; index < 4; index++)
         {
-            Store(offset + index, new(unchecked((byte)(anchor.Padding >> (8 * index))), anchor.IsPaddingByteKnown(index), true));
+            Store(offset + index, new(unchecked((byte)(anchor.Padding >> (8 * index))), anchor.IsPaddingByteKnown(index)));
         }
     }
 
@@ -228,7 +228,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         Require(offset, count);
         for (int index = 0; index < count; index++)
         {
-            Store(offset + index, new(0, true, true));
+            Store(offset + index, new(0, true));
         }
     }
     internal bool UseSharedScratch { get; }
@@ -446,7 +446,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         for (int index = 0; index < count; index++)
         {
             NodeByte current = Cell(offset + index);
-            Store(offset + index, current with { Known = false, StoreValue = true });
+            Store(offset + index, current with { Known = false });
         }
     }
 
@@ -467,7 +467,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
             }
             for (int lane = 0; lane < 4; lane++)
             {
-                Store(destination + offset + lane, word[lane] with { StoreValue = true });
+                Store(destination + offset + lane, word[lane]);
             }
         }
     }
@@ -536,19 +536,30 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         if (dirtyCells.Count != 0)
         {
             using NativeBattleEffectArenaTransaction publication = NativeBattleEffectArenaTransaction.CreatePrivateChild(arena);
-            Span<byte> value = stackalloc byte[1];
+            Span<byte> values = stackalloc byte[256];
+            Span<bool> known = stackalloc bool[256];
             foreach (int offset in dirtyCells)
             {
-                NodeByte cell = cells[offset];
-                if (cell.StoreValue)
+                if (dirtyCells.Contains(offset - 1))
                 {
-                    value[0] = cell.Value;
-                    publication.Write(offset, value);
+                    continue;
                 }
-                if (!cell.Known)
+                int start = offset;
+                do
                 {
-                    publication.MarkUnknown(offset, 1);
+                    int count = 0;
+                    do
+                    {
+                        NodeByte cell = cells[start + count];
+                        values[count] = cell.Value;
+                        known[count] = cell.Known;
+                        count++;
+                    }
+                    while (count < values.Length && dirtyCells.Contains(start + count));
+                    publication.WriteWithKnownness(start, values[..count], known[..count]);
+                    start += count;
                 }
+                while (dirtyCells.Contains(start));
             }
             foreach ((int offset, BattleExecutionReference.TraversalPosition position) in traversalPositions)
             {
@@ -582,7 +593,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         Span<byte> data = stackalloc byte[1];
         Span<bool> known = stackalloc bool[1];
         original.ReadWithKnownness(offset - first, data, known);
-        return new(data[0], known[0], false);
+        return new(data[0], known[0]);
     }
 
     private uint ReadScalar(int offset, int width)
@@ -606,7 +617,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         Require(offset, width);
         for (int index = 0; index < width; index++)
         {
-            Store(offset + index, new(unchecked((byte)(value >> (index * 8))), true, true));
+            Store(offset + index, new(unchecked((byte)(value >> (index * 8))), true));
         }
     }
 

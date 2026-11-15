@@ -34,16 +34,22 @@ internal sealed partial class NativeBattleArenaOverlay
     {
         ExecutionReferenceEncoding.RequireWidth(width);
         Source.RequireRange(offset, width);
-        foreach ((int start, BattleExecutionReferenceEntry entry) in EnumerateExecutionReferences())
+        reference = FindExecutionReference(offset) is { } entry && entry.Width == width ? entry.Reference as T : null;
+        return reference is not null;
+    }
+
+    private BattleExecutionReferenceEntry? FindExecutionReference(int offset)
+    {
+        if (executionChanges.TryGetValue(offset, out BattleExecutionReferenceEntry? changed))
         {
-            if (start == offset && entry.Width == width)
-            {
-                reference = entry.Reference as T;
-                return reference is not null;
-            }
+            return changed;
         }
-        reference = null;
-        return false;
+
+        NativeBattleEffectArena owner = Source;
+        BattleExecutionReferenceEntry? inherited = privateParent is null
+            ? owner.Working.FindExecutionReference(checked(owner.WorkingOffset + offset))
+            : privateParent.FindExecutionReference(checked(privateParentOffset + offset));
+        return inherited is not null && offset <= owner.Bound - inherited.Width && !OverlapsPrivateBytes(offset, inherited.Width) ? inherited : null;
     }
 
     internal void WriteExecutionReference(int offset, int width, BattleExecutionReference reference, ImmutableArray<byte>? nativeBytes)
@@ -79,15 +85,41 @@ internal sealed partial class NativeBattleArenaOverlay
         {
             return;
         }
-        int[] offsets = [.. EnumerateExecutionReferences().Where(pair => pair.Key < (long)offset + length && pair.Key + (long)pair.Value.Width > offset).Select(pair => pair.Key)];
-        executionChanges.EnsureCapacity(checked(executionChanges.Count + offsets.Length + 1));
-        if (checkpoint)
+        // Scalar stores can intersect only references starting in the store or up to three bytes before it.
+        if (length <= 4)
         {
-            executionUndo.EnsureCapacity(checked(executionUndo.Count + offsets.Length + 1));
+            Span<int> overlapping = stackalloc int[7];
+            int count = 0;
+            int end = checked(offset + length);
+            for (int start = Math.Max(0, offset - 3); start < end; start++)
+            {
+                if (FindExecutionReference(start) is { } entry && start + entry.Width > offset)
+                {
+                    overlapping[count++] = start;
+                }
+            }
+            Remove(overlapping[..count]);
+            return;
         }
-        foreach (int start in offsets)
+
+        int[] offsets = [.. EnumerateExecutionReferences().Where(pair => pair.Key < (long)offset + length && pair.Key + (long)pair.Value.Width > offset).Select(pair => pair.Key)];
+        Remove(offsets);
+
+        void Remove(ReadOnlySpan<int> offsets)
         {
-            RecordExecutionChange(start, null);
+            if (offsets.IsEmpty)
+            {
+                return;
+            }
+            executionChanges.EnsureCapacity(checked(executionChanges.Count + offsets.Length + 1));
+            if (checkpoint)
+            {
+                executionUndo.EnsureCapacity(checked(executionUndo.Count + offsets.Length + 1));
+            }
+            foreach (int start in offsets)
+            {
+                RecordExecutionChange(start, null);
+            }
         }
     }
 

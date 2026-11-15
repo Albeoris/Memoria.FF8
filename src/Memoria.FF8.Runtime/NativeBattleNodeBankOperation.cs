@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -100,25 +100,18 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
         }
     }
 
-    internal void ReadInto(int offset, Span<byte> bytes)
+    internal void ReadIntoUnpublished(int offset, Span<byte> bytes)
     {
         RequireRange(offset, bytes.Length);
-        Span<byte> scratch = stackalloc byte[256];
         Span<bool> known = stackalloc bool[256];
         for (int cursor = 0; cursor < bytes.Length;)
         {
-            int count = Math.Min(scratch.Length, bytes.Length - cursor);
-            ReadWithKnownness(offset + cursor, scratch[..count], known[..count]);
+            int count = Math.Min(known.Length, bytes.Length - cursor);
+            ReadWithKnownness(offset + cursor, bytes.Slice(cursor, count), known[..count]);
             if (known[..count].Contains(false))
             {
                 throw new NotSupportedException("Native node read intersects unresolved physical bytes.");
             }
-            cursor += count;
-        }
-        for (int cursor = 0; cursor < bytes.Length;)
-        {
-            int count = Math.Min(scratch.Length, bytes.Length - cursor);
-            ReadWithKnownness(offset + cursor, bytes.Slice(cursor, count), known[..count]);
             cursor += count;
         }
     }

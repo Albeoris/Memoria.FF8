@@ -152,6 +152,36 @@ public sealed class NativeBattleExecutionReferenceStorageTests
     }
 
     [Fact]
+    public void Scalar_overlay_store_removes_each_overlapping_reference_and_rollback_restores_ownership()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        arena.WriteExecutionReference(12, 4, Header, [9, 8, 7, 6]);
+        arena.WriteExecutionReference(19, 1, Model, [7]);
+        using NativeBattleEffectArenaTransaction parent = new(arena);
+        parent.WriteExecutionReference(16, 2, Targets, [4, 0]);
+        parent.WriteExecutionReference(18, 1, Model, [3]);
+        NativeBattleEffectArena view = NativeBattleEffectArena.BorrowWorking(arena.Working, 12, 8);
+        parent.BeginCheckpoint();
+        using (NativeBattleEffectArenaTransaction child = NativeBattleEffectArenaTransaction.CreatePrivateChild(view))
+        {
+            child.Write(3, [1, 2, 3, 4]);
+            Assert.False(child.View.TryReadExecutionReference<BattleExecutionReference.Header>(0, 4, out _));
+            Assert.False(child.View.TryReadExecutionReference<BattleExecutionReference.Targets>(4, 2, out _));
+            Assert.False(child.View.TryReadExecutionReference<BattleExecutionReference.Model>(6, 1, out _));
+            Assert.Equal(Model, child.View.ReadExecutionReference<BattleExecutionReference.Model>(7, 1));
+            child.Freeze();
+        }
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Header>(12, 4, out _));
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Targets>(16, 2, out _));
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Model>(18, 1, out _));
+        parent.RollbackCheckpoint();
+        Assert.Equal(Header, parent.View.ReadExecutionReference<BattleExecutionReference.Header>(12, 4));
+        Assert.Equal(Targets, parent.View.ReadExecutionReference<BattleExecutionReference.Targets>(16, 2));
+        Assert.Equal(Model, parent.View.ReadExecutionReference<BattleExecutionReference.Model>(18, 1));
+        Assert.Equal(new byte[] { 9, 8, 7, 6, 4, 0, 3, 7 }, parent.View.Read(12, 8));
+    }
+
+    [Fact]
     public void In_memory_restore_keeps_aliases_and_JSON_retains_only_actual_bytes()
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();

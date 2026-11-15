@@ -79,6 +79,18 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
         return operation.OpenReader(offset, checked(Length - offset));
     }
 
+    internal void ReadIntoUnpublished(uint address, Span<byte> destination)
+    {
+        if (address >= Address && (ulong)address + (uint)destination.Length <= (ulong)Address + (uint)Length)
+        {
+            operation.ReadIntoUnpublished(checked((int)(address - Address)), destination);
+        }
+        else
+        {
+            Read(address, destination.Length).CopyTo(destination);
+        }
+    }
+
     internal byte[] Read(uint address, int length)
     {
         if (length < 0 || (ulong)address + (uint)length > (1UL << 32))
@@ -90,7 +102,7 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
         if (address >= Address && end <= bankEnd)
         {
             byte[] bytes = new byte[length];
-            operation.ReadInto(checked((int)(address - Address)), bytes);
+            operation.ReadIntoUnpublished(checked((int)(address - Address)), bytes);
             return bytes;
         }
         if (readExternal is null || address < bankEnd && end > Address)

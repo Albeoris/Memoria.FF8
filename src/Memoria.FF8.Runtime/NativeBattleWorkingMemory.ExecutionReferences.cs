@@ -43,11 +43,16 @@ internal sealed partial class NativeBattleWorkingMemory
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.Fill, width);
     }
 
+    internal BattleExecutionReferenceEntry? FindExecutionReference(int offset)
+    {
+        return executionReferences?.GetValueOrDefault(offset);
+    }
+
     internal bool TryReadExecutionReference<T>(int offset, int width, [NotNullWhen(true)] out T? reference) where T : BattleExecutionReference
     {
         ExecutionReferenceEncoding.RequireWidth(width);
         RequireRange(offset, width);
-        reference = executionReferences is not null && executionReferences.TryGetValue(offset, out BattleExecutionReferenceEntry? entry) && entry.Width == width ? entry.Reference as T : null;
+        reference = FindExecutionReference(offset) is { } entry && entry.Width == width ? entry.Reference as T : null;
         return reference is not null;
     }
 

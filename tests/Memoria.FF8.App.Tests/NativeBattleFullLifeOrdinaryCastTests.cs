@@ -10,7 +10,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleFullLifeOrdinaryCastTests
 {
     [Fact]
-    public void Installed_Full_life_ordinary_cast_revives_a_KO_target_and_completes_through_disk_restore()
+    public void Installed_Full_life_ordinary_cast_revives_a_KO_target_and_completes_through_private_checkpoint_restore()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -96,7 +96,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Publish("before", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
             string cameraBefore = JsonSerializer.Serialize(battle.Capture().NativeCamera);
             battle.QueueAction("party", "target", BattleAbility.Magic, 25);
-            BattleSession? clone = SaveAndLoad("queued");
+            BattleSession? clone = RestoreCheckpoint("queued");
             bool selectedCasting = false;
             bool selectedFullLife = false;
             bool cameraChanged = false;
@@ -144,7 +144,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     Assert.Equal((ushort)1000, hp);
                     displayedHp = hp;
                     healingTransitions++;
-                    clone = SaveAndLoad("contact");
+                    clone = RestoreCheckpoint("contact");
                     contactChecked = true;
                 }
                 NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
@@ -157,7 +157,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     changedRgbPixels = CountRgbChanges(visible, plain);
                     if (changedRgbPixels > 0)
                     {
-                        clone = SaveAndLoad("visible");
+                        clone = RestoreCheckpoint("visible");
                         visibleChecked = true;
                     }
                 }
@@ -194,7 +194,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             NativeBattleModuleSound sound = Assert.Single(heard, item => item.Sound == effectSound);
             Assert.Equal((byte)128, sound.Pan);
             Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == effectSound);
-            BattleSession after = SaveAndLoad("completed");
+            BattleSession after = RestoreCheckpoint("completed");
             int soundCount = heard.Count;
             audio.Update(after);
             Assert.Equal(soundCount, heard.Count);
@@ -214,16 +214,14 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             throw;
         }
 
-        BattleSession SaveAndLoad(string name)
+        BattleSession RestoreCheckpoint(string name)
         {
             BattleSnapshot snapshot = battle.Capture();
             byte[] pixels = scene.Render(battle, 320, 224).ToArray();
             Publish(name, snapshot, pixels);
-            using FileStream input = File.OpenRead(Path.Combine(output, name + ".battle.json"));
-            BattleSnapshot loaded = JsonSerializer.Deserialize<BattleSnapshot>(input)!;
-            BattleSession restored = BattleSession.Restore(loaded);
+            BattleSession restored = BattleSession.Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(pixels, new BattleScenePresentation(assets, loaded.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(restored, 320, 224).ToArray());
             return restored;
         }
 
