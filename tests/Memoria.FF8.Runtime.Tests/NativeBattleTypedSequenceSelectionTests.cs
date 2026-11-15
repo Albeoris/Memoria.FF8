@@ -11,7 +11,7 @@ public sealed class NativeBattleTypedSequenceSelectionTests
         BattleActorModels models = new([new(current, new(0)), new(source, new(0))]);
         NativeBattleModelBoundary boundary = EmptyBoundary();
         (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(6), target, models);
-        NativeBattleActionGeometry retained = new(source, BattleModelTargets.From([current]), true);
+        NativeBattleActionGeometry retained = new(Canonical(source), BattleRetainedModelSelection.From([Canonical(current)]), true);
 
         var selected = NativeBattleSequenceSelections.GeometryArguments92(models, current, 6, retained, boundary);
         Assert.Equal(source, selected.Source);
@@ -29,14 +29,14 @@ public sealed class NativeBattleTypedSequenceSelectionTests
         BattlePartyActorModel retired = new(new("retired"));
         BattleModelOwner[] selected = Enumerable.Range(0, 40).Select(index => new BattleEnemyActorModel(new($"enemy-{index}"))).Reverse().ToArray();
         BattleActorModels models = new(selected.Reverse().Select(owner => new BattleModelEntry<BattleModelOwner>(owner, new(0))).Append(new(current, new(0))));
-        NativeBattleActionGeometry retained = new(retired, BattleModelTargets.From(selected), hasNonActorSelectors);
+        NativeBattleActionGeometry retained = new(Canonical(retired), BattleRetainedModelSelection.From(selected.Select(Canonical)), hasNonActorSelectors);
         NativeBattleModelBoundary boundary = EmptyBoundary();
 
         var result = NativeBattleSequenceSelections.GeometryArguments92(models, current, selector, retained, boundary);
         Assert.Equal(current, result.Source);
         Assert.Equal(selected, result.Targets.Enumerate());
         Assert.Equal(hasNonActorSelectors, result.SourceHasNonActorSelectors);
-        var empty = NativeBattleSequenceSelections.GeometryArguments92(models, current, selector, retained with { SourceTargets = BattleModelTargets.Empty }, boundary);
+        var empty = NativeBattleSequenceSelections.GeometryArguments92(models, current, selector, retained with { SourceTargets = BattleRetainedModelSelection.From([]) }, boundary);
         Assert.True(empty.Targets.IsEmpty);
     }
 
@@ -49,16 +49,18 @@ public sealed class NativeBattleTypedSequenceSelectionTests
         BattleActorModels models = new([new(current, new(0))]);
         NativeBattleModelBoundary boundary = EmptyBoundary();
         (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(3), target, models);
-        NativeBattleActionGeometry retained = new(current, BattleModelTargets.From([target]), false);
+        NativeBattleActionGeometry retained = new(Canonical(current), BattleRetainedModelSelection.From([new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(3))]), false);
         BattleActorModels missingLiteral = models.Remove(target);
 
         Assert.Throws<InvalidDataException>(() => NativeBattleSequenceSelections.GeometryArguments92(models, retired, 7, retained, boundary));
-        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceSelections.GeometryArguments92(models, current, 3, retained with { Source = retired }, boundary));
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceSelections.GeometryArguments92(models, current, 3, retained with { Source = Canonical(retired) }, boundary));
         Assert.Throws<InvalidDataException>(() => NativeBattleSequenceSelections.GeometryArguments92(missingLiteral, current, 3, retained, boundary));
         Assert.Throws<InvalidDataException>(() => NativeBattleSequenceSelections.GeometryArguments92(missingLiteral, current, 7, retained, boundary));
         Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.GeometryArguments92(models, current, 7, null, boundary));
         Assert.Throws<ArgumentNullException>(() => NativeBattleSequenceSelections.GeometryArguments92(models, current, 7, retained, null!));
     }
+
+    private static BattleRetainedModelReference Canonical(BattleModelOwner owner) => new BattleRetainedModelReference.CanonicalOwner(owner);
 
     [Fact]
     public void Selector93DecodesOnlyAuthoredLiteralSlots()

@@ -25,6 +25,7 @@ public sealed partial class BattleSession
     private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null)
     {
         internal HostedDuelPoll? DuelPoll { get; init; }
+        internal HostedRenzokukenOwner? Renzokuken { get; init; }
     }
 
     private bool preparingExpandedHostedAction;
@@ -210,6 +211,7 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("A hosted control invocation published an unexpected contact.");
                     }
+                    ValidateExpandedHostedRenzokukenContact(contact, actionToken.Value);
                     if (CurrentExpandedHostedInvocation is { PendingGunblade: true } or { PendingGuardian: true })
                     {
                         throw new InvalidDataException("Hosted action published a placeholder before recomputation.");
@@ -280,6 +282,9 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattleDuelSelectionReached duelSelection:
                     ApplyExpandedHostedDuelSelection(services, duelSelection, actionToken);
+                    break;
+                case NativeBattleRenzokukenFinisherReached finisher:
+                    ApplyExpandedHostedRenzokukenFinisher(services, finisher, actionToken);
                     break;
                 case NativeBattlePresentationCompletionRequested completion:
                     CompleteExpandedHostedEvent(completion, actionToken);

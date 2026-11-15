@@ -30,7 +30,8 @@ public sealed record EncounterAllocationRetirement(int PhysicalIndex, bool Remov
             activeAction?.TargetRequest.Selection is BattleTargetSelection.Explicit selected && selected.Actors.Contains(new BattleEnemyActorReference(allocationId)) ||
             activeAction?.NativeHeader is { } activeHeader && IsAcceptedHeader(activeHeader) ||
             activeAction is not null && NativeBattleSlots.Contains(PhysicalIndex) && NativeBattleTargetRequestAdapter.MaySelectOriginalSlot(activeAction.TargetRequest, NativeBattleSlots.Decode(PhysicalIndex)) ||
-            graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context && (context.Source == owner || context.TargetActors?.Contains(owner) == true || context.SourceTargets.Contains(owner)) ||
+            graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context &&
+                (context.ResolveSource(graphics.ActorModels, graphics.NativeBindings) == owner || context.TargetActors?.Resolve(graphics.ActorModels, graphics.NativeBindings).Contains(owner) == true || context.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings).Contains(owner)) ||
             graphics.PendingContacts.Any(IsContactOwner) || IsEffectOwner(graphics.OriginalEffect) || IsEffectOwner(detachedEffect);
     }
 }

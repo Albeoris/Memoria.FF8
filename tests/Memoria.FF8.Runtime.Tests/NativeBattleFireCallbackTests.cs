@@ -147,7 +147,7 @@ public sealed class NativeBattleFireCallbackTests
         NativeBattleOriginalEffectState effect = new(2, 1, new(2, 0x6298A0, 0x629880), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null);
         effect = NativeBattleFireEffect.InitializePools(effect, packets);
         ImmutableArray<NativeBattleModuleResource> resources = [Sprite(0xDEDC2C, 0), Sprite(0xDEDDD8, 0), Sprite(0xDEDF84, 0), Sprite(0x123450, 5)];
-        NativeBattleFireInputs inputs = new(0, packets, NativeCrtRandomState.FromColdProcess(), model => new((short)(OriginalSlot(model) * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);
+        NativeBattleFireInputs inputs = new(0, packets, packets.Roster, NativeCrtRandomState.FromColdProcess(), model => new((short)(OriginalSlot(model) * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);
         return (effect, inputs);
     }
 

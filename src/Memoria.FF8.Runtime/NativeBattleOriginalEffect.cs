@@ -96,9 +96,16 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
         {
             throw new InvalidDataException("Effect entry first recipient requires a bound model owner.");
         }
-        if (FireModelCompletion is { } completion && (completion.Count != roster.Count || completion.Keys.Any(owner => !roster.Contains(owner))))
+        if (FireModelCompletion is { } completion)
         {
-            throw new InvalidDataException("Native6298A0 requires one DEE360 completion DWORD per bound model owner.");
+            if (Parameters?.TargetActors.Enumerate().Any(owner => !completion.ContainsKey(owner)) == true)
+            {
+                throw new InvalidDataException("Native6298A0 requires a DEE360 completion DWORD for each entered recipient.");
+            }
+            if (completion.Any(entry => entry.Value == 0 && !roster.Contains(entry.Key)))
+            {
+                throw new InvalidDataException("Native6298A0 requires each outstanding DEE360 model owner to remain bound.");
+            }
         }
     }
 

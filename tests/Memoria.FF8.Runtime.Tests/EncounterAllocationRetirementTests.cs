@@ -28,7 +28,9 @@ public sealed class EncounterAllocationRetirementTests
     public void UnrelatedFourthActorCannotStarveRetirementButAcceptedCopyContactsRetainIt()
     {
         EncounterAllocationRetirement retirement = new(4);
-        NativeBattleGraphicsState graphics = Graphics() with { ActionActorId = "fourth", ActionContext = new(Fourth, BattleModelTargets.From([Party]), false) { TargetActors = BattleModelTargets.From([Party]), Target = Party } };
+        BattleRetainedModelReference target = BattleRetainedModelReference.Capture(Party, Aliases);
+        BattleRetainedModelSelection selection = BattleRetainedModelSelection.From([target]);
+        NativeBattleGraphicsState graphics = Graphics() with { ActionActorId = "fourth", ActionContext = new(BattleRetainedModelReference.Capture(Fourth, Aliases), selection, false) { TargetActors = selection, Target = target } };
         BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.None, samplesOriginalSlots: true);
         BattleActionPresentation active = new("fourth", "party", BattleActionPhase.Windup, 10, request, BattleAbility.EnemyAbility, 1);
         Assert.False(retirement.HasAcceptedConsumers("copy", Header(Fourth, Party), graphics, active));

@@ -25,7 +25,7 @@ public sealed class CrossoverNativeSelectedModuleTests
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)17, packets.ContactCount);
         Assert.Equal((byte)17, normalized.FirstHeaderTargetCount);
-        Assert.True(normalized.TargetActors.IsSingle(OriginalOwner(3)));
+        Assert.True(normalized.TargetActors.Resolve(packets.ModelAliases).IsSingle(OriginalOwner(3)));
         ImmutableArray<CrossoverNativeMagicTarget> bound = contacts.ToImmutable();
         ImmutableArray<NativeBattleContactPacket> physical = packets.ReadHeaderContacts(header);
         ImmutableArray<int> ordinals = CrossoverNativeMagicPresentation.ReadContactOrdinals(bound, [], physical);

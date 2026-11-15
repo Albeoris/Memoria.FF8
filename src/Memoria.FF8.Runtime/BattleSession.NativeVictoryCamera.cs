@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        BattleModelOwner? owner = (graphics.ActionGraphics ?? throw new NotSupportedException("Native5064F0 requires its retained action owner.")).CameraActor;
+        BattleModelOwner? owner = (graphics.ActionGraphics ?? throw new NotSupportedException("Native5064F0 requires its retained action owner.")).ResolveCameraActor(graphics);
         bool resourceCamera = true;
         if (owner is BattlePartyModelOwner party)
         {

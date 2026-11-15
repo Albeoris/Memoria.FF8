@@ -172,12 +172,12 @@ public sealed class NativeBattleActionGraphicsTests
         packets = packets.WritePlayerRepeatMode(header, 2);
 
         NativeBattleActionGraphicsState result = NativeBattleActionGraphics.Normalize(packets, header);
-        Assert.Equal(new BattleModelOwner[] { Target, Second }, result.TargetActors.Enumerate());
-        Assert.Equal(new BattleModelOwner[] { Cover1, Cover2 }, result.CoverActors.Enumerate());
+        Assert.Equal(new BattleModelOwner[] { Target, Second }, result.TargetActors.Resolve(packets.ModelAliases).Enumerate());
+        Assert.Equal(new BattleModelOwner[] { Cover1, Cover2 }, result.CoverActors.Resolve(packets.ModelAliases).Enumerate());
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, Source, new(2)), (1, Cover1, new(2)), (2, Cover2, new(2)), (3, Target, new(2)), (4, Second, new(2))]);
         Assert.Equal(Second, result.FirstTargetBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(Cover1, result.CoverSourceBinding!.Resolve(graphics.ActorModels, graphics.NativeBindings));
-        Assert.Equal(Source, result.CameraActor);
+        Assert.Equal(Source, result.ResolveCameraActor(graphics));
         Assert.Equal(2, result.FirstHeaderTargetCount);
         Assert.Equal(2, result.HitFlags);
         Assert.Equal(data, result.PendingData);
@@ -196,7 +196,7 @@ public sealed class NativeBattleActionGraphicsTests
         packets = packets.WritePlayerRepeatMode(header, 1);
 
         NativeBattleActionGraphicsState result = NativeBattleActionGraphics.Normalize(packets, header);
-        Assert.Equal(ordered, result.TargetActors.Enumerate());
+        Assert.Equal(ordered, result.TargetActors.Resolve(packets.ModelAliases).Enumerate());
         BattleActorModels models = new(ordered.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, new NativeBattleGraphicsModel(2))));
         Assert.Equal(ordered[^1], result.FirstTargetBinding!.Resolve(models, NativeBattleModelBoundary.FromRetainedMemory(null)));
         Assert.Equal(31, result.FirstHeaderTargetCount);
@@ -206,7 +206,7 @@ public sealed class NativeBattleActionGraphicsTests
     public void EmptyHeaderRetainsBoundOwnersAndRejectsARetiredReference()
     {
         NativeBattleActionPacketsState packets = Prepare();
-        NativeBattleActionGraphicsState prior = new(FirstHeader, Source, new(0), BattleModelTargets.From([Target]), BattleModelTargets.From([Cover1]),
+        NativeBattleActionGraphicsState prior = new(FirstHeader, BattleRetainedModelReference.Capture(Source, packets.ModelAliases), new(0), BattleRetainedModelSelection.Capture(BattleModelTargets.From([Target]), packets.ModelAliases), BattleRetainedModelSelection.Capture(BattleModelTargets.From([Cover1]), packets.ModelAliases),
             BattleRetainedModelReference.Capture(Cover1, packets.ModelAliases), BattleRetainedModelReference.Capture(Target, packets.ModelAliases), 2, null, 0x50B190);
         NativeBattleActionGraphicsState next = NativeBattleActionGraphics.Normalize(packets, FirstHeader, prior);
         NativeBattleGraphicsState graphics = OriginalGraphics([(1, Cover1, new(2)), (3, Target, new(2))]);

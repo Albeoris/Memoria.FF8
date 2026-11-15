@@ -20,13 +20,13 @@ public sealed partial class BattleSession
 
     private bool NativeActionModelsBusy(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        return NativeBattleActionGraphics.AreActionModelsBusy(graphics.ActorModels, context);
+        return NativeBattleActionGraphics.AreActionModelsBusy(graphics.ActorModels, graphics.NativeBindings, context);
     }
 
     private NativeBattleGraphicsState PrepareNativeHeaderGeometry(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
-        BattleModelOwner source = context.Actor;
+        BattleModelOwner source;
         if (header.Command == 0xF0)
         {
             BattleModelOwner? selected = null;
@@ -43,7 +43,11 @@ public sealed partial class BattleSession
             }
             source = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
         }
-        BattleModelTargets selection = context.CoverActors.IsEmpty ? context.TargetActors : context.CoverActors;
+        else
+        {
+            source = context.ResolveActor(graphics);
+        }
+        BattleModelTargets selection = context.CoverActors.IsEmpty ? context.ResolveTargets(graphics) : context.ResolveCover(graphics);
         BattleModelTargets effective = selection;
         if (selection.IsEmpty && header.Command is 1 or 12 or 28)
         {
@@ -99,20 +103,20 @@ public sealed partial class BattleSession
         if (phase == 2)
         {
             graphics = PrepareNativeHeaderGeometry(graphics, context);
-            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ResolveActor(graphics));
             actor = actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50BB00 actor lacks its loaded DWORD8.")) & ~0x800000u };
             byte sequence = nativeActionPackets.ReadHeader(context.Header).Sequence;
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor) };
-            graphics = sequence != 0 ? SelectNativeHeaderSequence(graphics, context.Actor, sequence) : ApplyNativeActiveHeaderContacts(graphics);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ResolveActor(graphics), actor) };
+            graphics = sequence != 0 ? SelectNativeHeaderSequence(graphics, context.ResolveActor(graphics), sequence) : ApplyNativeActiveHeaderContacts(graphics);
             graphics = StartNativeHeaderCamera(graphics, context);
             phase = 3;
         }
-        NativeBattleGraphicsModel source = graphics.ActorModels.Get(context.Actor);
+        NativeBattleGraphicsModel source = graphics.ActorModels.Get(context.ResolveActor(graphics));
         ushort flags = source.ResourceFlags44 ?? throw new NotSupportedException("Native50BB00 requires its source resource WORD44.");
         bool complete = ((flags & 0xC0) != 0 || (source.Flags0 & 2) == 0) && NativeCameraTaskMask == 0;
         if (complete)
         {
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, source with { ResourceFlags44 = (ushort)(flags & ~0x80) }) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ResolveActor(graphics), source with { ResourceFlags44 = (ushort)(flags & ~0x80) }) };
             graphics = CompleteNativeHeaderGraphics(graphics);
         }
         return (graphics, phase, complete);

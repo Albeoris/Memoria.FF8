@@ -30,7 +30,7 @@ public sealed class NativeBattleHostedSequenceSelectionTests
     public void Geometry92_native_literal_targets_keep_the_retained_source(byte selector)
     {
         NativeBattleGraphicsState graphics = Graphics();
-        NativeBattleActionGeometry retained = new(LastAddedParty, Targets(FirstAddedEnemy, LastAddedEnemy), true);
+        NativeBattleActionGeometry retained = Geometry(LastAddedParty, Targets(FirstAddedEnemy, LastAddedEnemy), true);
 
         var result = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, FirstAddedParty, selector, retained, graphics.NativeBindings);
 
@@ -47,12 +47,12 @@ public sealed class NativeBattleHostedSequenceSelectionTests
     public void Geometry92_other_operands_use_current_owner_and_full_source_targets(byte selector)
     {
         NativeBattleGraphicsState graphics = Graphics();
-        NativeBattleActionGeometry retained = new(LastAddedParty, Targets(OriginalEnemy, FirstAddedEnemy, LastAddedEnemy), true);
+        NativeBattleActionGeometry retained = Geometry(LastAddedParty, Targets(OriginalEnemy, FirstAddedEnemy, LastAddedEnemy), true);
 
         var result = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, FirstAddedParty, selector, retained, graphics.NativeBindings);
 
         Assert.Equal(FirstAddedParty, result.Source);
-        Assert.Equal(retained.SourceTargets, result.Targets);
+        Assert.Equal(retained.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings), result.Targets);
         Assert.True(result.SourceHasNonActorSelectors);
     }
 
@@ -60,15 +60,15 @@ public sealed class NativeBattleHostedSequenceSelectionTests
     public void Geometry92_keeps_non_actor_selector_fact_on_both_original_and_added_owners()
     {
         NativeBattleGraphicsState graphics = Graphics();
-        NativeBattleActionGeometry retained = new(OriginalParty, Targets(OtherEnemy), true);
+        NativeBattleActionGeometry retained = Geometry(OriginalParty, Targets(OtherEnemy), true);
 
         var added = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, LastAddedParty, 7, retained, graphics.NativeBindings);
         var native = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, LastNative, 7, retained, graphics.NativeBindings);
 
         Assert.Equal(LastAddedParty, added.Source);
         Assert.Equal(LastNative, native.Source);
-        Assert.Equal(retained.SourceTargets, added.Targets);
-        Assert.Equal(retained.SourceTargets, native.Targets);
+        Assert.Equal(retained.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings), added.Targets);
+        Assert.Equal(retained.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings), native.Targets);
         Assert.True(added.SourceHasNonActorSelectors);
         Assert.True(native.SourceHasNonActorSelectors);
     }
@@ -87,15 +87,15 @@ public sealed class NativeBattleHostedSequenceSelectionTests
         NativeBattleGraphicsState graphics = Graphics();
         NativeBattleVector position = new(20, 0, 40);
         NativeBattleGraphicsModel other = graphics.ActorModels.Get(OtherEnemy) with { Flags2 = 0, ModelId4 = 20, Transform = new(position, position, 0, 0, 4096) };
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(OtherEnemy, other), ActionContext = new(OtherEnemy, Targets(OtherEnemy), true) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(OtherEnemy, other), ActionContext = Geometry(OtherEnemy, Targets(OtherEnemy), true) };
         MethodInfo rebind = typeof(BattleSession).GetMethod("RebindNativeSequenceGeometry92", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
         NativeBattleGraphicsState result = (NativeBattleGraphicsState)rebind.Invoke(session, [graphics, OtherEnemy, selector])!;
 
         NativeBattleActionGeometry geometry = Assert.IsType<NativeBattleActionGeometry>(result.ActionContext);
         Assert.Equal(hasNonActorSelectors, geometry.SourceHasNonActorSelectors);
-        Assert.True(geometry.SourceTargets.IsSingle(OtherEnemy));
-        Assert.Equal(expectedSelf, geometry.IsSelfTarget);
+        Assert.True(geometry.SourceTargets.Resolve(result.ActorModels, result.NativeBindings).IsSingle(OtherEnemy));
+        Assert.Equal(expectedSelf, geometry.IsSelfTarget(result.ActorModels, result.NativeBindings));
         Assert.Equal(expectedSelf, geometry.UnadjustedDistance == 1000);
     }
 
@@ -103,7 +103,7 @@ public sealed class NativeBattleHostedSequenceSelectionTests
     public void Geometry92_rejects_only_reached_unbound_source_current_or_targets()
     {
         NativeBattleGraphicsState graphics = Graphics();
-        NativeBattleActionGeometry retained = new(LastAddedParty, Targets(FirstAddedEnemy, LastAddedEnemy), false);
+        NativeBattleActionGeometry retained = Geometry(LastAddedParty, Targets(FirstAddedEnemy, LastAddedEnemy), false);
         (BattleModelOwner Source, BattleModelTargets Targets, bool SourceHasNonActorSelectors) Select(BattleModelOwner owner, byte selector, NativeBattleActionGeometry? context)
         {
             return NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, owner, selector, context, graphics.NativeBindings);
@@ -111,10 +111,16 @@ public sealed class NativeBattleHostedSequenceSelectionTests
 
         Assert.Throws<InvalidDataException>(() => Select(Missing, 0, retained));
         Assert.Throws<InvalidDataException>(() => Select(FirstAddedParty, 1, retained));
-        Assert.Throws<InvalidDataException>(() => Select(FirstAddedParty, 0, retained with { Source = Missing }));
-        Assert.Throws<InvalidDataException>(() => Select(FirstAddedParty, 7, retained with { SourceTargets = Targets(Missing) }));
+        BattleRetainedModelReference missing = new BattleRetainedModelReference.CanonicalOwner(Missing);
+        Assert.Throws<InvalidDataException>(() => Select(FirstAddedParty, 0, retained with { Source = missing }));
+        Assert.Throws<InvalidDataException>(() => Select(FirstAddedParty, 7, retained with { SourceTargets = BattleRetainedModelSelection.From([missing]) }));
         Assert.Throws<NotSupportedException>(() => Select(FirstAddedParty, 7, null));
-        Assert.Equal(retained.SourceTargets, Select(FirstAddedParty, 7, retained with { Source = Missing }).Targets);
+        Assert.Equal(retained.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings), Select(FirstAddedParty, 7, retained with { Source = missing }).Targets);
+    }
+
+    private static NativeBattleActionGeometry Geometry(BattleModelOwner source, BattleModelTargets targets, bool hasNonActorSelectors)
+    {
+        return new(BattleRetainedModelReference.Capture(source, Aliases), BattleRetainedModelSelection.Capture(targets, Aliases), hasNonActorSelectors);
     }
 
     [Fact]

@@ -12,7 +12,7 @@ public static class NativeBattleCastingCover
     public static BattleActorModels Enter(BattleActorModels models, NativeBattleModelBoundary boundary, NativeBattleActionGraphicsState action)
     {
         BattleModelOwner source = Source(models, boundary, action);
-        BattleModelOwner recipient = Recipient(models, action.TargetActors);
+        BattleModelOwner recipient = Recipient(models, action.TargetActors.Resolve(models, boundary));
         NativeBattleModelTransform sourceTransform = Transform(models, source);
         NativeBattleGraphicsModel target = models.Get(recipient);
         NativeBattleModelTransform targetTransform = Transform(models, recipient);
@@ -25,7 +25,7 @@ public static class NativeBattleCastingCover
     public static BattleActorModels Complete(BattleActorModels models, NativeBattleModelBoundary boundary, NativeBattleActionGraphicsState action)
     {
         BattleModelOwner source = Source(models, boundary, action);
-        BattleModelOwner recipient = Recipient(models, action.TargetActors);
+        BattleModelOwner recipient = Recipient(models, action.TargetActors.Resolve(models, boundary));
         NativeBattleGraphicsModel target = models.Get(recipient);
         NativeBattleModelTransform targetTransform = Transform(models, recipient);
         ushort flags = target.ResourceFlags44 ?? throw new NotSupportedException("Native50A9A0 cover completion requires the recipient's resource WORD44.");

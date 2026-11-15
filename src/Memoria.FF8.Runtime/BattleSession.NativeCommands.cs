@@ -376,7 +376,7 @@ public sealed partial class BattleSession
         }).ToArray();
     }
 
-    private void RestoreNativeLimits(BattleNativeLimitState[] states, ExpandedHostedEvent? hostedEvent)
+    private void RestoreNativeLimits(BattleNativeLimitState[] states, ExpandedHostedEvent? hostedEvent, NativeBattleTriggerReceipt? hostedRenzokukenTrigger = null)
     {
         if (states is not null && states.Sum(state => (state?.Shot is null ? 0 : 1) + (state?.Duel is null ? 0 : 1) + (state?.Renzokuken is null ? 0 : 1)) > 1)
         {
@@ -413,10 +413,10 @@ public sealed partial class BattleSession
             }
             if (state.Renzokuken is { } renzokuken)
             {
-                RestoreNativeRenzokuken(state.ActorId, state.CrisisLevel, renzokuken);
+                RestoreNativeRenzokuken(state.ActorId, state.CrisisLevel, renzokuken, hostedEvent);
             }
         }
-        ValidateNativeRenzokukenOwners();
+        ValidateNativeRenzokukenOwners(hostedEvent, hostedRenzokukenTrigger);
         ValidateNativeLimitCallbacks();
     }
 }

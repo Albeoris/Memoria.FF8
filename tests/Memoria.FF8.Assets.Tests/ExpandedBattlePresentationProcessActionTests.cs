@@ -174,7 +174,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         {
             logical.Tick();
             token ??= process.LastStepActionToken;
-            reachedControl |= process.Graphics.ActionGraphics is { Callback: 0x50BD00, Actor: var owner } && owner == casterOwner;
+            reachedControl |= process.Graphics.ActionGraphics is { Callback: 0x50BD00 } control && control.ResolveActor(process.Graphics) == casterOwner;
             sequenceTen |= process.Graphics.ActorModels.Get(casterOwner).Sequence == 10;
             Assert.Empty(process.LastStep.Contacts);
             if (nativeClock && logical.ActiveAction is not null)
@@ -386,7 +386,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 }
                 if (process.Graphics.ActionGraphics is { } action && process.LastStepActionToken == token && token is not null)
                 {
-                    Assert.Equal(sourceOwner, action.Actor);
+                    Assert.Equal(sourceOwner, action.ResolveActor(process.Graphics));
                     reachedService |= action.Callback == service;
                 }
                 contacts.AddRange(process.LastStep.Contacts);
@@ -1010,7 +1010,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             if (graphics.ActionGraphics is { } action)
             {
                 Assert.Equal(service, action.Callback);
-                Assert.Equal(header.Source, action.Actor);
+                Assert.Equal(header.Source, action.ResolveActor(graphics));
                 Assert.Equal(header.Data, action.PendingData);
             }
             NativeBattleGraphicsModel source = graphics.ActorModels.Get(header.Source);

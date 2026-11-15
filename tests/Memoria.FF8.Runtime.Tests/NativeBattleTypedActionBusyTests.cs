@@ -10,19 +10,19 @@ public sealed class NativeBattleTypedActionBusyTests
         BattleModelOwner target = models.Enemies.Entries.Select(entry => entry.Owner).First();
         BattleModelOwner other = models.Enemies.Entries.Select(entry => entry.Owner).Last();
         NativeBattleActionGraphicsState context = Action(source, target);
-        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, context));
+        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context));
 
         models = models.Set(target, Ready() with { ResourceFlags44 = 0x100 });
-        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, context));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, context with { UseActionCamera = true }));
+        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { UseActionCamera = true }));
 
         models = models.Set(target, Ready()).Set(other, Busy());
-        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, context));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, context with { UseActionCamera = true }));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, context with { CoverActors = BattleModelTargets.From([other]) }));
+        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { UseActionCamera = true }));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { CoverActors = Targets([other]) }));
 
         models = models.Set(other, new NativeBattleGraphicsModel(0));
-        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, context with { UseActionCamera = true }));
+        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { UseActionCamera = true }));
     }
 
     [Theory]
@@ -35,9 +35,9 @@ public sealed class NativeBattleTypedActionBusyTests
         BattleModelOwner last = party ? models.Party.Entries.Select(entry => entry.Owner).Last() : models.Enemies.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(last, Busy());
 
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, last)));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source) with { UseActionCamera = true }));
-        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source)));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source, last)));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source) with { UseActionCamera = true }));
+        Assert.False(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source)));
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public sealed class NativeBattleTypedActionBusyTests
         BattleModelOwner earlier = models.Party.Entries.Select(entry => entry.Owner).First();
         BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(source, Busy()).Set(earlier, new NativeBattleGraphicsModel(2));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, earlier)));
-        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models.Set(source, Ready()), Action(source, earlier)));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source, earlier)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models.Set(source, Ready()), Boundary, Action(source, earlier)));
     }
 
     [Fact]
@@ -60,9 +60,9 @@ public sealed class NativeBattleTypedActionBusyTests
         BattleModelOwner later = models.Enemies.Entries.Select(entry => entry.Owner).Last();
         models = models.Set(earlier, Busy()).Set(later, new NativeBattleGraphicsModel(2));
 
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, later, earlier)));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source, later) with { CoverActors = BattleModelTargets.From([earlier]) }));
-        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source) with { UseActionCamera = true }));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source, later, earlier)));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source, later) with { CoverActors = Targets([earlier]) }));
+        Assert.True(NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source) with { UseActionCamera = true }));
     }
 
     [Theory]
@@ -76,9 +76,9 @@ public sealed class NativeBattleTypedActionBusyTests
         models = models.Set(source, new NativeBattleGraphicsModel(2)).ReplaceOwner(retired, new BattleEnemyActorModel(new("replacement")), Ready());
         NativeBattleActionGraphicsState context = Action(source) with { UseActionCamera = useActionCamera };
 
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, context with { Actor = retired }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, context with { TargetActors = BattleModelTargets.From([retired]) }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, context with { CoverActors = BattleModelTargets.From([retired]) }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { Actor = new BattleRetainedModelReference.CanonicalOwner(retired) }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { TargetActors = Targets([retired]) }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, context with { CoverActors = Targets([retired]) }));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class NativeBattleTypedActionBusyTests
         BattleModelOwner source = models.Party.Entries.Select(entry => entry.Owner).First();
         models = models.Set(source, new NativeBattleGraphicsModel(2));
 
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, Action(source) with { UseActionCamera = null }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AreActionModelsBusy(models, Boundary, Action(source) with { UseActionCamera = null }));
     }
 
     private static BattleActorModels Models(int partyCount, int enemyCount)
@@ -98,10 +98,14 @@ public sealed class NativeBattleTypedActionBusyTests
         return new(party.Concat(enemies).Select(owner => new BattleModelEntry<BattleModelOwner>(owner, Ready())));
     }
 
+    private static readonly NativeBattleModelBoundary Boundary = NativeBattleModelBoundary.FromRetainedMemory(null);
+
+    private static BattleRetainedModelSelection Targets(IEnumerable<BattleModelOwner> owners) => BattleRetainedModelSelection.From(owners.Select(owner => new BattleRetainedModelReference.CanonicalOwner(owner)));
+
     private static NativeBattleGraphicsModel Ready() => new(2) { Flags8 = 0, Kind5 = 0, ResourceFlags44 = 0x140 };
 
     private static NativeBattleGraphicsModel Busy() => Ready() with { ResourceFlags44 = 0 };
 
     private static NativeBattleActionGraphicsState Action(BattleModelOwner source, params BattleModelOwner[] targets) =>
-        new(new(0), source, new(0), BattleModelTargets.From(targets), BattleModelTargets.Empty, null, null, 0, null, 0) { UseActionCamera = false };
+        new(new(0), new BattleRetainedModelReference.CanonicalOwner(source), new(0), Targets(targets), BattleRetainedModelSelection.Empty, null, null, 0, null, 0) { UseActionCamera = false };
 }

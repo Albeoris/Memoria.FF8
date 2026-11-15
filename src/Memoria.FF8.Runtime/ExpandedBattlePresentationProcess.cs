@@ -106,16 +106,18 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null)
+    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, BattleSession.HostedRenzokukenFinisherReplacement? renzokukenFinisher = null)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations, duelSelection: duelSelection);
+        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher);
     }
 
     internal BattleModelRoster PlannedModelRoster => presentation.HostedPlannedModelRoster;
 
     internal bool IsControlPrefixRetired => presentation.HostedControlPrefixRetired;
     internal NativeBattleDuelSelectionReached? PendingDuelSelection => presentation.PendingHostedDuelSelection;
+    internal NativeBattleRenzokukenFinisherReached? PendingRenzokukenFinisher => presentation.PendingHostedRenzokukenFinisher;
+    internal NativeBattleActionPacketsState ActionPackets => presentation.NativeActionPackets;
 
     internal void AppendScriptMessage(BattleEvent message, byte tag, byte priority)
     {
@@ -219,6 +221,10 @@ public sealed partial class ExpandedBattlePresentationProcess
         {
             throw new InvalidOperationException("A reached hosted Duel selection must commit before its next graphics frame.");
         }
+        if (PendingRenzokukenFinisher is not null)
+        {
+            throw new InvalidOperationException("A reached hosted Renzokuken finisher must commit before its next graphics frame.");
+        }
 
         advancing = true;
         try
@@ -231,7 +237,7 @@ public sealed partial class ExpandedBattlePresentationProcess
             {
                 long? actionToken = ActiveActionToken;
                 bool attached = ReferenceEquals(logicalOwner.ExpandedPresentationProcess, this);
-                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? DispatchClockReady : null, afterGraphics is null ? null : DispatchAfterGraphics);
+                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? DispatchClockReady : null, afterGraphics is null ? null : DispatchAfterGraphics, attached ? DispatchRenzokukenUi : null);
                 presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
@@ -255,6 +261,11 @@ public sealed partial class ExpandedBattlePresentationProcess
                         presentation.ClearHostedPresentationFrameOutputs();
                         throw;
                     }
+                }
+
+                void DispatchRenzokukenUi(ImmutableArray<NativeBattleRenzokukenWidgetStepped> steps, long epoch)
+                {
+                    DispatchCanonical(() => logicalOwner.ApplyExpandedHostedRenzokukenWidgetSteps(steps, epoch));
                 }
 
                 void DispatchCanonical(Action callback)

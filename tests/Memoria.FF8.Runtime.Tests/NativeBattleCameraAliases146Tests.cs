@@ -19,7 +19,7 @@ public sealed class NativeBattleCameraAliases146Tests
     public void Retained_aliases_remain_independent_of_the_current_command_geometry()
     {
         NativeBattleGraphicsState graphics = Graphics();
-        NativeBattleGraphicsState current = graphics with { ActionContext = new(Original(graphics, 1), BattleModelTargets.From([Original(graphics, 2)]), false) };
+        NativeBattleGraphicsState current = graphics with { ActionContext = new(new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(1)), BattleRetainedModelSelection.From([new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(2))]), false) };
         NativeBattleCameraAliases aliases = new(3, 5);
         Assert.Equal(new NativeBattleCameraPoint(311, 322, 333), Transform(current, aliases, 0x9F));
         Assert.Equal(new NativeBattleCameraPoint(511, 522, 533), Transform(current, aliases, 0xAF));

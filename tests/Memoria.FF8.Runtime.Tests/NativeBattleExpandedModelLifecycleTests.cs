@@ -114,7 +114,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         (bank, _) = bank.Publish(0);
         bank = bank.ActivateHeader(header);
         Field("nativeActionPackets").SetValue(session, bank);
-        NativeBattleActionGraphicsState action = new(mismatchedIndex ? header.Advance(1) : header, headerActor, new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, null, 0);
+        NativeBattleActionGraphicsState action = new(mismatchedIndex ? header.Advance(1) : header, BattleRetainedModelReference.Capture(headerActor, aliases), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, null, 0);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null)) with { ActionGraphics = action };
         NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(session.ReadBattlePresentationRoster());
         NativeBattleModelActorFacts facts = new(actorId, owner.Side == BattleSide.Allies, 0, 0, 0);

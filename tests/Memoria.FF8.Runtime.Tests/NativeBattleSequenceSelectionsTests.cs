@@ -16,7 +16,7 @@ public sealed class NativeBattleSequenceSelectionsTests
     {
         var (models, boundary) = OriginalModels(Enumerable.Range(0, 7).Select(slot => (slot, new NativeBattleGraphicsModel(2))));
         BattleModelOwner current = OriginalOwner(5);
-        NativeBattleActionGeometry retained = new(OriginalOwner(2), BattleModelTargets.From([OriginalOwner(4)]), true);
+        NativeBattleActionGeometry retained = new(new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(2)), BattleRetainedModelSelection.From([new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(4))]), true);
 
         var arguments = NativeBattleSequenceSelections.GeometryArguments92(models, current, selector, retained, boundary);
 

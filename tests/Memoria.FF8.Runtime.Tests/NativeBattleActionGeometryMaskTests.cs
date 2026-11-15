@@ -32,10 +32,10 @@ public sealed class NativeBattleActionGeometryMaskTests
             NativeBattleActionGeometry context = Assert.IsType<NativeBattleActionGeometry>(actual.ActionContext);
             int recipientIndex = BitOperations.Log2(mask);
             bool group = BitOperations.PopCount(mask) >= 2;
-            Assert.Equal(Owner(actorIndex), context.Source);
-            Assert.Equal(Selection(mask), context.SourceTargets);
-            Assert.Equal(Selection(mask), context.TargetActors);
-            Assert.Equal(Owner(recipientIndex), context.Target);
+            Assert.Equal(Owner(actorIndex), context.ResolveSource(actual.ActorModels, actual.NativeBindings));
+            Assert.Equal(Selection(mask), context.SourceTargets.Resolve(actual.ActorModels, actual.NativeBindings));
+            Assert.Equal(Selection(mask), context.TargetActors!.Resolve(actual.ActorModels, actual.NativeBindings));
+            Assert.Equal(Owner(recipientIndex), context.ResolveTarget(actual.ActorModels, actual.NativeBindings));
             Assert.Equal(5, context.Matrices!.Value.Length);
             Assert.NotNull(context.TargetMatrix);
             context.Validate();
@@ -116,8 +116,8 @@ public sealed class NativeBattleActionGeometryMaskTests
         NativeBattleVector target = original.ActorModels.Get(Owner(actorIndex)).ModelId4 is 96 or 97 ? ReadBone(actual, Owner(actorIndex), 241, 2048) with { Y = transform.Angle36 } : position;
         short scale = NativeBattleActionGeometryRules.DistanceScale(position, target);
         Assert.True(context.SourceHasNonActorSelectors);
-        Assert.True(context.SourceTargets.IsSingle(Owner(actorIndex)));
-        Assert.False(context.IsSelfTarget);
+        Assert.True(context.SourceTargets.Resolve(actual.ActorModels, actual.NativeBindings).IsSingle(Owner(actorIndex)));
+        Assert.False(context.IsSelfTarget(actual.ActorModels, actual.NativeBindings));
         Assert.Equal(5000 * scale >> 12, context.UnadjustedDistance);
         Assert.Equal((5000 * scale >> 12) - (2000 * (transform.Scale38 + transform.Scale38) >> 12), context.ContactDistance);
         Assert.Equal((short)-12345, context.TargetYaw);
@@ -177,7 +177,7 @@ public sealed class NativeBattleActionGeometryMaskTests
     {
         BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
         MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeGraphicsActionVariable", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        NativeBattleGraphicsState graphics = CreateGraphics() with { ActionContext = new(Owner(0), Selection(8), false) { UnadjustedDistance = value, ContactDistance = value } };
+        NativeBattleGraphicsState graphics = CreateGraphics() with { ActionContext = new(new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(0)), BattleRetainedModelSelection.Capture(Selection(8), OriginalAliases), false) { UnadjustedDistance = value, ContactDistance = value } };
         Assert.Equal(expected, Assert.IsType<int>(read.Invoke(session, [graphics, variable])));
     }
 

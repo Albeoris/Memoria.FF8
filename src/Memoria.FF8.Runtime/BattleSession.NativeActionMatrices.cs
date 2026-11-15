@@ -13,11 +13,11 @@ public static partial class NativeBattleActionGeometryRules
     public static NativeBattleGraphicsState PrepareMatrices50D300(NativeBattleGraphicsState graphics, Func<NativeBattleGraphicsState, BattleModelOwner, byte, short, NativeBattleVector> readBone)
     {
         NativeBattleActionGeometry context = graphics.ActionContext ?? throw new InvalidDataException("Native action matrices lack their50D300 context.");
-        if (context.TargetActors is not { } targets || targets.IsEmpty)
+        if (context.TargetActors is not { } selection || selection.IsEmpty)
         {
             return graphics;
         }
-        BattleModelOwner source = context.Source;
+        BattleModelOwner source = context.ResolveSource(graphics.ActorModels, graphics.NativeBindings);
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(source);
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native action matrices require actor position WORDs.");
         NativeBattleVector actorPosition = new(transform.Position28.X, transform.Angle36, transform.Position28.Z);
@@ -26,9 +26,10 @@ public static partial class NativeBattleActionGeometryRules
         NativeBattleVector targetPosition;
         NativeBattleVector targetFirst;
         NativeBattleVector targetSecond;
+        BattleModelTargets targets = selection.Resolve(graphics.ActorModels, graphics.NativeBindings);
         if (targets.Count == 1)
         {
-            BattleModelOwner recipient = context.Target ?? throw new InvalidDataException("Native single-target matrices lack their recipient.");
+            BattleModelOwner recipient = context.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new InvalidDataException("Native single-target matrices lack their recipient.");
             NativeBattleGraphicsModel target = graphics.ActorModels.Get(recipient);
             NativeBattleModelTransform targetTransform = target.Transform ?? throw new NotSupportedException("Native action matrices require target position WORDs.");
             targetFirst = readBone(graphics, recipient, 240, 2048);
@@ -48,7 +49,7 @@ public static partial class NativeBattleActionGeometryRules
         context = context with
         {
             DistanceScale = primary.Scale,
-            UnadjustedDistance = context.IsSelfTarget ? 1000 : 5000 * primary.Scale >> 12,
+            UnadjustedDistance = context.IsSelfTarget(graphics.ActorModels, graphics.NativeBindings) ? 1000 : 5000 * primary.Scale >> 12,
             Matrices =
             [
                 primary,

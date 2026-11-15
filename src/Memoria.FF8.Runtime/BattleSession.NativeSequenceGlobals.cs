@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         }
         if (variable == 24)
         {
-            BattleModelOwner target = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native target variable24 requires its resolved model owner.");
+            BattleModelOwner target = graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native target variable24 requires its resolved model owner.");
             return NativeBattleScriptValue.CaptureActor(target, graphics.ActorModels, graphics.NativeBindings);
         }
         return NativeBattleScriptValue.Scalar(ReadNativeGraphicsSequenceScalar(graphics, modelIndex, variable));
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         }
         if (variable is 53 or 54)
         {
-            BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native target bone query requires its50D300 target identity.")).Target ?? throw new NotSupportedException("Native target bone query requires its physical target identity.");
+            BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native target bone query requires its50D300 target identity.")).ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native target bone query requires its physical target identity.");
             NativeBattleVector bone = ReadNativeGraphicsBone(graphics, target, variable == 53 ? (byte)241 : (byte)240, 2048);
             NativeBattleModelTransform transform = graphics.ActorModels.Get(target).Transform ?? throw new NotSupportedException("Native target bone query requires its target position WORD30.");
             return bone.Y - transform.Position28.Y;

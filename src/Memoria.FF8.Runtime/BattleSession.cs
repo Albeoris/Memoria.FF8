@@ -554,9 +554,14 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(snapshot);
         var completion = hostedProof as HostedEventCompletionCandidateProof;
         var duel = hostedProof as HostedDuelCandidateProof;
+        var renzokuken = hostedProof as HostedRenzokukenCandidateProof;
         if (duel is not null)
         {
             ValidateExpandedHostedDuelProof(snapshot, duel);
+        }
+        if (renzokuken is not null)
+        {
+            ValidateExpandedHostedRenzokukenProof(snapshot, renzokuken);
         }
         if (completion is not null && (!ReferenceEquals(snapshot, completion.Snapshot) || !snapshot.Definition.UsesExpandedRoster || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
             completion.Event.CompletionToken != completion.Receipt.Token || completion.Event.Callback != completion.Receipt.Callback || completion.Event.Command.ActorId != completion.Receipt.ActorId))
@@ -578,8 +583,8 @@ public sealed partial class BattleSession
             session.originalParticipantSlotsInitialized = snapshot.OriginalParticipantSlotsInitialized;
             session.RestoreNativeEntry(snapshot);
             session.RestoreNativeCamera(snapshot);
-            session.expandedHostedEvent = completion?.Event ?? duel?.Event;
-            session.RestoreValidated(snapshot, (hostedProof as HostedTerminalCandidateProof)?.Terminal);
+            session.expandedHostedEvent = completion?.Event ?? duel?.Event ?? renzokuken?.Event;
+            session.RestoreValidated(snapshot, (hostedProof as HostedTerminalCandidateProof)?.Terminal, renzokuken?.Trigger);
             session.ValidateBattleMagicSnapshot(completion is null ? null : snapshot.ActiveAction, completion?.Event.Command.MagicReservationId);
             session.expandedHostedEvent = null;
             session.RefreshPreparedPresentation();
@@ -744,7 +749,11 @@ public sealed partial class BattleSession
                     BattleCombatant actor = byId[command.ActorId];
                     if (UsesExpandedRoster)
                     {
-                        if (command.NativeRenzokuken is not null)
+                        if (command.NativeRenzokuken is not null && expandedPresentationProcess is { } renzokukenHost)
+                        {
+                            PrepareAndPublishExpandedHostedRenzokuken(actor, command, renzokukenHost);
+                        }
+                        else if (command.NativeRenzokuken is not null)
                         {
                             StartNativeRenzokuken(command);
                         }
@@ -1551,7 +1560,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RestoreValidated(BattleSnapshot snapshot, HostedBattleTerminal? preparedTerminal)
+    private void RestoreValidated(BattleSnapshot snapshot, HostedBattleTerminal? preparedTerminal, NativeBattleTriggerReceipt? preparedRenzokukenTrigger)
     {
         DiagnosticRestoreCount++;
         ResetDiagnosticCounterOwners();
@@ -1731,7 +1740,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid battle presentation timer.");
             }
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, !action.MagicCasts.IsDefaultOrEmpty || action.NativeHeader is not null || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest, action.NativeGraphic, reaction: action.NativePlayerReaction, nativeHeaderIndex: action.NativeHeader, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiCallbackStage: action.NativeAiCallbackStage, limitCallback: action.NativeLimitCallback);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, !action.MagicCasts.IsDefaultOrEmpty || action.NativeHeader is not null || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest, action.NativeGraphic, action.NativeRenzokuken, reaction: action.NativePlayerReaction, nativeHeaderIndex: action.NativeHeader, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiCallbackStage: action.NativeAiCallbackStage, limitCallback: action.NativeLimitCallback);
             ValidateIndependentGuardianInvocation(byId[action.ActorId], action);
             ValidateNativeSequenceProgress(byId[action.ActorId], action);
             if (UsesExpandedRoster ? action.NativeSpecial is not null : action.NativeAction?.AttackType is 17 or 19 && action.NativeSpecial is null)
@@ -1744,7 +1753,7 @@ public sealed partial class BattleSession
             }
         }
         nativeReactionOrder = snapshot.NativeReactionOrder;
-        RestoreNativeTimedAction(snapshot.NativeTimedAction);
+        RestoreNativeTimedAction(snapshot.NativeTimedAction, expandedHostedEvent);
         ActiveAction = snapshot.ActiveAction;
         ValidateExpandedAiRemovals();
         nativeEscape = snapshot.Escape;
@@ -1830,7 +1839,7 @@ public sealed partial class BattleSession
         random.Validate();
         nativeLastAllocatedTarget = snapshot.NativeLastAllocatedTarget;
         ValidateNativeSavedBattleFlagEffects();
-        RestoreNativeLimits(snapshot.NativeLimits ?? throw new InvalidDataException("Saved Limit selection is missing."), expandedHostedEvent);
+        RestoreNativeLimits(snapshot.NativeLimits ?? throw new InvalidDataException("Saved Limit selection is missing."), expandedHostedEvent, preparedRenzokukenTrigger);
         ValidateNativeDuelControlOwners();
         RestoreNativeBattleUiRandom(snapshot.NativeBattleUiRandom);
         RestoreNativeGuardianBoost(snapshot.NativeGuardianBoost);
@@ -2103,7 +2112,7 @@ public sealed partial class BattleSession
         NativeFileStaging = candidate.NativeFileStaging;
         NativeModelCpuResources = candidate.NativeModelCpuResources;
         nativeActionScratch = candidate.nativeActionScratch;
-        RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
+        RestoreNativeTimedAction(candidate.CaptureNativeTimedAction(), preparedExpandedAction ? candidate.expandedHostedEvent : null);
         RestoreNativeLimits(candidate.CaptureNativeLimits(), preparedExpandedAction ? candidate.expandedHostedEvent : null);
         nativeCards = candidate.nativeCards?.DeepCopy();
         nativeCrtRandom = candidate.nativeCrtRandom;

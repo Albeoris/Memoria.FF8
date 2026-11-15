@@ -40,7 +40,8 @@ public sealed partial class BattleSession
         presentationActivations.Clear();
     }
 
-    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null, Action<NativeBattleModelLifecycleServices>? afterGraphics = null)
+    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null, Action<NativeBattleModelLifecycleServices>? afterGraphics = null,
+        Action<ImmutableArray<NativeBattleRenzokukenWidgetStepped>, long>? renzokukenUi = null)
     {
         RequireHostedCompletionAcknowledged();
         if (hostedFrameServices is not null || nativePreRootStack is not null)
@@ -69,11 +70,13 @@ public sealed partial class BattleSession
             {
                 hostedFrameServices = services;
             }
+            BeginHostedRenzokukenUi(services.Renzokuken);
             for (int pre = 0; pre < 3; pre++)
             {
                 AdvanceHostedUiPublication(clockPoll, postCore: false);
             }
             nativePreCoreUiStack = false;
+            DrainHostedRenzokukenUi(renzokukenUi);
             if (NativeGraphics!.UiServices?.PauseDE9 != true)
             {
                 if (beforeCore is not null)
@@ -123,7 +126,9 @@ public sealed partial class BattleSession
                     NativeGraphics = published with { UiServices = ui.QueuePublication(duration) };
                 }
             }
+            BeginHostedRenzokukenUi(logicalOwner.CaptureExpandedHostedRenzokukenFrame());
             AdvanceHostedUiPublication(clockPoll, postCore: true);
+            DrainHostedRenzokukenUi(renzokukenUi);
             CompleteNativeHostPause();
             PublishNativePcUiFrame();
             RequireSameHostedTimerClock(NativeExamTimer, clockPoll is null ? timerObservation : logicalOwner.NativeExamTimer);
@@ -131,6 +136,8 @@ public sealed partial class BattleSession
         finally
         {
             hostedFrameServices = null;
+            hostedRenzokukenUiFrame = null;
+            hostedRenzokukenUiSteps = null;
             EndNativeFrameStack();
         }
         return services;

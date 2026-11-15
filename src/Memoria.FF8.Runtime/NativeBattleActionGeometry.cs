@@ -1,13 +1,12 @@
 using System.Collections.Immutable;
-using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Source, selection and scalar geometry state for 50D300.</summary>
-public sealed record NativeBattleActionGeometry(BattleModelOwner Source, BattleModelTargets SourceTargets, bool SourceHasNonActorSelectors)
+public sealed record NativeBattleActionGeometry(BattleRetainedModelReference Source, BattleRetainedModelSelection SourceTargets, bool SourceHasNonActorSelectors)
 {
-    public BattleModelTargets? TargetActors { get; init; }
-    public BattleModelOwner? Target { get; init; }
+    public BattleRetainedModelSelection? TargetActors { get; init; }
+    public BattleRetainedModelReference? Target { get; init; }
     public short? DistanceScale { get; init; }
     public int? UnadjustedDistance { get; init; }
     public int? ContactDistance { get; init; }
@@ -15,8 +14,14 @@ public sealed record NativeBattleActionGeometry(BattleModelOwner Source, BattleM
     public ImmutableArray<NativeBattleActionMatrix>? Matrices { get; init; }
     public NativeBattleActionMatrix? TargetMatrix { get; init; }
 
-    [JsonIgnore]
-    public bool IsSelfTarget => !SourceHasNonActorSelectors && SourceTargets.IsSingle(Source);
+    internal BattleModelOwner ResolveSource(BattleActorModels models, NativeBattleModelBoundary boundary) => Source.Resolve(models, boundary);
+
+    internal BattleModelOwner? ResolveTarget(BattleActorModels models, NativeBattleModelBoundary boundary) => Target?.Resolve(models, boundary);
+
+    internal bool IsSelfTarget(BattleActorModels models, NativeBattleModelBoundary boundary)
+    {
+        return !SourceHasNonActorSelectors && SourceTargets.Count == 1 && SourceTargets.Resolve(models, boundary).IsSingle(ResolveSource(models, boundary));
+    }
 
     public void Validate()
     {

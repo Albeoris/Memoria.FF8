@@ -132,7 +132,7 @@ public sealed class NativeBattleBreath235ComponentTests
             NativeBattleContactPacket contact;
             if (graphics.ActionGraphics is { } original)
             {
-                caster = ReadOriginalModelOperand(packets.ModelAliases, original.Actor);
+                caster = ReadOriginalModelOperand(packets.ModelAliases, original.Actor.Resolve(packets.ModelAliases));
                 contact = packets.ReadContact(original.FirstContact);
             }
             else

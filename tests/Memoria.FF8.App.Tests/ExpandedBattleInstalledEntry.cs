@@ -8,15 +8,15 @@ internal static class ExpandedBattleInstalledEntry
     public const ushort Formation = 87;
     public const byte Seed = 4;
 
-    public static void Prepare(GameWorld world, GameSession session, Action<GameSession> prepareParty)
+    public static void Prepare(GameWorld world, GameSession session, Action<GameSession> prepareParty, ushort formation = Formation, int allies = 4, int additionalEnemies = 4)
     {
         world.EnsureField();
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 4)).Accepted);
         prepareParty(session);
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 4, AdditionalEnemies = 4 });
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allies, AdditionalEnemies = additionalEnemies });
         string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
-        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, 133, world.Events.Frame, Formation, source)));
+        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
     }
 
     public static BattleSession Start(GameWorld world)

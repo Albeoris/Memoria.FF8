@@ -19,6 +19,7 @@ public sealed partial class BattleSession
         internal sealed record ShotReadiness(uint Callback) : HostedDispatchControl;
         internal sealed record DuelReadiness(HostedDuelPoll Poll) : HostedDispatchControl;
         internal sealed record DuelSelection(HostedDuelPoll Poll) : HostedDispatchControl;
+        internal sealed record RenzokukenFinisher(HostedRenzokukenOwner Owner) : HostedDispatchControl;
         internal sealed record Complete(HostedDispatchCompletion Completion) : HostedDispatchControl;
     }
 
@@ -26,11 +27,13 @@ public sealed partial class BattleSession
     internal sealed record HostedControlPacket(int Slot, byte Serial, ushort Command, uint? Callback, bool Retired = false)
     {
         internal HostedDuelPoll? DuelPoll { get; init; }
+        internal HostedRenzokukenOwner? Renzokuken { get; init; }
+        internal BattleActionHeaderReference? RenzokukenHeader { get; init; }
     }
     private ImmutableArray<HostedControlPacket> hostedControlPackets = [];
     internal sealed record HostedDispatchAction(HostedPresentationInvocation Invocation, BattleModelOwner SourceOwner, NativeBattleGraphicsResource Source, byte? ModelId, bool IsParty, int PartyActorCount);
 
-    internal sealed class PreparedHostedDispatch(BattleSession owner, NativeBattleGraphicsState graphics, NativeBattleActionPacketsState originalPackets, long epoch, long nextEpoch, long issuedAction, long issuedCompletion, NativeBattleGraphicsState admitted, NativeBattleActionPacketsState packets, HostedDispatchAction? action, HostedCompletionInvocation? completion, PreparedHostedCompletionAck? acknowledgment, ImmutableArray<BattleActionHeaderReference> appendedHeaders, ImmutableArray<HostedControlPacket> controls, PreparedHostedModelRegistry? registry, NativeBattleDuelSelectionReached? duelSelection)
+    internal sealed class PreparedHostedDispatch(BattleSession owner, NativeBattleGraphicsState graphics, NativeBattleActionPacketsState originalPackets, long epoch, long nextEpoch, long issuedAction, long issuedCompletion, NativeBattleGraphicsState admitted, NativeBattleActionPacketsState packets, HostedDispatchAction? action, HostedCompletionInvocation? completion, PreparedHostedCompletionAck? acknowledgment, ImmutableArray<BattleActionHeaderReference> appendedHeaders, ImmutableArray<HostedControlPacket> controls, PreparedHostedModelRegistry? registry, NativeBattleDuelSelectionReached? duelSelection, NativeBattleRenzokukenFinisherReached? renzokukenFinisher)
     {
         internal BattleSession Owner { get; } = owner;
         internal NativeBattleGraphicsState Graphics { get; } = graphics;
@@ -48,13 +51,15 @@ public sealed partial class BattleSession
         internal ImmutableArray<HostedControlPacket> Controls { get; } = controls;
         internal PreparedHostedModelRegistry? Registry { get; } = registry;
         internal NativeBattleDuelSelectionReached? DuelSelection { get; } = duelSelection;
+        internal NativeBattleRenzokukenFinisherReached? RenzokukenFinisher { get; } = renzokukenFinisher;
     }
 
-    internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null)
+    internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, HostedRenzokukenFinisherReplacement? renzokukenFinisher = null)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null && acknowledgment is null ||
             !ReferenceEquals(pendingHostedDuelSelection, duelSelection) ||
+            !ReferenceEquals(pendingHostedRenzokukenFinisher, renzokukenFinisher?.Receipt) ||
             !HostedControlPrefixRetired && (controls is not null || acknowledgment is null || headerReference is not null || dispatchAppended || completion is not null))
         {
             throw new InvalidOperationException("Hosted dispatch requires an idle presentation process after entry.");
@@ -75,6 +80,17 @@ public sealed partial class BattleSession
 
         NativeBattleActionPacketsState original = nativeActionPackets;
         NativeBattleActionPacketsState packets = acknowledgment?.AcknowledgedPackets ?? original;
+        if (renzokukenFinisher is { } replacement)
+        {
+            NativeBattleRenzokukenFinisherReached reached = replacement.Receipt;
+            if (headerReference != reached.Header || !ReferenceEquals(replacement.Packets, original) || acknowledgment is not null || freshActionPackets ||
+                dispatchAppended || !original.Roster.Contains(reached.EventOwner.Actor) || original.ReadHeader(reached.Header) is not { Command: 250, Action: ushort.MaxValue } header ||
+                header.Source != reached.EventOwner.Actor || header.FirstContact != replacement.FirstContact || header.ReadContactCount() != replacement.Contacts.Length)
+            {
+                throw new InvalidDataException("The finisher formula must replace its exact pending command250 contact range.");
+            }
+            packets = original.ReplaceHeaderContacts(reached.Header, replacement.Contacts);
+        }
         if (!packets.Roster.Owners.SequenceEqual((allocationRegistry?.Original.Roster ?? roster).Owners))
         {
             throw new InvalidDataException("Hosted packet storage differs from its graphics roster.");
@@ -120,7 +136,7 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsState admitted = ReferenceEquals(graphics.Descriptors, descriptors) ? graphics : graphics with { Descriptors = descriptors };
         ImmutableArray<HostedControlPacket> prefix = HostedControlPrefixRetired ? queuedControls.ToImmutable() : hostedControlPackets;
-        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection);
+        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection, renzokukenFinisher?.Receipt);
 
         void EnqueueControls(ImmutableArray<HostedDispatchControl> operations)
         {
@@ -128,6 +144,8 @@ public sealed partial class BattleSession
             {
                 int slot;
                 HostedDuelPoll? duelPoll = null;
+                HostedRenzokukenOwner? renzokuken = null;
+                BattleActionHeaderReference? renzokukenHeader = null;
                 switch (operation)
                 {
                     case HostedDispatchControl.Complete finish:
@@ -170,11 +188,22 @@ public sealed partial class BattleSession
                         duelPoll = duel.Poll;
                         (descriptors, slot) = descriptors.Enqueue(10, 128, 0x4852B0);
                         break;
+                    case HostedDispatchControl.RenzokukenFinisher finisher when headerReference is BattleActionHeaderReference initial:
+                        renzokuken = finisher.Owner;
+                        renzokukenHeader = initial.Advance(1);
+                        if (packets.ReadHeader(initial) is not { Command: 5, Action: 65534 } start || start.Source != renzokuken.Actor || start.Effect != renzokuken.MagicId ||
+                            packets.ReadHeader(renzokukenHeader.Value) is not { Command: 250, Action: ushort.MaxValue } pending || pending.Source != renzokuken.Actor ||
+                            pending.Data?.Argument != renzokuken.Finisher)
+                        {
+                            throw new InvalidDataException("Hosted Renzokuken finisher callback requires its produced command5 and command250 headers.");
+                        }
+                        (descriptors, slot) = descriptors.Enqueue(10, 128, renzokuken.FinisherCallback);
+                        break;
                     default:
                         throw new InvalidDataException("Hosted dispatch control lacks its original command or loaded model owner.");
                 }
                 NativeBattleDescriptorPacket packet = descriptors.Packets[slot];
-                queuedControls.Add(new(slot, packet.Serial, packet.Command, packet.Command == 10 ? packet.Argument : null) { DuelPoll = duelPoll });
+                queuedControls.Add(new(slot, packet.Serial, packet.Command, packet.Command == 10 ? packet.Argument : null) { DuelPoll = duelPoll, Renzokuken = renzokuken, RenzokukenHeader = renzokukenHeader });
             }
         }
 
@@ -250,12 +279,13 @@ public sealed partial class BattleSession
 
     private (BattleModelOwner Owner, NativeBattleGraphicsResource Source) ReadHostedDispatchSource(NativeBattleGraphicsState graphics, NativeBattleActionPacketsState packets, BattleActionHeaderReference reference, HostedModelRegistry? registry)
     {
-        NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(packets, reference, graphics.ActionGraphics);
-        NativeBattleGraphicsResource source = graphics.ActorModels.Contains(context.Actor)
-            ? NativeActionResource(graphics, context.Actor)
-            : FindHostedAllocationBinding(registry, context.Actor)?.Resource ?? throw new InvalidDataException("Hosted dispatch lost its admitted source model.");
+        _ = NativeBattleActionGraphics.Normalize(packets, reference, graphics.ActionGraphics);
+        BattleModelOwner owner = packets.ReadHeader(reference).Source;
+        NativeBattleGraphicsResource source = graphics.ActorModels.Contains(owner)
+            ? NativeActionResource(graphics, owner)
+            : FindHostedAllocationBinding(registry, owner)?.Resource ?? throw new InvalidDataException("Hosted dispatch lost its admitted source model.");
         source.Validate();
-        return (context.Actor, source);
+        return (owner, source);
     }
 
     internal void ValidatePreparedHostedDispatch(PreparedHostedDispatch prepared)
@@ -267,6 +297,7 @@ public sealed partial class BattleSession
             prepared.Registry is { } registry && !ReferenceEquals(registry.Original, hostedModelRegistry) ||
             !hostedBattlePresentation || hostedFrameServices is not null || hostedPresentationInvocation is not null ||
             !ReferenceEquals(pendingHostedDuelSelection, prepared.DuelSelection) ||
+            !ReferenceEquals(pendingHostedRenzokukenFinisher, prepared.RenzokukenFinisher) ||
             hostedCompletionInvocation is not null && prepared.Acknowledgment is null ||
             !HostedControlPrefixRetired && (prepared.Acknowledgment is null || prepared.Controls != hostedControlPackets))
         {
@@ -285,8 +316,10 @@ public sealed partial class BattleSession
         NativeGraphics = prepared.Admitted;
         hostedControlPackets = prepared.Controls;
         pendingHostedDuelSelection = null;
+        pendingHostedRenzokukenFinisher = null;
         if (prepared.Action is { } action)
         {
+            hostedRenzokukenPublishedStep = null;
             presentationSourceOwner = action.SourceOwner;
             presentationSourceResource = action.Source;
             presentationSourceModelId = action.ModelId;

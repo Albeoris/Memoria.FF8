@@ -23,7 +23,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
-        return new NativeBattleEffectParameters(context.Actor, (byte)(context.HitFlags | parameterFlags), context.TargetActors, context.Header, 0, 0)
+        return new NativeBattleEffectParameters(context.ResolveActor(graphics), (byte)(context.HitFlags | parameterFlags), context.ResolveTargets(graphics), context.Header, 0, 0)
         {
             Parameter80 = NativeEffectMemory?.Parameter80,
             Parameter82 = NativeEffectMemory?.Parameter82
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
         graphics = PrepareNativeOriginalEffectParameters(graphics, context, parameterFlags);
-        graphics = PrepareNativeOriginalEffectActor(graphics, context.Actor);
+        graphics = PrepareNativeOriginalEffectActor(graphics, context.ResolveActor(graphics));
         return InvokeNativeOriginalEffect(graphics);
     }
 
@@ -47,7 +47,9 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, bool assignReturnedTask = true)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect entry requires its retained physical memory.");
-        using NativeBattleTaskOperation operation = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native effect entry requires its selected module."));
+        NativeBattleOriginalEffectState selected = graphics.OriginalEffect ?? throw new InvalidDataException("Native effect entry requires its selected module.");
+        selected.Validate(graphics.ActorModels.Roster);
+        using NativeBattleTaskOperation operation = new(memory, selected);
         operation.AdmitStaging(NativeFileStaging);
         if (!NativeBattleTaskCallerOperation.IsActive)
         {
@@ -1177,12 +1179,12 @@ public sealed partial class BattleSession
             if (hostedBattlePresentation)
             {
                 NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidDataException("Hosted command title requires the current frame services.");
-                NativeBattleModelActorFacts actor = services.Facts.GetValueOrDefault(context.Actor) ?? throw new InvalidDataException("Hosted command title requires its current source model owner.");
+                NativeBattleModelActorFacts actor = services.Facts.GetValueOrDefault(context.ResolveActor(graphics)) ?? throw new InvalidDataException("Hosted command title requires its current source model owner.");
                 services.EmitDescriptorText(Title(actor.ActorId, actor.IsParty));
             }
             else
             {
-                BattleCombatant actor = GraphicsActor(graphics, context.Actor);
+                BattleCombatant actor = GraphicsActor(graphics, context.ResolveActor(graphics));
                 events.Add(Title(actor.Id, actor.IsPlayer));
             }
 
@@ -1215,7 +1217,7 @@ public sealed partial class BattleSession
         {
             graphics = PublishNativeOriginalEffectTitle(graphics, context);
             graphics = PrepareNativeOriginalEffectParameters(graphics, context);
-            graphics = PrepareNativeOriginalEffectActor(graphics, context.Actor);
+            graphics = PrepareNativeOriginalEffectActor(graphics, context.ResolveActor(graphics));
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native50B190 requires the actual camera selector owner.")).SetActionSelector(65535);
             graphics = InvokeNativeOriginalEffect(graphics);
             return (graphics with { Flags = graphics.Flags | 0x10 }, 4, false);

@@ -68,6 +68,7 @@ public sealed partial class BattleSession
             Allocation = allocation,
             Shot = CaptureExpandedHostedShotOwner(roster),
             Duel = CaptureExpandedHostedDuelOwner(),
+            Renzokuken = CaptureExpandedHostedRenzokukenFrame(),
             ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty,
             ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
             ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
@@ -83,7 +84,7 @@ public sealed partial class BattleSession
                 services.Emit(new NativeBattleModelTextPublished(owner, actor.ActorId, resource.ReadText91(cue.First), cue.Second, actor.IsParty ? null : BattleTextIdentity.Enemy(actor.OriginalModelId, cue.First)));
                 break;
             case NativeBattleSequenceCueKind.SuspendParticipant:
-                NativeBattleActionHeaderSlot? header = graphics.ActionGraphics is { } action && action.Actor == owner && nativeActionPackets.ActiveHeader == action.Header
+                NativeBattleActionHeaderSlot? header = graphics.ActionGraphics is { } action && nativeActionPackets.ActiveHeader == action.Header && action.ResolveActor(graphics) == owner
                     ? nativeActionPackets.ReadHeader(action.Header)
                     : null;
                 services.Emit(new NativeBattleModelParticipantSuspended(owner, actor.ActorId, checked((byte)cue.First)) { ActiveHeader = header });

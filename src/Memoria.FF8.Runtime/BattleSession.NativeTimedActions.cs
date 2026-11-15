@@ -122,7 +122,7 @@ public sealed partial class BattleSession
         nativeProductionContext = new(0, 1, false, 0x47DE70);
         try
         {
-            BattleNativeAction control = actor.NativeAttack! with { Command = 5, ActionId = checked((ushort)command.ActionId), KernelSection = -1, KernelIndex = -1, MagicId = magicId, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, Statuses0 = 0, Statuses1 = 0, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
+            BattleNativeAction control = NativeRenzokukenInitialAction(actor, magicId, checked((ushort)command.ActionId));
             BattleActionDefinition definition = new(command.Ability, command.ActionId, "Renzokuken", BattleActionEffect.Native, 0, false) { NativeAction = control };
             BattleActionHeaderReference header = nativeActionPackets.NextHeader;
             ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, definition);
@@ -142,6 +142,11 @@ public sealed partial class BattleSession
             //485460 publishes the final event callback after both485610 subcommands and their104/finisher descriptors.
             QueueNativeActionClockCompletion(0x47DE70);
         }
+    }
+
+    private static BattleNativeAction NativeRenzokukenInitialAction(BattleCombatant actor, ushort magicId, ushort actionId)
+    {
+        return actor.NativeAttack! with { Command = 5, ActionId = actionId, KernelSection = -1, KernelIndex = -1, MagicId = magicId, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, Statuses0 = 0, Statuses1 = 0, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
     }
 
     private void ResolveNativeTimedContact(BattleTargetRequest request, BattleNativeAction native, short timing, bool finalContact)
@@ -282,7 +287,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RestoreNativeTimedAction(NativeBattleTimedAction? saved)
+    private void RestoreNativeTimedAction(NativeBattleTimedAction? saved, ExpandedHostedEvent? hostedEvent)
     {
         nativeTimedAction = null;
         nativeActionCommitDepth = 0;
@@ -297,6 +302,10 @@ public sealed partial class BattleSession
         if (UsesExpandedRoster && (saved.Command is not { NativeHeader: null, NativeAction: null, TargetRequest.Selection: BattleTargetSelection.Explicit { Actors.Length: 1 }, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
         {
             throw new InvalidDataException("Saved expanded Renzokuken lacks its logical command5 transaction.");
+        }
+        if (hostedEvent?.Renzokuken is not null && !ReferenceEquals(saved.Command, hostedEvent.ActivePresentation))
+        {
+            throw new InvalidDataException("The private timed restoration lost the admitted hosted Renzokuken command.");
         }
         actor.IsBusy = true;
         nativeTimedAction = saved;

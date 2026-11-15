@@ -8,7 +8,7 @@ public sealed class NativeBattleCameraGraphicsTests
     public void F2KeepsUnitScaleWhileBonePairReferencesKeepTheirOwnDistanceScale()
     {
         NativeBattleActionMatrix primary = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 2048);
-        NativeBattleActionGeometry context = new(OriginalOwner(0), BattleModelTargets.From([OriginalOwner(3)]), false) { Matrices = [primary, primary with { Scale = 1024 }, primary, primary, primary] };
+        NativeBattleActionGeometry context = new(Slot(0), BattleRetainedModelSelection.From([Slot(3)]), false) { Matrices = [primary, primary with { Scale = 1024 }, primary, primary, primary] };
         Assert.Equal(new NativeBattleVector(200, 220, 340), NativeBattlePoseMatrices.TransformCameraPoint(NativeBattleCameraGraphics.ReadMatrix(context, 0xF2), new(100, 20, 40), false));
         Assert.Equal(new NativeBattleVector(125, 205, 310), NativeBattlePoseMatrices.TransformCameraPoint(NativeBattleCameraGraphics.ReadMatrix(context, 0xF5), new(100, 20, 40), false));
         Assert.Equal((short)2048, context.Matrices.Value[0].Scale);
@@ -44,10 +44,12 @@ public sealed class NativeBattleCameraGraphicsTests
         graphics = graphics with { ActionContext = Geometry(6, 1, 1) };
         Assert.Equal(0x21, NativeBattleCameraGraphics.ReadVariable(graphics with { ActorModels = graphics.ActorModels.Set(OriginalOwner(1), models[1] with { Flags8 = 0x20 }) }, 22).RequireScalar());
     }
+    private static BattleRetainedModelReference Slot(int slot) => new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(checked((byte)slot)));
+
     private static NativeBattleActionGeometry Geometry(int source, int target, params int[] recipients)
     {
-        BattleModelTargets targets = BattleModelTargets.From(recipients.Select(OriginalOwner));
-        return new(OriginalOwner(source), targets, false) { Target = OriginalOwner(target), TargetActors = targets };
+        BattleRetainedModelSelection targets = BattleRetainedModelSelection.From(recipients.Select(Slot));
+        return new(Slot(source), targets, false) { Target = Slot(target), TargetActors = targets };
     }
 
 }

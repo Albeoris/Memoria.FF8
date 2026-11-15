@@ -97,7 +97,7 @@ public sealed class DiagnosticCameraDirectoryProbeTests
             NativeBattleGraphicsState? graphics = battle.NativeGraphics;
             NativeBattleCameraState? camera = battle.NativeCamera;
             NativeBattleEffectAnimationRegisters? resource = camera?.ControlResource;
-            int? selector = graphics?.ActionContext?.Target is BattleModelOwner target ? graphics.ActorModels.Get(target).SequenceByte145 : null;
+            int? selector = graphics?.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) is BattleModelOwner target ? graphics.ActorModels.Get(target).SequenceByte145 : null;
             object? track = null;
             if (resource is not null && selector is int selected)
             {
@@ -115,7 +115,7 @@ public sealed class DiagnosticCameraDirectoryProbeTests
                 battle.NativeHostCallbacks,
                 battle.Outcome,
                 Camera = camera is null ? null : new { camera.ControlCursor, camera.Variables, camera.Mask, camera.ForceCamera, Resource = resource is null ? null : new { resource.Source.Identity, Length = resource.Source.Data.Length, resource.BaseOffset, resource.StreamOffset, resource.ModelTableOffset, ControlPrefix = Convert.ToHexString(resource.Source.Data.AsSpan().Slice(resource.StreamOffset, Math.Min(8, resource.Source.Data.Length - resource.StreamOffset))) }, Track = track },
-                Action = graphics?.ActionContext is { } action ? new { action.Source, action.Target, SourceTargets = action.SourceTargets.Enumerate(), TargetActors = action.TargetActors?.Enumerate(), action.SourceHasNonActorSelectors } : null,
+                Action = graphics?.ActionContext is { } action ? new { Source = action.ResolveSource(graphics.ActorModels, graphics.NativeBindings), Target = action.ResolveTarget(graphics.ActorModels, graphics.NativeBindings), SourceTargets = action.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings).Enumerate(), TargetActors = action.TargetActors?.Resolve(graphics.ActorModels, graphics.NativeBindings).Enumerate(), action.SourceHasNonActorSelectors } : null,
                 Models = graphics is null ? null : ReadOriginalModelCells(graphics).Select((model, slot) => new { Index = slot, model.ModelId4, model.Flags0, model.SequenceByte145 }).ToArray(),
                 Effect = graphics?.OriginalEffect is { } effect ? new { effect.RequestedEffect, effect.SelectedIndex } : null
             };

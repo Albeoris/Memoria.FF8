@@ -33,12 +33,8 @@ public static class NativeBattleSequenceSelections
         }
         NativeBattleActionGeometry context = retained ?? throw new NotSupportedException("Native92 requires its retained50D300 geometry context.");
         bool literal = selector < NativeBattleModelBoundary.CellCount;
-        BattleModelOwner source = literal ? context.Source : current;
-        BattleModelTargets targets = literal ? BattleModelTargets.From([boundary.DecodeLiteral(selector, models)]) : context.SourceTargets;
-        if (source is null || !models.Contains(source) || targets is null || targets.Enumerate().Any(owner => !models.Contains(owner)))
-        {
-            throw new InvalidDataException("Native92 requires bound source and target model owners.");
-        }
+        BattleModelOwner source = literal ? context.ResolveSource(models, boundary) : current;
+        BattleModelTargets targets = literal ? BattleModelTargets.From([boundary.DecodeLiteral(selector, models)]) : context.SourceTargets.Resolve(models, boundary);
         return (source, targets, !literal && context.SourceHasNonActorSelectors);
     }
 

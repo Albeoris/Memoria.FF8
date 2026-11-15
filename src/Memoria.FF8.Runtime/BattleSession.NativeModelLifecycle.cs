@@ -129,7 +129,7 @@ public sealed partial class BattleSession
                     },
                     WriteModelExternal = (current, variable, value) =>
                     {
-                        BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).Target ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
+                        BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).ResolveTarget(models, graphics.NativeBindings) ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
                         models = models.Set(owner, current);
                         models = models.Set(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(models.Get(target), variable, value));
                         graphics = graphics with { ActorModels = models };
@@ -180,7 +180,7 @@ public sealed partial class BattleSession
                     ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
                     {
                         graphics = graphics with { ActorModels = models.Set(owner, current) };
-                        BattleModelOwner target = opcode == 0x9E ? graphics.NativeBindings.DecodeLiteral(first, models) : (graphics.ActionContext?.Target ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
+                        BattleModelOwner target = opcode == 0x9E ? graphics.NativeBindings.DecodeLiteral(first, models) : (graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
                         (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, owner, target, first, second, fraction, duration, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
                         graphics = graphics with { Auxiliary = auxiliary };
                         if (allocated && opcode != 0x9E)

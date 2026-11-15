@@ -15,7 +15,7 @@ internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty,
 internal sealed record HostedNativeAllocationFrame(BattleEnemyActorModel Owner, byte SceneSlot, bool Hidden);
 internal sealed record HostedShotFrameOwner(BattleModelOwner Owner, string ActorId, long ActionToken, uint Callback, BattleNativeShotPhase? Phase);
 internal abstract record NativeBattlePresentationReceipt;
-internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet, HostedRenzokukenContact? Renzokuken = null) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationSoundCommitted(NativeBattleModuleSound Sound, string? ActorId, NativeBattleSequenceSound? Sequence) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationStopAllSoundsRequested(string Message) : NativeBattlePresentationReceipt;
@@ -47,6 +47,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
     internal HostedShotFrameOwner? Shot { get; init; }
     internal HostedDuelFrameOwner? Duel { get; init; }
+    internal HostedRenzokukenFrame? Renzokuken { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanDescriptor { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanExtra { get; init; }
 
@@ -58,7 +59,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal void EmitAllocationGate() => receipts.Add(new NativeBattleAllocationGateReached());
 
-    internal void EmitContact(NativeBattleContactPacket packet) => receipts.Add(new NativeBattlePresentationContactReceived(packet));
+    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null) => receipts.Add(new NativeBattlePresentationContactReceived(packet, renzokuken));
     internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);
     internal void EmitSound(NativeBattleModuleSound sound, string? actorId, NativeBattleSequenceSound? sequence) => receipts.Add(new NativeBattlePresentationSoundCommitted(sound, actorId, sequence));
     internal void EmitStopAllSounds(string message) => receipts.Add(new NativeBattlePresentationStopAllSoundsRequested(message));

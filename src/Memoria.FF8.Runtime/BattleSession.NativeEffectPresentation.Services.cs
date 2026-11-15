@@ -52,7 +52,7 @@ public sealed partial class BattleSession
     internal NativeBattleGraphicsModel WriteEffectPresentationSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value)
     {
         NativeBattleGraphicsState graphics = NativeGraphics!;
-        BattleModelOwner target = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native presentation target writes require their current50D300 target identity.");
+        BattleModelOwner target = graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native presentation target writes require their current50D300 target identity.");
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequirePresentationSourceOwner(), source) };
         NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(graphics.ActorModels.Get(target), variable, value)) };
         return ReadEffectPresentationSource();

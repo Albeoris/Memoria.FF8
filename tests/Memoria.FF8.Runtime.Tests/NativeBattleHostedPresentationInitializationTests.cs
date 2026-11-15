@@ -26,9 +26,9 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         Assert.Equal(new BattleModelOwner[] { Caster, Target }, graphics.ActorModels.Owners);
         Assert.False(graphics.NativeBindings.TryEncodeExactActor(Caster, graphics.ActorModels, out _));
         Assert.False(graphics.NativeBindings.TryEncodeExactActor(Target, graphics.ActorModels, out _));
-        Assert.Equal(Caster, graphics.ActionContext!.Source);
-        Assert.Equal(Target, graphics.ActionContext.Target);
-        Assert.Equal(BattleModelTargets.From([Target]), graphics.ActionContext.TargetActors);
+        Assert.Equal(Caster, graphics.ActionContext!.ResolveSource(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(Target, graphics.ActionContext.ResolveTarget(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(BattleModelTargets.From([Target]), graphics.ActionContext.TargetActors!.Resolve(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(256, graphics.ActionGraphics!.FirstHeaderTargetCount);
         NativeBattleCinematicActorContext context = owner.NativeEffectMemory!.ScriptedEffects!.PresentationActors!;
         Assert.Empty(context.ReadSavedActors());

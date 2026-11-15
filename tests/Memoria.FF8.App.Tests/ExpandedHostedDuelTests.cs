@@ -207,7 +207,7 @@ public sealed class ExpandedHostedDuelTests
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 Assert.Same(process, battle.ExpandedPresentationProcess);
                 if (process.LastStepActionToken is long token && headers.All(header => header.Token != token) &&
-                    child.NativeGraphics?.ActionGraphics is { Actor: { } source, Header: { } reference } && source == owner)
+                    child.NativeGraphics is { ActionGraphics: { Header: { } reference } action } graphics && action.ResolveActor(graphics) == owner)
                 {
                     NativeBattleActionHeaderSlot header = child.NativeActionPackets.ReadHeader(reference);
                     headers.Add((token, header.Command, header.Action));

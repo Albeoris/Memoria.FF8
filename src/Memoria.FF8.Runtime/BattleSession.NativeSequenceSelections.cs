@@ -41,7 +41,7 @@ public sealed partial class BattleSession
                 return ApplyNativeSequenceCover5065B0(graphics, contact);
             }
         }
-        BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native target sequence requires its50D300 current target owner.")).Target ?? throw new NotSupportedException("Native target sequence requires its retained physical target identity.");
+        BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native target sequence requires its50D300 current target owner.")).ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native target sequence requires its retained physical target identity.");
         if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.ActorModels, target))
         {
             return graphics;

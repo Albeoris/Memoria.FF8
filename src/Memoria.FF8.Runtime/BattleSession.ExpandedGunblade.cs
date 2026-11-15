@@ -6,6 +6,10 @@ public sealed partial class BattleSession
 
     private bool CanTriggerExpandedGunblade(ExpandedBattlePresentationProcess process)
     {
+        if (expandedHostedEvent?.Renzokuken is not null)
+        {
+            return CanTriggerExpandedHostedRenzokuken(process);
+        }
         return Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual &&
             expandedHostedActionToken is long token && process.ActiveActionToken == token &&
             CurrentExpandedHostedInvocation is { PendingGunblade: true } invocation &&
@@ -18,13 +22,16 @@ public sealed partial class BattleSession
         if (!hostedBattlePresentation || hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation ||
             invocation.Token != token || NativeGraphics is not { } graphics ||
             actor is not BattlePartyModelOwner || !graphics.ActorModels.Contains(actor) || graphics.PendingTrigger is not null ||
-            !ReferenceEquals(graphics.TriggerWidget, widget) || widget.Actor != actor || widget.SourceMagicId is not null ||
+            !ReferenceEquals(graphics.TriggerWidget, widget) || widget.Actor != actor ||
             !CanPressNativeTriggerWidget(widget, definition.LimitProgress?.Options978))
         {
             throw new InvalidOperationException("Gunblade input requires its active hosted widget.");
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(invocation.Header);
-        if (header.Source != actor || header.Command is not (1 or 12 or 28))
+        bool reached = widget.SourceMagicId is ushort resource
+            ? header is { Command: 5 } && header.Effect == resource
+            : header.Command is 1 or 12 or 28;
+        if (header.Source != actor || !reached)
         {
             throw new InvalidDataException("Gunblade input does not belong to the active hosted header.");
         }
@@ -34,6 +41,11 @@ public sealed partial class BattleSession
     private void AcknowledgeExpandedGunbladeRegistration(NativeBattleModelTriggerRegistered receipt, long? actionToken)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
+        if (receipt.Widget.SourceMagicId is not null && expandedHostedEvent?.Renzokuken is not null)
+        {
+            AcknowledgeExpandedHostedRenzokukenRegistration(process, receipt, actionToken);
+            return;
+        }
         BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         if (actionToken is null || expandedHostedActionToken != actionToken || process.ActiveActionToken != actionToken ||
             CurrentExpandedHostedInvocation is not { PendingGunblade: true } invocation ||

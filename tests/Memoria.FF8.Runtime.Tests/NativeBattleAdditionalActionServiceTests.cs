@@ -42,7 +42,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
     {
         var fixture = Fixture(0x50B830);
         Set(fixture.Session, nameof(BattleSession.NativeEffectIoResult), 0);
-        BattleModelOwner source = fixture.Graphics.ActionGraphics!.Actor;
+        BattleModelOwner source = fixture.Graphics.ActionGraphics!.ResolveActor(fixture.Graphics);
         BattleModelOwner other = new BattleForeignPartyModel(new("hidden-party"));
         NativeBattleActionGraphicsState context = fixture.Graphics.ActionGraphics with { HiddenPartyActors = BattleModelTargets.From([source, other]) };
         NativeBattleGraphicsState graphics = fixture.Graphics with
@@ -81,7 +81,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(source, 2, 0, 0, 65535, 1, null));
         (packets, _) = packets.Publish(0);
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
-        NativeBattleActionGraphicsState context = new(header, source, new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, null, callback);
+        NativeBattleActionGraphicsState context = new(header, new BattleRetainedModelReference.CanonicalOwner(source), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, null, callback);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, new(0)), (2, other, new(0))], flags: 0x10) with
         {
             ActionGraphics = context,

@@ -25,13 +25,13 @@ public sealed class NativeBattleActionGeometryTests
     [Fact]
     public void Unresolved_target_fields_remain_unknown_and_resolved_targets_must_belong_to_the_selection()
     {
-        BattlePartyActorModel source = new(new("ally"));
-        BattleEnemyActorModel enemy = new(new("enemy"));
-        NativeBattleActionGeometry context = new(source, BattleModelTargets.From([source, enemy]), true);
+        BattleRetainedModelReference source = new BattleRetainedModelReference.CanonicalOwner(new BattlePartyActorModel(new("ally")));
+        BattleRetainedModelReference enemy = new BattleRetainedModelReference.CanonicalOwner(new BattleEnemyActorModel(new("enemy")));
+        NativeBattleActionGeometry context = new(source, BattleRetainedModelSelection.From([source, enemy]), true);
         context.Validate();
         Assert.Null(context.TargetActors);
         Assert.Null(context.ContactDistance);
         Assert.Throws<InvalidDataException>(() => (context with { Target = enemy }).Validate());
-        Assert.Throws<InvalidDataException>(() => (context with { TargetActors = BattleModelTargets.From([enemy]), Target = source }).Validate());
+        Assert.Throws<InvalidDataException>(() => (context with { TargetActors = BattleRetainedModelSelection.From([enemy]), Target = source }).Validate());
     }
 }

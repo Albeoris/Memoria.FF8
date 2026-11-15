@@ -151,7 +151,7 @@ public sealed class NativeBattleEffectResourceResolverTests
         BattleModelOwner source = OriginalOwner(2);
         BattleModelTargets targets = BattleModelTargets.From([OriginalOwner(3), OriginalOwner(6)]);
         BattleActionHeaderReference header = new(3);
-        NativeBattleActionGraphicsState context = new(header, source, new BattleContactCursor(0), targets, BattleModelTargets.Empty, null, BattleRetainedModelReference.Capture(OriginalOwner(3), OriginalAliases), 0x20, null, 0);
+        NativeBattleActionGraphicsState context = new(header, BattleRetainedModelReference.Capture(source, OriginalAliases), new BattleContactCursor(0), BattleRetainedModelSelection.Capture(targets, OriginalAliases), BattleRetainedModelSelection.Empty, null, BattleRetainedModelReference.Capture(OriginalOwner(3), OriginalAliases), 0x20, null, 0);
         NativeBattleGraphicsState graphics = OriginalGraphics([(2, source, new(2)), (3, OriginalOwner(3), new(2)), (6, OriginalOwner(6), new(2))]);
         MethodInfo prepare = typeof(BattleSession).GetMethod("CreateNativeOriginalEffectParameters", BindingFlags.Instance | BindingFlags.NonPublic)!;
         MethodInfo begin = typeof(BattleSession).GetMethod("BeginNativeOriginalEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;

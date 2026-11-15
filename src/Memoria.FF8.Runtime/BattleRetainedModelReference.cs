@@ -27,4 +27,15 @@ public abstract record BattleRetainedModelReference
             _ => throw new InvalidDataException("The retained model selector has no binding contract.")
         };
     }
+
+    internal BattleModelOwner Resolve(NativeBattleModelAliases aliases)
+    {
+        return this switch
+        {
+            OriginalSlot original => aliases.DecodeLiteral(original.Slot.Offset),
+            CanonicalOwner canonical when aliases.Roster.Contains(canonical.Owner) => canonical.Owner,
+            CanonicalOwner => throw new InvalidDataException("The retained model selector names a retired owner."),
+            _ => throw new InvalidDataException("The retained model selector has no binding contract.")
+        };
+    }
 }

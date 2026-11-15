@@ -10,7 +10,7 @@ public sealed partial class BattleSession
             return PollGuardianFormFinisherGraphics(graphics, context, phase);
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
-        if (context.Actor is not BattlePartyModelOwner caster)
+        if (context.ResolveActor(graphics) is not BattlePartyModelOwner caster)
         {
             throw new InvalidDataException("Native50B2A0 requires its party caster and CPU model bank.");
         }

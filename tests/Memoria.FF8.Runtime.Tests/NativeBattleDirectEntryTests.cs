@@ -171,7 +171,7 @@ public sealed class NativeBattleDirectEntryTests
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, Model(0)), (3, target, Model(3))], flags: 0x10) with
         {
             ActionGraphics = context,
-            OriginalEffect = new(2, 1, binding, new(source, 1, context.TargetActors, header, 0, 0), 0)
+            OriginalEffect = new(2, 1, binding, new(source, 1, context.TargetActors.Resolve(packets.ModelAliases), header, 0, 0), 0)
         };
         typeof(BattleSession).GetField("presentationSourceOwner", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, source);
         typeof(BattleSession).GetField("presentationInvocationHeader", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, header);

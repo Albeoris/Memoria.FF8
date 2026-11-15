@@ -30,7 +30,7 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleActionGraphicsState context = Context(EarlyAlly, Targets(EarlyEnemy));
         Assert.False(Busy(session, graphics, context));
         Assert.True(Busy(session, graphics, context with { UseActionCamera = true }));
-        Assert.True(Busy(session, graphics, Context(EarlyAlly, Targets(LateEnemy)) with { CoverActors = Targets(OriginalAlly) }));
+        Assert.True(Busy(session, graphics, Context(EarlyAlly, Targets(LateEnemy)) with { CoverActors = BattleRetainedModelSelection.From([new BattleRetainedModelReference.CanonicalOwner(OriginalAlly)]) }));
         Assert.True(Busy(session, graphics with { ActorModels = graphics.ActorModels.Set(LateEnemy, Model(24, busy: true)) }, Context(EarlyAlly, Targets(LateEnemy))));
     }
 
@@ -43,8 +43,8 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleActionGraphicsState context = Context(EarlyAlly, Targets(EarlyEnemy, LateEnemy));
         Assert.True(Busy(session, graphics, context));
         AssertInvalid(() => Busy(session, graphics, Context(EarlyAlly, Targets(Missing))));
-        AssertInvalid(() => Busy(session, graphics, context with { Actor = Missing }));
-        AssertInvalid(() => Busy(session, graphics, context with { CoverActors = Targets(Missing) }));
+        AssertInvalid(() => Busy(session, graphics, context with { Actor = new BattleRetainedModelReference.CanonicalOwner(Missing) }));
+        AssertInvalid(() => Busy(session, graphics, context with { CoverActors = BattleRetainedModelSelection.From([new BattleRetainedModelReference.CanonicalOwner(Missing)]) }));
         AssertInvalid(() => Busy(session, graphics with { ActorModels = graphics.ActorModels.Remove(LateEnemy) }, context));
         NativeBattleGraphicsState rebound = graphics with { ActorModels = graphics.ActorModels.ReplaceOwner(LateEnemy, Missing, graphics.ActorModels.Get(LateEnemy)) };
         AssertInvalid(() => Busy(session, rebound, context));
@@ -78,6 +78,10 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleGraphicsState expected = PrepareHeader(session, native, context);
         InstallHeader(session, hosted, OriginalAlly, 1);
         NativeBattleGraphicsState actual = PrepareHeader(session, hosted, context);
+        Assert.Equal(expected.ActionContext!.ResolveSource(expected.ActorModels, expected.NativeBindings), actual.ActionContext!.ResolveSource(actual.ActorModels, actual.NativeBindings));
+        Assert.Equal(expected.ActionContext.SourceTargets.Resolve(expected.ActorModels, expected.NativeBindings), actual.ActionContext.SourceTargets.Resolve(actual.ActorModels, actual.NativeBindings));
+        Assert.Equal(expected.ActionContext.ResolveTarget(expected.ActorModels, expected.NativeBindings), actual.ActionContext.ResolveTarget(actual.ActorModels, actual.NativeBindings));
+        Assert.Equal(expected.ActionContext.TargetActors!.Resolve(expected.ActorModels, expected.NativeBindings), actual.ActionContext.TargetActors!.Resolve(actual.ActorModels, actual.NativeBindings));
         Assert.Equal(NativeBattleTestSnapshots.Json(expected.ActionContext), NativeBattleTestSnapshots.Json(actual.ActionContext));
         Assert.Equal(NativeBattleTestSnapshots.Json(expected.ActorModels.Entries), NativeBattleTestSnapshots.Json(actual.ActorModels.Entries));
     }
@@ -94,10 +98,10 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleCameraAliases aliases = memory.CameraAliases!;
         NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals!;
 
-        Assert.Equal(EarlyAlly, prepared.ActionContext!.Source);
-        Assert.Equal(targets, prepared.ActionContext.SourceTargets);
-        Assert.Equal(targets, prepared.ActionContext.TargetActors);
-        Assert.Equal(LateEnemy, prepared.ActionContext.Target);
+        Assert.Equal(EarlyAlly, prepared.ActionContext!.ResolveSource(prepared.ActorModels, prepared.NativeBindings));
+        Assert.Equal(targets, prepared.ActionContext.SourceTargets.Resolve(prepared.ActorModels, prepared.NativeBindings));
+        Assert.Equal(targets, prepared.ActionContext.TargetActors!.Resolve(prepared.ActorModels, prepared.NativeBindings));
+        Assert.Equal(LateEnemy, prepared.ActionContext.ResolveTarget(prepared.ActorModels, prepared.NativeBindings));
         Assert.Equal(5, prepared.ActionContext.Matrices!.Value.Length);
         Assert.Equal(EarlyAlly, aliases.Resolve50D790(0x90, prepared.ActorModels, prepared.NativeBindings));
         Assert.Equal(LateEnemy, aliases.Resolve50D790(0xA0, prepared.ActorModels, prepared.NativeBindings));
@@ -106,9 +110,9 @@ public sealed class NativeBattleHostedActionServicesTests
 
         List<BattleModelOwner> reads = [];
         InstallForeignBones(session, graphics, reads, OriginalAlly);
-        NativeBattleGraphicsState cover = PrepareHeader(session, graphics, Context(EarlyAlly, targets) with { CoverActors = Targets(OriginalAlly) });
-        Assert.Equal(Targets(OriginalAlly), cover.ActionContext!.SourceTargets);
-        Assert.Equal(Targets(OriginalAlly), cover.ActionContext.TargetActors);
+        NativeBattleGraphicsState cover = PrepareHeader(session, graphics, Context(EarlyAlly, targets) with { CoverActors = BattleRetainedModelSelection.From([new BattleRetainedModelReference.CanonicalOwner(OriginalAlly)]) });
+        Assert.Equal(Targets(OriginalAlly), cover.ActionContext!.SourceTargets.Resolve(cover.ActorModels, cover.NativeBindings));
+        Assert.Equal(Targets(OriginalAlly), cover.ActionContext.TargetActors!.Resolve(cover.ActorModels, cover.NativeBindings));
         Assert.Equal(new[] { OriginalAlly, OriginalAlly }, reads);
     }
 
@@ -122,13 +126,13 @@ public sealed class NativeBattleHostedActionServicesTests
         BattleSession session = Session();
         InstallHeader(session, graphics, LateAlly, command);
         NativeBattleGraphicsState prepared = PrepareHeader(session, graphics, Context(LateAlly, BattleModelTargets.Empty) with { FirstTargetBinding = new BattleRetainedModelReference.CanonicalOwner(LateEnemy) });
-        Assert.Equal(BattleModelTargets.Empty, prepared.ActionContext!.SourceTargets);
-        Assert.Equal(Targets(LateEnemy), prepared.ActionContext.TargetActors);
-        Assert.False(prepared.ActionContext.IsSelfTarget);
+        Assert.Equal(BattleModelTargets.Empty, prepared.ActionContext!.SourceTargets.Resolve(prepared.ActorModels, prepared.NativeBindings));
+        Assert.Equal(Targets(LateEnemy), prepared.ActionContext.TargetActors!.Resolve(prepared.ActorModels, prepared.NativeBindings));
+        Assert.False(prepared.ActionContext.IsSelfTarget(prepared.ActorModels, prepared.NativeBindings));
 
         prepared = PrepareHeader(session, graphics, Context(LateAlly, BattleModelTargets.Empty));
-        Assert.Equal(Targets(LateAlly), prepared.ActionContext!.TargetActors);
-        Assert.False(prepared.ActionContext.IsSelfTarget);
+        Assert.Equal(Targets(LateAlly), prepared.ActionContext!.TargetActors!.Resolve(prepared.ActorModels, prepared.NativeBindings));
+        Assert.False(prepared.ActionContext.IsSelfTarget(prepared.ActorModels, prepared.NativeBindings));
         AssertInvalid(() => PrepareHeader(session, graphics, Context(LateAlly, BattleModelTargets.Empty) with { FirstTargetBinding = new BattleRetainedModelReference.CanonicalOwner(Missing) }));
     }
 
@@ -143,12 +147,12 @@ public sealed class NativeBattleHostedActionServicesTests
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(EarlyAlly, Model(7, loaded: true) with { ModelId4 = 4 }).Set(LateAlly, Model(14, loaded: true)).Set(EarlyEnemy, Model(15) with { ModelId4 = 4, Flags0 = 2 }) };
 
         NativeBattleGraphicsState preferred = PrepareHeader(session, graphics, Context(EarlyEnemy, Targets(LateEnemy)));
-        Assert.Equal(EarlyAlly, preferred.ActionContext!.Source);
+        Assert.Equal(EarlyAlly, preferred.ActionContext!.ResolveSource(preferred.ActorModels, preferred.NativeBindings));
         Assert.Equal(new[] { EarlyAlly, EarlyAlly }, reads);
         reads.Clear();
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(EarlyAlly, graphics.ActorModels.Get(EarlyAlly) with { ModelId4 = 1 }) };
         NativeBattleGraphicsState fallback = PrepareHeader(session, graphics, Context(EarlyEnemy, Targets(LateEnemy)));
-        Assert.Equal(LateAlly, fallback.ActionContext!.Source);
+        Assert.Equal(LateAlly, fallback.ActionContext!.ResolveSource(fallback.ActorModels, fallback.NativeBindings));
         Assert.Equal(new[] { LateAlly, LateAlly }, reads);
     }
 
@@ -178,10 +182,10 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleActionGeometry self = PrepareTyped(session, graphics, LateAlly, actor, actor).ActionContext!;
         NativeBattleActionGeometry retained = PrepareTyped(session, graphics, LateAlly, actor, actor, true).ActionContext!;
 
-        Assert.True(self.IsSelfTarget);
-        Assert.False(retained.IsSelfTarget);
+        Assert.True(self.IsSelfTarget(graphics.ActorModels, graphics.NativeBindings));
+        Assert.False(retained.IsSelfTarget(graphics.ActorModels, graphics.NativeBindings));
         Assert.True(retained.SourceHasNonActorSelectors);
-        Assert.Equal(actor, retained.SourceTargets);
+        Assert.Equal(actor, retained.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings));
         retained.Validate();
     }
 
@@ -236,7 +240,7 @@ public sealed class NativeBattleHostedActionServicesTests
 
     private static NativeBattleActionGraphicsState Context(BattleModelOwner source, BattleModelTargets targets)
     {
-        return new(new(0), source, new(0), targets, BattleModelTargets.Empty, null, null, 0, null, 0x50BB00) { UseActionCamera = false };
+        return new(new(0), new BattleRetainedModelReference.CanonicalOwner(source), new(0), BattleRetainedModelSelection.From(targets.Enumerate().Select(owner => new BattleRetainedModelReference.CanonicalOwner(owner))), BattleRetainedModelSelection.Empty, null, null, 0, null, 0x50BB00) { UseActionCamera = false };
     }
 
     private static void InstallHeader(BattleSession session, NativeBattleGraphicsState graphics, BattleModelOwner source, byte command)

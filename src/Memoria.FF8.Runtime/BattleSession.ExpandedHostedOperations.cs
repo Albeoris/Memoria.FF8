@@ -26,7 +26,8 @@ public sealed partial class BattleSession
     }
 
     private ExpandedHostedPrefix PrepareExpandedHostedPrefix(ExpandedBattlePresentationProcess process,
-        PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null)
+        PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null,
+        HostedRenzokukenFinisherReplacement? renzokukenFinisher = null)
     {
         var headers = ImmutableArray.CreateBuilder<HostedDispatchHeader>();
         int firstUnpublished = -1;
@@ -59,6 +60,11 @@ public sealed partial class BattleSession
                         break;
                     case ExpandedHostedDescriptor descriptor:
                         (current.HasValue ? after : before).Add(descriptor.Control);
+                        if (descriptor.Control is HostedDispatchControl.RenzokukenFinisher)
+                        {
+                            next++;
+                            goto PrefixReady;
+                        }
                         completionBeforeAction |= !current.HasValue && descriptor.Control is HostedDispatchControl.Complete;
                         break;
                 }
@@ -73,7 +79,7 @@ public sealed partial class BattleSession
         }
         HostedDispatchControls? controls = acknowledgeOnly ? null : new(before.ToImmutable(), after.ToImmutable());
         PreparedHostedDispatch dispatch = process.PrepareDispatch(headers.ToImmutable(), headerReference: reference, dispatchAppended: dispatchAppended,
-            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations, duelSelection: duelSelection);
+            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher);
         ImmutableArray<ExpandedHostedOperation> operations = expandedHostedOperations;
         int appended = 0;
         for (int i = 0; i < expandedHostedOperations.Length; i++)
@@ -112,6 +118,10 @@ public sealed partial class BattleSession
             return;
         }
         ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("A hosted event lost its attached process.");
+        if (process.PendingRenzokukenFinisher is not null)
+        {
+            return;
+        }
         if (expandedHostedActionToken is long token)
         {
             if ((frameToken is long current && current != token) || !process.IsActionComplete(token))
@@ -123,6 +133,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted action retired with unresolved preliminary contacts.");
             }
             ValidateExpandedEffectContactCompletion();
+            ValidateExpandedHostedRenzokukenInitialRetirement(hostedEvent);
         }
         if (!process.IsControlPrefixRetired)
         {

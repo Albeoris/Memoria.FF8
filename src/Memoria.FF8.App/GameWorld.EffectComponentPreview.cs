@@ -83,7 +83,7 @@ internal sealed partial class GameWorld
             {
                 context = graphics.ActionGraphics ?? throw new InvalidDataException("The loaded component lacks its native invocation context.");
                 reference = context.Header;
-                actor = context.Actor;
+                actor = context.ResolveActor(graphics);
             }
             int headerIndex = Enumerable.Range(0, admittedPackets.ActionCount).SingleOrDefault(index => new BattleActionHeaderReference(index) == reference, -1);
             BattleCombatant? participant = active.Combatants.SingleOrDefault(candidate => candidate.NativeActorIndex is >= 0 and < 7 && active.ReadPresentationModelOwner(candidate.Id) == actor);

@@ -4,12 +4,10 @@ public sealed partial class BattleSession
 {
     private static bool NativeHeaderTargetsBusy(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        if (context.TargetActors.Enumerate().Concat(context.CoverActors.Enumerate()).Any(owner => !graphics.ActorModels.Contains(owner)))
-        {
-            throw new InvalidDataException("Native target readiness requires current model owners.");
-        }
+        BattleModelTargets targets = context.ResolveTargets(graphics);
+        BattleModelTargets cover = context.ResolveCover(graphics);
         return graphics.ActorModels.Entries.Any(entry =>
-            (context.TargetActors.Contains(entry.Owner) || context.CoverActors.Contains(entry.Owner)) &&
+            (targets.Contains(entry.Owner) || cover.Contains(entry.Owner)) &&
             NativeBattleActionGraphics.IsModelBusy(entry.State, 0x140));
     }
 
@@ -35,7 +33,7 @@ public sealed partial class BattleSession
         //50BD00 has no contacts: only sequence10 waits for the actor after selection.
         if (phase == 0)
         {
-            if (NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.Actor), 0x40))
+            if (NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.ResolveActor(graphics)), 0x40))
             {
                 return (graphics, phase, false);
             }
@@ -43,11 +41,11 @@ public sealed partial class BattleSession
         }
         if (phase == 1)
         {
-            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ResolveActor(graphics));
             actor = actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50BD00 requires its actor DWORD8.")) & ~0x800000u };
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ResolveActor(graphics), actor) };
             byte sequence = nativeActionPackets.ReadHeader(context.Header).Sequence;
-            graphics = SelectNativeHeaderSequence(graphics, context.Actor, sequence);
+            graphics = SelectNativeHeaderSequence(graphics, context.ResolveActor(graphics), sequence);
             if (sequence != 10)
             {
                 return (graphics, phase, true);
@@ -56,7 +54,7 @@ public sealed partial class BattleSession
         }
         if (phase == 2)
         {
-            return (graphics, phase, !NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.Actor), 0x40));
+            return (graphics, phase, !NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(context.ResolveActor(graphics)), 0x40));
         }
         throw new InvalidDataException("Native50BD00 reached an invalid descriptor phase.");
     }

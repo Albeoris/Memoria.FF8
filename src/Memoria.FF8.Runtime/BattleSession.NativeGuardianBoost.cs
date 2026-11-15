@@ -172,7 +172,7 @@ public sealed partial class BattleSession
                 NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("Saved raw Boost widget lacks its original action graphics owner.");
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
                 admittedId = header.Action;
-                if (context.Callback is not (0x50B2A0 or 0x50A9A0) || context.Actor != header.Source || header.Command != 254 || admittedId is < 64 or >= 80)
+                if (context.Callback is not (0x50B2A0 or 0x50A9A0) || context.ResolveActor(graphics) != header.Source || header.Command != 254 || admittedId is < 64 or >= 80)
                 {
                     throw new InvalidDataException("Saved raw Boost widget differs from its physical GF header and action graphics service.");
                 }

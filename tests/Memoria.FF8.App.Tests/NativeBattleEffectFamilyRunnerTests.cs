@@ -68,7 +68,7 @@ public sealed class NativeBattleEffectFamilyRunnerTests
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, null, item));
         packets = Packets(1);
         NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, null, item);
-        NativeBattleActionGraphicsState otherHeader = new(new BattleActionHeaderReference(1), OriginalOwner(0), new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, null, 0);
+        NativeBattleActionGraphicsState otherHeader = new(new BattleActionHeaderReference(1), BattleRetainedModelReference.Capture(OriginalOwner(0), OriginalAliases), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, null, 0);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(queued, packets, otherHeader, item));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), 0x1D280C5);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFamilyRunner.ValidateActionIdentity(new(descriptor.ToImmutableArray()), packets, null, item));

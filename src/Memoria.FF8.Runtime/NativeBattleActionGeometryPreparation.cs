@@ -16,10 +16,11 @@ public static partial class NativeBattleActionGeometryRules
 
         BattleModelTargets orderedTargets = BattleModelTargets.From(models.Owners.Where(targetActors.Contains));
         BattleModelOwner recipientOwner = orderedTargets.Enumerate().Last();
-        NativeBattleActionGeometry context = new(source, sourceTargets, sourceHasNonActorSelectors)
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(models);
+        NativeBattleActionGeometry context = new(BattleRetainedModelReference.Capture(source, aliases), BattleRetainedModelSelection.Capture(sourceTargets, aliases), sourceHasNonActorSelectors)
         {
-            TargetActors = orderedTargets,
-            Target = recipientOwner,
+            TargetActors = BattleRetainedModelSelection.Capture(orderedTargets, aliases),
+            Target = BattleRetainedModelReference.Capture(recipientOwner, aliases),
             ContactDistance = globals.ContactDistance,
             TargetYaw = globals.TargetYaw
         };
@@ -46,7 +47,7 @@ public static partial class NativeBattleActionGeometryRules
         bool sameOwner = source == recipientOwner;
         short? yaw = sameOwner ? context.TargetYaw : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(second.X - first.X, second.Z - first.Z));
         short actorYaw = sameOwner ? neutralYaw : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(first.X - second.X, first.Z - second.Z));
-        bool self = context.IsSelfTarget;
+        bool self = !sourceHasNonActorSelectors && sourceTargets.IsSingle(source);
         context = context with
         {
             DistanceScale = scale,

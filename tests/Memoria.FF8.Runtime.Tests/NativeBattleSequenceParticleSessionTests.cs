@@ -16,7 +16,7 @@ public sealed class NativeBattleSequenceParticleSessionTests
         (packets, _) = packets.Publish(2);
         packets = packets.ActivateHeader(new BattleActionHeaderReference(0)).AdvanceContact();
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
-        NativeBattleGraphicsState graphics = Graphics() with { ActionGraphics = new(new BattleActionHeaderReference(0), OriginalOwner(0), new BattleContactCursor(0), BattleModelTargets.From([OriginalOwner(1)]), BattleModelTargets.Empty, null, BattleRetainedModelReference.Capture(OriginalOwner(1), OriginalAliases), 0, null, 0x50BB00) };
+        NativeBattleGraphicsState graphics = Graphics() with { ActionGraphics = new(new BattleActionHeaderReference(0), BattleRetainedModelReference.Capture(OriginalOwner(0), OriginalAliases), new BattleContactCursor(0), BattleRetainedModelSelection.Capture(BattleModelTargets.From([OriginalOwner(1)]), OriginalAliases), BattleRetainedModelSelection.Empty, null, BattleRetainedModelReference.Capture(OriginalOwner(1), OriginalAliases), 0, null, 0x50BB00) };
         var result = ((NativeBattleGraphicsState Graphics, int Offset))Invoke(session, "ScheduleNativeSequenceParticle", graphics, OriginalOwner(0), new NativeBattleAuxiliaryProgram([12, 1, 224], 0), true);
         Assert.Equal(3, result.Offset);
         Assert.Null(result.Graphics.ModuleEffects.Head);

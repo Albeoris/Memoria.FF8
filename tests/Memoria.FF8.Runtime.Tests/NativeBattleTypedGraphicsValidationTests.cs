@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -51,18 +52,16 @@ public sealed class NativeBattleTypedGraphicsValidationTests
     }
 
     [Fact]
-    public void RejectsWrongSideAndRetiredOwnersInActionGraphicsAndGeometry()
+    public void RejectsWrongSideAndRetiredOwnersWhereGraphicsNeedsTheirModels()
     {
         NativeBattleGraphicsState graphics = Graphics(1);
         NativeBattleActionGraphicsState action = graphics.ActionGraphics!;
         NativeBattleActionGeometry geometry = graphics.ActionContext!;
-        BattleModelTargets wrongTargets = BattleModelTargets.From([WrongSideTarget]);
         foreach (NativeBattleActionGraphicsState invalid in new[]
         {
-            action with { Actor = RetiredSource },
-            action with { TargetActors = wrongTargets },
-            action with { CoverActors = wrongTargets },
-            action with { CameraActor = RetiredSource },
+            action with { Actor = null! },
+            action with { TargetActors = null! },
+            action with { CoverActors = null! },
             action with { HiddenPartyActors = BattleModelTargets.From([Target]) }
         })
         {
@@ -70,13 +69,21 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         }
         BattleRetainedModelReference missing = new BattleRetainedModelReference.CanonicalOwner(RetiredSource);
         BattleRetainedModelReference wrongSide = new BattleRetainedModelReference.CanonicalOwner(WrongSideTarget);
-        Assert.Throws<InvalidDataException>(() => missing.Resolve(graphics.ActorModels, graphics.NativeBindings));
-        Assert.Throws<InvalidDataException>(() => wrongSide.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        BattleRetainedModelSelection wrongSelection = BattleRetainedModelSelection.From([wrongSide]);
+        NativeBattleActionGraphicsState retained = action with { Actor = missing, TargetActors = wrongSelection, CoverActors = wrongSelection, CameraActor = missing };
+        (graphics with { ActionGraphics = retained }).Validate();
+        Assert.Throws<InvalidDataException>(() => retained.ResolveActor(graphics));
+        Assert.Throws<InvalidDataException>(() => retained.ResolveTargets(graphics));
+        Assert.Throws<InvalidDataException>(() => retained.ResolveCover(graphics));
+        Assert.Throws<InvalidDataException>(() => retained.ResolveCameraActor(graphics));
+        Assert.Throws<InvalidDataException>(() => (geometry with { Source = missing }).ResolveSource(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Throws<InvalidDataException>(() => wrongSelection.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Throws<InvalidDataException>(() => (geometry with { Target = wrongSide, TargetActors = wrongSelection }).ResolveTarget(graphics.ActorModels, graphics.NativeBindings));
         foreach (NativeBattleActionGeometry invalid in new[]
         {
-            geometry with { Source = RetiredSource },
-            geometry with { SourceTargets = wrongTargets },
-            geometry with { Target = WrongSideTarget, TargetActors = wrongTargets }
+            geometry with { Source = null! },
+            geometry with { SourceTargets = null! },
+            geometry with { Target = wrongSide }
         })
         {
             Assert.Throws<InvalidDataException>(() => (graphics with { ActionContext = invalid }).Validate());
@@ -104,7 +111,7 @@ public sealed class NativeBattleTypedGraphicsValidationTests
     }
 
     [Fact]
-    public void DetachedEffectValidatesStructurallyAndLiveEffectRequiresExactCompletionKeys()
+    public void DetachedEffectValidatesStructurallyAndLiveEffectRequiresItsEnteredRecipientKeys()
     {
         NativeBattleGraphicsState graphics = Graphics(1);
         BattleModelRoster roster = graphics.ActorModels.Roster;
@@ -121,9 +128,48 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         Assert.Throws<InvalidDataException>(() => detached.Validate(roster));
         Assert.Throws<InvalidDataException>(() => (effect with { Parameters = parameters with { Source = null! } }).Validate());
         Assert.Throws<InvalidDataException>(() => (effect with { Parameters = parameters with { TargetActors = null! } }).Validate());
-        Assert.Throws<InvalidDataException>(() => (effect with { FireModelCompletion = completion.Remove(Target) }).Validate(roster));
-        Assert.Throws<InvalidDataException>(() => (effect with { FireModelCompletion = completion.Remove(Target).Add(WrongSideTarget, 1) }).Validate(roster));
+        BattleModelOwner recipient = Assert.Single(parameters.TargetActors.Enumerate());
+        Assert.Throws<InvalidDataException>(() => (effect with { FireModelCompletion = completion.Remove(recipient) }).Validate(roster));
+        Assert.Throws<InvalidDataException>(() => (effect with { FireModelCompletion = completion.Add(WrongSideTarget, 0) }).Validate(roster));
+        (effect with { FireModelCompletion = completion.Remove(Target).Add(WrongSideTarget, 1) }).Validate(roster);
         (effect with { Parameters = null, FireModelCompletion = null }).Validate();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Completed_effect_keeps_canonical_parameters_but_active_task_rejects_retired_participant(bool detached)
+    {
+        const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        NativeBattleGraphicsState graphics = Graphics(0);
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState completed = effect with { Parameters = effect.Parameters! with { Source = RetiredSource }, ReturnedDescriptor = 0 };
+        graphics = graphics with { OriginalEffect = completed };
+        graphics.Validate();
+        Assert.Equal(RetiredSource, graphics.OriginalEffect!.Parameters!.Source);
+        Assert.Throws<InvalidDataException>(() => completed.Validate(graphics.ActorModels.Roster));
+
+        BattleSession session = new(new BattleDefinition
+        {
+            Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.TurnBased);
+        NativeBattleOriginalEffectState pending = completed with { ReturnedDescriptor = null };
+        NativeBattleEffectMemory idleMemory = NativeBattleEffectMemory.FromColdProcess().InitializeReturnedTask500870();
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, idleMemory);
+        MethodInfo invoke = typeof(BattleSession).GetMethod("InvokeNativeOriginalEffect", instance, [typeof(NativeBattleGraphicsState), typeof(bool)])!;
+        TargetInvocationException pendingError = Assert.Throws<TargetInvocationException>(() => invoke.Invoke(session, [graphics with { OriginalEffect = pending }, true]));
+        Assert.Contains("bound source", Assert.IsType<InvalidDataException>(pendingError.InnerException).Message);
+        Assert.Same(idleMemory, session.NativeEffectMemory);
+
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x123000, 0x123100, 16, 1);
+        NativeBattleOriginalEffectState active = completed with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress };
+        NativeBattleEffectMemory memory = idleMemory.AssignReturnedTask(active) with { DetachedReturnedTask = detached ? active : null };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+        graphics = graphics with { OriginalEffect = detached ? effect : active };
+        MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", instance)!;
+        TargetInvocationException activeError = Assert.Throws<TargetInvocationException>(() => advance.Invoke(session, [graphics]));
+        Assert.Contains("bound source", Assert.IsType<InvalidDataException>(activeError.InnerException).Message);
+        Assert.Same(memory, session.NativeEffectMemory);
     }
 
     private static NativeBattleGraphicsState Graphics(int additionalCount)
@@ -137,6 +183,7 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         BattleModelOwner recipient = models.Enemies.Entries.Last().Owner;
         BattleModelTargets targets = BattleModelTargets.From([recipient]);
         BattleModelTargets party = BattleModelTargets.From([Source]);
+        NativeBattleModelAliases aliases = boundary.CaptureAliases(models);
         NativeBattleUiServices ui = NativeBattleUiServices.Initialize();
         BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));
 
@@ -144,8 +191,12 @@ public sealed class NativeBattleTypedGraphicsValidationTests
 
         return new(models, boundary, 0, 0, NativeBattleEffectsState.Clear(storageContract))
         {
-            ActionGraphics = new(new(0), Source, new(0), targets, party, new BattleRetainedModelReference.CanonicalOwner(Source), new BattleRetainedModelReference.CanonicalOwner(recipient), 0, null, 0) { HiddenPartyActors = party },
-            ActionContext = new(Source, party, false) { TargetActors = targets, Target = recipient },
+            ActionGraphics = new(new(0), BattleRetainedModelReference.Capture(Source, aliases), new(0), BattleRetainedModelSelection.Capture(targets, aliases), BattleRetainedModelSelection.Capture(party, aliases), new BattleRetainedModelReference.CanonicalOwner(Source), new BattleRetainedModelReference.CanonicalOwner(recipient), 0, null, 0) { HiddenPartyActors = party },
+            ActionContext = new(BattleRetainedModelReference.Capture(Source, aliases), BattleRetainedModelSelection.Capture(party, aliases), false)
+            {
+                TargetActors = BattleRetainedModelSelection.Capture(targets, aliases),
+                Target = BattleRetainedModelReference.Capture(recipient, aliases)
+            },
             OriginalEffect = new(2, 1, new(2, 0x6298A0, 0x629880), new(Source, 0, targets, new(0), 0, 0), null)
             {
                 FireModelCompletion = models.Owners.ToImmutableDictionary(owner => owner, _ => 1)

@@ -91,18 +91,15 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         {
             throw new InvalidDataException("Saved GF camera restoration requires a positive focal length.");
         }
-        if (ActionContext is { } geometry)
+        ActionContext?.Validate();
+        if (OriginalEffect is { ReturnedDescriptor: 0 } completedEffect)
         {
-            geometry.Validate();
-            RequireBoundOwner(roster, geometry.Source);
-            RequireBoundTargets(roster, geometry.SourceTargets);
-            if (geometry.TargetActors is { } targets)
-            {
-                RequireBoundTargets(roster, targets);
-                RequireBoundOwner(roster, geometry.Target);
-            }
+            completedEffect.Validate();
         }
-        OriginalEffect?.Validate(roster);
+        else
+        {
+            OriginalEffect?.Validate(roster);
+        }
         UiServices?.Validate();
         TriggerWidget?.Validate(roster);
         if ((Flags & 8) != 0 && UiServices is null)
@@ -165,12 +162,9 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
 
     private static void ValidateActionOwners(BattleModelRoster roster, NativeBattleActionGraphicsState action)
     {
-        RequireBoundOwner(roster, action.Actor);
-        RequireBoundTargets(roster, action.TargetActors);
-        RequireBoundTargets(roster, action.CoverActors);
-        if (action.CameraActor is { } cameraActor)
+        if (action.Actor is null || action.TargetActors is null || action.CoverActors is null)
         {
-            RequireBoundOwner(roster, cameraActor);
+            throw new InvalidDataException("Action graphics requires retained source, target and cover selectors.");
         }
         if (action.HiddenPartyActors is { } hiddenParty)
         {
@@ -196,14 +190,6 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         if (contact.CoverSource is { } coverSource)
         {
             RequireBoundOwner(roster, coverSource);
-        }
-    }
-
-    private static void RequireBoundTargets(BattleModelRoster roster, BattleModelTargets? targets)
-    {
-        if (targets is null || targets.Enumerate().Any(owner => !roster.Contains(owner)))
-        {
-            throw new InvalidDataException("Graphics selections require bound model owners.");
         }
     }
 

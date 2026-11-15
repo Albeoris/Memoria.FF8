@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleFireInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeCrtRandomState CrtRandom, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadModelAnchor, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, ImmutableArray<NativeBattleModuleResource> Resources)
+public sealed record NativeBattleFireInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, BattleModelRoster ModelRoster, NativeCrtRandomState CrtRandom, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadModelAnchor, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, ImmutableArray<NativeBattleModuleResource> Resources)
 {
     public Action<BattleContactOccurrence>? ApplyContact { get; init; }
 }
@@ -13,7 +13,7 @@ public static partial class NativeBattleFireEffect
 {
     public static NativeBattleFireStep Step(NativeBattleOriginalEffectState effect, NativeBattleFireInputs inputs)
     {
-        effect.Validate(inputs.Packets.Roster);
+        effect.Validate(inputs.ModelRoster);
         inputs.Packets.Validate();
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Fire callbacks require their50AFC0 parameters.");
         ImmutableDictionary<BattleModelOwner, int> completion = effect.FireModelCompletion ?? throw new NotSupportedException("Native Fire requires its retained DEE360 completion DWORDs.");
@@ -54,7 +54,7 @@ public static partial class NativeBattleFireEffect
                 task = task.WriteWord(34, unchecked((ushort)(Word(task, 34) + 1)));
                 bool single = task.Callback == 0x62A380;
                 BattleModelOwner? model = single ? task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner : null;
-                if (model is { } reachedModel && !completion.ContainsKey(reachedModel))
+                if (model is { } reachedModel && (!inputs.ModelRoster.Contains(reachedModel) || !completion.ContainsKey(reachedModel)))
                 {
                     throw new InvalidDataException("Native62A380 requires its bound graphics model completion state.");
                 }

@@ -16,8 +16,8 @@ public sealed class NativeBattleHostedActionGeometryTests
         NativeBattleActionGeometry context = graphics.ActionContext!;
 
         context.Validate();
-        Assert.Equal(BattleModelTargets.From([FirstAlly, LastAlly, ExtraEnemy]), context.TargetActors);
-        Assert.Equal(ExtraEnemy, context.Target);
+        Assert.Equal(BattleModelTargets.From([FirstAlly, LastAlly, ExtraEnemy]), context.TargetActors!.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(ExtraEnemy, context.ResolveTarget(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal((short)2048, graphics.ActorModels.Get(OriginalEnemy).Rotation14);
         Assert.Equal((ushort)4, graphics.ActorModels.Get(OriginalEnemy).Flags2);
         foreach (BattleModelOwner owner in selection.Enumerate())
@@ -41,14 +41,14 @@ public sealed class NativeBattleHostedActionGeometryTests
         NativeBattleActionGeometry context = graphics.ActionContext!;
 
         context.Validate();
-        Assert.True(context.IsSelfTarget);
+        Assert.True(context.IsSelfTarget(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(1000, context.UnadjustedDistance);
         Assert.Equal(1000, context.ContactDistance);
-        Assert.Equal(selection, context.SourceTargets);
-        Assert.Equal(selection, context.TargetActors);
-        Assert.Equal(ExtraEnemy, context.Target);
-        Assert.False((context with { SourceTargets = selection.Add(LastAlly) }).IsSelfTarget);
-        Assert.False((context with { SourceHasNonActorSelectors = true }).IsSelfTarget);
+        Assert.Equal(selection, context.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(selection, context.TargetActors!.Resolve(graphics.ActorModels, graphics.NativeBindings));
+        Assert.Equal(ExtraEnemy, context.ResolveTarget(graphics.ActorModels, graphics.NativeBindings));
+        Assert.False((context with { SourceTargets = BattleRetainedModelSelection.Capture(selection.Add(LastAlly), graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) }).IsSelfTarget(graphics.ActorModels, graphics.NativeBindings));
+        Assert.False((context with { SourceHasNonActorSelectors = true }).IsSelfTarget(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(5, context.Matrices!.Value.Length);
     }
 
@@ -67,8 +67,8 @@ public sealed class NativeBattleHostedActionGeometryTests
         NativeBattleGraphicsState result = Prepare(initial with { ActorModels = models }, OriginalEnemy, BattleModelTargets.Empty, requested);
 
         Assert.Equal(29, result.ActionContext!.TargetActors!.Count);
-        Assert.Equal(ordered, result.ActionContext.TargetActors.Enumerate());
-        Assert.Equal(extras[^1], result.ActionContext.Target);
+        Assert.Equal(ordered, result.ActionContext.TargetActors.Resolve(result.ActorModels, result.NativeBindings).Enumerate());
+        Assert.Equal(extras[^1], result.ActionContext.ResolveTarget(result.ActorModels, result.NativeBindings));
         Assert.All(ordered, owner => Assert.Equal((ushort)0x14, result.ActorModels.Get(owner).Flags2));
         Assert.Equal((ushort)4, models.Get(extras[^1]).Flags2);
         NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(ordered.Select(owner => models.Get(owner).Transform!.Position28).ToArray());
@@ -90,6 +90,61 @@ public sealed class NativeBattleHostedActionGeometryTests
 
         graphics = Prepare(graphics, OriginalEnemy, BattleModelTargets.From([OriginalEnemy]), BattleModelTargets.From([LastAlly]));
         Assert.Equal(0x21, NativeBattleCameraGraphics.ReadVariable(graphics, 22).RequireScalar());
+    }
+
+    [Fact]
+    public void Native_geometry_and_action_selectors_follow_rebound_slots_without_changing_captured_values()
+    {
+        NativeBattleGraphicsState graphics = CreateGraphics();
+        NativeBattleModelSlot sourceSlot = NativeBattleModelSlot.Decode(3);
+        NativeBattleModelSlot targetSlot = NativeBattleModelSlot.Decode(4);
+        (NativeBattleModelBoundary boundary, BattleActorModels models) = graphics.NativeBindings.BindOriginalSlot(targetSlot, ExtraEnemy, graphics.ActorModels.Remove(ExtraEnemy));
+        graphics = graphics with { ActorModels = models.Set(ExtraEnemy, State(Position(24), ExtraEnemy.Side)), NativeBindings = boundary };
+        BattleModelTargets targetSelection = BattleModelTargets.From([ExtraEnemy]);
+        graphics = Prepare(graphics, OriginalEnemy, targetSelection, targetSelection);
+        NativeBattleActionGeometry captured = graphics.ActionContext!;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(models.Roster, NativeBattleRetainedActionPackets.Fresh(), boundary.CaptureAliases(models));
+        (packets, _) = packets.Prepare(new(OriginalEnemy, 8, 1, -1, 0, 0, null));
+        (packets, _) = packets.AppendContact(new(new(ExtraEnemy, 0, 1, 0, 0, 0, 0), null));
+        (packets, BattleActionHeaderReference header) = packets.Publish(1);
+        packets = packets.WritePlayerRepeatMode(header, 1);
+        NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(packets, header);
+
+        BattleEnemyActorModel newSource = new(new("replacement-source"));
+        BattleEnemyActorModel newTarget = new(new("replacement-target"));
+        (boundary, models) = boundary.BindOriginalSlot(sourceSlot, newSource, graphics.ActorModels);
+        (boundary, models) = boundary.BindOriginalSlot(targetSlot, newTarget, models);
+        models = models.Set(newSource, State(Position(30), newSource.Side)).Set(newTarget, State(Position(31), newTarget.Side) with { SequenceByte145 = 92 });
+        graphics = graphics with { ActorModels = models, NativeBindings = boundary, ActionGraphics = action };
+
+        graphics.Validate();
+        Assert.Equal(newSource, action.ResolveActor(graphics));
+        Assert.Equal(newSource, action.ResolveCameraActor(graphics));
+        Assert.True(action.ResolveTargets(graphics).IsSingle(newTarget));
+        Assert.Equal(1, NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(action));
+        Assert.Equal(92, NativeBattleCameraGraphics.ReadVariable(graphics, 21).RequireScalar());
+        Assert.Equal(NativeBattleScriptValue.CaptureActor(newSource, models, boundary), NativeBattleCameraGraphics.ReadVariable(graphics, 24));
+        Assert.Equal(NativeBattleScriptValue.CaptureActor(newTarget, models, boundary), NativeBattleCameraGraphics.ReadVariable(graphics, 25));
+        Assert.True(NativeBattleSequenceSelections.GeometryArguments92(models, FirstAlly, 7, captured, boundary).Targets.IsSingle(newTarget));
+        Assert.Same(captured, graphics.ActionContext);
+        Assert.Equal(captured.Matrices!.Value[1], NativeBattleCameraGraphics.ReadMatrix(graphics.ActionContext!, 0xF5));
+        Assert.Equal(captured.ContactDistance, graphics.ActionContext!.ContactDistance);
+        Assert.Equal(captured.TargetYaw, graphics.ActionContext.TargetYaw);
+    }
+
+    [Fact]
+    public void Retired_unaliased_target_only_fails_when_a_consumer_resolves_it()
+    {
+        BattleModelTargets selection = BattleModelTargets.From([ExtraEnemy]);
+        NativeBattleGraphicsState graphics = Prepare(CreateGraphics(), OriginalEnemy, selection, selection);
+        NativeBattleActionGeometry captured = graphics.ActionContext!;
+        graphics = graphics with { ActorModels = graphics.ActorModels.Remove(ExtraEnemy).Add(new BattleEnemyActorModel(new("new-extra")), State(Position(25), BattleSide.Enemies)) };
+
+        graphics.Validate();
+        Assert.Equal(1, NativeBattleCameraGraphics.ReadVariable(graphics, 26).RequireScalar());
+        Assert.Equal(captured.TargetMatrix, NativeBattleCameraGraphics.ReadMatrix(graphics.ActionContext!, 0xB0));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCameraGraphics.ReadVariable(graphics, 25));
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, FirstAlly, 7, captured, graphics.NativeBindings));
     }
 
     [Fact]

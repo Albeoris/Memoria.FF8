@@ -82,6 +82,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState RunNativeRenzokukenFinisherCallback(NativeBattleGraphicsState graphics, uint callback)
     {
+        if (hostedBattlePresentation)
+        {
+            return RunExpandedHostedRenzokukenFinisher(graphics, callback);
+        }
         NativeGraphics = graphics;
         CompleteNativeRenzokukenFinisherCallback(callback);
         return RequireNativeGraphics();

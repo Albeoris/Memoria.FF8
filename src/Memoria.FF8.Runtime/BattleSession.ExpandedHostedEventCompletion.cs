@@ -23,6 +23,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted completion requires its retired final action.");
             }
             ValidateExpandedEffectContactCompletion();
+            ValidateExpandedHostedRenzokukenInitialRetirement(hostedEvent);
         }
         else if (CurrentExpandedHostedInvocation is not null)
         {
@@ -42,9 +43,9 @@ public sealed partial class BattleSession
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = RestoreSnapshot(seed, customHandlers, proof);
         candidate.preparingExpandedHostedAction = true;
-        if (hostedEvent.Command.NativeDuel is not null)
+        if (hostedEvent.Command.NativeDuel is not null || hostedEvent.Renzokuken is not null)
         {
-            // A closing Duel widget retains this exact owner while the native aftercare suffix is pending.
+            // A timed Limit retains this exact owner while the native aftercare suffix is pending.
             candidate.expandedHostedEvent = hostedEvent;
         }
         candidate.expandedPartyPresentation = expandedPartyPresentation;
@@ -86,6 +87,7 @@ public sealed partial class BattleSession
                 candidate.CompleteExpandedHostedEventGauge(hostedEvent.Command);
             }
             candidate.CompleteExpandedHostedDuelClosing(hostedEvent);
+            candidate.CompleteExpandedHostedRenzokuken(hostedEvent);
             candidate.CompleteActionPresentation(hostedEvent.ActivePresentation, "Expanded action completed.");
             nextEvent = nextEvent with { LogicallyComplete = true };
             if (candidate.expandedHostedNextOperation < candidate.expandedHostedOperations.Length || !process.IsControlPrefixRetired)

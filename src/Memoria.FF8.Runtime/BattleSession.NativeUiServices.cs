@@ -231,7 +231,7 @@ public sealed partial class BattleSession
         NativeBattleUiServices ui = graphics.UiServices ?? throw new InvalidDataException("Registered widget6 lost its UI callback owner.");
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native widget6 requires its saved automatic trigger option.");
         //Host Automatic supplies one actual manual press edge; the original automatic option retains its separate4A7080 draw.
-        bool assistance = nativeRenzokukenProcesses.Count == 0 && GunbladeMode == BattleGunbladeMode.Automatic && (options & 1) == 0 && widget.Input.TriggerTiming == 0 && widget.Input.Phase is 4 or 6 && widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex] == 20;
+        bool assistance = nativeRenzokukenProcesses.Count == 0 && hostedRenzokukenUiFrame is null && GunbladeMode == BattleGunbladeMode.Automatic && (options & 1) == 0 && widget.Input.TriggerTiming == 0 && widget.Input.Phase is 4 or 6 && widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex] == 20;
         NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33 ?? throw new InvalidDataException("Native widget6 was invoked before its4A8E30 BYTE33 producer."), (options & 1) != 0, nativeBattleUiRandom, graphics.ActorModels.Roster, assistedPress: assistance);
         nativeBattleUiRandom = step.Random;
         NativeBattleTriggerReceipt? pending = graphics.PendingTrigger;
@@ -249,13 +249,24 @@ public sealed partial class BattleSession
         {
             MirrorNativeRenzokukenWidget(step.Widget);
         }
+        else if (widget.SourceMagicId is not null && hostedRenzokukenUiFrame is not null)
+        {
+            RecordHostedRenzokukenUi(step, step.Contact is null ? null : pending);
+        }
     }
 
     private void DispatchNativeTriggerReceipt()
     {
         if (expandedPresentationProcess is { } process)
         {
-            DispatchExpandedGunbladeTrigger(process);
+            if (process.PendingTrigger is { } hostedTrigger && expandedHostedEvent?.Renzokuken is not null && CurrentExpandedHostedInvocation?.Header.Command == 5)
+            {
+                DispatchExpandedHostedRenzokukenTrigger(process, hostedTrigger);
+            }
+            else
+            {
+                DispatchExpandedGunbladeTrigger(process);
+            }
             return;
         }
         if (NativeGraphics?.PendingTrigger is not { } receipt)

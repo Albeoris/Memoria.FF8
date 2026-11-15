@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>50BF90's copied globals; header and contact storage remain in their canonical physical arenas.</summary>
-public sealed record NativeBattleActionGraphicsState([property: JsonRequired] BattleActionHeaderReference Header, [property: JsonRequired] BattleModelOwner Actor, [property: JsonRequired] BattleContactCursor FirstContact, [property: JsonRequired] BattleModelTargets TargetActors, [property: JsonRequired] BattleModelTargets CoverActors, [property: JsonIgnore] BattleRetainedModelReference? CoverSourceBinding, [property: JsonIgnore] BattleRetainedModelReference? FirstTargetBinding, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
+public sealed record NativeBattleActionGraphicsState([property: JsonRequired] BattleActionHeaderReference Header, [property: JsonRequired] BattleRetainedModelReference Actor, [property: JsonRequired] BattleContactCursor FirstContact, [property: JsonRequired] BattleRetainedModelSelection TargetActors, [property: JsonRequired] BattleRetainedModelSelection CoverActors, [property: JsonIgnore] BattleRetainedModelReference? CoverSourceBinding, [property: JsonIgnore] BattleRetainedModelReference? FirstTargetBinding, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
 {
     [JsonRequired]
     public bool? UseActionCamera { get; init; }
@@ -15,7 +15,15 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] Ba
     public NativeBattleGuardianServiceState? Guardian { get; init; }
     public int? FirstHeaderTargetCount { get; init; }
     public BattleModelTargets? HiddenPartyActors { get; init; }
-    public BattleModelOwner? CameraActor { get; init; } = Actor;
+    public BattleRetainedModelReference? CameraActor { get; init; } = Actor;
+
+    public BattleModelOwner ResolveActor(NativeBattleGraphicsState graphics) => Actor.Resolve(graphics.ActorModels, graphics.NativeBindings);
+
+    internal BattleModelOwner? ResolveCameraActor(NativeBattleGraphicsState graphics) => CameraActor?.Resolve(graphics.ActorModels, graphics.NativeBindings);
+
+    internal BattleModelTargets ResolveTargets(NativeBattleGraphicsState graphics) => TargetActors.Resolve(graphics.ActorModels, graphics.NativeBindings);
+
+    internal BattleModelTargets ResolveCover(NativeBattleGraphicsState graphics) => CoverActors.Resolve(graphics.ActorModels, graphics.NativeBindings);
 }
 public sealed record NativeBattleGuardianServiceState(BattleModelTargets HiddenPartyActors, byte CameraSelector4E, ushort Control44, NativeBattleGuardianNeighbor? Neighbor = null);
 public sealed record NativeBattleGuardianNeighbor(BattlePartyModelOwner? Owner);
@@ -87,23 +95,22 @@ public static class NativeBattleActionGraphics
         return 0;
     }
 
-    public static bool AreActionModelsBusy(BattleActorModels models, NativeBattleActionGraphicsState context)
+    public static bool AreActionModelsBusy(BattleActorModels models, NativeBattleModelBoundary boundary, NativeBattleActionGraphicsState context)
     {
         ArgumentNullException.ThrowIfNull(models);
         ArgumentNullException.ThrowIfNull(context);
-        if (context.Actor is null || !models.Contains(context.Actor) || context.TargetActors is null || context.CoverActors is null || context.TargetActors.Enumerate().Any(owner => !models.Contains(owner)) || context.CoverActors.Enumerate().Any(owner => !models.Contains(owner)))
-        {
-            throw new InvalidDataException("Native action wait requires its bound source, target and cover model owners.");
-        }
+        BattleModelOwner source = context.Actor.Resolve(models, boundary);
+        BattleModelTargets targets = context.TargetActors.Resolve(models, boundary);
+        BattleModelTargets cover = context.CoverActors.Resolve(models, boundary);
         if (context.UseActionCamera ?? throw new InvalidDataException("Native action service lost its505F00 result."))
         {
             return models.Entries.Any(entry => (entry.State.Flags0 & 2) != 0 && IsModelBusy(entry.State, 0x40));
         }
-        if (IsModelBusy(models.Get(context.Actor), 0x40))
+        if (IsModelBusy(models.Get(source), 0x40))
         {
             return true;
         }
-        return models.Owners.Any(owner => (context.TargetActors.Contains(owner) || context.CoverActors.Contains(owner)) && IsModelBusy(models.Get(owner), 0x140));
+        return models.Owners.Any(owner => (targets.Contains(owner) || cover.Contains(owner)) && IsModelBusy(models.Get(owner), 0x140));
     }
 
     public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask) => IsModelBusy(model, resourceMask, 26);
@@ -148,7 +155,7 @@ public static class NativeBattleActionGraphics
         BattleModelTargets targetActors = BattleModelTargets.From(packets.Roster.Owners.Where(targets.Contains));
         BattleModelTargets coverActors = BattleModelTargets.From(packets.Roster.Owners.Where(covers.Contains));
         NativeBattleActionServiceSelection selection = SelectService(first);
-        return new(header, first.Source, first.FirstContact, targetActors, coverActors, coverSource, firstTarget, flags, first.Data, selection.Callback)
+        return new(header, BattleRetainedModelReference.Capture(first.Source, packets.ModelAliases), first.FirstContact, BattleRetainedModelSelection.Capture(targetActors, packets.ModelAliases), BattleRetainedModelSelection.Capture(coverActors, packets.ModelAliases), coverSource, firstTarget, flags, first.Data, selection.Callback)
         {
             FirstHeaderTargetCount = first.ReadContactCount()
         };

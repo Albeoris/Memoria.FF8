@@ -140,7 +140,7 @@ public sealed class NativeBattleCommandTitleTests
         NativeBattleActionDataReference? title = pending ? new(0x47E970, 1, "Fire") : null;
         NativeBattleGraphicsState graphics = OriginalGraphics([(index, owner, model)]) with
         {
-            ActionGraphics = new(new BattleActionHeaderReference(0), owner, new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, title, 0x50A9A0)
+            ActionGraphics = new(new BattleActionHeaderReference(0), new BattleRetainedModelReference.CanonicalOwner(owner), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, title, 0x50A9A0)
         };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
         return session;

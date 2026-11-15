@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest, PreparedHostedModelRegistry? registry)
+    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest, PreparedHostedModelRegistry? registry, NativeBattleRenzokukenWidgetStepped? renzokuken)
     {
         internal BattleSession Owner { get; } = owner;
         internal HostedPresentationInvocation Invocation { get; } = invocation;
@@ -16,6 +16,7 @@ public sealed partial class BattleSession
         internal ImmutableArray<BattleActionHeaderReference> AppendedHeaders { get; } = appendedHeaders;
         internal HostedGuardianBoostRequest? GuardianRequest { get; } = guardianRequest;
         internal PreparedHostedModelRegistry? Registry { get; } = registry;
+        internal NativeBattleRenzokukenWidgetStepped? Renzokuken { get; } = renzokuken;
     }
 
     internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null, ImmutableArray<HostedModelLoadAdmission> allocations = default)
@@ -42,13 +43,28 @@ public sealed partial class BattleSession
         }
         BattleModelOwner caster = header.Source;
         NativeBattleGraphicsState? replacementGraphics = null;
+        NativeBattleRenzokukenWidgetStepped? renzokuken = null;
         if (acknowledgeTrigger is not null)
         {
             acknowledgeTrigger.Validate(roster);
-            if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.Actor != caster ||
-                acknowledgeTrigger is not { ContactIndex: 1, TotalContacts: 1 } || header.Command is not (1 or 12 or 28) || original.Length != 1)
+            if (header.Command == 5)
+            {
+                renzokuken = hostedRenzokukenPendingStep;
+                if (renzokuken is null || !ReferenceEquals(renzokuken.Pending, acknowledgeTrigger) ||
+                    renzokuken.Frame.ActionToken != token || renzokuken.Frame.Owner.Actor != caster || renzokuken.Frame.Owner.MagicId != header.Effect ||
+                    renzokuken.Widget.Input.ContactIndex != acknowledgeTrigger.ContactIndex || renzokuken.Frame.Contacts + 1 != acknowledgeTrigger.ContactIndex ||
+                    acknowledgeTrigger.TotalContacts != renzokuken.Widget.Block.Timeline.InputThresholds.Length)
+                {
+                    throw new InvalidDataException("Contact replacement requires the exact pending Renzokuken widget step.");
+                }
+            }
+            else if (acknowledgeTrigger is not { ContactIndex: 1, TotalContacts: 1 } || header.Command is not (1 or 12 or 28))
             {
                 throw new InvalidDataException("Contact replacement does not acknowledge this invocation's pending ordinary Gunblade receipt.");
+            }
+            if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.Actor != caster || original.Length != 1)
+            {
+                throw new InvalidDataException("Contact replacement requires the active caster's exact pending trigger and single physical contact.");
             }
             replacementGraphics = graphics with { PendingTrigger = null };
         }
@@ -75,7 +91,7 @@ public sealed partial class BattleSession
             replacement = replacement.WithRoster(planned, graphics.NativeBindings.CaptureAliases(graphics.ActorModels, planned));
         }
         (replacement, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true, admission?.Replacement ?? hostedModelRegistry);
-        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian, admission);
+        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian, admission, renzokuken);
     }
 
     internal void ValidatePreparedHostedContactReplacement(PreparedHostedContactReplacement prepared)
@@ -84,7 +100,7 @@ public sealed partial class BattleSession
         if (!ReferenceEquals(prepared.Owner, this) || !ReferenceEquals(prepared.Invocation, hostedPresentationInvocation) ||
             !ReferenceEquals(prepared.Graphics, NativeGraphics) || !ReferenceEquals(prepared.OriginalPackets, nativeActionPackets) ||
             prepared.Epoch != hostedPreparationEpoch || prepared.Registry is { } registry && !ReferenceEquals(registry.Original, hostedModelRegistry) || !hostedBattlePresentation || NativeGraphics is not { EntryReady: true } ||
-            hostedFrameServices is not null)
+            hostedFrameServices is not null || prepared.Renzokuken is { } step && !ReferenceEquals(step, hostedRenzokukenPendingStep))
         {
             throw new InvalidOperationException("The prepared contact replacement no longer belongs to this active hosted invocation.");
         }
@@ -112,6 +128,11 @@ public sealed partial class BattleSession
         {
             lastHostedGuardianBoostAcknowledged = guardian.Token;
             pendingHostedGuardianBoost = null;
+        }
+        if (prepared.Renzokuken is { } renzokuken)
+        {
+            hostedRenzokukenPendingStep = null;
+            hostedRenzokukenPublishedStep = renzokuken;
         }
     }
 }

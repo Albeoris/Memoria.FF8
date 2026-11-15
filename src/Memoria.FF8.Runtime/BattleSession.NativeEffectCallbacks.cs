@@ -41,6 +41,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        effect.Validate(graphics.ActorModels.Roster);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect callbacks require their retained physical memory.");
         using NativeBattleTaskOperation operation = new(memory, effect);
         operation.AdmitStaging(NativeFileStaging);
@@ -1102,7 +1103,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException($"Native effect{effect.Binding.Effect} requires its original callback scheduler.");
         }
         NativeBattleEffectProgramResources resources = effect.Binding.ProgramResources ?? throw new NotSupportedException("Native Fire callbacks require their original executable resource bank.");
-        NativeBattleFireStep step = NativeBattleFireEffect.Step(effect, new(graphics.Flags, nativeActionPackets, nativeCrtRandom ?? throw new NotSupportedException("Native Fire requires the retained55CBD2 CRT random owner."), index => ReadNativeModelAnchor(graphics, index), index => graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Fire requires its original model transform."), resources.Sprites.AddRange(definition.NativeModuleResources)) { ApplyContact = ApplyContact });
+        NativeBattleFireStep step = NativeBattleFireEffect.Step(effect, new(graphics.Flags, nativeActionPackets, graphics.ActorModels.Roster, nativeCrtRandom ?? throw new NotSupportedException("Native Fire requires the retained55CBD2 CRT random owner."), index => ReadNativeModelAnchor(graphics, index), index => graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Fire requires its original model transform."), resources.Sprites.AddRange(definition.NativeModuleResources)) { ApplyContact = ApplyContact });
         nativeCrtRandom = step.CrtRandomAfter;
         foreach (NativeBattleFireSound sound in step.Sounds)
         {

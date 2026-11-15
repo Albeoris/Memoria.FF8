@@ -11,7 +11,7 @@ public sealed class NativeBattleCastingCoverTests
         (BattleActorModels models, NativeBattleModelBoundary boundary) = Models();
         NativeBattleActionGraphicsState action = Action(1, 0, 2);
         BattleActorModels entered = NativeBattleCastingCover.Enter(models, boundary, action);
-        Assert.Equal(OriginalOwner(2), NativeBattleCastingCover.Recipient(models, action.TargetActors));
+        Assert.Equal(OriginalOwner(2), NativeBattleCastingCover.Recipient(models, action.TargetActors.Resolve(OriginalAliases)));
         Assert.Equal(new NativeBattleVector(101, 302, 201), entered.Get(OriginalOwner(2)).Transform!.Position28);
         Assert.Equal(new NativeBattleVector(401, 301, 1001), entered.Get(OriginalOwner(1)).Transform!.Position28);
         Assert.Equal(models.Get(OriginalOwner(0)), entered.Get(OriginalOwner(0)));
@@ -49,7 +49,7 @@ public sealed class NativeBattleCastingCoverTests
     private static NativeBattleActionGraphicsState Action(int source, params int[] targets)
     {
         BattleModelOwner owner = OriginalOwner(source);
-        return new(new BattleActionHeaderReference(0), OriginalOwner(0), new BattleContactCursor(0), BattleModelTargets.From(targets.Select(OriginalOwner)), BattleModelTargets.From([owner]), BattleRetainedModelReference.Capture(owner, OriginalAliases), BattleRetainedModelReference.Capture(OriginalOwner(2), OriginalAliases), 0, null, 0x50A9A0);
+        return new(new BattleActionHeaderReference(0), BattleRetainedModelReference.Capture(OriginalOwner(0), OriginalAliases), new BattleContactCursor(0), BattleRetainedModelSelection.Capture(BattleModelTargets.From(targets.Select(OriginalOwner)), OriginalAliases), BattleRetainedModelSelection.From([BattleRetainedModelReference.Capture(owner, OriginalAliases)]), BattleRetainedModelReference.Capture(owner, OriginalAliases), BattleRetainedModelReference.Capture(OriginalOwner(2), OriginalAliases), 0, null, 0x50A9A0);
     }
 
     private static (BattleActorModels Models, NativeBattleModelBoundary Boundary) Models()

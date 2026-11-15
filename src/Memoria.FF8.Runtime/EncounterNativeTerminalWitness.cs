@@ -18,11 +18,11 @@ public sealed partial class BattleSession
 {
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleGraphicsState graphics)
     {
-        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || action.Actor != CreatePresentationModelOwner(actor) || nativeActionPackets.ActiveHeader != action.Header)
+        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || nativeActionPackets.ActiveHeader != action.Header)
         {
             return;
         }
-        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.ReadHeader(action.Header), action.Actor);
+        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.ReadHeader(action.Header), CreatePresentationModelOwner(actor));
     }
 
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleActionHeaderSlot? header, BattleModelOwner owner)

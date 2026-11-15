@@ -123,6 +123,60 @@ public sealed class NativeBattleHostedFireEffectTests
     }
 
     [Fact]
+    public void Fire_keeps_its_live_recipient_when_unrelated_models_are_retired_and_added()
+    {
+        BattleModelOwner recipient = Owners[24];
+        BattleModelOwner retired = Owners[1];
+        BattleModelOwner added = new BattleEnemyActorModel(new("new-enemy"));
+        var fixture = Fixture([[recipient]]);
+        NativeBattleOriginalEffectState effect = Enter(fixture.Effect, fixture.Inputs.Packets);
+        NativeBattleFireStep first = NativeBattleFireEffect.Step(effect, fixture.Inputs);
+        Assert.Equal(0, first.Effect.FireModelCompletion![recipient]);
+        Assert.Equal(1, first.Effect.FireModelCompletion[retired]);
+
+        BattleModelRoster current = new(Roster.Owners.Where(owner => owner != retired).Append(added));
+        NativeBattleActionPacketsState packets = fixture.Inputs.Packets.WithRoster(current, new(current, []));
+        List<BattleContactOccurrence> applied = [];
+        NativeBattleFireInputs inputs = fixture.Inputs with { Packets = packets, ModelRoster = current, CrtRandom = first.CrtRandomAfter, ApplyContact = applied.Add };
+        effect = first.Effect;
+        for (int frame = 1; frame < 80 && effect.ReturnedDescriptor != 0; frame++)
+        {
+            NativeBattleFireStep step = NativeBattleFireEffect.Step(effect, inputs);
+            Assert.Equal(frame == 8 ? [new BattleContactOccurrence(0)] : Array.Empty<BattleContactOccurrence>(), step.Contacts.ToArray());
+            effect = step.Effect;
+            inputs = inputs with { CrtRandom = step.CrtRandomAfter };
+        }
+
+        Assert.Equal(0u, effect.ReturnedDescriptor);
+        Assert.Equal(new BattleContactOccurrence(0), Assert.Single(applied));
+        Assert.Equal(1, effect.FireModelCompletion![recipient]);
+        Assert.Equal(1, effect.FireModelCompletion[retired]);
+        Assert.False(effect.FireModelCompletion.ContainsKey(added));
+    }
+
+    [Fact]
+    public void Fire_rejects_missing_completion_entries_outstanding_retirement_and_unbound_task_subjects()
+    {
+        BattleModelOwner recipient = Owners[24];
+        BattleModelOwner plannedOnly = Owners[1];
+        var fixture = Fixture([[recipient]]);
+        NativeBattleOriginalEffectState effect = Enter(fixture.Effect, fixture.Inputs.Packets);
+        ImmutableDictionary<BattleModelOwner, int> completion = effect.FireModelCompletion!;
+        BattleModelRoster current = new(Roster.Owners.Where(owner => owner != plannedOnly));
+        NativeBattleFireInputs inputs = fixture.Inputs with { ModelRoster = current };
+
+        Assert.Contains("each entered recipient", Assert.Throws<InvalidDataException>(() => NativeBattleFireEffect.Step(effect with { FireModelCompletion = completion.Remove(recipient) }, inputs)).Message);
+        Assert.Contains("outstanding DEE360", Assert.Throws<InvalidDataException>(() => NativeBattleFireEffect.Step(effect with { FireModelCompletion = completion.SetItem(plannedOnly, 0) }, inputs)).Message);
+
+        NativeBattleEffectTaskPool children = effect.Pools[1];
+        int slot = children.Head!.Value;
+        NativeBattleModulePoolTask task = children.Slots[slot];
+        task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(plannedOnly), null);
+        effect = effect with { Pools = effect.Pools.SetItem(1, children.WriteSlot(slot, task)) };
+        Assert.Contains("bound graphics model completion state", Assert.Throws<InvalidDataException>(() => NativeBattleFireEffect.Step(effect, inputs)).Message);
+    }
+
+    [Fact]
     public void FireRejectsMismatchedOrUnboundRosterRowsBeforeCreatingTaskPools()
     {
         var fixture = Fixture([[Owners[7], Owners[16], Owners[24]]]);
@@ -184,7 +238,7 @@ public sealed class NativeBattleHostedFireEffectTests
         NativeBattleEffectParameters parameters = new(Owners[0], 0, targets, new BattleActionHeaderReference(0), 0, 0);
         NativeBattleOriginalEffectState effect = new(2, 1, new(2, 0x6298A0, 0x629880), parameters, null);
         ImmutableArray<NativeBattleModuleResource> resources = [Sprite(0xDEDC2C, 0), Sprite(0xDEDDD8, 0), Sprite(0xDEDF84, 0), Sprite(0x123450, 5)];
-        NativeBattleFireInputs inputs = new(0, packets, NativeCrtRandomState.FromColdProcess(), owner => new((short)(Array.IndexOf(Owners, owner) * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);
+        NativeBattleFireInputs inputs = new(0, packets, Roster, NativeCrtRandomState.FromColdProcess(), owner => new((short)(Array.IndexOf(Owners, owner) * 100), -600, 200, 2000), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), resources);
         return (effect, inputs);
     }
 

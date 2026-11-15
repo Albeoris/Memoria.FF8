@@ -13,9 +13,17 @@ public sealed partial class BattleSession
 
         ImmutableArray<ExpandedHostedOperation> originalOperations = expandedHostedOperations;
         int next = expandedHostedNextOperation;
+        int acknowledged = expandedPresentedOccurrences.Count;
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(before, customHandlers);
+        HostedRenzokukenCandidateProof? renzokuken = hostedEvent.Renzokuken is not null && invocation.Header.Command == 5 && trigger is not null
+            ? new(before, hostedEvent, trigger, null)
+            : null;
+        BattleSession candidate = RestoreSnapshot(before, customHandlers, renzokuken);
+        if (renzokuken is not null)
+        {
+            candidate.expandedHostedEvent = hostedEvent;
+        }
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.nativeAffinityAction = nativeAffinityAction;
         candidate.preparingExpandedHostedAction = true;
@@ -49,12 +57,13 @@ public sealed partial class BattleSession
         ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, replacement.ReplacementPackets.Roster);
 
         BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = Restore(before, customHandlers);
+        BattleSession preflight = RestoreSnapshot(before, customHandlers, renzokuken);
         preflight.expandedPartyPresentation = expandedPartyPresentation;
         preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
         preflight.ValidatePreparedExpandedPresentation(candidate);
         if (expandedHostedOperations != originalOperations || expandedHostedCurrentOperation != current || expandedHostedNextOperation != next ||
-            !ReferenceEquals(expandedHostedEvent, hostedEvent) || expandedHostedActionToken != token || expandedPresentedOccurrences.Count != 0)
+            !ReferenceEquals(expandedHostedEvent, hostedEvent) || expandedHostedActionToken != token ||
+            expandedPresentedOccurrences.Count != (renzokuken is null ? 0 : acknowledged))
         {
             throw new InvalidOperationException("The hosted recompute source changed before publication.");
         }
@@ -65,6 +74,10 @@ public sealed partial class BattleSession
         expandedContactBridge = bridge;
         expandedModelContacts = resolved.Contacts;
         expandedEffectEnemyDraw = resolved.EnemyDraw;
+        if (renzokuken is not null)
+        {
+            expandedPresentedOccurrences.Clear();
+        }
         process.CommitRecomputedContacts(replacement);
     }
 

@@ -277,7 +277,7 @@ public sealed class NativeBattleHostedCompletionTests
         NativeBattleActionPacketsState packets = child.NativeActionPackets.Prepare(self).State;
         packets = packets.AppendContacts([contact]).Publish(1).State.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(0));
-        Assert.True(context.TargetActors.IsSingle(Owner));
+        Assert.True(context.TargetActors.Resolve(packets.ModelAliases).IsSingle(Owner));
         Assert.Equal(busy, typeof(BattleSession).GetMethod("NativeHeaderTargetsBusy", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, context]));
     }
 

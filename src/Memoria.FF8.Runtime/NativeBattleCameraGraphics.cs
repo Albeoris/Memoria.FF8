@@ -28,13 +28,13 @@ public static class NativeBattleCameraGraphics
         if (variable is 24 or 25)
         {
             NativeBattleActionGeometry context = Action();
-            BattleModelOwner owner = variable == 24 ? context.Source : context.Target ?? throw new NotSupportedException("Native camera target variable requires its resolved recipient.");
+            BattleModelOwner owner = variable == 24 ? context.ResolveSource(graphics.ActorModels, graphics.NativeBindings) : context.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native camera target variable requires its resolved recipient.");
             return NativeBattleScriptValue.CaptureActor(owner, graphics.ActorModels, graphics.NativeBindings);
         }
         int value = variable switch
         {
             19 => PartyModels().Count(model => (model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) & 2) == 0),
-            21 => graphics.ActorModels.Get(Action().Target ?? throw new NotSupportedException("Native camera BYTE145 query requires its retained physical recipient.")).SequenceByte145 ?? throw new NotSupportedException("Native camera BYTE145 query requires its observed model byte."),
+            21 => graphics.ActorModels.Get(Action().ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native camera BYTE145 query requires its retained physical recipient.")).SequenceByte145 ?? throw new NotSupportedException("Native camera BYTE145 query requires its observed model byte."),
             22 => TargetFlags(graphics),
             26 => (Action().TargetActors ?? throw new NotSupportedException("Native camera target count requires its resolved target set.")).Count,
             27 => PartyModels().Count(model => (model.Flags0 & 2) != 0 && (model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) == 0),
@@ -50,7 +50,7 @@ public static class NativeBattleCameraGraphics
 
     private static int TargetFlags(NativeBattleGraphicsState graphics)
     {
-        BattleModelOwner target = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native camera status query requires its resolved physical recipient.");
+        BattleModelOwner target = graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native camera status query requires its resolved physical recipient.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(target);
         byte modelId = model.ModelId4 ?? throw new InvalidDataException("Native camera status query requires the loaded model ID BYTE.");
         uint flags = model.Flags8 ?? throw new InvalidDataException("Native camera status query requires the projected status DWORD.");

@@ -1,0 +1,512 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+internal sealed class HostedRenzokukenOwner(BattlePartyModelOwner actor, string actorId, ushort magicId, byte? finisher)
+{
+    internal BattlePartyModelOwner Actor { get; } = actor;
+    internal string ActorId { get; } = actorId;
+    internal ushort MagicId { get; } = magicId;
+    internal byte? Finisher { get; } = finisher;
+    internal uint FinisherCallback => Finisher switch
+    {
+        3 => 0x48F350,
+        < 3 => 0x48F3F0,
+        _ => throw new InvalidOperationException("This Renzokuken event has no finisher callback.")
+    };
+}
+
+internal sealed record HostedRenzokukenFrame(HostedRenzokukenOwner Owner, long ActionToken, BattleNativeRenzokukenState State, int Contacts);
+internal sealed record NativeBattleRenzokukenWidgetStepped(HostedRenzokukenFrame Frame, NativeBattleTriggerWidget Widget, NativeBattleTriggerReceipt? Pending, bool Unregistered, long Epoch, int Order);
+internal sealed record HostedRenzokukenContact(HostedRenzokukenOwner Owner, long Token, short Index);
+internal sealed record NativeBattleRenzokukenFinisherReached(HostedRenzokukenOwner EventOwner, BattleActionHeaderReference Header, int Slot, byte Serial) : NativeBattleModelLifecycleReceipt(EventOwner.Actor, EventOwner.ActorId);
+
+public sealed partial class BattleSession
+{
+    private sealed record HostedRenzokukenCandidateProof(BattleSnapshot Snapshot, ExpandedHostedEvent Event, NativeBattleTriggerReceipt? Trigger, NativeBattleRenzokukenFinisherReached? Finisher) : HostedCandidateProof;
+    internal sealed record HostedRenzokukenFinisherReplacement(NativeBattleRenzokukenFinisherReached Receipt, NativeBattleActionPacketsState Packets, BattleContactCursor FirstContact, ImmutableArray<NativeBattleContactPacket> Contacts);
+
+    private NativeBattleRenzokukenFinisherReached? pendingHostedRenzokukenFinisher;
+    internal NativeBattleRenzokukenFinisherReached? PendingHostedRenzokukenFinisher => pendingHostedRenzokukenFinisher;
+    private NativeBattleRenzokukenWidgetStepped? hostedRenzokukenPendingStep;
+    private NativeBattleRenzokukenWidgetStepped? hostedRenzokukenPublishedStep;
+    private HostedRenzokukenFrame? hostedRenzokukenUiFrame;
+    private ImmutableArray<NativeBattleRenzokukenWidgetStepped>.Builder? hostedRenzokukenUiSteps;
+
+    private void BeginHostedRenzokukenUi(HostedRenzokukenFrame? frame)
+    {
+        hostedRenzokukenUiFrame = frame;
+        hostedRenzokukenUiSteps = frame is null ? null : ImmutableArray.CreateBuilder<NativeBattleRenzokukenWidgetStepped>();
+    }
+
+    private void DrainHostedRenzokukenUi(Action<ImmutableArray<NativeBattleRenzokukenWidgetStepped>, long>? publish)
+    {
+        ImmutableArray<NativeBattleRenzokukenWidgetStepped>.Builder? steps = hostedRenzokukenUiSteps;
+        hostedRenzokukenUiFrame = null;
+        hostedRenzokukenUiSteps = null;
+        if (steps is { Count: > 0 })
+        {
+            (publish ?? throw new InvalidOperationException("Hosted Renzokuken UI requires its canonical input handoff."))(steps.ToImmutable(), hostedPreparationEpoch);
+        }
+    }
+
+    private void RecordHostedRenzokukenUi(NativeBattleTriggerWidgetStep step, NativeBattleTriggerReceipt? pending)
+    {
+        if (hostedRenzokukenUiFrame is not { } frame || hostedRenzokukenUiSteps is not { } steps ||
+            hostedPresentationInvocation is not { } invocation || invocation.Token != frame.ActionToken ||
+            nativeActionPackets.ReadHeader(invocation.Header) is not { Command: 5 } header || header.Source != frame.Owner.Actor ||
+            step.Widget.Actor != frame.Owner.Actor || step.Widget.SourceMagicId != frame.Owner.MagicId || header.Effect != frame.Owner.MagicId ||
+            pending is not null && hostedRenzokukenPendingStep is not null)
+        {
+            throw new InvalidDataException("Native Renzokuken UI stepped outside its actual hosted input owner or overwrote a pending trigger.");
+        }
+        NativeBattleRenzokukenWidgetStepped receipt = new(frame, step.Widget, pending, step.Unregistered, hostedPreparationEpoch, steps.Count);
+        steps.Add(receipt);
+        if (pending is not null)
+        {
+            hostedRenzokukenPendingStep = receipt;
+        }
+    }
+
+    internal void ApplyExpandedHostedRenzokukenWidgetSteps(ImmutableArray<NativeBattleRenzokukenWidgetStepped> steps, long epoch)
+    {
+        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted Renzokuken UI lost its attached process.");
+        if (CaptureExpandedHostedRenzokukenFrame() is not { } live || steps.IsDefaultOrEmpty ||
+            !ReferenceEquals(steps[0].Frame.Owner, live.Owner) || !ReferenceEquals(steps[0].Frame.State, live.State) ||
+            steps[0].Frame.ActionToken != live.ActionToken || steps[0].Frame.Contacts != live.Contacts || process.ActiveActionToken != live.ActionToken)
+        {
+            throw new InvalidDataException("Hosted Renzokuken UI does not belong to the canonical input handoff.");
+        }
+        BattleNativeRenzokukenState state = live.State;
+        for (int i = 0; i < steps.Length; i++)
+        {
+            NativeBattleRenzokukenWidgetStepped next = steps[i];
+            NativeBattleTriggerWidget widget = next.Widget;
+            if (!ReferenceEquals(next.Frame, steps[0].Frame) || next.Epoch != epoch || next.Order != i || widget.Actor != live.Owner.Actor ||
+                widget.SourceMagicId != live.Owner.MagicId || widget.Input.ContactIndex < state.Input.ContactIndex ||
+                widget.Input.ContactIndex > state.Input.ContactIndex + 1 ||
+                (next.Pending is { } pending
+                    ? !ReferenceEquals(process.PendingTrigger, pending) || pending.Actor != live.Owner.Actor || pending.ContactIndex != widget.Input.ContactIndex || pending.ContactIndex != live.Contacts + 1
+                    : widget.Input.ContactIndex != state.Input.ContactIndex) ||
+                next.Unregistered && (i + 1 != steps.Length || process.TriggerWidget is not null))
+            {
+                throw new InvalidDataException("Hosted Renzokuken UI received an invalid or out-of-order widget step.");
+            }
+            state = state with { Input = widget.Input, PoseFrames = widget.Input.PoseClock / 4, PendingTrigger = widget.PendingTrigger };
+        }
+        nativeRenzokukenProcesses[live.Owner.ActorId] = state;
+    }
+
+    private HostedRenzokukenContact? ReadHostedRenzokukenContact()
+    {
+        if (hostedPresentationInvocation is not { } invocation || nativeActionPackets.ReadHeader(invocation.Header).Command != 5)
+        {
+            return null;
+        }
+        if (hostedRenzokukenPublishedStep is not { Pending: { } trigger } step || step.Frame.ActionToken != invocation.Token)
+        {
+            throw new InvalidDataException("Hosted Renzokuken published a contact without its actual recomputed trigger.");
+        }
+        return new(step.Frame.Owner, invocation.Token, trigger.ContactIndex);
+    }
+
+    private void ValidateExpandedHostedRenzokukenContact(NativeBattlePresentationContactReceived contact, long token)
+    {
+        if (CurrentExpandedHostedInvocation?.Header.Command == 5)
+        {
+            if (expandedHostedEvent?.Renzokuken is not { } owner || contact.Renzokuken is not { } hit ||
+                !ReferenceEquals(hit.Owner, owner) || hit.Token != token || hit.Index != nativeTimedAction?.Contacts)
+            {
+                throw new InvalidDataException("Hosted Renzokuken impact does not match its current trigger occurrence.");
+            }
+        }
+        else if (contact.Renzokuken is not null)
+        {
+            throw new InvalidDataException("A hosted trigger occurrence arrived outside its Renzokuken invocation.");
+        }
+    }
+
+    private static void ValidateExpandedHostedRenzokukenProof(BattleSnapshot snapshot, HostedRenzokukenCandidateProof proof)
+    {
+        if (!ReferenceEquals(snapshot, proof.Snapshot) || !snapshot.Definition.UsesExpandedRoster || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
+            proof.Event is not { Renzokuken: { } owner, LogicallyComplete: false } || !ReferenceEquals(snapshot.ActiveAction, proof.Event.ActivePresentation) ||
+            snapshot.NativeTimedAction is not { } timed || !ReferenceEquals(timed.Command, proof.Event.ActivePresentation) ||
+            snapshot.NativeLimits.SingleOrDefault(limit => limit.ActorId == owner.ActorId)?.Renzokuken is not { } state || state.MagicId != owner.MagicId ||
+            state.FinisherActionId != owner.Finisher ||
+            (proof.Trigger is { } trigger
+                ? proof.Finisher is not null || trigger.Actor != owner.Actor || trigger.ContactIndex != timed.Contacts + 1 || trigger.ContactIndex != state.Input.ContactIndex
+                : proof.Finisher is not { } finisher || !ReferenceEquals(finisher.EventOwner, owner) || state.Input.ContactIndex != timed.Contacts || state.Input.Phase != 8))
+        {
+            throw new InvalidDataException("A hosted Renzokuken candidate requires its exact event, timed input and reached formula.");
+        }
+    }
+
+    private bool OwnsHostedRenzokukenRestore(ExpandedHostedEvent? hostedEvent, string actorId)
+    {
+        return hostedEvent is { Renzokuken: { } owner } hosted && owner.ActorId == actorId &&
+            owner.Actor == CreatePresentationModelOwner(GetActor(actorId)) &&
+            (ReferenceEquals(ActiveAction, hosted.ActivePresentation) || ActiveAction is null && !CanNativeBattleActorAct(GetActor(actorId)));
+    }
+
+    private void PrepareAndPublishExpandedHostedRenzokuken(BattleCombatant actor, BattleAttackCommand command, ExpandedBattlePresentationProcess process)
+    {
+        if (!actions.TryPeek(out BattleAttackCommand? head) || !ReferenceEquals(command, head) || command.NativeRenzokuken is not { } selection)
+        {
+            throw new InvalidDataException("Hosted Renzokuken requires its original input at the FIFO head.");
+        }
+        BattleCombatant target = GetActor(command.TargetId);
+        if (!IsExpandedRenzokukenTarget(target) || !CanNativeBattleActorAct(actor))
+        {
+            actions.Dequeue();
+            actor.IsBusy = false;
+            nativeLimitLevels.Remove(actor.Id);
+            Log("Cancelled", actor.Id, target.Id, 0, "Renzokuken has no available original target.");
+            return;
+        }
+
+        BattleSnapshot before = Capture();
+        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
+        BattleSession candidate = Restore(before, customHandlers);
+        if (!candidate.actions.TryDequeue(out BattleAttackCommand? prepared) || prepared != command)
+        {
+            throw new InvalidDataException("The hosted Renzokuken candidate lost its original FIFO input.");
+        }
+        candidate.preparingExpandedHostedAction = true;
+        candidate.expandedPartyPresentation = expandedPartyPresentation;
+        BattleCombatant source = candidate.GetActor(actor.Id);
+        BattleCombatant recipient = candidate.GetActor(target.Id);
+        (ushort magic, byte? finisher) = candidate.SelectNativeRenzokukenResource(source, recipient, selection.CrisisLevel);
+        if (RequirePresentationModelOwner(process.PlannedModelRoster, actor) is not BattlePartyModelOwner caster)
+        {
+            throw new InvalidDataException("Hosted Renzokuken requires its canonical party model.");
+        }
+        BattleModelOwner targetOwner = RequirePresentationModelOwner(process.PlannedModelRoster, target);
+        if (!process.Graphics.ActorModels.Contains(caster) || !process.Graphics.ActorModels.Contains(targetOwner))
+        {
+            throw new InvalidDataException("Hosted Renzokuken requires its actual caster and selected target models.");
+        }
+        HostedRenzokukenOwner owner = new(caster, source.Id, magic, finisher);
+        BattleTargetRequest targets = SelectBattleTarget(recipient, eligibility: BattleTargetEligibility.SavedStatus);
+        BattleActionPresentation mirror = NativeCommandPresentation(command) with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, TargetRequest = targets };
+        ExpandedHostedEvent hostedEvent = new(mirror, mirror, 0x47DE70, null, CompletionOwner: caster) { Renzokuken = owner };
+        candidate.ActiveAction = mirror;
+        candidate.expandedHostedEvent = hostedEvent;
+        candidate.BeginNativeBattleActionPause();
+        candidate.BeginNativeReactionBatch();
+        candidate.nativeTimedAction = new(mirror, 0);
+        candidate.nativeActionCommitDepth = 1;
+        candidate.nativeAffinityAction = null;
+        candidate.nativeRenzokukenProcesses.Add(source.Id, new(magic, targets, finisher, new()));
+        candidate.nativeActionScratch = candidate.nativeActionScratch with
+        {
+            EventLane = 1,
+            DeferredEffectsE00 = false,
+            FinisherPendingE03 = finisher.HasValue,
+            FinisherActionIndexE2E = finisher ?? candidate.nativeActionScratch.FinisherActionIndexE2E
+        };
+        BattleNativeAction initial = NativeRenzokukenInitialAction(source, magic, finisher is null ? (ushort)65533 : (ushort)65534);
+        candidate.StageExpandedHostedRenzokukenPreliminary(source, mirror, initial, [[recipient]], sequence: 21);
+        if (finisher is byte selected)
+        {
+            BattleNativeAction action = candidate.FindInstalledNativeAction(249, selected);
+            ValidateExpandedRenzokukenFinisher(action);
+            BattleTargetRequest automatic = candidate.CreateAutomaticTargetRequest(action.TargetFlags!.Value);
+            BattleTargetRequest request = (action.TargetFlags.Value & 0x30) is 0 or 0x20 ? automatic : targets;
+            BattleCombatant[][] plan = Enumerable.Range(0, action.HitCount).Select(_ => candidate.ResolveBattleTargets(request)).ToArray();
+            candidate.StageExpandedHostedControl(new HostedDispatchControl.RenzokukenFinisher(owner));
+            BattleNativeAction preliminary = action with { Command = 250, ActionId = ushort.MaxValue, SupplementalKernelIndex = selected };
+            candidate.StageExpandedHostedRenzokukenPreliminary(source, mirror with { TargetRequest = request }, preliminary, plan, sequence: 0);
+        }
+        candidate.StageExpandedHostedCompletion(mirror, 0x47DE70, caster, capturedBeforeAi: false);
+        candidate.LogRenzokukenBoundary(mirror, "Windup", $"{source.Name}: Renzokuken.");
+        candidate.LogRenzokukenBoundary(mirror, "Renzokuken", $"{source.Name}: Renzokuken.");
+
+        foreach (ExpandedHostedInvocation invocation in candidate.expandedHostedOperations.OfType<ExpandedHostedInvocation>())
+        {
+            NativeBattleOriginalEffectState effect = NativeBattleOriginalEffects.Select(invocation.Header.Effect, definition.NativeEffectCatalog);
+            _ = NativeBattleEffectResourceResolver.MaterializeSelected(effect, nativeEffectResourceResolver);
+        }
+        candidate.ValidateExpandedHostedInvocations(process.PlannedModelRoster);
+        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process);
+        PreparedHostedDispatch dispatch = prefix.Dispatch;
+        candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
+        BattleSnapshot snapshot = candidate.CaptureState();
+        BattleSession preflight = Restore(before, customHandlers);
+        preflight.expandedPartyPresentation = expandedPartyPresentation;
+        preflight.CopyCandidateState(candidate, snapshot, preparedExpandedAction: true);
+        preflight.ValidatePreparedExpandedPresentation(candidate);
+        process.ValidatePreparedDispatch(dispatch);
+        CopyCandidateState(candidate, snapshot, preparedExpandedAction: true);
+        TakeExpandedActionPresentation(candidate);
+        expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
+        expandedHostedActionToken = dispatch.Action?.Invocation.Token;
+        process.CommitDispatch(dispatch);
+    }
+
+    private void StageExpandedHostedRenzokukenPreliminary(BattleCombatant source, BattleActionPresentation mirror, BattleNativeAction native, BattleCombatant[][] plan, byte sequence)
+    {
+        string name = native.Command == 5 ? "Renzokuken" : native.Name ?? "Renzokuken finisher";
+        BattleActionPresentation command = mirror with { NativeAction = native, NativeQueuedCommand = native.Command, ActionId = native.ActionId, NativeSequence = sequence };
+        NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, native);
+        BattleActionDefinition action = new(command.Ability, command.ActionId, name, BattleActionEffect.Native, native.Power, false) { NativeAction = native };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(source), Command = native.Command, Action = header.Action };
+        BattleActionPresentation? previous = resolvingNativeAction;
+        resolvingNativeAction = command;
+        deferringExpandedImpacts = true;
+        try
+        {
+            (ImmutableArray<ExpandedBattleContact> contacts, _) = ResolveExpandedHitPlan(source, command, action, native, plan, preliminary: true);
+            if (contacts.IsEmpty || contacts.Length != plan.Sum(targets => targets.Length) || native.Command == 5 && contacts.Length != 1)
+            {
+                throw new InvalidDataException("Hosted Renzokuken lost its actual preliminary contact extent.");
+            }
+            RecordPublishedNativeTargetCount(contacts.Length);
+            StageExpandedHostedInvocation(command, header, contacts, null);
+        }
+        finally
+        {
+            deferringExpandedImpacts = false;
+            resolvingNativeAction = previous;
+        }
+    }
+
+    private HostedRenzokukenFrame? CaptureExpandedHostedRenzokukenFrame()
+    {
+        if (expandedHostedEvent is not { Renzokuken: { } owner, LogicallyComplete: false } ||
+            expandedHostedActionToken is not long token || CurrentExpandedHostedInvocation?.Header.Command != 5 ||
+            nativeTimedAction is not { } timed || !nativeRenzokukenProcesses.TryGetValue(owner.ActorId, out BattleNativeRenzokukenState? state))
+        {
+            return null;
+        }
+        return new(owner, token, state, timed.Contacts);
+    }
+
+    private bool CanTriggerExpandedHostedRenzokuken(ExpandedBattlePresentationProcess process)
+    {
+        return Outcome == BattleOutcome.Active && CaptureExpandedHostedRenzokukenFrame() is { } frame &&
+            process.ActiveActionToken == frame.ActionToken && process.PendingTrigger is null &&
+            process.TriggerWidget is { } widget && widget.Actor == frame.Owner.Actor && widget.SourceMagicId == frame.Owner.MagicId &&
+            CanPressNativeTriggerWidget(widget, process.TriggerOptions);
+    }
+
+    private void AcknowledgeExpandedHostedRenzokukenRegistration(ExpandedBattlePresentationProcess process, NativeBattleModelTriggerRegistered receipt, long? actionToken)
+    {
+        if (CaptureExpandedHostedRenzokukenFrame() is not { } frame || frame.ActionToken != actionToken || process.ActiveActionToken != actionToken ||
+            receipt.Owner != frame.Owner.Actor || receipt.ActorId != frame.Owner.ActorId || receipt.Widget.Actor != receipt.Owner ||
+            receipt.Widget.SourceMagicId != frame.Owner.MagicId || !ReferenceEquals(receipt.Widget, process.TriggerWidget) ||
+            !receipt.Widget.Block.Timeline.InputThresholds.SequenceEqual(RenzokukenResource(frame.Owner.MagicId).Timeline.InputThresholds))
+        {
+            throw new InvalidDataException("Hosted Renzokuken widget registration lost its selected installed resource and caster.");
+        }
+        nativeGuardianBoost = null;
+    }
+
+    private void DispatchExpandedHostedRenzokukenTrigger(ExpandedBattlePresentationProcess process, NativeBattleTriggerReceipt receipt)
+    {
+        if (CaptureExpandedHostedRenzokukenFrame() is not { } frame || nativeTimedAction is not { } timed ||
+            CurrentExpandedHostedInvocation is not { Header.Command: 5, Contacts: [var previous] } invocation ||
+            !ReferenceEquals(timed.Command, ActiveAction) || process.ActiveActionToken != frame.ActionToken || receipt.Actor != frame.Owner.Actor ||
+            receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != frame.State.Input.ContactIndex ||
+            receipt.TotalContacts != RenzokukenResource(frame.Owner.MagicId).Timeline.InputThresholds.Length ||
+            expandedExpectedContacts != 1 || !ReferenceEquals(expandedEffectCommand, invocation.Command))
+        {
+            throw new InvalidDataException("Hosted Renzokuken trigger does not identify its active widget, resource and next contact.");
+        }
+        if (expandedPresentedOccurrences.Count != (timed.Contacts == 0 ? 0 : 1))
+        {
+            throw new InvalidDataException("The prior hosted Renzokuken trigger has not published its required contact.");
+        }
+        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
+        receipt.Validate(roster);
+        if (RequirePresentationModelOwner(roster, GetActor(previous.RecipientId)) != previous.Packet.Primary.Recipient)
+        {
+            throw new InvalidDataException("Hosted Renzokuken trigger lost its original selected target.");
+        }
+        PublishExpandedHostedRecompute(process, roster, frame.ActionToken, invocation, candidate =>
+        {
+            candidate.pendingEnemyDraw ??= invocation.EnemyDraw;
+            NativeBattleContactPacket packet = candidate.ResolveExpandedHostedRenzokukenTrigger(invocation, previous, receipt, frame.Owner);
+            return invocation with { Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw() };
+        }, trigger: receipt);
+    }
+
+    private NativeBattleContactPacket ResolveExpandedHostedRenzokukenTrigger(ExpandedHostedInvocation invocation, ExpandedBattleContact previous, NativeBattleTriggerReceipt receipt, HostedRenzokukenOwner owner)
+    {
+        BattleCombatant actor = GetActor(invocation.Command.ActorId);
+        BattleCombatant recipient = GetActor(previous.RecipientId);
+        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, invocation.Header.Command, receipt, hosted: true);
+        BattleActionPresentation command = invocation.Command with
+        {
+            NativeQueuedCommand = owner.Finisher.HasValue ? (byte)250 : (byte)5,
+            NativeAction = native,
+            TargetRequest = SelectBattleTarget(recipient),
+            GunbladeTriggerTiming = timing
+        };
+        BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Renzokuken", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
+        BattleActionPresentation? previousAction = resolvingNativeAction;
+        bool previousSuppression = suppressNativeImmediateCounter;
+        resolvingNativeAction = command;
+        suppressNativeImmediateCounter = receipt.ContactIndex != receipt.TotalContacts || owner.Finisher.HasValue;
+        deferringExpandedImpacts = true;
+        nativeActionCommitDepth++;
+        try
+        {
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native);
+            nativeTimedAction = nativeTimedAction! with { Contacts = receipt.ContactIndex };
+            return packet;
+        }
+        finally
+        {
+            nativeActionCommitDepth--;
+            deferringExpandedImpacts = false;
+            suppressNativeImmediateCounter = previousSuppression;
+            resolvingNativeAction = previousAction;
+        }
+    }
+
+    private void ValidateExpandedHostedRenzokukenInitialRetirement(ExpandedHostedEvent hostedEvent)
+    {
+        if (hostedEvent.Renzokuken is not { } owner || CurrentExpandedHostedInvocation?.Header.Command != 5)
+        {
+            return;
+        }
+        if (nativeTimedAction is not { } timed || !nativeRenzokukenProcesses.TryGetValue(owner.ActorId, out BattleNativeRenzokukenState? state) ||
+            timed.Contacts != RenzokukenResource(owner.MagicId).Timeline.InputThresholds.Length ||
+            state.Input is not { Phase: 8 } || state.Input.ContactIndex != timed.Contacts ||
+            expandedPresentationProcess is { } process && (process.PendingTrigger is not null || process.TriggerWidget?.SourceMagicId == owner.MagicId))
+        {
+            throw new InvalidDataException("Hosted Renzokuken retired before all of its timed trigger contacts and the widget finished.");
+        }
+    }
+
+    private void CompleteExpandedHostedRenzokuken(ExpandedHostedEvent hostedEvent)
+    {
+        if (hostedEvent.Renzokuken is not { } owner)
+        {
+            return;
+        }
+        if (nativeTimedAction is not { } timed || !ReferenceEquals(timed.Command, hostedEvent.ActivePresentation) ||
+            nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(owner.MagicId).Timeline.InputThresholds.Length ||
+            !nativeRenzokukenProcesses.Remove(owner.ActorId))
+        {
+            throw new InvalidDataException("Hosted Renzokuken final callback has no completed timed owner.");
+        }
+        CompleteNativeTimedActionOwners(GetActor(owner.ActorId), timed.Command);
+        nativeLimitLevels.Remove(owner.ActorId);
+        nativeTimedAction = null;
+        nativeActionCommitDepth = 0;
+    }
+
+    private NativeBattleGraphicsState RunExpandedHostedRenzokukenFinisher(NativeBattleGraphicsState graphics, uint callback)
+    {
+        NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted Renzokuken formula requires its current frame facts.");
+        int slot = graphics.Descriptors.Queue[0];
+        byte serial = graphics.Descriptors.Packets[slot].Serial;
+        if (services.Renzokuken is not { } frame || frame.Owner.FinisherCallback != callback ||
+            pendingHostedRenzokukenFinisher is not null ||
+            hostedControlPackets.SingleOrDefault(control => !control.Retired && control.Slot == slot && control.Serial == serial && control.Command == 10 &&
+                control.Callback == callback && ReferenceEquals(control.Renzokuken, frame.Owner))?.RenzokukenHeader is not BattleActionHeaderReference header)
+        {
+            throw new InvalidDataException("Native Renzokuken formula does not identify its reached finisher control and command250 header.");
+        }
+        NativeBattleRenzokukenFinisherReached receipt = new(frame.Owner, header, slot, serial);
+        pendingHostedRenzokukenFinisher = receipt;
+        services.Emit(receipt);
+        return graphics;
+    }
+
+    private void ApplyExpandedHostedRenzokukenFinisher(NativeBattleModelLifecycleServices services, NativeBattleRenzokukenFinisherReached receipt, long? frameToken)
+    {
+        _ = RequireEmittingHostedActor(services, receipt);
+        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted Renzokuken finisher lost its attached process.");
+        if (expandedHostedEvent is not { Renzokuken: { } owner } hostedEvent || !ReferenceEquals(owner, receipt.EventOwner) ||
+            !ReferenceEquals(services.Renzokuken?.Owner, owner) || !ReferenceEquals(process.PendingRenzokukenFinisher, receipt) ||
+            expandedHostedActionToken is not long token || token != frameToken || !process.IsActionComplete(token) || !process.IsControlPrefixRetired ||
+            CurrentExpandedHostedInvocation?.Header.Command != 5 || expandedHostedNextOperation >= expandedHostedOperations.Length ||
+            expandedHostedOperations[expandedHostedNextOperation] is not ExpandedHostedInvocation { Header.Command: 250 } invocation ||
+            invocation.HeaderReference != receipt.Header || owner.Finisher is not byte finisher)
+        {
+            throw new InvalidDataException("Native Renzokuken formula does not own the pending command250 after its retired command5.");
+        }
+        ValidateExpandedHostedRenzokukenInitialRetirement(hostedEvent);
+        ValidateExpandedEffectContactCompletion();
+
+        NativeBattleActionPacketsState packets = process.ActionPackets;
+        BattleSnapshot before = Capture();
+        HostedRenzokukenCandidateProof proof = new(before, hostedEvent, null, receipt);
+        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
+        BattleSession candidate = RestoreSnapshot(before, customHandlers, proof);
+        candidate.preparingExpandedHostedAction = true;
+        candidate.expandedHostedEvent = hostedEvent;
+        candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.expandedHostedOperations = expandedHostedOperations;
+        candidate.expandedHostedNextOperation = expandedHostedNextOperation;
+        candidate.producingExpandedAiCallback = true;
+        ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
+        candidate.producingExpandedAiInvocation = reservation;
+        ImmutableArray<ExpandedBattleContact> contacts = candidate.ResolveExpandedHostedRenzokukenFinisher(invocation, finisher);
+        candidate.expandedHostedOperations = candidate.expandedHostedOperations.SetItem(candidate.expandedHostedNextOperation,
+            invocation with { Contacts = contacts, EnemyDraw = candidate.TakePendingHostedEnemyDraw(), Reservation = reservation });
+        candidate.FlushEncounterCounterCommands();
+        if (candidate.encounterCounterCommands.Count != 0)
+        {
+            throw new InvalidDataException("Hosted Renzokuken finisher left captured counters unpublished.");
+        }
+        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+        BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+        candidate.ValidateExpandedHostedInvocations(planned);
+        HostedRenzokukenFinisherReplacement replacement = new(receipt, packets, invocation.FirstContact, contacts.Select(contact => contact.Packet).ToImmutableArray());
+        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, renzokukenFinisher: replacement);
+        PreparedHostedDispatch dispatch = prefix.Dispatch;
+        candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
+        BattleSnapshot prepared = candidate.CaptureState();
+        BattleSession preflight = RestoreSnapshot(before, customHandlers, proof);
+        preflight.expandedPartyPresentation = expandedPartyPresentation;
+        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        preflight.ValidatePreparedExpandedPresentation(candidate);
+        process.ValidatePreparedDispatch(dispatch);
+        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        TakeExpandedActionPresentation(candidate);
+        expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
+        expandedHostedActionToken = dispatch.Action?.Invocation.Token;
+        process.CommitDispatch(dispatch);
+    }
+
+    private ImmutableArray<ExpandedBattleContact> ResolveExpandedHostedRenzokukenFinisher(ExpandedHostedInvocation invocation, byte index)
+    {
+        BattleCombatant actor = GetActor(invocation.Command.ActorId);
+        BattleNativeAction native = FindInstalledNativeAction(249, index) with { ActionId = invocation.Header.Action };
+        int count = index == 3 ? native.HitCount : invocation.Contacts.Length;
+        if (invocation.Header.Command != 250 || count == 0 || count != invocation.Contacts.Length)
+        {
+            throw new InvalidDataException("Hosted Renzokuken finisher formula must retain its preliminary hit extent.");
+        }
+        if (index == 3)
+        {
+            GetActor(invocation.Contacts[0].RecipientId).NativeRemainingHits = native.HitCount;
+        }
+        BattleActionPresentation command = invocation.Command with { NativeAction = native, ActionId = index };
+        BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Renzokuken finisher", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
+        BattleActionPresentation? previous = resolvingNativeAction;
+        nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(actor), Command = 249, DeferredEffectsE00 = false };
+        resolvingNativeAction = command;
+        deferringExpandedImpacts = true;
+        nativeActionCommitDepth++;
+        var result = ImmutableArray.CreateBuilder<ExpandedBattleContact>(count);
+        try
+        {
+            foreach (ExpandedBattleContact contact in invocation.Contacts)
+            {
+                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, GetActor(contact.RecipientId), command, action, native);
+                result.Add(new(contact.RecipientId, packet));
+            }
+        }
+        finally
+        {
+            nativeActionCommitDepth--;
+            deferringExpandedImpacts = false;
+            resolvingNativeAction = previous;
+        }
+        return result.MoveToImmutable();
+    }
+}
