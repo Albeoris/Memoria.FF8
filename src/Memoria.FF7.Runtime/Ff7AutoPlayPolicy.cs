@@ -109,7 +109,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == eventId);
             physicalGuards[entry.Key] = target is null ? $"{observation.ProgramIdentity}:absent:{eventId}" : driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities);
-            physicalGuards[entry.Key] = ReadMovementFailureFingerprint(physicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors);
+            physicalGuards[entry.Key] = ReadMovementFailureFingerprint(physicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities);
             var coverage = target is null ? null : State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
             bool currentFailure = coverage?.UnavailableAttempts.Any(attempt => attempt.GuardKey == entry.Key && attempt.GuardFingerprint == physicalGuards[entry.Key]) == true;
             if (currentFailure)
@@ -120,7 +120,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             if (target is not null && guard.SourceTriangle is int triangle && (uint)triangle < session.Field.Walkmesh.Count)
             {
                 validatedPhysicalGuards[entry.Key] = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
-                validatedPhysicalGuards[entry.Key] = ReadMovementFailureFingerprint(validatedPhysicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors);
+                validatedPhysicalGuards[entry.Key] = ReadMovementFailureFingerprint(validatedPhysicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities);
                 if (guard.NavigationKey == observation.NavigationKey)
                 {
                     if (currentFailure)
@@ -221,8 +221,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
             string key = observation.NavigationKey + ":" + current.EventId + ":physical";
-            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle);
-            string fingerprint = driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities);
+            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle, absence.MovementFailure);
+            string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(current.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
             State.Status = "Deferred a native contact until its physical availability changes";

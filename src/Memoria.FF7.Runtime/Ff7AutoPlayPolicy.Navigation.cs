@@ -47,7 +47,7 @@ public sealed partial class Ff7AutoPlayPolicy
                     }
                     Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == eventId);
                     facts[entry.Key] = target is null ? $"{observation.ProgramIdentity}:absent:{eventId}" : driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
-                    facts[entry.Key] = ReadMovementFailureFingerprint(facts[entry.Key], guard.MovementFailure, session.Host.Process.Actors);
+                    facts[entry.Key] = ReadMovementFailureFingerprint(facts[entry.Key], guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities);
                 }
                 projected = facts;
             }

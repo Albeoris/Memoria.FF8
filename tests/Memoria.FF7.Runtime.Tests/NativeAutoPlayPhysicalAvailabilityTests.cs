@@ -72,6 +72,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Z1 = 300, Z2 = 300 }).Count == 0, "An out-of-height LINE was falsely exposed as a reachable contact.");
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Enabled = 0 }).Count == 0, "A disabled LINE was advertised as a native contact candidate.");
         CheckNativeGoalPreview();
+        CheckBlockedPortalSearch();
         CheckGatewayAdmission();
         CheckOriginalTargetBoundary();
         CheckNativeOcclusionPredicate();
@@ -102,6 +103,54 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { AnalysisComplete = false }, [exit])), "An incomplete handler analysis authorized a coupled native exit.");
         Ff7AutoPlayTarget explicitGate = line with { GatewayIndex = 1, ChangesField = true, DestinationField = exit.DestinationField };
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(explicitGate, [exit, selected])), "Unique-destination coupling overrode an explicitly selected gateway index.");
+    }
+
+    private static void CheckBlockedPortalSearch()
+    {
+        Ff7Actor source = new() { Slot = 0, Entity = 0, Model = 0, X4096 = 0, Y4096 = 0, Z4096 = 100 * 4096, Triangle = 0, MoveSpeed = 4096 };
+        Vector3 waypoint = new(10, 0, 100);
+        int Remaining(int triangle) => triangle == 0 ? 2 : triangle == 1 ? 1 : 4;
+        Ff7NativeMoveResult Blocked(Ff7Actor actor, Ff7AutoplayInput input) => new(actor with { Triangle = 1 }, false, false, [3]);
+        var blocked = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, Blocked, (_, _) => true);
+        Check(blocked is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Inputs.Length: 0 }, "A blocked native triangle-only relabel was accepted as physical transit through a portal.");
+        Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput input)
+        {
+            if (actor.Y4096 == 0 && input.Horizontal == 1 && input.Vertical == 0)
+            {
+                return Blocked(actor, input);
+            }
+            if (actor.Y4096 == 0 && input.Horizontal == 0 && input.Vertical == 1)
+            {
+                return new(actor with { Y4096 = 10 * 4096 }, false, true, []);
+            }
+            if (actor.Y4096 == 10 * 4096 && input.Horizontal == 1 && input.Vertical == 0)
+            {
+                return new(actor with { X4096 = 10 * 4096, Triangle = 1 }, false, true, []);
+            }
+            return new(actor, false, false, []);
+        }
+        var detour = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, Preview, (_, _) => true, 16);
+        Check(detour.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && detour.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(0, 1), new Ff7AutoplayInput(1, 0) }), "The bounded native search failed to take a physically admitted away detour around a blocked portal.");
+        var refused = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, Preview, (_, _) => false, 16);
+        Check(refused is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Inputs.Length: 0 }, "A physical detour bypassed selected-target movement admission.");
+        var limited = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, (actor, _) => new(actor with { Y4096 = actor.Y4096 + 10 * 4096 }, false, true, []), (_, _) => true, 1);
+        Check(limited is { Status: Ff7AutoPlayPhysicalSearchStatus.Limited, Inputs.Length: 0 }, "A bounded search failure became global physical absence or an unproved advancing route.");
+        Ff7Actor lower = source with { X4096 = 10 * 4096, Z4096 = 0 };
+        Check(!Ff7AutoplayDriver.HasPhysicalRouteProgress(source, lower, waypoint, _ => 0), "Lower-floor XY proximity falsely completed a three-dimensional terminal approach.");
+        PcWalkmeshTriangle[] mesh = [new(0, new(0, 0, 100), new(10, 0, 100), new(0, 10, 100), 1, -1, -1), new(1, new(10, 0, 100), new(10, 10, 110), new(0, 10, 100), 0, -1, -1)];
+        Ff7AutoPlayMovementFailure region = Ff7AutoplayDriver.ReadApproachRegion(mesh, source, 1);
+        Check(region is { MinX: 0, MaxX: 40960, MinY: 0, MaxY: 40960, MinZ: 409600, MaxZ: 450560 }, "A local approach deferral lost the native fixed-point source/portal height region or invented a margin.");
+        Ff7Actor controlledSource = source with { PlayerControlled = true };
+        string inside = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource]);
+        Check(inside == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource with { Triangle = 1, X4096 = 5 * 4096, Y4096 = 5 * 4096, Z4096 = 105 * 4096 }]), "Ordinary movement within the native portal region or a triangle-only relabel prematurely reopened its local deferral.");
+        Check(inside != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource with { Z4096 = 99 * 4096 }]), "Leaving the native portal height region failed to rearm a layered approach.");
+        Ff7AutoPlayTarget line = new("authored-line", 8, 2, Ff7AutoPlayTargetKind.LinePush, "conditions", false, waypoint);
+        Ff7Actor blocker = source with { Entity = 3, Slot = 1, Model = 1, CollisionEnabled = true, CollisionRadius = 30 };
+        Ff7Actor ambient = blocker with { Entity = 4, Slot = 2 };
+        string original = Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored", mesh, [0], source, line, [], [], blockingEntities: [3], actors: [blocker, ambient]);
+        Check(original != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored", mesh, [0], source, line, [], [], blockingEntities: [3], actors: [blocker with { CollisionEnabled = false }, ambient]), "Disabling a relevant LINE-route collider did not rearm physical availability.");
+        Check(original != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored", mesh, [0], source, line, [], [], blockingEntities: [3], actors: [blocker with { CollisionRadius = 31 }, ambient]), "Changing a relevant LINE-route collider radius did not rearm physical availability.");
+        Check(original == Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored", mesh, [0], source, line, [], [], blockingEntities: [3], actors: [blocker, ambient with { X4096 = 4096 }]), "An unrelated ambient actor invalidated a scoped LINE-route collider guard.");
     }
 
     private static void CheckOriginalTargetBoundary()

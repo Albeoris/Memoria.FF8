@@ -1,17 +1,27 @@
 using System.Numerics;
+using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
+internal enum Ff7AutoPlayPhysicalSearchStatus
+{
+    Progress,
+    Exhausted,
+    Limited
+}
+
+internal sealed record Ff7AutoPlayPhysicalRoute(Ff7AutoPlayPhysicalSearchStatus Status, Ff7AutoplayInput[] Inputs, int Expanded);
+
 public sealed partial class Ff7AutoplayDriver
 {
-    private readonly Queue<Vector2> obstacleHistory = new();
+    private readonly Queue<Vector3> obstacleHistory = new();
     private readonly Queue<EscapeStep> obstacleEscape = new();
     private long obstacleGeneration = -1;
     private Vector3? obstacleTarget;
     private int obstacleSpeed;
 
-    private sealed record EscapeStep(Ff7AutoplayInput Input, int X4096, int Y4096, int Triangle);
-    private sealed record SearchNode(Ff7Actor Actor, SearchNode? Parent, Ff7AutoplayInput Input, int Frames, float Cost);
+    private sealed record EscapeStep(Ff7AutoplayInput Input, int X4096, int Y4096, int Z4096, int Triangle);
+    private sealed record SearchNode(Ff7Actor Actor, SearchNode? Parent, Ff7AutoplayInput Input, float Cost);
 
     private void ResetObstacleEscape()
     {
@@ -20,7 +30,7 @@ public sealed partial class Ff7AutoplayDriver
         obstacleGeneration = -1;
     }
 
-    private bool TryObstacleEscape(Ff7Actor player, Vector3 target, Vector3 waypoint, Ff7NativeMovement movement, out Ff7AutoplayInput input)
+    private bool TryObstacleEscape(Ff7Actor player, Vector3 target, Vector3 waypoint, int destination, int nextTriangle, int[] routeDistance, bool blockedForward, IReadOnlyList<int> blockingEntities, Ff7NativeMovement movement, out Ff7AutoplayInput input)
     {
         input = default;
         if (obstacleGeneration != session.FieldGeneration || obstacleTarget != target || obstacleSpeed != player.MoveSpeed)
@@ -34,20 +44,43 @@ public sealed partial class Ff7AutoplayDriver
         {
             return true;
         }
-        Vector2 position = Position(player);
-        obstacleHistory.Enqueue(position);
-        if (obstacleHistory.Count < 24)
+        if (!blockedForward)
         {
-            return false;
-        }
-        Vector2 previous = obstacleHistory.Dequeue();
-        float step = player.MoveSpeed / 256f;
-        if (Vector2.DistanceSquared(position, previous) >= step * step * 64 || Vector3.DistanceSquared(new(position, player.Z4096 / 4096f), target) <= step * step * 4 || session.Host.Process.LineBlocked)
-        {
-            return false;
+            Vector3 position = Position3D(player);
+            obstacleHistory.Enqueue(position);
+            if (obstacleHistory.Count < 24)
+            {
+                return false;
+            }
+            Vector3 previous = obstacleHistory.Dequeue();
+            float step = player.MoveSpeed / 256f;
+            if (Vector3.DistanceSquared(position, previous) >= step * step * 64 || Vector3.DistanceSquared(position, target) <= step * step * 4 || session.Host.Process.LineBlocked)
+            {
+                return false;
+            }
         }
         obstacleHistory.Clear();
-        FindObstacleEscape(player, new(target.X, target.Y), movement);
+        Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput action)
+        {
+            var direction = Directions.Single(value => value.X == action.Horizontal && value.Y == action.Vertical);
+            return movement.StepDirection(actor, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+        }
+        Ff7AutoPlayPhysicalRoute route = SearchPhysicalEscape(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
+        if (route.Status != Ff7AutoPlayPhysicalSearchStatus.Progress)
+        {
+            if (blockedForward)
+            {
+                Ff7AutoPlayMovementFailure region = ReadApproachRegion(session.Field.Walkmesh, player, nextTriangle);
+                throw new Ff7AutoPlayNavigationUnavailableException(-1, $"The current native approach search {route.Status.ToString().ToLowerInvariant()} after {route.Expanded} nodes without advancing through its blocked portal; this local approach is deferred until its region or collision admission changes.", blockingEntities, target, destination, movementFailure: region);
+            }
+            return false;
+        }
+        Ff7Actor projected = player;
+        foreach (Ff7AutoplayInput action in route.Inputs)
+        {
+            obstacleEscape.Enqueue(new(action, projected.X4096, projected.Y4096, projected.Z4096, projected.Triangle));
+            projected = Preview(projected, action).Actor;
+        }
         return TakeEscapeStep(player, movement, out input);
     }
 
@@ -58,20 +91,15 @@ public sealed partial class Ff7AutoplayDriver
         {
             return false;
         }
-        if (player.X4096 != next.X4096 || player.Y4096 != next.Y4096 || player.Triangle != next.Triangle)
+        if (player.X4096 != next.X4096 || player.Y4096 != next.Y4096 || player.Z4096 != next.Z4096 || player.Triangle != next.Triangle)
         {
             obstacleEscape.Clear();
             return false;
         }
-        var direction = Directions.Single(direction => direction.X == next.Input.Horizontal && direction.Y == next.Input.Vertical);
+        var direction = Directions.Single(value => value.X == next.Input.Horizontal && value.Y == next.Input.Vertical);
         byte heading = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
         Ff7NativeMoveResult preview = movement.StepDirection(player, heading, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-        if (!AllowsPlannedMove(player, preview))
-        {
-            obstacleEscape.Clear();
-            return false;
-        }
-        if (!preview.Moved && preview.Actor.Triangle == player.Triangle)
+        if (!preview.Moved || !AllowsPlannedMove(player, preview))
         {
             obstacleEscape.Clear();
             return false;
@@ -81,91 +109,71 @@ public sealed partial class Ff7AutoplayDriver
         return true;
     }
 
-    private void FindObstacleEscape(Ff7Actor player, Vector2 waypoint, Ff7NativeMovement movement)
+    internal static Ff7AutoPlayPhysicalRoute SearchPhysicalEscape(Ff7Actor player, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows, int maximumNodes = 1024)
     {
-        const int maximumNodes = 1024;
-        const int framesPerEdge = 1;
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumNodes, 1);
         float cell = Math.Max(1, player.MoveSpeed * 4);
-        (int X, int Y, int Triangle) Key(Ff7Actor actor) => ((int)MathF.Floor(actor.X4096 / cell), (int)MathF.Floor(actor.Y4096 / cell), actor.Triangle);
-        float initialDistance = Vector2.Distance(Position(player), waypoint);
-        float improvement = Math.Max(16, player.MoveSpeed / 4096f * 64);
-        SearchNode source = new(player, null, default, 0, 0);
-        SearchNode best = source;
-        float bestDistance = initialDistance;
-        Dictionary<(int X, int Y, int Triangle), float> costs = new() { [Key(player)] = 0 };
-        PriorityQueue<SearchNode, float> pending = new();
-        pending.Enqueue(source, initialDistance);
+        (int X, int Y, int Z, int Triangle) Key(Ff7Actor actor) => ((int)MathF.Floor(actor.X4096 / cell), (int)MathF.Floor(actor.Y4096 / cell), (int)MathF.Floor(actor.Z4096 / cell), actor.Triangle);
+        SearchNode source = new(player, null, default, 0);
+        Dictionary<(int X, int Y, int Z, int Triangle), float> costs = new() { [Key(player)] = 0 };
+        PriorityQueue<SearchNode, (int Remaining, float Score)> pending = new();
+        pending.Enqueue(source, (remaining(player.Triangle), Vector3.Distance(Position3D(player), waypoint)));
         int expanded = 0;
-        while (pending.TryDequeue(out SearchNode? current, out _) && expanded++ < maximumNodes)
+        while (expanded < maximumNodes && pending.TryDequeue(out SearchNode? current, out _))
         {
             if (costs[Key(current.Actor)] < current.Cost)
             {
                 continue;
             }
-            float distance = Vector2.Distance(Position(current.Actor), waypoint);
-            if (distance < bestDistance)
-            {
-                best = current;
-                bestDistance = distance;
-            }
-            if (distance <= initialDistance - improvement)
-            {
-                break;
-            }
+            expanded++;
             foreach (var direction in Directions)
             {
-                Ff7Actor actor = current.Actor;
-                byte heading = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
-                int frames = 0;
-                for (; frames < framesPerEdge; frames++)
-                {
-                    Ff7NativeMoveResult preview = movement.StepDirection(actor, heading, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, false);
-                    if (!AllowsPlannedMove(actor, preview))
-                    {
-                        break;
-                    }
-                    if (!preview.Moved && preview.Actor.Triangle == actor.Triangle)
-                    {
-                        break;
-                    }
-                    actor = preview.Actor;
-                }
-                if (frames == 0)
+                Ff7AutoplayInput action = new(direction.X, direction.Y);
+                Ff7NativeMoveResult step = preview(current.Actor, action);
+                if (!step.Moved || !allows(current.Actor, step))
                 {
                     continue;
                 }
-                float cost = current.Cost + Vector2.Distance(Position(current.Actor), Position(actor));
+                Ff7Actor actor = step.Actor;
+                float cost = current.Cost + Vector3.Distance(Position3D(current.Actor), Position3D(actor));
                 var key = Key(actor);
                 if (costs.TryGetValue(key, out float known) && known <= cost)
                 {
                     continue;
                 }
                 costs[key] = cost;
-                SearchNode candidate = new(actor, current, new(direction.X, direction.Y), frames, cost);
-                pending.Enqueue(candidate, cost + Vector2.Distance(Position(actor), waypoint));
+                SearchNode next = new(actor, current, action, cost);
+                if (HasPhysicalRouteProgress(player, actor, waypoint, remaining))
+                {
+                    Stack<Ff7AutoplayInput> path = new();
+                    for (SearchNode? node = next; node?.Parent is not null; node = node.Parent)
+                    {
+                        path.Push(node.Input);
+                    }
+                    return new(Ff7AutoPlayPhysicalSearchStatus.Progress, path.ToArray(), expanded);
+                }
+                pending.Enqueue(next, (remaining(actor.Triangle), cost + Vector3.Distance(Position3D(actor), waypoint)));
             }
         }
-        if (bestDistance >= initialDistance - Math.Max(4, player.MoveSpeed / 4096f * 16))
-        {
-            return;
-        }
-        Stack<SearchNode> path = new();
-        for (SearchNode? node = best; node?.Parent is not null; node = node.Parent)
-        {
-            path.Push(node);
-        }
-        Ff7Actor projected = player;
-        foreach (SearchNode node in path)
-        {
-            var direction = Directions.Single(direction => direction.X == node.Input.Horizontal && direction.Y == node.Input.Vertical);
-            byte heading = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
-            for (int frame = 0; frame < node.Frames; frame++)
-            {
-                obstacleEscape.Enqueue(new(node.Input, projected.X4096, projected.Y4096, projected.Triangle));
-                projected = movement.StepDirection(projected, heading, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, false).Actor;
-            }
-        }
+        return new(pending.Count > 0 ? Ff7AutoPlayPhysicalSearchStatus.Limited : Ff7AutoPlayPhysicalSearchStatus.Exhausted, [], expanded);
     }
 
-    private static Vector2 Position(Ff7Actor actor) => new(actor.X4096 / 4096f, actor.Y4096 / 4096f);
+    internal static bool HasPhysicalRouteProgress(Ff7Actor source, Ff7Actor actor, Vector3 waypoint, Func<int, int> remaining)
+    {
+        int initial = remaining(source.Triangle);
+        return initial > 0 ? remaining(actor.Triangle) < initial : remaining(actor.Triangle) == 0 && Vector3.DistanceSquared(Position3D(actor), waypoint) < Vector3.DistanceSquared(Position3D(source), waypoint);
+    }
+
+    internal static Ff7AutoPlayMovementFailure ReadApproachRegion(IReadOnlyList<PcWalkmeshTriangle> mesh, Ff7Actor source, int nextTriangle)
+    {
+        Vector3[] points = [Position3D(source), mesh[source.Triangle].A, mesh[source.Triangle].B, mesh[source.Triangle].C];
+        if ((uint)nextTriangle < mesh.Count && nextTriangle != source.Triangle)
+        {
+            PcWalkmeshTriangle next = mesh[nextTriangle];
+            points = [.. points, next.A, next.B, next.C];
+        }
+        return new((int)MathF.Floor(points.Min(point => point.X) * 4096), (int)MathF.Ceiling(points.Max(point => point.X) * 4096), (int)MathF.Floor(points.Min(point => point.Y) * 4096), (int)MathF.Ceiling(points.Max(point => point.Y) * 4096), (int)MathF.Floor(points.Min(point => point.Z) * 4096), (int)MathF.Ceiling(points.Max(point => point.Z) * 4096));
+    }
+
+    private static Vector3 Position3D(Ff7Actor actor) => new(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
 }

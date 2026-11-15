@@ -45,6 +45,15 @@ internal static class NativeAutoPlayPolicyPlanningTests
         string departed = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player with { X4096 = 201 }, obstacle]);
         Check(blocked != departed, "A meaningful departure must refresh the local cycle deferral.");
         Check(blocked != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player, obstacle with { X4096 = 501 }]), "Changed native occupancy must refresh the local cycle deferral.");
+        Ff7AutoPlayMovementFailure layer = bounds with { MinZ = player.Z4096 - 10, MaxZ = player.Z4096 + 10 };
+        string sameLayer = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player, obstacle]);
+        Check(sameLayer != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player with { Z4096 = player.Z4096 + 11 }, obstacle]), "A different native floor must reopen a local approach even when XY remains inside its bounds.");
+        Ff7AutoPlayMovementFailure legacy = System.Text.Json.JsonSerializer.Deserialize<Ff7AutoPlayMovementFailure>("{\"MinX\":0,\"MaxX\":200,\"MinY\":0,\"MaxY\":200}")!;
+        Check(legacy.MinZ is null && legacy.MaxZ is null && blocked == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", legacy, [player, obstacle]), "A legacy XY-only approach guard must preserve its previous scope without requiring migration.");
+        Ff7Actor ambient = obstacle with { Slot = 2, Entity = 2, X4096 = 1000 };
+        string relevant = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player, obstacle, ambient], [obstacle.Entity]);
+        Check(relevant == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player, obstacle, ambient with { X4096 = 2000 }], [obstacle.Entity]), "Unrelated ambient movement must not reopen a portal blocked by a separately proved collider.");
+        Check(relevant != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player, obstacle with { CollisionEnabled = false }, ambient], [obstacle.Entity]), "Disabling the relevant collider must reopen its local approach.");
         Ff7AutoPlayState state = new();
         var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
         planner.Observe(new("visit", "resource"), [new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry")]);

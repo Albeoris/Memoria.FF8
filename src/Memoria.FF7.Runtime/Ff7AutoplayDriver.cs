@@ -22,15 +22,16 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             string actor = ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.GetActor(target.Entity), blockingEntities, session.Host.Process.Actors, session.Host.Process.MapJumpDisabled, session.Field.Triggers.Gateways);
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{actor}|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}")));
         }
-        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled);
+        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled, blockingEntities, session.Host.Process.Actors);
     }
 
-    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways, bool mapJumpDisabled = false)
+    internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways, bool mapJumpDisabled = false, IReadOnlyList<int>? blockingEntities = null, IReadOnlyList<Ff7Actor>? actors = null)
     {
         int component = ReachableTriangles(walkmesh, blockedTriangles, player.Triangle).Min();
         StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Id}:{target.Kind}|contact-search:1");
         facts.Append($"|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}");
         AppendGatewayAvailability(facts, mapJumpDisabled, gateways);
+        AppendBlockingAvailability(facts, blockingEntities, actors);
         if (target.Kind == Ff7AutoPlayTargetKind.Gateway)
         {
             if (target.GatewayIndex is int index && (uint)index < gateways.Count)
@@ -60,6 +61,22 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             PcFieldGateway gateway = gateways![index];
             facts.Append($"|native-gateway:{index}:{BitConverter.SingleToInt32Bits(gateway.A.X)}:{BitConverter.SingleToInt32Bits(gateway.A.Y)}:{BitConverter.SingleToInt32Bits(gateway.A.Z)}:{BitConverter.SingleToInt32Bits(gateway.B.X)}:{BitConverter.SingleToInt32Bits(gateway.B.Y)}:{BitConverter.SingleToInt32Bits(gateway.B.Z)}:{gateway.DestinationField}:{gateway.DestinationTriangle}:{gateway.DestinationX}:{gateway.DestinationY}:{gateway.Direction}");
+        }
+    }
+
+    private static void AppendBlockingAvailability(StringBuilder facts, IReadOnlyList<int>? blockingEntities, IReadOnlyList<Ff7Actor>? actors)
+    {
+        foreach (int entity in (blockingEntities ?? []).Distinct().Order())
+        {
+            Ff7Actor[] blockers = actors?.Where(actor => actor.Entity == entity).OrderBy(actor => actor.Slot).ToArray() ?? [];
+            if (blockers.Length == 0)
+            {
+                facts.Append($"|blocker:{entity}:absent");
+            }
+            foreach (Ff7Actor blocker in blockers)
+            {
+                facts.Append($"|blocker:{entity}:{blocker.Slot}:{blocker.Model}:{blocker.EntityBound}:{blocker.X4096}:{blocker.Y4096}:{blocker.Z4096}:{blocker.Triangle}:{blocker.TalkEnabled}:{blocker.TalkRadius}:{blocker.CollisionEnabled}:{blocker.CollisionRadius}");
+            }
         }
     }
 
@@ -282,6 +299,12 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         float best = float.PositiveInfinity;
         int bestRouteDistance = int.MaxValue;
         Ff7AutoplayInput result = default;
+        List<(Ff7AutoplayInput Input, int[] Entities)> blockedInputs = [];
+        bool advancing = false;
+        bool LocalProgress(Ff7Actor actor)
+        {
+            return HasPhysicalRouteProgress(controlled, actor, waypoint, triangle => routeDistance[triangle]) || routeDistance[actor.Triangle] == routeDistance[controlled.Triangle] && Vector3.DistanceSquared(Position3D(actor), waypoint) < Vector3.DistanceSquared(Position3D(controlled), waypoint);
+        }
         foreach (var direction in Directions)
         {
             byte nativeDirection = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
@@ -290,10 +313,15 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             {
                 continue;
             }
-            if (!probe.Moved && probe.Actor.Triangle == controlled.Triangle)
+            if (!probe.Moved)
             {
+                if (probe.PushEntities.Length > 0 && (LocalProgress(probe.Actor) || LocalProgress(probe.ProbeActor ?? probe.Actor)))
+                {
+                    blockedInputs.Add((new(direction.X, direction.Y), probe.PushEntities));
+                }
                 continue;
             }
+            advancing |= LocalProgress(probe.Actor);
             Vector2 position = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
             float distance = Vector2.DistanceSquared(position, new(waypoint.X, waypoint.Y));
             int remaining = finalApproach ? 0 : routeDistance[probe.Actor.Triangle];
@@ -304,6 +332,21 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 result = new(direction.X, direction.Y);
             }
         }
-        return TryObstacleEscape(controlled, target, waypoint, movement, out Ff7AutoplayInput escape) ? escape with { Run = run } : result with { Run = run };
+        bool blockedForward = blockedInputs.Count > 0 && !advancing;
+        HashSet<int> blockers = [];
+        if (blockedForward)
+        {
+            foreach (var blocked in blockedInputs)
+            {
+                Ff7Actor[] without = session.Host.Process.Actors.Where(actor => !blocked.Entities.Contains(actor.Entity)).ToArray();
+                var direction = Directions.Single(value => value.X == blocked.Input.Horizontal && value.Y == blocked.Input.Vertical);
+                Ff7NativeMoveResult counterfactual = movement.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), without, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+                if (counterfactual.Moved && AllowsPlannedMove(controlled, counterfactual) && LocalProgress(counterfactual.Actor))
+                {
+                    blockers.UnionWith(blocked.Entities);
+                }
+            }
+        }
+        return TryObstacleEscape(controlled, target, waypoint, destination, next, routeDistance, blockedForward, blockers.ToArray(), movement, out Ff7AutoplayInput escape) ? escape with { Run = run } : result with { Run = run };
     }
 }
