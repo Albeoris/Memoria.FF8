@@ -133,6 +133,8 @@ public sealed partial class BattleSession
             BeginHostedRenzokukenUi(logicalOwner.CaptureExpandedHostedRenzokukenFrame());
             AdvanceHostedUiPublication(clockPoll, postCore: true);
             DrainHostedRenzokukenUi(renzokukenUi);
+            AdvanceNativeScanText537A30();
+            PublishNativeScanInputFrame();
             CompleteNativeHostPause();
             PublishNativePcUiFrame();
             RequireSameHostedTimerClock(NativeExamTimer, clockPoll is null ? timerObservation : logicalOwner.NativeExamTimer);
@@ -152,7 +154,8 @@ public sealed partial class BattleSession
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
             ui = ui.AdvancePublication().ApplySelect4A8C50();
-            NativeGraphics = graphics with { UiServices = ui with { HeldButtons16 = hostedGuardianBoostMappedButtons } };
+            ushort scanButtons = PublishNativeScanUiButtons() ?? 0;
+            NativeGraphics = graphics with { UiServices = ui with { HeldButtons16 = (ushort)(scanButtons | hostedGuardianBoostMappedButtons) } };
             if (!ui.PauseDE9 && (ui.Flags942 & 0x40) != 0)
             {
                 AdvanceNativeTriggerWidget();

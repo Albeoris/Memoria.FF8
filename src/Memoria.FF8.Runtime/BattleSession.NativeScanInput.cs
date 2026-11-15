@@ -2,10 +2,17 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    public bool CanQueueNativeScanInput => NativeHostCallbacks is not null && NativeGraphics is { UiServices.PauseDE9: false } graphics && NativeEffectMemory?.Scan is { ControlPulse: null } scan && NativeBattleScanInputControl.IsReady(graphics.OriginalEffect, scan);
+    public bool CanQueueNativeScanInput => expandedPresentationProcess?.CanQueueScanInput ?? CanQueueLocalScanInput;
+
+    private bool CanQueueLocalScanInput => NativeHostCallbacks is not null && NativeGraphics is { UiServices.PauseDE9: false } graphics && NativeEffectMemory?.Scan is { ControlPulse: null } scan && NativeBattleScanInputControl.IsReady(graphics.OriginalEffect, scan);
 
     public void QueueNativeScanInput(BattleScanButton button)
     {
+        if (expandedPresentationProcess is { } process)
+        {
+            process.QueueScanInput(button);
+            return;
+        }
         if (!Enum.IsDefined(button))
         {
             throw new ArgumentOutOfRangeException(nameof(button));
@@ -21,12 +28,28 @@ public sealed partial class BattleSession
 
     public void PublishNativeScanMappedButtons(ushort mappedButtons)
     {
+        if (expandedPresentationProcess is { } process)
+        {
+            process.PublishScanMappedButtons(mappedButtons);
+            return;
+        }
         if (NativeEffectMemory?.Scan is not { } scan)
         {
             return;
         }
         ushort raw = NativeInputConfiguration.InvertPulse(mappedButtons, definition.NativeSavedOptions ?? throw new NotSupportedException("Native Scan input requires its saved mapping options."), definition.NativeInputButtonMap);
         NativeEffectMemory = NativeEffectMemory with { Scan = scan with { PhysicalButtons1CD01FC = raw } };
+    }
+
+    private ushort? PublishNativeScanUiButtons()
+    {
+        PublishNativeScanInputFrame();
+        if (NativeEffectMemory?.Scan is not { } scan)
+        {
+            return null;
+        }
+        uint options = definition.NativeSavedOptions ?? throw new NotSupportedException("Native4A84E0 input requires its saved mapping options.");
+        return NativeInputConfiguration.Project(scan.Input.Input.Read49ED30(0, 0), options, definition.NativeInputButtonMap);
     }
 
     private void PublishNativeScanInputFrame()
@@ -65,5 +88,22 @@ public sealed partial class BattleSession
         NativeEffectMemory = NativeEffectMemory with { Scan = scan with { Input = state, InputInitialized = true } };
 
         uint ReadPhysical(int device) => device == 0 ? physicalButtons : throw new NotSupportedException("Native PC Scan input polls its actual physical device zero.");
+    }
+}
+
+public sealed partial class ExpandedBattlePresentationProcess
+{
+    internal bool CanQueueScanInput => presentation.CanQueueNativeScanInput;
+
+    internal void QueueScanInput(BattleScanButton button)
+    {
+        RequireIdle();
+        presentation.QueueNativeScanInput(button);
+    }
+
+    internal void PublishScanMappedButtons(ushort mappedButtons)
+    {
+        RequireIdle();
+        presentation.PublishNativeScanMappedButtons(mappedButtons);
     }
 }
