@@ -21,6 +21,34 @@ public sealed partial class BattleHudController
     private long messageOccurrenceSequence;
     private bool formattedOriginalCompatible;
     internal bool OriginalCompatibleLayout { get; set; }
+    private bool showEnemySpellNames;
+    public bool ShowEnemySpellNames
+    {
+        get => showEnemySpellNames;
+        set
+        {
+            if (showEnemySpellNames == value)
+            {
+                return;
+            }
+            showEnemySpellNames = value;
+            if (value)
+            {
+                return;
+            }
+            BattleEvent[] retained = battleMessages.Where(message => !message.IsEnemyActionTitle).ToArray();
+            battleMessages.Clear();
+            foreach (BattleEvent message in retained)
+            {
+                battleMessages.Enqueue(message);
+            }
+            if (activeBattleMessage is { IsEnemyActionTitle: true })
+            {
+                activeBattleMessage = battleMessages.TryDequeue(out BattleEvent? next) ? next : null;
+                battleMessageFrames = 0;
+            }
+        }
+    }
     internal event Action<LocalizationTextBinding, string, string, string>? DialoguePresented;
 
     public string? BattleMessage => BattleMessageDocument?.Text;
@@ -35,7 +63,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            if (activeBattleMessage is not { } message || battleMessageFrames < message.NativeMessageDelayFrames)
+            if (activeBattleMessage is not { } message || message.IsEnemyActionTitle && !ShowEnemySpellNames || battleMessageFrames < message.NativeMessageDelayFrames)
             {
                 return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
@@ -130,7 +158,7 @@ public sealed partial class BattleHudController
         for (; messageEventCursor < session.Events.Count; messageEventCursor++)
         {
             BattleEvent message = session.Events[messageEventCursor];
-            if (message.Kind == "NativeText" && (collectedInitialMessages || message.Frame >= session.Frame))
+            if (message.Kind == "NativeText" && (!message.IsEnemyActionTitle || ShowEnemySpellNames) && (collectedInitialMessages || message.Frame >= session.Frame))
             {
                 battleMessages.Enqueue(message);
             }

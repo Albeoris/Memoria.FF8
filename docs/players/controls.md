@@ -101,6 +101,12 @@ The same setting is stored in the `Graphics` section of `%LOCALAPPDATA%/Memoria/
 }
 ```
 
+## Enemy spell names
+
+**Config → Interface → Enemy spell names** shows brief names of spells and abilities used by enemies when the original action provides a title. It defaults to **Off**. The setting applies immediately and is shared across saves and launches.
+
+The preference is stored as `ShowEnemySpellNames` in `ui-settings.json`; existing configurations without the property default to Off.
+
 ## Achievement notifications
 
 Achievement unlock notifications appear automatically. Progress notifications are disabled by default; achievement tracking continues while they are hidden.

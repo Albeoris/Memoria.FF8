@@ -6,6 +6,61 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleMessageTests
 {
+    [Fact]
+    public void Disabling_enemy_titles_removes_active_and_queued_titles_without_delaying_scripted_text()
+    {
+        BattleSession original = Create([0]);
+        BattleSession battle = BattleSession.Restore(original.Capture() with
+        {
+            Events =
+            [
+                new(original.Frame, "NativeText", "enemy", null, 30, "Fire") { IsEnemyActionTitle = true },
+                new(original.Frame, "NativeText", "enemy", null, 30, "Blizzard") { IsEnemyActionTitle = true },
+                new(original.Frame, "NativeText", "enemy", null, 30, "Dialogue")
+            ]
+        });
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }) { ShowEnemySpellNames = true };
+        hud.BuildView();
+        Assert.Equal("Fire", hud.BattleMessage);
+        hud.ShowEnemySpellNames = false;
+        Assert.Equal("Dialogue", hud.BattleMessage);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(1));
+        Assert.Null(hud.BattleMessage);
+        hud.ShowEnemySpellNames = true;
+        Assert.Null(hud.BattleMessage);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Enemy_titles_are_optional_without_hiding_scripted_messages_or_player_titles(bool enabled)
+    {
+        BattleSession original = Create([0]);
+        BattleSnapshot snapshot = original.Capture() with
+        {
+            Events =
+            [
+                new(original.Frame, "NativeText", "enemy", null, 30, "Fire") { NativeMessageMode = 1, IsEnemyActionTitle = true },
+                new(original.Frame, "NativeText", "enemy", null, 30, "You shall not pass!") { NativeMessageMode = 1 },
+                new(original.Frame, "NativeText", "party-0", null, 30, "Cure") { NativeMessageMode = 1 }
+            ]
+        };
+        BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }) { ShowEnemySpellNames = enabled };
+        hud.BuildView();
+        if (enabled)
+        {
+            Assert.Equal("Fire", hud.BattleMessage);
+            hud.AdvancePresentation(TimeSpan.FromSeconds(1));
+        }
+        Assert.Equal("You shall not pass!", hud.BattleMessage);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(1));
+        Assert.Equal("Cure", hud.BattleMessage);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(1));
+        Assert.Null(hud.BattleMessage);
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
+    }
+
     [Theory]
     [InlineData(30)]
     [InlineData(60)]

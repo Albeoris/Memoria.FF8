@@ -344,6 +344,10 @@ public sealed partial class BattleSession
                             string text = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native91 lost its original actor resource binding.")).Resource.ReadText91(cue.First);
                             events.Add(new BattleEvent(Frame, "NativeText", actor.Id, null, cue.Second, text) { NativeMessageMode = 3, NativeTextIdentity = actor.IsPlayer ? null : BattleTextIdentity.Enemy(actor.ModelId, cue.First) });
                         }
+                        else if (cue.Kind == NativeBattleSequenceCueKind.CommandTitle && graphics.ActionGraphics is { } titleContext)
+                        {
+                            graphics = PublishNativeOriginalEffectTitle(graphics, titleContext);
+                        }
                         else if (cue.Kind == NativeBattleSequenceCueKind.SuspendParticipant)
                         {
                             actor.NativeCombatantFlags |= 0x40;

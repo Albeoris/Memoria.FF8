@@ -151,6 +151,8 @@ internal sealed partial class RecreateGame
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Cursor"] = uiPreferences.CursorMemory ? "Memory" : "Initial";
+        data.Settings["Enemy spell names"] = uiPreferences.ShowEnemySpellNames ? "On" : "Off";
+        data.SupportedActions.Add("config:Enemy spell names");
         data.Settings["Quick saves"] = uiPreferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["Achievement progress"] = uiPreferences.ShowAchievementProgress ? "On" : "Off";
         data.SupportedActions.Add("config:Achievement progress");

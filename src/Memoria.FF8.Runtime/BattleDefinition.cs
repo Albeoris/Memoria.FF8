@@ -322,6 +322,8 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
     public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }
     public int NativeMessageDelayFrames { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsEnemyActionTitle { get; init; }
 }
 public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
 public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)

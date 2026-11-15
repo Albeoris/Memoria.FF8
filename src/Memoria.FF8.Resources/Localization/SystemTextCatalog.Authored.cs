@@ -1080,6 +1080,10 @@ public static partial class SystemTextCatalog
         defaults["setting.field-cap.option.0"] = "30";
         defaults["setting.field-cap.option.1"] = "60";
         defaults["setting.frame-counter"] = "Frame-rate counter";
+        defaults["setting.enemy-spell-names"] = "Enemy spell names";
+        defaults["setting.enemy-spell-names.help"] = "Show brief names of spells and abilities used by enemies. Off by default; shared by all saves.";
+        defaults["setting.enemy-spell-names.option.0"] = "Off";
+        defaults["setting.enemy-spell-names.option.1"] = "On";
         defaults["setting.achievement-progress"] = "Achievement progress";
         defaults["setting.achievement-progress.help"] = "Show achievement progress at the top of the screen. Achievement tracking and unlock notifications remain active when Off.";
         defaults["setting.achievement-progress.option.0"] = "Off";

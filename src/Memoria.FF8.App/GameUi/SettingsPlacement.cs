@@ -30,7 +30,7 @@ internal static class SettingsPlacement
         ["config-controls"] = new("Controls", "Player bindings and controller preferences.",
             ["config-keyboard", "config-controller", "config-controller-settings"]),
         ["config-interface"] = new("Interface", "Interface style, fonts and battle cursor memory.",
-            ["UI presentation", "config-text", "Cursor", "Achievement progress"]),
+            ["UI presentation", "config-text", "Cursor", "Achievement progress", "Enemy spell names"]),
         ["config-text"] = new("Text and fonts", "Menus: design pixels multiplied by text scale. Dialogue: field pixels.",
             ["Text fonts", "Text layout", "Native font profile", "Text scale", "UI font", "UI font size", "Dialogue font", "Dialogue font size", "Field message"]),
         ["config-gameplay"] = new("Gameplay", "Game rules apply to the current game; save normally to retain them. Title edits new-game defaults or session choices.",
@@ -56,6 +56,7 @@ internal static class SettingsPlacement
         {
             ["Show FPS"] = "frame-counter",
             ["Achievement progress"] = "achievement-progress",
+            ["Enemy spell names"] = "enemy-spell-names",
             ["Window mode"] = "window-mode",
             ["V-Sync"] = "vsync",
             ["Graphics backend"] = "graphics-backend",
@@ -146,6 +147,7 @@ internal static class SettingsPlacement
             {
                 "Show FPS" => "UiPreferences.ShowFps",
                 "Achievement progress" => "UiPreferences.ShowAchievementProgress",
+                "Enemy spell names" => "UiPreferences.ShowEnemySpellNames",
                 "Window mode" => "UiPreferences.BorderlessWindow",
                 "V-Sync" => "UiPreferences.VSync",
                 "Graphics backend" => "UiPreferences.Graphics.Backend",

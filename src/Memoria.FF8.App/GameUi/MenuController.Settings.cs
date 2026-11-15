@@ -92,6 +92,7 @@ public sealed partial class MenuController
             "Menu FPS" => preferences.MenuFps == 0 ? "Unlimited" : preferences.MenuFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
             "Achievement progress" => preferences.ShowAchievementProgress ? "On" : "Off",
+            "Enemy spell names" => preferences.ShowEnemySpellNames ? "On" : "Off",
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "UI presentation" => preferences.MenuPresentation.ToString(),
             "Text scale" => preferences.TextScale + "%",

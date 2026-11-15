@@ -14,6 +14,7 @@ internal sealed record UiPreferences
     public bool VSync { get; init; } = true;
     public bool ShowFps { get; init; }
     public bool ShowAchievementProgress { get; init; }
+    public bool ShowEnemySpellNames { get; init; }
     public int FieldFps { get; init; } = 60;
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
@@ -192,6 +193,15 @@ internal sealed record UiPreferences
                 "On" => this with { ShowFps = true },
                 "Off" => this with { ShowFps = false },
                 _ => throw new ArgumentException("Show FPS requires On or Off.")
+            };
+        }
+        if (key == "Enemy spell names")
+        {
+            return value switch
+            {
+                "On" => this with { ShowEnemySpellNames = true },
+                "Off" => this with { ShowEnemySpellNames = false },
+                _ => throw new ArgumentException("Enemy spell names requires On or Off.")
             };
         }
         if (key == "Achievement progress")

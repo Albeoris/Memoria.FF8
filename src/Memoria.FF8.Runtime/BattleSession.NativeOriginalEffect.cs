@@ -1150,7 +1150,14 @@ public sealed partial class BattleSession
         byte duration = unchecked((byte)(8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native50A750 requires the saved message-speed BYTE.")) + 8));
         if (duration != 0)
         {
-            events.Add(new(Frame, "NativeText", null, null, duration, text) { NativeMessageMode = 1 });
+            BattleCombatant actor = GraphicsActor(graphics, context.ActorIndex);
+            BattleTextIdentity? identity = context.PendingData.ProducerAddress switch
+            {
+                0x47E970 when context.PendingData.Argument < 64 => new("kernel_magicspells_name", context.PendingData.Argument),
+                0x4950A0 => new("kernel_enemyattacks_name", context.PendingData.Argument),
+                _ => null
+            };
+            events.Add(new(Frame, "NativeText", actor.Id, null, duration, text) { NativeMessageMode = 1, IsEnemyActionTitle = !actor.IsPlayer, NativeTextIdentity = identity });
         }
         return graphics with { ActionGraphics = context with { PendingData = null } };
     }
