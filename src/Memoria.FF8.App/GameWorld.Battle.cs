@@ -307,16 +307,13 @@ internal sealed partial class GameWorld
         if (effectPreviewRequest is null)
         {
             definition = BindExpandedEscapeResources(BindExpandedEnemyMug(BindExpandedEnemySpecials(BindExpandedEnemyLevels(definition))), encounterId);
+            NativeBattleCompletion? request = Events.PendingInteractiveBattle;
+            EncounterBindingContext context = request is not null && request.Encounter == encounterId ? new("Classic", session.State.FieldId, encounterId, activeFlags) : new("Classic");
+            definition = ApplyEncounterBattlePolicy(definition, context, restoredDefinition, applyEncounterMods);
         }
         else
         {
             definition = definition with { EncounterId = null, Combatants = definition.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null, NativeCombatantFlags = 1, NativeStatus0 = 0, NativeStatus1 = 0, InitialAtb = 0 }).ToArray() };
-        }
-        if (effectPreviewRequest is null && !expanded)
-        {
-            NativeBattleCompletion? request = Events.PendingInteractiveBattle;
-            EncounterBindingContext context = request is not null && request.Encounter == encounterId ? new("Classic", session.State.FieldId, encounterId, activeFlags) : new("Classic");
-            definition = ApplyEncounterBattlePolicy(definition, context, restoredDefinition, applyEncounterMods);
         }
         if (restoredDefinition is not null && !expanded)
         {
@@ -362,20 +359,45 @@ internal sealed partial class GameWorld
     {
         if (restoredDefinition is null)
         {
-            return currentPolicy?.Invoke(definition, context) ?? definition;
+            definition = currentPolicy?.Invoke(definition, context) ?? definition;
         }
         // An entered battle owns its compiled policy, including an explicitly absent policy.
         // Publication changes apply to new encounters; restore revalidates the installed native binding.
-        if (restoredDefinition.EncounterMod is not { } retained)
+        else if (restoredDefinition.EncounterMod is { } retained)
         {
-            return definition;
+            EncounterBindingResult binding = EncounterBindingResolver.Resolve(retained.Encounter, definition, context);
+            if (!string.Equals(retained.SourceProfile, context.Profile, StringComparison.OrdinalIgnoreCase) || retained.OriginalActorId != binding.OriginalActorId || retained.CastingSequence != binding.CastingSequence)
+            {
+                throw new InvalidDataException("Saved encounter policy differs from its validated installed native binding.");
+            }
+            definition = GameResourceHost.ApplyCompiledEncounterDefinition(definition, binding, retained);
         }
-        EncounterBindingResult binding = EncounterBindingResolver.Resolve(retained.Encounter, definition, context);
-        if (!string.Equals(retained.SourceProfile, context.Profile, StringComparison.OrdinalIgnoreCase) || retained.OriginalActorId != binding.OriginalActorId || retained.CastingSequence != binding.CastingSequence)
+        if (definition.UsesExpandedRoster && definition.EncounterMod is { } mod)
         {
-            throw new InvalidDataException("Saved encounter policy differs from its validated installed native binding.");
+            ValidateExpandedEncounterPolicy(mod);
         }
-        return GameResourceHost.ApplyCompiledEncounterDefinition(definition, binding, retained);
+        return definition;
+    }
+
+    private static void ValidateExpandedEncounterPolicy(EncounterCompiledDefinition mod)
+    {
+        List<string> unsupported = [];
+        if (mod.NormalActionPolicies.Count != 0)
+        {
+            unsupported.Add("encounter AI and its native event callbacks");
+        }
+        if (mod.DamageRoutes.Count != 0)
+        {
+            unsupported.Add("routed damage through deferred native contacts");
+        }
+        if (mod.Camera is { ElevationDegrees: not 0 })
+        {
+            unsupported.Add("encounter camera elevation");
+        }
+        if (unsupported.Count != 0)
+        {
+            throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires {string.Join(", ", unsupported)}, which are unavailable for an expanded roster.");
+        }
     }
 
     private BattleActionDefinition[] CreateBattleActions()

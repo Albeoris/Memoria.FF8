@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         var pending = graphics.PendingContacts;
         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [previous] });
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new NotSupportedException("Native50A690 requires its retained action globals.");
-        return graphics with { PendingContacts = pending, ActionGraphics = context with { FirstTargetBinding = BattleRetainedModelReference.Capture(nativeActionPackets.ReadActiveContact().Primary.Recipient, nativeActionPackets.ModelAliases) } };
+        return graphics with { PendingContacts = pending, ActionGraphics = context with { FirstTargetBinding = nativeActionPackets.ReadSequenceContactTarget(graphics.Effects.StorageContract) } };
     }
 
     private NativeBattleGraphicsState ApplyNativeSequenceCover5065B0(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)

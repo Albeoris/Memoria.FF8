@@ -8,7 +8,9 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameResourceHost
 {
-    private ImmutableDictionary<int, EncounterPatchComposition> encounterCompositions = ImmutableDictionary<int, EncounterPatchComposition>.Empty;
+    private sealed record PreparedEncounterPolicy(EncounterPatchComposition Composition, EncounterNativeEventResources NativeEvents);
+
+    private ImmutableDictionary<int, PreparedEncounterPolicy> preparedEncounterPolicies = ImmutableDictionary<int, PreparedEncounterPolicy>.Empty;
 
     public void ConnectEncounterMods()
     {
@@ -21,10 +23,10 @@ internal sealed partial class GameResourceHost
     {
         if (mods.Layers.IsEmpty)
         {
-            return new(true, Commit: () => encounterCompositions = ImmutableDictionary<int, EncounterPatchComposition>.Empty);
+            return new(true, Commit: () => preparedEncounterPolicies = ImmutableDictionary<int, PreparedEncounterPolicy>.Empty);
         }
         List<ModDiagnostic> diagnostics = [];
-        ImmutableDictionary<int, EncounterPatchComposition>.Builder candidate = ImmutableDictionary.CreateBuilder<int, EncounterPatchComposition>();
+        ImmutableDictionary<int, PreparedEncounterPolicy>.Builder candidate = ImmutableDictionary.CreateBuilder<int, PreparedEncounterPolicy>();
         ResourceService selected = new(source, resourceLanguage);
         selected.Prepare(null, encodedResources: encodedResources).Commit();
         try
@@ -49,10 +51,12 @@ internal sealed partial class GameResourceHost
                     EncounterBindingResult binding = EncounterBindingResolver.Resolve(group.Key, definition, new("Classic"));
                     ImmutableArray<string> baselineActors = actors.Where(actor => actor.InitialActive).Select(actor => actor.Id == binding.OriginalActorId ? "original" : "scene-" + actor.SceneSlot).ToImmutableArray();
                     EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(group.Key, "Classic", baselineActors), group);
-                    EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = EncounterNativeEventResourceReader.Bind(assets.ReadEnemyNativeGraphicsResource(actors.Single(actor => actor.Id == binding.OriginalActorId).ModelId)) };
+                    int model = actors.Single(actor => actor.Id == binding.OriginalActorId).ModelId;
+                    EncounterNativeEventResources nativeEvents = EncounterNativeEventResourceReader.Bind(assets.ReadEnemyNativeGraphicsResource(model));
+                    EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = nativeEvents };
                     _ = ApplyCompiledEncounterDefinition(definition, binding, compiled);
                     ValidateEncounterPresentationAssets(assets, definition, binding, composition);
-                    candidate.Add(formation, composition);
+                    candidate.Add(formation, new(composition, nativeEvents));
                 }
                 catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or IOException or ArgumentException or OverflowException)
                 {
@@ -68,8 +72,8 @@ internal sealed partial class GameResourceHost
         {
             return new(false, Diagnostics: diagnostics);
         }
-        ImmutableDictionary<int, EncounterPatchComposition> prepared = candidate.ToImmutable();
-        return new(true, Commit: () => encounterCompositions = prepared);
+        ImmutableDictionary<int, PreparedEncounterPolicy> prepared = candidate.ToImmutable();
+        return new(true, Commit: () => preparedEncounterPolicies = prepared);
     }
 
     private static void ValidateEncounterPresentationAssets(BattleAssets assets, BattleDefinition definition, EncounterBindingResult binding, EncounterPatchComposition composition)
@@ -91,18 +95,17 @@ internal sealed partial class GameResourceHost
 
     public BattleDefinition ApplyEncounterMods(BattleDefinition definition, EncounterBindingContext context)
     {
-        if (definition.EncounterId is not int formation || !encounterCompositions.TryGetValue(formation, out EncounterPatchComposition? composition))
+        if (definition.EncounterId is not int formation || !preparedEncounterPolicies.TryGetValue(formation, out PreparedEncounterPolicy? published))
         {
-            ModDiagnostic? unavailable = encounterCompositions.IsEmpty ? Mods.Diagnostics.FirstOrDefault(diagnostic => diagnostic.RelativePath?.StartsWith(EncounterMods.PayloadDirectory, StringComparison.OrdinalIgnoreCase) == true && Mods.InstalledPackages.Any(package => package.Id == diagnostic.PackageId && package.RequestedEnabled)) : null;
+            ModDiagnostic? unavailable = preparedEncounterPolicies.IsEmpty ? Mods.Diagnostics.FirstOrDefault(diagnostic => diagnostic.RelativePath?.StartsWith(EncounterMods.PayloadDirectory, StringComparison.OrdinalIgnoreCase) == true && Mods.InstalledPackages.Any(package => package.Id == diagnostic.PackageId && package.RequestedEnabled)) : null;
             if (unavailable is not null)
             {
                 throw new InvalidDataException($"An enabled encounter package has no valid prepared definition: {unavailable.PackageId}:{unavailable.RelativePath}: {unavailable.Message} Fix the package or disable it in Mods before starting an encounter.");
             }
             return definition;
         }
-        EncounterBindingResult binding = EncounterBindingResolver.Resolve(composition.Encounter, definition, context);
-        NativeBattleGraphicsResource resource = definition.NativeGraphics?.Bindings.SingleOrDefault(candidate => candidate.ActorId == binding.OriginalActorId)?.Resource ?? throw new InvalidDataException("Encounter policy preparation requires the selected original native model resource.");
-        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = EncounterNativeEventResourceReader.Bind(resource) };
+        EncounterBindingResult binding = EncounterBindingResolver.Resolve(published.Composition.Encounter, definition, context);
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(published.Composition, definition, binding) with { NativeEvents = published.NativeEvents };
         return ApplyCompiledEncounterDefinition(definition, binding, compiled);
     }
 

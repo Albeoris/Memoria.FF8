@@ -43,6 +43,35 @@ public sealed class NativeBattleActionPacketsTests
         Assert.False(JsonSerializer.SerializeToElement(retained).TryGetProperty("UnknownCountMask", out _));
     }
 
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)3)]
+    [InlineData(byte.MaxValue)]
+    public void Sequence_cursor_reads_the_retained_actor_byte_without_inventing_another_live_contact(byte actor)
+    {
+        NativeBattleRetainedActionPackets retained = Cold();
+        NativeBattleRawContactPacket second = retained.Contacts[1]!;
+        second = second with { Primary = second.Primary with { ActorIndex = actor } };
+        NativeBattleActionPacketsState arena = NewArena(retained with { Contacts = retained.Contacts.SetItem(1, second) });
+        (arena, BattleActionHeaderReference header) = arena.Prepare(Preparation());
+        (arena, _) = arena.AppendContact(Contact());
+        (arena, _) = arena.Publish(1);
+        arena = arena.ActivateHeader(header).AdvanceContact();
+
+        Assert.Equal(new BattleContactCursor(1), arena.ActiveContact);
+        Assert.Throws<NotSupportedException>(() => arena.ReadActiveContact());
+        Assert.Null(arena.ReadSequenceContactTarget(BattleContactTaskStorageContract.ExpandableArena));
+        BattleRetainedModelReference? physical = arena.ReadSequenceContactTarget(BattleContactTaskStorageContract.OriginalArena);
+        if (actor == byte.MaxValue)
+        {
+            Assert.Null(physical);
+        }
+        else
+        {
+            Assert.Equal(new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(actor)), physical);
+        }
+    }
+
     [Fact]
     public void Duplicate_occurrences_and_reset_keep_the_selected_header_and_cursor()
     {

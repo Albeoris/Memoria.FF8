@@ -67,7 +67,7 @@ public sealed class EncounterNativeDamageRoutingTests
     {
         BattleSession battle = Create(100, maximumHp: 50);
         _ = Hit(battle);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.NativeActionPackets.ActionCount != 0); frame++)
         {
             battle.Tick();
@@ -176,7 +176,7 @@ public sealed class EncounterNativeDamageRoutingTests
         battle.Tick();
         Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "original").CurrentHp);
         Assert.All(battle.EncounterAllocation!.ActorIds, id => Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == id).CurrentHp));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 100 && battle.Outcome == BattleOutcome.Active; frame++)
         {
             battle.Tick();
@@ -284,7 +284,7 @@ public sealed class EncounterNativeDamageRoutingTests
             Assert.Equal((ushort)0, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.ReturnDamage);
         }
         Assert.Equal(enemyInit ? 0u : 1u, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = BattleSession.Restore(snapshot);
         for (int frame = 0; frame < 80 && (battle.NativeActionPackets.ActionCount != 0 || battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.NativeCommandBanks.BoundCommands.Any()); frame++)
         {
             battle.Tick();
@@ -334,7 +334,7 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.Equal(900, battle.Combatants.Single(actor => actor.Id == "fourth").CurrentHp);
         Assert.Equal(990, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
         Assert.Equal(1u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
-        _ = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        _ = BattleSession.Restore(battle.Capture());
     }
 
     [Fact]
@@ -350,7 +350,7 @@ public sealed class EncounterNativeDamageRoutingTests
         };
         NativeBattleCommandBanks banks = snapshot.NativeCommandBanks!;
         (banks, NativeBattleCommandLocation old) = banks.EnqueueCallback(0, 5, 1);
-        banks = banks.BindCommand(old, 0, new(oldCopy, oldCopy, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(oldCopy)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 0) { NativeCallback = new(5, 1) });
+        banks = banks.BindCommand(old, 0, new(oldCopy, oldCopy, BattleTargetRequest.None, BattleAbility.EnemyAbility, 0) { NativeCallback = new(5, 1) });
         BattleSession battle = BattleSession.Restore(snapshot with { NativeCommandBanks = banks });
         for (int frame = 0; frame < 12; frame++)
         {
@@ -365,7 +365,7 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.True(battle.EncounterPolicies!.CleanedUp);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.DoesNotContain(battle.NativeCommandBanks.BoundCommands, command => command.ActorId == oldCopy);
-        _ = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(completed))!);
+        _ = BattleSession.Restore(completed);
     }
 
     private static NativeBattleContactPacket[] Hit(BattleSession battle)

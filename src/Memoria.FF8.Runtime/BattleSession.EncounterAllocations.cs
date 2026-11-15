@@ -92,6 +92,7 @@ public sealed partial class BattleSession
                 {
                     InitializeEncounterAllocatedStatistics(GetActor(id));
                 }
+                RefreshNativePacketBindings();
                 encounterAllocation = encounterAllocation with { Phase = BattleEncounterAllocationPhase.Ready, LoadingIndex = roles.Length };
                 encounterAllocationRollback = null;
             }

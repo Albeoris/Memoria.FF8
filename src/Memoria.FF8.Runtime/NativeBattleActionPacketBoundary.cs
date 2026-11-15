@@ -130,6 +130,15 @@ internal static class NativeBattleActionPacketBoundary
         };
     }
 
+    internal static byte ReadContactActorByte(NativeBattleRetainedActionPackets retained, BattleContactCursor cursor)
+    {
+        if (cursor.Ordinal >= retained.Contacts.Length || retained.Contacts[cursor.Ordinal] is not { } cell || cell.UnknownBitsAt(0) != 0)
+        {
+            throw new NotSupportedException("Native50A690 requires a known actor BYTE at its retained physical cursor.");
+        }
+        return cell.Primary.ActorIndex;
+    }
+
     internal static NativeBattleRetainedActionPackets AdvanceContact(NativeBattleRetainedActionPackets retained, BattleContactCursor cursor)
     {
         return retained with { ActiveContactIndex = EncodeContactCursor(cursor) };

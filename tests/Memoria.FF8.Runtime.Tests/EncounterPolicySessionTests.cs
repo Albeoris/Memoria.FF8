@@ -27,14 +27,14 @@ public sealed class EncounterPolicySessionTests
     }
 
     [Fact]
-    public void AdmittedMainActionCursorAndCompiledPolicySurviveJsonSnapshotRestore()
+    public void AdmittedMainActionCursorAndCompiledPolicySurvivePrivateCheckpointRestore()
     {
         BattleSession battle = Create(true);
         for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
         {
             battle.Tick();
         }
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(battle.ReadDefinition().EncounterMod!.GenerationIdentity, restored.ReadDefinition().EncounterMod!.GenerationIdentity);
         Assert.Equal(1ul, restored.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
@@ -60,7 +60,7 @@ public sealed class EncounterPolicySessionTests
         {
             Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         }
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, restored.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(1ul, restored.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
@@ -86,7 +86,7 @@ public sealed class EncounterPolicySessionTests
         }
         Assert.Single(battle.Events, entry => entry.Kind == "Reflect");
         Assert.True(battle.QueuedActions.Any(command => command.NativeQueuedCommand == 247 && command.FreeNativeMagic) || battle.ActiveAction is { NativeQueuedCommand: 247, FreeNativeMagic: true });
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Single(restored.Events, entry => entry.Kind == "Damage" && entry.ActorId == "enemy" && entry.TargetId == "enemy");
         restored.Tick();
@@ -173,7 +173,7 @@ public sealed class EncounterPolicySessionTests
             {
                 sawControl = true;
                 sawHeader |= battle.ActiveAction?.NativeHeader is not null || battle.QueuedActions.Any(command => command.NativeHeader is not null);
-                BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+                BattleSnapshot snapshot = battle.Capture();
                 battle = BattleSession.Restore(snapshot);
                 Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
                 Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { EncounterPolicies = snapshot.EncounterPolicies! with { PendingSummon = null } }));
@@ -219,7 +219,7 @@ public sealed class EncounterPolicySessionTests
         Assert.Equal(Math.Min(casts, opponents), battle.ScanKnowledge.Observations.Length);
         Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
         Assert.Equal(Math.Min(casts, opponents), battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.Equal(battle.EncounterPolicies.Cursors["mirror"].LastTargetIds.ToArray(), restored.EncounterPolicies!.Cursors["mirror"].LastTargetIds.ToArray());
     }
 

@@ -281,6 +281,18 @@ public sealed class NativeBattleActionPacketsState
         return ReadContact(cursor);
     }
 
+    internal BattleRetainedModelReference? ReadSequenceContactTarget(BattleContactTaskStorageContract storage)
+    {
+        BattleContactCursor cursor = ActiveContact ?? throw new NotSupportedException("Native50A690 requires its current contact cursor.");
+        if (storage == BattleContactTaskStorageContract.OriginalArena)
+        {
+            // 50A690 loads BYTE0 from the next physical cell even after the last published contact.
+            byte actor = NativeBattleActionPacketBoundary.ReadContactActorByte(RetainedStorage, cursor);
+            return actor == byte.MaxValue ? null : new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(actor));
+        }
+        return cursor.Ordinal < ContactCount ? BattleRetainedModelReference.Capture(ReadContact(cursor).Primary.Recipient, aliases) : null;
+    }
+
     internal NativeBattleActionPacketsState RestartContactPublication()
     {
         return new(Roster, aliases, RetainedStorage with { ContactCount = 0 }, headers, contacts, ActionCount, 0, ActiveHeader, ActiveContact);
