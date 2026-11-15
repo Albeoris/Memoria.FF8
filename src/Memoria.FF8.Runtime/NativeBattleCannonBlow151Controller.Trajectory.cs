@@ -8,7 +8,7 @@ public static partial class NativeBattleCannonBlow151Controller
         uint start = 0x244F938u + (uint)(index * 8);
         uint target = 0x244F888u + (uint)(index * 8);
         uint points = 0x244F808u + (uint)(index * 32);
-        int caster = checked((int)frame.State.ReadDword(0x244F92C));
+        BattleModelOwner caster = frame.State.ReadActor(0x244F92C);
         NativeBattleCannonBlow151PointStep bone = inputs.ReadBone502170(frame, caster, 15, 4096);
         frame = bone.Frame with { State = bone.Frame.State.WriteView(start, bone.Point8, 6) };
         NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, caster);

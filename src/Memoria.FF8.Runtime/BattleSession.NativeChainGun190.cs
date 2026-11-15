@@ -11,7 +11,12 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Chain Gun requires its actual process memory.");
         NativeBattleChainGun190Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Chain Gun requires its actual CRT stream."), memory.ChainGun190 ?? throw new NotSupportedException("Chain Gun requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Chain Gun requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Chain Gun requires its interpolation constants.");
-        NativeBattleChainGun190Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Chain Gun requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Chain Gun requires its current model world matrix."), null), (_, actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Chain Gun requires its actual current skeleton byte owner.")).BoneCount, Bone, Execute);
+        NativeBattleChainGun190Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Chain Gun requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Chain Gun requires its current model world matrix."), null), (_, actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Chain Gun requires its actual current skeleton byte owner.")).BoneCount, Bone, Execute, cursor => NativeBattleActionPacketBoundary.ReadOriginalRecipient(cursor, nativeActionPackets, graphics.NativeBindings, graphics.ActorModels));
+        if (initialize && graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
+        {
+            var (reserved, hosted) = NativeBattleChainGun190HostedStorage.Reserve(frame, nativeActionPackets);
+            frame = frame with { Memory = reserved, State = frame.State with { Hosted = hosted } };
+        }
         frame = initialize ? NativeBattleChainGun190Controller.Initialize(frame, resources, inputs) : NativeBattleChainGun190Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -35,7 +40,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.ChainGun190 ?? throw new InvalidDataException("Chain Gun external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Chain Gun external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Chain Gun external service lost its CRT stream.") };
         }
 
-        NativeBattleChainGun190PointStep Bone(NativeBattleChainGun190Frame current, int actor, int selector, int distance)
+        NativeBattleChainGun190PointStep Bone(NativeBattleChainGun190Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Chain Gun requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -50,6 +55,13 @@ public sealed partial class BattleSession
         NativeBattleChainGun190Frame Deliver(NativeBattleChainGun190Frame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Chain Gun requires its pending ordering table.");
+            if (current.State.Hosted is not null)
+            {
+                NativeBattleHostedModelPackets hosted = hostedModelPackets ?? throw new InvalidDataException("Hosted Chain Gun requires its frame packet owner.");
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new InvalidDataException("Hosted Chain Gun requires its selected draw bank.");
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = hosted.Append(process, primitive.Pending, batch) } };
+                return current;
+            }
             NativeBattleChainGun190PacketWrite written = NativeBattleChainGun190PacketArena.Append(current.State, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { State = written.State };

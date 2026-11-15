@@ -17,7 +17,7 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
 
     internal void Observe(DiagnosticDuelObservation observation, bool drained)
     {
-        BattleNativeDuelState? state = observation.Duel;
+        BattleDiagnosticDuelState? state = observation.Duel;
         if (Receipt.Opening is null && state is { Phase: BattleNativeDuelPhase.Opening })
         {
             Receipt = Receipt with { Opening = observation };

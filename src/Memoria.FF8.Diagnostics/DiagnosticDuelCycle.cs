@@ -16,15 +16,15 @@ public sealed record DiagnosticDuelCycleDeclaration([property: JsonRequired] byt
     }
 }
 
-public sealed record DiagnosticDuelObservation(long Callback, BattleNativeDuelState? Duel);
+public sealed record DiagnosticDuelObservation(long Callback, BattleDiagnosticDuelState? Duel);
 public sealed record DiagnosticDuelInputReceipt(BattleNativeDuelChoice Choice, DiagnosticDuelObservation Before, DiagnosticDuelObservation After);
-public sealed record DiagnosticDuelDispatchPackets(long Serial, long Callback, int HeaderIndex, long HeaderGeneration, NativeBattleActionPacketsState Packets)
+public sealed record DiagnosticDuelDispatchPackets(long Serial, long Callback, int HeaderIndex, long HeaderGeneration, NativeBattleRetainedActionPackets Packets)
 {
     public byte? Parameter80 { get; init; }
     public byte? Parameter82 { get; init; }
     public ushort? HeaderEffect { get; init; }
     public ushort? RetainedEffect { get; init; }
-    public BattleNativeDuelState? Duel { get; init; }
+    public BattleDiagnosticDuelState? Duel { get; init; }
 }
 public sealed record DiagnosticDuelCycleReceipt(int Execution, string ActorId, string TargetId, byte ActorIndex, byte TargetIndex, DiagnosticDuelCycleDeclaration Declaration, BattleDiagnosticLimitSelectionReceipt Selection, DiagnosticDuelObservation BeforeOpening)
 {

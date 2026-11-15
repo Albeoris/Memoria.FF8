@@ -173,7 +173,7 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
             Color40 = rules.SummonColors!.Transition,
             Color44 = (rules.SummonColors!.Normal & 0xFFFFFFu) | 0x32000000u,
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, checked((byte)(characterModel ? modelId : modelId + 16)), 0, ref random, characterModel ? null : assets.ReadEnemyNativeInformation246(modelId));
+        }, checked((byte)(characterModel ? modelId : modelId + 16)), 0, actor.IsPlayer, ref random, characterModel ? null : assets.ReadEnemyNativeInformation246(modelId));
         // TODO(TD-009): Use the first installed idle pose until the host retains native entry and idle progression.
         model = NativeBattleGraphicsModels.SelectSequence(model with { Rotation14 = model.Transform!.Angle36, Flags8 = rules.Project(status.Saved, status.Battle) }, characterModel ? (byte)1 : (byte)0);
         model = model with { SequenceState = model.SequenceState! with { Pose = 0, PoseFrame114 = 1, PoseLimit115 = resource.AnimationFrames[0], DecodedPose = poseSource.Sample(0, 1, 0) } };

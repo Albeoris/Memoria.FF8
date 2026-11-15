@@ -42,6 +42,18 @@ public sealed record NativeBattleCannonBlow151State([property: JsonRequired] Nat
 
     public byte[] Read(uint address, int length) => Globals.Read(Require(address, length), length);
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
+
+    internal BattleModelOwner ReadActor(uint address)
+    {
+        return Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    }
+
+    internal NativeBattleCannonBlow151State WriteActor(uint address, BattleModelOwner actor, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 4));
+        return this;
+    }
+
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public NativeBattleCannonBlow151State Write(uint address, ReadOnlySpan<byte> bytes)
     {

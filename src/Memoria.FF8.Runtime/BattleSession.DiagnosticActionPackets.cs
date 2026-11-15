@@ -69,7 +69,7 @@ public sealed partial class BattleSession
     }
 
     /// <summary>Detaches only the already-published physical action packet domain during its actual synchronous dispatch observation.</summary>
-    public NativeBattleActionPacketsState ObserveDiagnosticActionPackets(BattleDiagnosticEffectDispatch dispatch)
+    public NativeBattleRetainedActionPackets ObserveDiagnosticActionPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
         if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header))
@@ -83,11 +83,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Diagnostic action packet payload differs from its current dispatch source fields.");
         }
-        return nativeActionPackets.DetachDiagnosticCopy();
+        return nativeActionPackets.ExportRetained();
     }
 
     /// <summary>Observes the original Duel timeout control's zero-magic header while its retained274 entry executes selector8.</summary>
-    public NativeBattleActionPacketsState ObserveDiagnosticDuelClosingPackets(BattleDiagnosticEffectDispatch dispatch)
+    public NativeBattleRetainedActionPackets ObserveDiagnosticDuelClosingPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
         if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header) || dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.ModelId != 1 || actor.NativeLimit is not { CharacterId: 1, Command: 11 } || nativeDuelProcesses.Count != 1 || !nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? duel) || duel is not { Phase: BattleNativeDuelPhase.Finisher, Selection1D28DEF: 254, RemainingTimer: <= 0 } || dispatch.NativeCommand != 241 || dispatch.ActionId != 65532 || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || diagnosticPacketReadEffect is not { RequestedEffect: 274, Binding.Effect: 274, Parameters: { Parameter80: 8, Parameter82: 0 } parameters } || parameters.Source != CreatePresentationModelOwner(actor) || parameters.Header != new BattleActionHeaderReference(header) || NativeEffectMemory?.Entry21DFEC4?.Effect != 274)
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Duel timeout control changed its actual actor, zero-magic header or native target normalization.");
         }
-        return nativeActionPackets.DetachDiagnosticCopy();
+        return nativeActionPackets.ExportRetained();
     }
 
     private string DescribeDiagnosticDuelClosingGuard(BattleDiagnosticEffectDispatch dispatch)

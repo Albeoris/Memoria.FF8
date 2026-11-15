@@ -6,7 +6,7 @@ public static partial class NativeBattleJunk44Controller
 {
     public static NativeBattleJunk44Frame SpawnBoneSprites6E81A0(NativeBattleJunk44Frame frame, int count, int selector, int radius, int sizeRange, int sizeBase, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs)
     {
-        NativeBattleJunk44PointStep bone = inputs.ReadBone502170(frame, frame.State.ReadDword(0x2545108), selector, 0);
+        NativeBattleJunk44PointStep bone = inputs.ReadBone502170(frame, frame.State.ReadModel(0x2545108), selector, 0);
         return SpawnPointSprites6E8360(bone.Frame, count, bone.Point8, radius, sizeRange, sizeBase, resources, inputs);
     }
 
@@ -52,7 +52,7 @@ public static partial class NativeBattleJunk44Controller
         return (Write(frame, address, task), 0);
     }
 
-    public static (NativeBattleJunk44Frame Frame, uint Address) SpawnDebris6E8470(NativeBattleJunk44Frame frame, short x, short z, uint modelAddress, int tableIndex, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs)
+    public static (NativeBattleJunk44Frame Frame, uint Address) SpawnDebris6E8470(NativeBattleJunk44Frame frame, short x, short z, BattleModelOwner? actor, int tableIndex, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs)
     {
         (frame, uint address) = Append(frame, 0x2545120, 0x6E84D0);
         if (address == 0)
@@ -63,16 +63,13 @@ public static partial class NativeBattleJunk44Controller
         {
             throw new InvalidDataException("Junk debris table selector leaves its seven actual rows.");
         }
-        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(0x0C, unchecked((ushort)x)).WriteWord(0x0E, 0xF000).WriteWord(0x10, unchecked((ushort)z)).WriteWord(0x12, 20).WriteWord(0x14, 0).WriteWord(0x16, 800).WriteWord(0x18, 0).WriteDword(0x2C, checked(0x1362730u + (uint)tableIndex * 24)).WriteDword(0x30, modelAddress);
+        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(0x0C, unchecked((ushort)x)).WriteWord(0x0E, 0xF000).WriteWord(0x10, unchecked((ushort)z)).WriteWord(0x12, 20).WriteWord(0x14, 0).WriteWord(0x16, 800).WriteWord(0x18, 0).WriteDword(0x2C, checked(0x1362730u + (uint)tableIndex * 24));
+        task.WriteExecutionReference(0x30, 4, new BattleExecutionReference.TrailTarget(actor), actor is null ? [0, 0, 0, 0] : inputs.ReadPackets(frame).ModelAliases.EncodeAddress(actor));
         return (Write(frame, address, task), address);
     }
 
-    public static NativeBattleJunk44Frame ApplyModelContacts6E87A0(NativeBattleJunk44Frame frame, uint modelAddress, NativeBattleJunk44Inputs inputs)
+    public static NativeBattleJunk44Frame ApplyModelContacts6E87A0(NativeBattleJunk44Frame frame, BattleModelOwner actor, NativeBattleJunk44Inputs inputs)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor))
-        {
-            throw new InvalidDataException("Junk contact source is not an actual current graphics-model row.");
-        }
         int ordinal = 0;
         while (true)
         {
@@ -82,10 +79,10 @@ public static partial class NativeBattleJunk44Controller
             {
                 return frame;
             }
-            int index = checked((header.FirstContactIndex ?? throw new NotSupportedException("Junk requires its actual physical contact base.")) + ordinal);
-            if (packets.ReadContact(index).Primary.Recipient == actor)
+            NativeBattleContactPacket packet = packets.ReadContact(header.FirstContact.Advance(ordinal));
+            if (packet.Primary.Recipient == actor)
             {
-                frame = inputs.Execute(frame, new NativeBattleJunk44Contact506690(index));
+                frame = inputs.Execute(frame, new NativeBattleJunk44Contact506690(packet.Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.")));
             }
             ordinal++;
         }

@@ -187,11 +187,12 @@ public sealed partial class BattleSession
             }
             if (frame == 85)
             {
-                foreach (NativeBattleGraphicsModel party in graphics.Models.Take(3))
+                foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
                 {
+                    NativeBattleGraphicsModel party = entry.State;
                     if ((party.Flags0 & 2) != 0 && (party.Flags8!.Value & 3) == 0)
                     {
-                        graphics = SelectNativeHeaderSequence(graphics, checked((byte)party.Index), 4);
+                        graphics = SelectNativeHeaderSequence(graphics, entry.Owner, 4);
                     }
                 }
             }

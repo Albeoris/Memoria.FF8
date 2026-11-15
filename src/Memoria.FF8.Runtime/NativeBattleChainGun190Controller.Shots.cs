@@ -1,12 +1,22 @@
+using static Memoria.FF8.Runtime.NativeBattleChainGun190Profile;
+
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleChainGun190Controller
 {
     public static NativeBattleChainGun190Frame PrepareShots(NativeBattleChainGun190Frame frame, NativeBattleChainGun190Inputs inputs)
     {
-        for (int index = 0; index < 48; index++)
+        if (frame.State.Hosted is { } hosted)
         {
-            frame = Dword(frame, 0x2282E08u + (uint)(index * 16), 0);
+            for (int index = 0; index < hosted.ShotCount; index++)
+            {
+                frame = FillShots(frame, index, 1, hosted.Contacts[index % hosted.Contacts.Length].Owner, inputs);
+            }
+            return frame;
+        }
+        for (int index = 0; index < RecordCount; index++)
+        {
+            frame = Dword(frame, frame.State.ShotAddress(index), 0);
         }
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int count = header.ReadContactCount();
@@ -15,23 +25,26 @@ public static partial class NativeBattleChainGun190Controller
             return frame;
         }
         BattleContactCursor first = header.FirstContact;
-        int Actor(int ordinal) => inputs.Packets.ReadContact(first.Advance(ordinal)).Primary.Recipient;
+        BattleModelOwner Actor(int ordinal) => inputs.Packets.ReadContact(first.Advance(ordinal)).Primary.Recipient;
         if (count == 1)
         {
             return FillShots(frame, 0, 12, Actor(0), inputs);
         }
-        if (count == 2)
+        BattleModelOwner firstActor = Actor(0);
+        BattleModelOwner secondActor = Actor(1);
+        if (count == 2 && inputs.Packets.ModelAliases.TryEncodeExact(firstActor, out byte firstOperand) && inputs.Packets.ModelAliases.TryEncodeExact(secondActor, out byte secondOperand))
         {
-            int low = Math.Min(Actor(0), Actor(1));
-            int high = Math.Max(Actor(0), Actor(1));
-            uint mask = (1u << low) | (1u << high);
-            if (mask == 3)
+            byte firstSlot = Math.Min(firstOperand, secondOperand);
+            byte secondSlot = Math.Max(firstOperand, secondOperand);
+            BattleModelOwner low = firstOperand <= secondOperand ? firstActor : secondActor;
+            BattleModelOwner high = firstOperand <= secondOperand ? secondActor : firstActor;
+            if ((firstSlot, secondSlot) == (0, 1))
             {
                 frame = FillShots(frame, 0, 5, high, inputs);
                 frame = InterpolateShots(frame, 5, 2, ModelPoint(frame, high, inputs), ModelPoint(frame, low, inputs));
                 frame = FillShots(frame, 7, 5, low, inputs);
             }
-            else if (mask == 5)
+            else if ((firstSlot, secondSlot) == (0, 2))
             {
                 NativeBattleModelTransform upper = inputs.ReadModel(frame, high).Transform ?? throw new NotSupportedException("Chain Gun requires its current recipient position.");
                 NativeBattleModelTransform lower = inputs.ReadModel(frame, low).Transform ?? throw new NotSupportedException("Chain Gun requires its current recipient position.");
@@ -41,7 +54,7 @@ public static partial class NativeBattleChainGun190Controller
                 frame = InterpolateShots(frame, 5, 4, ModelPoint(frame, high, inputs), ModelPoint(frame, low, inputs));
                 frame = FillShots(frame, 9, 3, low, inputs);
             }
-            else if (mask == 6)
+            else if ((firstSlot, secondSlot) == (1, 2))
             {
                 frame = FillShots(frame, 0, 2, low, inputs);
                 frame = InterpolateShots(frame, 2, 2, ModelPoint(frame, low, inputs), ModelPoint(frame, high, inputs));
@@ -50,33 +63,43 @@ public static partial class NativeBattleChainGun190Controller
                 frame = FillShots(frame, 9, 3, low, inputs);
             }
         }
-        int[] actors = [Actor(0), Actor(1), Actor(2)];
-        Array.Sort(actors);
+        BattleModelOwner third = count == 2 ? inputs.ReadOriginalFallthroughRecipient(first.Advance(2)) : Actor(2);
+        BattleModelOwner[] captured = [firstActor, secondActor, third];
+        BattleModelOwner[] actors = captured.OrderBy(OriginalOperand).ToArray();
         frame = FillShots(frame, 0, 2, actors[1], inputs);
         frame = InterpolateShots(frame, 2, 2, ModelPoint(frame, actors[1], inputs), ModelPoint(frame, actors[2], inputs));
         frame = FillShots(frame, 4, 3, actors[2], inputs);
         frame = InterpolateShots(frame, 7, 2, ModelPoint(frame, actors[2], inputs), ModelPoint(frame, actors[0], inputs));
         return FillShots(frame, 9, 3, actors[0], inputs);
+
+        byte OriginalOperand(BattleModelOwner actor)
+        {
+            if (!inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte operand))
+            {
+                throw new InvalidDataException("Chain Gun requires an exact original alias for every authored shot owner.");
+            }
+            return operand;
+        }
     }
 
-    public static NativeBattleChainGun190Frame FillShots(NativeBattleChainGun190Frame frame, int start, int count, int actor, NativeBattleChainGun190Inputs inputs)
+    public static NativeBattleChainGun190Frame FillShots(NativeBattleChainGun190Frame frame, int start, int count, BattleModelOwner actor, NativeBattleChainGun190Inputs inputs)
     {
-        RequireShots(start, count);
+        RequireShots(frame.State, start, count);
         for (int index = start; index < start + count; index++)
         {
-            uint record = 0x2282E08u + (uint)(index * 16);
+            uint record = frame.State.ShotAddress(index);
             frame = Dword(frame, record, 1);
             if ((index & 1) == 0)
             {
                 frame = DrawRandom(frame, out ushort mode);
                 if ((mode & 1) == 0)
                 {
-                    frame = Dword(frame, record + 4, uint.MaxValue);
+                    frame = frame with { State = frame.State.WritePositionedShot(record + 4) };
                     frame = frame with { State = frame.State.WriteView(record + 8, ModelPoint(frame, actor, inputs), 8) };
                     continue;
                 }
             }
-            frame = Dword(frame, record + 4, checked((uint)actor));
+            frame = frame with { State = frame.State.WriteShotTarget(record + 4, actor, inputs.Packets.ModelAliases) };
             int bones = inputs.ReadBoneCount(frame, actor);
             if ((uint)bones > 255)
             {
@@ -97,31 +120,32 @@ public static partial class NativeBattleChainGun190Controller
 
     public static NativeBattleChainGun190Frame InterpolateShots(NativeBattleChainGun190Frame frame, int start, int count, NativeBattleEffectArena from, NativeBattleEffectArena to)
     {
-        RequireShots(start, count);
+        RequireShots(frame.State, start, count);
         short x = BitConverter.ToInt16(from.Read(0, 2));
         short z = BitConverter.ToInt16(from.Read(4, 2));
         short stepX = unchecked((short)((BitConverter.ToInt16(to.Read(0, 2)) - x) / (count + 1)));
         short stepZ = unchecked((short)((BitConverter.ToInt16(to.Read(4, 2)) - z) / (count + 1)));
         for (int index = 0; index < count; index++)
         {
-            uint record = 0x2282E08u + (uint)((start + index) * 16);
-            frame = Dword(Dword(frame, record, 1), record + 4, uint.MaxValue);
+            uint record = frame.State.ShotAddress(start + index);
+            frame = Dword(frame, record, 1);
+            frame = frame with { State = frame.State.WritePositionedShot(record + 4) };
             frame = Word(Word(Word(frame, record + 8, x + stepX * (index + 1)), record + 10, 0), record + 12, z + stepZ * (index + 1));
         }
         return frame;
     }
 
-    private static NativeBattleEffectArena ModelPoint(NativeBattleChainGun190Frame frame, int actor, NativeBattleChainGun190Inputs inputs)
+    private static NativeBattleEffectArena ModelPoint(NativeBattleChainGun190Frame frame, BattleModelOwner actor, NativeBattleChainGun190Inputs inputs)
     {
         NativeBattleModelTransform transform = inputs.ReadModel(frame, actor).Transform ?? throw new NotSupportedException("Chain Gun requires its actual current model position and vertical WORD.");
         return PointView(transform.Position28, transform.Vertical34);
     }
 
-    private static void RequireShots(int start, int count)
+    private static void RequireShots(NativeBattleChainGun190State state, int start, int count)
     {
-        if (start < 0 || count < 0 || start > 48 - count)
+        if (start < 0 || count < 0 || start > (state.Hosted?.RecordCapacity ?? RecordCount) - count)
         {
-            throw new InvalidDataException("Chain Gun shot records leave their physical bank.");
+            throw new InvalidDataException("Chain Gun shot records leave their owned bank.");
         }
     }
 }

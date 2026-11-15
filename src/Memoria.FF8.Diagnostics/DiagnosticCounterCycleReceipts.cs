@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.BattleEffects;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticCounterDispatchPackets([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] NativeBattleActionPacketsState Packets)
+public sealed record DiagnosticCounterDispatchPackets([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] NativeBattleRetainedActionPackets Packets)
 {
     public ushort NormalizeTargetMask(BattleDiagnosticEffectDispatch dispatch, BattleDiagnosticCounterCommand queued)
     {
@@ -13,12 +13,12 @@ public sealed record DiagnosticCounterDispatchPackets([property: JsonRequired] l
         {
             throw new InvalidDataException("Counter dispatch packet proof lost its actual synchronous header/generation owner.");
         }
-        NativeBattleActionHeaderSlot header = DiagnosticCounterCycleValidation.Header(Packets, HeaderIndex);
-        if (header.ReadByte(0) != queued.ActorIndex || header.ReadByte(1) != queued.Command || DiagnosticCounterCycleValidation.Word(header, 4) != queued.ActionId || DiagnosticCounterCycleValidation.Word(header, 6) != queued.EffectId || header.ReadByte(2) != queued.Sequence)
+        NativeBattleRetainedActionHeaderSlot header = DiagnosticCounterCycleValidation.Header(Packets, HeaderIndex);
+        if (header.ReadOriginalByte(0) != queued.ActorIndex || header.ReadOriginalByte(1) != queued.Command || DiagnosticCounterCycleValidation.Word(header, 4) != queued.ActionId || DiagnosticCounterCycleValidation.Word(header, 6) != queued.EffectId || header.ReadOriginalByte(2) != queued.Sequence)
         {
             throw new InvalidDataException("Counter dispatched header differs from its actually queued native command.");
         }
-        ushort mask = NativeBattleActionGraphics.Normalize(Packets, HeaderIndex).TargetMask;
+        ushort mask = DiagnosticCounterCycleValidation.ReadTargetMask(Packets, HeaderIndex);
         if (dispatch.NativeTargetMask != mask)
         {
             throw new InvalidDataException("Counter dispatch recipient mask differs from its canonical primary-contact union.");
@@ -57,16 +57,55 @@ public sealed record DiagnosticCounterCycleReceipt([property: JsonRequired] int 
 
 public static class DiagnosticCounterCycleValidation
 {
-    internal static ushort Word(NativeBattleActionHeaderSlot header, int offset) => (ushort)(header.ReadByte(offset) | header.ReadByte(offset + 1) << 8);
+    internal static ushort Word(NativeBattleRetainedActionHeaderSlot header, int offset) => (ushort)(header.ReadOriginalByte(offset) | header.ReadOriginalByte(offset + 1) << 8);
 
-    internal static NativeBattleActionHeaderSlot Header(NativeBattleActionPacketsState packets, int index)
+    internal static NativeBattleRetainedActionHeaderSlot Header(NativeBattleRetainedActionPackets packets, int index)
     {
         packets.Validate();
-        if (index is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || index >= packets.ActionCount)
+        if (index is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || (packets.UnknownCountMask & 1) != 0 || index >= packets.ActionCount)
         {
             throw new InvalidDataException("Counter packet proof lacks its physically published action header.");
         }
         return packets.Headers[index];
+    }
+
+    internal static ushort ReadTargetMask(NativeBattleRetainedActionPackets packets, int index)
+    {
+        int repeats = Header(packets, index).ReadOriginalByte(17) + 1;
+        ushort mask = 0;
+        for (int repeat = 0; repeat < repeats; repeat++)
+        {
+            NativeBattleRetainedActionHeaderSlot header = Header(packets, checked(index + repeat));
+            int count = header.ReadOriginalByte(16);
+            if (count == 0)
+            {
+                continue;
+            }
+            int first = header.FirstContactIndex ?? throw new InvalidDataException("Diagnostic header lacks its original first-contact address.");
+            for (int offset = 0; offset < count; offset++)
+            {
+                byte owner = ReadPrimary(packets, checked(first + offset)).ActorIndex;
+                if (owner >= 7)
+                {
+                    throw new InvalidDataException("Diagnostic contact does not name an original model cell.");
+                }
+                mask |= (ushort)(1 << owner);
+            }
+        }
+        return mask;
+    }
+
+    private static NativeBattleRawContactHalf ReadPrimary(NativeBattleRetainedActionPackets packets, int index, bool requireAmount = false)
+    {
+        if (index is < 0 or >= NativeBattleRetainedActionPackets.ContactCapacity || (packets.UnknownCountMask & 2) != 0 || index >= packets.ContactCount || packets.Contacts[index] is not { } raw)
+        {
+            throw new InvalidDataException("Diagnostic contact does not have a retained original writer.");
+        }
+        if (!raw.UnknownBits.IsDefaultOrEmpty && (raw.UnknownBits[0] != 0 || requireAmount && (raw.UnknownBits[6] != 0 || raw.UnknownBits[7] != 0)))
+        {
+            throw new InvalidDataException("Diagnostic contact has unknown reached original fields.");
+        }
+        return raw.Primary;
     }
 
     public static void Validate(DiagnosticCounterCycleReceipt receipt, BattleInput input, bool requireCompleted = true)
@@ -194,13 +233,13 @@ public static class DiagnosticCounterCycleValidation
     {
         BattleDiagnosticCounterPrimary primary = contact.Primary;
         BattleDiagnosticCounterActor recipient = primary.Recipient;
-        NativeBattleActionHeaderSlot header = Header(contact.Packets, primary.HeaderIndex);
-        int count = header.ReadByte(16) * (header.ReadByte(17) + 1);
-        if (primary.HeaderGeneration <= 0 || primary.ActorId != cycle.ActorId || primary.ActorIndex != cycle.ActorIndex || primary.RecipientId != cycle.TargetId || primary.RecipientIndex != cycle.TargetIndex || primary.QueuedCommand != 1 || primary.ActionId != 0 || primary.InternalCommand is not (1 or 253) || (!primary.Preliminary && contact.TriggerRecomputed != (primary.InternalCommand == 253)) || recipient.Id != cycle.TargetId || recipient.Index != cycle.TargetIndex || recipient.ModelId != 84 || !recipient.Active || recipient.Hp != primary.AfterHp || recipient.Hp <= 0 || recipient.Variables.IsDefault || recipient.Variables.Length != 8 || recipient.LastAction is not { Command: 1, ActionId: 0 } memory || memory.AttackerIndex != cycle.ActorIndex || recipient.PendingReaction is not { Stage: 2, Order: not null } || header.ReadByte(0) != cycle.ActorIndex || header.ReadByte(1) != 1 || Word(header, 4) != 0 || Word(header, 6) != 0 || header.FirstContactIndex is not int first || contact.ContactIndex < first || contact.ContactIndex >= first + count || contact.Packets.ReadContact(contact.ContactIndex).Primary.ActorIndex != cycle.TargetIndex)
+        NativeBattleRetainedActionHeaderSlot header = Header(contact.Packets, primary.HeaderIndex);
+        int count = header.ReadOriginalByte(16) * (header.ReadOriginalByte(17) + 1);
+        if (primary.HeaderGeneration <= 0 || primary.ActorId != cycle.ActorId || primary.ActorIndex != cycle.ActorIndex || primary.RecipientId != cycle.TargetId || primary.RecipientIndex != cycle.TargetIndex || primary.QueuedCommand != 1 || primary.ActionId != 0 || primary.InternalCommand is not (1 or 253) || (!primary.Preliminary && contact.TriggerRecomputed != (primary.InternalCommand == 253)) || recipient.Id != cycle.TargetId || recipient.Index != cycle.TargetIndex || recipient.ModelId != 84 || !recipient.Active || recipient.Hp != primary.AfterHp || recipient.Hp <= 0 || recipient.Variables.IsDefault || recipient.Variables.Length != 8 || recipient.LastAction is not { Command: 1, ActionId: 0 } memory || memory.AttackerIndex != cycle.ActorIndex || recipient.PendingReaction is not { Stage: 2, Order: not null } || header.ReadOriginalByte(0) != cycle.ActorIndex || header.ReadOriginalByte(1) != 1 || Word(header, 4) != 0 || Word(header, 6) != 0 || header.FirstContactIndex is not int first || contact.ContactIndex < first || contact.ContactIndex >= first + count || ReadPrimary(contact.Packets, contact.ContactIndex).ActorIndex != cycle.TargetIndex)
         {
             throw new InvalidDataException("Counter trigger is not the actually committed ordinary primary/header/B98/pending2 source chain.");
         }
-        if (primary.Preliminary ? primary.InternalCommand != 253 || contact.TriggerRecomputed || primary.BeforeHp != primary.AfterHp || memory.AttackType != 3 || contact.Packets.ReadContact(contact.ContactIndex).Primary.Amount6 != 0 || contact.Packets.ReadContact(contact.ContactIndex).Primary.ExtendedDamageAmount is not null : memory.AttackType != 0)
+        if (primary.Preliminary ? primary.InternalCommand != 253 || contact.TriggerRecomputed || primary.BeforeHp != primary.AfterHp || memory.AttackType != 3 || ReadPrimary(contact.Packets, contact.ContactIndex, requireAmount: true).Amount6 != 0 || ReadPrimary(contact.Packets, contact.ContactIndex, requireAmount: true).ExtendedDamageAmount is not null : memory.AttackType != 0)
         {
             throw new InvalidDataException("Counter preliminary projection and actual ordinary contact classification differ from the explicit resolver source.");
         }
@@ -216,7 +255,7 @@ public static class DiagnosticCounterCycleValidation
 
     private static void ValidateCommandSource(DiagnosticCounterCycleReceipt cycle, DiagnosticCounterAttemptReceipt attempt, BattleDiagnosticCounterCommand command)
     {
-        if (command.AiStage != 2 || command.ActorId != cycle.TargetId || command.ActorIndex != cycle.TargetIndex || !SameSha(command.ScriptSha256, cycle.Declaration.Focal.ScriptSha256) || command.Command != 8 || command.ActionId is not (230 or 232) || command.EffectId != (command.ActionId == 230 ? 178 : 0) || command.Sequence != (command.ActionId == 230 ? 13 : 15) || command.HeaderIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || command.HeaderGeneration <= 0)
+        if (command.AiStage != 2 || command.ActorId != cycle.TargetId || command.ActorIndex != cycle.TargetIndex || !SameSha(command.ScriptSha256, cycle.Declaration.Focal.ScriptSha256) || command.Command != 8 || command.ActionId is not (230 or 232) || command.EffectId != (command.ActionId == 230 ? 178 : 0) || command.Sequence != (command.ActionId == 230 ? 13 : 15) || command.HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || command.HeaderGeneration <= 0)
         {
             throw new InvalidDataException("Counter callback produced an undeclared native reaction command.");
         }

@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleBreath157ContactFirst contact:
                     Publish(current);
-                    int first = nativeActionPackets.Headers[contact.HeaderIndex].FirstContactIndex ?? throw new NotSupportedException("Breath requires its actual first captured contact.");
+                    BattleContactCursor first = nativeActionPackets.ReadHeader(contact.Header).FirstContact;
                     var pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                     graphics = graphics with { PendingContacts = pending };

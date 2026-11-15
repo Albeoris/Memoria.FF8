@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         BattleModelTargets effective = selection;
         if (selection.IsEmpty && header.Command is 1 or 12 or 28)
         {
-            effective = effective.Add(context.FirstTarget ?? source);
+            effective = effective.Add(context.FirstTargetBinding?.Resolve(graphics.ActorModels, graphics.NativeBindings) ?? source);
         }
         return PrepareNativeActionGeometry(graphics, source, selection, effective);
     }

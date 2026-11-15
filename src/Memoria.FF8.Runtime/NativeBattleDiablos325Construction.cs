@@ -61,17 +61,23 @@ public static class NativeBattleDiablos325Construction
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos timeline requires its current action header.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int count = header.ReadContactCount();
+        var recipients = ImmutableArray.CreateBuilder<NativeBattleDiablos325Recipient>(count);
         for (int index = 0; index < count; index++)
         {
-            BattleContactCursor first = header.FirstContact;
-            byte actor = inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient;
-            int offset = checked(0x94 + index * 12 - 12);
-            task.WriteDword(12 + offset, NativeBattleGraphicsModelAddress.Encode(actor));
-            task.WriteWord(12 + offset + 8, 0);
-            task.WriteWord(12 + offset + 10, 4096);
+            NativeBattleContactPacket contact = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+            BattleModelOwner actor = contact.Primary.Recipient;
+            BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.");
+            recipients.Add(new(actor, occurrence));
+            if (index < NativeBattleSlots.Count)
+            {
+                int offset = 0x94 + index * 12;
+                task.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                task = task.WriteWord(offset + 8, 0).WriteWord(offset + 10, 4096);
+            }
         }
+        state = NativeBattleDiablos325Entry.RequireState(frame.Memory) with { Recipients = recipients.MoveToImmutable() };
         pool = pool.WriteSlot(slot, task);
-        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Where(item => item.DescriptorAddress != TimelineDescriptor).Append(pool).ToImmutableArray() } };
+        frame = frame with { Memory = frame.Memory with { Arena = MirrorTimelinePayload(frame.Memory.Arena!, task), Diablos325 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Where(item => item.DescriptorAddress != TimelineDescriptor).Append(pool).ToImmutableArray() } };
         frame = frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x4C14) };
         byte[] angles = new byte[0x400];
         for (int index = 0; index < 256; index++)
@@ -80,5 +86,18 @@ public static class NativeBattleDiablos325Construction
             BinaryPrimitives.WriteInt16LittleEndian(angles.AsSpan(index * 4 + 2), unchecked((short)NativeBattleCameraMath.Cosine(index * 16)));
         }
         return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x994, angles) } };
+    }
+
+    internal static NativeBattleEffectArena MirrorTimelinePayload(NativeBattleEffectArena arena, NativeBattleModulePoolTask task)
+    {
+        arena = arena.Write(12, task.ReadRawPayloadSpan());
+        if (task.ReadUnknownPayloadRanges() is { } regions)
+        {
+            foreach (NativeBattleEffectUnknownRegion region in regions)
+            {
+                arena = arena.MarkUnknown(region.Offset, region.Length);
+            }
+        }
+        return arena;
     }
 }

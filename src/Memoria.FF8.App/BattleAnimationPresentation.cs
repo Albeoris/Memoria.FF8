@@ -28,8 +28,9 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
     {
         if (session.NativeGraphics is { } graphics)
         {
-            int index = graphics.ActorIds.IndexOf(actor.Id);
-            return index < 0 ? new BattleAnimationSample(0, 0, Vector3.Zero, 0) : SampleNativeModel(graphics.Models[index]);
+            return actor.Slot is not null && graphics.ActorModels.TryGet(session.ReadPresentationModelOwner(actor.Id), out NativeBattleGraphicsModel? model)
+                ? SampleNativeModel(model)
+                : new BattleAnimationSample(0, 0, Vector3.Zero, 0);
         }
         if (session.UsesExpandedRoster && !actor.IsPlayer && actor.IsEjected)
         {

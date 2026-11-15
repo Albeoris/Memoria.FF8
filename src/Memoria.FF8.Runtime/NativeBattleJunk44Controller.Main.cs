@@ -30,11 +30,13 @@ public static partial class NativeBattleJunk44Controller
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                 NativeBattleActionHeaderSlot header = Header(frame, packets);
                 BattleContactCursor first = header.FirstContact;
-                uint modelAddress = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
-                NativeBattleModelTransform transform = inputs.ReadModel(frame, modelAddress).Transform ?? throw new NotSupportedException("Junk requires its current recipient packed position.");
-                frame = Write(frame, main, Read(frame, main).WriteDword(0x14 + index * 16, modelAddress));
+                BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                NativeBattleModelTransform transform = inputs.ReadModel(frame, actor).Transform ?? throw new NotSupportedException("Junk requires its current recipient packed position.");
+                NativeBattleModulePoolTask recipientTask = Read(frame, main);
+                recipientTask.WriteExecutionReference(0x14 + index * 16, 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor));
+                frame = Write(frame, main, recipientTask);
                 frame = WriteBytes(frame, main + 0x18u + (uint)(index * 16), PointView(transform.Position28, transform.Vertical34), 8);
-                NativeBattleJunk44PointStep anchor = inputs.ReadAnchor571400(frame, modelAddress);
+                NativeBattleJunk44PointStep anchor = inputs.ReadAnchor571400(frame, actor);
                 frame = anchor.Frame;
                 NativeBattleModulePoolTask task = Read(frame, main);
                 for (int axis = 0; axis < 3; axis++)
@@ -124,15 +126,15 @@ public static partial class NativeBattleJunk44Controller
                 RequireRecipientRecord(index);
                 NativeBattleModulePoolTask task = Read(frame, address);
                 int offset = 0x14 + index * 16;
-                uint modelAddress = task.ReadDword(offset);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
                 int product = unchecked(Signed(task, offset + 12) * sine);
                 short y = unchecked((short)(Signed(task, offset + 6) - product / 4096));
-                frame = inputs.Execute(frame, new NativeBattleJunk44ModelPositionY(modelAddress, y));
+                frame = inputs.Execute(frame, new NativeBattleJunk44ModelPositionY(actor, y));
                 if (phase == 6)
                 {
-                    NativeBattleModelTransform transform = inputs.ReadModel(frame, modelAddress).Transform ?? throw new NotSupportedException("Junk's current recipient sprite birth requires its actual packed position.");
+                    NativeBattleModelTransform transform = inputs.ReadModel(frame, actor).Transform ?? throw new NotSupportedException("Junk's current recipient sprite birth requires its actual packed position.");
                     frame = SpawnPointSprites6E8360(frame, 3, PointView(transform.Position28, transform.Vertical34), 300, 2000, 2000, resources, inputs);
-                    frame = inputs.Execute(frame, new NativeBattleJunk44SelectSequence505C00(modelAddress, 4));
+                    frame = inputs.Execute(frame, new NativeBattleJunk44SelectSequence505C00(actor, 4));
                 }
             }
         }
@@ -145,7 +147,7 @@ public static partial class NativeBattleJunk44Controller
             short z = unchecked((short)(Signed(Read(frame, address), 0x48) + (zRandom & 0x7FF) - 0x400));
             frame = DrawRandom(frame, out ushort xRandom);
             short x = unchecked((short)(Signed(Read(frame, address), 0x44) + (xRandom & 0xFFF) - 0x800));
-            (frame, uint debris) = SpawnDebris6E8470(frame, x, z, 0, table, resources, inputs);
+            (frame, uint debris) = SpawnDebris6E8470(frame, x, z, null, table, resources, inputs);
             if (debris != 0)
             {
                 frame = DrawRandom(frame, out ushort velocity);
@@ -163,12 +165,12 @@ public static partial class NativeBattleJunk44Controller
             for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
             {
                 RequireRecipientRecord(index);
-                uint modelAddress = Read(frame, address).ReadDword(0x14 + index * 16);
-                NativeBattleJunk44PointStep anchor = inputs.ReadAnchor571400(frame, modelAddress);
+                BattleModelOwner actor = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x14 + index * 16, 4).Owner;
+                NativeBattleJunk44PointStep anchor = inputs.ReadAnchor571400(frame, actor);
                 frame = anchor.Frame;
                 short x = BitConverter.ToInt16(anchor.Point8.Read(0, 2));
                 short z = BitConverter.ToInt16(anchor.Point8.Read(4, 2));
-                (frame, uint debris) = SpawnDebris6E8470(frame, x, z, modelAddress, 6, resources, inputs);
+                (frame, uint debris) = SpawnDebris6E8470(frame, x, z, actor, 6, resources, inputs);
                 if (debris != 0)
                 {
                     NativeBattleModulePoolTask child = Read(frame, debris).WriteWord(0x12, 24);
@@ -190,7 +192,7 @@ public static partial class NativeBattleJunk44Controller
         {
             RequireRecipientRecord(index);
             NativeBattleModulePoolTask task = Read(frame, address);
-            frame = inputs.Execute(frame, new NativeBattleJunk44RestoreModelPosition(task.ReadDword(0x14 + index * 16), TaskView(task, 0x18 + index * 16, 8)));
+            frame = inputs.Execute(frame, new NativeBattleJunk44RestoreModelPosition(task.ReadExecutionReference<BattleExecutionReference.Model>(0x14 + index * 16, 4).Owner, TaskView(task, 0x18 + index * 16, 8)));
         }
         return (frame, 2);
     }

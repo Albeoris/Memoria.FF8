@@ -5,6 +5,17 @@ namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattleActionPacketBoundary
 {
+    internal static BattleModelOwner ReadOriginalRecipient(BattleContactCursor cursor, NativeBattleActionPacketsState packets, NativeBattleModelBoundary bindings, BattleActorModels models)
+    {
+        if (cursor.Ordinal >= NativeBattleRetainedActionPackets.ContactCapacity ||
+            packets.RetainedStorage.Contacts[cursor.Ordinal] is not { } contact ||
+            contact.UnknownBitsAt(0) != 0)
+        {
+            throw new NotSupportedException("Reading an original recipient operand requires its observed contact byte.");
+        }
+        return bindings.DecodeLiteral(contact.Primary.ActorIndex, models);
+    }
+
     internal static short ReadActiveCameraFlag50A6E0(NativeBattleActionPacketsState packets)
     {
         BattleContactCursor cursor = packets.ActiveContact ?? throw new NotSupportedException("Native50A6E0 requires its active contact cursor.");

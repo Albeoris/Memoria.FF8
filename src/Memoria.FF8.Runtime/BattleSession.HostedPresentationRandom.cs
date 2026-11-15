@@ -26,23 +26,26 @@ public sealed partial class BattleSession
         logicalOwner.NativeGlobalRandomChange!.Validate();
     }
 
-    internal void ImportHostedPresentationRandom(BattleSession logicalOwner)
+    internal void ImportHostedPresentationSharedState(BattleSession logicalOwner)
     {
         ValidateHostedPresentationRandomOwner(logicalOwner);
-        CopyHostedPresentationRandomFrom(logicalOwner);
+        CopyHostedPresentationSharedStateFrom(logicalOwner);
     }
 
-    internal void CopyHostedPresentationRandomFrom(BattleSession logicalOwner)
+    internal void CopyHostedPresentationSharedStateFrom(BattleSession logicalOwner)
     {
         nativeCrtRandom = logicalOwner.nativeCrtRandom;
         nativeBattleUiRandom = logicalOwner.nativeBattleUiRandom;
         nativeGlobalRandom = logicalOwner.nativeGlobalRandom;
         nativeGlobalRandomCalls = logicalOwner.nativeGlobalRandomCalls;
+        NativeMusicProcess = logicalOwner.NativeMusicProcess;
+        NativeGlobalSoundProcess = logicalOwner.NativeGlobalSoundProcess;
+        NativeVibrationProcess = logicalOwner.NativeVibrationProcess;
     }
 
-    internal void ExportHostedPresentationRandom(BattleSession logicalOwner)
+    internal void ExportHostedPresentationSharedState(BattleSession logicalOwner)
     {
-        // A failed native callback can already have consumed process RNG. Export must not revalidate or replace that failure.
-        logicalOwner.CopyHostedPresentationRandomFrom(this);
+        // A reached callback can consume shared state before it fails. Export must preserve that state and the original failure.
+        logicalOwner.CopyHostedPresentationSharedStateFrom(this);
     }
 }

@@ -268,7 +268,8 @@ internal static class CrossoverBattleVitalsSettlement
         {
             if (originRandom is null || presentation.OriginGlobalRandom != originRandom || presentation.GlobalRandom != finalRandom || presentation.EncounterId != bindings[0].EncounterId
                 || presentation.Invocation is not null || presentation.Presentation is not { Complete: true } && !presentation.Cancelled || presentation.HostTick > hostTick
-                || presentation.Presentation is not { Model: { } model } || !presentedSlots.Add(model.Index) || !bindings.Any(binding => binding.HostSlot == model.Index && binding.OriginCharacter == model.ModelId4))
+                || presentation.Presentation is not { Model: { } model } || bindings.Where(binding => binding.OriginCharacter == model.ModelId4).ToArray() is not [var binding]
+                || !presentedSlots.Add(binding.HostSlot))
             {
                 throw new InvalidDataException("Guest settlement requires each completed native presentation and one exact global RNG owner.");
             }

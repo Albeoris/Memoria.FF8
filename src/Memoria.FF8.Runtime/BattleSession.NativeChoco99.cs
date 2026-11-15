@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Choco requires original graphics rules.");
         NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Choco requires its depth-cue constants.");
         NativeBattleChoco99Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Choco requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Choco requires retained CRT random state."));
-        frame = NativeBattleChoco99Controller.Advance717ED0(frame, new(nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Choco requires the selected actor pose source."), DrawModel, AdvanceProgram, AdvanceNodes, AdvanceAux, AdvanceSecondary, AdvanceOverlay, StartVibration, Execute), resources);
+        frame = NativeBattleChoco99Controller.Advance717ED0(frame, new(nativeActionPackets, view, actor => graphics.ActorModels.Get(actor), actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Choco requires the selected actor pose source."), DrawModel, AdvanceProgram, AdvanceNodes, AdvanceAux, AdvanceSecondary, AdvanceOverlay, StartVibration, Execute, () => graphics.ActorModels.Enemies), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -162,7 +162,7 @@ public sealed partial class BattleSession
                 case 0x721460:
                 case 0x7215A0:
                     NativeBattleChoco99State shared = Shared(current);
-                    NativeBattleChoco99EnvironmentFrame environment = new(task, Context(), NativeStage ?? throw new NotSupportedException("Native Choco environment requires its actual stage rows."), graphics.Models, shared.FreezePrimary ?? throw new NotSupportedException("Native Choco primary freeze is unknown."), shared.FreezeSecondary ?? throw new NotSupportedException("Native Choco secondary freeze is unknown."));
+                    NativeBattleChoco99EnvironmentFrame environment = new(task, Context(), NativeStage ?? throw new NotSupportedException("Native Choco environment requires its actual stage rows."), graphics.ActorModels, graphics.NativeBindings, shared.FreezePrimary ?? throw new NotSupportedException("Native Choco primary freeze is unknown."), shared.FreezeSecondary ?? throw new NotSupportedException("Native Choco secondary freeze is unknown."));
                     NativeBattleChoco99EnvironmentStep changed = NativeBattleChoco99Environment.Advance(environment, (updated, sound) =>
                     {
                         PublishEnvironment(updated);
@@ -293,7 +293,7 @@ public sealed partial class BattleSession
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }
 
-        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters ?? throw new NotSupportedException("Native Choco actor selection requires its original action parameters."), nativeActionPackets, parameters, header, target);
+        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, int target) => NativeBattleCureController.SelectActors(effect.Parameters ?? throw new NotSupportedException("Native Choco actor selection requires its original action parameters."), nativeActionPackets, parameters, header, target);
 
         static NativeBattleGfAnimationSource ReadProgram(NativeBattleChoco99Frame current, uint address, int length)
         {

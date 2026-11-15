@@ -252,7 +252,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         }
         for (long callback = 0; callback < clock.Callbacks; callback++)
         {
-            model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0) { ApplyTexture = CopyTexture }).Model;
+            model = NativeBattleSequenceMachine.Advance(sourceOwner, model, resource, new(0, 0) { ApplyTexture = CopyTexture }).Model;
             model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         }
         if (textures is { Count: > 0 })
@@ -504,9 +504,9 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
             FileSelector128 = resource.LinkedFileSelector128,
             FileSelector129 = resource.BodyFileSelector129
         };
-        model = NativeBattleGraphicsModels.CompleteLoad(model, kit.CharacterId, 0, ref random);
+        model = NativeBattleGraphicsModels.CompleteLoad(model, kit.CharacterId, 0, true, ref random);
         model = NativeBattleGraphicsModels.SelectSequence(model, 1);
-        return NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
+        return NativeBattleSequenceMachine.Advance(sourceOwner, model, resource, new(0, 0)).Model;
     }
 
     internal static Ff7BattleGuestPhysicalHit ProjectContact(CrossoverFf8BattleKit kit, short timing)

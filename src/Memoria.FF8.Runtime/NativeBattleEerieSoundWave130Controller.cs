@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEerieSoundWave130Profile;
 
 namespace Memoria.FF8.Runtime;

@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = randomState;
         NativeEffectMemory = memory with { Textures = textures };
         NativeGraphics = graphics with { ActorModels = BindPresentationForeignModels(graphics.ActorModels.Set(sourceOwner, source), previousForeignActors) };
-        InitializeEffectPresentationServices(parameters);
+        InitializeEffectPresentationServices(new NativeBattleEffectInvocation.Combat(nativeActionPackets, parameters));
         graphics = NativeGraphics!;
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The direct presentation phase lost its normalized source service.");
         if (context.Callback != callback || context.Actor != parameters.Source || !context.TargetActors.Equals(parameters.TargetActors))

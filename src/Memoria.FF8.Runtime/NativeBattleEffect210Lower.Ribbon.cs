@@ -12,12 +12,13 @@ public static partial class NativeBattleEffect210Lower
         int age = Signed(task, 12);
         (frame, uint temporary) = Allocate(frame, 64);
         NativeBattleEffectArena context = Context(frame, temporary, 64);
-        ImmutableArray<NativeBattlePackedMatrix32> bones = inputs.ReadCurrentBoneMatrices32(frame, 4);
+        BattleModelOwner companion = inputs.ResolveCompanion(frame, frame.State.ReadModelAddress(CasterGlobal));
+        ImmutableArray<NativeBattlePackedMatrix32> bones = inputs.ReadCurrentBoneMatrices32(frame, companion);
         if (bones.Length <= 1)
         {
             throw new NotSupportedException("Effect210 ribbon requires its current companion bone1.");
         }
-        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, 4);
+        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, companion);
         (byte[] worldData, bool[] worldKnown) = model.ReadSnapshot(0x40, 32);
         NativeBattleActionMatrix world = new NativeBattlePackedMatrix32(worldData.ToImmutableArray(), worldKnown.ToImmutableArray()).ReadMatrix();
         NativeBattleActionMatrix bone = bones[1].ReadMatrix();

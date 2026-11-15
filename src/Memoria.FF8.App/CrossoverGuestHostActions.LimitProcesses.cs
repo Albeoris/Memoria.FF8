@@ -161,7 +161,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             byte moveSet = NativeBattleDuelRules.InitialMoveSet(kit.Limit, crisis);
             short timer = NativeBattleDuelRules.Timer(kit.Limit, crisis);
-            mixedDuel = new(moveSet, processTarget, timer, timer, BattleNativeDuelPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) };
+            mixedDuel = new(moveSet, ReadMixedLimitTarget(target), timer, timer, BattleNativeDuelPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) };
             byte opening = NativeBattleDuelRules.ActionId(kit.Limit, moveSet);
             pendingDuelOpening = opening;
             BattleNativeAction first = assets.NativeActions.Single(action => action.Command == 241 && action.ActionId == opening);
@@ -172,7 +172,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             byte id = checked((byte)(ability & 255));
             short timer = checked((short)(4 * kit.Limit.ShotTimers[crisis - 1]));
             byte ammo = encounter.Items!.Slots.First(stock => stock.ItemId == 101 + id && stock.Count != 0).Count;
-            mixedShot = new(id, processTarget, timer, timer, ammo, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) };
+            mixedShot = new(id, ReadMixedLimitTarget(target), timer, timer, ammo, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) };
             SelectProcessAction(14, id);
         }
         else if (choice.Command == 16)
@@ -186,6 +186,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         limitSelection = limitSelection with { Crisis = 0, ReadyTick = null };
         capabilityVersion++;
         return choice.Name;
+    }
+
+    private BattleTargetRequest ReadMixedLimitTarget(int slot)
+    {
+        BattleForeignEnemyModel enemy = ReadPresentationOwner(slot) as BattleForeignEnemyModel ?? throw new InvalidDataException("The mixed Limit requires its selected host enemy.");
+        BattleTargetSelection selection = new BattleTargetSelection.Explicit([new BattleEnemyActorReference(enemy.Presentation.Key)]);
+        return new(selection, BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
     }
 
     private void CaptureProcessParticipants(int target)

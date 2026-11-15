@@ -33,6 +33,8 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
+        static NativeBattleGraphicsModel ApplyPairFlags(NativeBattleGraphicsModel model, ushort orMask) => model with { Flags0 = unchecked((ushort)((model.Flags0 & ~8) | orMask)) };
+
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect326 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect326 requires its current projection.");
 
@@ -172,6 +174,23 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect326WriteModelBytes write:
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, ApplyNativeEffect326ModelBytes(graphics.ActorModels.Get(write.Actor), write)) };
+                    return current;
+                case NativeBattleEffect326TargetPairFlags pair:
+                    NativeBattleGraphicsModel source = ApplyPairFlags(graphics.ActorModels.Get(pair.Source), pair.OrMask);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(pair.Source, source) };
+                    if (graphics.NativeBindings.TryEncodeExactActor(pair.Source, graphics.ActorModels, out byte sourceSlot))
+                    {
+                        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(checked((byte)(sourceSlot + 1)));
+                        NativeBattleGraphicsModel companion = ApplyPairFlags(graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels), pair.OrMask);
+                        graphics = graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is { } owner
+                            ? graphics with { ActorModels = graphics.ActorModels.Set(owner, companion) }
+                            : graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(slot, companion) };
+                    }
+                    else
+                    {
+                        BattleModelOwner owner = ResolveNativeEffectCompanion(graphics, pair.Source);
+                        graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, ApplyPairFlags(graphics.ActorModels.Get(owner), pair.OrMask)) };
+                    }
                     return current;
                 case NativeBattleEffect326ActorAnimation505C00 animation:
                     graphics = ScheduleNativeRingSequence505C00(graphics, animation.Actor, animation.Animation);

@@ -7,7 +7,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverPhysicalHostEffectsState(NativeBattleModuleState Modules, NativeCrtRandomState Random, int HostTarget, NativeBattleVector Target, NativeBattleActionMatrix? WeaponMatrix)
+internal sealed record CrossoverPhysicalHostEffectsState(NativeBattleModuleState Modules, NativeCrtRandomState Random, int HostTarget, BattleModelOwner TargetOwner, NativeBattleModelAliases Aliases, NativeBattleVector Target, NativeBattleActionMatrix? WeaponMatrix)
 {
     public NativeBattleEffectArena? Temporary { get; init; }
     public NativeBattleEffectArena? Packets { get; init; }
@@ -20,8 +20,6 @@ internal sealed record CrossoverPhysicalHostEffectsStep(CrossoverPhysicalHostEff
 
 internal sealed partial class CrossoverGunbladeHostAttack
 {
-    // Physical slot 3 represents the selected host occurrence within this module instance.
-    private const byte ForeignModuleTarget = 3;
     private ImmutableArray<NativeBattleModuleResource> physicalModules;
     private ImmutableArray<NativeBattleStaticMeshResource> physicalMeshes;
     private NativeBattleEffectTextureState? physicalTextures;
@@ -64,16 +62,29 @@ internal sealed partial class CrossoverGunbladeHostAttack
         {
             throw new InvalidDataException("Rinoa's original projectile requires its original B0 model placement and a free shared module owner.");
         }
-        int owner = contact ? ForeignModuleTarget : ActorSlot;
-        CrossoverPhysicalHostEffectsState effects = current ?? new(NativeBattleModuleState.Clear(), random, hostTargetSlot, target, null);
+        CrossoverPhysicalHostEffectsState effects = current ?? BeginPhysicalHostEffects(hostTargetSlot, target, random);
+        BattleModelOwner owner = contact ? effects.TargetOwner : sourceOwner;
         NativeBattleModuleState modules = particle.Placement switch
         {
-            1 => effects.Modules.AppendModelResource(owner, selected, particle.PackedParameters),
-            3 => effects.Modules.AppendBoneParticle(owner, particle.Bone, particle.Fraction, selected, particle.PackedParameters),
-            4 => effects.Modules.AppendPositionResource(owner, particle.Position ?? throw new InvalidDataException("Physical attack placement4 lacks its original position."), selected, particle.PackedParameters),
+            1 => effects.Modules.AppendModelResource(owner, selected, particle.PackedParameters, effects.Aliases),
+            3 => effects.Modules.AppendBoneParticle(owner, particle.Bone, particle.Fraction, selected, particle.PackedParameters, effects.Aliases),
+            4 => effects.Modules.AppendPositionResource(owner, particle.Position ?? throw new InvalidDataException("Physical attack placement4 lacks its original position."), selected, particle.PackedParameters, effects.Aliases),
             _ => throw new InvalidDataException("Physical attack particle has an unknown original placement.")
         };
         return effects with { Modules = modules };
+    }
+
+    private CrossoverPhysicalHostEffectsState BeginPhysicalHostEffects(int hostTargetSlot, NativeBattleVector target, NativeCrtRandomState random)
+    {
+        BattleModelOwner targetOwner = roster.ReadModelOwner(hostTargetSlot);
+        NativeBattleModelAliases aliases = sourceAliases;
+        if (targetOwner != sourceOwner)
+        {
+            BattleModelRoster models = new([sourceOwner, targetOwner]);
+            byte targetOperand = targetOwner.Side == BattleSide.Enemies ? (byte)3 : ActorSlot == 0 ? (byte)1 : (byte)0;
+            aliases = new(models, [(NativeBattleModelSlot.Decode(checked((byte)ActorSlot)), sourceOwner), (NativeBattleModelSlot.Decode(targetOperand), targetOwner)]);
+        }
+        return new(NativeBattleModuleState.Clear(), random, hostTargetSlot, targetOwner, aliases, target, null);
     }
 
     private CrossoverPhysicalHostEffectsStep AdvancePhysicalHostEffects(CrossoverPhysicalHostEffectsState current, NativeBattleGraphicsModel model, CrossoverGunbladeHostPlacement placement)
@@ -101,10 +112,11 @@ internal sealed partial class CrossoverGunbladeHostAttack
         {
             Resources = resources,
             CrtRandom = current.Random,
-            ReadModelAnchor = actor => actor == ForeignModuleTarget ? TargetAnchor() : NativeBattlePoseMatrices.ReadAnchor(model, resource.PoseSource!),
-            ReadModelBone = (actor, bone, fraction) => actor == ForeignModuleTarget ? TargetBone(bone, fraction) : NativeBattlePoseMatrices.ReadBone(model, resource.PoseSource!, bone, fraction),
-            ReadModelRotation14 = actor => actor == ForeignModuleTarget ? targetModel?.Rotation14 ?? (short)0 : model.Rotation14!.Value,
-            TransformModelPosition = (actor, local) => actor == ActorSlot ? NativeBattlePoseMatrices.TransformModulePosition570CC0(model, local) : throw new InvalidDataException("Physical attack placement4 requires the source model matrix.")
+            ModelAliases = current.Aliases,
+            ReadModelAnchor = actor => actor == current.TargetOwner && actor != sourceOwner ? TargetAnchor() : NativeBattlePoseMatrices.ReadAnchor(model, resource.PoseSource!),
+            ReadModelBone = (actor, bone, fraction) => actor == current.TargetOwner && actor != sourceOwner ? TargetBone(bone, fraction) : NativeBattlePoseMatrices.ReadBone(model, resource.PoseSource!, bone, fraction),
+            ReadModelRotation14 = actor => actor == current.TargetOwner && actor != sourceOwner ? targetModel?.Rotation14 ?? (short)0 : model.Rotation14!.Value,
+            TransformModelPosition = (actor, local) => actor == sourceOwner ? NativeBattlePoseMatrices.TransformModulePosition570CC0(model, local) : throw new InvalidDataException("Physical attack placement4 requires the source model matrix.")
         };
         NativeBattleModuleStep step = current.Modules.Advance(inputs, Dispatch);
         foreach (NativeBattleModuleDraw draw in step.Draws)
@@ -148,7 +160,7 @@ internal sealed partial class CrossoverGunbladeHostAttack
         NativeBattleModuleCallback Dispatch(NativeBattleModuleState modules, int slot, NativeBattleModuleInputs services)
         {
             // TODO(TD-025): Forward the host contact flags to the projectile's secondary critical cue.
-            NativeBattleRinoaPhysicalHitInputs projectile = new(services, () => (checked((byte)ActorSlot), ForeignModuleTarget), _ => model.Flags0, PlaySound, () => false, () => contact = true, draw => sprites.Add(draw));
+            NativeBattleRinoaPhysicalHitInputs projectile = new(services, BattleContactTaskStorageContract.OriginalArena, () => (sourceOwner, current.TargetOwner), _ => model.Flags0, PlaySound, () => false, () => contact = true, draw => sprites.Add(draw));
             switch (modules.Slots[slot].Callback)
             {
                 case 0x56F9C0:
@@ -158,7 +170,7 @@ internal sealed partial class CrossoverGunbladeHostAttack
                 case 0x56FE10:
                     NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(staging, 248);
                     staging = temporary.Staging;
-                    NativeBattleModuleCallback result = NativeBattleRinoaPhysicalHit.AdvanceProjectile(modules, slot, projectile, worldBasis, (active, basis, first, next) => DrawProjectile(active, basis, first, next, temporary.Address));
+                    NativeBattleModuleCallback result = NativeBattleRinoaPhysicalHit.AdvanceProjectile(modules, slot, projectile, worldBasis, (active, basis, first, next) => DrawProjectile(active, projectile, basis, first, next, temporary.Address));
                     staging = NativeBattleTemporaryMemory.Release5082D0(staging, 248);
                     return result;
                 default:
@@ -166,9 +178,9 @@ internal sealed partial class CrossoverGunbladeHostAttack
             }
         }
 
-        NativeBattleModuleState DrawProjectile(NativeBattleModuleState modules, NativeBattleActionMatrix basis, int first, int next, uint temporary)
+        NativeBattleModuleState DrawProjectile(NativeBattleModuleState modules, NativeBattleRinoaPhysicalHitInputs inputs, NativeBattleActionMatrix basis, int first, int next, uint temporary)
         {
-            ImmutableArray<NativeBattleVector> curve = modules.RinoaPhysicalHit!.Curve;
+            ImmutableArray<NativeBattleVector> curve = NativeBattleRinoaPhysicalHit.ReadCurveForDraw(modules, inputs);
             weaponMatrix = null;
             if (next < curve.Length)
             {
@@ -182,7 +194,7 @@ internal sealed partial class CrossoverGunbladeHostAttack
                 weaponMatrix = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Compose56C2F0(basis, local), scale, scale, scale);
             }
             NativeBattleActionMatrix view = NativeBattleGfMatrices.Compose56C2F0(projection.View!, basis);
-            NativeBattleRinoaPhysicalRibbonDraw ribbon = NativeBattleRinoaPhysicalRibbon.Draw(memory, staging, temporary, curve, view, first, next, projection, modules);
+            NativeBattleRinoaPhysicalRibbonDraw ribbon = NativeBattleRinoaPhysicalRibbon.Draw(memory, staging, temporary, curve, view, first, next, projection, modules, inputs.StorageContract);
             memory = ribbon.Memory;
             staging = ribbon.Staging;
             Append(ribbon.Batch);
@@ -195,9 +207,9 @@ internal sealed partial class CrossoverGunbladeHostAttack
             (memory, packetCursor, ordering) = (written.Memory, written.Cursor, written.Ordering);
         }
 
-        void PlaySound(byte actor, int number, NativeBattleModuleAnchor anchor)
+        void PlaySound(BattleModelOwner actor, int number, NativeBattleModuleAnchor anchor)
         {
-            if (actor != ActorSlot || graphicsRules.ActorSounds1120 is not { } table)
+            if (actor != sourceOwner || graphicsRules.ActorSounds1120 is not { } table)
             {
                 throw new InvalidDataException("Rinoa's original projectile sound requires the source actor table.");
             }

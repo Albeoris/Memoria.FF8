@@ -71,40 +71,42 @@ internal sealed partial class GameWorld
         if (graphics.OriginalEffect is { ReturnedDescriptor: null } admitted)
         {
             NativeBattleActionPacketsState admittedPackets = active.NativeActionPackets;
-            int headerIndex;
-            byte actorIndex;
+            BattleActionHeaderReference reference;
+            BattleModelOwner actor;
+            NativeBattleActionGraphicsState? context = null;
             if (admitted.Parameters is { } parameters)
             {
-                headerIndex = parameters.HeaderIndex7C;
-                actorIndex = parameters.Actor78;
+                reference = parameters.Header;
+                actor = parameters.Source;
             }
             else
             {
-                NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The loaded component lacks its native invocation context.");
-                headerIndex = context.HeaderIndex;
-                actorIndex = context.ActorIndex;
-                if (headerIndex < 0 || headerIndex >= NativeBattleActionPacketsState.HeaderCapacity)
-                {
-                    throw new InvalidDataException("The loaded component context lacks a physical native header.");
-                }
-                uint invocationPointer = checked(0x1D280C4u + (uint)headerIndex * 20);
-                bool pendingInvocation = graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && (context.Callback == 0x50BC20 && task.Phase is 1 or 2 || context.Callback == 0x50B190 && task.Phase is 2 or 3) && graphics.Descriptors.Packets[task.PacketSlot].Command == 104 && graphics.Descriptors.Packets[task.PacketSlot].Argument == invocationPointer);
-                if (!pendingInvocation)
-                {
-                    throw new InvalidDataException("The loaded component lacks its unstarted native module invocation descriptor.");
-                }
+                context = graphics.ActionGraphics ?? throw new InvalidDataException("The loaded component lacks its native invocation context.");
+                reference = context.Header;
+                actor = context.Actor;
             }
-            if (admitted.RequestedEffect != expectedEffect || admitted.Binding.Effect != expectedEffect || !admitted.Pools.IsEmpty || headerIndex < 0 || headerIndex >= admittedPackets.ActionCount || headerIndex >= NativeBattleActionPacketsState.HeaderCapacity || actorIndex >= graphics.ActorIds.Length || graphics.ActorIds[actorIndex] is null)
+            int headerIndex = Enumerable.Range(0, admittedPackets.ActionCount).SingleOrDefault(index => new BattleActionHeaderReference(index) == reference, -1);
+            BattleCombatant? participant = active.Combatants.SingleOrDefault(candidate => candidate.NativeActorIndex is >= 0 and < 7 && active.ReadPresentationModelOwner(candidate.Id) == actor);
+            if (admitted.RequestedEffect != expectedEffect || admitted.Binding.Effect != expectedEffect || !admitted.Pools.IsEmpty || headerIndex < 0 || headerIndex >= NativeBattleRetainedActionPackets.HeaderCapacity ||
+                participant?.NativeActorIndex is not int actorIndex || !graphics.ActorModels.TryGet(actor, out _))
             {
                 throw new InvalidDataException("The admitted component does not retain its exact unstarted native effect and physical owners.");
             }
-            NativeBattleActionHeaderSlot admittedHeader = admittedPackets.Headers[headerIndex];
+            uint invocationPointer = checked(0x1D280C4u + (uint)headerIndex * 20);
+            if (context is not null && !graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 &&
+                (context.Callback == 0x50BC20 && task.Phase is 1 or 2 || context.Callback == 0x50B190 && task.Phase is 2 or 3) &&
+                graphics.Descriptors.Packets[task.PacketSlot].Command == 104 && graphics.Descriptors.Packets[task.PacketSlot].Argument == invocationPointer))
+            {
+                throw new InvalidDataException("The loaded component lacks its unstarted native module invocation descriptor.");
+            }
+            NativeBattleActionHeaderSlot admittedHeader = admittedPackets.ReadHeader(reference);
             NativeBattleEffectBinding selected = source.Definition.NativeEffectCatalog.Single(binding => binding.Effect == expectedEffect);
-            if (NativeBattleActionGraphics.Word(admittedHeader, 6) != expectedEffect || admittedHeader.ReadByte(0) != actorIndex || admitted.Parameters is null && NativeBattleActionGraphics.SelectService(admittedHeader).Callback != graphics.ActionGraphics!.Callback || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(selected), JsonSerializer.SerializeToElement(admitted.Binding)) || queued.Length > 1 || queued.Any(index => graphics.Descriptors.Packets[index].Argument != checked(0x1D280C4u + (uint)headerIndex * 20)))
+            if (admittedHeader.Effect != expectedEffect || admittedHeader.Source != actor || context is not null && NativeBattleActionGraphics.SelectService(admittedHeader).Callback != context.Callback ||
+                !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(selected), JsonSerializer.SerializeToElement(admitted.Binding)) || queued.Length > 1 || queued.Any(index => graphics.Descriptors.Packets[index].Argument != invocationPointer))
             {
                 throw new InvalidDataException("The admitted component parameters, installed binding and physical action header disagree.");
             }
-            return new(expectedEffect, admittedHeader.ReadByte(1), NativeBattleActionGraphics.Word(admittedHeader, 4), actorIndex, headerIndex, graphics.Callback);
+            return new(expectedEffect, admittedHeader.Command, admittedHeader.Action, checked((byte)actorIndex), headerIndex, graphics.Callback);
         }
         if (queued.Length != 1)
         {
@@ -117,7 +119,7 @@ internal sealed partial class GameWorld
         }
         uint header = (pointer - 0x1D280C4) / 20;
         NativeBattleActionPacketsState packets = active.NativeActionPackets;
-        if (header >= packets.ActionCount || header >= NativeBattleActionPacketsState.HeaderCapacity || NativeBattleActionGraphics.Word(packets.Headers[(int)header], 6) != expectedEffect)
+        if (header >= packets.ActionCount || header >= NativeBattleRetainedActionPackets.HeaderCapacity || packets.ReadHeader(new BattleActionHeaderReference((int)header)).Effect != expectedEffect)
         {
             throw new InvalidDataException("The component physical header does not identify the declared queued native effect.");
         }

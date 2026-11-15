@@ -81,12 +81,7 @@ public static partial class NativeBattleEffect326Controller
                     frame = Write(frame, address, Read(frame, address).WriteWord(0x20, unchecked((ushort)(Read(frame, address).ReadWord(0x20) + operation.First))));
                     break;
                 case NativeBattleEffect326ModelService.TargetPairFlags:
-                    BattleModelOwner actor = frame.State.ReadActor(0x24F0C80);
-                    for (int index = actor; index <= actor + 1; index++)
-                    {
-                        ushort flags = unchecked((ushort)((inputs.ReadModel(frame, index).Flags0 & ~8) | operation.First));
-                        frame = inputs.Execute(frame, new NativeBattleEffect326WriteModelBytes(index, 0, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(flags)), 2));
-                    }
+                    frame = inputs.Execute(frame, new NativeBattleEffect326TargetPairFlags(frame.State.ReadActor(0x24F0C80), unchecked((ushort)operation.First)));
                     break;
                 case NativeBattleEffect326ModelService.Complete:
                     frame = frame with { State = frame.State.WriteDword(0x24F0C84, frame.State.ReadDword(0x24F0C84) | 1) };

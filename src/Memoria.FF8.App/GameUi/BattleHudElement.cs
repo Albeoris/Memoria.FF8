@@ -413,7 +413,7 @@ internal sealed partial class BattleHudElement : UiElement
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];
-            if (windows is null || windows.IsVitalsRowVisible4B1740(graphics!.ActorIds.IndexOf(actor.Id)))
+            if (windows is null || actor.NativeActorIndex is int originalSlot && windows.IsVitalsRowVisible4B1740(originalSlot))
             {
                 yield return (actor, BattleHudLayout.PartyRow(index, party.Count, controller.TextScale));
             }

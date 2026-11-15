@@ -20,7 +20,7 @@ public static class NativeBattleRetainedMemoryReader
         {
             throw new InvalidDataException("Authenticated cold battle counts/header pointer contradict the zero-filled image contract.");
         }
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(ReadLoaderBytes(0x1D280C4, 640), ReadLoaderBytes(0x1D28344, 1176));
+        NativeBattleRetainedActionPackets packets = NativeBattleRetainedActionPackets.FromColdLoaderStorage(ReadLoaderBytes(0x1D280C4, 640), ReadLoaderBytes(0x1D28344, 1176));
         byte actionGate = ReadLoaderBytes(0x1D28DF9, 1)[0];
         byte pauseGate = ReadLoaderBytes(0x1D28DFD, 1)[0];
         if (actionGate > 1 || pauseGate > 1)

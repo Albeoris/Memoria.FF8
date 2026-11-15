@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         ResetDiagnosticReflectionHeaders();
         nativePartyStatusMirrors = memory.PartyStatusMirrors;
         RestoreNativePresentationStatusMemory(memory.PresentationStatusMemory);
-        nativeActionScratch = memory.ActionScratch;
+        nativeActionScratch = memory.ActionScratch with { PublishedTargetCount = memory.ActionScratch.LastPublishedTargetCountE05 };
         RestoreNativeElementAttack(memory.ElementAttack);
         NativeEffectIoResult = memory.EffectIoResult;
         NativeEffectMemory = memory.EffectMemory;

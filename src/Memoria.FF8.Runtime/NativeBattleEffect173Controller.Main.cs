@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect173Controller
 {
     public static NativeBattleEffect173Step AdvanceMain5D7570(NativeBattleEffect173Frame frame, uint address, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs)
     {
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner actor = frame.State.ReadActor(CasterGlobal);
         NativeBattleEffect173PointStep point = inputs.Point502170(frame, actor, 0xF0, 4096, ReadBytes(frame, AnchorAddress, 8));
         frame = WriteBytes(point.Frame, AnchorAddress, point.Output8, 8);
         var rotated = NativeBattleGfMatrices.RotateLong56C600(inputs.ReadWorld(frame, actor).ReadMatrix(), 0, 0, -150);
@@ -109,7 +109,7 @@ public static partial class NativeBattleEffect173Controller
         return new(frame, 0);
     }
 
-    private static short CasterRotation(NativeBattleEffect173Frame frame, NativeBattleEffect173Inputs inputs) => inputs.ReadModel(frame, checked((int)frame.State.ReadDword(CasterGlobal))).Rotation14 ?? throw new NotSupportedException("Effect173 requires current caster rotation14.");
+    private static short CasterRotation(NativeBattleEffect173Frame frame, NativeBattleEffect173Inputs inputs) => inputs.ReadModel(frame, frame.State.ReadActor(CasterGlobal)).Rotation14 ?? throw new NotSupportedException("Effect173 requires current caster rotation14.");
 
     private static (NativeBattleEffect173Frame Frame, uint Address) AppendRequired(NativeBattleEffect173Frame frame, uint callback)
     {

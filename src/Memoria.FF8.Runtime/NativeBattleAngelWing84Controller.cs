@@ -29,8 +29,8 @@ public sealed record NativeBattleAngelWing84State([property: JsonRequired] int S
 
 public sealed record NativeBattleAngelWing84Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleAngelWing84State State);
 public sealed record NativeBattleAngelWing84LeafStep(NativeBattleAngelWing84Frame Frame, int Result);
-public sealed record NativeBattleAngelWing84Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84LeafStep> AdvanceLeaf, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> BeginTextureRelease);
-public sealed record NativeBattleAngelWing84TargetInputs(NativeBattleAngelWing84Inputs Controller, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> InitializeScene, Func<NativeBattleAngelWing84Frame, ushort> ReadContactReady, Func<NativeBattleAngelWing84Frame, ushort> ReadSceneComplete, Func<NativeBattleAngelWing84Frame, int, NativeBattleAngelWing84Frame> ApplyContact);
+public sealed record NativeBattleAngelWing84Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84LeafStep> AdvanceLeaf, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> BeginTextureRelease);
+public sealed record NativeBattleAngelWing84TargetInputs(NativeBattleAngelWing84Inputs Controller, Func<NativeBattleAngelWing84Frame, uint, NativeBattleAngelWing84Frame> InitializeScene, Func<NativeBattleAngelWing84Frame, ushort> ReadContactReady, Func<NativeBattleAngelWing84Frame, ushort> ReadSceneComplete, Func<NativeBattleAngelWing84Frame, BattleContactOccurrence, NativeBattleAngelWing84Frame> ApplyContact);
 
 /// <summary>78D7B0/78D940's physical pools and eleven-state root. Private scene callbacks have their own required dispatcher.</summary>
 public static class NativeBattleAngelWing84Controller
@@ -52,7 +52,7 @@ public static class NativeBattleAngelWing84Controller
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        byte target = packets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
@@ -60,7 +60,9 @@ public static class NativeBattleAngelWing84Controller
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
+        NativeBattleEffectTaskActors actors = new(header.Source, target, packets.ModelAliases);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0);
+        task = actors.WriteTo(task).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25C2350)?.ArenaOffset ?? throw new NotSupportedException("Native78D7B0 requires its retained mag083 initializer pointer.");
         if (source > NativeBattleEffectArena.Length - 98304)
@@ -98,7 +100,7 @@ public static class NativeBattleAngelWing84Controller
             }
             bool odd = (task.ReadByte(92) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 49152)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 49152 : 98304)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {
@@ -198,9 +200,10 @@ public static class NativeBattleAngelWing84Controller
             throw new InvalidDataException("Native78DBA0 requires its actual target task.");
         }
         NativeBattleAngelWing84Inputs controller = inputs.Controller;
-        task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource);
-        NativeBattleGraphicsModel model = controller.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner);
-        NativeBattlePoseSource source = controller.ReadPoseSource(task.ReadByte(45));
+        task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, controller.ReadModel, controller.ReadPoseSource);
+        BattleModelOwner targetOwner = task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner;
+        NativeBattleGraphicsModel model = controller.ReadModel(targetOwner);
+        NativeBattlePoseSource source = controller.ReadPoseSource(targetOwner);
         NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's actual selected pose.");
         NativeBattleDecodedPose pose = source.Sample(sequence.Pose ?? throw new NotSupportedException("Native8DC870 requires its pose index."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), sequence.PoseFlags109);
         task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
@@ -220,8 +223,8 @@ public static class NativeBattleAngelWing84Controller
                 if (inputs.ReadContactReady(frame) == 1)
                 {
                     BattleActionHeaderReference header = frame.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
-                    int first = controller.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native797540 requires its selected group's actual contact pointer.");
-                    int contact = checked(first + task.ReadTraversalPosition(43));
+                    BattleContactCursor first = controller.Packets.ReadHeader(header).FirstContact;
+                    BattleContactOccurrence contact = controller.Packets.ReadContact(first.Advance(task.ReadTraversalPosition(43))).Occurrence ?? throw new InvalidDataException("Native797540 requires its actual contact occurrence.");
                     frame = inputs.ApplyContact(frame, contact);
                     hierarchy = Next(new(frame.Effect.Pools), address);
                 }

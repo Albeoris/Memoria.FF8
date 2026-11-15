@@ -23,7 +23,7 @@ public static partial class NativeBattleAngelWing84Body
         switch (unchecked((sbyte)task.ReadByte(41)))
         {
             case 0:
-                NativeBattleModelTransform actor = inputs.Controller.ReadModel(task.ReadByte(44)).Transform ?? throw new NotSupportedException("Native796BF0 requires its actual caster origin and vertical WORD34.");
+                NativeBattleModelTransform actor = inputs.Controller.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner).Transform ?? throw new NotSupportedException("Native796BF0 requires its actual caster origin and vertical WORD34.");
                 task = task.WriteDword(96, checked(address + 276)).WriteWord(76, unchecked((ushort)actor.Position28.X)).WriteWord(78, unchecked((ushort)actor.Position28.Y)).WriteWord(80, unchecked((ushort)actor.Position28.Z)).WriteWord(82, unchecked((ushort)actor.Vertical34)).WriteDword(276, 4096).WriteDword(280, 4096).WriteDword(284, 4096);
                 Pose(0, 0);
                 Store();
@@ -32,7 +32,7 @@ public static partial class NativeBattleAngelWing84Body
                 Read();
                 task = task.WriteByte(38, (byte)(task.ReadByte(38) | 8));
                 Store();
-                frame = inputs.Execute(frame, new NativeBattleAngelWing84BindCaster(task.ReadByte(44)));
+                frame = inputs.Execute(frame, new NativeBattleAngelWing84BindCaster(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner));
                 Read();
                 Next();
                 break;

@@ -17,9 +17,9 @@ public sealed record NativeBattleHoly175StageFlags(byte ClearMask, byte SetMask)
 public sealed record NativeBattleHoly175StageFlash(int Amount) : NativeBattleHoly175Operation;
 public sealed record NativeBattleHoly175UploadTim : NativeBattleHoly175Operation;
 public sealed record NativeBattleHoly175Sound(ImmutableArray<byte> Position) : NativeBattleHoly175Operation;
-public sealed record NativeBattleHoly175Contact(int Contact) : NativeBattleHoly175Operation;
+public sealed record NativeBattleHoly175Contact(BattleContactOccurrence Contact) : NativeBattleHoly175Operation;
 public sealed record NativeBattleHoly175LoadCommon(uint DestinationAddress, uint CompletionWordAddress) : NativeBattleHoly175Operation;
-public sealed record NativeBattleHoly175Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, ImmutableArray<byte>> ReadPositionRaw8, Func<int, short> ReadActorScale38, Func<int, ushort> ReadModelFlags0, Func<NativeBattleHoly175Frame, NativeBattleModulePoolTask, NativeBattleHoly175TaskStep> AdvanceModelColors, Func<NativeBattleHoly175Frame, int, uint, NativeBattleHoly175Frame> AdvanceWarp, Func<NativeBattleHoly175Frame, NativeBattleModulePoolTask, NativeBattleHoly175Sprite31Row, NativeBattleHoly175Sprite31DrawStep> DrawSprite31, Func<NativeBattleHoly175Frame, NativeBattleHoly175Operation, NativeBattleHoly175Frame> Execute);
+public sealed record NativeBattleHoly175Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, ImmutableArray<byte>> ReadPositionRaw8, Func<BattleModelOwner, short> ReadActorScale38, Func<BattleActorModels> ReadModels, Func<NativeBattleModelBoundary> ReadBindings, Func<NativeBattleHoly175Frame, NativeBattleModulePoolTask, NativeBattleHoly175TaskStep> AdvanceModelColors, Func<NativeBattleHoly175Frame, int, uint, NativeBattleHoly175Frame> AdvanceWarp, Func<NativeBattleHoly175Frame, NativeBattleModulePoolTask, NativeBattleHoly175Sprite31Row, NativeBattleHoly175Sprite31DrawStep> DrawSprite31, Func<NativeBattleHoly175Frame, NativeBattleHoly175Operation, NativeBattleHoly175Frame> Execute);
 
 public static class NativeBattleHoly175Controller
 {
@@ -36,14 +36,18 @@ public static class NativeBattleHoly175Controller
             throw new InvalidDataException("Native Holy requires its actual entry, action parameters and arena owner.");
         }
         NativeBattleHoly175State state = (frame.Memory.Holy175 ?? throw new NotSupportedException("Native Holy requires its retained process owners.")).Materialize(resources);
-        int actor = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(parameters.Header).FirstContact).Primary.Recipient;
+        BattleModelOwner actor = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(parameters.Header).FirstContact).Primary.Recipient;
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x10, 2);
         (main, int root) = main.Append(0x5D44C0);
         main = Put(main, root, main.Slots[root].WriteWord(0xC, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 0x24, 100);
         (children, int primary) = children.Append(0x5D1BD0);
-        children = Put(children, primary, children.Slots[primary].WriteWord(0xC, 0).WriteWord(0xE, 0).WriteWord(0x20, (ushort)actor));
-        state = state with { CasterActor = parameters.Source, SelectedActor = actor, Sprite31Rows = ClearActive(state.Sprite31Rows, 100), Sprite4Rows = ClearActive(state.Sprite4Rows, 80) };
+        NativeBattleModulePoolTask task = children.Slots[primary].WriteWord(0xC, 0).WriteWord(0xE, 0);
+        task.WriteExecutionReference(0x20, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
+        children = Put(children, primary, task);
+        int? caster = inputs.Packets.ModelAliases.TryEncodeExact(parameters.Source, out byte casterOperand) ? casterOperand : null;
+        int? selected = inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte targetOperand) ? targetOperand : null;
+        state = state with { CasterActor = caster, SelectedActor = selected, Selected = actor, FadeAdmission = state.FadeAdmission.Clear(), Sprite31Rows = ClearActive(state.Sprite31Rows, 100), Sprite4Rows = ClearActive(state.Sprite4Rows, 80) };
         frame = frame with { Memory = frame.Memory with { Holy175 = state }, Effect = frame.Effect with { Pools = [main, children], ReturnedDescriptor = MainDescriptor } };
         frame = inputs.Execute(frame, new NativeBattleHoly175CameraControl50A730());
         if ((parameters.Flags79 & 1) == 0)
@@ -177,7 +181,7 @@ public static class NativeBattleHoly175Controller
                     if (phase == 0)
                     {
                         int baseAngle = Random() % 4096;
-                        int radius = unchecked((short)(unchecked(inputs.ReadActorScale38(task.ReadWord(0x1A)) * 2200) >> 12));
+                        int radius = unchecked((short)(unchecked(inputs.ReadActorScale38(task.ReadExecutionReference<BattleExecutionReference.Model>(0x1A, 2).Owner) * 2200) >> 12));
                         radius = 3 * radius / 4;
                         for (int orbit = 0; orbit < 8; orbit++)
                         {
@@ -301,7 +305,7 @@ public static class NativeBattleHoly175Controller
 
         int Primary(ref NativeBattleModulePoolTask task, int phase)
         {
-            int actor = task.ReadWord(0x20);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20, 2).Owner;
             int sequence = S(task, 0xE);
             if (phase == 0)
             {
@@ -323,7 +327,7 @@ public static class NativeBattleHoly175Controller
             if (phase == 5)
             {
                 Append(0x5D2910);
-                SetState(State() with { SelectedActor = S(task, 0x20) });
+                SetState(State() with { Selected = actor, SelectedActor = inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte operand) ? operand : null });
             }
             if (phase == 1)
             {
@@ -335,10 +339,12 @@ public static class NativeBattleHoly175Controller
                 int first = Append(0x5D3420);
                 int rotationX = Random() % 50 + 60;
                 int rotationZ = Random() % 40 + 30;
-                NativeBattleModulePoolTask driver = Anchor(children.Slots[first], RawAnchor(task)).WriteWord(0xE, 0).WriteWord(0x1A, (ushort)actor).WriteWord(0x1C, 0).WriteWord(0x20, 0).WriteWord(0x1E, U(rotationX)).WriteWord(0x22, U(rotationZ));
+                NativeBattleModulePoolTask driver = Anchor(children.Slots[first], RawAnchor(task)).WriteWord(0xE, 0).WriteWord(0x1C, 0).WriteWord(0x20, 0).WriteWord(0x1E, U(rotationX)).WriteWord(0x22, U(rotationZ));
+                driver.WriteExecutionReference(0x1A, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
                 children = Put(children, first, driver);
                 int second = Append(0x5D3420);
-                driver = Anchor(children.Slots[second], RawAnchor(task)).WriteWord(0xE, 1).WriteWord(0x1A, (ushort)actor).WriteWord(0x1C, 0).WriteWord(0x20, 0).WriteWord(0x1E, U(-rotationX)).WriteWord(0x22, U(-rotationZ));
+                driver = Anchor(children.Slots[second], RawAnchor(task)).WriteWord(0xE, 1).WriteWord(0x1C, 0).WriteWord(0x20, 0).WriteWord(0x1E, U(-rotationX)).WriteWord(0x22, U(-rotationZ));
+                driver.WriteExecutionReference(0x1A, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
                 children = Put(children, second, driver);
             }
             if (phase == 16)
@@ -419,7 +425,8 @@ public static class NativeBattleHoly175Controller
             }
             if (phase == 106)
             {
-                Emit(new NativeBattleHoly175Contact(Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Holy requires its selected header contact.")));
+                BattleContactOccurrence occurrence = inputs.Packets.ReadContact(Header(sequence).FirstContact).Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.");
+                Emit(new NativeBattleHoly175Contact(occurrence));
             }
             if (phase == 111)
             {
@@ -427,8 +434,10 @@ public static class NativeBattleHoly175Controller
                 if (next <= Header(0).ReadRepeatModeMinusOne())
                 {
                     int born = Append(0x5D1BD0);
-                    int nextActor = inputs.Packets.ReadContact(Header(next).FirstContact).Primary.Recipient;
-                    children = Put(children, born, children.Slots[born].WriteWord(0xE, U(next)).WriteWord(0x20, (ushort)nextActor));
+                    BattleModelOwner nextActor = inputs.Packets.ReadContact(Header(next).FirstContact).Primary.Recipient;
+                    NativeBattleModulePoolTask child = children.Slots[born].WriteWord(0xE, U(next));
+                    child.WriteExecutionReference(0x20, 2, new BattleExecutionReference.Model(nextActor), inputs.Packets.ModelAliases.EncodeOperand(nextActor, 2));
+                    children = Put(children, born, child);
                 }
             }
             if (phase == 1)
@@ -584,21 +593,54 @@ public static class NativeBattleHoly175Controller
 
         void AppendFades(bool fadeIn, ushort duration)
         {
-            int selected = State().SelectedActor ?? throw new NotSupportedException("Native Holy fade selection requires its retained target DWORD.");
-            int first = selected >= 3 ? 0 : 3;
-            int count = selected >= 3 ? 3 : 4;
-            for (int actor = first; actor < first + count; actor++)
+            BattleModelOwner selected = State().Selected ?? throw new NotSupportedException("Native Holy fade selection requires its retained target model.");
+            if (!fadeIn)
             {
-                ushort flags = inputs.ReadModelFlags0(actor);
-                bool admitted = fadeIn ? BinaryPrimitives.ReadUInt32LittleEndian(State().Visibility.Read(actor * 24, 4)) != 0 : (flags & 2) != 0 && (flags & 4) == 0;
-                if (!fadeIn)
+                foreach ((NativeBattleModelSlot slot, NativeBattleGuardianModelVisibility saved) in inputs.ReadBindings().CaptureUnboundVisibility())
                 {
-                    SetState(State() with { Visibility = State().Visibility.Write(actor * 24, Dword(admitted ? 1u : 0)) });
+                    if (slot.Side == selected.Side)
+                    {
+                        continue;
+                    }
+                    if ((saved.Flags0 & 6) == 2)
+                    {
+                        throw new InvalidDataException("Native Holy found a visible original cell without a model owner.");
+                    }
+                    SetState(State() with { Visibility = State().Visibility.Write(slot.Offset * 24, Dword(0)) });
+                }
+            }
+            foreach (BattleModelEntry<BattleModelOwner> entry in inputs.ReadModels().Entries)
+            {
+                BattleModelOwner actor = entry.Owner;
+                if (actor.Side == selected.Side)
+                {
+                    continue;
+                }
+                ushort flags = entry.State.Flags0;
+                bool admitted;
+                if (fadeIn)
+                {
+                    if (!State().FadeAdmission.TryGetValue(actor, out admitted))
+                    {
+                        throw new InvalidDataException("Native Holy has no recorded fade state for its current model.");
+                    }
+                }
+                else
+                {
+                    admitted = (flags & 6) == 2;
+                    NativeBattleEffectArena visibility = State().Visibility;
+                    if (inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte operand))
+                    {
+                        visibility = visibility.Write(operand * 24, Dword(admitted ? 1u : 0));
+                    }
+                    SetState(State() with { Visibility = visibility, FadeAdmission = State().FadeAdmission.SetItem(actor, admitted) });
                 }
                 if (admitted)
                 {
                     int born = Append(fadeIn ? 0x5D27C0u : 0x5D3030u);
-                    children = Put(children, born, children.Slots[born].WriteWord(0xE, (ushort)actor).WriteWord(0x18, duration).WriteWord(0x1A, (ushort)(flags & 0x800)));
+                    NativeBattleModulePoolTask child = children.Slots[born].WriteWord(0x18, duration).WriteWord(0x1A, (ushort)(flags & 0x800));
+                    child.WriteExecutionReference(0xE, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
+                    children = Put(children, born, child);
                 }
             }
         }

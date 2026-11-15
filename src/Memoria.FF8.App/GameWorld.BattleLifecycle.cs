@@ -81,7 +81,7 @@ internal sealed partial class GameWorld
         }
         if (active.NativeResult == 1 && !Events.ReadNativeDefeatReturnBranch4706B0().ResumePreviousScene)
         {
-            int callbacks = checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value));
+            int callbacks = checked((int)(ReadExecutedBattleCallbacks(active)));
             NativeBattleAbandonment abandoned = occurrence.SourceScene == SceneKind.Field
                 ? Events.CaptureNativeBattleAbandonment(occurrence, callbacks)
                 : new(occurrence, Events.ReadNativeDefeatReturnBranch4706B0(), active.EntryClockCalls ?? throw new NotSupportedException("World defeat requires its actual entry clock."), session.ExamTimer!.ClockCalls, callbacks);
@@ -117,7 +117,7 @@ internal sealed partial class GameWorld
             }
             if (menuBattle)
             {
-                Events.ReturnFromNativeMenuBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () => { });
+                Events.ReturnFromNativeMenuBattle(checked((int)(ReadExecutedBattleCallbacks(active))), active.NativeResult!.Value, () => { });
                 PublishEventProcess();
                 if (Events.HasFieldProgram && session.State.DepartingFieldState is not null)
                 {
@@ -147,7 +147,7 @@ internal sealed partial class GameWorld
         }
         if (Events.PendingMenuBattle is not null)
         {
-            Events.ReturnFromNativeMenuBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () =>
+            Events.ReturnFromNativeMenuBattle(checked((int)(ReadExecutedBattleCallbacks(active))), active.NativeResult!.Value, () =>
             {
                 ApplyBattleResult(occurrence, result, guardianForceLearning);
                 EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native menu battle return requires its live physical music owner."), active.EntryFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
@@ -159,7 +159,7 @@ internal sealed partial class GameWorld
         }
         else if (occurrence.ScriptedOwner is not null)
         {
-            Events.ReturnFromInteractiveBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), () =>
+            Events.ReturnFromInteractiveBattle(checked((int)(ReadExecutedBattleCallbacks(active))), () =>
             {
                 ApplyBattleResult(occurrence, result, guardianForceLearning);
                 EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.EntryFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
@@ -169,7 +169,7 @@ internal sealed partial class GameWorld
         }
         else
         {
-            Events.ReturnFromNativeRandomFieldBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () =>
+            Events.ReturnFromNativeRandomFieldBattle(checked((int)(ReadExecutedBattleCallbacks(active))), active.NativeResult!.Value, () =>
             {
                 ApplyBattleResult(occurrence, result, guardianForceLearning);
                 EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.EntryFlags, active.NativeResult.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
@@ -225,7 +225,7 @@ internal sealed partial class GameWorld
             sourceSession.SetRandomEncounters(encounters with { Pending = null });
         }
         NativeBattleMusicReturnReceipt music = source.Events.CommitGameplayBattleFieldReturnTransport(active.NativeMusicProcess ?? throw new NotSupportedException("Gameplay battle return requires its live music transport."), active.EntryFlags, active.NativeResult!.Value, source.BattleMusicEntryResources);
-        int callbacks = checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value));
+        int callbacks = checked((int)(ReadExecutedBattleCallbacks(active)));
         PreparedBattleProfileHandoff prepared = PrepareBattleProfileHandoff(source, callbacks, active.NativeResult.Value);
         BattleRewardSummary? rewards = source.LastBattleRewards;
         PublishBattleProfileHandoff(prepared);

@@ -40,7 +40,7 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Shot packet observation is bounded to its three owned dispatches per execution.");
             }
-            NativeBattleActionPacketsState packets = diagnosticDriverBattle!.ObserveDiagnosticActionPackets(dispatch);
+            NativeBattleRetainedActionPackets packets = diagnosticDriverBattle!.ObserveDiagnosticActionPackets(dispatch);
             driver.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, header, generation, packets));
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)
@@ -87,7 +87,7 @@ internal sealed partial class RecreateGame
         DiagnosticShotCycleDeclaration declaration = diagnosticDriverRecipe!.ShotCycle!;
         int inventory = active.Items.Where(stock => stock.Id == 101 + declaration.AmmoAction).Sum(stock => stock.Count);
         byte learned = active.NativeScriptState.ShotFlagsAfter ?? diagnosticShotInitialLearnedFlags;
-        return new(active.NativeHostCallbacks ?? throw new NotSupportedException("Shot diagnostics require the live callback ledger."), inventory, learned, active.GetNativeShot(diagnosticDriverRecipe.Input.ActorId!));
+        return new(active.NativeHostCallbacks ?? throw new NotSupportedException("Shot diagnostics require the live callback ledger."), inventory, learned, active.ObserveDiagnosticShotState(diagnosticDriverRecipe.Input.ActorId!));
     }
 
     private void AdvanceDiagnosticShot(BattleSession active, DiagnosticBattleDriver driver, bool drained)

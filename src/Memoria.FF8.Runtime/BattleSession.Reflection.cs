@@ -16,7 +16,10 @@ public sealed partial class BattleSession
         {
             return;
         }
-        BattleActorReference reference = NativeBattleTargetRequestAdapter.ReadAuthoredTargets(initial, ReadOriginalTargetOccupant).Single();
+        if (NativeBattleTargetRequestAdapter.ReadAuthoredTargets(initial, ReadOriginalTargetOccupant).SingleOrDefault() is not { } reference)
+        {
+            return;
+        }
         BattleCombatant target = FindTargetActor(reference)!;
         byte flags = reflected.TargetFlags.GetValueOrDefault();
         BattleTargetRequest seed = new(selection, BattleTargetEligibility.SavedStatus, (flags & 1) != 0, BattleTargetReplacement.UseCurrentBattlePolicy);
@@ -40,7 +43,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        BattleActionPresentation reflectedCommand = command with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeQueuedCommand = 247, NativeAction = reflected, TargetRequest = request };
+        BattleActionPresentation reflectedCommand = command with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = target.Id, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeQueuedCommand = 247, NativeAction = reflected, TargetRequest = request };
         BattleActionDefinition reflectedDefinition = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? "Reflected magic", BattleActionEffect.Native, reflected.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = reflected };
         PendingDiagnosticReflection? previousDiagnostic = diagnosticReflectionProduction;
         NativeBattleActionProductionContext? previousProduction = nativeProductionContext;

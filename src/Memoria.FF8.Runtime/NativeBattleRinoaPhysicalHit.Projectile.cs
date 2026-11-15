@@ -5,6 +5,11 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRinoaPhysicalHit
 {
+    public static ImmutableArray<NativeBattleVector> ReadCurveForDraw(NativeBattleModuleState state, NativeBattleRinoaPhysicalHitInputs inputs)
+    {
+        return RequireState(state, inputs).Curve;
+    }
+
     public static NativeBattleModuleCallback AdvanceProjectile(NativeBattleModuleState state, int slot, NativeBattleRinoaPhysicalHitInputs inputs, NativeBattleActionMatrix view, Func<NativeBattleModuleState, NativeBattleActionMatrix, int, int, NativeBattleModuleState> draw, Action<NativeBattleEffectArena>? publishCurveWork = null, Action<NativeBattleActionMatrix, NativeBattleActionMatrix>? publishMatrices = null)
     {
         var task = Read(state, slot);

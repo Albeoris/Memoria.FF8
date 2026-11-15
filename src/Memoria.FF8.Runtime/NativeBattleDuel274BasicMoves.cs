@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274MoveInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, short, NativeBattleVector> ReadBone502170, Func<BattleModelOwner, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
+public sealed record NativeBattleDuel274MoveInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, short, NativeBattleVector> ReadBone502170, Func<BattleModelOwner, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330, Func<NativeBattleActionMatrix> ReadPunchRushWorld);
 
 public static partial class NativeBattleDuel274BasicMoves
 {
@@ -36,7 +36,7 @@ public static partial class NativeBattleDuel274BasicMoves
         if (unchecked((uint)(counter - 27)) < 15)
         {
             NativeBattleVector bone = inputs.ReadBone502170(actor, 22);
-            NativeBattleActionMatrix world = inputs.ReadModel(0).GeometryWorldMatrix ?? throw new NotSupportedException("Native Punch Rush requires physical model zero's world matrix.");
+            NativeBattleActionMatrix world = inputs.ReadPunchRushWorld();
             NativeBattleActionMatrix local = NativeBattleGfMatrices.Multiply56C090(world, inputs.ReadBoneMatrix68A790(actor, 18)) with { X = bone.X, Y = bone.Y, Z = bone.Z };
             frame = Draw(frame, task.ReadDword(76), local, -128, resources, view, projection, colors, inputs);
         }
@@ -242,7 +242,7 @@ public static partial class NativeBattleDuel274BasicMoves
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool.WriteSlot(slot, task)) } };
     }
 
-    private static NativeBattleDuel274Frame Emit68B5E0(NativeBattleDuel274Frame frame, int model, short bone, NativeBattleDuel274MoveInputs inputs)
+    private static NativeBattleDuel274Frame Emit68B5E0(NativeBattleDuel274Frame frame, BattleModelOwner model, short bone, NativeBattleDuel274MoveInputs inputs)
     {
         NativeBattleVector position = inputs.ReadBone502170(model, bone);
         int index = NativeBattleDuel274Banks.Index(frame, 0x2508498);

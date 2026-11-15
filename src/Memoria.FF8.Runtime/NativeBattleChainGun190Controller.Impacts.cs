@@ -38,7 +38,10 @@ public static partial class NativeBattleChainGun190Controller
         {
             frame = DrawRandom(frame, out ushort x);
             frame = DrawRandom(frame, out ushort z);
-            NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, frame.State.ReadModelOperand(0x2281B18)).ReadMatrix();
+            BattleModelOwner recipient = frame.State.Hosted is null
+                ? frame.State.ReadModelOperand(0x2281B18)
+                : task.ReadExecutionReference<BattleExecutionReference.Model>(0x20, 4).Owner;
+            NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, recipient).ReadMatrix();
             (int dx, int dy, int dz) = NativeBattleGfMatrices.RotateLong56C600(world, (x & 4095) - 2048, 0, -(z & 2047));
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(dx, dy, dz);
             frame = DrawRandom(frame, out ushort radiusDraw);

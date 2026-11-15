@@ -25,7 +25,7 @@ public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int
     public bool HeaderGraphicsBusy { get; init; }
     public ImmutableArray<BattleDiagnosticInvocationPool> OriginalPools { get; init; }
 }
-public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Callback, long SimulationFrame, long Timestamp, BattleDiagnosticEffectDispatch Dispatch, NativeBattleActionHeaderSlot Header, NativeBattleDescriptorPacket? CompletionPacket, uint CompletionCallback, byte EventActorIndex, int CompletionPacketSlot, byte CompletionPacketSerial, uint CompletionPacketArgument, bool NativeEventCompleted, bool PresentationAcknowledged, bool HeaderCapturedBeforeReset, bool CurrentCompletionPacketGuaranteedRemoval, BattleDiagnosticInvocationOwners Owners, ImmutableArray<string> Blockers)
+public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Callback, long SimulationFrame, long Timestamp, BattleDiagnosticEffectDispatch Dispatch, NativeBattleRetainedActionHeaderSlot Header, NativeBattleDescriptorPacket? CompletionPacket, uint CompletionCallback, byte EventActorIndex, int CompletionPacketSlot, byte CompletionPacketSerial, uint CompletionPacketArgument, bool NativeEventCompleted, bool PresentationAcknowledged, bool HeaderCapturedBeforeReset, bool CurrentCompletionPacketGuaranteedRemoval, BattleDiagnosticInvocationOwners Owners, ImmutableArray<string> Blockers)
 {
     public const string ExecutingBoundary = "executing-completion";
     public const string GraphicsFrameBoundary = "completed-graphics-frame";
@@ -44,7 +44,7 @@ public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Ca
 public sealed partial class BattleSession
 {
     private sealed record DiagnosticInvocationPolicy(ushort Effect, string ActorId, byte? Command, int ActionId);
-    private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, NativeBattleActionHeaderSlot Header, NativeBattleDescriptorPacket? Packet, byte ActorIndex, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured, Guid LifecycleId, long SimulationFrame, long HostCallback, long GraphicsCallback, long DispatchSerial);
+    private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, NativeBattleRetainedActionHeaderSlot Header, NativeBattleDescriptorPacket? Packet, byte ActorIndex, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured, Guid LifecycleId, long SimulationFrame, long HostCallback, long GraphicsCallback, long DispatchSerial);
     private DiagnosticInvocationPolicy? diagnosticInvocationPolicy;
     private BattleDiagnosticEffectDispatch? diagnosticInvocationDispatch;
     private DiagnosticInvocationCompletion? diagnosticPendingFrameAttempt;
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
             actual == generation && generation > 0 && nativeActionScratch.EventActorB0F == actor && dispatch.Serial > 0;
         int slot = graphics.Descriptors.Queue.IsEmpty ? -1 : graphics.Descriptors.Queue[0];
         byte serial = slot < 0 ? (byte)0 : graphics.Descriptors.Packets[slot].Serial;
-        return new(dispatch, physicalHeader, slot < 0 ? null : graphics.Descriptors.Packets[slot], actor, callback, slot, serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), graphics.Callback, diagnosticDispatchSerial);
+        return new(dispatch, nativeActionPackets.ExportRetained().Headers[header], slot < 0 ? null : graphics.Descriptors.Packets[slot], actor, callback, slot, serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), graphics.Callback, diagnosticDispatchSerial);
     }
 
     private void ObserveDiagnosticInvocationCompletion(DiagnosticInvocationCompletion? attempt, bool completed, bool acknowledged, BattleDiagnosticInvocationRelease? executingCertificate = null, NativeBattleDescriptorPacket? retiredWitness = null)

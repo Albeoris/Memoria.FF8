@@ -370,7 +370,7 @@ public sealed partial class BattleSession
         {
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(target);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, target);
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false, callerPilotIdentity: NativeBattlePilotVisualLifetimes.Identity(169, task, 0x5088A0));
+            graphics = SubmitNativeShadowPackets5088A0(graphics, target, actor, projection, 4121, false, callerPilotIdentity: NativeBattlePilotVisualLifetimes.Identity(169, task, 0x5088A0));
             NativeBattlePoseSource source = resource.PoseSource!;
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ModelGroupMatrices50F190(actor, source, identity);

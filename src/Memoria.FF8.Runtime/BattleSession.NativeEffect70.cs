@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect70 requires its current camera.");
-        NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect70 requires its current skeleton.");
+        NativeBattlePoseSource Pose(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect70 requires its current skeleton.");
 
         void Publish(NativeBattleEffect70Frame current)
         {
@@ -127,11 +127,11 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect70CaptureBounds6DFD90 bounds:
                     (NativeBattleGraphicsState boundsGraphics, NativeBattleEffect70Frame boundsFrame) = CaptureNativeEffect70Bounds(graphics, current, bounds);
-                    graphics = graphics with { ActorModels = boundsGraphics.Models };
+                    graphics = graphics with { ActorModels = boundsGraphics.ActorModels };
                     return boundsFrame;
                 case NativeBattleEffect70DrawActor693170 actor:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect70Frame bodyFrame) = DrawNativeEffect70Actor(graphics, current, actor, colors, (body, batch) => Deliver(body, batch, null));
-                    graphics = graphics with { ActorModels = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.ActorModels };
                     return bodyFrame;
                 case NativeBattleEffect70QueryBonePoint bone:
                     NativeBattleEffect70RingAnchorStep point = NativeBattleEffect70RingAnchor.Resolve6DFC70(graphics.ActorModels.Get(bone.Actor), Pose(bone.Actor), bone.Selector, NativeBattleEffect70Controller.ReadBytes(current, bone.Destination, 12));

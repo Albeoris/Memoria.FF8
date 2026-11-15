@@ -5,9 +5,9 @@ public sealed partial class BattleSession
     private ExpandedBattlePresentationProcess? expandedPresentationProcess;
     private bool dispatchingExpandedPresentation;
 
-    internal ExpandedBattlePresentationProcess? ExpandedPresentationProcess => expandedPresentationProcess;
+    public ExpandedBattlePresentationProcess? ExpandedPresentationProcess => expandedPresentationProcess;
 
-    internal void AttachExpandedPresentationProcess(ExpandedBattlePresentationProcess process)
+    public void AttachExpandedPresentationProcess(ExpandedBattlePresentationProcess process)
     {
         ArgumentNullException.ThrowIfNull(process);
         process.RequireLogicalOwner(this);

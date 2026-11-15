@@ -15,7 +15,7 @@ public static class BattleComponentHeldScreenBlendCertificateValidation
         {
             throw new InvalidDataException("Component held screen blend dispatch differs from the selected live effect.");
         }
-        if (certificate.NativeAdmission is { } admission && (admission.Effect != expectedEffect || admission.Actor >= 7 || admission.HeaderIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || admission.Callback < 0 || certificate.First.GraphicsCallback < admission.Callback))
+        if (certificate.NativeAdmission is { } admission && (admission.Effect != expectedEffect || admission.Actor >= 7 || admission.HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || admission.Callback < 0 || certificate.First.GraphicsCallback < admission.Callback))
         {
             throw new InvalidDataException("Component held screen blend admission differs from the selected native header owner.");
         }

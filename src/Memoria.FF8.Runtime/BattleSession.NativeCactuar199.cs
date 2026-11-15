@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
         ImmutableArray<byte> ReadCentroid(BattleModelTargets targets)
         {
-            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
+            NativeBattleVector[] positions = targets.Enumerate().Select(actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
             return RawVector(NativeBattleActionGeometryRules.TargetCenter(positions));
         }
 

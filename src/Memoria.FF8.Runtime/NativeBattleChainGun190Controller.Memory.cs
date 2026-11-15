@@ -167,13 +167,26 @@ public static partial class NativeBattleChainGun190Controller
         return NativeBattleEffectTaskPool.Initialize(descriptor, bank, stride, count);
     }
 
+    private static bool OwnsChildren(NativeBattleChainGun190Frame frame)
+    {
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
+        if (pool.DescriptorAddress != ChildDescriptor || pool.Stride != ChildStride)
+        {
+            return false;
+        }
+        return frame.State.Hosted is { } hosted
+            ? frame.State.ChildBankStorage is not null && pool.BankAddress == hosted.ChildAddress && pool.Slots.Length == hosted.ChildCapacity && NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, pool.Stride, pool.Slots.Length)
+            : frame.State.ChildBankStorage is null && pool.BankAddress == ChildBank && pool.Slots.Length == ChildCount;
+    }
+
     private static NativeBattleChainGun190Frame DetachBanks(NativeBattleChainGun190Frame frame)
     {
-        if (frame.Effect.ReturnedDescriptor != 0 || frame.Effect.Pools.Length != 2 || frame.Effect.Pools.Any(pool => pool.Head is not null || pool.Slots.Any(task => (task.Flags & 1) != 0)) || frame.State.RootBankStorage is not null || frame.State.ChildBankStorage is not null)
+        if (frame.Effect.ReturnedDescriptor != 0 || frame.Effect.Pools.Length != 2 || frame.Effect.Pools.Any(pool => pool.Head is not null || pool.Slots.Any(task => (task.Flags & 1) != 0)) || frame.State.RootBankStorage is not null || !OwnsChildren(frame))
         {
             throw new InvalidDataException("Chain Gun bank transfer requires the actual closed queue and exclusive inactive task owners.");
         }
-        NativeBattleEffectArena[] storage = frame.Effect.Pools.Select(NativeBattleEffectTaskMemory.CaptureBank).ToArray();
-        return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = storage[0], ChildBankStorage = storage[1] } };
+        NativeBattleEffectArena root = NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[0]);
+        NativeBattleEffectArena? child = frame.State.Hosted is null ? NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[1]) : frame.State.ChildBankStorage;
+        return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = root, ChildBankStorage = child, Hosted = null } };
     }
 }

@@ -65,10 +65,10 @@ public static partial class NativeBattleCannonBlow151Controller
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             int count = header.ReadContactCount();
-            int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Cannon Blow requires its physical contact rows.");
+            BattleContactCursor first = header.FirstContact;
             for (int contact = 0; contact < count; contact++)
             {
-                int actor = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
+                BattleModelOwner actor = inputs.Packets.ReadContact(first.Advance(contact)).Primary.Recipient;
                 NativeBattleCannonBlow151PointStep bone = inputs.ReadBone502170(frame, actor, 0xF1, 0);
                 frame = bone.Frame;
                 for (int particle = 0; particle < 5; particle++)

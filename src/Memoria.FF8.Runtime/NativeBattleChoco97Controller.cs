@@ -289,7 +289,7 @@ public static class NativeBattleChoco97Controller
             switch (Stage(task))
             {
                 case 0:
-                    SetShared(Shared() with { Context = NativeBattleChoco97Context.Initialize72A350(inputs.ReadModel) });
+                    SetShared(Shared() with { Context = NativeBattleChoco97Context.Initialize72A350(inputs.ReadEnemies()) });
                     ImmutableArray<byte> script = Shared().Io?.Script ?? (Shared().IoScriptKnownCold ? resources.IoScript.Data : throw new NotSupportedException("Native Choco warmed mutable IO script is missing."));
                     NativeBattleChoco97IoBanks banks = Shared().Io?.Banks ?? Shared().PendingIoBanks ?? throw new NotSupportedException("Native Choco external IO physical owner is unknown.");
                     uint next = Shared().NextAllocation ?? throw new NotSupportedException("Native Choco next allocation is unknown.");

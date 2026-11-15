@@ -30,7 +30,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
             TransformModelPosition = (actor, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(ReadModel(actor), local)
         });
         modules = shared.State;
-        (CrossoverNativeCastState next, ImmutableArray<NativeBattleSequenceCue> cues) = CrossoverNativeCastPresentation.AdvanceModel(cast, original, new(0, 0)
+        (CrossoverNativeCastState next, ImmutableArray<NativeBattleSequenceCue> cues) = CrossoverNativeCastPresentation.AdvanceModel(source.Effect.SourceOwner, cast, original, new(0, 0)
         {
             ScheduleTextureAnimation = (program, sequence) => auxiliary = auxiliary.AppendTextureAnimation(source.Effect.SourceOwner, sequence, program, source.Effect.Aliases),
             ApplyTexture = ApplyTexture,

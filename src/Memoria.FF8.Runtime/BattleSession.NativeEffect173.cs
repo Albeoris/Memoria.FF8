@@ -59,7 +59,7 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect173TargetCenter5020A0 target:
-                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect173 target center requires its actual selected physical positions.")).ToArray());
+                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect173 target center requires its actual selected physical positions.")).ToArray());
                     NativeBattleEffectArena vector = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
                     return NativeBattleEffect173Controller.WriteBytes(current, target.Destination, vector, 6);
                 case NativeBattleEffect173Stage5713E0 intensity:
@@ -74,7 +74,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect173AllContacts506BA0 contacts:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    ImmutableArray<NativeBattleContactPacket> selected = Enumerable.Range(contacts.FirstContactIndex, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray();
+                    ImmutableArray<NativeBattleContactPacket> selected = Enumerable.Range(0, contacts.Count).Select(index => nativeActionPackets.ReadContact(contacts.First.Advance(index))).ToImmutableArray();
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = selected });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

@@ -13,8 +13,8 @@ public static class NativeBattleAngelWing84Scene
     public static NativeBattleAngelWing84Frame InitializeTarget(NativeBattleAngelWing84Frame frame, uint targetTask, NativeBattleAngelWing84Inputs inputs)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(targetTask);
-        NativeBattleVector actor = (inputs.ReadModel(task.ReadByte(44)).Transform ?? throw new NotSupportedException("Native78DC50 requires its actual caster position.")).Position28;
-        NativeBattleVector target = (inputs.ReadModel(task.ReadByte(45)).Transform ?? throw new NotSupportedException("Native78DC50 requires its actual target position.")).Position28;
+        NativeBattleVector actor = (inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner).Transform ?? throw new NotSupportedException("Native78DC50 requires its actual caster position.")).Position28;
+        NativeBattleVector target = (inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner).Transform ?? throw new NotSupportedException("Native78DC50 requires its actual target position.")).Position28;
         NativeBattleAngelWing84SceneMemory scene = NativeBattleAngelWing84SceneMemory.Initialize(actor, target, frame.State.Scene?.Camera);
         return frame with { State = frame.State with { Scene = scene } };
     }
@@ -154,25 +154,36 @@ public static class NativeBattleAngelWing84Scene
 
         void SetOtherModelsHidden(bool hidden)
         {
-            int actor = task.ReadByte(44);
-            for (byte index = 0; index < 7; index++)
+            BattleModelOwner caster = task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner;
+            NativeBattleModelAliases aliases = inputs.Controller.Packets.ModelAliases;
+            foreach (BattleModelOwner owner in inputs.Controller.Packets.Roster.Owners)
             {
-                NativeBattleGraphicsModel model = inputs.Controller.ReadModel(index);
-                if (index == actor || (model.Flags0 & 2) == 0)
+                NativeBattleGraphicsModel model = inputs.Controller.ReadModel(owner);
+                if (owner == caster || (model.Flags0 & 2) == 0)
                 {
                     continue;
                 }
+                NativeBattleAngelWing84SceneMemory workspace = Read(frame);
+                bool original = aliases.TryEncodeExact(owner, out byte slot);
                 ushort flags;
                 if (hidden)
                 {
-                    frame = Store(frame, Read(frame).WriteDword(32 + index * 4, model.Flags0));
+                    workspace = original
+                        ? workspace.WriteDword(32 + slot * 4, model.Flags0)
+                        : workspace with { ExtraHiddenFlags = workspace.ExtraHiddenFlags.SetItem(owner, model.Flags0) };
+                    frame = Store(frame, workspace);
                     flags = (ushort)(model.Flags0 | 4);
+                }
+                else if (original || workspace.ExtraHiddenFlags.ContainsKey(owner))
+                {
+                    ushort saved = original ? workspace.Word(32 + slot * 4) : workspace.ExtraHiddenFlags[owner];
+                    flags = (ushort)(model.Flags0 ^ ((model.Flags0 ^ saved) & 4));
                 }
                 else
                 {
-                    flags = (ushort)(model.Flags0 ^ ((model.Flags0 ^ Read(frame).Word(32 + index * 4)) & 4));
+                    continue;
                 }
-                frame = inputs.Execute(frame, new NativeBattleAngelWing84ModelFlags(index, flags));
+                frame = inputs.Execute(frame, new NativeBattleAngelWing84ModelFlags(owner, flags));
             }
         }
     }

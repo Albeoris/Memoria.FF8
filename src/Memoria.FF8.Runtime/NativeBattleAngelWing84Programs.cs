@@ -42,7 +42,7 @@ public static class NativeBattleAngelWing84Programs
                     }
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (148 - 12), size);
                     task = StoreWorkspace(task, workspace.Initialize7016B0(source, size));
-                    NativeBattleModelTransform actor = inputs.Controller.ReadModel(task.ReadByte(44)).Transform ?? throw new NotSupportedException("Native Angel Wing program requires its actual caster position and WORD34.");
+                    NativeBattleModelTransform actor = inputs.Controller.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner).Transform ?? throw new NotSupportedException("Native Angel Wing program requires its actual caster position and WORD34.");
                     task = task.WriteWord(28, unchecked((ushort)actor.Position28.X)).WriteWord(30, unchecked((ushort)actor.Position28.Y)).WriteWord(32, unchecked((ushort)actor.Position28.Z)).WriteWord(34, unchecked((ushort)actor.Vertical34)).WriteDword(80, 4096).WriteDword(84, 4096).WriteDword(88, 4096);
                     if (opening)
                     {

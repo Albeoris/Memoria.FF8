@@ -46,19 +46,19 @@ public static partial class NativeBattleJunk44Controller
         short velocity = unchecked((short)(task.ReadWord(0x16) + 50));
         short y = unchecked((short)(task.ReadWord(0x0E) + velocity));
         task = task.WriteWord(0x16, unchecked((ushort)velocity)).WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + task.ReadWord(0x14)))).WriteWord(0x0E, unchecked((ushort)y));
-        uint modelAddress = task.ReadDword(0x30);
-        short minimum = modelAddress == 0 ? (short)0 : inputs.ReadModel(frame, modelAddress).MinimumY146 ?? throw new NotSupportedException("Junk collision requires the current model minimum Y WORD.");
+        BattleModelOwner? actor = task.ReadExecutionReference<BattleExecutionReference.TrailTarget>(0x30, 4).Owner;
+        short minimum = actor is null ? (short)0 : inputs.ReadModel(frame, actor).MinimumY146 ?? throw new NotSupportedException("Junk collision requires the current model minimum Y WORD.");
         if (y >= minimum)
         {
             task = task.WriteWord(0x0E, unchecked((ushort)(y - velocity))).WriteWord(0x16, unchecked((ushort)(-velocity / 3)));
             frame = DrawRandom(Write(frame, address, task), out ushort rotation);
             task = Read(frame, address).WriteWord(0x24, unchecked((ushort)((rotation & 0x1FF) - 0x100)));
             frame = Write(frame, address, task);
-            if (modelAddress != 0)
+            if (actor is not null)
             {
                 frame = Write(frame, address, task.WriteWord(0x0E, unchecked((ushort)minimum)));
-                frame = SpawnProgrammes44(frame, modelAddress, resources, inputs);
-                frame = ApplyModelContacts6E87A0(frame, modelAddress, inputs);
+                frame = SpawnProgrammes44(frame, actor, resources, inputs);
+                frame = ApplyModelContacts6E87A0(frame, actor, inputs);
                 task = Read(frame, address).WriteWord(0x18, 80).WriteDword(0x30, 0);
             }
             else
@@ -74,9 +74,9 @@ public static partial class NativeBattleJunk44Controller
         return (Write(frame, address, task), 0);
     }
 
-    private static NativeBattleJunk44Frame SpawnProgrammes44(NativeBattleJunk44Frame frame, uint modelAddress, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs)
+    private static NativeBattleJunk44Frame SpawnProgrammes44(NativeBattleJunk44Frame frame, BattleModelOwner actor, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs)
     {
-        NativeBattleJunk44PointStep anchor = inputs.ReadAnchor571400(frame, modelAddress);
+        NativeBattleJunk44PointStep anchor = inputs.ReadAnchor571400(frame, actor);
         frame = DrawRandom(anchor.Frame, out ushort firstAngle);
         int angle = firstAngle;
         for (int index = 0; index < 8; index++)
@@ -89,7 +89,7 @@ public static partial class NativeBattleJunk44Controller
             short x = unchecked((short)(Word44(anchor.Point8, 0) + NativeBattleCameraMath.Sine(angle) / 16));
             short z = unchecked((short)(Word44(anchor.Point8, 4) + NativeBattleCameraMath.Cosine(angle) / 16));
             frame = DrawRandom(frame, out ushort height);
-            NativeBattleGraphicsModel model = inputs.ReadModel(frame, modelAddress);
+            NativeBattleGraphicsModel model = inputs.ReadModel(frame, actor);
             short minimum = model.MinimumY146 ?? throw new NotSupportedException("Junk programme birth requires current minimum Y.");
             short modelY = (model.Transform ?? throw new NotSupportedException("Junk programme birth requires current model position.")).Position28.Y;
             short y = unchecked((short)(minimum + modelY - (height & 255) - 128));

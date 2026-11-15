@@ -2,9 +2,9 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDiablos325RecipientServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadActor, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteActor, Func<int, NativeBattlePoseSource> ReadPose, Func<int, ImmutableArray<NativeBattleRawMesh>> ReadGeometry, Func<NativeBattleDiablos325Frame, int, int, NativeBattleDiablos325Frame> DrawScaled)
+public sealed record NativeBattleDiablos325RecipientServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadActor, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteActor, Func<BattleModelOwner, NativeBattlePoseSource> ReadPose, Func<BattleModelOwner, ImmutableArray<NativeBattleRawMesh>> ReadGeometry, Func<NativeBattleDiablos325Frame, BattleModelOwner, int, int, NativeBattleDiablos325Frame> DrawScaled)
 {
-    public Func<int, (short Maximum, short Minimum)?>? ReadForeignBounds { get; init; }
+    public Func<BattleModelOwner, (short Maximum, short Minimum)?>? ReadForeignBounds { get; init; }
 }
 
 public static class NativeBattleDiablos325Recipients
@@ -21,33 +21,41 @@ public static class NativeBattleDiablos325Recipients
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos recipient sink requires its retained action header.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadContactCount();
-        BattleModelRoster? roster = packets.PresentationRoster;
-        ValidateHostedRecords(task, count, roster);
+        ImmutableArray<NativeBattleDiablos325Recipient> recipients = ReadRecipients(state, packets, count);
         for (int index = 0; index < count; index++)
         {
-            int record = 0x94 + index * 12;
-            uint address = task.ReadDword(record);
-            int actorIndex = ActorIndex(address, roster);
-            NativeBattleGraphicsModel actor = services.ReadActor(actorIndex);
+            NativeBattleDiablos325Recipient recipient = recipients[index];
+            BattleModelOwner owner = recipient.Owner;
+            NativeBattleGraphicsModel actor = services.ReadActor(owner);
             if (counter == 368)
             {
-                (short maximum, short minimum) = services.ReadForeignBounds?.Invoke(actorIndex) ?? Bounds6DFD90(actor, services.ReadPose(actorIndex), services.ReadGeometry(actorIndex));
-                task = task.WriteWord(record + 4, unchecked((ushort)maximum)).WriteWord(record + 6, unchecked((ushort)minimum));
+                (short maximum, short minimum) = services.ReadForeignBounds?.Invoke(owner) ?? Bounds6DFD90(actor, services.ReadPose(owner), services.ReadGeometry(owner));
+                recipient = recipient with { Maximum = maximum, Minimum = minimum };
+                recipients = recipients.SetItem(index, recipient);
+                if (index < NativeBattleSlots.Count)
+                {
+                    int record = 0x94 + index * 12;
+                    task = task.WriteWord(record + 4, unchecked((ushort)maximum)).WriteWord(record + 6, unchecked((ushort)minimum));
+                }
                 actor = actor with { Flags0 = (ushort)(actor.Flags0 | 8) };
             }
             NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Diablos recipient sink requires its retained actor matrix.");
             int angle = Math.Min(Math.Abs(unchecked((world.X - state.CenterX51D8) >> 2)), 1024);
-            int maximumY = unchecked((short)task.ReadWord(record + 4));
-            int minimumY = unchecked((short)task.ReadWord(record + 6));
+            int maximumY = recipient.Maximum ?? throw new InvalidDataException("Native Diablos has no captured maximum recipient bound.");
+            int minimumY = recipient.Minimum ?? throw new InvalidDataException("Native Diablos has no captured minimum recipient bound.");
             int extent = unchecked((minimumY - maximumY) * NativeBattleCameraMath.Cosine(angle)) >> 12;
             int scale = extent < height ? unchecked(height << 12) / extent : 4096;
             int offset = extent < height ? unchecked(scale * maximumY) / 4096 : maximumY;
             NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Diablos recipient sink requires its physical placement WORDs.");
             actor = actor with { GeometryWorldMatrix = world with { Y = unchecked(transform.Position28.Y - offset) } };
-            services.WriteActor(actorIndex, actor);
-            frame = services.DrawScaled(frame, actorIndex, scale);
-            actor = services.ReadActor(actorIndex);
-            services.WriteActor(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) });
+            services.WriteActor(owner, actor);
+            frame = services.DrawScaled(frame, owner, index, scale);
+            actor = services.ReadActor(owner);
+            services.WriteActor(owner, actor with { Flags0 = (ushort)(actor.Flags0 | 4) });
+        }
+        if (counter == 368)
+        {
+            frame = frame with { Memory = frame.Memory with { Diablos325 = NativeBattleDiablos325Entry.RequireState(frame.Memory) with { Recipients = recipients } } };
         }
         return new(frame, task);
     }
@@ -91,24 +99,12 @@ public static class NativeBattleDiablos325Recipients
         return NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(ratio >> 2) >> 2) >> 2);
     }
 
-    internal static int ActorIndex(uint address, BattleModelRoster? roster = null)
+    internal static ImmutableArray<NativeBattleDiablos325Recipient> ReadRecipients(NativeBattleDiablos325State state, NativeBattleActionPacketsState packets, int count)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster))
+        if (state.Recipients.Length != count || state.Recipients.Any(recipient => !packets.Roster.Contains(recipient.Owner)))
         {
-            throw new InvalidDataException("Native Diablos recipient requires its exact physical actor pointer.");
+            throw new InvalidDataException("Native Diablos recipient records must match its current action and model ownership.");
         }
-        return row;
-    }
-
-    internal static void ValidateHostedRecords(NativeBattleModulePoolTask task, int count, BattleModelRoster? roster)
-    {
-        if (roster is null)
-        {
-            return;
-        }
-        for (int index = 0; index < count; index++)
-        {
-            _ = ActorIndex(task.ReadDword(0x94 + index * 12), roster);
-        }
+        return state.Recipients;
     }
 }

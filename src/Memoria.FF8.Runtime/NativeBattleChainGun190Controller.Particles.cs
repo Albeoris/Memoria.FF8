@@ -8,7 +8,7 @@ public static partial class NativeBattleChainGun190Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int kind = task.Callback switch { 0x5BB6F0 => 0, 0x5BBC70 => 1, 0x5BC1F0 => 2, _ => throw new NotSupportedException("Chain Gun particle callback is unsupported.") };
-        uint bank = kind == 2 ? 0x2281B40u : 0x22824A0u;
+        (uint bank, int capacity) = frame.State.ParticleBank(kind == 2);
         uint source = kind == 2 ? 0xD18B48u : 0xD1899Cu;
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(source)).Write(0x24, BitConverter.GetBytes((ushort)(kind == 0 ? 0 : kind == 1 ? 4 : 1)));
@@ -18,7 +18,7 @@ public static partial class NativeBattleChainGun190Controller
         }
         frame = PublishContext(frame, temporary, context, 180);
         int survivors = 0;
-        for (int index = 0; index < 100; index++)
+        for (int index = 0; index < capacity; index++)
         {
             uint row = bank + (uint)(index * 24);
             uint flags = frame.State.ReadDword(row);
@@ -35,7 +35,7 @@ public static partial class NativeBattleChainGun190Controller
             }
             frame = PublishContext(frame, temporary, context, 180);
             frame = SetupSprite190(frame, inputs.ReadView(frame), frame.State.ReadView(row + 8, 8), size, unchecked((short)-(size >> 4)));
-            frame = inputs.Execute(frame, new NativeBattleChainGun190DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(190, task, kind * 100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(190, frame.State.Globals, row, 0).Generation } });
+            frame = inputs.Execute(frame, new NativeBattleChainGun190DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(190, task, (frame.State.Hosted is null ? kind * 100 : 0) + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(190, frame.State.ParticleStorage(row), row, 0).Generation } });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -79,7 +79,7 @@ public static partial class NativeBattleChainGun190Controller
             int maximum = kind == 0 ? 3 : kind == 1 ? 10 : 12;
             for (int birth = 0; birth < maximum; birth++)
             {
-                uint row = FreeParticle190(frame, bank);
+                uint row = FreeParticle190(frame, bank, capacity);
                 if (row == 0)
                 {
                     break;
@@ -137,7 +137,7 @@ public static partial class NativeBattleChainGun190Controller
                         frame = PutParticle190(frame, row + 22, angle & 2047);
                     }
                 }
-                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, row, 0);
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleStorage(row), row, 0);
             }
         }
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));
@@ -147,9 +147,9 @@ public static partial class NativeBattleChainGun190Controller
     private static short ParticleWord190(NativeBattleChainGun190Frame frame, uint address) => unchecked((short)frame.State.ReadWord(address));
     private static NativeBattleChainGun190Frame PutParticle190(NativeBattleChainGun190Frame frame, uint address, int value) => frame with { State = frame.State.WriteWord(address, unchecked((ushort)value)) };
 
-    private static uint FreeParticle190(NativeBattleChainGun190Frame frame, uint bank)
+    private static uint FreeParticle190(NativeBattleChainGun190Frame frame, uint bank, int capacity)
     {
-        for (int index = 0; index < 100; index++)
+        for (int index = 0; index < capacity; index++)
         {
             uint row = bank + (uint)(index * 24);
             if (frame.State.ReadDword(row) == 0)

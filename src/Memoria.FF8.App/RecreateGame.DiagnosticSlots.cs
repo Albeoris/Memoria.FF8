@@ -66,7 +66,10 @@ internal sealed partial class RecreateGame
                     {
                         throw new InvalidDataException("Slots Do did not publish the initialized native command action.");
                     }
-                    accepted = new(beforeDo, afterDo, command.ActorId, command.TargetId, checked((byte)(active.ObserveDiagnosticCombatants().Single(candidate => candidate.Id == command.TargetId).NativeIndex ?? throw new InvalidDataException("Slots target lost its physical index."))), command.NativeQueuedCommand!.Value, native.ActionId, native.MagicId, command.NativeTargetMask, command.NativeSlots ?? throw new InvalidDataException("Slots Do lost its consumed owned result."));
+                    NativeBattleCommandPacket physical = active.NativeCommandBanks.Banks
+                        .SelectMany(bank => bank.LogicalCommands.Select((bound, index) => (bound, packet: bank.Packets[index])))
+                        .Single(entry => ReferenceEquals(entry.bound, command)).packet;
+                    accepted = new(beforeDo, afterDo, command.ActorId, command.TargetId, checked((byte)(active.ObserveDiagnosticCombatants().Single(candidate => candidate.Id == command.TargetId).NativeIndex ?? throw new InvalidDataException("Slots target lost its physical index."))), command.NativeQueuedCommand!.Value, native.ActionId, native.MagicId, physical.ReadWord(6), command.NativeSlots ?? throw new InvalidDataException("Slots Do lost its consumed owned result."));
                     admission.Did(accepted);
                     return;
                 }

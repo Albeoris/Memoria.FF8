@@ -35,6 +35,13 @@ public sealed record NativeBattleRetainedActionHeaderSlot([property: JsonRequire
         }
     }
 
+    public byte ReadOriginalByte(int offset)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(offset, Size);
+        return ReadKnownByte(offset) ?? throw new NotSupportedException("The retained original header byte has no known writer.");
+    }
+
     internal byte? ReadKnownByte(int offset)
     {
         return (UnknownByteMask & (1u << offset)) == 0 ? Payload[offset] : null;

@@ -23,6 +23,9 @@ internal sealed partial class GameWorld
 
     internal static void AttachExpandedEffects(BattleSession active, GameAssets game, BattleAssets assets)
     {
-        active.AttachExpandedPresentationHost(new ExpandedBattlePresentationHost(game, assets));
+        ExpandedBattlePresentationHost host = new(game, assets);
+        ExpandedBattlePresentationProcess process = host.CreateProcess(active);
+        active.AttachExpandedPresentationHost(host);
+        active.AttachExpandedPresentationProcess(process);
     }
 }

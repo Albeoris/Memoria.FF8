@@ -15,7 +15,7 @@ public sealed record BattleDiagnosticCounterActor([property: JsonRequired] strin
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BattleDiagnosticCounterPrimary([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte QueuedCommand, [property: JsonRequired] ushort ActionId, [property: JsonRequired] byte InternalCommand, [property: JsonRequired] int BeforeHp, [property: JsonRequired] int AfterHp, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] BattleDiagnosticCounterActor Recipient, [property: JsonRequired] bool Preliminary);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record BattleDiagnosticCounterContact([property: JsonRequired] BattleDiagnosticCounterPrimary Primary, [property: JsonRequired] int ContactIndex, [property: JsonRequired] bool TriggerRecomputed, [property: JsonRequired] NativeBattleActionPacketsState Packets);
+public sealed record BattleDiagnosticCounterContact([property: JsonRequired] BattleDiagnosticCounterPrimary Primary, [property: JsonRequired] int ContactIndex, [property: JsonRequired] bool TriggerRecomputed, [property: JsonRequired] NativeBattleRetainedActionPackets Packets);
 public enum BattleDiagnosticCounterCallbackPhase
 {
     Queued,
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
         }
         if (triggerRecomputed)
         {
-            DiagnosticCounterContactPublished?.Invoke(new(primary, index, true, nativeActionPackets.DetachDiagnosticCopy()));
+            DiagnosticCounterContactPublished?.Invoke(new(primary, index, true, nativeActionPackets.ExportRetained()));
             return;
         }
         var key = (primary.HeaderIndex, primary.HeaderGeneration);
@@ -143,7 +143,7 @@ public sealed partial class BattleSession
             }
             foreach (var contact in appended)
             {
-                DiagnosticCounterContactPublished?.Invoke(new(contact.Primary, contact.Index, false, nativeActionPackets.DetachDiagnosticCopy()));
+                DiagnosticCounterContactPublished?.Invoke(new(contact.Primary, contact.Index, false, nativeActionPackets.ExportRetained()));
             }
         }
     }

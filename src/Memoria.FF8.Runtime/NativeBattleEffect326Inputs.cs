@@ -49,4 +49,6 @@ public sealed record NativeBattleEffect326QueueTextureRelease508630(uint SourceA
 
 public sealed record NativeBattleEffect326WriteModelBytes(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect326Operation;
 
+public sealed record NativeBattleEffect326TargetPairFlags(BattleModelOwner Source, ushort OrMask) : NativeBattleEffect326Operation;
+
 public sealed record NativeBattleEffect326ActorAnimation505C00(BattleModelOwner Actor, short Animation) : NativeBattleEffect326Operation;

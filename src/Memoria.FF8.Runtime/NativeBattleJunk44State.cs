@@ -68,6 +68,14 @@ public sealed record NativeBattleJunk44State([property: JsonRequired] NativeBatt
         return this;
     }
 
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleJunk44State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     private static int Require(uint address, int length)
     {
         ulong end = (ulong)address + (uint)Math.Max(length, 0);

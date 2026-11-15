@@ -16,7 +16,7 @@ public static partial class NativeBattleBreath157Controller
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x23EB5F0, inputs.Packets.ReadContact(first).Primary.Recipient), 0x23ECDF0, Parameters(frame).Source), 0x23ECDEC, 0x1D99A78);
+        frame = frame with { State = frame.State.WriteActor(0x23EB5F0, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteActor(0x23ECDF0, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(0x23ECDEC, 0x1D99A78) };
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x23EB628u + (uint)(index * 24), 0);

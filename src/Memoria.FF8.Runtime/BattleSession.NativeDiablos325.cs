@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         NativeBattleDiablos325Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Diablos requires its retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Diablos lost its selected effect.")) { Random = nativeCrtRandom };
         if (initialize)
         {
-            frame = NativeBattleDiablos325Entry.Initialize6541E0(frame, nativeActionPackets, graphics.Models);
+            frame = NativeBattleDiablos325Entry.Initialize6541E0(frame, nativeActionPackets, graphics.ActorModels);
         }
         else
         {
@@ -63,9 +63,9 @@ public sealed partial class BattleSession
                             body = body.SetItem(1, linked[0]);
                         }
                         return body;
-                    }, (active, actor, scale) =>
+                    }, (active, actor, recipient, scale) =>
                     {
-                        var drawn = DrawNativeDiablosRecipient657CB0(active, actor, scale, graphics);
+                        var drawn = DrawNativeDiablosRecipient657CB0(active, actor, recipient, scale, graphics);
                         graphics = drawn.Graphics;
                         return drawn.Frame;
                     })
@@ -80,11 +80,10 @@ public sealed partial class BattleSession
                 {
                     BattleActionHeaderReference headerIndex = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Native Diablos actor restoration requires its retained action header.");
                     int count = nativeActionPackets.ReadHeader(headerIndex).ReadContactCount();
-                    BattleModelRoster? roster = nativeActionPackets.PresentationRoster;
-                    NativeBattleDiablos325Recipients.ValidateHostedRecords(task, count, roster);
-                    for (int index = 0; index < count; index++)
+                    NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(current.Memory);
+                    foreach (NativeBattleDiablos325Recipient recipient in NativeBattleDiablos325Recipients.ReadRecipients(state, nativeActionPackets, count))
                     {
-                        int actor = NativeBattleDiablos325Recipients.ActorIndex(task.ReadDword(0x94 + index * 12), roster);
+                        BattleModelOwner actor = recipient.Owner;
                         graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Flags0 = (ushort)(graphics.ActorModels.Get(actor).Flags0 & 0xFFF3) }) };
                     }
                     return current;
@@ -95,7 +94,7 @@ public sealed partial class BattleSession
                     BattleActionHeaderReference headerIndex = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Native Diablos contact requires its retained action header.");
                     NativeEffectMemory = current.Memory;
                     var pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(headerIndex) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts(headerIndex) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Diablos contact lost its current process memory.") };
                 },

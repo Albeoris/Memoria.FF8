@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleClash26Model model:
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Actor, model.Model) };
                     break;
                 case NativeBattleClash26Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);

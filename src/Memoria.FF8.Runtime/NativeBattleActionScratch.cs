@@ -57,6 +57,11 @@ public sealed partial class BattleSession
         };
     }
 
+    private static byte? ProjectOriginalActionActor(BattleCombatant actor)
+    {
+        return actor.NativeActorIndex is int nativeIndex && NativeBattleSlots.Contains(nativeIndex) ? checked((byte)nativeIndex) : null;
+    }
+
     private void SetNativeActionEvent(BattleCombatant actor, byte lane)
     {
         nativeActionScratch = nativeActionScratch with { EventActorB0F = checked((byte)actor.EncodeNativeSlot()), EventLane = lane };

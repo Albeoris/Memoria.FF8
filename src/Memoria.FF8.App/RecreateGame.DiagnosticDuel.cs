@@ -14,20 +14,20 @@ internal sealed partial class RecreateGame
         BattleSession active = diagnosticDriverBattle!;
         DiagnosticDuelCycleDriver cycle = diagnosticDriver.DuelCycle ?? throw new InvalidDataException("Duel dispatched without its real command11 admission.");
         cycle.Observe(ObserveDiagnosticDuel(active), false);
-        NativeBattleActionPacketsState packets = dispatch.ActionId == 65532 ? active.ObserveDiagnosticDuelClosingPackets(dispatch) : active.ObserveDiagnosticActionPackets(dispatch);
+        NativeBattleRetainedActionPackets packets = dispatch.ActionId == 65532 ? active.ObserveDiagnosticDuelClosingPackets(dispatch) : active.ObserveDiagnosticActionPackets(dispatch);
         BattleDiagnosticEffectInvocation invocation = active.ObserveDiagnosticEffectInvocation(dispatch);
-        NativeBattleActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
+        NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
         diagnosticDriver.ObserveDuelDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
         {
             Parameter80 = invocation.Parameter80,
             Parameter82 = invocation.Parameter82,
-            HeaderEffect = (ushort)(header.ReadByte(6) | header.ReadByte(7) << 8),
+            HeaderEffect = (ushort)(header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8),
             RetainedEffect = invocation.ExecutedEffect,
-            Duel = active.GetNativeDuel(diagnosticDriverRecipe.Input.ActorId!)
+            Duel = active.ObserveDiagnosticDuelState(diagnosticDriverRecipe.Input.ActorId!)
         });
     }
 
-    private DiagnosticDuelObservation ObserveDiagnosticDuel(BattleSession active) => new(active.NativeHostCallbacks ?? throw new NotSupportedException("Duel diagnostics require the native callback ledger."), active.GetNativeDuel(diagnosticDriverRecipe!.Input.ActorId!));
+    private DiagnosticDuelObservation ObserveDiagnosticDuel(BattleSession active) => new(active.NativeHostCallbacks ?? throw new NotSupportedException("Duel diagnostics require the native callback ledger."), active.ObserveDiagnosticDuelState(diagnosticDriverRecipe!.Input.ActorId!));
 
     private void ObserveDiagnosticDuelUi(BattleSession active)
     {

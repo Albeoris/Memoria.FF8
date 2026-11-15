@@ -102,13 +102,13 @@ internal static class CrossoverNativeCastPresentation
         return new(source, false);
     }
 
-    public static (CrossoverNativeCastState State, ImmutableArray<NativeBattleSequenceCue> Cues) AdvanceModel(CrossoverNativeCastState source, NativeBattleGraphicsResource resource, NativeBattleSequenceInputs services, NativeBattleGraphicsResource? originalResource = null)
+    public static (CrossoverNativeCastState State, ImmutableArray<NativeBattleSequenceCue> Cues) AdvanceModel(BattleModelOwner owner, CrossoverNativeCastState source, NativeBattleGraphicsResource resource, NativeBattleSequenceInputs services, NativeBattleGraphicsResource? originalResource = null)
     {
         if ((source.Model.Flags0 & 8) != 0)
         {
             return (source, []);
         }
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source.Model, resource, services with { OriginalResource = originalResource ?? resource });
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(owner, source.Model, resource, services with { OriginalResource = originalResource ?? resource });
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Mixed casting requires the original character skeleton.");
         NativeBattleGraphicsModel model = step.Model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(step.Model, pose) };
         bool originalBinding = model.ResourceMagicId is null && model.ResourceRenzokukenTargetBank is null && model.ActiveStagedResourceRow100 is null && model.ActiveResourceRow100 == model.OriginalResourceRow104;

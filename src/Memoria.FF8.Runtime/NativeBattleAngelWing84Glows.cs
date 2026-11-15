@@ -89,7 +89,7 @@ public static class NativeBattleAngelWing84Glows
         }
         if (caster)
         {
-            NativeBattleVector anchor = inputs.ReadBone(task.ReadByte(44), 241, 0);
+            NativeBattleVector anchor = inputs.ReadBone(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner, 241, 0);
             task = task.WriteWord(28, unchecked((ushort)anchor.X)).WriteWord(30, unchecked((ushort)anchor.Y)).WriteWord(32, unchecked((ushort)anchor.Z));
         }
         hierarchy = hierarchy.Write(address, task);

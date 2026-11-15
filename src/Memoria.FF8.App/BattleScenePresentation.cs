@@ -158,6 +158,7 @@ internal sealed partial class BattleScenePresentation
         renderer.TriangleRenderer = triangleRenderer;
         using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, renderer.ProjectionBounds.X, renderer.ProjectionBounds.Y, renderer.ProjectionBounds.Width, renderer.ProjectionBounds.Height));
         renderer.PilotDiagnosticsEnabled = PilotDiagnosticsEnabled;
+        ExpandedBattlePresentationProcess? process = session.ExpandedPresentationProcess;
         NativeBattlePreparedPresentation? prepared = session.PreparedPresentation;
         NativeBattlePreparedPresentation? pilotNext = null;
         float pilotAlpha = 0;
@@ -171,7 +172,16 @@ internal sealed partial class BattleScenePresentation
                 pilotNext = null;
             }
         }
-        if (session.NativeGraphics is not null && prepared is null)
+        if (prepared is null && process is { Graphics.Callback: 0 })
+        {
+            PresentedNativeFrame = null;
+            byte[] blank = renderer.RenderNativePrimitiveFrame(new NativeBattlePreparedPrimitiveFrame([], []), null);
+            renderedGpu = triangleRenderer as GpuTriangleRenderer;
+            renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
+            renderedPixels = triangleRenderer is null ? blank : null;
+            return blank;
+        }
+        if ((session.NativeGraphics is not null || process is not null) && prepared is null)
         {
             throw new InvalidOperationException("Native battle rendering requires a completed prepared presentation.");
         }
@@ -205,7 +215,9 @@ internal sealed partial class BattleScenePresentation
                 {
                     nativeCamera = NativeBattlePilotVisualGeometry.SampleCamera(nativeCamera, nextCamera, pilotAlpha);
                 }
-                selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
+                selectedCamera = process?.Camera.Projection is { } hostedProjection
+                    ? ReadExpandedCamera(nativeCamera, hostedProjection)
+                    : BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
             NativeBattlePreparedPrimitiveFrame frame = prepared.Primitives;
             NativeBattleEffectTextureState? textures = prepared.Textures;

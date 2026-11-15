@@ -9,7 +9,7 @@ internal static partial class CrossoverNativeRenzokukenEntry
 {
     public static CrossoverNativeRenzokukenVisualStep AdvanceVisuals(CrossoverNativeRenzokukenEntryState source, NativeBattleGraphicsModel caster, NativeBattleGraphicsResource resource, NativeBattleTriggerWidget? widget, NativeBattleCameraProjection projection, short roll, NativeBattleSummonColors colors, NativeBattleLogicalOrdering? priorOrdering = null)
     {
-        if (source.Callbacks < 2 || source.Frame.Effect.ReturnedDescriptor == 0 || caster is not { Index: 0, ModelId4: 0 } || (caster.Flags0 & 2) == 0)
+        if (source.Callbacks < 2 || source.Frame.Effect.ReturnedDescriptor == 0 || caster is not { ModelId4: 0 } || (caster.Flags0 & 2) == 0)
         {
             throw new InvalidOperationException("Renzokuken visual callbacks require their active source replacement and descriptor.");
         }

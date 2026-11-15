@@ -59,7 +59,7 @@ internal static class CrossoverGunbladePresentation
 
         bool published = state.ContactPublished;
         NativeBattleTriggerReceipt? contact = null;
-        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(state.Model, weapon, services with
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(sourceOwner, state.Model, weapon, services with
         {
             OriginalResource = weapon,
             ApplyActionContacts = current =>

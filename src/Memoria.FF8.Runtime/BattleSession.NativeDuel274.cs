@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Duel drawing requires its current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel drawing requires its original color arithmetic.");
         NativeBattleDuel274ActorServices actors = NativeDuel274Actors(() => graphics, value => graphics = value);
-        NativeBattleDuel274MoveInputs moves = new(index => graphics.ActorModels.Get(index), WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound);
+        NativeBattleDuel274MoveInputs moves = new(index => graphics.ActorModels.Get(index), WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound, () => graphics.NativeBindings.ReadOriginalCell(NativeBattleModelSlot.Decode(0), graphics.ActorModels).GeometryWorldMatrix ?? throw new NotSupportedException("Native Punch Rush requires its authored world matrix."));
         NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.ActorModels.Get(index), WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Presentation.Screen(NativeBattleDuel274Screen.Draw68D4B0(amount), current.PilotIdentity))) { NativeCameraEnabled = presentationHostCamera is null };
         NativeEffectMemory = memory;
         NativeFileStaging = staging.View;

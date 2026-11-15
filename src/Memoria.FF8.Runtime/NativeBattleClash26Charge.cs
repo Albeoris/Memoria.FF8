@@ -28,7 +28,7 @@ public static partial class NativeBattleClash26Controller
                     byte identity = model.ModelId4 ?? throw new NotSupportedException("Native889480 requires its target model BYTE4.");
                     task = task.WriteWord(0x32, identity == 0 ? (ushort)0xFEB0 : identity == 1 ? (ushort)0xFE80 : (ushort)0xFE40).WriteWord(0x3A, 0x30).WriteWord(0x5E, identity == 0 ? (ushort)12 : identity == 1 ? (ushort)14 : (ushort)16);
                     task = Next(task);
-                    Execute(new NativeBattleClash26Model(model with { Flags0 = (ushort)(model.Flags0 | 0x1000) }));
+                    Execute(new NativeBattleClash26Model(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1000) }));
                     break;
                 case 1:
                     task = Add(task, 0x40, -4096 / Word(task, 0x5E));
@@ -42,7 +42,7 @@ public static partial class NativeBattleClash26Controller
                     {
                         task = task.WriteWord(0x1E, unchecked((ushort)ground));
                         Write(address, task);
-                        Execute(new NativeBattleClash26Model(model));
+                        Execute(new NativeBattleClash26Model(actor, model));
                         Execute(new NativeBattleClash26Sequence(actor, 6));
                         model = inputs.ReadModel(actor);
                         Append(address, 0x8897A0, 0x6C, 4);
@@ -54,7 +54,7 @@ public static partial class NativeBattleClash26Controller
                     }
                     NativeBattleVector offset = NativeBattlePoseMatrices.RotateVector(new(model.Rotation12 ?? throw new NotSupportedException("Native889580 lost target pitch."), model.Rotation14 ?? throw new NotSupportedException("Native889580 requires target yaw."), model.Rotation16 ?? throw new NotSupportedException("Native889580 requires target roll.")), new(0, 0x200, 0));
                     NativeBattleVector targetPosition = new(unchecked((short)(task.ReadWord(0x1C) + offset.X)), unchecked((short)(task.ReadWord(0x1E) + offset.Y - 0x200)), unchecked((short)(task.ReadWord(0x20) + offset.Z)));
-                    Execute(new NativeBattleClash26Model(model with { Transform = transform with { Position28 = targetPosition } }));
+                    Execute(new NativeBattleClash26Model(actor, model with { Transform = transform with { Position28 = targetPosition } }));
                     break;
                 case 2:
                     if ((model.Sequence ?? throw new NotSupportedException("Native889A70 requires target animation BYTE0.")) != 6)
@@ -63,7 +63,7 @@ public static partial class NativeBattleClash26Controller
                         model = inputs.ReadModel(actor);
                         short reverse = unchecked((short)(((model.Rotation14 ?? throw new NotSupportedException("Native889A70 requires target facing.")) - 0x800) & 0xFFF));
                         task = Next(task.WriteWord(0x5C, 16).WriteWord(0x30, unchecked((ushort)((Word(task, 0x48) - transform.Position28.X) / 16))).WriteWord(0x34, unchecked((ushort)((Word(task, 0x4C) - transform.Position28.Z) / 16))));
-                        Execute(new NativeBattleClash26Model(model with { Rotation14 = reverse }));
+                        Execute(new NativeBattleClash26Model(actor, model with { Rotation14 = reverse }));
                     }
                     break;
                 case 3:
@@ -74,12 +74,12 @@ public static partial class NativeBattleClash26Controller
                     {
                         ushort bit = (ushort)((task.ReadWord(0x58) ^ model.Flags0) & 0x1000);
                         model = model with { Flags0 = (ushort)(model.Flags0 ^ bit) };
-                        Execute(new NativeBattleClash26Model(model));
+                        Execute(new NativeBattleClash26Model(actor, model));
                         Execute(new NativeBattleClash26Sequence(actor, model.SequenceState?.Default2 ?? throw new NotSupportedException("Native889B00 requires its target idle BYTE2.")));
                         model = inputs.ReadModel(actor);
                         moved = moved with { X = Word(task, 0x48), Z = Word(task, 0x4C) };
                         model = model with { Rotation14 = unchecked((short)(((model.Rotation14 ?? throw new NotSupportedException("Native889B00 requires target facing.")) - 0x800) & 0xFFF)), Transform = transform with { Position28 = moved } };
-                        Execute(new NativeBattleClash26Model(model));
+                        Execute(new NativeBattleClash26Model(actor, model));
                         NativeBattleEffectParameters parameters = Frame.Effect.Parameters!;
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
@@ -89,7 +89,7 @@ public static partial class NativeBattleClash26Controller
                     }
                     else
                     {
-                        Execute(new NativeBattleClash26Model(model));
+                        Execute(new NativeBattleClash26Model(actor, model));
                     }
                     Write(address, task);
                     if ((task.ReadByte(0x24) & 3) == 0)

@@ -54,10 +54,17 @@ public sealed partial class GameSession
         }
         if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
         {
-            NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(battle, memory.ColdExecutableSha256);
-            if (memory != observed && !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(memory), System.Text.Json.JsonSerializer.SerializeToElement(observed)))
+            if (IsCompletedExpandedRetainedPair(battle, memory))
             {
-                throw new InvalidDataException("Retained battle memory contradicts the active battle's physical owners.");
+                ValidateCompletedExpandedRetainedPair(state, battle, memory);
+            }
+            else
+            {
+                NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(battle, memory.ColdExecutableSha256);
+                if (memory != observed && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(observed)))
+                {
+                    throw new InvalidDataException("Retained battle memory contradicts the active battle's physical owners.");
+                }
             }
         }
         if (state.AbandonedNativeBattles is { } abandonments && abandonments.Select(item => item.Encounter.OccurrenceId).Distinct(StringComparer.Ordinal).Count() != abandonments.Length || state.FieldLoadContext is { Origin: NativeFieldLoadOrigin.BattleDefeat } fresh && (state.AbandonedNativeBattles is not { Length: > 0 } history || history[^1].Branch != fresh.DefeatBranch))
@@ -72,6 +79,40 @@ public sealed partial class GameSession
         if (state.AppliedBattleResultIds is null || state.AppliedBattleResultIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 160) || state.AppliedBattleResultIds.Distinct(StringComparer.Ordinal).Count() != state.AppliedBattleResultIds.Length || state.PendingBattleEncounter is { } pending && (state.AppliedBattleResultIds.Contains(pending.OccurrenceId, StringComparer.Ordinal) || pending.SourceScene != state.Scene || pending.SourceFieldId != state.FieldId))
         {
             throw new InvalidDataException("Battle fact checkpoint has duplicate receipts or a contradictory current encounter owner.");
+        }
+    }
+
+    private static bool IsCompletedExpandedRetainedPair(BattleSnapshot battle, NativeBattleRetainedMemory retained)
+    {
+        return battle.Definition.UsesExpandedRoster && battle.Outcome != BattleOutcome.Active && battle.NativeGraphics is null &&
+            battle.ActiveAction is null && battle.QueuedActions.Length == 0 && battle.NativeGuardianBoost is null && battle.NativeTimedAction is null &&
+            retained is { Stage: not null, Camera: not null, EffectMemory: not null };
+    }
+
+    private static void ValidateCompletedExpandedRetainedPair(GameState state, BattleSnapshot battle, NativeBattleRetainedMemory retained)
+    {
+        NativeBattleRetainedMemory? original = battle.Definition.NativeRetainedMemory;
+        if (retained.AllocationControl != battle.NativeScriptState.AllocationControl ||
+            retained.ActionScratch != (battle.NativeActionScratch is { } scratch ? scratch with { ComponentCompletion = null } : null) ||
+            !SameRetainedFacts(retained.PartyStatusMirrors, battle.NativePartyStatusMirrors) ||
+            !SameRetainedFacts(retained.PresentationStatusMemory, battle.NativePresentationStatusMemory) ||
+            !SameRetainedFacts(retained.ActionMemory, battle.NativeActionMemory) ||
+            !retained.ElementAttack.SequenceEqual(battle.NativeElementAttack) ||
+            !SameRetainedFacts(retained.MusicProcess, battle.NativeMusicProcess) || !SameRetainedFacts(retained.VibrationProcess, battle.NativeVibrationProcess) ||
+            battle.NativeVibrationProcess is not null && !SameRetainedFacts(retained.VibrationProcess, state.VibrationProcess) ||
+            original?.ColdExecutableSha256 is { } expectedHash && !string.Equals(retained.ColdExecutableSha256, expectedHash, StringComparison.OrdinalIgnoreCase) ||
+            retained.FieldTexturePlaneCacheFresh != original?.FieldTexturePlaneCacheFresh ||
+            !SameRetainedFacts(retained.FieldTextureAnimations, original?.FieldTextureAnimations))
+        {
+            throw new InvalidDataException("Completed expanded battle presentation contradicts the logical retained facts.");
+        }
+        retained.Validate();
+        NativeBattleRetainedSourceAliases.Validate(retained);
+        new NativeBattleStorageRestoreContext(NativeBattleStorageRestorePurpose.PrivateContinuation).PrepareStorageGraph(retained);
+
+        static bool SameRetainedFacts<T>(T first, T second)
+        {
+            return JsonElement.DeepEquals(JsonSerializer.SerializeToElement(first), JsonSerializer.SerializeToElement(second));
         }
     }
 
@@ -194,8 +235,17 @@ public sealed partial class GameSession
             return source;
         }
         BattleSnapshot snapshot = liveBattle.Capture();
-        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(snapshot, source.NativeBattleMemory?.ColdExecutableSha256 ?? snapshot.Definition.NativeRetainedMemory?.ColdExecutableSha256);
-        return source with { Battle = snapshot, NativeBattleMemory = retained, ExamTimer = snapshot.NativeExamTimer ?? source.ExamTimer, VibrationProcess = snapshot.NativeVibrationProcess ?? source.VibrationProcess, GlobalSoundProcess = snapshot.NativeGlobalSoundProcess ?? source.GlobalSoundProcess };
+        NativeBattleRetainedMemory retained = liveBattle.CaptureRetainedBattleMemory(snapshot, source.NativeBattleMemory?.ColdExecutableSha256 ?? snapshot.Definition.NativeRetainedMemory?.ColdExecutableSha256);
+        GameState capture = source with { Battle = snapshot, NativeBattleMemory = retained, ExamTimer = snapshot.NativeExamTimer ?? source.ExamTimer, VibrationProcess = snapshot.NativeVibrationProcess ?? source.VibrationProcess, GlobalSoundProcess = snapshot.NativeGlobalSoundProcess ?? source.GlobalSoundProcess };
+        if (liveBattle.ExpandedPresentationProcess is not null && snapshot.Outcome != BattleOutcome.Active)
+        {
+            if (!IsCompletedExpandedRetainedPair(snapshot, retained))
+            {
+                throw new InvalidOperationException("Completed expanded battle lacks a quiescent logical and presentation capture.");
+            }
+            ValidateCompletedExpandedRetainedPair(capture, snapshot, retained);
+        }
+        return capture;
     }
 
     /// <summary>Exports the accepted battle once at lifecycle return and releases its live attachment.</summary>

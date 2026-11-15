@@ -744,7 +744,7 @@ public sealed partial class BattleSession
                         return;
                     }
                     BattleCombatant target = byId[command.TargetId];
-                    if (command.NativeHeader is null && (!CanNativeSupportCommandAct(actor, command.NativePlayerReaction) || !ActionHasValidTarget(command.TargetRequest, command.NativeGraphic)))
+                    if (command.NativeHeader is null && (!CanNativeSupportCommandAct(actor, command.NativePlayerReaction) || !(command.Ability == BattleAbility.Draw ? target.IsAlive : ActionHasValidTarget(command.TargetRequest, command.NativeGraphic))))
                     {
                         RefundCancelledNativeItem(command);
                         actor.IsBusy = false;
@@ -1116,7 +1116,11 @@ public sealed partial class BattleSession
             {
                 return nativeDuelProcesses.ContainsKey(actorId);
             }
-            return UsesExpandedRoster ? graphic is not null || ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, request, native).Length != 0 : ActionHasValidTarget(request, graphic);
+            if (UsesExpandedRoster)
+            {
+                return graphic is not null || ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, request, native).Length != 0;
+            }
+            return ability == BattleAbility.Draw && native is null ? GetActor(targetId).IsAlive : ActionHasValidTarget(request, graphic);
         }
     }
 

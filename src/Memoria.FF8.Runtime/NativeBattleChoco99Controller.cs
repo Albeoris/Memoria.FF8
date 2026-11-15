@@ -274,7 +274,7 @@ public static class NativeBattleChoco99Controller
             switch (Stage(task))
             {
                 case 0:
-                    SetState(State() with { Context = NativeBattleChoco99Context.Initialize718670(inputs.ReadModel) });
+                    SetState(State() with { Context = NativeBattleChoco99Context.Initialize718670(inputs.ReadEnemies()) });
                     ImmutableArray<byte> script = State().Io?.Script ?? (State().IoScriptKnownCold ? resources.Io.Script.Data : throw new NotSupportedException("Native Choco99 warm IO script is unknown."));
                     NativeBattleChoco97IoBanks banks = State().Io?.Banks ?? State().PendingIoBanks ?? throw new NotSupportedException("Native Choco99 external IO banks are unknown.");
                     NativeBattleChoco99IoInitialization initialized = NativeBattleChoco99Io.Initialize718200(script, State().NextAllocation ?? throw new NotSupportedException("Native Choco99 next allocation is unknown."), banks);

@@ -6,6 +6,7 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Shared/NativeBattleTypedFixture.cs" Link="NativeBattleTypedFixture.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff7FieldAnatomy.cs" Link="Ff7FieldAnatomy.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff8FieldAnatomy.cs" Link="Ff8FieldAnatomy.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Characters.cs" Link="Ff7ModelAppearance.Characters.cs" />

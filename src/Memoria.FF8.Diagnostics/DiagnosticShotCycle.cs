@@ -40,29 +40,29 @@ public sealed record DiagnosticShotCycleDeclaration([property: JsonRequired] byt
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticShotDispatchPackets(long Serial, long Callback, int HeaderIndex, long HeaderGeneration, NativeBattleActionPacketsState Packets)
+public sealed record DiagnosticShotDispatchPackets(long Serial, long Callback, int HeaderIndex, long HeaderGeneration, NativeBattleRetainedActionPackets Packets)
 {
     public ushort NormalizeTargetMask(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotCycleDeclaration declaration, byte command, ushort effect, byte actor)
     {
-        if (Serial <= 0 || Callback < 0 || Serial != dispatch.Serial || Callback != dispatch.Callback || HeaderIndex != dispatch.NativeHeaderIndex || HeaderGeneration != dispatch.NativeHeaderGeneration || HeaderGeneration <= 0 || HeaderIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || Packets is null || Packets.ActiveHeaderIndex != HeaderIndex)
+        if (Serial <= 0 || Callback < 0 || Serial != dispatch.Serial || Callback != dispatch.Callback || HeaderIndex != dispatch.NativeHeaderIndex || HeaderGeneration != dispatch.NativeHeaderGeneration || HeaderGeneration <= 0 || HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || Packets is null || Packets.ActiveHeaderIndex != HeaderIndex)
         {
             throw new InvalidDataException("Shot dispatch packet proof lost its synchronous header/generation owner.");
         }
         try
         {
             Packets.Validate();
-            NativeBattleActionHeaderSlot header = Packets.Headers[HeaderIndex];
-            ushort Word(int offset) => (ushort)(header.ReadByte(offset) | header.ReadByte(offset + 1) << 8);
-            if (header.ReadByte(0) != actor || header.ReadByte(1) != command || Word(4) != declaration.ExpectedHeaderAction(command) || Word(6) != effect)
+            NativeBattleRetainedActionHeaderSlot header = Packets.Headers[HeaderIndex];
+            ushort Word(int offset) => (ushort)(header.ReadOriginalByte(offset) | header.ReadOriginalByte(offset + 1) << 8);
+            if (header.ReadOriginalByte(0) != actor || header.ReadOriginalByte(1) != command || Word(4) != declaration.ExpectedHeaderAction(command) || Word(6) != effect)
             {
                 throw new InvalidDataException("Shot dispatch packet payload differs from its actual actor, command, action or effect.");
             }
-            NativeBattleActionGraphicsState normalized = NativeBattleActionGraphics.Normalize(Packets, HeaderIndex);
-            if (normalized.ActorIndex != actor || normalized.HeaderIndex != HeaderIndex || dispatch.NativeTargetMask != normalized.TargetMask)
+            ushort targetMask = DiagnosticCounterCycleValidation.ReadTargetMask(Packets, HeaderIndex);
+            if (dispatch.NativeTargetMask != targetMask)
             {
                 throw new InvalidDataException("Shot target mask differs from its exact canonical primary-contact normalization.");
             }
-            return normalized.TargetMask;
+            return targetMask;
         }
         catch (NotSupportedException exception)
         {
@@ -72,7 +72,7 @@ public sealed record DiagnosticShotDispatchPackets(long Serial, long Callback, i
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticShotObservation(long Callback, int Inventory, byte LearnedFlags, BattleNativeShotState? Shot);
+public sealed record DiagnosticShotObservation(long Callback, int Inventory, byte LearnedFlags, BattleDiagnosticShotState? Shot);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticShotCycleReceipt(int Execution, string ActorId, string TargetId, byte ActorIndex, byte TargetIndex, DiagnosticShotCycleDeclaration Declaration, ushort FiringEffect, BattleDiagnosticLimitSelectionReceipt Selection, DiagnosticShotObservation BeforeOpening)
@@ -113,10 +113,10 @@ public static class DiagnosticShotCycleValidation
         {
             throw new InvalidDataException("Shot cycle does not prove the real opening/ready/trigger/ready/ending/completion route.");
         }
-        BattleNativeShotState opening = points[1].Shot!;
+        BattleDiagnosticShotState opening = points[1].Shot!;
         for (int index = 1; index <= 5; index++)
         {
-            BattleNativeShotState state = points[index].Shot!;
+            BattleDiagnosticShotState state = points[index].Shot!;
             if (state.ActionId != ammo || state.TargetMask != opening.TargetMask || (state.TargetMask & (1 << receipt.TargetIndex)) == 0 || state.InitialTimer <= 0 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || state.InitialTimer != opening.InitialTimer || state.RemainingAmmo != points[index].Inventory || state.Phase != BattleNativeShotPhase.Ending && state.RemainingTimer <= 0 || index > 1 && state.RemainingTimer > points[index - 1].Shot!.RemainingTimer || state.Phase == BattleNativeShotPhase.Ending && state.RemainingTimer != -1)
             {
                 throw new InvalidDataException("Shot cycle changed its real process, target, timer or ammunition owner.");

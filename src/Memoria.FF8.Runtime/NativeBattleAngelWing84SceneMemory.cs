@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -6,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>78DC50's84-byte25C9D28 scene and78DEE0's236-byte25C9C38 camera workspace.</summary>
 public sealed record NativeBattleAngelWing84SceneMemory([property: JsonRequired] NativeBattleEffectArena Settings, [property: JsonRequired] NativeBattleMoogleCameraState? Camera)
 {
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> ExtraHiddenFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+
     public static NativeBattleAngelWing84SceneMemory Initialize(NativeBattleVector actor, NativeBattleVector target, NativeBattleMoogleCameraState? retainedCamera)
     {
         NativeBattleEffectArena settings = NativeBattleEffectArena.Clear();

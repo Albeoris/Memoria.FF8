@@ -312,7 +312,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             cast = cast with { Model = NativeBattleSummonModels.Advance(model, false, colors) };
         }
         NativeBattleGraphicsResource currentResource = effect?.SourceResource ?? resource;
-        (cast, _) = CrossoverNativeCastPresentation.AdvanceModel(cast, currentResource, new(0, 0)
+        (cast, _) = CrossoverNativeCastPresentation.AdvanceModel(sourceOwner, cast, currentResource, new(0, 0)
         {
             GlobalRandom = effect is null ? null : () => effect.NextGlobalRandom(),
             ReadModelExternal = effect is null ? null : (current, variable) => effect.ReadSourceVariable(current, variable),
@@ -331,7 +331,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 }
             }
         }, resource);
-        effect?.PublishSource(cast.Model);
+        effect?.PublishSource(sourceOwner, cast.Model);
         if (cast.GuardianInvocation && cast.Complete && effect is { Invoked: true, Complete: true })
         {
             CollectNativeStep(effect.CompleteInvocation(), false);

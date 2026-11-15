@@ -34,7 +34,7 @@ public static class NativeBattleChoco98Controller
         {
             NativeBattleChoco98VibrationStep step = inputs.StartVibration(FromFamily(current));
             return new(ToFamily(step.Frame), step.Handle);
-        }, (current, operation) => ToFamily(inputs.Execute(FromFamily(current), operation)));
+        }, (current, operation) => ToFamily(inputs.Execute(FromFamily(current), operation)), inputs.ReadEnemies);
         return FromFamily(NativeBattleChoco97Controller.AdvanceFamily(ToFamily(frame), adapted, NativeBattleChocoControllerResources.From(resources), true));
     }
 

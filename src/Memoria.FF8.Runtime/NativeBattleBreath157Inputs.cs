@@ -14,7 +14,7 @@ public abstract record NativeBattleBreath157Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleBreath157Sound(uint Value, uint Flags, byte Pan) : NativeBattleBreath157Operation;
-public sealed record NativeBattleBreath157ContactFirst(int HeaderIndex) : NativeBattleBreath157Operation;
+public sealed record NativeBattleBreath157ContactFirst(BattleActionHeaderReference Header) : NativeBattleBreath157Operation;
 public sealed record NativeBattleBreath157DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleBreath157Operation;
 public sealed record NativeBattleBreath157DrawMesh88(uint TemporaryAddress, uint SourceAddress) : NativeBattleBreath157Operation;
 public sealed record NativeBattleBreath157ReleaseCommon(uint SourceAddress, uint TaskAddress) : NativeBattleBreath157Operation;

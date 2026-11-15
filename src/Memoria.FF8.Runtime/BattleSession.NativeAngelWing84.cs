@@ -91,7 +91,7 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleAngelWing84Frame Contact(NativeBattleAngelWing84Frame current, int contact)
+        NativeBattleAngelWing84Frame Contact(NativeBattleAngelWing84Frame current, BattleContactOccurrence contact)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

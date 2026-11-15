@@ -345,6 +345,11 @@ internal abstract class NativeBattleStorageContext
             NativeBattleScriptedEffectMemory scripted = (NativeBattleScriptedEffectMemory)(result ?? source);
             return scripted.PresentationActors is null ? scripted : scripted with { PresentationActors = null };
         }
+        if (source is NativeBattleAngelWing84SceneMemory && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            NativeBattleAngelWing84SceneMemory scene = (NativeBattleAngelWing84SceneMemory)(result ?? source);
+            return scene.ExtraHiddenFlags.IsEmpty ? scene : scene with { ExtraHiddenFlags = scene.ExtraHiddenFlags.Clear() };
+        }
         if (source is NativeBattleCameraState && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
         {
             NativeBattleCameraState camera = (NativeBattleCameraState)(result ?? source);

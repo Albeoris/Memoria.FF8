@@ -6,6 +6,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleHoly175State([property: JsonRequired] bool ColdSourcesUnmaterialized, [property: JsonRequired] NativeBattleHoly175WarpState Warp, [property: JsonRequired] NativeBattleEffectArena BlackPackets, [property: JsonRequired] NativeBattleEffectArena Sprite31Rows, [property: JsonRequired] NativeBattleEffectArena Sprite4Rows, [property: JsonRequired] NativeBattleEffectArena Visibility, [property: JsonRequired] NativeBattleEffectArena MatrixBanks, [property: JsonRequired] NativeBattleEffectArena StaticMatrix, [property: JsonRequired] uint? WarpTextured, [property: JsonRequired] uint? WarpAlive, [property: JsonRequired] int? SelectedActor, [property: JsonRequired] int? CasterActor)
 {
+    [JsonIgnore]
+    internal BattleModelOwner? Selected { get; init; }
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, bool> FadeAdmission { get; init; } = ImmutableDictionary<BattleModelOwner, bool>.Empty;
+
     [JsonRequired]
     public short? CaptureOffsetX { get; init; }
     [JsonRequired]

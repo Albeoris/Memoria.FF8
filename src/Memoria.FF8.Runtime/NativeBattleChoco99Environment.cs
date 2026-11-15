@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleChoco99EnvironmentFrame(NativeBattleModulePoolTask Task, NativeBattleChoco97Context Context, NativeBattleStageState Stage, ImmutableArray<NativeBattleGraphicsModel> Models, uint FreezePrimary, uint FreezeSecondary);
+public sealed record NativeBattleChoco99EnvironmentFrame(NativeBattleModulePoolTask Task, NativeBattleChoco97Context Context, NativeBattleStageState Stage, BattleActorModels Models, NativeBattleModelBoundary NativeBindings, uint FreezePrimary, uint FreezeSecondary);
 public sealed record NativeBattleChoco99EnvironmentStep(NativeBattleChoco99EnvironmentFrame Frame, bool ReadyToComplete);
 public sealed record NativeBattleChoco99EnvironmentSound(uint Descriptor, uint Flags, byte Pan);
 
@@ -13,7 +13,7 @@ public static class NativeBattleChoco99Environment
     {
         frame.Context.Validate();
         frame.Stage.Validate();
-        if (frame.Models.IsDefault || frame.Models.Length != 7 || frame.Task.PayloadLength != 0xB0 - 12)
+        if (frame.Task.PayloadLength != 0xB0 - 12)
         {
             throw new InvalidDataException("Native Choco environment requires its original task, stage and actor rows.");
         }
@@ -208,33 +208,42 @@ public static class NativeBattleChoco99Environment
         {
             frame = frame with { Stage = frame.Stage with { Groups = frame.Stage.Groups.Select(group => group with { Flags = (byte)(group.Flags & 0xFD) }).ToImmutableArray() } };
             byte[] context = frame.Context.Data.ToArray();
-            ImmutableArray<NativeBattleGraphicsModel>.Builder models = frame.Models.ToBuilder();
-            for (int index = 0; index < 4; index++)
+            BattleActorModels models = frame.Models;
+            NativeBattleModelAliases aliases = frame.NativeBindings.CaptureAliases(models);
+            var saved = ImmutableDictionary.CreateBuilder<BattleEnemyModelOwner, ushort>();
+            foreach (BattleModelEntry<BattleEnemyModelOwner> entry in models.Enemies.Entries)
             {
-                ushort flags = models[index + 3].Flags0;
+                ushort flags = entry.State.Flags0;
                 if ((flags & 2) != 0)
                 {
-                    BinaryPrimitives.WriteUInt32LittleEndian(context.AsSpan(0x2C + index * 4), flags);
-                    models[index + 3] = models[index + 3] with { Flags0 = (ushort)(flags | 4) };
+                    saved.Add(entry.Owner, flags);
+                    if (aliases.TryEncodeExact(entry.Owner, out byte operand))
+                    {
+                        BinaryPrimitives.WriteUInt32LittleEndian(context.AsSpan(0x2C + (operand - NativeBattleSlots.AllyCount) * 4), flags);
+                    }
+                    models = models.Set(entry.Owner, entry.State with { Flags0 = (ushort)(flags | 4) });
                 }
             }
-            frame = frame with { Context = frame.Context with { Data = context.ToImmutableArray() }, Models = models.ToImmutable() };
+            frame = frame with { Context = frame.Context with { Data = context.ToImmutableArray(), HiddenEnemies = saved.ToImmutable() }, Models = models };
         }
 
         void RestoreEnvironment()
         {
             frame = frame with { Stage = frame.Stage with { Groups = frame.Stage.Groups.Select(group => group with { Flags = (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2)) }).ToImmutableArray() } };
-            ImmutableArray<NativeBattleGraphicsModel>.Builder models = frame.Models.ToBuilder();
-            for (int index = 0; index < 4; index++)
+            BattleActorModels models = frame.Models;
+            foreach (BattleModelEntry<BattleEnemyModelOwner> entry in models.Enemies.Entries)
             {
-                ushort flags = models[index + 3].Flags0;
+                ushort flags = entry.State.Flags0;
                 if ((flags & 2) != 0)
                 {
-                    uint saved = BinaryPrimitives.ReadUInt32LittleEndian(frame.Context.Data.AsSpan().Slice(0x2C + index * 4));
-                    models[index + 3] = models[index + 3] with { Flags0 = (ushort)(((uint)flags & ~4u) | (saved & 4u)) };
+                    if (!frame.Context.HiddenEnemies.TryGetValue(entry.Owner, out ushort saved))
+                    {
+                        throw new InvalidDataException("Native Choco lost its saved enemy visibility.");
+                    }
+                    models = models.Set(entry.Owner, entry.State with { Flags0 = (ushort)((flags & ~4) | (saved & 4)) });
                 }
             }
-            frame = frame with { Models = models.ToImmutable() };
+            frame = frame with { Models = models };
         }
     }
 }

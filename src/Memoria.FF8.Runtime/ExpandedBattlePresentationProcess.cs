@@ -195,13 +195,13 @@ public sealed class ExpandedBattlePresentationProcess
         try
         {
             LastPostUiVitalsAdmitted = false;
-            presentation.ImportHostedPresentationRandom(logicalOwner);
+            presentation.ImportHostedPresentationSharedState(logicalOwner);
             presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
             try
             {
                 long? actionToken = ActiveActionToken;
                 bool attached = ReferenceEquals(logicalOwner.ExpandedPresentationProcess, this);
-                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? logicalOwner.ActivateExpandedHostedClock : null, afterGraphics is null ? null : DispatchAfterGraphics);
+                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? DispatchClockReady : null, afterGraphics is null ? null : DispatchAfterGraphics);
                 presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
@@ -234,7 +234,7 @@ public sealed class ExpandedBattlePresentationProcess
                         BattleSession.RequireSameHostedTimerClock(presentation.NativeExamTimer, logicalOwner.NativeExamTimer);
                         logicalOwner.CopyHostedPresentationTimerFrom(presentation);
                     }
-                    presentation.ExportHostedPresentationRandom(logicalOwner);
+                    presentation.ExportHostedPresentationSharedState(logicalOwner);
                     canonicalHandoff = true;
                     try
                     {
@@ -247,9 +247,14 @@ public sealed class ExpandedBattlePresentationProcess
                         {
                             presentation.CopyHostedPresentationTimerFrom(logicalOwner);
                         }
-                        presentation.CopyHostedPresentationRandomFrom(logicalOwner);
+                        presentation.CopyHostedPresentationSharedStateFrom(logicalOwner);
                         presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
                     }
+                }
+
+                void DispatchClockReady()
+                {
+                    DispatchSharedState(logicalOwner.ActivateExpandedHostedClock);
                 }
 
                 void DispatchClockPoll(NativeBattleUiServices ui, bool postCore)
@@ -258,26 +263,43 @@ public sealed class ExpandedBattlePresentationProcess
                     {
                         LastPostUiVitalsAdmitted = !ui.PauseDE9 && (ui.Flags942 & 0x40) != 0;
                     }
-                    presentation.ExportHostedPresentationRandom(logicalOwner);
+                    DispatchSharedState(() => logicalOwner.AdvanceExpandedUiAtbService(ui));
+                }
+
+                void DispatchSharedState(Action callback)
+                {
+                    presentation.ExportHostedPresentationSharedState(logicalOwner);
                     try
                     {
-                        logicalOwner.AdvanceExpandedUiAtbService(ui);
+                        callback();
                     }
                     finally
                     {
-                        presentation.CopyHostedPresentationRandomFrom(logicalOwner);
+                        presentation.CopyHostedPresentationSharedStateFrom(logicalOwner);
                     }
                 }
             }
             finally
             {
-                presentation.ExportHostedPresentationRandom(logicalOwner);
+                presentation.ExportHostedPresentationSharedState(logicalOwner);
             }
         }
         finally
         {
             advancing = false;
         }
+    }
+
+    internal NativeBattleRetainedMemory CaptureRetainedMemory(BattleSession owner, string? coldExecutableSha256)
+    {
+        RequireLogicalOwner(owner);
+        RequireIdle();
+        RequireCompletionAcknowledged();
+        if (ActiveActionToken is not null)
+        {
+            throw new InvalidOperationException("The hosted action must complete before capturing retained field memory.");
+        }
+        return presentation.CaptureHostedRetainedMemory(owner, coldExecutableSha256);
     }
 
     private void RequireAdmissionWindow()

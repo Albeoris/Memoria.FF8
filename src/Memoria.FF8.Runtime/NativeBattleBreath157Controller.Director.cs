@@ -11,10 +11,10 @@ public static partial class NativeBattleBreath157Controller
             return (frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        int caster = checked((int)frame.State.ReadDword(0x23ECDF0));
+        BattleModelOwner caster = frame.State.ReadActor(0x23ECDF0);
         if (age == 0)
         {
-            NativeBattleBreath157PointStep anchor = inputs.ReadAnchor571400(frame, checked((int)frame.State.ReadDword(0x23EB5F0)));
+            NativeBattleBreath157PointStep anchor = inputs.ReadAnchor571400(frame, frame.State.ReadActor(0x23EB5F0));
             frame = anchor.Frame with { State = anchor.Frame.State.WriteView(0x23ECDD0, anchor.Point8, 8) };
             frame = PrepareEmitter(frame, caster, 0x23ECDF8, 0x23ECDD8, 0x23ECDE8, new(0, 550, -640), inputs);
         }
@@ -82,7 +82,7 @@ public static partial class NativeBattleBreath157Controller
         return Dword(Dword(Dword(frame, destination + 20, unchecked((uint)matrix.X)), destination + 24, unchecked((uint)matrix.Y)), destination + 28, unchecked((uint)matrix.Z));
     }
 
-    private static NativeBattleBreath157Frame PrepareEmitter(NativeBattleBreath157Frame frame, int actor, uint destination, uint direction, uint length, NativeBattleVector offset, NativeBattleBreath157Inputs inputs)
+    private static NativeBattleBreath157Frame PrepareEmitter(NativeBattleBreath157Frame frame, BattleModelOwner actor, uint destination, uint direction, uint length, NativeBattleVector offset, NativeBattleBreath157Inputs inputs)
     {
         NativeBattleBreath157PointStep bone = inputs.ReadBone502170(frame, actor, 0xF0, 4096);
         frame = bone.Frame with { State = bone.Frame.State.WriteView(destination, bone.Point8, 6) };

@@ -133,7 +133,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
         byte? targetSequence = source.TargetSequence;
         byte? targetCue = null;
         NativeBattleTriggerReceipt? contact = null;
-        NativeBattleSequenceStep pose = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)
+        NativeBattleSequenceStep pose = NativeBattleSequenceMachine.Advance(effect.SourceOwner, model, resource, new(0, 0)
         {
             OriginalResource = original,
             ReadExternal = variable => NativeBattleScriptValue.Scalar(variable switch

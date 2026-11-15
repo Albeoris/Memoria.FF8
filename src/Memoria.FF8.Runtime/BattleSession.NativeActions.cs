@@ -76,14 +76,14 @@ public sealed partial class BattleSession
     private bool ActionHasValidTarget(BattleTargetRequest request, BattleNativeGraphicCommand? graphic = null)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return graphic is not null || request.Selection switch
+        return graphic is not null || (request.Selection switch
         {
             BattleTargetSelection.None => true,
             NativeBattleTargetRequestAdapter.DeferredOperands original => NativeBattleTargetRequestAdapter.IsOriginalSelectionAdmitted(
                 original, ReadOriginalTargetOccupant, reference => IsBattleTargetEligible(FindTargetActor(reference)!, request),
                 request.Replacement == BattleTargetReplacement.UseCurrentBattlePolicy && !nativeScriptState.DisableAutomaticTargetReplacement),
             _ => ResolveBattleTargets(request, sampleRandom: false).Length != 0
-        };
+        });
     }
 
     private static void ValidateNativeActionContract(BattleNativeAction action)
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
         }
         (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
         ObserveDiagnosticPreparedHeader(headerIndex);
-        nativeActionScratch = nativeActionScratch with { ActorIndex = checked((byte)actor.EncodeNativeSlot()), Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(actor), Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
         NativeBattleActionProductionResult produced;
         BattleActionHeaderReference? previousDiagnosticHeader = diagnosticCounterProducingHeader;
         BattleActionHeaderReference? previousEncounterHeader = encounterProducingHeaderIndex;

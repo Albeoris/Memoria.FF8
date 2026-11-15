@@ -42,7 +42,7 @@ public sealed partial class BattleSession
         byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1);
         NativeBattleActionHeaderPreparation header = new(CreatePresentationModelOwner(actor), 252, sequence, -1, 1, graphic.MagicId, null);
         (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
-        nativeActionScratch = nativeActionScratch with { ActorIndex = checked((byte)actor.EncodeNativeSlot()), Command = 252, Action = 1, DeferredEffectsE00 = false };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(actor), Command = 252, Action = 1, DeferredEffectsE00 = false };
 
         //48D200 caseFC leaves AE3=1;48E830 resolves its single target mask before48FE20.
         BattleCombatant[] targets = ResolveBattleTargets(command.TargetRequest);
