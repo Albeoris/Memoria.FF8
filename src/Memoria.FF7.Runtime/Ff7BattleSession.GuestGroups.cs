@@ -29,7 +29,7 @@ public sealed partial class Ff7BattleSession
             {
                 return "The selected target does not meet the original ability's living or knocked-out target rule.";
             }
-            Ff7BattleGuestAbility? choice = catalog.Abilities.SingleOrDefault(choice => choice.Command == command && choice.Ability == ability);
+            Ff7BattleGuestAbility? choice = catalog.ReadAbility(command, ability);
             if (command == Ff7BattleCommand.Magic && choice is { TargetFlags: var flags } && (flags & 4) != 0 && guest is not IFf7BattleGuestGroupMagic && guest is not IFf7BattleGuestCompositeActions)
             {
                 return "The origin has not supplied a group action bridge.";
@@ -41,7 +41,7 @@ public sealed partial class Ff7BattleSession
 
     private bool GuestMagicTargetIsLegal(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleActorState target)
     {
-        Ff7BattleGuestAbility? choice = (guest as IFf7BattleGuestAbilities)?.Abilities.SingleOrDefault(choice => choice.Command == Ff7BattleCommand.Magic && choice.Ability == ability);
+        Ff7BattleGuestAbility? choice = (guest as IFf7BattleGuestAbilities)?.ReadAbility(Ff7BattleCommand.Magic, ability);
         bool revive = choice?.CanTargetDead == true;
         return target.Actor.Slot != 3 && (revive ? GuestRevivalTarget(target) : IsAlive(target)) && ((target.Actor.Conditions & 8) != 0 || revive && target.Actor.Slot < 3);
     }
@@ -55,7 +55,7 @@ public sealed partial class Ff7BattleSession
         {
             return false;
         }
-        Ff7BattleCommandOption? option = Commands(slot).SingleOrDefault(choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == ability);
+        Ff7BattleCommandOption? option = ReadAvailableCommand(slot, Ff7BattleCommand.Magic, ability);
         if (option is null || option.UnsupportedReason is not null || targets == 0 || (targets & ~option.ValidTargets) != 0)
         {
             return false;

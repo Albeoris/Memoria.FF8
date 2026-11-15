@@ -117,63 +117,87 @@ internal sealed partial class CrossoverGuestHostActions
         return reason;
     }
 
-    public IReadOnlyList<Ff7BattleGuestAbility> Abilities
+    public IReadOnlyList<Ff7BattleGuestAbility> Abilities => ReadAbilities(autoPlay: false);
+
+    public IReadOnlyList<Ff7BattleGuestAbility> ReadAutoPlayAbilities() => ReadAbilities(autoPlay: true);
+
+    public Ff7BattleGuestAbility? ReadAbility(Ff7BattleCommand command, ushort ability) => ReadAbilities(autoPlay: false, command, ability).SingleOrDefault(choice => choice.Command == command && choice.Ability == ability);
+
+    private IReadOnlyList<Ff7BattleGuestAbility> ReadAbilities(bool autoPlay, Ff7BattleCommand? command = null, ushort ability = 0)
     {
-        get
+        List<Ff7BattleGuestAbility> result = [];
+        foreach (CrossoverGuestAbility choice in ReadOriginAbilities())
         {
-            List<Ff7BattleGuestAbility> result = [];
-            foreach (CrossoverGuestAbility choice in ReadOriginAbilities())
+            if (command is Ff7BattleCommand selectedCommand && (selectedCommand == Ff7BattleCommand.Magic ? choice.Key != ability : selectedCommand != Ff7BattleCommand.Limit || ability != 0 || choice.Command != 5 || choice.NativeAction is not null))
             {
-                if (IsProcessInvocation(choice.Key))
-                {
-                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, StartsLimitSelectionWithoutTarget(choice.Key) ? (byte)0x10 : (byte)0x12, 1, ProcessInvocationUnsupportedReason(choice)) { Category = choice.Category, RequiresMagic = false });
-                    continue;
-                }
-                if (ProcessActive && processAction is { } activeProcess && ProcessKey(activeProcess) == choice.Key)
-                {
-                    byte processFlags = activeProcess.TargetFlags.GetValueOrDefault();
-                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, CrossoverBattleAbilityRules.HostTargetFlags(processFlags), 1) { Category = "Limit", RequiresMagic = false, AllTargets = (processFlags & 0x30) == 0x20 });
-                    continue;
-                }
-                if (HandlesOperation(choice.Key))
-                {
-                    bool available = host.Actors.Any(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints > 0 && OperationAvailable(choice.Key, actor.Actor.Slot));
-                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, 0x12, choice.Stock, available ? null : "No compatible enemy is available.") { Category = choice.Category, RequiresMagic = true });
-                    continue;
-                }
-                if (choice.Command == 5 && choice.NativeAction is null && LimitReady)
-                {
-                    result.Add(new(Ff7BattleCommand.Limit, 0, choice.Name, 0x12) { Category = choice.Category, RequiresMagic = false });
-                    continue;
-                }
-                byte flags = choice.NativeAction?.TargetFlags ?? 0;
-                string? reason = choice.RuleUnsupportedReason ?? (choice.NativeAction is { } original ? CrossoverBattleAbilityRules.UnsupportedReason(original) ?? TargetingUnsupportedReason(original) : "This ability requires its native command selection process.");
-                if (reason is null)
-                {
-                    string? lastReason = null;
-                    bool supported = false;
-                    foreach (var target in host.Actors.Where(actor => AbilityTargetIsLegal(flags, actor.Actor, host.GetOriginSavedStatuses(actor.Actor.Slot))))
-                    {
-                        int slot = target.Actor.Slot;
-                        if (!CanSelectTarget(flags, slot))
-                        {
-                            continue;
-                        }
-                        string? capability = AbilityUnsupportedReason(choice, slot);
-                        if (capability is null)
-                        {
-                            supported = true;
-                            break;
-                        }
-                        lastReason = capability;
-                    }
-                    reason = supported ? null : lastReason ?? "No valid target is available for this ability.";
-                }
-                byte hostFlags = CrossoverBattleAbilityRules.HostTargetFlags(flags);
-                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, hostFlags, choice.Stock, reason) { Category = choice.Category, RequiresMagic = choice.Command is 2 or 15 or 254 || IsDrawCast(choice.Key), CanTargetDead = (flags & 1) != 0, AllTargets = (flags & 0x30) == 0x20 });
+                continue;
             }
-            return result;
+            if (autoPlay && !(choice.Command == 5 && choice.NativeAction is null && LimitReady))
+            {
+                if (IsProcessInvocation(choice.Key) || HandlesOperation(choice.Key) || choice.RuleUnsupportedReason is not null || choice.NativeAction is not { } action)
+                {
+                    continue;
+                }
+                BattleNativeAction mechanics = ProcessActive ? action with { Statuses1 = action.Statuses1 & ~0x2000000u } : action;
+                if (CrossoverBattleAbilityRules.UnsupportedReason(mechanics) is not null || TargetingUnsupportedReason(action) is not null)
+                {
+                    continue;
+                }
+                Ff7BattleGuestPhysicalHit description = DescribeMagic(choice.Key);
+                if (Ff7BattleSession.ClassifyRecovery(description.Attack, description.StatusRecord) == Ff7BattleRecoveryKind.None)
+                {
+                    continue;
+                }
+            }
+            if (IsProcessInvocation(choice.Key))
+            {
+                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, StartsLimitSelectionWithoutTarget(choice.Key) ? (byte)0x10 : (byte)0x12, 1, ProcessInvocationUnsupportedReason(choice)) { Category = choice.Category, RequiresMagic = false });
+                continue;
+            }
+            if (ProcessActive && processAction is { } activeProcess && ProcessKey(activeProcess) == choice.Key)
+            {
+                byte processFlags = activeProcess.TargetFlags.GetValueOrDefault();
+                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, CrossoverBattleAbilityRules.HostTargetFlags(processFlags), 1) { Category = "Limit", RequiresMagic = false, AllTargets = (processFlags & 0x30) == 0x20 });
+                continue;
+            }
+            if (HandlesOperation(choice.Key))
+            {
+                bool available = host.Actors.Any(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints > 0 && OperationAvailable(choice.Key, actor.Actor.Slot));
+                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, 0x12, choice.Stock, available ? null : "No compatible enemy is available.") { Category = choice.Category, RequiresMagic = true });
+                continue;
+            }
+            if (choice.Command == 5 && choice.NativeAction is null && LimitReady)
+            {
+                result.Add(new(Ff7BattleCommand.Limit, 0, choice.Name, 0x12) { Category = choice.Category, RequiresMagic = false });
+                continue;
+            }
+            byte flags = choice.NativeAction?.TargetFlags ?? 0;
+            string? reason = choice.RuleUnsupportedReason ?? (choice.NativeAction is { } original ? CrossoverBattleAbilityRules.UnsupportedReason(original) ?? TargetingUnsupportedReason(original) : "This ability requires its native command selection process.");
+            if (reason is null)
+            {
+                string? lastReason = null;
+                bool supported = false;
+                foreach (var target in host.Actors.Where(actor => AbilityTargetIsLegal(flags, actor.Actor, host.GetOriginSavedStatuses(actor.Actor.Slot))))
+                {
+                    int slot = target.Actor.Slot;
+                    if (!CanSelectTarget(flags, slot))
+                    {
+                        continue;
+                    }
+                    string? capability = AbilityUnsupportedReason(choice, slot);
+                    if (capability is null)
+                    {
+                        supported = true;
+                        break;
+                    }
+                    lastReason = capability;
+                }
+                reason = supported ? null : lastReason ?? "No valid target is available for this ability.";
+            }
+            byte hostFlags = CrossoverBattleAbilityRules.HostTargetFlags(flags);
+            result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, hostFlags, choice.Stock, reason) { Category = choice.Category, RequiresMagic = choice.Command is 2 or 15 or 254 || IsDrawCast(choice.Key), CanTargetDead = (flags & 1) != 0, AllTargets = (flags & 0x30) == 0x20 });
         }
+        return result;
     }
 
     public string? TargetUnsupportedReason(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)

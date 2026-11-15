@@ -69,7 +69,7 @@ internal sealed partial class Ff7Scene
         }
         if (battle.ReadyPlayer is int owner)
         {
-            var choice = PlanAutoPlayBattleCommand(battle.Commands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null, (command, target) => battle.DescribeRecovery(owner, command, target));
+            var choice = PlanAutoPlayBattleCommand(battle.AutoPlayCommands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null, (command, target) => battle.DescribeRecovery(owner, command, target));
             if (choice is { } action)
             {
                 selectedBattleCommand = null;

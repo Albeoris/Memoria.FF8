@@ -35,6 +35,16 @@ public sealed partial class Ff7BattleSession
 
     public IReadOnlyList<Ff7BattleCommandOption> Commands(int slot)
     {
+        return ReadCommands(slot, autoPlay: false);
+    }
+
+    public IReadOnlyList<Ff7BattleCommandOption> AutoPlayCommands(int slot)
+    {
+        return ReadCommands(slot, autoPlay: true);
+    }
+
+    private IReadOnlyList<Ff7BattleCommandOption> ReadCommands(int slot, bool autoPlay)
+    {
         if (slot != ReadyPlayer)
         {
             guestCommandMenuCache = null;
@@ -45,16 +55,29 @@ public sealed partial class Ff7BattleSession
         if (token is null)
         {
             guestCommandMenuCache = null;
-            return BuildCommands(slot);
+            return BuildCommands(slot, autoPlay);
         }
-        if (guestCommandMenuCache is { } cached && cached.Matches(this, slot, provider!, token))
+        if (guestCommandMenuCache is { } cached && cached.AutoPlay == autoPlay && cached.Matches(this, slot, provider!, token))
         {
             return cached.Options;
         }
-        IReadOnlyList<Ff7BattleCommandOption> options = Array.AsReadOnly(BuildCommands(slot).ToArray());
+        IReadOnlyList<Ff7BattleCommandOption> options = Array.AsReadOnly(BuildCommands(slot, autoPlay).ToArray());
         object? completedToken = ((IFf7BattleGuestAbilities)provider!).CommandMenuState;
-        guestCommandMenuCache = completedToken is null ? null : new(this, slot, provider!, completedToken, options);
+        guestCommandMenuCache = completedToken is null ? null : new(this, slot, provider!, completedToken, options, autoPlay);
         return options;
+    }
+
+    private Ff7BattleCommandOption? ReadAvailableCommand(int slot, Ff7BattleCommand command, ushort argument)
+    {
+        if (guestCommandMenuCache is { AutoPlay: true })
+        {
+            Ff7BattleCommandOption? scoped = AutoPlayCommands(slot).SingleOrDefault(option => option.Command == command && option.Argument == argument);
+            if (scoped is not null)
+            {
+                return scoped;
+            }
+        }
+        return Commands(slot).SingleOrDefault(option => option.Command == command && option.Argument == argument);
     }
 
     private sealed class GuestCommandMenuCache
@@ -68,8 +91,9 @@ public sealed partial class Ff7BattleSession
         private readonly KeyValuePair<byte, int>[] allUses;
 
         public IReadOnlyList<Ff7BattleCommandOption> Options { get; }
+        public bool AutoPlay { get; }
 
-        public GuestCommandMenuCache(Ff7BattleSession session, int slot, IFf7BattleGuestAttack provider, object token, IReadOnlyList<Ff7BattleCommandOption> options)
+        public GuestCommandMenuCache(Ff7BattleSession session, int slot, IFf7BattleGuestAttack provider, object token, IReadOnlyList<Ff7BattleCommandOption> options, bool autoPlay)
         {
             this.slot = slot;
             this.provider = provider;
@@ -80,6 +104,7 @@ public sealed partial class Ff7BattleSession
             limitGauge = source.LimitGauge;
             allUses = source.AllUses?.ToArray() ?? [];
             Options = options;
+            AutoPlay = autoPlay;
         }
 
         public bool Matches(Ff7BattleSession session, int selectedSlot, IFf7BattleGuestAttack selectedProvider, object selectedToken)
@@ -113,7 +138,7 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private IReadOnlyList<Ff7BattleCommandOption> BuildCommands(int slot)
+    private IReadOnlyList<Ff7BattleCommandOption> BuildCommands(int slot, bool autoPlay)
     {
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattlePlayerStats stats = party[slot]!.Value;
@@ -177,7 +202,7 @@ public sealed partial class Ff7BattleSession
                 if (guestAttack is IFf7BattleGuestAbilities abilities)
                 {
                     int abilityIndex = 1;
-                    foreach (Ff7BattleGuestAbility ability in abilities.Abilities)
+                    foreach (Ff7BattleGuestAbility ability in autoPlay ? abilities.ReadAutoPlayAbilities() : abilities.Abilities)
                     {
                         bool enemies = (ability.TargetFlags & 2) != 0;
                         bool locked = (ability.TargetFlags & 0x10) != 0;
@@ -211,7 +236,7 @@ public sealed partial class Ff7BattleSession
             }
             if (items?.HasOriginItems == true)
             {
-                guest.AddRange(GuestItemOptions(items));
+                guest.AddRange(GuestItemOptions(items, autoPlay));
             }
             return guest;
         }

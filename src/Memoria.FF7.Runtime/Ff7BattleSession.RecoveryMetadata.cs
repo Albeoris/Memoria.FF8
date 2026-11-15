@@ -14,7 +14,7 @@ public sealed partial class Ff7BattleSession
     /// <summary>Describes available recovery without preparing a contact, spending stock or sampling battle RNG.</summary>
     public Ff7BattleRecoveryKind DescribeRecovery(int slot, Ff7BattleCommandOption command, int targetSlot)
     {
-        if (command.UnsupportedReason is not null || (command.ValidTargets & 1 << targetSlot) == 0 || !Commands(slot).Contains(command))
+        if (command.UnsupportedReason is not null || (command.ValidTargets & 1 << targetSlot) == 0 || !IsAvailableRecoveryCommand(slot, command))
         {
             return Ff7BattleRecoveryKind.None;
         }
@@ -49,6 +49,11 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState target = Actor(targetSlot);
         Ff7BattleDamageActor stats = Stats(target) with { CurrentHitPoints = target.Actor.HitPoints, MaximumHitPoints = target.Actor.MaxHitPoints };
         return CanRecoverTarget(kind, action, stats, record) ? kind : Ff7BattleRecoveryKind.None;
+    }
+
+    private bool IsAvailableRecoveryCommand(int slot, Ff7BattleCommandOption command)
+    {
+        return ReadAvailableCommand(slot, command.Command, command.Argument) == command;
     }
 
     public static bool CanRecoverTarget(Ff7BattleRecoveryKind kind, Ff7BattleDamageAction action, Ff7BattleDamageActor target, Ff7BattleAttack? record = null)

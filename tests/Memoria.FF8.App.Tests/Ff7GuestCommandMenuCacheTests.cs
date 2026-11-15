@@ -9,6 +9,108 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7GuestCommandMenuCacheTests
 {
     [Fact]
+    public void ManualOffensiveSelectionAfterAutomaticQueryFallsBackToFullValidation()
+    {
+        using Fixture fixture = new();
+        fixture.Guest.ExpandedCatalog = true;
+        Assert.DoesNotContain(fixture.Battle.AutoPlayCommands(0), command => command.Command == Ff7BattleCommand.Magic && command.Argument == 1);
+        Assert.True(fixture.Battle.Submit(0, Ff7BattleCommand.Magic, 1, 1 << 4));
+        Assert.True(fixture.Guest.FullCatalogReads > 0);
+        Assert.True(fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)1) > 0);
+        Assert.Contains(fixture.Battle.Capture().Queue.Ready, command => command is { GuestAttack: true, GuestAbility: 1 });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HealingTargetAdmissionAndNativeSubmissionPreserveAutomaticScope(bool doubleCast)
+    {
+        using Fixture fixture = new(doubleCast);
+        fixture.Guest.ExpandedCatalog = true;
+        fixture.ChangeActor(0, actor => actor with { Actor = actor.Actor with { HitPoints = 100, MaxHitPoints = 486 } });
+        byte[] random = JsonSerializer.SerializeToUtf8Bytes(fixture.Battle.Capture().Random);
+        var selected = Ff7Scene.PlanAutoPlayBattleCommand(fixture.Battle.AutoPlayCommands(0), fixture.Battle.Actors, (command, target) => fixture.Battle.GuestAbilityTargetUnsupportedReason(0, command.Command, command.Argument, target) is null, (command, target) => fixture.Battle.DescribeRecovery(0, command, target));
+        Assert.NotNull(selected);
+        Assert.Equal(Ff7BattleCommand.Magic, selected.Value.Command.Command);
+        Assert.Equal((ushort)2, selected.Value.Command.Argument);
+        Assert.True(fixture.Battle.Submit(0, selected.Value.Command.Command, selected.Value.Command.Argument, Ff7Scene.AutoPlayBattleTargetMask(selected.Value.Command, selected.Value.TargetSlot)));
+        Assert.Equal(0, fixture.Guest.FullCatalogReads);
+        Assert.Equal(0, fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)1));
+        Assert.True(fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)2) > 0);
+        Ff7BattleSnapshot submitted = fixture.Battle.Capture();
+        Assert.Equal(random, JsonSerializer.SerializeToUtf8Bytes(submitted.Random));
+        Assert.Contains(submitted.Queue.Ready, command => command is { GuestAttack: true, GuestAbility: 2 });
+        Assert.Equal(doubleCast ? 1 : 0, submitted.GuestMagicSequences.Length);
+        Assert.Equal(4, fixture.Guest.MagicStock(2));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AutomaticScopeRefreshesForTargetAndOriginStatusChanges(bool originStatus)
+    {
+        using Fixture fixture = new();
+        fixture.Guest.ExpandedCatalog = true;
+        IReadOnlyList<Ff7BattleCommandOption> first = fixture.Battle.AutoPlayCommands(0);
+        fixture.ChangeActor(0, actor => originStatus ? actor with { OriginSavedStatuses = Ff7OriginSavedStatusRules.Zombie } : actor with { Actor = actor.Actor with { HitPoints = 100, MaxHitPoints = 486 } });
+        IReadOnlyList<Ff7BattleCommandOption> refreshed = fixture.Battle.AutoPlayCommands(0);
+        Assert.NotSame(first, refreshed);
+        var automatic = Ff7Scene.PlanAutoPlayBattleCommand(refreshed, fixture.Battle.Actors, targetSupported: (command, target) => fixture.Battle.GuestAbilityTargetUnsupportedReason(0, command.Command, command.Argument, target) is null, recoveryKind: (command, target) => fixture.Battle.DescribeRecovery(0, command, target));
+        Assert.Equal(0, fixture.Guest.FullCatalogReads);
+        Assert.Equal(0, fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)1));
+        var full = Ff7Scene.PlanAutoPlayBattleCommand(fixture.Battle.Commands(0), fixture.Battle.Actors, targetSupported: (command, target) => fixture.Battle.GuestAbilityTargetUnsupportedReason(0, command.Command, command.Argument, target) is null, recoveryKind: (command, target) => fixture.Battle.DescribeRecovery(0, command, target));
+        Assert.Equal(full, automatic);
+    }
+
+    [Theory]
+    [InlineData("healthy")]
+    [InlineData("injured")]
+    [InlineData("revive")]
+    [InlineData("zombie")]
+    public void AutomaticScopePreservesFullMenuDecisionWithoutOffensiveAbilityProbes(string condition)
+    {
+        using Fixture fixture = new();
+        fixture.Guest.ExpandedCatalog = true;
+        fixture.Guest.OriginItems = true;
+        if (condition == "injured")
+        {
+            fixture.ChangeActor(0, actor => actor with { Actor = actor.Actor with { HitPoints = 100, MaxHitPoints = 486 } });
+        }
+        if (condition == "revive")
+        {
+            fixture.AddKnockedOutAlly();
+        }
+        if (condition == "zombie")
+        {
+            fixture.ChangeActor(0, actor => actor with { OriginSavedStatuses = Ff7OriginSavedStatusRules.Zombie });
+        }
+        byte[] before = JsonSerializer.SerializeToUtf8Bytes(fixture.Battle.Capture());
+        IReadOnlyList<Ff7BattleCommandOption> scoped = fixture.Battle.AutoPlayCommands(0);
+        var automatic = Ff7Scene.PlanAutoPlayBattleCommand(scoped, fixture.Battle.Actors, targetSupported: (command, target) => fixture.Battle.GuestAbilityTargetUnsupportedReason(0, command.Command, command.Argument, target) is null, recoveryKind: (command, target) => fixture.Battle.DescribeRecovery(0, command, target));
+        Assert.Equal(0, fixture.Guest.FullCatalogReads);
+        Assert.Equal(0, fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)1));
+        Assert.True(fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)2) > 0);
+        if (condition == "revive")
+        {
+            Assert.True(fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)3) > 0);
+            Assert.Equal((ushort)3, automatic!.Value.Command.Argument);
+            Assert.Equal(1, automatic.Value.TargetSlot);
+        }
+        Assert.Same(scoped, fixture.Battle.AutoPlayCommands(0));
+        IReadOnlyList<Ff7BattleCommandOption> full = fixture.Battle.Commands(0);
+        var manualContext = Ff7Scene.PlanAutoPlayBattleCommand(full, fixture.Battle.Actors, targetSupported: (command, target) => fixture.Battle.GuestAbilityTargetUnsupportedReason(0, command.Command, command.Argument, target) is null, recoveryKind: (command, target) => fixture.Battle.DescribeRecovery(0, command, target));
+        Assert.Equal(manualContext, automatic);
+        Assert.True(fixture.Guest.AbilitySupportCalls.GetValueOrDefault((ushort)1) > 0);
+        Assert.Equal(before, JsonSerializer.SerializeToUtf8Bytes(fixture.Battle.Capture()));
+        Assert.Equal(4, fixture.Guest.MagicStock(2));
+        Assert.Equal(2, fixture.Guest.ItemStock(73));
+        fixture.State = fixture.State with { Actors = fixture.State.Actors.Select(actor => actor.Actor.Slot >= 4 ? actor with { Actor = actor.Actor with { HitPoints = 0, Statuses = 1 } } : actor).ToArray() };
+        IReadOnlyList<Ff7BattleCommandOption> changed = fixture.Battle.AutoPlayCommands(0);
+        Assert.NotSame(scoped, changed);
+        Assert.Equal((ushort)0, Assert.Single(changed, option => option.Command == Ff7BattleCommand.Attack).ValidTargets);
+    }
+
+    [Fact]
     public void UnchangedCombatInputsReuseOptionsAcrossMenuFrames()
     {
         using Fixture fixture = new();
@@ -189,7 +291,7 @@ public sealed class Ff7GuestCommandMenuCacheTests
             set => StateField.SetValue(Battle, value);
         }
 
-        public Fixture()
+        public Fixture(bool doubleCast = false)
         {
             string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
             Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the installed original FFVII resources.");
@@ -203,7 +305,7 @@ public sealed class Ff7GuestCommandMenuCacheTests
             Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
             Ff7BattleSession initial = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, animations: animations);
             Guid encounter = Guid.NewGuid();
-            initial.BindGuestVitals(new(encounter, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17));
+            initial.BindGuestVitals(new(encounter, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17) { OriginBattleStatuses = doubleCast ? 0x20000u : 0 });
             Ff7BattleSnapshot snapshot = initial.Capture();
             snapshot = snapshot with
             {
@@ -225,6 +327,14 @@ public sealed class Ff7GuestCommandMenuCacheTests
             State = State with { Actors = State.Actors.Select(actor => actor.Actor.Slot == slot ? change(actor) : actor).ToArray() };
         }
 
+        public void AddKnockedOutAlly()
+        {
+            Array stats = (Array)typeof(Ff7BattleSession).GetField("party", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Battle)!;
+            stats.SetValue(stats.GetValue(0), 1);
+            Ff7BattleActorState source = State.Actors.Single(actor => actor.Actor.Slot == 0);
+            State = State with { Actors = State.Actors.Append(source with { Identity = 1, AwaitingTurn = false, Actor = source.Actor with { Slot = 1, HitPoints = 0, Statuses = 1 } }).ToArray() };
+        }
+
         public void Dispose()
         {
             magic.Dispose();
@@ -236,11 +346,14 @@ public sealed class Ff7GuestCommandMenuCacheTests
     private sealed class Probe(Guid encounter) : IFf7BattleGuestAttack, IFf7BattleGuestAbilities, IFf7BattleGuestMagic, IFf7BattleGuestItems
     {
         public bool Recovery { get; set; }
+        public bool ExpandedCatalog { get; set; }
+        public Dictionary<ushort, int> AbilitySupportCalls { get; } = [];
         public bool OriginItems { get; set; }
         public object? StateToken { get; set; } = new();
         public bool AllowTarget { get; set; } = true;
         public bool RefreshTokenOnSupport { get; set; }
         public int AbilityReads { get; private set; }
+        public int FullCatalogReads { get; private set; }
         public int SupportCalls { get; private set; }
         public int ActorSlot => 0;
         public Guid EncounterId => encounter;
@@ -252,26 +365,45 @@ public sealed class Ff7GuestCommandMenuCacheTests
         {
             get
             {
-                AbilityReads++;
-                return [new(Ff7BattleCommand.Magic, 1, "Ability", Recovery ? (byte)0x10 : (byte)0x12, 4)];
+                FullCatalogReads++;
+                return ReadAbilityCatalog();
             }
         }
+
+        private IReadOnlyList<Ff7BattleGuestAbility> ReadAbilityCatalog()
+        {
+            AbilityReads++;
+            if (ExpandedCatalog)
+            {
+                return [new(Ff7BattleCommand.Magic, 1, "Offensive", 0x12, 4), new(Ff7BattleCommand.Magic, 2, "Healing", 0x10, 4), new(Ff7BattleCommand.Magic, 3, "Revival", 0, 4) { CanTargetDead = true }];
+            }
+            return [new(Ff7BattleCommand.Magic, 1, "Ability", Recovery ? (byte)0x10 : (byte)0x12, 4)];
+        }
+
+        public IReadOnlyList<Ff7BattleGuestAbility> ReadAutoPlayAbilities() => ReadAbilityCatalog().Where(ability => Ff7BattleSession.ClassifyRecovery(DescribeMagic(ability.Ability).Attack) != Ff7BattleRecoveryKind.None).ToArray();
+        public Ff7BattleGuestAbility? ReadAbility(Ff7BattleCommand command, ushort ability) => ReadAbilityCatalog().SingleOrDefault(choice => choice.Command == command && choice.Ability == ability);
 
         public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null;
 
         public bool SupportsAbility(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)
         {
             SupportCalls++;
+            AbilitySupportCalls[ability] = AbilitySupportCalls.GetValueOrDefault(ability) + 1;
             if (RefreshTokenOnSupport)
             {
                 StateToken = new();
+            }
+            if (ExpandedCatalog)
+            {
+                return AllowTarget && (ability == 3 ? target.Slot < 3 && target.Actor.HitPoints == 0 : ability == 2 ? target.Slot < 3 && target.Actor.HitPoints > 0 : target.Slot == 4 && target.Actor.MagicPoints > 0);
             }
             return AllowTarget && (Recovery ? target.Slot == 0 && target.Actor.HitPoints > 0 : target.Slot == 4 && target.Actor.MagicPoints > 0);
         }
 
         public int MagicStock(ushort ability) => 4;
+        public IReadOnlyList<ushort> MagicIds => ExpandedCatalog ? [(ushort)1, (ushort)2, (ushort)3] : [];
         public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => SupportsAbility(Ff7BattleCommand.Magic, ability, target);
-        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(default, new(0x22, 8, 255, Healing: Recovery), 0);
+        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(default, new(0x22, 8, 255, Healing: ExpandedCatalog ? ability != 1 : Recovery) { RequiresKnockedOutTarget = ExpandedCatalog && ability == 3 }, 0);
         public void PrepareMagic(Ff7BattleGuestPhysicalHit prepared) => throw new InvalidOperationException("A recovery description must not prepare magic.");
         public bool HasOriginItems => OriginItems;
         public IReadOnlyList<ushort> ItemIds => [73];

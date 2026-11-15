@@ -500,7 +500,7 @@ public sealed partial class Ff7BattleSession
         => ability == 0 ? guest.Supports(target) : guest is IFf7BattleGuestAbilities catalog ? catalog.SupportsAbility(Ff7BattleCommand.Magic, ability, target) : guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);
 
     private static bool GuestAbilityRequiresMagic(IFf7BattleGuestAttack guest, ushort ability)
-        => ability != 0 && (guest is not IFf7BattleGuestAbilities catalog || catalog.Abilities.Single(choice => choice.Command == Ff7BattleCommand.Magic && choice.Ability == ability).RequiresMagic);
+        => ability != 0 && (guest is not IFf7BattleGuestAbilities catalog || (catalog.ReadAbility(Ff7BattleCommand.Magic, ability) ?? throw new InvalidOperationException("The selected guest ability is not available.")).RequiresMagic);
 
     private Ff7BattleDamageAction ProjectGuestOutgoingAttack(int targetSlot, Ff7BattleGuestPhysicalHit hit)
     {

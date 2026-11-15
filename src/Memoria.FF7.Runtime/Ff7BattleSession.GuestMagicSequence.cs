@@ -55,7 +55,7 @@ public sealed partial class Ff7BattleSession
         {
             return false;
         }
-        Ff7BattleCommandOption? option = Commands(slot).SingleOrDefault(choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == ability);
+        Ff7BattleCommandOption? option = ReadAvailableCommand(slot, Ff7BattleCommand.Magic, ability);
         if (option is null || option.UnsupportedReason is not null || targets.Where((mask, index) => !ValidGuestMagicSelection(option, mask, groups?[index] ?? false)).Any())
         {
             return false;

@@ -24,7 +24,7 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private IEnumerable<Ff7BattleCommandOption> GuestItemOptions(IFf7BattleGuestItems items)
+    private IEnumerable<Ff7BattleCommandOption> GuestItemOptions(IFf7BattleGuestItems items, bool autoPlay)
     {
         foreach (ushort item in items.ItemIds)
         {
@@ -32,6 +32,14 @@ public sealed partial class Ff7BattleSession
             if (stock <= 0)
             {
                 continue;
+            }
+            if (autoPlay)
+            {
+                Ff7BattleGuestItemEffect effect = items.DescribeItem(item);
+                if (effect.ReviveDivisor == 0 && effect.HitPoints <= 0 && effect.MaximumHitPointFraction <= 0)
+                {
+                    continue;
+                }
             }
             ushort targets = Mask(state.Actors.Where(actor => GuestItemTarget(items, item, actor)));
             if (targets != 0)
