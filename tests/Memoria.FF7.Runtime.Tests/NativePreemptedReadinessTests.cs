@@ -34,6 +34,9 @@ internal static class NativePreemptedReadinessTests
         }
         Check(!waiting, "A stationary preemptor masked an exhausted frontier indefinitely.");
         Check(before == JsonSerializer.Serialize(new { vm, process }), "Readiness inspection changed native execution facts.");
+        FieldVmSnapshot countdown = vm with { Entities = [owner with { WaitCounter = 90 }, child with { SyncStates = new FieldSyncState[8] }] };
+        Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 3, 1, 0x60 }, []), "An existing countdown could not reach its next synchronous native request.");
+        Check(!new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 0, 0, 0 }, []), "An unrelated ambient wait authenticated future synchronous work.");
         CheckOriginal();
     }
 
@@ -51,23 +54,25 @@ internal static class NativePreemptedReadinessTests
         Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7!;
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
         FieldHostRequest move = saved.Vm.PendingRequests!.Single(request => request.Command is FieldActorMove);
-        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice before the pending movement finished."));
-        Ff7AutoplayDriver driver = new(session);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice before the native handoff."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, advanceTick: () => session.AdvanceTick(advanceClock: false));
+        controller.Start();
         bool finished = false;
+        bool nextFrontier = false;
         int callbacks = 0;
-        for (; callbacks < 128; callbacks++)
+        for (; callbacks < 2048 && controller.Running; callbacks++)
         {
-            driver.Apply(policy.ChooseInput(driver));
-            session.AdvanceTick(advanceClock: false);
-            finished = !(session.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == move.Id);
-            if (finished)
+            controller.Advance(1);
+            finished |= !(session.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == move.Id);
+            nextFrontier = session.Host.PendingMinigame is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && dialogue.FirstChoice is not null);
+            if (nextFrontier)
             {
                 break;
             }
         }
-        Check(finished, "Normal autoplay exhausted the original frontier before its already-running movement completed.");
+        Check(finished && nextFrontier, $"Normal autoplay failed before its next native decision or minigame handoff: {controller.Error}");
         Check(source.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The normal-policy regression changed its standalone source.");
-        Console.WriteLine($"PASS original preempting movement completed after {callbacks + 1} native callbacks");
+        Console.WriteLine($"PASS original preemptor, countdown and native decision handoff after {callbacks + 1} callbacks");
     }
 
     private static void Check(bool condition, string message)

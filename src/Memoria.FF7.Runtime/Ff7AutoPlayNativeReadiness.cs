@@ -34,6 +34,12 @@ internal sealed class Ff7AutoPlayNativeReadiness
         for (int targetId = 0; targetId < vm.Entities.Length; targetId++)
         {
             FieldEntitySnapshot target = vm.Entities[targetId];
+            int currentPc = target.ProgramCounter;
+            if (target.WaitCounter > 0 && currentPc >= 0 && currentPc + 5 < script.Length && script[currentPc] == 0x24 && script[currentPc + 3] == 0x03 && script[currentPc + 4] < vm.Entities.Length)
+            {
+                // A running finite countdown immediately precedes an authored synchronous request.
+                work.Add(targetId);
+            }
             for (int priority = 0; priority < target.SyncStates.Length; priority++)
             {
                 int ownerId = target.SyncOwners[priority];
