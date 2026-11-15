@@ -19,11 +19,12 @@ public sealed record Ff7FadeColorOrigin(int Red, int Green, int Blue)
     }
 }
 
-public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, int Green, int Blue, bool UsesFieldColor, uint FieldColorArgb = 0x80FFFFFF, uint? QuadColorArgb = null, Ff7FadeQuadBlend QuadBlend = Ff7FadeQuadBlend.Alpha, bool EntryCurve = false, bool? FieldHidden = null)
+public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, int Green, int Blue, bool UsesFieldColor, uint FieldColorArgb = 0x80FFFFFF, uint? QuadColorArgb = null, Ff7FadeQuadBlend QuadBlend = Ff7FadeQuadBlend.Alpha, bool EntryCurve = false, bool? FieldHidden = null, bool? ConstantFieldColor = null)
 {
     public bool HidesField => FieldHidden ?? Type == 4;
+    public bool HasConstantFieldColor => ConstantFieldColor ?? Type is 7 or 8;
 
-    public bool Completed => Type is 0 or 4 || Type is 1 or 5 or 9 && Position == 0 || Type is 2 or 6 or 10 && Position >= 255 || Type is 11 or 12 && Position == Speed;
+    public bool Completed => Type is 0 or 4 || Type is 1 or 5 or 7 or 9 && Position == 0 || Type is 2 or 6 or 8 or 10 && Position >= 255 || Type is 11 or 12 && Position == Speed;
 
     public void Validate()
     {
@@ -31,7 +32,7 @@ public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, 
         int minimum = interpolated ? short.MinValue : 0;
         int maximumPosition = interpolated ? short.MaxValue : 256;
         int maximumSpeed = interpolated ? short.MaxValue : 255;
-        if (Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10 or 11 or 12) || Position < minimum || Position > maximumPosition || Speed < minimum || Speed > maximumSpeed || interpolated && Speed == 0 || Red is < 0 or > 255 || Green is < 0 or > 255 || Blue is < 0 or > 255 || !Enum.IsDefined(QuadBlend))
+        if (Type is not (0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12) || Position < minimum || Position > maximumPosition || Speed < minimum || Speed > maximumSpeed || interpolated && Speed == 0 || Red is < 0 or > 255 || Green is < 0 or > 255 || Blue is < 0 or > 255 || !Enum.IsDefined(QuadBlend))
         {
             throw new InvalidDataException("FFVII fade continuation is invalid.");
         }
@@ -42,7 +43,7 @@ public static class Ff7NativeFade
 {
     public static Ff7FadeProcess Start(FieldFadeCommand command, Ff7FadeProcess? previous, int? fieldId = null, Ff7FadeColorOrigin? newFadeOrigin = null)
     {
-        if (command.Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10 or 11 or 12) || command.NewFade && command.Type is not (0 or 4 or 11 or 12) || command.Type is 11 or 12 && !command.NewFade)
+        if (command.Type is not (0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12) || command.NewFade && command.Type is not (0 or 4 or 11 or 12) || command.Type is 11 or 12 && !command.NewFade)
         {
             throw new NotSupportedException($"FFVII fade type {command.Type} requires its separate native fade process.");
         }
@@ -65,7 +66,7 @@ public static class Ff7NativeFade
         {
             fieldColor |= command.Red is > 20 and < 220 || command.Green is > 20 and < 220 || command.Blue is > 20 and < 220;
         }
-        Ff7FadeProcess next = new(type, command.Type is 11 or 12 ? 0 : command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 or 11 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false, FieldHidden: previous?.HidesField ?? false);
+        Ff7FadeProcess next = new(type, command.Type is 11 or 12 ? 0 : command.Type is 1 or 5 or 7 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 8 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 or 11 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false, FieldHidden: previous?.HidesField ?? false, ConstantFieldColor: command.Type is 7 or 8 || previous?.HasConstantFieldColor == true);
         next.Validate();
         return next;
     }
@@ -101,11 +102,22 @@ public static class Ff7NativeFade
         }
         if (process.Type == 0)
         {
-            return process with { UsesFieldColor = false, FieldColorArgb = 0x80FFFFFF, QuadColorArgb = null, QuadBlend = Ff7FadeQuadBlend.Alpha };
+            return process with { UsesFieldColor = false, ConstantFieldColor = false, FieldColorArgb = 0x80FFFFFF, QuadColorArgb = null, QuadBlend = Ff7FadeQuadBlend.Alpha };
         }
         if (process.Type == 4)
         {
             return process;
+        }
+        if (process.Type is 7 or 8)
+        {
+            int timer = process.Type == 7 ? unchecked((short)(process.Position - process.Speed)) : unchecked((short)(process.Position + process.Speed));
+            int phase = process.Type == 7 ? movieActive ? 0 : Math.Max(0, timer) : timer >= 256 ? 255 : timer;
+            // The native constant-color selector is independent of the ordinary tint selector.
+            // It survives command replacement and clears on the following type0 update.
+            uint constantRed = (uint)(256 - unchecked((byte)(256 - process.Red)));
+            uint constantGreen = (uint)(256 - unchecked((byte)(256 - process.Green)));
+            uint constantBlue = (uint)(256 - unchecked((byte)(256 - process.Blue)));
+            return process with { Type = process.Type == 7 && phase == 0 ? 0 : process.Type, Position = phase, ConstantFieldColor = true, FieldColorArgb = 0x80000000u | constantRed << 16 | constantGreen << 8 | constantBlue, QuadColorArgb = null, QuadBlend = Ff7FadeQuadBlend.Alpha };
         }
         int position = process.Type is 1 or 5 or 9 ? (movieActive ? 0 : Math.Max(0, process.Position - process.Speed)) : Math.Min(255, process.Position + process.Speed);
         if (process.EntryCurve)

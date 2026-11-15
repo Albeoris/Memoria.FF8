@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--constant-fade-only", StringComparer.Ordinal))
+{
+    NativeConstantFadeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--line-entry-avoidance-only", StringComparer.Ordinal))
 {
     NativeLineEntryAvoidanceTests.Run();
@@ -623,6 +629,7 @@ if (args.Contains("--field-fade-only", StringComparer.Ordinal))
     NativeNewFadeTests.Run();
     NativeEntryFadeTests.Run();
     NativeQuadFadeTests.Run();
+    NativeConstantFadeTests.Run();
     return 0;
 }
 
