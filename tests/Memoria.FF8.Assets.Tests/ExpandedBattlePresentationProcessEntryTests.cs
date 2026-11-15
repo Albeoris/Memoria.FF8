@@ -9,6 +9,45 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
 {
     private const int EntryBudget = 1200;
 
+    [Fact]
+    public void Fresh_unaliased_model_load_initializes_color_timers_without_overwriting_existing_rows()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        NativeBattleRetainedMemory retained = selected.NativeRetainedMemory!;
+        ImmutableArray<ImmutableArray<byte?>> originalTimers = retained.ModelStatusTimers!.Value;
+        selected = selected with { NativeRetainedMemory = retained with { ModelStatusTimers = originalTimers.SetItem(3, originalTimers[3].SetItem(18, 37)) } };
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
+        BattleModelOwner original = aliases.DecodeLiteral(3);
+        BattleModelOwner existing = Assert.Single(roster.Party, owner => !aliases.TryEncodeExact(owner, out _));
+        BattleModelOwner fresh = Assert.Single(roster.Enemies, owner => !aliases.TryEncodeExact(owner, out _));
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        NativeBattleGraphicsState before = process.Graphics;
+        NativeBattleGraphicsModel unloaded = new(0) { StatusTimers = ImmutableArray.CreateRange(new byte?[32]).SetItem(18, 42) };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, before with { ActorModels = before.ActorModels.Add(existing, unloaded) });
+        Assert.False(process.Graphics.ActorModels.Contains(fresh));
+
+        NativeExamTimerState? timer = null;
+        AdvanceToCase3(process, logical, ref timer, selected.NativeGraphics!.Rules.UiPublicationDuration!.Value);
+        BattleActorModels models = process.Graphics.ActorModels;
+        Assert.Equal((byte)37, models.Get(original).StatusTimers[18]);
+        Assert.Equal((byte)42, models.Get(existing).StatusTimers[18]);
+        Assert.Null(models.Get(existing).StatusTimers[17]);
+        NativeBattleGraphicsModel loaded = models.Get(fresh);
+        Assert.Equal(2, loaded.Flags0 & 2);
+        Assert.Equal(32, loaded.StatusTimers.Length);
+        Assert.All(loaded.StatusTimers, value => Assert.Equal((byte)0, value));
+
+        NativeBattleSummonColors colors = selected.NativeGraphics.Rules.SummonColors!;
+        NativeBattleStageColors stage = process.Stage.ModelColors!;
+        NativeBattleGraphicsModel pulse = NativeBattleModelStatusColors.Advance50A1C0(loaded with { Flags8 = 0x100 }, colors with { Transition = stage.Color40, Normal = stage.Color44 });
+        Assert.Equal((byte)1, pulse.StatusTimers[18]);
+        Assert.Equal((byte)0, pulse.StatusTimers[8]);
+    }
+
     [Theory]
     [InlineData(4, 5)]
     [InlineData(11, 14)]

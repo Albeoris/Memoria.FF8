@@ -230,25 +230,25 @@ public sealed class ExpandedBattleGuardianTests
         return battle.Events.Skip(from).Any(entry => entry is { Kind: "ActionComplete", ActorId: CasterId });
     }
 
-    private static void PrepareParty(GameSession session, bool learnedBoost)
+    internal static void PrepareParty(GameSession session, bool learnedBoost, int guardianId = GuardianId)
     {
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords();
-        vitals = vitals.AcquireGuardianForce(GuardianId).RefreshGuardianForces().Rest();
+        vitals = vitals.AcquireGuardianForce(guardianId).RefreshGuardianForces().Rest();
         vitals = vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray() };
-        int existing = Array.FindIndex(vitals.Records, record => record.Junction.GuardianForceAssignments.Contains(GuardianId));
+        int existing = Array.FindIndex(vitals.Records, record => record.Junction.GuardianForceAssignments.Contains(guardianId));
         if (existing == -1)
         {
-            vitals = vitals.ToggleGuardianForceJunction(3, GuardianId);
+            vitals = vitals.ToggleGuardianForceJunction(3, guardianId);
         }
         else if (existing != 3)
         {
-            vitals = vitals.ReassignGuardianForceJunction(3, GuardianId, existing);
+            vitals = vitals.ReassignGuardianForceJunction(3, guardianId, existing);
         }
 
         int bit = Assert.Single(Enumerable.Range(19, 9), index => (vitals.Definitions.GuardianForceModifiers[index - 19].Flags & 1) != 0);
-        NativeGuardianForceVital guardian = vitals.GuardianForces[GuardianId];
+        NativeGuardianForceVital guardian = vitals.GuardianForces[guardianId];
         ulong boost = 1UL << bit;
-        vitals.GuardianForces[GuardianId] = guardian with { LearnedBank = guardian.LearnedBank with { High = learnedBoost ? guardian.LearnedBank.High | boost : guardian.LearnedBank.High & ~boost } };
+        vitals.GuardianForces[guardianId] = guardian with { LearnedBank = guardian.LearnedBank with { High = learnedBoost ? guardian.LearnedBank.High | boost : guardian.LearnedBank.High & ~boost } };
         NativeCharacterVital caster = vitals.Records[3];
         int summonCommand = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)3);
         Assert.True(summonCommand >= 0);

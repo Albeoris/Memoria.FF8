@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics)
+    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest)
     {
         internal BattleSession Owner { get; } = owner;
         internal HostedPresentationInvocation Invocation { get; } = invocation;
@@ -13,9 +13,11 @@ public sealed partial class BattleSession
         internal NativeBattleActionPacketsState OriginalPackets { get; } = originalPackets;
         internal NativeBattleActionPacketsState ReplacementPackets { get; } = replacementPackets;
         internal NativeBattleGraphicsState? ReplacementGraphics { get; } = replacementGraphics;
+        internal ImmutableArray<BattleActionHeaderReference> AppendedHeaders { get; } = appendedHeaders;
+        internal HostedGuardianBoostRequest? GuardianRequest { get; } = guardianRequest;
     }
 
-    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null)
+    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation || token != invocation.Token)
@@ -49,8 +51,25 @@ public sealed partial class BattleSession
             }
             replacementGraphics = graphics with { PendingTrigger = null };
         }
+        if (acknowledgeGuardian is not null)
+        {
+            if (acknowledgeTrigger is not null || acknowledgeGuardian.Token != token)
+            {
+                throw new InvalidDataException("Hosted contact replacement requires one matching native recompute request.");
+            }
+            ValidateHostedGuardianBoostRequest(acknowledgeGuardian);
+        }
+        if (append.IsDefault)
+        {
+            append = [];
+        }
+        if (!append.IsEmpty && (!packets.HasPublishedHeader(invocation.Header) || packets.ContactCount < header.FirstContact.Advance(original.Length).Ordinal))
+        {
+            throw new InvalidOperationException("Hosted contact append requires live packet counts beyond the current header and its contacts.");
+        }
         NativeBattleActionPacketsState replacement = packets.ReplaceHeaderContacts(invocation.Header, replacements);
-        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics);
+        (replacement, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true);
+        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian);
     }
 
     internal void ValidatePreparedHostedContactReplacement(PreparedHostedContactReplacement prepared)
@@ -62,6 +81,10 @@ public sealed partial class BattleSession
             hostedFrameServices is not null)
         {
             throw new InvalidOperationException("The prepared contact replacement no longer belongs to this active hosted invocation.");
+        }
+        if (prepared.GuardianRequest is { } guardian)
+        {
+            ValidateHostedGuardianBoostRequest(guardian);
         }
     }
 
@@ -77,6 +100,11 @@ public sealed partial class BattleSession
         if (prepared.ReplacementGraphics is { } graphics)
         {
             NativeGraphics = graphics;
+        }
+        if (prepared.GuardianRequest is { } guardian)
+        {
+            lastHostedGuardianBoostAcknowledged = guardian.Token;
+            pendingHostedGuardianBoost = null;
         }
     }
 }

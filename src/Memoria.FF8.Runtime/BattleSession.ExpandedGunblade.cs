@@ -75,34 +75,12 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted Gunblade placeholder lost its original caster or recipient.");
         }
 
-        BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(before, customHandlers);
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.pendingEnemyDraw ??= invocation.EnemyDraw;
-        candidate.preparingExpandedHostedAction = true;
-        candidate.producingExpandedAiCallback = true;
-        candidate.producingExpandedAiInvocation = new(invocation.Header.Source, invocation.Command);
-        NativeBattleContactPacket packet = candidate.ResolveExpandedGunbladeContact(invocation, previous, receipt);
-        if (candidate.HasStagedExpandedHostedOperations || candidate.encounterCounterCommands.Count != 0)
+        PublishExpandedHostedRecompute(process, roster, token, invocation, candidate =>
         {
-            // TODO(TD-009): Combine deferred contact replacement with publication of its nested suffix after the queued descriptors.
-            throw new NotSupportedException("Hosted Gunblade recompute emitted nested commands that require an atomic event extension.");
-        }
-        ExpandedHostedInvocation resolved = invocation with
-        {
-            Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false
-        };
-        NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
-        PreparedHostedContactReplacement replacement = process.PrepareGunbladeContact(token, packet, receipt);
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = Restore(before, customHandlers);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        process.ValidateGunbladeContact(replacement);
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        ReplaceCurrentExpandedHostedInvocation(invocation, resolved, bridge);
-        process.CommitGunbladeContact(replacement);
+            candidate.pendingEnemyDraw ??= invocation.EnemyDraw;
+            NativeBattleContactPacket packet = candidate.ResolveExpandedGunbladeContact(invocation, previous, receipt);
+            return invocation with { Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false };
+        }, trigger: receipt);
     }
 
     private NativeBattleContactPacket ResolveExpandedGunbladeContact(ExpandedHostedInvocation invocation, ExpandedBattleContact previous, NativeBattleTriggerReceipt receipt)

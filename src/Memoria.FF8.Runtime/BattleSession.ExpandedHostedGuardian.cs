@@ -33,31 +33,11 @@ public sealed partial class BattleSession
             }
         }
 
-        BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(before, customHandlers);
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.nativeAffinityAction = nativeAffinityAction;
-        candidate.preparingExpandedHostedAction = true;
-        candidate.producingExpandedAiCallback = true;
-        ImmutableArray<ExpandedBattleContact> contacts = candidate.ResolveExpandedGuardianContacts(invocation, request.Percent);
-        if (candidate.HasStagedExpandedHostedOperations)
+        PublishExpandedHostedRecompute(process, roster, token, invocation, candidate => invocation with
         {
-            // TODO(TD-009): Append nested stage4 graphics after the already queued action and completion descriptors.
-            throw new NotSupportedException("Hosted Guardian Force recompute emitted a nested callback that requires the live event stream.");
-        }
-        ExpandedHostedInvocation resolved = invocation with { Contacts = contacts, PendingGuardian = false };
-        NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
-        PreparedHostedGuardianContacts replacement = process.PrepareGuardianContacts(request, contacts.Select(contact => contact.Packet).ToImmutableArray());
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = Restore(before, customHandlers);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-
-        process.ValidatePreparedGuardianContacts(replacement);
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        ReplaceCurrentExpandedHostedInvocation(invocation, resolved, bridge);
-        process.CommitGuardianContacts(replacement);
+            Contacts = candidate.ResolveExpandedGuardianContacts(invocation, request.Percent),
+            PendingGuardian = false
+        }, guardian: request);
     }
 
     private ImmutableArray<ExpandedBattleContact> ResolveExpandedGuardianContacts(ExpandedHostedInvocation invocation, byte percent)

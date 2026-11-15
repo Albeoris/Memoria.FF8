@@ -73,27 +73,7 @@ public sealed partial class BattleSession
         {
             packets = packets.WithRoster(roster, aliases);
         }
-        ImmutableArray<BattleActionHeaderReference>.Builder appended = ImmutableArray.CreateBuilder<BattleActionHeaderReference>(append.Length);
-        foreach (HostedDispatchHeader write in append)
-        {
-            if (write.Contacts.IsDefault)
-            {
-                throw new InvalidDataException("Hosted action admission requires its explicit contact list.");
-            }
-            (packets, BattleActionHeaderReference reference) = packets.Prepare(write.Header);
-            packets = packets.AppendContacts(write.Contacts);
-            (packets, _) = packets.Publish(write.Contacts.Length);
-            packets = packets.WritePlayerRepeatMode(reference, 1);
-            if (!publishEventHeaders)
-            {
-                _ = ReadHostedDispatchSource(graphics, packets, reference);
-            }
-            else
-            {
-                (ReadHostedPresentationModelResource(write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its original source resource.")).Validate();
-            }
-            appended.Add(reference);
-        }
+        (packets, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, packets, append, publishEventHeaders);
         if (dispatchAppended)
         {
             headerReference = appended[0];
@@ -124,7 +104,7 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsState admitted = ReferenceEquals(graphics.Descriptors, descriptors) ? graphics : graphics with { Descriptors = descriptors };
         ImmutableArray<HostedControlPacket> prefix = HostedControlPrefixRetired ? queuedControls.ToImmutable() : hostedControlPackets;
-        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended.MoveToImmutable(), prefix);
+        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix);
 
         void EnqueueControls(ImmutableArray<HostedDispatchControl> operations)
         {
@@ -199,6 +179,32 @@ public sealed partial class BattleSession
                 return;
             }
         }
+    }
+
+    private (NativeBattleActionPacketsState Packets, ImmutableArray<BattleActionHeaderReference> Appended) AppendHostedHeaders(NativeBattleGraphicsState graphics, NativeBattleActionPacketsState packets, ImmutableArray<HostedDispatchHeader> append, bool publishEventHeaders)
+    {
+        ImmutableArray<BattleActionHeaderReference>.Builder appended = ImmutableArray.CreateBuilder<BattleActionHeaderReference>(append.Length);
+        foreach (HostedDispatchHeader write in append)
+        {
+            if (write.Contacts.IsDefault)
+            {
+                throw new InvalidDataException("Hosted action admission requires its explicit contact list.");
+            }
+            (packets, BattleActionHeaderReference reference) = packets.Prepare(write.Header);
+            packets = packets.AppendContacts(write.Contacts);
+            (packets, _) = packets.Publish(write.Contacts.Length);
+            packets = packets.WritePlayerRepeatMode(reference, 1);
+            if (!publishEventHeaders)
+            {
+                _ = ReadHostedDispatchSource(graphics, packets, reference);
+            }
+            else
+            {
+                (ReadHostedPresentationModelResource(write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its original source resource.")).Validate();
+            }
+            appended.Add(reference);
+        }
+        return (packets, appended.MoveToImmutable());
     }
 
     private (BattleModelOwner Owner, NativeBattleGraphicsResource Source) ReadHostedDispatchSource(NativeBattleGraphicsState graphics, NativeBattleActionPacketsState packets, BattleActionHeaderReference reference)

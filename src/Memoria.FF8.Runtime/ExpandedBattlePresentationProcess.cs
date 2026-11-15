@@ -183,21 +183,20 @@ public sealed partial class ExpandedBattlePresentationProcess
         presentation.PressHostedGunblade(token, actor, widget);
     }
 
-    internal BattleSession.PreparedHostedContactReplacement PrepareGunbladeContact(long token, NativeBattleContactPacket packet, NativeBattleTriggerReceipt receipt)
+    internal BattleSession.PreparedHostedContactReplacement PrepareRecomputedContacts(long token, ImmutableArray<NativeBattleContactPacket> contacts, ImmutableArray<BattleSession.HostedDispatchHeader> append, NativeBattleTriggerReceipt? trigger = null, BattleSession.HostedGuardianBoostRequest? guardian = null)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedContactReplacement(token, [packet], receipt);
+        return presentation.PrepareHostedContactReplacement(token, contacts, trigger, append, guardian);
     }
 
-    internal void ValidateGunbladeContact(BattleSession.PreparedHostedContactReplacement prepared)
+    internal void ValidatePreparedRecomputedContacts(BattleSession.PreparedHostedContactReplacement prepared)
     {
         RequireAdmissionWindow();
         presentation.ValidatePreparedHostedContactReplacement(prepared);
     }
 
-    internal void CommitGunbladeContact(BattleSession.PreparedHostedContactReplacement prepared)
+    internal void CommitRecomputedContacts(BattleSession.PreparedHostedContactReplacement prepared)
     {
-        RequireAdmissionWindow();
         presentation.CommitHostedContactReplacement(prepared);
     }
 

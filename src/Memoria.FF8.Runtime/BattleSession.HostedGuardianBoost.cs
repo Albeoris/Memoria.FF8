@@ -5,7 +5,6 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     internal sealed record HostedGuardianBoostRequest(long Token, BattleActionHeaderReference Header, BattlePartyModelOwner Caster, byte Percent);
-    internal sealed record PreparedHostedGuardianContacts(HostedGuardianBoostRequest Request, PreparedHostedContactReplacement Replacement);
 
     private ushort hostedGuardianBoostMappedButtons;
     private HostedPresentationInvocation? hostedGuardianBoostWidgetOwner;
@@ -66,27 +65,6 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted Boost requires the active Guardian Force header and its party caster.");
         }
         return (invocation, header, caster);
-    }
-
-    internal PreparedHostedGuardianContacts PrepareHostedGuardianContacts(HostedGuardianBoostRequest request, ImmutableArray<NativeBattleContactPacket> contacts)
-    {
-        ValidateHostedGuardianBoostRequest(request);
-        return new(request, PrepareHostedContactReplacement(request.Token, contacts));
-    }
-
-    internal void ValidatePreparedHostedGuardianContacts(PreparedHostedGuardianContacts prepared)
-    {
-        ArgumentNullException.ThrowIfNull(prepared);
-        ValidateHostedGuardianBoostRequest(prepared.Request);
-        ValidatePreparedHostedContactReplacement(prepared.Replacement);
-    }
-
-    internal void CommitHostedGuardianContacts(PreparedHostedGuardianContacts prepared)
-    {
-        ValidatePreparedHostedGuardianContacts(prepared);
-        CommitHostedContactReplacement(prepared.Replacement);
-        lastHostedGuardianBoostAcknowledged = prepared.Request.Token;
-        pendingHostedGuardianBoost = null;
     }
 
     private void ValidateHostedGuardianBoostRequest(HostedGuardianBoostRequest request)

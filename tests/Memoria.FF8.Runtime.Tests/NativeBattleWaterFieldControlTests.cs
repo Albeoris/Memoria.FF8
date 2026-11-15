@@ -108,6 +108,29 @@ public sealed class NativeBattleWaterFieldControlTests
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterFieldControl.Execute(frame, new(0x1000, 4, Pc), Bank, 1));
     }
 
+    [Fact]
+    public void ReferencedColor40UsesFullActiveOrderAndRejectsAnExhaustedLookup()
+    {
+        byte[] order = Enumerable.Repeat((byte)0x81, 128).ToArray();
+        NativeBattleWaterExecutionFrame frame = Fixture(0x40, 42);
+        frame = frame with { Core = frame.Core.Write(0x2797454, order) };
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x12, 42);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x94, 11);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x96, 22);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x98, 33);
+        frame = frame with { Arena = frame.Arena.Write(0x20CF, new byte[] { 0xAB }) };
+        NativeBattleWaterExecutionFrame missing = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
+        missing = WaterSchedulerFixture.SlotWord(missing, 1, 0x12, 43);
+
+        NativeBattleWaterExecutionFrame result = Run(frame);
+        Assert.Equal(0xAB21160Bu, WaterSchedulerFixture.ReadSlotDword(result, 0, 0xCC));
+        Assert.Equal(2u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Equal(order, result.Core.Read(0x2797454, 128));
+
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => Run(missing));
+        Assert.Contains("exhausted its bounded active order", exception.Message);
+    }
+
     [Theory]
     [InlineData(0, 0x5A)]
     [InlineData(0x8000, 0xFF)]

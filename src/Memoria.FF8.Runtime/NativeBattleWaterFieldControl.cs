@@ -138,7 +138,7 @@ public static class NativeBattleWaterFieldControl
 
     private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
     {
-        //Only the prefix through the actual terminator is consumed. Remaining entries are transient unused placeholders.
+        // Preserve the full order when every entry is present. A known terminator ends the required prefix.
         byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
         for (int index = 0; index < order.Length; index++)
         {
@@ -148,6 +148,6 @@ public static class NativeBattleWaterFieldControl
                 return order.ToImmutableArray();
             }
         }
-        throw new NotSupportedException("Native field lookup requires a terminated active-order owner.");
+        return order.ToImmutableArray();
     }
 }

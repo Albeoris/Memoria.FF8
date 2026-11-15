@@ -34,20 +34,6 @@ public sealed partial class BattleSession
     private ExpandedHostedInvocation? CurrentExpandedHostedInvocation => expandedHostedCurrentOperation is int current ? (ExpandedHostedInvocation)expandedHostedOperations[current] : null;
     private bool HasStagedExpandedHostedOperations => !expandedHostedOperations.IsEmpty;
 
-    private void ReplaceCurrentExpandedHostedInvocation(ExpandedHostedInvocation expected, ExpandedHostedInvocation replacement, NativeBattleEffectContactBridge<string>? bridge)
-    {
-        if (!ReferenceEquals(CurrentExpandedHostedInvocation, expected) ||
-            !ReferenceEquals(expected.Command, replacement.Command) || expected.HeaderReference != replacement.HeaderReference ||
-            expected.FirstContact != replacement.FirstContact || expected.Contacts.Length != replacement.Contacts.Length)
-        {
-            throw new InvalidDataException("Hosted contact replacement requires the exact current invocation and its admitted extent.");
-        }
-        expandedHostedOperations = expandedHostedOperations.SetItem(expandedHostedCurrentOperation!.Value, replacement);
-        expandedContactBridge = bridge;
-        expandedModelContacts = replacement.Contacts;
-        expandedEffectEnemyDraw = replacement.EnemyDraw;
-    }
-
     private static void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
     {
         // TODO(TD-009): Finish nonordinary invocation ownership before enabling the attached host in App.

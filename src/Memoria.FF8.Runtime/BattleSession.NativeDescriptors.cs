@@ -271,11 +271,15 @@ public sealed partial class BattleSession
                         {
                             loading = graphics.NativeBindings.ReadOriginalCell(originalSlot, graphics.ActorModels);
                         }
+                        else if (graphics.ActorModels.TryGet(loadingOwner, out NativeBattleGraphicsModel? existing))
+                        {
+                            loading = existing;
+                        }
                         else
                         {
-                            loading = graphics.ActorModels.TryGet(loadingOwner, out NativeBattleGraphicsModel? existing)
-                                ? existing
-                                : NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null);
+                            // A newly allocated hosted row starts with cold visual timers. Existing rows keep their retained bytes.
+                            ImmutableArray<byte?>? timers = hostedBattlePresentation ? Enumerable.Repeat<byte?>(0, 32).ToImmutableArray() : null;
+                            loading = NativeBattleGraphicsModels.ClearUnloadedModel(null, timers, null, null, null);
                         }
                         if ((loading.Flags0 & 1) != 0)
                         {

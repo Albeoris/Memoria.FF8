@@ -548,9 +548,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         Assert.Equal(countBefore + amount, caster.MagicStocks.Single(stock => stock.Id == fire.Id).Count);
     }
 
-    internal static GameState PrepareField(string directory)
+    internal static GameState PrepareField(string directory, NativeBattleRetainedMemory? suppliedColdMemory = null)
     {
-        GameSession initial = GameSession.CreateColdProcess();
+        GameSession initial = GameSession.CreateColdProcess(suppliedColdMemory);
         initial.StartNewGame();
         using GameWorld bootstrap = new(initial, directory);
         bootstrap.EnsureField();

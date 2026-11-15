@@ -77,23 +77,23 @@ public sealed class NativeBattleHostedGuardianBoostTests
         BattleSession.HostedGuardianBoostRequest request = child.PendingHostedGuardianBoost!;
         NativeBattleActionPacketsState original = child.NativeActionPackets;
 
-        Assert.Throws<InvalidOperationException>(() => child.PrepareHostedGuardianContacts(request with { }, [Contact(4)]));
-        Assert.Throws<InvalidOperationException>(() => other.PrepareHostedGuardianContacts(request, [Contact(4)]));
-        Assert.Throws<InvalidDataException>(() => child.PrepareHostedGuardianContacts(request, []));
-        BattleSession.PreparedHostedGuardianContacts stale = child.PrepareHostedGuardianContacts(request, [Contact(4)]);
+        Assert.Throws<InvalidOperationException>(() => child.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request with { }));
+        Assert.Throws<InvalidOperationException>(() => other.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request));
+        Assert.Throws<InvalidDataException>(() => child.PrepareHostedContactReplacement(token, [], acknowledgeGuardian: request));
+        BattleSession.PreparedHostedContactReplacement stale = child.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
         Poll(child, publish: false);
-        Assert.Throws<InvalidOperationException>(() => child.CommitHostedGuardianContacts(stale));
+        Assert.Throws<InvalidOperationException>(() => child.PublishHostedContactReplacement(stale));
         Assert.Same(original, child.NativeActionPackets);
         Assert.Same(request, child.PendingHostedGuardianBoost);
 
-        BattleSession.PreparedHostedGuardianContacts ready = child.PrepareHostedGuardianContacts(request, [Contact(4)]);
-        child.ValidatePreparedHostedGuardianContacts(ready);
-        child.CommitHostedGuardianContacts(ready);
+        BattleSession.PreparedHostedContactReplacement ready = child.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
+        child.ValidatePreparedHostedContactReplacement(ready);
+        child.PublishHostedContactReplacement(ready);
         Assert.Null(child.PendingHostedGuardianBoost);
         Assert.Equal((ushort)4, child.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.Same(original.ReadHeader(Header), child.NativeActionPackets.ReadHeader(Header));
         Assert.Equal(token, child.HostedActiveActionToken);
-        Assert.Throws<InvalidOperationException>(() => child.CommitHostedGuardianContacts(ready));
+        Assert.Throws<InvalidOperationException>(() => child.PublishHostedContactReplacement(ready));
     }
 
     private static (BattleSession Child, long Token) Create(bool learned = true)

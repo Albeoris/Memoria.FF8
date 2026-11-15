@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class ExpandedBattlePresentationProcess
@@ -17,23 +15,5 @@ public sealed partial class ExpandedBattlePresentationProcess
     {
         RequireIdle();
         presentation.SetHostedGuardianBoostMappedButtons(mappedButtons);
-    }
-
-    internal BattleSession.PreparedHostedGuardianContacts PrepareGuardianContacts(BattleSession.HostedGuardianBoostRequest request, ImmutableArray<NativeBattleContactPacket> contacts)
-    {
-        RequireAdmissionWindow();
-        return presentation.PrepareHostedGuardianContacts(request, contacts);
-    }
-
-    internal void ValidatePreparedGuardianContacts(BattleSession.PreparedHostedGuardianContacts prepared)
-    {
-        RequireAdmissionWindow();
-        presentation.ValidatePreparedHostedGuardianContacts(prepared);
-    }
-
-    internal void CommitGuardianContacts(BattleSession.PreparedHostedGuardianContacts prepared)
-    {
-        RequireAdmissionWindow();
-        presentation.CommitHostedGuardianContacts(prepared);
     }
 }
