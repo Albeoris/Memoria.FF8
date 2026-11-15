@@ -192,7 +192,7 @@ public sealed class NativeBattleEffect76ControllerTests
         children = children.WriteSlot(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(14, 95));
         NativeBattleOriginalEffectState effect = new(76, 75, new(76, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect76Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect76State.FromColdProcess().DetachBank(0).DetachBank(1));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(CasterGlobal, 3) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteModelOperand(CasterGlobal, OriginalOwner(3), OriginalAliases) };
         return WriteBytes(frame, CapturedWorldAddress, PackedArena(NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 1, Y = 2, Z = 3 }, 0)), 32);
     }
 

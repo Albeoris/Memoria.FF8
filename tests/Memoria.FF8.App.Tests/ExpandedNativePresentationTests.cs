@@ -20,7 +20,16 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(233, ArmadodoScenario);
     }
 
-    private static void VerifyScenario(ushort effect, Func<GameWorld, DiagnosticBattleRequest> createScenario)
+    [Theory]
+    [InlineData(71, 1)]
+    [InlineData(72, 5)]
+    [InlineData(73, 11)]
+    public void Installed_blue_magic_publishes_its_learned_native_limit(ushort effect, int contacts)
+    {
+        VerifyScenario(effect, world => BlueMagicScenario(world, effect), contacts);
+    }
+
+    private static void VerifyScenario(ushort effect, Func<GameWorld, DiagnosticBattleRequest> createScenario, int expectedContacts = 11)
     {
         string directory = TestResources.GameDirectory;
         GameSession session = GameWorld.CreateColdProcess(directory);
@@ -40,6 +49,13 @@ public sealed class ExpandedNativePresentationTests
                 battle.Tick();
             }
             Assert.True(RecreateGame.DiagnosticCommandReady(battle, driver));
+            if (driver.LimitSelection is { } selection)
+            {
+                BattleDiagnosticLimitSelectionReceipt chosen = battle.SelectDiagnosticLimit(driver.Input.ActorId!, selection);
+                Assert.True(chosen.Accepted);
+                Assert.Equal(3, chosen.CommandOwner);
+                Assert.Equal((byte)15, chosen.Command);
+            }
             if (driver.EnemyAbility is { } enemy)
             {
                 battle.SubmitDiagnosticEnemyAbility(driver.Input.ActorId!, enemy, driver.ExpectedEffect);
@@ -50,9 +66,11 @@ public sealed class ExpandedNativePresentationTests
             }
             BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition(), true);
             bool rendered = false;
+            bool entered = false;
             for (int tick = 0; tick < 1400 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.GuardianForceCasts.Count != 0 || battle.ObserveDiagnosticDrainBlockers().Count != 0); tick++)
             {
                 battle.Tick();
+                entered |= battle.ExpandedPresentationProcess?.Graphics.OriginalEffect?.RequestedEffect == effect;
                 if (effect == 6 && !rendered && battle.ExpandedPresentationProcess?.Graphics.OriginalEffect?.RequestedEffect == effect &&
                     battle.PreparedPresentation is { } prepared && prepared.Primitives.LastCommands.Any(command => command.DrawMode.TexturePage is ushort page && (page & 0x180) == 0x100))
                 {
@@ -61,6 +79,7 @@ public sealed class ExpandedNativePresentationTests
                     rendered = true;
                 }
             }
+            Assert.True(entered);
             Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
             if (effect == 6)
             {
@@ -69,8 +88,8 @@ public sealed class ExpandedNativePresentationTests
             else
             {
                 string?[] recipients = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == driver.Input.ActorId).Select(entry => entry.TargetId).ToArray();
-                Assert.Equal(11, recipients.Length);
-                Assert.Equal(11, recipients.Distinct().Count());
+                Assert.Equal(expectedContacts, recipients.Length);
+                Assert.Equal(expectedContacts, recipients.Distinct().Count());
                 if (effect == 7)
                 {
                     Assert.Equal(Enumerable.Range(0, 11).Select(index => $"party-{index}"), recipients);
@@ -159,6 +178,35 @@ public sealed class ExpandedNativePresentationTests
             Target = new("enemy-0", 48, 27, 0, 3, 0xC3u, 1, null, null),
             Roster = new(donors, 0),
             Driver = new(command, 233) { ExpectedNativeCommand = 8, ExpectedNativeAction = 49, EnemyAbility = new(27, 0, 0, 4, 8, 49, 12, 204) }
+        };
+    }
+
+    private static DiagnosticBattleRequest BlueMagicScenario(GameWorld world, ushort effect)
+    {
+        (int Formation, int Stage, int Model, byte Slot, ushort Action, (int Formation, int Slot)[] Donors) scenario = effect switch
+        {
+            71 => (25, 2, 14, 1, 0, [(825, 2), (40, 3), (574, 1), (183, 1)]),
+            72 => (605, 114, 33, 0, 5, [(391, 0), (666, 0), (679, 0), (834, 1)]),
+            73 => (59, 12, 15, 1, 13, [(535, 0), (281, 0), (538, 0), (527, 1)]),
+            _ => throw new ArgumentOutOfRangeException(nameof(effect))
+        };
+        var (formation, stage, model, slot, action, donorSlots) = scenario;
+        ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(donor => new BattleEnemyRosterSource(donor.Formation, donor.Slot, world.BattleResources.FormationSourceHash(donor.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation quistis = new(3, 3, [], [0]) { HitPoints = 6, MagicCommand = new(0, 20) };
+        string enemy = $"enemy-{slot}";
+        BattleInput command = new(BattleInputKind.Action, ActorId: "party-3", TargetId: effect == 73 ? "party-3" : enemy, Ability: BattleAbility.LimitBreak, ActionId: 15 << 16 | action);
+        return new(formation, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([new(0, true)], [quistis], true)
+            {
+                CombatParty = [3, 255, 255],
+                Limits = new() { LearnBlueMagic = (ushort)(1 << action) }
+            },
+            Target = new(enemy, stage, model, slot, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, slot),
+            Driver = new(command, effect) { ExpectedNativeCommand = 15, ExpectedNativeAction = action, LimitSelection = new(1, 1, 256) }
         };
     }
 }

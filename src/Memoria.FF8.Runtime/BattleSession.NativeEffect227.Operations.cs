@@ -30,10 +30,7 @@ public sealed partial class BattleSession
                 PublishNativeModuleSound(new(BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(sound.SourceAddress, 4)), sound.Flags, null) { Pan = sound.Pan });
                 return ImportNativeEffect227Frame(frame);
             case NativeBattleEffect227Text4876F0 text:
-                BattleCombatant actor = GraphicsActor(graphics, text.Actor);
-                string message = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new NotSupportedException("Effect227 requires its original actor text resource.")).Resource.ReadText91(text.Text);
-                StopTurnAdvance();
-                graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", actor.Id, null, text.Duration, message) { NativeMessageMode = 3 }, 0, 240);
+                graphics = QueueNativeEffectActorText4876F0(graphics, text.Actor, text.Text, text.Duration);
                 return frame;
             case NativeBattleEffect227VibrationStart4A29A0 vibration when vibration.SourceAddress == VibrationAddress:
                 ImmutableArray<byte> bytes = resources.Vibration.Data;

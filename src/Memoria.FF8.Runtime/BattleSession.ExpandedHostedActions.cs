@@ -51,14 +51,17 @@ public sealed partial class BattleSession
 
     private void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
     {
-        // TODO(TD-009): Finish nonordinary invocation ownership before enabling the attached host in App.
+        // TODO(TD-009): Bind the remaining original invocation processes to hosted action ownership.
         bool shot = IsShotCallback(command.NativeLimitCallback);
+        bool ordinaryLimit = command is { Ability: BattleAbility.LimitBreak, NativeLimitCallback: null, NativeAction: { } native } &&
+            command.NativeQueuedCommand == native.Command && command.ActionId == (native.Command << 16 | native.ActionId) &&
+            GetActor(command.ActorId).NativeLimit?.Command == native.Command && SupportsExpandedLimit(native);
         if (command.GuardianFormAction is not null)
         {
             ValidateGuardianFormPresentation(command);
             return;
         }
-        if (command.Ability == BattleAbility.LimitBreak && !shot || command.Ability == BattleAbility.GuardianForce && command.NativeQueuedCommand != 254 ||
+        if (command.Ability == BattleAbility.LimitBreak && !shot && !ordinaryLimit || command.Ability == BattleAbility.GuardianForce && command.NativeQueuedCommand != 254 ||
             command.GuardianFormInvocation is not null || command.NativeLimitCallback is not null && !shot)
         {
             throw new NotSupportedException("Hosted presentation has no admission for this nonordinary invocation.");
@@ -165,9 +168,11 @@ public sealed partial class BattleSession
 
     private static bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        // The dedicated 69 and 227 controllers retire a presentation context without a 506690 contact consumer.
         return command.NativeGraphic is null && command.NativeLimitCallback != NativeLimitCallback.ShotOpening &&
-            NativeBattleCinematicProfile.IsSupported(header.Effect) &&
-            NativeBattleCinematicProfile.ForEffect(header.Effect).ContactPublication == NativeBattleCinematicContactPublication.ContextOnly;
+            (header.Effect is NativeBattleEffect69Profile.Effect or NativeBattleEffect227Profile.Effect ||
+                NativeBattleCinematicProfile.IsSupported(header.Effect) &&
+                NativeBattleCinematicProfile.ForEffect(header.Effect).ContactPublication == NativeBattleCinematicContactPublication.ContextOnly);
     }
 
     private BattlePendingEnemyDraw? TakePendingHostedEnemyDraw()

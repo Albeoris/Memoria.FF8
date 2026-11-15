@@ -470,9 +470,13 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedEffectContactCompletion()
     {
-        if (CurrentExpandedHostedInvocation is not { ContactDisposition: ExpandedHostedContactDisposition.ContextOnly } && (expandedInvocationProgress is not { } progress || progress.Occurrences.Count != progress.ExpectedContacts))
+        ExpandedHostedInvocation invocation = CurrentExpandedHostedInvocation ?? throw new InvalidDataException("The retired expanded effect has no current invocation.");
+        if (invocation.ContactDisposition != ExpandedHostedContactDisposition.ContextOnly &&
+            (expandedInvocationProgress is not { } progress || progress.Occurrences.Count != progress.ExpectedContacts))
         {
-            throw new InvalidDataException("The expanded effect completed before publishing all prepared contacts.");
+            NativeBattleActionHeaderPreparation header = invocation.Header;
+            int delivered = expandedInvocationProgress?.Occurrences.Count ?? 0;
+            throw new InvalidDataException($"Expanded effect {header.Effect} for native command {header.Command}/{header.Action} completed with {delivered} of {invocation.Contacts.Length} prepared contacts.");
         }
     }
 

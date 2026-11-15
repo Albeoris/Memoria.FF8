@@ -23,6 +23,39 @@ public sealed partial class BattleSession
         return graphics with { Descriptors = graphics.Descriptors.EnqueueMessage(message, priority, tag).State };
     }
 
+    private NativeBattleGraphicsState QueueNativeEffectActorText4876F0(NativeBattleGraphicsState graphics, BattleModelOwner owner, int text, int duration)
+    {
+        string actorId;
+        NativeBattleGraphicsResource resource;
+        BattleTextIdentity? identity = null;
+        NativeBattleModelLifecycleServices? services = null;
+        if (hostedBattlePresentation)
+        {
+            services = hostedFrameServices ?? throw new InvalidOperationException("Hosted effect text requires its current frame facts.");
+            NativeBattleModelActorFacts facts = RequireHostedContactActorFacts(graphics, services, owner);
+            actorId = facts.ActorId;
+            resource = ReadOriginalPresentationModelResource(owner) ?? throw new NotSupportedException("Native effect text requires its original actor resource.");
+            if (!facts.IsParty)
+            {
+                identity = BattleTextIdentity.Enemy(facts.OriginalModelId, text);
+            }
+        }
+        else
+        {
+            actorId = GraphicsActor(graphics, owner).Id;
+            resource = FindNativeOriginalGraphicsBinding(actorId)?.Resource ?? throw new NotSupportedException("Native effect text requires its original actor resource.");
+        }
+
+        BattleEvent message = new(Frame, "NativeText", actorId, null, duration, resource.ReadText91(text)) { NativeMessageMode = 3, NativeTextIdentity = identity };
+        if (services is null)
+        {
+            StopTurnAdvance();
+        }
+        NativeBattleGraphicsState queued = QueueNativeDescriptorMessage(graphics, message, 0, 240);
+        services?.Emit(new NativeBattleModelTurnAdvanceStopRequested(owner, actorId));
+        return queued;
+    }
+
     private NativeBattleGraphicsState PublishNativeDescriptorMessage(NativeBattleGraphicsState graphics, NativeBattleDescriptorPacket packet)
     {
         BattleEvent message = packet.Message ?? throw new NotSupportedException("Native text descriptor lacks its original logical string binding.");
