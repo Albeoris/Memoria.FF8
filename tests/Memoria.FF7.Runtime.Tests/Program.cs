@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-transport-only", StringComparer.Ordinal))
+{
+    WorldTransportContinuationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--shared-message-only", StringComparer.Ordinal))
 {
     NativeSharedMessageTests.Run();
@@ -456,6 +462,7 @@ var tests = new (string Name, Action Run)[]
     ("native run button projection and pending input ownership", NativeRunInputTests.Run),
     ("native world encounters and battle return", WorldBattleTests.Run),
     ("native world entry, facing and animation ownership", WorldRuntimeTests.Run),
+    ("native scripted world transport continuation", WorldTransportContinuationTests.Run),
     ("original standalone world movement and cold continuation", WorldCheckpointTests.Run),
     ("native surface vehicles and colored Chocobos", WorldVehicleTests.Run),
     ("native world PHS party synchronization", WorldPartyTests.Run),
@@ -729,3 +736,4 @@ static void Throws<T>(Action action) where T : Exception
     }
     throw new InvalidOperationException("Expected " + typeof(T).Name);
 }
+

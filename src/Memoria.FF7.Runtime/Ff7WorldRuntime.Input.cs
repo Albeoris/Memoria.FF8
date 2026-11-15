@@ -107,10 +107,6 @@ public sealed partial class Ff7WorldRuntime
             AdvanceHighwindInput(player);
             return;
         }
-        if (player.Model is not (0 or 1 or 2 or 3 or YellowChocoboModel or 5 or 6 or SubmarineModel or 19 or 41 or 42))
-        {
-            throw new NotSupportedException($"FFVII world model {player.Model} has no supported physical movement contract.");
-        }
         int delta = (player.Model switch { 3 => 240, YellowChocoboModel or 19 or 41 or 42 or 5 => 120, 6 => 90, _ => 60 }) * movementSpeedPercent / 100;
         ushort held = WorldControlHeld();
         ushort pressed = (ushort)(held & ~input.PreviousControlHeld);
@@ -214,10 +210,6 @@ public sealed partial class Ff7WorldRuntime
         {
             ResolveHighwindTerrain(player);
             return;
-        }
-        if (player.Model is not (0 or 1 or 2 or YellowChocoboModel or 3 or 5 or 6 or SubmarineModel or 19 or 41 or 42))
-        {
-            throw new NotSupportedException($"FFVII world model {player.Model} has no supported terrain contract.");
         }
         if (vehicle is { DismountPhase: 2 })
         {
