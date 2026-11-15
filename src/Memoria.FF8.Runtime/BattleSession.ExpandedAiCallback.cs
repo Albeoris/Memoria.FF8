@@ -78,10 +78,7 @@ public sealed partial class BattleSession
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleModelOwner completionOwner = RequirePresentationModelOwner(process.Graphics.ActorModels.Roster, actor);
-        BattleSession candidate = Restore(before, customHandlers);
-        candidate.preparingExpandedHostedAction = true;
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.nativeAffinityAction = nativeAffinityAction;
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
         BattleActionPresentation mirror = ExpandedAiCallbackPresentation(request);
         candidate.ActiveAction = mirror;
         candidate.BeginNativeBattleActionPause();

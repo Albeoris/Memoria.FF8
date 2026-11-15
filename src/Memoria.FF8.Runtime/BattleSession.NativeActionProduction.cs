@@ -52,16 +52,22 @@ public sealed partial class BattleSession
         {
             nativeAffinityAction = native;
         }
-        //48E830 resolves every random target/Cover mask before the first48FE20 formula consumes RNG.
-        (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan = new (BattleCombatant[], BattleModelOwner?)[native.HitCount];
-        for (int hit = 0; hit < plan.Length; hit++)
-        {
-            BattleCombatant[] targets = ResolveBattleTargets(command.TargetRequest);
-            plan[hit] = ResolveNativeCover(actor, command, native, targets);
-        }
+        var plan = PlanNativeHits(actor, command, native);
         NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
         NativeContactPlanResult result = ExecuteNativeContactPlan(actor, command, action, native, plan, deferred != NativeBattleDeferredContactKind.None, context);
         return new(result.Contacts, result.PublishedCount, deferred, result.Reflector is { } reflector ? CreatePresentationModelOwner(reflector) : null, result.RepeatAborted);
+    }
+
+    private (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] PlanNativeHits(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, Func<BattleCombatant[]>? selectRecipients = null)
+    {
+        //48E830 resolves every random target/Cover mask before the first48FE20 formula consumes RNG.
+        var plan = new (BattleCombatant[], BattleModelOwner?)[native.HitCount];
+        for (int hit = 0; hit < plan.Length; hit++)
+        {
+            BattleCombatant[] targets = selectRecipients is null ? ResolveBattleTargets(command.TargetRequest) : selectRecipients();
+            plan[hit] = ResolveNativeCover(actor, command, native, targets);
+        }
+        return plan;
     }
 
     private NativeContactPlanResult ExecuteNativeContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary, NativeBattleActionProductionContext? context = null)

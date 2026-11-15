@@ -197,7 +197,6 @@ public sealed partial class BattleSession
         BattleActionDefinition action = new(BattleAbility.Item, source.ActionId, revival.Name ?? "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
         BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy);
         BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, TargetRequest = request };
-        BattleCombatant[] recipients = ResolveBattleTargets(request);
         NativeBattleActionHeaderPreparation? header = hosted ? BuildExpandedActionHeaderPreparation(command, revival) : null;
         ReserveExpandedAiInvocation(command, header);
         NativeBattleActionScratch previousScratch = nativeActionScratch;
@@ -207,8 +206,9 @@ public sealed partial class BattleSession
         try
         {
             deferringExpandedImpacts = hosted;
-            (var contacts, _) = ResolveExpandedHitPlan(actor, command, action, revival, [recipients]);
-            return (command, contacts, header);
+            var plan = PlanNativeHits(actor, command, revival);
+            NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, command, action, revival, plan);
+            return (command, ToHostedContacts(produced), header);
         }
         finally
         {

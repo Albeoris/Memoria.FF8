@@ -24,7 +24,7 @@ public sealed class InstalledExpandedPlayerActionTests
         }
         Assert.Contains("enemy-10", targets);
 
-        BattleSession restored = RoundTrip(battle);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Advance(battle, restored);
 
         Assert.Equal(targets, battle.Events.Where(item => item.Kind == "EffectContact").Select(item => item.TargetId));
@@ -44,7 +44,7 @@ public sealed class InstalledExpandedPlayerActionTests
         battle.QueueAction("party-10", drawn ? "enemy-9" : "enemy-10", ability, fire.Id, drawCast: drawn, drawCastTargetId: drawn ? "enemy-10" : null);
 
         battle.Tick();
-        BattleSession restored = RoundTrip(battle);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Advance(battle, restored);
 
         Assert.Equal("enemy-10", Assert.Single(battle.Events, item => item.Kind == "Reflect").TargetId);
@@ -88,11 +88,6 @@ public sealed class InstalledExpandedPlayerActionTests
             InitialRandom = NativeBattleRandomState.ForecastPhase(8)
         };
         return new(definition, BattleAtbMode.TurnBased);
-    }
-
-    private static BattleSession RoundTrip(BattleSession battle)
-    {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
     }
 
     private static void Advance(BattleSession battle, BattleSession restored)

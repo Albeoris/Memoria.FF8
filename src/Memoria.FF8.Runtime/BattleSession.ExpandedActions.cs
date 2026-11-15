@@ -135,7 +135,7 @@ public sealed partial class BattleSession
         }
         if (!command.MagicCasts.IsDefaultOrEmpty)
         {
-            ResolveExpandedMagicGroup(actor, command, command.MagicCasts);
+            ResolveExpandedMagicGroup(actor, command);
             return;
         }
         BattleNativeAction? graphicAction = command.NativeGraphic is { } graphic ? NativeGraphicContactAction(actor, graphic.MagicId) : null;
@@ -275,17 +275,13 @@ public sealed partial class BattleSession
             formulaCommand = resolved with { NativeQueuedCommand = 0, NativeAction = native };
             formulaAction = action with { NativeAction = native };
         }
-        bool randomTarget = command.Ability != BattleAbility.GuardianForce && command.TargetRequest.Selection is BattleTargetSelection.RandomOnSide;
-        BattleCombatant[][] hitPlan = new BattleCombatant[native.HitCount][];
-        for (int hit = 0; hit < hitPlan.Length; hit++)
-        {
-            hitPlan[hit] = randomTarget ? ResolveBattleTargets(command.TargetRequest) : recipients;
-        }
-        if (hostedGunblade && (hitPlan.Length != 1 || hitPlan[0].Length != 1))
+        bool sampleTargets = command.Ability != BattleAbility.GuardianForce && command.TargetRequest.Selection is BattleTargetSelection.RandomOnSide;
+        var hitPlan = PlanNativeHits(actor, formulaCommand, native, sampleTargets ? null : () => recipients);
+        if (hostedGunblade && (hitPlan.Length != 1 || hitPlan[0].Targets.Length != 1))
         {
             throw new InvalidDataException("Ordinary hosted Gunblade requires its single placeholder recipient.");
         }
-        bool hasReflector = hitPlan.Any(targets => targets.Any(recipient => NativeActionReflects(recipient, native)));
+        bool hasReflector = hitPlan.Any(hit => hit.Targets.Any(recipient => NativeActionReflects(recipient, native)));
         BattleNativeAction? reflected = null;
         if (hasReflector)
         {
@@ -338,9 +334,9 @@ public sealed partial class BattleSession
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
             }
-            BattleCombatant? reflector;
             deferringExpandedImpacts = hosted && !hostedContextOnly;
-            (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade || hostedGuardian || hostedShotControl);
+            NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade || hostedGuardian || hostedShotControl);
+            contacts = ToHostedContacts(produced);
             deferringExpandedImpacts = false;
             if (command.NativeDraw is { Failed: true } || failedSpecial || hostedSilence)
             {
@@ -359,15 +355,10 @@ public sealed partial class BattleSession
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(54), BattleTextIdentity.Global(54));
             }
-            (reflectedCommand, reflectedContacts, reflectedHeader) = ResolveExpandedReflection(actor, resolved, action, reflector, reflected);
+            (reflectedCommand, reflectedContacts, reflectedHeader) = ResolveExpandedReflection(actor, resolved, action, produced.Reflector, reflected);
             resolvingNativeAction = resolved;
-            CompleteNativeOrdinaryCommand(actor, resolved);
-            bool continueAffinity = CompleteNativeActionInventory(actor, resolved, hostedSilence);
-            if (continueAffinity && HasNativeAffinityAction(actor, resolved, native))
-            {
-                nativeAffinityAction = native;
-                CompleteGuardianForceAffinity(actor, resolved);
-            }
+            nativeAffinityAction = HasNativeAffinityAction(actor, resolved, native) ? native : null;
+            CompleteNativeActionOwners(actor, resolved, hostedSilence);
             if (command.NativeDraw is { Failed: false, Selection: >= 64 })
             {
                 RefreshNativeEnemyDrawSlots();
@@ -498,8 +489,8 @@ public sealed partial class BattleSession
         }
         BattleCombatant redirected = opposite[NextRandomByte() % opposite.Length];
         bool randomReflection = (reflected.TargetFlags.GetValueOrDefault() & 2) != 0;
-        BattleCombatant[][] reflectionPlan = PlanExpandedHits(randomReflection ? opposite : [redirected], reflected.HitCount, randomReflection);
         BattleActionPresentation command = source with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = redirected.Id, TargetRequest = SelectBattleTarget(redirected, source.TargetRequest.AllowsKnockedOutAllies), DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeSequence = 0, NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, MagicReservationId = null };
+        var reflectionPlan = PlanNativeHits(actor, command, reflected, () => randomReflection ? [opposite[NextRandomByte() % opposite.Length]] : [redirected]);
         BattleActionDefinition reflectionAction = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? action.Name, BattleActionEffect.Native, reflected.Power, actor.IsPlayer == redirected.IsPlayer) { NativeAction = reflected };
         NativeBattleActionScratch sourceScratch = nativeActionScratch;
         resolvingNativeAction = command;
@@ -509,8 +500,8 @@ public sealed partial class BattleSession
         try
         {
             deferringExpandedImpacts = hostedHeader is not null;
-            (ImmutableArray<ExpandedBattleContact> contacts, _) = ResolveExpandedHitPlan(actor, command, reflectionAction, reflected, reflectionPlan);
-            return (command, contacts, hostedHeader);
+            NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, command, reflectionAction, reflected, reflectionPlan);
+            return (command, ToHostedContacts(produced), hostedHeader);
         }
         finally
         {
@@ -520,28 +511,20 @@ public sealed partial class BattleSession
         }
     }
 
-    private BattleCombatant[][] PlanExpandedHits(BattleCombatant[] recipients, byte hitCount, bool randomTarget)
-    {
-        BattleCombatant[][] hitPlan = new BattleCombatant[hitCount][];
-        for (int hit = 0; hit < hitPlan.Length; hit++)
-        {
-            // 48E830 resolves every random target before the first formula consumes RNG.
-            hitPlan[hit] = randomTarget ? [recipients[NextRandomByte() % recipients.Length]] : recipients;
-        }
-        return hitPlan;
-    }
-
-    private (ImmutableArray<ExpandedBattleContact> Contacts, BattleCombatant? Reflector) ResolveExpandedHitPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleCombatant[][] hitPlan, bool preliminary = false)
+    private NativeContactPlanResult ExecuteHostedContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary = false)
     {
         BattleModelRoster roster = ReadBattlePresentationRoster();
         _ = RequirePresentationModelOwner(roster, actor);
-        foreach (BattleCombatant recipient in hitPlan.SelectMany(targets => targets).Distinct())
+        foreach (BattleCombatant recipient in plan.SelectMany(hit => hit.Targets).Distinct())
         {
             _ = RequirePresentationModelOwner(roster, recipient);
         }
-        (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan = hitPlan.Select(targets => (targets, (BattleModelOwner?)null)).ToArray();
-        NativeContactPlanResult produced = ExecuteNativeContactPlan(actor, command, action, native, plan, preliminary);
-        return (produced.Contacts.Select(packet => new ExpandedBattleContact(RequireCanonicalGraphicsActorId(packet.Primary.Recipient), packet)).ToImmutableArray(), produced.Reflector);
+        return ExecuteNativeContactPlan(actor, command, action, native, plan, preliminary);
+    }
+
+    private static ImmutableArray<ExpandedBattleContact> ToHostedContacts(NativeContactPlanResult produced)
+    {
+        return produced.Contacts.Select(packet => new ExpandedBattleContact(RequireCanonicalGraphicsActorId(packet.Primary.Recipient), packet)).ToImmutableArray();
     }
 
     private void PublishExpandedImpacts(BattleActionPresentation command, ImmutableArray<ExpandedBattleContact> contacts, string contactKind = "EffectContact")

@@ -20,15 +20,11 @@ public sealed partial class BattleSession
         HostedRenzokukenCandidateProof? renzokuken = hostedEvent.Renzokuken is not null && invocation.Header.Command == 5 && trigger is not null
             ? new(before, hostedEvent, trigger, null)
             : null;
-        BattleSession candidate = RestoreSnapshot(before, customHandlers, renzokuken);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers, renzokuken);
         if (renzokuken is not null)
         {
             candidate.expandedHostedEvent = hostedEvent;
         }
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.nativeAffinityAction = nativeAffinityAction;
-        candidate.preparingExpandedHostedAction = true;
-        candidate.stagingExpandedHostedGuardianForms = true;
         candidate.producingExpandedAiCallback = true;
         ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
         candidate.producingExpandedAiInvocation = reservation;

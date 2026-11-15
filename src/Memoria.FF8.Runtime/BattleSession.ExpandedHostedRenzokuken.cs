@@ -166,13 +166,11 @@ public sealed partial class BattleSession
 
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(before, customHandlers);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
         if (!candidate.actions.TryDequeue(out BattleAttackCommand? prepared) || prepared != command)
         {
             throw new InvalidDataException("The hosted Renzokuken candidate lost its original FIFO input.");
         }
-        candidate.preparingExpandedHostedAction = true;
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
         BattleCombatant source = candidate.GetActor(actor.Id);
         BattleCombatant recipient = candidate.GetActor(target.Id);
         (ushort magic, byte? finisher) = candidate.SelectNativeRenzokukenResource(source, recipient, selection.CrisisLevel);
@@ -205,17 +203,16 @@ public sealed partial class BattleSession
             FinisherActionIndexE2E = finisher ?? candidate.nativeActionScratch.FinisherActionIndexE2E
         };
         BattleNativeAction initial = NativeRenzokukenInitialAction(source, magic, finisher is null ? (ushort)65533 : (ushort)65534);
-        candidate.StageExpandedHostedRenzokukenPreliminary(source, mirror, initial, [[recipient]], sequence: 21);
+        candidate.StageExpandedHostedRenzokukenPreliminary(source, mirror, initial, sequence: 21);
         if (finisher is byte selected)
         {
             BattleNativeAction action = candidate.FindInstalledNativeAction(249, selected);
             ValidateExpandedRenzokukenFinisher(action);
             BattleTargetRequest automatic = candidate.CreateAutomaticTargetRequest(action.TargetFlags!.Value);
             BattleTargetRequest request = (action.TargetFlags.Value & 0x30) is 0 or 0x20 ? automatic : targets;
-            BattleCombatant[][] plan = Enumerable.Range(0, action.HitCount).Select(_ => candidate.ResolveBattleTargets(request)).ToArray();
             candidate.StageExpandedHostedControl(new HostedDispatchControl.RenzokukenFinisher(owner));
             BattleNativeAction preliminary = action with { Command = 250, ActionId = ushort.MaxValue, SupplementalKernelIndex = selected };
-            candidate.StageExpandedHostedRenzokukenPreliminary(source, mirror with { TargetRequest = request }, preliminary, plan, sequence: 0);
+            candidate.StageExpandedHostedRenzokukenPreliminary(source, mirror with { TargetRequest = request }, preliminary, sequence: 0);
         }
         candidate.StageExpandedHostedCompletion(mirror, 0x47DE70, caster, capturedBeforeAi: false);
         candidate.LogRenzokukenBoundary(mirror, "Windup", $"{source.Name}: Renzokuken.");
@@ -227,7 +224,8 @@ public sealed partial class BattleSession
             _ = NativeBattleEffectResourceResolver.MaterializeSelected(effect, nativeEffectResourceResolver);
         }
         candidate.ValidateExpandedHostedInvocations(process.PlannedModelRoster);
-        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process);
+        PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
+        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, guardianForm: form);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         PreparedActionPublication publication = new(this, candidate, Restore(before, customHandlers));
@@ -237,9 +235,10 @@ public sealed partial class BattleSession
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
+        PublishHostedGuardianFormAudio(form);
     }
 
-    private void StageExpandedHostedRenzokukenPreliminary(BattleCombatant source, BattleActionPresentation mirror, BattleNativeAction native, BattleCombatant[][] plan, byte sequence)
+    private void StageExpandedHostedRenzokukenPreliminary(BattleCombatant source, BattleActionPresentation mirror, BattleNativeAction native, byte sequence)
     {
         string name = native.Command == 5 ? "Renzokuken" : native.Name ?? "Renzokuken finisher";
         BattleActionPresentation command = mirror with { NativeAction = native, NativeQueuedCommand = native.Command, ActionId = native.ActionId, NativeSequence = sequence };
@@ -251,8 +250,10 @@ public sealed partial class BattleSession
         deferringExpandedImpacts = true;
         try
         {
-            (ImmutableArray<ExpandedBattleContact> contacts, _) = ResolveExpandedHitPlan(source, command, action, native, plan, preliminary: true);
-            if (contacts.IsEmpty || contacts.Length != plan.Sum(targets => targets.Length) || native.Command == 5 && contacts.Length != 1)
+            var plan = PlanNativeHits(source, command, native);
+            NativeContactPlanResult produced = ExecuteHostedContactPlan(source, command, action, native, plan, preliminary: true);
+            ImmutableArray<ExpandedBattleContact> contacts = ToHostedContacts(produced);
+            if (contacts.IsEmpty || produced.RepeatAborted || contacts.Length != plan.Sum(hit => hit.Targets.Length) || native.Command == 5 && contacts.Length != 1)
             {
                 throw new InvalidDataException("Hosted Renzokuken lost its actual preliminary contact extent.");
             }
@@ -431,10 +432,8 @@ public sealed partial class BattleSession
         BattleSnapshot before = Capture();
         HostedRenzokukenCandidateProof proof = new(before, hostedEvent, null, receipt);
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = RestoreSnapshot(before, customHandlers, proof);
-        candidate.preparingExpandedHostedAction = true;
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers, proof);
         candidate.expandedHostedEvent = hostedEvent;
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.expandedOperationCursor = expandedOperationCursor with { Current = null };
         candidate.producingExpandedAiCallback = true;
         ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
@@ -451,7 +450,8 @@ public sealed partial class BattleSession
         BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
         candidate.ValidateExpandedHostedInvocations(planned);
         HostedRenzokukenFinisherReplacement replacement = new(receipt, packets, invocation.FirstContact, contacts.Select(contact => contact.Packet).ToImmutableArray());
-        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, renzokukenFinisher: replacement);
+        PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
+        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form, renzokukenFinisher: replacement);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, proof));
@@ -461,6 +461,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
+        PublishHostedGuardianFormAudio(form);
     }
 
     private ImmutableArray<ExpandedBattleContact> ResolveExpandedHostedRenzokukenFinisher(ExpandedHostedInvocation invocation, byte index)

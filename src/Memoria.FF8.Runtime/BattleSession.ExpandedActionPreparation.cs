@@ -37,16 +37,22 @@ public sealed partial class BattleSession
         }
     }
 
+    private BattleSession CreatePreparedHostedActionCandidate(BattleSnapshot snapshot, IBattleStatusEffectHandler[] customHandlers, HostedCandidateProof? proof = null)
+    {
+        BattleSession candidate = RestoreSnapshot(snapshot, customHandlers, proof);
+        candidate.preparingExpandedHostedAction = true;
+        candidate.stagingExpandedHostedGuardianForms = true;
+        candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.nativeAffinityAction = nativeAffinityAction;
+        return candidate;
+    }
+
     private void PrepareAndPublishExpandedAction(BattleActionPresentation command)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Action preparation requires its attached presentation process.");
         BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CaptureState());
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(before, customHandlers);
-        candidate.preparingExpandedHostedAction = true;
-        candidate.stagingExpandedHostedGuardianForms = true;
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.nativeAffinityAction = nativeAffinityAction;
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
         candidate.CommitExpandedAction(command);
         PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, command, process);
     }

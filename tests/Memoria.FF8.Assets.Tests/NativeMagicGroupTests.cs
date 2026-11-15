@@ -15,9 +15,9 @@ public sealed class NativeMagicGroupTests
         Assert.Equal(new[] { 1, 2 }, battle.GetPlayerMagicCastCounts("caster", 1));
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy"]);
         Assert.Equal(3, Assert.Single(battle.QueuedActions).NativeMagicCastMode);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         battle.Tick();
-        BattleSession active = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession active = BattleSession.Restore(battle.Capture());
         Complete(battle);
         Complete(restored);
         Complete(active);
@@ -39,9 +39,9 @@ public sealed class NativeMagicGroupTests
     {
         BattleSession battle = Create(0x40000, 0, 2);
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
-        string historical = JsonSerializer.Serialize(battle.Capture()).Replace("\"NativeMagicCastMode\":0,", "", StringComparison.Ordinal);
-        Assert.DoesNotContain("NativeMagicCastMode", historical);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(historical)!);
+        BattleSnapshot historical = battle.Capture();
+        Assert.Equal(0, Assert.Single(historical.NativeCommandBanks!.BoundCommands).NativeMagicCastMode);
+        BattleSession restored = BattleSession.Restore(historical);
         Complete(battle);
         Complete(restored);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -56,7 +56,7 @@ public sealed class NativeMagicGroupTests
     {
         BattleSession battle = Create(status, passive, stock);
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: Enumerable.Repeat("enemy", targets).ToArray());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(battle);
         Complete(restored);
         Assert.Equal(stock, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
@@ -184,7 +184,7 @@ public sealed class NativeMagicGroupTests
         Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
         Assert.Equal(400, battle.Combatants[0].CurrentHp);
         Assert.DoesNotContain(battle.Events, item => item.Message.StartsWith("Poison:", StringComparison.Ordinal));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(battle);
         Complete(restored);
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
@@ -206,12 +206,46 @@ public sealed class NativeMagicGroupTests
         Assert.Equal(new[] { 1, 3 }, battle.GetNativeMagicCastCounts("caster", 1));
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy"]);
         Assert.Equal(3, Assert.Single(battle.QueuedActions).NativeMagicCastMode);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(battle);
         Complete(restored);
         Assert.Equal(2, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
         Assert.Equal(stock - cost, battle.Combatants[0].MagicStocks.Sum(item => item.Count));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void AbortedMultihitRetainsItsDamageAndStopsTheGroupBeforeStockOrAffinityChanges()
+    {
+        BattleSnapshot entry = Create(0x20000, 0, 2, enemyHp: 1, includeAffinity: true).Capture();
+        BattleActionDefinition spell = Assert.Single(entry.Definition.ActionDefinitions, action => action is { Ability: BattleAbility.Magic, Id: 1 });
+        BattleNativeAction multihit = spell.NativeAction! with { HitCount = 2, StatusAttack = byte.MaxValue, Statuses0 = 1 };
+        BattleCombatantDefinition other = entry.Definition.Combatants[1] with { Id = "survivor", MaximumHp = 10000, CurrentHp = 10000 };
+        BattleDefinition definition = entry.Definition with
+        {
+            Combatants = [.. entry.Definition.Combatants, other],
+            ActionDefinitions = [spell with { NativeAction = multihit }],
+            NativeActions = [multihit],
+            InitialRandom = NativeBattleRandomState.ForecastPhase(8)
+        };
+        BattleSession original = new(definition, BattleAtbMode.TurnBased);
+        BattleSession expanded = new(definition with
+        {
+            UsesExpandedRoster = true,
+            Combatants = [.. definition.Combatants, other with { Id = "donor-1" }, other with { Id = "donor-2" }]
+        }, BattleAtbMode.TurnBased);
+
+        foreach (BattleSession battle in new[] { original, expanded })
+        {
+            battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "survivor"]);
+            Complete(battle);
+            Assert.Equal("enemy", Assert.Single(battle.Events, entry => entry.Kind == "Damage").TargetId);
+            Assert.Equal(2, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+            Assert.All(battle.Capture().Combatants[0].GuardianForceCompatibility!, value => Assert.Equal(3000, value));
+            Assert.Equal(10000, battle.Combatants.Single(actor => actor.Id == "survivor").CurrentHp);
+        }
+        Assert.Equal(original.Capture().Random!.Indexes.ToArray(), expanded.Capture().Random!.Indexes.ToArray());
+        Assert.Equal("enemy", Assert.Single(expanded.Events, entry => entry.Kind == "EffectContact").TargetId);
     }
 
     private static void Complete(BattleSession battle)

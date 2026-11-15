@@ -131,6 +131,55 @@ public sealed class ExpandedHostedGuardianFormTests
         });
     }
 
+    [Fact]
+    public void Attached_enemy_ai_hit_depletes_the_form_and_restores_its_human_model()
+    {
+        Run((world, battle, process, actor, owner) =>
+        {
+            byte? humanModel = process.Graphics.ActorModels.Get(owner).ModelId4;
+            Enter(world, battle, process, actor, owner);
+            int humanHp = actor.HumanHitPoints;
+            actor.CurrentHp = 1;
+            var (enemy, attackSlot) = battle.Combatants.Where(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.NativeAi is not null)
+                .SelectMany(candidate => Enumerable.Range(0, 16)
+                    .Where(slot => candidate.NativeAi!.Abilities[16 * candidate.NativeAi.LevelBand + slot] is { Command: 8, AttackType: 1, Power: > 0, Element: 0, Statuses0: 0, Statuses1: 0 })
+                    .Select(slot => (candidate, slot))).First();
+            // Isolate target selection while still executing the enemy's original installed ability and sequence.
+            byte[][] scripts = enemy.NativeAi!.Scripts;
+            byte[] originalTurn = scripts[1];
+            scripts[1] = [4, checked((byte)actor.ModelId), 12, checked((byte)attackSlot), 0];
+            MethodInfo queue = typeof(BattleSession).GetMethod("QueueExpandedAiCallback", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            queue.Invoke(battle, [enemy, 1]);
+            BattleSnapshot boundary = battle.Capture();
+            BattleSession continuation = BattleSession.Restore(boundary);
+            Assert.Equal(BattleGuardianFormPhase.Active, continuation.GetGuardianForm(Caster)!.Phase);
+            Assert.Contains(continuation.QueuedActions, command => command.ExpandedAiCallback is { Stage: 1 } && command.ActorId == enemy.Id);
+
+            int begin = battle.Events.Count;
+            for (int frame = 0; frame < 600 && battle.GetGuardianForm(Caster) is not null; frame++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.Null(battle.GetGuardianForm(Caster));
+            Assert.Null(process.Graphics.GuardianFormPresentation);
+            Assert.Equal(humanModel, process.Graphics.ActorModels.Get(owner).ModelId4);
+            Assert.Equal(humanHp, actor.CurrentHp);
+            Assert.Single(battle.Events.Skip(begin), entry => entry is { Kind: "GuardianFormReturned", ActorId: Caster });
+            Assert.NotNull(battle.ActiveAction?.ExpandedAiCallback);
+
+            for (int frame = 0; frame < 600 && battle.ActiveAction is not null; frame++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.Null(battle.ActiveAction);
+            scripts[1] = originalTurn;
+            FieldInfo forcesField = typeof(BattleSession).GetField("guardianForces", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var forces = Assert.IsType<Dictionary<int, BattleGuardianForceVital>>(forcesField.GetValue(battle));
+            forces[Ifrit] = forces[Ifrit] with { HitPoints = forces[Ifrit].MaximumHitPoints };
+            Enter(world, battle, process, actor, owner);
+        });
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

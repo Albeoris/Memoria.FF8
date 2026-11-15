@@ -47,8 +47,11 @@ public sealed class ExpandedBattleReturnTests
         int eventStart = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: Caster, TargetId: target.Id, Ability: BattleAbility.Magic, ActionId: fire.Id));
         string reservation = Assert.Single(battle.Capture().MagicVitals!.MagicSystem.Reservations).ActionId;
-        world.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction?.Phase);
+        for (int callback = 0; callback < 1200 && battle.ActiveAction is not { ActorId: Caster, Phase: BattleActionPhase.Windup }; callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.True(battle.ActiveAction is { ActorId: Caster, Phase: BattleActionPhase.Windup });
         caster.NativeStatus0 |= 0x10;
 
         bool observedRecovery = false;

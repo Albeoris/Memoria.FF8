@@ -120,6 +120,21 @@ public sealed partial class BattleSession
     private void ResolveNativeMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
+        ResolveMagicGroupInvocations(actor, command, action, (invocation, index) =>
+        {
+            BattleCombatant target = ReadMagicPreflightAnchor(invocation, requireActive: true);
+            if (!target.IsAlive && (command.SmartAttack is not null || !combatants.Any(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer)))
+            {
+                return false;
+            }
+            BattleActionPresentation cast = MagicGroupInvocation(command, action, invocation, target);
+            //485610 submits one104 for the group; the effect consumes the following headers itself.
+            return ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0);
+        });
+    }
+
+    private void ResolveMagicGroupInvocations(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, Func<BattleMagicCastInvocation, int, bool> publish)
+    {
         uint statuses = EncounterMulticastStatusBits(actor);
         int mode = command.NativeMagicCastMode == 0 ? command.MagicCasts.Length : command.NativeMagicCastMode;
         int count = mode >= 3 && (statuses & 0x40000) != 0 ? command.MagicCasts.Length : command.MagicCasts.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
@@ -127,163 +142,105 @@ public sealed partial class BattleSession
         {
             count = Math.Min(command.MagicCasts.Length, (statuses & 0x40000) != 0 ? 3 : (statuses & 0x20000) != 0 ? 2 : 1);
         }
-        uint flags = count > 1 && actor.IsPlayer ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
-        int costMode = command.NativeMagicCastMode != 0 && (statuses & 0x40000) != 0 ? command.NativeMagicCastMode : count;
-        bool singleCost = (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (count > 1 && costMode == 2 && (flags & 0x20) != 0 || count > 1 && costMode == 3 && (flags & 0x40) != 0);
-        int completed = 0;
-        for (int index = 0; index < count; index++)
-        {
-            if (command.MagicReservationId is not null && !singleCost && GetAvailableMagicCasts(actor.Id, command.ActionId, command.MagicReservationId) == 0)
-            {
-                break;
-            }
-            statuses = EncounterMulticastStatusBits(actor);
-            if (index > 0 && ((NativeSavedStatusBits(actor) & 0x35) != 0 || (statuses & 0x4009) != 0 || index == 1 && (statuses & 0x60000) == 0 || index == 2 && (statuses & 0x40000) == 0))
-            {
-                break;
-            }
-            BattleMagicCastInvocation invocation = command.MagicCasts[index];
-            BattleCombatant target = ReadMagicPreflightAnchor(invocation, requireActive: true);
-            if (!target.IsAlive && (command.SmartAttack is not null || !combatants.Any(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer)))
-            {
-                break;
-            }
-            BattleActionPresentation cast = command with { TargetId = target.Id, TargetRequest = invocation.Targets, MagicCasts = [], NativeMagicCastMode = 0, NativeAction = action.NativeAction };
-            nativeAffinityAction = null;
-            //485610 submits one104 for the group; the effect consumes the following headers itself.
-            if (!ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0))
-            {
-                break;
-            }
-            completed++;
-            //486A10 returns FF after clearing the last stock as well as when no stock exists.
-            //485610 exits before the next cast and this cast's affinity update in either case.
-            if (command.MagicReservationId is not null)
-            {
-                CommitMagicReservation(command.MagicReservationId, singleCost ? 1 : completed);
-                CompleteGuardianForceAffinity(actor, cast);
-                continue;
-            }
-            if (actor.IsPlayer && !singleCost && !UnlimitedMagic && (!actor.TryConsumeMagic(command.ActionId) || !actor.NativeMagicInventory.Any(stock => stock.SpellId == command.ActionId && stock.Count > 0)))
-            {
-                break;
-            }
-            CompleteGuardianForceAffinity(actor, cast);
-        }
-        ReleaseMagicReservation(command.MagicReservationId);
-        if (actor.IsPlayer && command.MagicReservationId is null && singleCost && completed != 0 && !UnlimitedMagic)
-        {
-            actor.TryConsumeMagic(command.ActionId);
-        }
-    }
 
-    private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command, ImmutableArray<BattleMagicCastInvocation> casts)
-    {
-        bool hosted = OwnsExpandedHostedInvocation;
-        BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
-        BattleNativeAction native = action.NativeAction!;
-        uint statuses = NativeBattleStatusBits(actor);
-        int mode = command.NativeMagicCastMode == 0 ? casts.Length : command.NativeMagicCastMode;
-        int count = mode == 3 && (statuses & 0x40000) != 0 ? casts.Length : (statuses & 0x20000) != 0 ? 2 : 1;
-        bool singleCost = count > 1 && MagicCost(actor, command.NativeMagicCastMode != 0 && (statuses & 0x40000) != 0 ? mode : count) == 1;
+        int costMode = command.NativeMagicCastMode != 0 && (statuses & 0x40000) != 0 ? command.NativeMagicCastMode : count;
+        bool singleCost = count > 1 && actor.IsPlayer && MagicCost(actor, costMode) == 1;
         string? reservationId = command.MagicReservationId;
         int reserved = reservationId is null ? count : magicVitals!.MagicSystem.Reservations.FirstOrDefault(reservation => reservation.ActionId == reservationId)?.Count ?? 0;
         int completed = 0;
-        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts = [];
-
-        // 485610 produces the whole group before 484180 post-action status work or pending reactions.
-        BeginNativeReactionBatch();
-        nativeActionCommitDepth++;
         try
         {
             for (int index = 0; index < count; index++)
             {
-                statuses = NativeBattleStatusBits(actor);
-                if (!CanNativeBattleActorAct(actor) || (NativeSavedStatusBits(actor) & 0x10) != 0 ||
-                    index > 0 && ((NativeSavedStatusBits(actor) & 0x35) != 0 || (statuses & 0x4009) != 0 || !NativeBattleMagicRepetition.AdmitsRepeat(statuses, index + 1)) ||
-                    (singleCost ? 0 : index) >= reserved || GetAvailableMagicCasts(actor.Id, command.ActionId, reservationId) == 0)
+                if ((singleCost ? 0 : index) >= reserved || actor.IsPlayer && GetAvailableMagicCasts(actor.Id, command.ActionId, reservationId) == 0)
                 {
                     break;
                 }
-                BattleMagicCastInvocation invocation = casts[index];
+                statuses = EncounterMulticastStatusBits(actor);
+                if (index > 0 && ((NativeSavedStatusBits(actor) & 0x35) != 0 || (statuses & 0x4009) != 0 || !NativeBattleMagicRepetition.AdmitsRepeat(statuses, index + 1)))
+                {
+                    break;
+                }
+                nativeAffinityAction = null;
+                if (!publish(command.MagicCasts[index], index))
+                {
+                    break;
+                }
+                completed++;
+                //486A10 returns FF on the last debit;485610 then skips this cast's affinity loop.
+                if (!singleCost && !SpendMagicGroupStock(actor, command.ActionId, reservationId, completed))
+                {
+                    break;
+                }
+                nativeAffinityAction = action.NativeAction;
+                CompleteGuardianForceAffinity(actor, command);
+            }
+            if (singleCost && completed > 0)
+            {
+                SpendMagicGroupStock(actor, command.ActionId, reservationId, 1);
+            }
+        }
+        finally
+        {
+            ReleaseMagicReservation(reservationId);
+        }
+    }
+
+    private static BattleActionPresentation MagicGroupInvocation(BattleActionPresentation command, BattleActionDefinition action, BattleMagicCastInvocation invocation, BattleCombatant target)
+    {
+        return command with { TargetId = target.Id, TargetRequest = invocation.Targets, MagicCasts = [], NativeMagicCastMode = 0, NativeAction = action.NativeAction };
+    }
+
+    private bool SpendMagicGroupStock(BattleCombatant actor, int spell, string? reservationId, int completed)
+    {
+        if (reservationId is not null)
+        {
+            CommitMagicReservation(reservationId, completed);
+            return InfiniteMagic || UnlimitedMagic || actor.MagicStocks.Any(stock => stock.Id == spell && stock.Count > 0);
+        }
+        if (!actor.IsPlayer || UnlimitedMagic)
+        {
+            return true;
+        }
+        bool consumed = actor.TryConsumeMagic(spell);
+        ReprojectNativePlayerStatistics(actor);
+        return consumed && actor.NativeMagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0);
+    }
+
+    private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command)
+    {
+        bool hosted = OwnsExpandedHostedInvocation;
+        BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
+        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts = [];
+        bool producedContacts = false;
+
+        //485610 produces the whole group before484180 post-action status work or pending reactions.
+        BeginNativeReactionBatch();
+        nativeActionCommitDepth++;
+        try
+        {
+            ResolveMagicGroupInvocations(actor, command, action, (invocation, _) =>
+            {
+                if (!CanNativeBattleActorAct(actor) || (NativeSavedStatusBits(actor) & 0x10) != 0)
+                {
+                    return false;
+                }
                 BattleCombatant selected = ReadMagicPreflightAnchor(invocation, requireActive: false);
                 if (command.SmartAttack is not null && !IsValidSelectedActionTarget(actor, action, selected))
                 {
-                    break;
+                    return false;
                 }
                 BattleCombatant? target = SelectExpandedMagicGroupTarget(actor, action, selected);
                 if (target is null)
                 {
-                    break;
+                    return false;
                 }
-                BattleCombatant[] recipients = ResolveBattleTargets(invocation.Targets, sampleRandom: false);
-                if (recipients.Length == 0)
-                {
-                    break;
-                }
-                BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, (native.TargetFlags.GetValueOrDefault() & 2) != 0);
-                BattleNativeAction? reflected = null;
-                if (hitPlan.Any(hit => hit.Any(recipient => NativeActionReflects(recipient, native))))
-                {
-                    reflected = definition.NativeActions.SingleOrDefault(candidate => candidate.Command == 247 && candidate.ActionId == native.ActionId && candidate.CrisisLevel is null);
-                    if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected))
-                    {
-                        break;
-                    }
-                }
-
-                BattleActionPresentation cast = command with { TargetId = target.Id, TargetRequest = invocation.Targets, MagicCasts = [], NativeMagicCastMode = 0, NativeAction = native };
-                resolvingNativeAction = cast;
-                nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
-                NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(cast, native) : null;
-                ReserveExpandedAiInvocation(cast, hostedHeader);
-                deferringExpandedImpacts = hosted;
-                (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan);
-                deferringExpandedImpacts = false;
-                (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, NativeBattleActionHeaderPreparation? reflectionHeader) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
-                completed++;
-                bool continueAffinity = true;
-                if (!singleCost)
-                {
-                    continueAffinity = SpendExpandedMagicGroupStock(actor, command.ActionId, reservationId, completed);
-                }
-                if (continueAffinity)
-                {
-                    nativeAffinityAction = native;
-                    CompleteGuardianForceAffinity(actor, cast);
-                }
-                ExpandedBattleContact? first = contacts.FirstOrDefault() ?? reflectedContacts.FirstOrDefault();
-                BattlePendingEnemyDraw? hostedDraw = hosted && first is not null ? TakePendingHostedEnemyDraw() : null;
-                if (!hosted && first is not null)
-                {
-                    CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
-                }
-                if (hostedHeader is not null)
-                {
-                    StageExpandedHostedInvocation(cast, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw);
-                    if (reflection is not null)
-                    {
-                        StageExpandedHostedInvocation(reflection, reflectionHeader!, reflectedContacts, contacts.IsEmpty ? hostedDraw : null);
-                    }
-                }
-                else
-                {
-                    componentImpacts.Add((cast, contacts));
-                    if (reflection is not null)
-                    {
-                        componentImpacts.Add((reflection, reflectedContacts));
-                    }
-                }
-                if (!continueAffinity)
-                {
-                    break;
-                }
-            }
-            if (singleCost && completed > 0)
-            {
-                SpendExpandedMagicGroupStock(actor, command.ActionId, reservationId, 1);
-            }
-            if (!hosted && completed > 0)
+                BattleActionPresentation cast = MagicGroupInvocation(command, action, invocation, target);
+                (bool hasContacts, bool completed) = PublishExpandedMagicGroupInvocation(actor, cast, action, hosted, componentImpacts);
+                producedContacts |= hasContacts;
+                return completed;
+            });
+            if (!hosted && producedContacts)
             {
                 resolvingNativeAction = command;
                 CompleteNativeActionStatuses(actor);
@@ -292,7 +249,6 @@ public sealed partial class BattleSession
         finally
         {
             deferringExpandedImpacts = false;
-            ReleaseMagicReservation(reservationId);
             resolvingNativeAction = null;
             nativeActionCommitDepth--;
         }
@@ -300,13 +256,13 @@ public sealed partial class BattleSession
         {
             FlushExpandedEnemyReactions();
         }
-        if (completed == 0)
+        if (!producedContacts)
         {
             if (hosted)
             {
                 nativeReactionOrder = null;
             }
-            CompleteActionPresentation(command, "Expanded action cancelled.");
+            CompleteActionPresentation(command, "Magic group has no contacts.");
             return;
         }
 
@@ -322,20 +278,64 @@ public sealed partial class BattleSession
         CompleteActionPresentation(command, "Repeated magic completed.");
     }
 
-    private bool SpendExpandedMagicGroupStock(BattleCombatant actor, int spell, string? reservationId, int completed)
+    private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, bool hosted,
+        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts)
     {
-        if (reservationId is not null)
+        BattleNativeAction native = action.NativeAction!;
+        var hitPlan = PlanNativeHits(actor, cast, native);
+        if (hitPlan.Length == 0 || hitPlan[0].Targets.Length == 0)
         {
-            CommitMagicReservation(reservationId, completed);
-            return InfiniteMagic || UnlimitedMagic || actor.MagicStocks.Any(stock => stock.Id == spell && stock.Count > 0);
+            return (false, false);
         }
-        if (UnlimitedMagic)
+        BattleNativeAction? reflected = null;
+        if (hitPlan.Any(hit => hit.Targets.Any(recipient => NativeActionReflects(recipient, native))))
         {
-            return true;
+            reflected = definition.NativeActions.SingleOrDefault(candidate => candidate.Command == 247 && candidate.ActionId == native.ActionId && candidate.CrisisLevel is null);
+            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected))
+            {
+                return (false, false);
+            }
         }
-        bool consumed = actor.TryConsumeMagic(spell);
-        ReprojectNativePlayerStatistics(actor);
-        return consumed && actor.MagicStocks.Any(stock => stock.Id == spell && stock.Count > 0);
+
+        resolvingNativeAction = cast;
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
+        NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(cast, native) : null;
+        int operationStart = expandedOperationCursor.Operations.Length;
+        ReserveExpandedAiInvocation(cast, hostedHeader);
+        deferringExpandedImpacts = hosted;
+        NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, cast, action, native, hitPlan);
+        deferringExpandedImpacts = false;
+        if (produced.Contacts.IsEmpty)
+        {
+            if (hostedHeader is not null)
+            {
+                expandedOperationCursor.Operations = expandedOperationCursor.Operations.RemoveAt(operationStart);
+                producingExpandedAiInvocation = null;
+            }
+            return (false, false);
+        }
+        ImmutableArray<ExpandedBattleContact> contacts = ToHostedContacts(produced);
+        (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, NativeBattleActionHeaderPreparation? reflectionHeader) =
+            ResolveExpandedReflection(actor, cast, action, produced.Reflector, reflected);
+        if (hostedHeader is not null)
+        {
+            StageExpandedHostedInvocation(cast, hostedHeader, contacts, TakePendingHostedEnemyDraw());
+            if (reflection is not null)
+            {
+                StageExpandedHostedInvocation(reflection, reflectionHeader!, reflectedContacts, null);
+            }
+        }
+        else
+        {
+            CommitExpandedEnemyDraw(contacts[0].RecipientId, ref pendingEnemyDraw);
+            componentImpacts.Add((cast, contacts));
+            if (reflection is not null)
+            {
+                componentImpacts.Add((reflection, reflectedContacts));
+            }
+        }
+        // Preserve contacts from a partial invocation, while leaving its stock and affinity uncommitted.
+        return (true, !produced.RepeatAborted && produced.PublishedCount != 0);
     }
 
     private BattleCombatant? SelectExpandedMagicGroupTarget(BattleCombatant actor, BattleActionDefinition action, BattleCombatant selected)

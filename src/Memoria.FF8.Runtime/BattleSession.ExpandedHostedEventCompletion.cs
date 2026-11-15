@@ -41,15 +41,12 @@ public sealed partial class BattleSession
         BattleSnapshot seed = NativeBattleStorageSnapshots.CapturePrivate(retainCommittedMirror ? before with { ActiveAction = null } : before);
         HostedEventCompletionCandidateProof proof = new(seed, hostedEvent, receipt);
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = RestoreSnapshot(seed, customHandlers, proof);
-        candidate.preparingExpandedHostedAction = true;
-        candidate.stagingExpandedHostedGuardianForms = true;
+        BattleSession candidate = CreatePreparedHostedActionCandidate(seed, customHandlers, proof);
         if (hostedEvent.Command.NativeDuel is not null || hostedEvent.Renzokuken is not null)
         {
             // A timed Limit retains this exact owner while the native aftercare suffix is pending.
             candidate.expandedHostedEvent = hostedEvent;
         }
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.expandedOperationCursor = expandedOperationCursor with { Current = null };
         int beforeAftercare = expandedOperationCursor.Operations.Length;
         BattleCombatant actor = candidate.GetActor(receipt.ActorId);
