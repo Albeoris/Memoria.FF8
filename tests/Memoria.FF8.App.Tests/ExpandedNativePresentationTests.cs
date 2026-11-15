@@ -34,6 +34,12 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(129, world => EnemyFanOutScenario(world, 129));
     }
 
+    [Fact]
+    public void Installed_mad_rush_finishes_every_target_act()
+    {
+        VerifyScenario(273, MadRushScenario, requireQuiescence: false);
+    }
+
     [Theory]
     [InlineData(71, 1)]
     [InlineData(72, 5)]
@@ -49,7 +55,7 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(74, world => BlueMagicScenario(world, 74), 5);
     }
 
-    private static void VerifyScenario(ushort effect, Func<GameWorld, DiagnosticBattleRequest> createScenario, int expectedContacts = 11)
+    private static void VerifyScenario(ushort effect, Func<GameWorld, DiagnosticBattleRequest> createScenario, int expectedContacts = 11, bool requireQuiescence = true)
     {
         string directory = TestResources.GameDirectory;
         GameSession session = GameWorld.CreateColdProcess(directory);
@@ -87,11 +93,22 @@ public sealed class ExpandedNativePresentationTests
             BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition(), true);
             bool rendered = false;
             bool entered = false;
+            long? token = null;
+            ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
             for (int tick = 0; tick < 1400 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.GuardianForceCasts.Count != 0 || battle.ObserveDiagnosticDrainBlockers().Count != 0); tick++)
             {
                 battle.Tick();
-                entered |= battle.ExpandedPresentationProcess?.Graphics.OriginalEffect?.RequestedEffect == effect;
-                if (effect == 6 && !rendered && battle.ExpandedPresentationProcess?.Graphics.OriginalEffect?.RequestedEffect == effect &&
+                bool current = process.Graphics.OriginalEffect?.RequestedEffect == effect;
+                entered |= current;
+                if (current)
+                {
+                    token ??= process.ActiveActionToken;
+                }
+                if (!requireQuiescence && token is long focal && process.IsActionComplete(focal))
+                {
+                    break;
+                }
+                if (effect == 6 && !rendered && current &&
                     battle.PreparedPresentation is { } prepared && prepared.Primitives.LastCommands.Any(command => command.DrawMode.TexturePage is ushort page && (page & 0x180) == 0x100))
                 {
                     Assert.Equal(NativeBattlePcDirectTextureFormat.Rgb555, prepared.PrimitiveCapabilities?.DirectTextureFormat);
@@ -100,7 +117,9 @@ public sealed class ExpandedNativePresentationTests
                 }
             }
             Assert.True(entered);
-            Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
+            NativeBattleOriginalEffectState? remaining = process.Graphics.OriginalEffect;
+            Assert.True(requireQuiescence ? battle.ObserveDiagnosticDrainBlockers().Count == 0 : token is long selected && process.IsActionComplete(selected),
+                $"Effect {remaining?.RequestedEffect}, descriptor {remaining?.ReturnedDescriptor:X}, action {battle.ActiveAction?.Ability}/{battle.ActiveAction?.ActionId}, contacts {battle.Events.Count(entry => entry.Kind == "EffectContact" && entry.ActorId == driver.Input.ActorId)}, events {string.Join(", ", battle.Events.TakeLast(10).Select(entry => $"{entry.Kind}/{entry.ActorId}/{entry.TargetId}"))}.");
             if (effect == 6)
             {
                 Assert.True(rendered);
@@ -223,6 +242,24 @@ public sealed class ExpandedNativePresentationTests
             Target = new(caster, stage, model, 0, 3, 0xC3u, 1, null, null),
             Roster = new(donors, 0),
             Driver = new(command, effect) { ExpectedNativeCommand = 8, ExpectedNativeAction = action, EnemyAbility = new(model, 0, 0, abilitySlot, 8, action, sequence, selector) }
+        };
+    }
+
+    private static DiagnosticBattleRequest MadRushScenario(GameWorld world)
+    {
+        (int Formation, int Slot)[] donorSlots = [(388, 2), (659, 0), (92, 1), (673, 2)];
+        ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(donor => new BattleEnemyRosterSource(donor.Formation, donor.Slot, world.BattleResources.FormationSourceHash(donor.Formation))).ToImmutableArray();
+        DiagnosticGuardianForcePreparation eden = new(15, true) { LearningAbility = 27, AbilityPoints = 60 };
+        DiagnosticCharacterPreparation caster = new(0, 0, [], [15]) { HitPoints = 486, Commands = [new(0, 27)] };
+        BattleInput command = new(BattleInputKind.Action, ActorId: "party-0", TargetId: "party-0", Ability: BattleAbility.NativeCommand, ActionId: 24 << 16 | 3);
+        return new(625, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([eden], [caster], true),
+            Target = new("enemy-0", 132, 33, 0, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 0),
+            Driver = new(command, 273) { ExpectedNativeCommand = 24, ExpectedNativeAction = 3 }
         };
     }
 

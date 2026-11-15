@@ -46,7 +46,14 @@ public sealed partial class BattleSession
             if (root.ReadByte(15) == 0)
             {
                 root = root.WriteByte(15, 1);
-                targets = NativeBattleEffectTaskPool.Initialize(0x2508520, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x310, 3);
+                const int originalTargetCapacity = 3;
+                int count = header.ReadContactCount();
+                uint targetBank = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer);
+                if (count > originalTargetCapacity)
+                {
+                    (NativeEffectMemory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(NativeEffectMemory!, effect, nativeActionPackets.Roster, 0x310, count);
+                }
+                targets = NativeBattleEffectTaskPool.Initialize(0x2508520, targetBank, 0x310, checked((ushort)Math.Max(originalTargetCapacity, count)));
                 particles = NativeBattleEffectTaskPool.Initialize(0x2508510, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + 0x930), 0x18, 0x40);
             }
             BattleContactCursor first = header.FirstContact;
