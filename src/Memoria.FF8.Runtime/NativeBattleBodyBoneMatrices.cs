@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
 namespace Memoria.FF8.Runtime;
@@ -7,6 +8,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The current mutable publication of one physical body's rig matrices, whether local or composed.</summary>
 public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, ImmutableArray<NativeBattleActionMatrix> Matrices)
 {
+    private static readonly ConditionalWeakTable<NativeBattlePoseSource, string> RigIdentities = new();
+
     public void Validate()
     {
         if (SkeletonSha256 is not { Length: 64 } || !SkeletonSha256.All(Uri.IsHexDigit) || Matrices.IsDefaultOrEmpty || Matrices.Length > 128 || Matrices.Any(matrix => matrix is null))
@@ -125,6 +128,11 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
     }
 
     public static string Identity(NativeBattlePoseSource source)
+    {
+        return RigIdentities.GetValue(source, ComputeIdentity);
+    }
+
+    private static string ComputeIdentity(NativeBattlePoseSource source)
     {
         source.Validate();
         byte[] rig = new byte[checked(16 + source.BoneCount * 16)];

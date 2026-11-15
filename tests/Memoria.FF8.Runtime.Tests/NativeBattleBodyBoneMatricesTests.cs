@@ -144,6 +144,22 @@ public sealed class NativeBattleBodyBoneMatricesTests
         Assert.Single(NativeBattleBodyBoneMatrices.Require(model, source));
     }
 
+    [Fact]
+    public void Rig_identity_reuses_the_exact_source_but_revalidates_a_replacement_skeleton()
+    {
+        NativeBattlePoseSource source = Source(1);
+        string identity = NativeBattleBodyBoneMatrices.Identity(source);
+        Assert.Same(identity, NativeBattleBodyBoneMatrices.Identity(source));
+
+        NativeBattlePoseSource replacement = source with { Skeleton = source.Skeleton.SetItem(18, 101) };
+        Assert.NotEqual(identity, NativeBattleBodyBoneMatrices.Identity(replacement));
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(Model(1), source);
+        Assert.Throws<NotSupportedException>(() => NativeBattleBodyBoneMatrices.Require(model, replacement));
+
+        ImmutableArray<bool> known = Enumerable.Repeat(true, source.Skeleton.Length).ToImmutableArray();
+        Assert.Throws<NotSupportedException>(() => NativeBattleBodyBoneMatrices.Identity(source with { SkeletonKnownBytes = known.SetItem(18, false) }));
+    }
+
     private static NativeBattlePoseSource Source(int count)
     {
         byte[] skeleton = new byte[0x10 + count * 0x30];

@@ -38,6 +38,17 @@ public static class NativeBattleGeometryProjection
         uint clip = near ? 0x20000u : 0;
         int x = unchecked(8 * ox + (near ? 2 * NativeBattlePoseMatrices.RoundNative(cameraX) : NativeBattlePoseMatrices.RoundNative(h / cameraZ * cameraX)));
         int y = unchecked(8 * oy + (near ? 2 * NativeBattlePoseMatrices.RoundNative(cameraY) : NativeBattlePoseMatrices.RoundNative(h / cameraZ * cameraY)));
+        return (new(x, y), ApplyViewportClip(x, y, clip | unchecked((ushort)roundedDepth), viewport));
+    }
+
+    internal static NativeBattleProjectedVertex ReclipNativeScratch50F900(BattleSceneScreenPoint position, NativeBattleProjectedVertex projected)
+    {
+        uint depthAndNear = projected.DepthAndClip & (0x20000u | ushort.MaxValue);
+        return projected with { DepthAndClip = ApplyViewportClip(position.X, position.Y, depthAndNear, new(0, 0, 320, 216)) };
+    }
+
+    private static uint ApplyViewportClip(int x, int y, uint clip, NativeBattleGeometryViewport viewport)
+    {
         int left = 8 * viewport.X;
         int top = 8 * viewport.Y;
         int right = left + 8 * viewport.Width;
@@ -72,6 +83,6 @@ public static class NativeBattleGeometryProjection
                 clip |= 0x2800000;
             }
         }
-        return (new(x, y), clip | unchecked((ushort)roundedDepth));
+        return clip;
     }
 }

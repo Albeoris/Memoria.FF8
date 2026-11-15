@@ -42,6 +42,26 @@ public sealed class BattleSceneExpandedGeometryTests
     }
 
     [Fact]
+    public void Expanded_scratch_reclips_full_coordinates_and_preserves_native_near_depth()
+    {
+        NativeBattleRawMesh mesh = new([
+            new(new(-160, -108, 1000), 0),
+            new(new(160, 108, 1000), 0),
+            new(new(-161, -109, 1000), 0),
+            new(new(161, 109, 1000), 0),
+            new(new(8192, 0, 1000), 0),
+            new(new(30, -50, 499), 0),
+            new(new(0, 0, -1), 0)
+        ], []);
+        NativeBattleProjectedVertex[]? scratch = null;
+        Assert.Empty(Emit(mesh, ExpandedViewport, vertices => scratch = vertices.ToArray()));
+        Assert.NotNull(scratch);
+        Assert.Equal(mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(Identity, vertex.Position, Projection, new(0, 0, 320, 216))), scratch);
+        Assert.Equal(0x10003E8u, scratch[4].DepthAndClip);
+        Assert.Equal(0x0002FFFFu, scratch[6].DepthAndClip);
+    }
+
+    [Fact]
     public void Expanded_scene_retains_representable_coordinate_bounds()
     {
         Assert.Empty(Emit(Mesh(5000, 0), ExpandedViewport));

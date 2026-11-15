@@ -22,28 +22,33 @@ public static class NativeBattleRawGeometryPackets
             NativeBattleRawMesh mesh = meshes[index];
             mesh.Validate();
             BattleSceneScreenPoint[]? coordinates = null;
+            NativeBattleProjectedVertex[]? scratch = null;
             NativeBattleProjectedVertex[] projected;
             if (viewport is { } expanded)
             {
                 coordinates = new BattleSceneScreenPoint[mesh.Vertices.Length];
                 projected = new NativeBattleProjectedVertex[mesh.Vertices.Length];
+                if (publishProjectedScratch is not null)
+                {
+                    scratch = new NativeBattleProjectedVertex[mesh.Vertices.Length];
+                }
                 for (int vertexIndex = 0; vertexIndex < mesh.Vertices.Length; vertexIndex++)
                 {
                     NativeBattleRawVertex vertex = mesh.Vertices[vertexIndex];
                     var unpacked = NativeBattleGeometryProjection.ProjectUnpacked50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, expanded);
                     coordinates[vertexIndex] = unpacked.Position;
                     projected[vertexIndex] = new(unchecked((ushort)unpacked.Position.X) | unchecked((uint)unpacked.Position.Y << 16), unpacked.DepthAndClip);
+                    if (scratch is not null)
+                    {
+                        scratch[vertexIndex] = NativeBattleGeometryProjection.ReclipNativeScratch50F900(unpacked.Position, projected[vertexIndex]);
+                    }
                 }
             }
             else
             {
                 projected = Project(new(0, 0, 320, 216));
             }
-            if (publishProjectedScratch is not null)
-            {
-                // Retain native scratch flags while allowing presentation to submit a wider bounded canvas.
-                publishProjectedScratch(viewport.HasValue ? Project(new(0, 0, 320, 216)) : projected);
-            }
+            publishProjectedScratch?.Invoke(scratch ?? projected);
             IReadOnlyList<System.Numerics.Vector3>? world = null;
             NativeBattlePilotVisualIdentity? meshIdentity = null;
             if (pilotIdentity is { } identity)
