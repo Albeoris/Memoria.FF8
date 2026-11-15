@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         BattleCombatant liveActor = GetActor(receipt.ActorId);
         bool retainCommittedMirror = hostedEvent.ActivePresentation.ExpandedAiCallback is null &&
             !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
-        BattleSnapshot seed = NativeBattleStorageSnapshots.Capture(retainCommittedMirror ? before with { ActiveAction = null } : before);
+        BattleSnapshot seed = NativeBattleStorageSnapshots.CapturePrivate(retainCommittedMirror ? before with { ActiveAction = null } : before);
         HostedEventCompletionCandidateProof proof = new(seed, hostedEvent, receipt);
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = RestoreSnapshot(seed, customHandlers, proof);

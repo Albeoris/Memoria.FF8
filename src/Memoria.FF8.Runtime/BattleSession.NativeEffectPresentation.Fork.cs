@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         Difficulty = source.Difficulty;
         Frame = source.Frame;
         NativeHostCallbacks = source.NativeHostCallbacks;
-        BattleSnapshot native = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(new BattleSnapshot
+        BattleSnapshot native = NativeBattleStorageSnapshots.Fork(new BattleSnapshot
         {
             NativeGraphics = source.NativeGraphics,
             NativeCamera = source.NativeCamera,
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             NativeMusicProcess = source.NativeMusicProcess,
             NativeVibrationProcess = source.NativeVibrationProcess,
             NativeActionPackets = source.nativeActionPackets
-        }));
+        });
         NativeGraphics = native.NativeGraphics;
         NativeCamera = native.NativeCamera;
         NativeEffectMemory = native.NativeEffectMemory;
@@ -71,10 +71,10 @@ public sealed partial class BattleSession
         presentationCameraMode = source.presentationCameraMode;
         presentationFirstAdvance = source.presentationFirstAdvance;
         presentationInvocationHeader = source.presentationInvocationHeader;
-        presentationHostCamera = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationHostCamera));
-        presentationInitialStage = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationInitialStage));
-        presentationInitialUi = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationInitialUi));
-        presentationInitialModels = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationInitialModels));
+        presentationHostCamera = NativeBattleStorageSnapshots.Fork(source.presentationHostCamera);
+        presentationInitialStage = NativeBattleStorageSnapshots.Fork(source.presentationInitialStage);
+        presentationInitialUi = NativeBattleStorageSnapshots.Fork(source.presentationInitialUi);
+        presentationInitialModels = NativeBattleStorageSnapshots.Fork(source.presentationInitialModels);
         presentationPartyActorCount = source.presentationPartyActorCount;
         presentationInitialMusicGain = source.presentationInitialMusicGain;
         EffectPresentationInvoked = source.EffectPresentationInvoked;

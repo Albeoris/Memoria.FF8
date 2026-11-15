@@ -8,15 +8,12 @@ public sealed class NativeBattleStorageGraphTests
     private const int SourceOffset = 0x1000;
 
     [Fact]
-    public void Battle_json_restores_bidirectional_node_main_and_task_views_with_independent_owners()
+    public void Private_continuation_restores_bidirectional_node_main_and_task_views_with_independent_owners()
     {
         BattleSession live = Session();
-        BattleSnapshot captured = live.Capture();
-        NativeBattleStorageAuthority authority = Assert.Single(captured.StorageGraph!.Authorities);
-        Assert.Null(authority.Content);
-        string json = JsonSerializer.Serialize(captured);
-        BattleSession first = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSnapshot captured = live.Capture() with { StorageGraph = null };
+        BattleSession first = BattleSession.Restore(captured);
+        BattleSession second = BattleSession.Restore(captured);
         NativeBattleEffectArena main = first.NativeEffectMemory!.Arena!;
         NativeBattleNodeSource source = first.NativeEffectMemory.Recover93!.Nodes.Data!;
         Assert.Same(main.Working, source.Arena.Working);
@@ -37,7 +34,7 @@ public sealed class NativeBattleStorageGraphTests
         Assert.Equal((byte)123, raw[0]);
         Assert.False(known[0]);
         Assert.Equal(2, source.Arena.ReadResourcePointer(32)!.CpuRow);
-        Assert.Equal(json, JsonSerializer.Serialize(captured));
+        Assert.Equal((byte)0, captured.NativeEffectMemory!.Arena!.ReadByte(SourceOffset + 4));
     }
 
     [Theory]
@@ -48,8 +45,8 @@ public sealed class NativeBattleStorageGraphTests
     [InlineData("footprint")]
     public void Inconsistent_ownership_receipts_are_rejected_before_restore(string corruption)
     {
-        JsonObject saved = JsonNode.Parse(JsonSerializer.Serialize(Session().Capture()))!.AsObject();
-        JsonObject source = saved["NativeEffectMemory"]!["Recover93"]!["Nodes"]!["Data"]!.AsObject();
+        JsonObject saved = CaptureRetainedJson(Session());
+        JsonObject source = saved["EffectMemory"]!["Recover93"]!["Nodes"]!["Data"]!.AsObject();
         switch (corruption)
         {
             case "range":
@@ -68,18 +65,14 @@ public sealed class NativeBattleStorageGraphTests
                 source["ResourcePointers"] = new JsonObject();
                 break;
         }
-        InvalidDataException failure = Assert.Throws<InvalidDataException>((Action)(() =>
-        {
-            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!;
-            _ = BattleSession.Restore(snapshot);
-        }));
         if (corruption == "knownness")
         {
+            InvalidDataException failure = Assert.Throws<InvalidDataException>(() => RestoreRetained(saved));
             Assert.Contains("unknown numeric bytes", failure.Message, StringComparison.Ordinal);
         }
         else
         {
-            InvalidOperationException cause = Assert.IsType<InvalidOperationException>(failure.InnerException);
+            InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => RestoreRetained(saved));
             string detail = corruption switch
             {
                 "range" => "physical range",
@@ -88,20 +81,20 @@ public sealed class NativeBattleStorageGraphTests
                 "provenance" => "provenance",
                 _ => throw new InvalidOperationException("Unexpected corruption case.")
             };
-            Assert.Contains(detail, cause.Message, StringComparison.Ordinal);
+            Assert.Contains(detail, failure.Message, StringComparison.Ordinal);
         }
     }
 
     [Fact]
-    public void Legacy_battle_json_without_graph_metadata_keeps_detached_source_data_readable()
+    public void Legacy_field_json_without_graph_metadata_keeps_detached_source_data_readable()
     {
-        JsonObject saved = JsonNode.Parse(JsonSerializer.Serialize(Session().Capture()))!.AsObject();
+        JsonObject saved = CaptureRetainedJson(Session());
         saved.Remove("StorageGraph");
-        saved["NativeEffectMemory"]!["Arena"]!.AsObject().Remove("StorageReference");
-        saved["NativeEffectMemory"]!["Recover93"]!["Nodes"]!["Data"]!.AsObject().Remove("StorageReference");
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!);
-        Assert.Equal(0u, restored.NativeEffectMemory!.Recover93!.Nodes.Data!.ReadUInt32(0));
-        Assert.Equal(2, restored.NativeEffectMemory.Recover93.Nodes.Data.Arena.ReadResourcePointer(32)!.CpuRow);
+        saved["EffectMemory"]!["Arena"]!.AsObject().Remove("StorageReference");
+        saved["EffectMemory"]!["Recover93"]!["Nodes"]!["Data"]!.AsObject().Remove("StorageReference");
+        NativeBattleRetainedMemory restored = RestoreRetained(saved);
+        Assert.Equal(0u, restored.EffectMemory!.Recover93!.Nodes.Data!.ReadUInt32(0));
+        Assert.Equal(2, restored.EffectMemory.Recover93.Nodes.Data.Arena.ReadResourcePointer(32)!.CpuRow);
     }
 
     [Fact]
@@ -129,13 +122,12 @@ public sealed class NativeBattleStorageGraphTests
     }
 
     [Fact]
-    public void Rinoa_json_rebinds_current_node_source_to_current_staging_without_touching_history()
+    public void Private_continuation_rebinds_node_source_to_current_staging_without_touching_history()
     {
         BattleSession live = SessionWithStaging();
-        BattleSnapshot captured = live.Capture();
-        string json = JsonSerializer.Serialize(captured);
-        BattleSession first = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSnapshot captured = live.Capture() with { StorageGraph = null };
+        BattleSession first = BattleSession.Restore(captured);
+        BattleSession second = BattleSession.Restore(captured);
         NativeBattleNodeSource source = first.NativeEffectMemory!.Rinoa88!.NodeData!;
         Assert.True(source.IsStaging);
         uint address = NativeBattleRinoa88NodeResources.Address;
@@ -150,21 +142,26 @@ public sealed class NativeBattleStorageGraphTests
         source.ReadWithKnownness(100, raw, known);
         Assert.Equal((byte)123, raw[0]);
         Assert.False(known[0]);
-        Assert.Equal(json, JsonSerializer.Serialize(captured));
+        Assert.Equal((byte)0, captured.NativeFileStaging!.Read(address + 4, 1)[0]);
     }
 
     [Fact]
-    public void Rinoa_json_rejects_node_data_that_disagrees_with_current_staging()
+    public void Retained_json_rejects_node_data_that_disagrees_with_current_staging()
     {
-        JsonObject saved = JsonNode.Parse(JsonSerializer.Serialize(SessionWithStaging().Capture()))!.AsObject();
-        saved["NativeEffectMemory"]!["Rinoa88"]!["NodeData"]!["Data"]![4] = 93;
-        InvalidDataException failure = Assert.Throws<InvalidDataException>((Action)(() =>
-        {
-            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!;
-            _ = BattleSession.Restore(snapshot);
-        }));
-        InvalidOperationException cause = Assert.IsType<InvalidOperationException>(failure.InnerException);
-        Assert.Contains("staging authority", cause.Message, StringComparison.Ordinal);
+        JsonObject saved = CaptureRetainedJson(SessionWithStaging());
+        saved["EffectMemory"]!["Rinoa88"]!["NodeData"]!["Data"]![4] = 93;
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => RestoreRetained(saved));
+        Assert.Contains("staging authority", failure.Message, StringComparison.Ordinal);
+    }
+
+    private static JsonObject CaptureRetainedJson(BattleSession session)
+    {
+        return JsonSerializer.SerializeToNode(NativeBattleRetainedMemory.Capture(session.Capture(), null))!.AsObject();
+    }
+
+    private static NativeBattleRetainedMemory RestoreRetained(JsonObject saved)
+    {
+        return NativeBattleStorageSnapshots.Restore(saved.Deserialize<NativeBattleRetainedMemory>()!);
     }
 
     private static BattleSession SessionWithStaging()

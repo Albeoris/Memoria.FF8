@@ -7,6 +7,11 @@ public sealed partial record NativeBattleEffectMemory
 
     public NativeBattleEffectMemory InitializeReturnedTask500870() => this with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
 
+    internal NativeBattleEffectMemory ReleaseReturnedTask()
+    {
+        return ReturnedTaskPointer1D96AAC is > 0 || DetachedReturnedTask is not null ? InitializeReturnedTask500870() : this;
+    }
+
     public int ReadReturnedTask5044B0() => (ReturnedTaskPointer1D96AAC ?? throw new NotSupportedException("Native read40 requires its retained1D96AAC pointer; an unentered selected module cannot establish NULL.")) == 0 ? 0 : 1;
 
     public NativeBattleEffectMemory RetainReturnedTaskOnModuleLoad(NativeBattleOriginalEffectState? selected)

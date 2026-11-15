@@ -87,7 +87,7 @@ public sealed partial class BattleSession
         {
             nativeActionPackets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
         }
-        NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
+        NativeEffectMemory = NativeBattleStorageSnapshots.Fork(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess()).ReleaseReturnedTask() with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
         NativeCamera = BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), inputs.Projection);
         if (presentationCameraMode == NativeBattleEffectCameraMode.NativeCinematic)

@@ -21,6 +21,18 @@ internal enum NativeBattleStorageRestorePurpose
 
 internal static class NativeBattleStorageSnapshots
 {
+    // Private continuations already carry captured backing identities. Only persistence
+    // boundaries need a serialized graph to reconstruct those identities after JSON load.
+    internal static T CapturePrivate<T>(T value)
+    {
+        return new NativeBattleStorageCaptureContext().Map(value);
+    }
+
+    internal static T Fork<T>(T value)
+    {
+        return Restore(CapturePrivate(value));
+    }
+
     public static T Capture<T>(T value)
     {
         NativeBattleStorageCaptureContext context = new();
@@ -34,7 +46,13 @@ internal static class NativeBattleStorageSnapshots
 
     public static T Restore<T>(T value) => Restore(value, NativeBattleStorageRestorePurpose.PrivateContinuation);
 
-    internal static NativeBattleRetainedMemory RestoreForNewBattle(NativeBattleRetainedMemory value) => Restore(value, NativeBattleStorageRestorePurpose.NewBattle);
+    internal static NativeBattleRetainedMemory RestoreForNewBattle(NativeBattleRetainedMemory value)
+    {
+        NativeBattleRetainedMemory restored = Restore(value, NativeBattleStorageRestorePurpose.NewBattle);
+        // Older retained checkpoints can contain a detached 500870 callback owner. Restore the
+        // physical graph first because its task bank can alias an arena that survives entry.
+        return restored with { EffectMemory = restored.EffectMemory?.ReleaseReturnedTask() };
+    }
 
     private static T Restore<T>(T value, NativeBattleStorageRestorePurpose purpose)
     {
@@ -305,11 +323,6 @@ internal abstract class NativeBattleStorageContext
         {
             result ??= Clone.Invoke(source, null)!;
             NativeBattleOriginalEffectState effect = (NativeBattleOriginalEffectState)result;
-            if (this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
-            {
-                effect = effect with { Parameters = null, EntryFirstRecipient = null, FireModelCompletion = null, SavedActorTransforms = effect.SavedActorTransforms.Clear(), NoMercyBusyTargets = effect.NoMercyBusyTargets.Clear(), UltimaSideFadeOwners = ImmutableHashSet<BattleModelOwner>.Empty, TornadoLiftRows = null, Effect312SavedTransforms = effect.Effect312SavedTransforms.Clear(), Effect301SavedPartyFlags = effect.Effect301SavedPartyFlags.Clear(), ZantetsukenTransforms = effect.ZantetsukenTransforms.Clear(), TheEndSavedPartyFlags = effect.TheEndSavedPartyFlags.Clear(), ShockwaveSavedFlags = effect.ShockwaveSavedFlags.Clear(), MoogleSavedEnemyFlags = effect.MoogleSavedEnemyFlags.Clear(), SirenSavedEnemyFlags = effect.SirenSavedEnemyFlags.Clear(), Rinoa88SavedFlags = effect.Rinoa88SavedFlags.Clear(), Rinoa89SavedFlags = effect.Rinoa89SavedFlags.Clear(), Duel212SavedFlags = effect.Duel212SavedFlags.Clear(), LionHeartSavedModels = effect.LionHeartSavedModels.Clear(), Duel274SavedFlags = effect.Duel274SavedFlags.Clear(), Duel274SavedPartyZ = effect.Duel274SavedPartyZ.Clear(), ScanSelectedModel = null, ScanSelectionValues = effect.ScanSelectionValues.Clear(), ScanSavedModels = effect.ScanSavedModels.Clear() };
-                result = effect;
-            }
             effect.RetainedAuthority = null;
             NativeBattleOriginalEffectState originalEffect = (NativeBattleOriginalEffectState)source;
             effect.RetainedReceipt = this is NativeBattleStorageCaptureContext && originalEffect.RetainedAuthority is { } authority ? GetOrAddOwner(authority, static () => new NativeBattleRetainedAuthorityReceipt()) : originalEffect.RetainedReceipt;

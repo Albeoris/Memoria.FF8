@@ -19,8 +19,7 @@ public sealed partial record NativeBattleEffectTextureState
         object authority = bank.Textures.VramCaptureIdentity;
         if (ReferenceEquals(authority, VramCaptureIdentity) || banks.Any(entry => !StringComparer.Ordinal.Equals(actorId, entry.Key) && ReferenceEquals(authority, entry.Value.Textures.VramCaptureIdentity)))
         {
-            NativeBattleEffectTextureState detached = NativeBattleStorageSnapshots.Capture(bank.Textures);
-            bank = bank with { Textures = NativeBattleStorageSnapshots.Restore(detached) };
+            bank = bank with { Textures = NativeBattleStorageSnapshots.Fork(bank.Textures) };
         }
         return this with { PresentationTextures = banks.SetItem(actorId, bank) };
     }

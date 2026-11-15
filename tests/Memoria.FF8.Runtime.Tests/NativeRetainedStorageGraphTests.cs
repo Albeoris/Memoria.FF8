@@ -53,6 +53,76 @@ public sealed class NativeRetainedStorageGraphTests
     }
 
     [Fact]
+    public void Legacy_field_checkpoint_keeps_shared_bytes_and_drops_returned_callback_at_battle_entry()
+    {
+        NativeBattleRetainedMemory live = Process().Memory;
+        NativeBattleEffectMemory effect = live.EffectMemory!;
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8 + Offset, 48, 2).BindArena(effect.Arena!);
+        pool.Append(0x1000);
+        pool.Slots[0].WriteByte(12, 67);
+        NativeBattleOriginalEffectState callback = new(2, 1, new(2, 0x1000, 0), null, pool.DescriptorAddress) { Pools = [pool] };
+        NativeBattleRetainedMemory historical = NativeBattleStorageSnapshots.Capture(live with
+        {
+            EffectMemory = effect with { ReturnedTaskPointer1D96AAC = pool.DescriptorAddress, DetachedReturnedTask = callback }
+        });
+        GameState state = GameSession.CreateColdProcess().State with { NativeBattleMemory = historical };
+        string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-retained-callback-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            new GameSession(state).Save(path);
+            GameState loaded = GameSession.Load(path);
+            Assert.NotNull(loaded.NativeBattleMemory!.EffectMemory!.DetachedReturnedTask);
+            BattleSession battle = new(new BattleDefinition
+            {
+                NativeRetainedMemory = loaded.NativeBattleMemory,
+                Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+            }, BattleAtbMode.Normal);
+
+            NativeBattleEffectMemory fresh = battle.NativeEffectMemory!;
+            Assert.Null(fresh.DetachedReturnedTask);
+            Assert.Equal(0u, fresh.ReturnedTaskPointer1D96AAC);
+            Assert.Same(fresh.Arena!.Working, fresh.Recover93!.Nodes.Data!.Arena.Working);
+            Assert.Equal((byte)67, fresh.Recover93.Nodes.Data.ReadByte(12));
+            fresh.Arena.Write(Offset + 12, [68]);
+            Assert.Equal((byte)67, loaded.NativeBattleMemory.EffectMemory.Arena!.ReadByte(Offset + 12));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Completed_battle_releases_callback_from_field_handoff_and_keeps_the_physical_arena()
+    {
+        NativeBattleRetainedMemory live = Process().Memory;
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeRetainedMemory = NativeBattleStorageSnapshots.Capture(live),
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+        NativeBattleEffectMemory effect = battle.NativeEffectMemory!;
+        const int taskOffset = Offset + 128;
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8 + taskOffset, 48, 2).BindArena(effect.Arena!);
+        pool.Append(0x1000);
+        pool.Slots[0].WriteByte(12, 83);
+        NativeBattleOriginalEffectState callback = new(2, 1, new(2, 0x1000, 0), null, pool.DescriptorAddress) { Pools = [pool] };
+        BattleSnapshot completed = NativeBattleStorageSnapshots.Capture(battle.Capture() with
+        {
+            Outcome = BattleOutcome.Victory,
+            NativeEffectMemory = effect with { ReturnedTaskPointer1D96AAC = pool.DescriptorAddress, DetachedReturnedTask = callback }
+        });
+        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, live.ColdExecutableSha256);
+        NativeBattleRetainedMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(retained))!);
+
+        Assert.NotNull(completed.NativeEffectMemory!.DetachedReturnedTask);
+        Assert.Null(restored.EffectMemory!.DetachedReturnedTask);
+        Assert.Equal(0u, restored.EffectMemory.ReturnedTaskPointer1D96AAC);
+        AssertAliases(restored);
+        Assert.Equal((byte)83, restored.EffectMemory.Arena!.ReadByte(taskOffset + 12));
+    }
+
+    [Fact]
     public void Invalid_retained_reference_is_rejected_before_an_existing_field_owner_is_replaced()
     {
         NativeFieldEyeProcess frozen = Process().CaptureSnapshot();

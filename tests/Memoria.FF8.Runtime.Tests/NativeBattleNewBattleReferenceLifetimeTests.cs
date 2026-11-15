@@ -51,21 +51,15 @@ public sealed class NativeBattleNewBattleReferenceLifetimeTests
         NativeBattleEffectMemory restored = fresh.EffectMemory!;
         NativeBattleEffectArena restoredArena = restored.Arena!;
         NativeBattleEffectArena borrowed = restored.Recover93!.Nodes.Data!.Arena;
-        NativeBattleEffectTaskPool restoredPool = Assert.Single(restored.DetachedReturnedTask!.Pools);
         Assert.Same(restoredArena.Working, borrowed.Working);
-        Assert.Same(restoredArena.Working, restoredPool.RequireOwner().Storage);
         Assert.NotSame(arena.Working, restoredArena.Working);
-        Assert.Equal(pool.DescriptorAddress, restored.ReturnedTaskPointer1D96AAC);
-        Assert.Equal(pool.Head, restoredPool.Head);
-        Assert.Equal(pool.Tail, restoredPool.Tail);
-        Assert.Equal(pool.Slots[slot].Next, restoredPool.Slots[slot].Next);
-        Assert.Equal(0x1000u, restoredPool.Slots[slot].Callback);
-        Assert.Equal(0x2000u, restoredPool.Slots[1].Callback);
+        Assert.Equal(0u, restored.ReturnedTaskPointer1D96AAC);
+        Assert.Null(restored.DetachedReturnedTask);
         Assert.False(borrowed.TryReadExecutionReference<BattleExecutionReference.Model>(12, 1, out _));
-        Assert.False(restoredPool.Slots[slot].TryReadExecutionReference<BattleExecutionReference.Header>(16, 4, out _));
+        Assert.False(restoredArena.TryReadExecutionReference<BattleExecutionReference.Header>(taskOffset + 16, 4, out _));
         Assert.Equal(7, borrowed.ReadByte(12));
-        Assert.Equal(new[] { false, false, false, false }, restoredPool.Slots[slot].ReadSnapshot(16, 4).Known);
-        Assert.Equal(pool.Slots[slot].ReadSnapshot(16, 4).Data, restoredPool.Slots[slot].ReadSnapshot(16, 4).Data);
+        Assert.Equal(arena.ReadSnapshot(taskOffset, 96).Known, restoredArena.ReadSnapshot(taskOffset, 96).Known);
+        Assert.Equal(arena.ReadSnapshot(taskOffset, 96).Data, restoredArena.ReadSnapshot(taskOffset, 96).Data);
         Assert.Equal(pointer, restoredArena.ReadResourcePointer(0x200));
         Assert.Equal(textureIdentity, restoredArena.FindTextureFile(0x210, texture)!.Identity);
         Assert.False(fresh.FileStaging!.TryReadExecutionReference<BattleExecutionReference.Model>(stagingAddress, 1, out _));
@@ -80,7 +74,7 @@ public sealed class NativeBattleNewBattleReferenceLifetimeTests
         Assert.Equal(Model, continuation.EffectMemory!.Arena!.ReadExecutionReference<BattleExecutionReference.Model>(taskOffset + 12, 1));
         Assert.Equal(Header, continuation.EffectMemory.DetachedReturnedTask!.Pools[0].Slots[slot].ReadExecutionReference<BattleExecutionReference.Header>(16, 4));
         Assert.Equal(Model, continuation.FileStaging!.ReadExecutionReference<BattleExecutionReference.Model>(stagingAddress, 1));
-        restoredPool.Slots[slot].WriteByte(12, 9);
+        restoredArena.Write(taskOffset + 12, [9]);
         Assert.Equal(9, borrowed.ReadByte(12));
         Assert.Equal(7, arena.ReadByte(taskOffset + 12));
     }
@@ -104,7 +98,7 @@ public sealed class NativeBattleNewBattleReferenceLifetimeTests
     }
 
     [Fact]
-    public void NewBattleClearsInvocationOwnersButKeepsDetachedTaskAndResourceReceipts()
+    public void BattleEntryEndsPreviousInvocationWhilePrivateContinuationKeepsIt()
     {
         NativeBattleRetainedMemory cold = NativeBattleStorageSnapshots.Restore(NativeBattleRetainedMemory.FromColdProcess());
         BattleActorModels models = new([new(Model.Owner, new NativeBattleGraphicsModel(0))]);
@@ -129,15 +123,9 @@ public sealed class NativeBattleNewBattleReferenceLifetimeTests
         };
         NativeBattleRetainedMemory frozen = NativeBattleStorageSnapshots.Capture(cold with { EffectMemory = memory });
         NativeBattleEffectMemory fresh = NativeBattleStorageSnapshots.RestoreForNewBattle(frozen).EffectMemory!;
-        NativeBattleOriginalEffectState detached = fresh.DetachedReturnedTask!;
-
-        Assert.Null(detached.Parameters);
-        Assert.Null(detached.EntryFirstRecipient);
-        Assert.Null(detached.FireModelCompletion);
+        Assert.Null(fresh.DetachedReturnedTask);
+        Assert.Equal(0u, fresh.ReturnedTaskPointer1D96AAC);
         Assert.Null(fresh.ScriptedEffects!.PresentationActors);
-        Assert.Equal(pool.DescriptorAddress, detached.ReturnedDescriptor);
-        Assert.Equal(pool.DescriptorAddress, Assert.Single(detached.Pools).DescriptorAddress);
-        Assert.Equal(resource, Assert.Single(detached.ResourcePointers));
         Assert.Same(fresh.Arena!.Working, fresh.ScriptedEffects.Core.Working);
         Assert.Equal(5, fresh.ScriptedEffects.Core.ReadByte(0x10));
         fresh.ValidateReturnedTaskOwner(null);
@@ -146,6 +134,8 @@ public sealed class NativeBattleNewBattleReferenceLifetimeTests
         Assert.Equal(parameters, continuation.DetachedReturnedTask!.Parameters);
         Assert.Equal(Model.Owner, continuation.DetachedReturnedTask.EntryFirstRecipient);
         Assert.Equal(42, continuation.DetachedReturnedTask.FireModelCompletion![Model.Owner]);
+        Assert.Equal(pool.DescriptorAddress, continuation.DetachedReturnedTask.ReturnedDescriptor);
+        Assert.Equal(resource, Assert.Single(continuation.DetachedReturnedTask.ResourcePointers));
         Assert.Equal(Model.Owner, Assert.Single(continuation.ScriptedEffects!.PresentationActors!.Owners));
     }
 }

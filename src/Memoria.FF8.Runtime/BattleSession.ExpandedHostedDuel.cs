@@ -283,7 +283,7 @@ public sealed partial class BattleSession
         }
         ValidateExpandedEffectContactCompletion();
         BattleSnapshot current = CaptureState();
-        BattleSnapshot before = NativeBattleStorageSnapshots.Capture(CanNativeBattleActorAct(actor) ? current : current with { ActiveAction = null });
+        BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CanNativeBattleActorAct(actor) ? current : current with { ActiveAction = null });
         HostedDuelCandidateProof proof = new(before, hostedEvent, receipt);
         IBattleStatusEffectHandler[] handlersForCandidate = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = RestoreSnapshot(before, handlersForCandidate, proof);

@@ -91,7 +91,7 @@ public sealed partial class BattleSession
             RequireHostedGuardianFormVisualOwner(graphics, change.Owner);
         }
         BattleSnapshot original = ReadHostedGuardianFormNativeState();
-        BattleSnapshot native = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(original with { NativeActionPackets = null }));
+        BattleSnapshot native = NativeBattleStorageSnapshots.Fork(original with { NativeActionPackets = null });
         BattleSession staged = new(this, native);
         var stopSounds = ImmutableArray.CreateBuilder<string>();
         if (change.Entering)

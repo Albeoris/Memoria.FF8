@@ -100,14 +100,14 @@ public sealed class NativeBattleRetainedMemoryTests
     }
 
     [Fact]
-    public void Independent_JSON_owners_use_structural_fallback_when_backing_arrays_are_distinct()
+    public void Independent_retained_JSON_owner_matches_an_in_memory_battle()
     {
-        GameState source = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(PhysicalCheckpoint().State))!;
-        NativeBattleRetainedMemory memory = source.NativeBattleMemory!;
+        GameState source = PhysicalCheckpoint().State;
+        NativeBattleRetainedMemory memory = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(source.NativeBattleMemory))!;
         NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(source.Battle!, memory.ColdExecutableSha256);
         Assert.NotEqual(memory, observed);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(observed)));
-        Assert.NotNull(new GameSession(source).State.Battle);
+        Assert.NotNull(new GameSession(source with { NativeBattleMemory = memory }).State.Battle);
     }
 
     [Theory]

@@ -28,7 +28,7 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     }
 
     [Fact]
-    public void Every_nested_serialized_field_is_frozen_including_types_nullability_and_wire_contract_attributes()
+    public void Reviewed_runtime_fields_keep_their_types_nullability_and_wire_contract_attributes()
     {
         IReadOnlyDictionary<string, string> expected = ReadReviewedSchema();
         IReadOnlyDictionary<string, string> current = DiscoverSchema();
@@ -78,7 +78,7 @@ public sealed class GameplaySaveRuntimeOwnershipTests
                     Enqueue(argument, authority);
                 }
             }
-            else if (!type.IsEnum && type.Namespace?.StartsWith("Memoria.", StringComparison.Ordinal) == true)
+            else if (HasReviewedRuntimeSchema(type))
             {
                 pending.Enqueue((type, authority));
             }
@@ -90,11 +90,11 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     {
         IReadOnlyDictionary<string, string> reviewed = ReadReviewedSchema();
         Dictionary<string, string> changed = DiscoverSchema().ToDictionary();
-        string name = nameof(NativeBattleHeroCrtStackContract);
+        string name = nameof(NativeBattleActionScratch);
         Assert.True(reviewed.ContainsKey(name));
         changed[name] += ";NewExternalOwner:System.String";
         Assert.Contains(name, Assert.Throws<InvalidDataException>(() => RequireReviewedSchema(reviewed, changed)).Message);
-        changed[name] = reviewed[name].Replace("System.Int32", "System.Int64", StringComparison.Ordinal);
+        changed[name] = reviewed[name].Replace("System.UInt16", "System.UInt64", StringComparison.Ordinal);
         Assert.Contains(name, Assert.Throws<InvalidDataException>(() => RequireReviewedSchema(reviewed, changed)).Message);
         changed = DiscoverSchema().ToDictionary();
         changed.Add("UnreviewedNestedType", "Value:System.String");
@@ -103,12 +103,10 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     }
 
     [Fact]
-    public void External_execution_environment_cannot_hide_under_the_cold_memory_partition()
+    public void Normal_gameplay_save_reconstructs_effect_memory_from_selected_resources()
     {
-        IReadOnlyDictionary<string, GameplayRuntimeMemberOwnership> effects = GameplaySaveRuntimeOwnership.Members[typeof(NativeBattleEffectMemory)];
-        Assert.Equal(GameplayRuntimeRestoration.SelectedEnvironment, effects[nameof(NativeBattleEffectMemory.ExecutionStack)].Restoration);
-        Assert.Equal(GameplayRuntimeRestoration.SelectedEnvironment, effects[nameof(NativeBattleEffectMemory.HeroCrtStack)].Restoration);
-        Assert.Equal(GameplayRuntimeRestoration.Composite, GameplaySaveRuntimeOwnership.Members[typeof(NativeBattleRetainedMemory)][nameof(NativeBattleRetainedMemory.EffectMemory)].Restoration);
+        Assert.Equal(GameplayRuntimeRestoration.SelectedResources, GameplaySaveRuntimeOwnership.Members[typeof(NativeBattleRetainedMemory)][nameof(NativeBattleRetainedMemory.EffectMemory)].Restoration);
+        Assert.DoesNotContain(nameof(NativeBattleEffectMemory), DiscoverSchema().Keys);
         Assert.Equal(GameplayRuntimeRestoration.LogicalContinuation, GameplaySaveRuntimeOwnership.Members[typeof(NativeFieldBarsState)][nameof(NativeFieldBarsState.First)].Restoration);
         Assert.Equal(GameplayRuntimeRestoration.LogicalContinuation, GameplaySaveRuntimeOwnership.Members[typeof(NativeFieldShake)][nameof(NativeFieldShake.X)].Restoration);
     }
@@ -160,16 +158,15 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     public void Fresh_process_memory_has_no_late_producer_or_selected_environment_values()
     {
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
-        foreach (object owner in new object[] { cold, cold.EffectMemory! })
+        foreach ((string name, GameplayRuntimeMemberOwnership authority) in GameplaySaveRuntimeOwnership.Members[typeof(NativeBattleRetainedMemory)])
         {
-            foreach ((string name, GameplayRuntimeMemberOwnership authority) in GameplaySaveRuntimeOwnership.Members[owner.GetType()])
+            if (authority.Restoration is GameplayRuntimeRestoration.DeferredProducer or GameplayRuntimeRestoration.SelectedEnvironment)
             {
-                if (authority.Restoration is GameplayRuntimeRestoration.DeferredProducer or GameplayRuntimeRestoration.SelectedEnvironment)
-                {
-                    Assert.Null(owner.GetType().GetProperty(name)!.GetValue(owner));
-                }
+                Assert.Null(typeof(NativeBattleRetainedMemory).GetProperty(name)!.GetValue(cold));
             }
         }
+        Assert.Null(cold.EffectMemory!.ExecutionStack);
+        Assert.Null(cold.EffectMemory.HeroCrtStack);
     }
 
     private static void ValidateAuthority(Type type, GameplayRuntimeMemberOwnership authority)
@@ -246,11 +243,18 @@ public sealed class GameplaySaveRuntimeOwnershipTests
                     Enqueue(argument);
                 }
             }
-            else if (!type.IsEnum && type.Namespace?.StartsWith("Memoria.", StringComparison.Ordinal) == true)
+            else if (HasReviewedRuntimeSchema(type))
             {
                 pending.Enqueue(type);
             }
         }
+    }
+
+    // The component save reconstructs the effect process as an owner from the selected
+    // game and environment. Its callback implementation has no component save schema.
+    private static bool HasReviewedRuntimeSchema(Type type)
+    {
+        return type != typeof(NativeBattleEffectMemory) && !type.IsEnum && type.Namespace?.StartsWith("Memoria.", StringComparison.Ordinal) == true;
     }
 
     private static PropertyInfo[] SerializedProperties(Type type)
