@@ -86,7 +86,7 @@ public sealed partial class EventEngine
         //Persistent MESSYNC closes in529900; selected choices close in their VM poll.
         if (ButtonInput?.Pressed is ushort pressed && (pressed & 0xC0) != 0)
         {
-            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt).ToArray())
+            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt && (NativeRuntimeProfile is not { IsVerified: true } || NativeDialogueChannelOccupied(item.Channel))).ToArray())
             {
                 RecordDialogueOutcome(automatic, null, null);
                 if (!TryConfirmNativeBlockingDialogue(automatic, null))

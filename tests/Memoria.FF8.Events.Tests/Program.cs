@@ -190,6 +190,7 @@ internal static partial class Program
                     ["native-push-radius"] = NativePushRadiusContract,
                     ["native-empty-model-move"] = NativeEmptyModelMovementContract,
                     ["native-dialogue-busy"] = NativeDialogueBusyContract,
+                    ["native-dialogue-mask"] = NativeDialogueMaskContract,
                     ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
                     ["native-join-move-takeover"] = NativeJoinMoveTakeoverContract,

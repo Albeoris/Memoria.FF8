@@ -6,6 +6,13 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedRemainingDialogueCode(Fiber fiber, JsmOperation operation)
     {
+        if (NativeRuntimeProfile is { IsVerified: true } && operation.Opcode is Jsm.Opcode.MESW or Jsm.Opcode.AMESW or Jsm.Opcode.MES or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.ASK or Jsm.Opcode.AASK or Jsm.Opcode.MESSYNC or Jsm.Opcode.WINCLOSE)
+        {
+            if (UnsupportedNativeDialogueMask() is string unsupportedMask)
+            {
+                return unsupportedMask;
+            }
+        }
         int count = operation.Opcode switch
         {
             Jsm.Opcode.MESFORCUS => 1,

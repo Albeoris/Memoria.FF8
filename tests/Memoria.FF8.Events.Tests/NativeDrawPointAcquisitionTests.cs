@@ -62,6 +62,7 @@ internal static partial class Program
                 engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 // Explicit component visual initialization precedes the declared SETDRAWPOINT anchor reset.
                 engine.RestartNativeDrawPointPresentationForMigration();
+                session.SetEventMemory(session.EventMemory.Write(211, 2, NativeScalarValue.Exact(0xA580)));
                 return (session, engine);
             }
             (GameSession session, EventEngine engine) = Create();

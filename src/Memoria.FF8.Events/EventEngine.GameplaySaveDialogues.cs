@@ -132,6 +132,10 @@ public sealed partial class EventEngine
                 dialogueOccurrences.Add(window.Channel, ++dialogueOccurrenceSequence);
             }
         }
+        if (NativeRuntimeProfile is { IsVerified: true })
+        {
+            SetEventMemory(RestoreNativeDialogueMask(EventMemory, dialogues.Values));
+        }
         IEnumerable<DialogueState> visible = dialogues.Values.Where(dialogue => dialogue.NativeWindow is not { Progress: 0, Delta: < 0 });
         CurrentDialogue = Scene.NativeDialogueFocus is byte focus ? visible.FirstOrDefault(dialogue => dialogue.Channel == focus) : visible.LastOrDefault(dialogue => dialogue.CanConfirm) ?? visible.LastOrDefault();
     }

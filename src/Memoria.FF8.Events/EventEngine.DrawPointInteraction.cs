@@ -66,9 +66,9 @@ public sealed partial class EventEngine
         {
             return "DRAWPOINT requires its exact original operand, executed native allocation and canonical random/depletion/character publication";
         }
-        if (EventMemory.Overlaps(211, 1))
+        if (UnsupportedNativeDialogueMask() is string unsupportedMask)
         {
-            return "DRAWPOINT's channel6 completion bit overlaps an unowned scalar alias";
+            return unsupportedMask;
         }
         if (Scene.DrawPointInteraction is NativeDrawPointInteraction current)
         {
@@ -76,7 +76,7 @@ public sealed partial class EventEngine
             {
                 return "DRAWPOINT requires its single live original request and shared WORD516 phase";
             }
-            if (dialogues.ContainsKey(6))
+            if (NativeDialogueChannelOccupied(6))
             {
                 return null;
             }
@@ -85,7 +85,7 @@ public sealed partial class EventEngine
                 return null;
             }
         }
-        else if (dialogues.ContainsKey(6) || actors[fiber.ObjectId].NativeScriptMovement is { Active: true, Suspended: false, Accelerated: true })
+        else if (NativeDialogueChannelOccupied(6) || dialogues.ContainsKey(6) || actors[fiber.ObjectId].NativeScriptMovement is { Active: true, Suspended: false, Accelerated: true })
         {
             return "DRAWPOINT requires its actual free channel6 and a proved WORD516 consumer boundary";
         }
@@ -215,7 +215,7 @@ public sealed partial class EventEngine
             switch (actor.NativeMovementAccelerationTarget)
             {
                 case 1:
-                    if (dialogues.ContainsKey(6))
+                    if (NativeDialogueChannelOccupied(6))
                     {
                         break;
                     }
@@ -300,7 +300,7 @@ public sealed partial class EventEngine
                     }
                     break;
                 case 7:
-                    if (!dialogues.ContainsKey(6))
+                    if (!NativeDialogueChannelOccupied(6))
                     {
                         DepleteDrawPoint(current);
                         return CompleteDrawPointInteraction(fiber, false);

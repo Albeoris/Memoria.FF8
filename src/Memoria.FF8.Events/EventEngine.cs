@@ -198,7 +198,12 @@ public sealed partial class EventEngine
         // Native field initialization clears the 256 temporary bytes at variable offset 0x400.
         if (!restoringCheckpoint)
         {
-            SetEventMemory((battleCounterMirrors ?? EventMemory).Clear(1024, 1280));
+            NativeEventMemory loadedMemory = (battleCounterMirrors ?? EventMemory).Clear(1024, 1280);
+            if (NativeRuntimeProfile is { IsVerified: true })
+            {
+                loadedMemory = loadedMemory.Write(211, 1, NativeScalarValue.Exact(0));
+            }
+            SetEventMemory(loadedMemory);
         }
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, PartyPower = previousScene.PartyPower, PlaceId = inheritedPlaceId ?? previousScene.PlaceId };
@@ -571,7 +576,7 @@ public sealed partial class EventEngine
         if (dialogue.FirstChoice is null && !dialogue.IsNamePrompt)
         {
             //529FF0 broadcasts the same global confirm edge to ready automatic windows.
-            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt).ToArray())
+            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt && (NativeRuntimeProfile is not { IsVerified: true } || NativeDialogueChannelOccupied(item.Channel))).ToArray())
             {
                 RecordDialogueOutcome(automatic, null, null);
                 if (!TryConfirmNativeBlockingDialogue(automatic, null))
@@ -919,7 +924,8 @@ public sealed partial class EventEngine
             return false;
         }
         int channel = fiber.Stack.ElementAt(operandCount - 1);
-        if (!dialogues.TryGetValue(channel, out DialogueState? opened) || choice && opened.FirstChoice is null)
+        bool occupied = NativeRuntimeProfile is { IsVerified: true } && !choice ? NativeDialogueChannelOccupied(channel) : dialogues.TryGetValue(channel, out DialogueState? opened) && (!choice || opened.FirstChoice is not null);
+        if (!occupied)
         {
             return false;
         }
@@ -940,6 +946,10 @@ public sealed partial class EventEngine
         if (dialogue.MessageId >= messages.Count)
         {
             throw Fault(fiber, $"Message {dialogue.MessageId} is outside the field MSD table ({messages.Count} messages).");
+        }
+        if (NativeRuntimeProfile is { IsVerified: true } && !dialogue.IsNamePrompt)
+        {
+            SetNativeDialogueChannelOccupied(dialogue.Channel, true);
         }
         if (NativeRuntimeProfile is { IsVerified: true } || Scene.NativeDialogueFocus is not null)
         {
@@ -973,6 +983,10 @@ public sealed partial class EventEngine
 
     private void CloseDialogue(int channel)
     {
+        if (NativeRuntimeProfile is { IsVerified: true } && (!dialogues.TryGetValue(channel, out DialogueState? closed) || !closed.IsNamePrompt))
+        {
+            SetNativeDialogueChannelOccupied(channel, false);
+        }
         dialogues.Remove(channel);
         dialogueOccurrences.Remove(channel);
         RefreshCurrentDialogue();

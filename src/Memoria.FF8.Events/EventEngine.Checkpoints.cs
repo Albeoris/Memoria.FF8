@@ -69,7 +69,7 @@ public sealed partial class EventEngine
             backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation, fiber.NativePartyRequestPointer, fiber.NativeGlobalJumps.ToArray(), fiber.NativeDialogueConsumer)).ToArray(),
             dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop, pair.Value.NativeFlag404)).ToArray(), EventMemory, sceneSnapshot, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver, (services as GameSession)?.State.SavedBattleFlags, services.NativeFieldDebugRequested, services.LimitProgress);
-        return JsonSerializer.SerializeToElement(snapshot with { FieldCallbackInterrupted = FieldCallbackInterrupted }, CheckpointOptions);
+        return JsonSerializer.SerializeToElement(snapshot with { FieldCallbackInterrupted = FieldCallbackInterrupted, NativeDialogueMaskVersion = NativeRuntimeProfile is { IsVerified: true } ? 1 : null }, CheckpointOptions);
     }
 
     /// <summary>Restores a captured VM after LoadField has supplied exactly the same field's bytes and messages.</summary>
@@ -110,6 +110,14 @@ public sealed partial class EventEngine
         if (restoreSharedState && (saved.FieldRequestPacket is null && services.FieldRequestPacket is not null || saved.FieldRequestPacket is not null && !services.CanStoreFieldRequestPacket))
         {
             throw new InvalidDataException("Saved VM cannot erase its known native request packet or restore it through an unsupported service.");
+        }
+        if (saved.NativeDialogueMaskVersion is not (null or 1))
+        {
+            throw new InvalidDataException("Saved native dialogue mask has an unsupported version.");
+        }
+        if (NativeRuntimeProfile is { IsVerified: true } && saved.NativeDialogueMaskVersion is null)
+        {
+            saved = saved with { EventMemory = RestoreNativeDialogueMask(saved.EventMemory, saved.Dialogues) };
         }
         saved.EventMemory.Validate();
         ValidateSceneMemoryOwners(saved.EventMemory, saved.Scene);
@@ -807,6 +815,10 @@ public sealed partial class EventEngine
         {
             PublishEventMemory(saved.EventMemory);
         }
+        else if (NativeRuntimeProfile is { IsVerified: true })
+        {
+            SetEventMemory(EventMemory.Write(211, 1, saved.EventMemory.Read(211, 1)));
+        }
         partyJoin = saved.PartyJoin;
         partySplit = saved.PartySplit;
         if (LastFault is EventFault retryableFault && Supports(program.Operations[retryableFault.Operation].Opcode))
@@ -836,5 +848,8 @@ public sealed partial class EventEngine
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool FieldCallbackInterrupted { get; init; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? NativeDialogueMaskVersion { get; init; }
     }
 }

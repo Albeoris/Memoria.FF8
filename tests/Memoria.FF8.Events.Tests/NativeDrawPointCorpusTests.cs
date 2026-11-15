@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Jsm;
@@ -42,10 +43,10 @@ internal static partial class Program
         }
         foreach ((int fieldId, string fieldName, int objectId, int initId, int talkId, int setOperation, int talkOperation, int raw, int pointByte, string magicName, int depletion, int x, int y, int z, int triangle) in new[]
         {
+            (160, "bggate_2", 16, 67, 69, 1057, 1071, 1, 0x55, "Cure", 2, -1695, -3948, 481, 306),
             (102, "bccent_1", 15, 135, 137, 2216, 2232, 7, 0xC7, "Thunder", 2, -485, -698, 0, 55),
             (134, "bdin4", 9, 36, 38, 183, 197, 9, 0xC1, "Fire", 2, 1495, 1261, 24, 24),
-            (148, "bgbook_2", 17, 105, 107, 1961, 1977, 4, 0x9B, "Esuna", 3, -1494, 670, 0, 3),
-            (160, "bggate_2", 16, 67, 69, 1057, 1071, 1, 0x55, "Cure", 2, -1695, -3948, 481, 306)
+            (148, "bgbook_2", 17, 105, 107, 1961, 1977, 4, 0x9B, "Esuna", 3, -1494, 670, 0, 3)
         })
         {
             JsmProgram original = originals[fieldId];
@@ -78,6 +79,7 @@ internal static partial class Program
                 engine.LoadField(fieldId, extracted, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 // Explicit initialization of this extracted visual component is not travel or reconstructed chronology.
                 engine.RestartNativeDrawPointPresentationForMigration();
+                session.SetEventMemory(session.EventMemory.Write(210, 2, NativeScalarValue.Exact(0x80AB)));
                 return (session, engine);
             }
             (GameSession session, EventEngine engine) = Create();
@@ -87,12 +89,26 @@ internal static partial class Program
             engine.Step();
             Require(engine.Scene.DrawPointReset is { SampledDisplayMask: 1 } reset && reset.RawPosition == new FieldFixedPosition(x << 12, y << 12, z << 12) && engine.Scene.DrawPointIndex == raw - 1 && engine.Scene.DrawPointInteraction is { Message: 7 } request && request.RawArgument == raw && request.PointByte == pointByte && engine.CurrentDialogue?.Text == catalog.NoEligibleMessage, "Extracted original location did not execute actual setup/index and shared no-eligible interaction.");
             Require(commands.Single(command => command.Name == "SETDRAWPOINT").Arguments.SequenceEqual([1]) && commands.Single(command => command.Name == "Unknown16").Arguments.SequenceEqual([raw]), "Extracted original component discarded native raw operands.");
+            Require(engine.EventMemory.Read(210, 2).RequireExact() == 0xC0AB, "DRAWPOINT did not set channel6 while preserving its neighboring byte and other channels.");
             JsonElement saved = engine.Capture();
+            JsonNode historical = JsonNode.Parse(saved.GetRawText())!;
+            historical.AsObject().Remove("NativeDialogueMaskVersion");
+            historical["EventMemory"] = JsonSerializer.SerializeToNode(engine.EventMemory.Write(211, 1, NativeScalarValue.Exact(0)));
+            (GameSession legacySession, EventEngine legacy) = Create();
+            legacy.Restore(JsonSerializer.SerializeToElement(historical));
+            Require(legacy.EventMemory.Read(210, 2).RequireExact() == 0x40AB && JsonElement.DeepEquals(saved.GetProperty("Fibers"), legacy.Capture().GetProperty("Fibers")) && JsonElement.DeepEquals(saved.GetProperty("EventRandom"), legacy.Capture().GetProperty("EventRandom")), "Legacy dialogue mask recovery changed its held script or RNG.");
+            legacySession.SetEventMemory(legacy.EventMemory.Write(211, 1, NativeScalarValue.Exact(0)));
+            legacy.RestoreFieldState(JsonSerializer.SerializeToElement(historical));
+            Require(legacy.EventMemory.Read(211, 1).RequireExact() == 0x40, "Dormant legacy field restoration lost the reconstructed dialogue mask.");
+            Require(legacy.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Recovered historical draw-point window could not close.");
+            legacy.Step();
+            Require(legacy.Scene.DrawPointInteraction is null && legacy.EventMemory.Read(211, 1).RequireExact() == 0, "Recovered historical draw-point interaction remained blocked.");
             (_, EventEngine restored) = Create();
             restored.Restore(saved);
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Extracted original no-eligible message did not acknowledge normally.");
             engine.Step();
             restored.Step();
+            Require(engine.EventMemory.Read(210, 2).RequireExact() == 0x80AB, "Closing channel6 changed another channel or neighboring memory.");
             Require(engine.Scene.DrawPointInteraction is null && engine.IsUserControlEnabled && commands.Last(command => command.Name == "DRAWPOINT").Arguments.SequenceEqual([raw]) && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Extracted original continuation depleted a point without acquisition or changed after restore.");
         }
         Console.WriteLine("Original draw-point corpus:102/103,134,148/149,155,160 found;106/129/130/165 absent. Verbatim102/134/148/160 setup/talk bodies, anchors/raw operands/magic/persistence flags and shared interaction/restore passed.");
