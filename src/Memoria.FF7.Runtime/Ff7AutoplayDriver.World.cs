@@ -42,6 +42,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         Ff7AutoPlayWorldMovementState source = world.CaptureAutoPlayMovementState();
         string sourceKey = WorldMovementKey(source);
+        string positionKey = WorldPositionKey(source);
         string identity = $"{source.WorldId}:{source.WorldMapState}:{source.Player.Model}:{target.Id}:{target.Script}:{target.GeometryFingerprint}:{target.PredicateFingerprint}";
         bool rearming = source.Input.TerrainScript == target.Script;
         if (worldRouteTarget != identity || worldRouteRearming != rearming)
@@ -57,13 +58,13 @@ public sealed partial class Ff7AutoplayDriver
             if (retained.SourceKey == sourceKey && fresh is { Supported: true, State: not null } && WorldMovementKey(fresh.State) == retained.DestinationKey && fresh.TerrainBoundary == retained.Boundary)
             {
                 worldRoute.Dequeue();
-                RememberWorldInput(sourceKey, retained.Input);
+                RememberWorldInput(positionKey, retained.Input);
                 return new(rearming ? Ff7AutoPlayWorldNavigationStatus.Rearming : Ff7AutoPlayWorldNavigationStatus.Step, retained.Input, 0, PredictedBoundary: fresh.TerrainBoundary, HasInput: true);
             }
             worldRoute.Clear();
         }
         Vector3[] departureHints = rearming ? ReadWorldDepartureHints(world, source, target.Script) : [];
-        worldRepeatedInputs.TryGetValue(sourceKey, out HashSet<Ff7AutoplayInput>? repeated);
+        worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
         Ff7AutoPlayWorldRoute route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, repeated);
         if (route.Steps.Length == 0 && repeated is { Count: > 0 })
         {
@@ -78,7 +79,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             return new(route.Status, default, route.Expanded, route.Reason);
         }
-        RememberWorldInput(sourceKey, first.Input);
+        RememberWorldInput(positionKey, first.Input);
         return new(route.Status, first.Input, route.Expanded, route.Reason, first.Boundary, HasInput: true);
     }
 
@@ -264,5 +265,11 @@ public sealed partial class Ff7AutoplayDriver
         }
         // Supported foot-control RNG draws have no physical return value. VM execution is not forecast.
         return key.ToString();
+    }
+
+    internal static string WorldPositionKey(Ff7AutoPlayWorldMovementState state)
+    {
+        // Repeated physical edges are exploration preferences, not equivalent native execution states.
+        return $"{state.WorldId}:{state.WorldMapState}:{state.Player.Model}:{state.Player.X}:{state.Player.Y}:{state.Player.Z}";
     }
 }

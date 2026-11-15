@@ -36,6 +36,8 @@ internal sealed partial class Ff7Scene
         {
             throw new InvalidOperationException("Start or resume automatic play before advancing it.");
         }
+        // Control-step requests intentionally stop simulation between bounded batches.
+        autoPlay?.ResetIdleDeadline();
         StepDiagnostic(ticks, () => new KeyboardState(), false);
     }
 

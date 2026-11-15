@@ -44,7 +44,53 @@ internal static class AutoPlayWorldNavigationTests
         Check(unsupported.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported && unsupported.Steps.Length == 0, "An unsupported movement contract authorized physical input.");
         Ff7AutoPlayWorldFrontierFace seam = new(new(35, 0, 0), new(0x48000 - 20, 0, 0), new(0x48000 - 10, 0, 0), new(0x48000 - 10, 0, 20), 0, 0);
         Check(Math.Abs(Ff7AutoplayDriver.WorldFaceDistance(new(0, 10, 0, 0), seam) - 20) < 0.001, "World target distance failed to respect the original wrapped surface seam.");
+        Ff7AutoPlayWorldMovementState turned = source with { Player = source.Player with { Direction = 100, TargetDirection = 200 } };
+        Check(Ff7AutoplayDriver.WorldMovementKey(source) != Ff7AutoplayDriver.WorldMovementKey(turned), "Native route revalidation lost its orientation state.");
+        Check(Ff7AutoplayDriver.WorldPositionKey(source) == Ff7AutoplayDriver.WorldPositionKey(turned), "A changing smooth orientation hid an exact repeated physical position from cycle exploration.");
+        Check(Ff7AutoplayDriver.WorldPositionKey(source) != Ff7AutoplayDriver.WorldPositionKey(source with { Player = source.Player with { X = source.Player.X + 1 } }), "Different physical positions shared a cycle preference key.");
+        HashSet<Ff7AutoplayInput> attempted = [new(-1, -1, Run: true), new(0, -1, Run: true), new(1, -1, Run: true), new(-1, 0, Run: true), new(1, 0, Run: true), new(-1, 1, Run: true), new(1, 1, Run: true), new(Run: false)];
+        Ff7AutoPlayWorldRoute exploring = Ff7AutoplayDriver.SearchWorldRoute(turned, target, Preview, [], 1, attempted);
+        Check(exploring.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && exploring.Steps.Length == 1 && exploring.Steps[0].Input == new Ff7AutoplayInput(0, 1, Run: true), "A bounded physical cycle preference failed to retain a freshly admitted away detour or misclassified the search limit as absence.");
+        CheckPhysicalCycle();
         OriginalWorldPreview();
+    }
+
+    private static void CheckPhysicalCycle()
+    {
+        Ff7AutoPlayWorldFrontierFace face = new(new(0, 0, 1), new(120, 0, -5), new(125, 0, 0), new(120, 0, 5), 0, 0);
+        Ff7AutoPlayWorldScriptObservation target = new("cycle", 3, [face], new(true, null, 0, 0, [], [], [], []), "conditions", "geometry", [], true, null);
+        Ff7AutoPlayWorldMovementState source = new(0, 0, new(0, 0, 0, 0), new(), new(), 0, 0, null, 0);
+        Ff7AutoPlayWorldMovementPreview Preview(Ff7AutoplayInput input, Ff7AutoPlayWorldMovementState state)
+        {
+            Ff7WorldEntity player = state.Player with { Direction = state.Player.Direction + 1 };
+            if (player.X == 0 && input.Horizontal == 1 && input.Vertical == 0)
+            {
+                player = player with { X = 60 };
+            }
+            else if (player.X == 60 && input.Horizontal == -1 && input.Vertical == 0)
+            {
+                player = player with { X = 0 };
+            }
+            else if (player.X == 0 && input.Horizontal == 0 && input.Vertical == 1)
+            {
+                player = player with { Z = 60 };
+            }
+            return new(true, null, state with { Player = player }, player.X != state.Player.X || player.Z != state.Player.Z);
+        }
+        Dictionary<string, HashSet<Ff7AutoplayInput>> attempted = [];
+        for (int callback = 0; callback < 3; callback++)
+        {
+            string key = Ff7AutoplayDriver.WorldPositionKey(source);
+            if (!attempted.TryGetValue(key, out HashSet<Ff7AutoplayInput>? inputs))
+            {
+                attempted[key] = inputs = [];
+            }
+            Ff7AutoPlayWorldRoute route = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1, inputs);
+            Check(route.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && route.Steps.Length == 1, "A native-admitted moving prefix was lost to stationary orientation states or treated as absence.");
+            inputs.Add(route.Steps[0].Input);
+            source = Preview(route.Steps[0].Input, source).State!;
+        }
+        Check(source.Player.X == 0 && source.Player.Z == 60 && source.Player.Direction == 3, "Orientation changes hid a two-position cycle instead of exploring its admitted away detour.");
     }
 
     private static void OriginalWorldPreview()
