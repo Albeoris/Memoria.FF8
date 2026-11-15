@@ -88,9 +88,11 @@ public sealed class NativeBattleAiAdmissionTests
     public void StaticAndExecutingBranchesUseSignedJumpAndUnsignedConditionalWordFromTheEndOfTheRecord()
     {
         byte[] backwards = [35, 4, 0, 14, 220, 240, 0, 35, 249, 255];
-        byte[] largeSkip = new byte[32780];
-        new byte[] { 2, 3, 0, 3, 0, 0, 0, 128 }.CopyTo(largeSkip, 0);
-        new byte[] { 14, 220, 240, 0 }.CopyTo(largeSkip, 32776);
+        byte[] largeSkip = new byte[65556];
+        byte[] skip = [2, 3, 0, 3, 0, 0, 0, 128];
+        skip.CopyTo(largeSkip, 0);
+        skip.CopyTo(largeSkip, 32776);
+        new byte[] { 14, 220, 240, 0 }.CopyTo(largeSkip, 65552);
         foreach (byte[] init in new[] { backwards, largeSkip })
         {
             NativeBattleAiDefinition program = Program(init: init, turn: [4, 220, 0]);

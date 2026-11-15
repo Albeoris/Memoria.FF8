@@ -757,7 +757,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (actor.IsPlayer || ai.Scripts is null || ai.Scripts.Length != 5 || ai.Scripts.Any(script => script is null || script.Length is < 1 or > 65536) || ai.Abilities is null || ai.Abilities.Length != 48 || ai.LevelBand is < 0 or > 2 || ai.Texts is null || ai.Texts.Any(text => text is null))
+        if (actor.IsPlayer || ai.Scripts is null || ai.Scripts.Length != 5 || ai.Scripts.Any(script => script is null || script.Length == 0) || ai.Abilities is null || ai.Abilities.Length != 48 || ai.LevelBand is < 0 or > 2 || ai.Texts is null || ai.Texts.Any(text => text is null))
         {
             throw new InvalidDataException("Native battle AI requires its complete installed callback/ability/text banks.");
         }

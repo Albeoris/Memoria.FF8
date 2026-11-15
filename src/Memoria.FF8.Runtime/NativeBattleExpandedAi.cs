@@ -26,7 +26,7 @@ public static class NativeBattleExpandedAi
 
     private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions, Func<ushort, bool>? admitsDonorEffect, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
     {
-        if (program.Scripts is not { Length: 5 } || program.Scripts.Any(script => script is null || script.Length > 65536) ||
+        if (program.Scripts is not { Length: 5 } || program.Scripts.Any(script => script is null) ||
             program.LevelBand is < 0 or > 2 || program.Abilities is not { Length: 48 } || program.Abilities.Any(ability => ability is null) || program.Texts is null)
         {
             if (rosterRestrictions is not null)
