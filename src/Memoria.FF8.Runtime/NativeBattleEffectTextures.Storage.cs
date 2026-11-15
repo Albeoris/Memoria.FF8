@@ -92,7 +92,9 @@ public sealed partial record NativeBattleEffectTextureState
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)
     {
         ValidatePresentationTextures();
-        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail, LiveTextureSources = LiveTextureSources, TextureRegistrations = TextureRegistrations, TextureFileContext = TextureFileContext, SceneCopies = SceneCopies, PresentationTextures = context.Map(PresentationTextures) };
+        // The global image is process memory. Each isolated model image belongs to one battle's model allocation.
+        var presentationTextures = context.Purpose == NativeBattleStorageRestorePurpose.NewBattle ? null : context.Map(PresentationTextures);
+        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail, LiveTextureSources = LiveTextureSources, TextureRegistrations = TextureRegistrations, TextureFileContext = TextureFileContext, SceneCopies = SceneCopies, PresentationTextures = presentationTextures };
         _ = result.vramOwner.Arena.Working;
         return result;
     }

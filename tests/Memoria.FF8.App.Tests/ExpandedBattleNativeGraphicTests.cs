@@ -141,6 +141,7 @@ public sealed class ExpandedBattleNativeGraphicTests
             Assert.Contains($"into physical slot {physicalSlot}.", spawn.Message);
             Assert.Equal(reserveOwner, presentation.NativeActionPackets.ModelAliases.DecodeLiteral(checked((byte)physicalSlot)));
             Assert.Equal(reserveOwner, process.Graphics.NativeBindings.DecodeLiteral(checked((byte)physicalSlot), process.Graphics.ActorModels));
+            AssertAllocationMaterial(reserve);
         }
 
         if (effectId == 110)
@@ -178,6 +179,7 @@ public sealed class ExpandedBattleNativeGraphicTests
             Assert.Null(process.ActiveActionToken);
             Assert.Null(battle.ActiveAction);
             Assert.Empty(battle.QueuedActions);
+            AssertAllocationMaterial(elvoret);
         }
 
         BattleCombatant nextTarget = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && actor.SceneSlot >= 8);
@@ -188,6 +190,17 @@ public sealed class ExpandedBattleNativeGraphicTests
             Advance();
         }
         Assert.True(CompletedNextAttack());
+
+        void AssertAllocationMaterial(BattleCombatant actor)
+        {
+            BattleModelOwner owner = battle.ReadPresentationModelOwner(actor.Id);
+            NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
+            Assert.Equal(owner, process.ModelTextureCache.PresentationActors![model.TextureResourceIndex!.Value]);
+            NativeBattleEffectTextureState textures = process.Memory.Textures!;
+            Assert.Equal(process.PlannedModelRoster.Count, textures.PresentationTextures!.Count);
+            NativeBattlePresentationTextureBank bank = textures.RequirePresentationTexture(actor.Id);
+            Assert.NotSame(textures.VramCaptureIdentity, bank.Textures.VramCaptureIdentity);
+        }
 
         bool HasSeparateInit(string actorId) =>
             battle.ActiveAction?.ExpandedAiCallback is { Stage: 0 } active && active.Actor.ActorId == actorId ||

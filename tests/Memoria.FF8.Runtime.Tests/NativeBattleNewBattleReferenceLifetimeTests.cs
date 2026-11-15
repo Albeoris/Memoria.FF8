@@ -7,6 +7,26 @@ public sealed class NativeBattleNewBattleReferenceLifetimeTests
     private static readonly BattleExecutionReference.Model Model = new(new BattlePartyActorModel(new("prior-battle-party")));
     private static readonly BattleExecutionReference.Header Header = new(new(4));
 
+    [Fact]
+    public void NewBattleRetiresModelTextureBanksWhilePrivateContinuationKeepsTheirPixels()
+    {
+        NativeBattleRetainedMemory cold = NativeBattleStorageSnapshots.Restore(NativeBattleRetainedMemory.FromColdProcess());
+        NativeBattleEffectTextureState global = cold.EffectMemory!.Textures!.Upload45BD30(640, 0, 1, 1, [0x11, 0]);
+        NativeBattleEffectTextureState model = global.Upload45BD30(640, 0, 1, 1, [0x22, 0]);
+        NativeBattleEffectTextureState textures = global.WithPresentationTexture("previous-actor", new(model, NativeBattlePcTextureWindowCache.Reset4647A0(null)));
+        NativeBattleRetainedMemory retained = NativeBattleStorageSnapshots.Capture(cold with { EffectMemory = cold.EffectMemory with { Textures = textures } });
+
+        NativeBattleEffectTextureState next = NativeBattleStorageSnapshots.RestoreForNewBattle(retained).EffectMemory!.Textures!;
+        Assert.Null(next.PresentationTextures);
+        Assert.Equal((ushort)0x11, next.ReadVramWord(640, 0));
+
+        NativeBattleEffectTextureState continued = NativeBattleStorageSnapshots.Restore(retained).EffectMemory!.Textures!;
+        NativeBattleEffectTextureState continuedModel = continued.RequirePresentationTexture("previous-actor").Textures;
+        Assert.Equal((ushort)0x11, continued.ReadVramWord(640, 0));
+        Assert.Equal((ushort)0x22, continuedModel.ReadVramWord(640, 0));
+        Assert.NotSame(continued.VramCaptureIdentity, continuedModel.VramCaptureIdentity);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

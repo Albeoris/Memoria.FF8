@@ -10,6 +10,67 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ExpandedBattleProcessResourcesTests
 {
     [Fact]
+    public void Installed_battle_entry_rebinds_material_owners_across_roster_changes()
+    {
+        const ushort formation = 87;
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        GameState bootstrap = ExpandedBattleEffectMatrixTests.PrepareField(directory);
+        GameSession session = new(bootstrap with { FieldId = 132, FieldName = "field_132", GlobalRandom = new(917) });
+        session.RequestField(new FieldTransition(133, -105, -1751, 22, 128));
+        session.SetDepartingFieldState(bootstrap.DepartingFieldState);
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game);
+        world.EnsureField();
+        NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords().Rest();
+        vitals = vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray() };
+        foreach ((int allyCount, int addedEnemies) in new[] { (3, 0), (3, 1), (4, 2), (3, 0) })
+        {
+            for (int callback = 0; callback < 60 && !world.Events.CanAcceptMovementInput; callback++)
+            {
+                Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+            }
+            Assert.True(world.Events.CanAcceptMovementInput);
+            session.SetCharacterVitals(vitals.WithBattleParty(Enumerable.Range(0, allyCount).Select(row => checked((byte)row)).ToArray(), allyCount));
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount, AdditionalEnemies = addedEnemies });
+            string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
+            NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
+            session.SetRandomEncounters(new(true, random, new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+
+            BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+            for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.True(battle.NativeEntryReady);
+            if (addedEnemies == 0)
+            {
+                Assert.Null(battle.ExpandedPresentationProcess);
+                Assert.Null(battle.NativeEffectMemory!.Textures!.PresentationTextures);
+            }
+            else
+            {
+                ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+                BattleModelRoster roster = battle.ReadBattlePresentationRoster();
+                Assert.Equal(allyCount, roster.Party.Count());
+                Assert.Equal(1 + addedEnemies, roster.Enemies.Count());
+                Assert.Equal(roster.Owners.Select(ActorId).Order(), process.Memory.Textures!.PresentationTextures!.Keys.Order());
+                Assert.All(roster.Owners, owner => Assert.NotNull(process.Graphics.ActorModels.Get(owner).OriginalResourceRow104));
+            }
+
+            world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+            for (int callback = 0; callback < 1200 && !battle.CanReturnToField; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.True(battle.CanReturnToField);
+            world.ApplyBattleInput(new(BattleInputKind.Return));
+            Assert.Null(world.Battle);
+        }
+    }
+
+    [Fact]
     public void Installed_expanded_entry_uses_the_selected_field_handoff_and_reaches_ready()
     {
         const ushort formation = 87;

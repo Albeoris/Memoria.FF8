@@ -177,6 +177,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(Source, 8, 0, -1, 1, 1, null));
         (packets, _) = packets.AppendContact(new(new(Target, 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
+        packets = packets.WritePlayerRepeatMode(header, 1);
         NativeBattleEffectParameters parameters = new(Source, 0, BattleModelTargets.From([Target]), header, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         BattleDefinition definition = new()
