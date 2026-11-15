@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record DiagnosticEnemyTrigger(string ActorId, int Model, int SceneSlot, int LevelBand, byte Callback, string ScriptSha256, int? MaximumHpDivisor = null, int MaximumAttempts = 1)
+internal sealed record DiagnosticEnemyTrigger(string ActorId, int Model, int SceneSlot, int? LevelBand, byte Callback, string ScriptSha256, int? MaximumHpDivisor = null, int MaximumAttempts = 1)
 {
     internal void Validate(BattleInput input)
     {

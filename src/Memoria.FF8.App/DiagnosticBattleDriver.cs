@@ -26,6 +26,8 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
     public DiagnosticEnemyTrigger? EnemyTrigger { get; init; }
     public bool IndependentRosterEntry { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool DoomExpiration { get; init; }
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
     public ushort[] SupportingEffects { get; init; } = [];
@@ -62,6 +64,12 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         EnemyAbility?.Validate();
         EnemyTrigger?.Validate(Input);
+        if (DoomExpiration && (Input is not { Kind: BattleInputKind.Action, Ability: BattleAbility.NativeCommand, ActionId: (30 << 16) | 4, TargetId: not null } ||
+            Input.ActorId == Input.TargetId || ExpectedEffect != 9 || ExpectedNativeAction != 43 || ExpectedNativeCommand != 246 ||
+            !IndependentRosterEntry || EnemyAbility is not null || EnemyTrigger is not null || SupportingEffects is not { Length: 0 } || SupportingInvocations is not { Length: 0 }))
+        {
+            throw new InvalidDataException("Doom expiration requires a genuine equipped Doom submission and its distinct recipient's original 246/43 expiry in one independent entry.");
+        }
         if (IndependentRosterEntry && (FreshEntry is not null || Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 }))
         {
             throw new InvalidDataException("Independent roster entry cannot also use legacy fresh-entry, presentation transfer, terminal hold or between-use repairs.");
@@ -336,7 +344,8 @@ internal sealed class DiagnosticBattleDriver
             }
             return;
         }
-        if (dispatch.ActorId != (recipe.EnemyTrigger?.ActorId ?? recipe.Input.ActorId))
+        string? focalActor = recipe.DoomExpiration ? recipe.Input.TargetId : recipe.EnemyTrigger?.ActorId ?? recipe.Input.ActorId;
+        if (dispatch.ActorId != focalActor)
         {
             return;
         }
@@ -383,7 +392,7 @@ internal sealed class DiagnosticBattleDriver
         {
             return;
         }
-        BattleAbility? ability = recipe.EnemyTrigger is null ? recipe.Input.Ability : BattleAbility.EnemyAbility;
+        BattleAbility? ability = recipe.EnemyTrigger is not null || recipe.DoomExpiration ? BattleAbility.EnemyAbility : recipe.Input.Ability;
         if (dispatch.Ability != ability || dispatch.ActionId != (recipe.ExpectedNativeAction ?? recipe.Input.ActionId) || recipe.ExpectedNativeCommand is byte command && dispatch.NativeCommand != command)
         {
             Fail("ACTION_IDENTITY_UNAVAILABLE_OR_MISMATCH");

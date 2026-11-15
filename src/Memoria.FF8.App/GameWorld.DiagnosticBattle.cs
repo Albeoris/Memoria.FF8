@@ -185,8 +185,8 @@ internal sealed partial class GameWorld
             {
                 foreach (DiagnosticCommandPreparation command in character.Commands.Where(command => command.PrepareSavedSlot))
                 {
-                    if (expectedDriver.Input.ActorId != $"party-{character.Row}" ||
-                        expectedDriver.ExpectedNativeCommand != initialVitals.MenuDefinitions.CommandAbilityCommands[command.Ability - 20])
+                    if (expectedDriver.Input.ActorId != $"party-{character.Row}" || expectedDriver.Input.Ability != BattleAbility.NativeCommand ||
+                        expectedDriver.Input.ActionId >> 16 != initialVitals.MenuDefinitions.CommandAbilityCommands[command.Ability - 20])
                     {
                         throw new InvalidDataException("Prepared equipped slot differs from the selected actor or installed native command.");
                     }
