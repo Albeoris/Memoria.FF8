@@ -24,6 +24,9 @@ public sealed partial class Ff7AutoplayDriver
     private readonly Dictionary<string, HashSet<Ff7AutoplayInput>> worldRepeatedInputs = [];
     private string? worldRouteTarget;
     private bool worldRouteRearming;
+    private Ff7AutoPlayWorldGuide? worldTerrainGuide;
+    private Ff7WorldRuntime? worldTerrainGuideOwner;
+    private string? worldTerrainGuideContext;
 
     internal Ff7AutoPlayWorldNavigationResult ChooseWorldInput(Ff7AutoPlayWorldScriptObservation target, int nodeBudget = 512)
     {
@@ -45,6 +48,30 @@ public sealed partial class Ff7AutoplayDriver
         string positionKey = WorldPositionKey(source);
         string identity = $"{source.WorldId}:{source.WorldMapState}:{source.Player.Model}:{target.Id}:{target.Script}:{target.GeometryFingerprint}:{target.PredicateFingerprint}";
         bool rearming = source.Input.TerrainScript == target.Script;
+        Vector3? guidePoint = null;
+        if (!rearming)
+        {
+            string context = $"{identity}:{source.Player.Terrain & 31}";
+            int guideIndex = worldTerrainGuide is null ? -1 : Array.FindIndex(worldTerrainGuide.Faces, face => face.Source == source.Input.GroundTriangle);
+            if (!ReferenceEquals(worldTerrainGuideOwner, world) || worldTerrainGuideContext != context || guideIndex < 0)
+            {
+                worldTerrainGuide = world.ReadAutoPlayNavigationGuide(target);
+                worldTerrainGuideOwner = world;
+                worldTerrainGuideContext = context;
+                guideIndex = 0;
+            }
+            Ff7AutoPlayWorldGuide guide = worldTerrainGuide ?? throw new InvalidOperationException("Native world route guidance was not initialized.");
+            if (guide.Faces.Length == 0)
+            {
+                worldRoute.Clear();
+                return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, guide.Expanded, guide.Reason);
+            }
+            if (guideIndex + 1 < guide.Faces.Length)
+            {
+                guidePoint = guide.Faces[guideIndex + 1].Center;
+                identity += $":guide:{guide.Faces[guideIndex + 1].Source}";
+            }
+        }
         if (worldRouteTarget != identity || worldRouteRearming != rearming)
         {
             worldRoute.Clear();
@@ -65,11 +92,11 @@ public sealed partial class Ff7AutoplayDriver
         }
         Vector3[] departureHints = rearming ? ReadWorldDepartureHints(world, source, target.Script) : [];
         worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
-        Ff7AutoPlayWorldRoute route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, repeated);
+        Ff7AutoPlayWorldRoute route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, repeated, guidePoint);
         if (route.Steps.Length == 0 && repeated is { Count: > 0 })
         {
             repeated.Clear();
-            route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget);
+            route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, waypoint: guidePoint);
         }
         foreach (Ff7AutoPlayWorldRouteStep step in route.Steps)
         {
@@ -98,14 +125,14 @@ public sealed partial class Ff7AutoplayDriver
 
     private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, double Cost, double Distance);
 
-    internal static Ff7AutoPlayWorldRoute SearchWorldRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, IReadOnlyList<Vector3> departureHints, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null)
+    internal static Ff7AutoPlayWorldRoute SearchWorldRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, IReadOnlyList<Vector3> departureHints, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(nodeBudget, 16384);
         bool rearming = source.Input.TerrainScript == target.Script;
         double Distance(Ff7AutoPlayWorldMovementState state)
         {
-            return rearming ? departureHints.Select(point => WorldPointDistance(state.Player, point)).DefaultIfEmpty(0).Min() : target.Faces.Select(face => WorldFaceDistance(state.Player, face)).Min();
+            return rearming ? departureHints.Select(point => WorldPointDistance(state.Player, point)).DefaultIfEmpty(0).Min() : waypoint is Vector3 point ? WorldPointDistance(state.Player, point) : target.Faces.Select(face => WorldFaceDistance(state.Player, face)).Min();
         }
         string initial = WorldMovementKey(source);
         List<WorldSearchNode> nodes = [new(source, initial, -1, default, null, 0, Distance(source))];

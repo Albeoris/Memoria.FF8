@@ -52,6 +52,7 @@ internal static class AutoPlayWorldNavigationTests
         Ff7AutoPlayWorldRoute exploring = Ff7AutoplayDriver.SearchWorldRoute(turned, target, Preview, [], 1, attempted);
         Check(exploring.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && exploring.Steps.Length == 1 && exploring.Steps[0].Input == new Ff7AutoplayInput(0, 1, Run: true), "A bounded physical cycle preference failed to retain a freshly admitted away detour or misclassified the search limit as absence.");
         CheckPhysicalCycle();
+        CheckTerrainGuidance();
         OriginalWorldPreview();
     }
 
@@ -93,6 +94,30 @@ internal static class AutoPlayWorldNavigationTests
         Check(source.Player.X == 0 && source.Player.Z == 60 && source.Player.Direction == 3, "Orientation changes hid a two-position cycle instead of exploring its admitted away detour.");
     }
 
+    private static void CheckTerrainGuidance()
+    {
+        Ff7AutoPlayWorldGuideFace Face(int id, int x, int z) => new(new(0, 0, id), new(x, 0, z), new(x + 30, 0, z), new(x, 0, z + 30), 0);
+        Ff7AutoPlayWorldGuideFace[] faces = [Face(0, 0, 0), Face(1, 0, 300), Face(2, 300, 300), Face(3, 300, 0), Face(4, 0, -300)];
+        int[][] topology = [[1, 4], [0, 2], [1, 3], [2], [0]];
+        var route = Ff7WorldRuntime.PlanAutoPlayTerrainGuide(faces[0].Source, new HashSet<Ff7WorldTerrainReference> { faces[3].Source }, reference => faces[reference.Triangle], reference => topology[reference.Triangle].Select(index => faces[index].Source), 16);
+        Check(route.Faces.Select(face => face.Source.Triangle).SequenceEqual([0, 1, 2, 3]), "Native terrain-component advice did not take the connected detour around a gap or entered a dead-end component.");
+        var limited = Ff7WorldRuntime.PlanAutoPlayTerrainGuide(faces[0].Source, new HashSet<Ff7WorldTerrainReference> { faces[3].Source }, reference => faces[reference.Triangle], reference => topology[reference.Triangle].Select(index => faces[index].Source), 1);
+        Check(limited.Limited && limited.Faces.Length == 0, "A bounded topology search claimed physical absence or invented an unsearched route.");
+        Ff7AutoPlayWorldFrontierFace targetFace = new(faces[3].Source, faces[3].A, faces[3].B, faces[3].C, 0, 0);
+        Ff7AutoPlayWorldScriptObservation target = new("guided", 3, [targetFace], new(true, null, 0, 0, [], [], [], []), "conditions", "geometry", [], true, null);
+        Ff7AutoPlayWorldMovementState source = new(0, 0, new(0, 0, 0, 0), new(), new(), 0, 0, null, 0);
+        int calls = 0;
+        Ff7AutoPlayWorldMovementPreview Preview(Ff7AutoplayInput input, Ff7AutoPlayWorldMovementState state)
+        {
+            calls++;
+            return input.Vertical == 1 && input.Horizontal == 0 ? new(true, null, state with { Player = state.Player with { Z = 60 } }, true) : new(true, null, state);
+        }
+        var step = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1, waypoint: faces[1].Center);
+        Check(step.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && step.Steps.Length == 1 && step.Steps[0].Input.Vertical == 1 && calls == 9, "Coarse advice failed to guide an away detour through native input admission or falsely completed its remote script.");
+        var refused = Ff7AutoplayDriver.SearchWorldRoute(source, target, (_, _) => new(false, "native footprint rejects guide"), [], 2, waypoint: faces[1].Center);
+        Check(refused.Steps.Length == 0 && refused.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported, "A coarse topology edge authorized movement without its complete native footprint preview.");
+    }
+
     private static void OriginalWorldPreview()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -110,6 +135,18 @@ internal static class AutoPlayWorldNavigationTests
         using Ff7Session untouched = Ff7Session.Restore(installation, saved);
         Ff7WorldRuntime world = observed.World ?? throw new InvalidDataException("The fixture requires its original world continuation.");
         string before = JsonSerializer.Serialize(observed.Capture());
+        if (observed.AutoPlayState?.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh } active)
+        {
+            string[] identity = active.EventId.Split(':');
+            Check(identity.Length == 5 && identity[0] == "mesh" && identity[3] == "script", "The configured native guide fixture has an invalid active mesh identity.");
+            int chunkX = int.Parse(identity[1], System.Globalization.CultureInfo.InvariantCulture);
+            int chunkZ = int.Parse(identity[2], System.Globalization.CultureInfo.InvariantCulture);
+            int script = int.Parse(identity[4], System.Globalization.CultureInfo.InvariantCulture);
+            Ff7AutoPlayWorldScriptObservation target = world.ReadAutoPlayFrontierCatalog(chunkX, chunkZ).Scripts.Single(entry => entry.Script == script);
+            Ff7AutoPlayWorldGuide guide = world.ReadAutoPlayNavigationGuide(target);
+            Check(guide.Faces.Length > 0 && guide.Faces[^1].Script == script && !guide.Limited, $"The configured native guide fixture lost its terrain-transition route: {guide.Reason}");
+            Check(before == JsonSerializer.Serialize(observed.Capture()), "Native terrain-transition advice changed the source world execution state.");
+        }
         Ff7AutoPlayWorldMovementPreview preview = world.PreviewAutoPlayInput(new(Horizontal: 1));
         Check(preview is { Supported: true, State: not null, RequiresVmPhase: true }, $"The configured native foot-input fixture is not supported: {preview.Reason}");
         Check(before == JsonSerializer.Serialize(observed.Capture()), "A native world preview changed saved progression, scripts, models, input/collision caches or RNG.");
