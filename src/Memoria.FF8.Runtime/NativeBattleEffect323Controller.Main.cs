@@ -4,6 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect323Controller
 {
+    private const int PhysicalControlCount = PhysicalRecipientCount + 7;
+
     public static NativeBattleEffect323Step AdvanceMain659DD0(NativeBattleEffect323Frame frame, uint address, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
     {
         int age = Signed(Read(frame, address), 12);
@@ -24,7 +26,7 @@ public static partial class NativeBattleEffect323Controller
             int count = Signed(Read(frame, address), 14);
             (int segment, int parameter) = PathParameter(age, count);
             frame = Write(frame, address, Read(frame, address).WriteWord(0x1C, unchecked((ushort)(Read(frame, address).ReadWord(0x1C) + 77))));
-            NativeBattleEffect323PointStep sampled = inputs.SampleTrajectory(frame, TaskView(Read(frame, address), 0x44, (count + 7) * 8), segment, parameter, UnknownPoint());
+            NativeBattleEffect323PointStep sampled = inputs.SampleTrajectory(frame, ReadControls(frame, address, count), segment, parameter, UnknownPoint());
             frame = sampled.Frame;
             NativeBattleEffectArena previous = TaskView(Read(frame, address), 0xA4, 8);
             NativeBattleVector old = Vector(previous);
@@ -49,9 +51,14 @@ public static partial class NativeBattleEffect323Controller
         {
             NativeBattleEffect323PointStep point = inputs.Point502170(frame, caster, 24, 2048, UnknownPoint());
             frame = point.Frame;
-            int offset = Signed(Read(frame, address), 14) * 8 + 0x6C;
-            frame = Write(frame, address, CopyTask(CopyTask(Read(frame, address), offset, point.Output8, 8), offset + 8, point.Output8, 8));
-            frame = Write(frame, address, Read(frame, address).WriteWord(offset + 12, unchecked((ushort)(Read(frame, address).ReadWord(offset + 12) - 1000))));
+            int count = Signed(Read(frame, address), 14);
+            int offset = (count + 5) * 8;
+            NativeBattleEffectArena controls = ReadControls(frame, address, count);
+            controls = CopyBytes(controls, 0, NativeBattleEffectArena.CreateUnknown(controls.Bound), 0, controls.Bound);
+            controls = CopyBytes(point.Output8, 0, controls, offset, 8);
+            controls = CopyBytes(point.Output8, 0, controls, offset + 8, 8);
+            controls.WriteUInt16(offset + 12, unchecked((ushort)(controls.ReadUInt16(offset + 12) - 1000)));
+            frame = PublishControls(frame, address, controls);
         }
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1))));
         if (age + 1 >= 64)
@@ -93,19 +100,53 @@ public static partial class NativeBattleEffect323Controller
         RequireRecipientCount(count);
         NativeBattleEffectArena caster = TaskView(task, 0x9C, 8);
         NativeBattleVector point = Vector(caster);
-        task = CopyTask(CopyTask(task, 0x44, caster, 8), 0x4C, caster, 8);
-        task = task.WriteWord(0x48, unchecked((ushort)(task.ReadWord(0x48) - 500)));
-        task = CopyTask(task, 0x54, PointView(new(Signed(task, 0x14), unchecked((short)(Signed(task, 0x16) - 1000)), Signed(task, 0x18))), 6);
+        int physicalLength = Math.Min(count + 7, PhysicalControlCount) * 8;
+        NativeBattleEffectArena controls = NativeBattleEffectArena.CreateUnknown((count + 7) * 8).Write(physicalLength, new byte[(count + 7) * 8 - physicalLength]);
+        controls = CopyBytes(TaskView(task, 0x44, physicalLength), 0, controls, 0, physicalLength);
+        controls = CopyBytes(caster, 0, controls, 0, 8);
+        controls = CopyBytes(caster, 0, controls, 8, 8);
+        controls.WriteUInt16(4, unchecked((ushort)(controls.ReadUInt16(4) - 500)));
+        controls = CopyBytes(PointView(new(Signed(task, 0x14), unchecked((short)(Signed(task, 0x16) - 1000)), Signed(task, 0x18))), 0, controls, 16, 6);
         for (int index = 0; index < count; index++)
         {
-            task = CopyTask(task, 0x5C + index * 8, TaskView(task, 0x2C + index * 8, 8), 8);
+            NativeBattleEffectArena anchors = index < PhysicalRecipientCount ? TaskView(task, 0x2C + index * 8, 8) : frame.State.ExtendedAnchors ?? throw new InvalidDataException("Effect323 lost its expanded anchor owner.");
+            int sourceOffset = index < PhysicalRecipientCount ? 0 : (index - PhysicalRecipientCount) * 8;
+            controls = CopyBytes(anchors, sourceOffset, controls, (index + 3) * 8, 8);
         }
-        int offset = 0x5C + count * 8;
-        task = CopyTask(task, offset, PointView(new(Signed(task, 0x12), Signed(task, 0x16), Signed(task, 0x18))), 6);
+        int offset = (count + 3) * 8;
+        controls = CopyBytes(PointView(new(Signed(task, 0x12), Signed(task, 0x16), Signed(task, 0x18))), 0, controls, offset, 6);
         NativeBattleVector midpoint = new(unchecked((short)((point.X + Signed(task, 0x12)) / 2)), unchecked((short)(Signed(task, 0x16) - 1500)), unchecked((short)((point.Z + Signed(task, 0x18)) / 2)));
-        task = CopyTask(task, offset + 8, PointView(midpoint), 6);
-        task = CopyTask(CopyTask(task, offset + 16, caster, 8), offset + 24, caster, 8);
-        return Write(frame, address, task);
+        controls = CopyBytes(PointView(midpoint), 0, controls, offset + 8, 6);
+        controls = CopyBytes(caster, 0, controls, offset + 16, 8);
+        controls = CopyBytes(caster, 0, controls, offset + 24, 8);
+        return PublishControls(frame, address, controls);
+    }
+
+    private static NativeBattleEffectArena ReadControls(NativeBattleEffect323Frame frame, uint address, int count)
+    {
+        int length = (count + 7) * 8;
+        int physicalLength = Math.Min(length, PhysicalControlCount * 8);
+        NativeBattleEffectArena physical = TaskView(Read(frame, address), 0x44, physicalLength);
+        if (length == physicalLength)
+        {
+            return physical;
+        }
+        NativeBattleEffectArena extended = frame.State.ExtendedPath ?? throw new InvalidDataException("Effect323 lost its expanded path owner.");
+        NativeBattleEffectArena combined = CopyBytes(physical, 0, NativeBattleEffectArena.CreateUnknown(length), 0, physicalLength);
+        return CopyBytes(extended, 0, combined, physicalLength, length - physicalLength);
+    }
+
+    private static NativeBattleEffect323Frame PublishControls(NativeBattleEffect323Frame frame, uint address, NativeBattleEffectArena controls)
+    {
+        int physicalLength = Math.Min(controls.Bound, PhysicalControlCount * 8);
+        frame = Write(frame, address, CopyTask(Read(frame, address), 0x44, controls, physicalLength));
+        if (controls.Bound > physicalLength)
+        {
+            int extraLength = controls.Bound - physicalLength;
+            NativeBattleEffectArena suffix = CopyBytes(controls, physicalLength, NativeBattleEffectArena.CreateUnknown(extraLength), 0, extraLength);
+            frame = frame with { State = frame.State with { ExtendedPath = suffix } };
+        }
+        return frame;
     }
 
     public static NativeBattleActionMatrix BuildWorld(NativeBattleVector history, NativeBattleVector current, short spin, short tilt)
@@ -150,13 +191,15 @@ public static partial class NativeBattleEffect323Controller
 
     public static NativeBattleEffect323Frame TriggerRecipient(NativeBattleEffect323Frame frame, uint main, int age, NativeBattleEffectArena sampled, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
     {
-        if (age is < 35 or >= 45)
+        if (age is < 35 or > 45)
         {
             return frame;
         }
         NativeBattleModulePoolTask task = Read(frame, main);
+        int count = Signed(task, 14);
+        bool extended = count > PhysicalRecipientCount;
         int next = Signed(task, 0x10);
-        if (next >= Signed(task, 14))
+        if ((!extended && age == 45) || next >= count)
         {
             return frame;
         }
@@ -164,24 +207,35 @@ public static partial class NativeBattleEffect323Controller
         {
             throw new NotSupportedException("Effect323 requires its native nonnegative recipient cursor.");
         }
-        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + next * 4, 4).Owner;
-        if (Vector(sampled).X >= ModelX(frame, target, inputs))
+        short x = Vector(sampled).X;
+        while (next < count)
         {
-            return frame;
+            BattleModelOwner target = next < PhysicalRecipientCount ? task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + next * 4, 4).Owner : frame.State.ExtendedRecipients[next - PhysicalRecipientCount];
+            if (x >= ModelX(frame, target, inputs))
+            {
+                break;
+            }
+            (frame, uint programme) = Append(frame, ProgrammeDescriptor, 0x65A720);
+            frame = NativeBattleEffect323Lower.AllMatchingContacts65A5F0(frame, target, inputs);
+            if (programme != 0)
+            {
+                NativeBattleModulePoolTask programmeTask = Read(frame, programme);
+                programmeTask.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(target), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(target));
+                frame = Write(frame, programme, programmeTask);
+                NativeBattleEffect323PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, programme), 0x10, 8));
+                frame = Write(anchor.Frame, programme, CopyTask(Read(anchor.Frame, programme), 0x10, anchor.Output8, 8));
+                frame = NativeBattleEffect323Programme.Initialize(frame, programme + WorkspaceOffset, ProgrammeAddress, WorkspaceLength, resources);
+            }
+            frame = BirthParticles(frame, main, sampled);
+            next++;
+            task = Read(frame, main).WriteWord(0x10, checked((ushort)next));
+            frame = Write(frame, main, task);
+            if (!extended)
+            {
+                break;
+            }
         }
-        (frame, uint programme) = Append(frame, ProgrammeDescriptor, 0x65A720);
-        frame = NativeBattleEffect323Lower.AllMatchingContacts65A5F0(frame, target, inputs);
-        if (programme != 0)
-        {
-            NativeBattleModulePoolTask programmeTask = Read(frame, programme);
-            programmeTask.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(target), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(target));
-            frame = Write(frame, programme, programmeTask);
-            NativeBattleEffect323PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, programme), 0x10, 8));
-            frame = Write(anchor.Frame, programme, CopyTask(Read(anchor.Frame, programme), 0x10, anchor.Output8, 8));
-            frame = NativeBattleEffect323Programme.Initialize(frame, programme + WorkspaceOffset, ProgrammeAddress, WorkspaceLength, resources);
-        }
-        frame = BirthParticles(frame, main, sampled);
-        return Write(frame, main, Read(frame, main).WriteWord(0x10, unchecked((ushort)(Read(frame, main).ReadWord(0x10) + 1))));
+        return frame;
     }
 
     public static NativeBattleEffect323Frame BirthParticles(NativeBattleEffect323Frame frame, uint main, NativeBattleEffectArena sampled)

@@ -52,7 +52,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect323PointStep SampleTrajectory(NativeBattleEffect323Frame current, NativeBattleEffectArena controls, int segment, int parameter, NativeBattleEffectArena retained)
         {
-            NativeBattleTrajectoryStep result = NativeBattleTrajectorySampler.Sample(current.Memory, controls, 10, segment, parameter, retained, definition.NativeGraphics!.Rules.SummonColors!);
+            NativeBattleTrajectoryStep result = NativeBattleTrajectorySampler.Sample(current.Memory, controls, controls.Bound / 8, segment, parameter, retained, definition.NativeGraphics!.Rules.SummonColors!);
             return new(current with { Memory = result.Memory }, result.Output8);
         }
     }

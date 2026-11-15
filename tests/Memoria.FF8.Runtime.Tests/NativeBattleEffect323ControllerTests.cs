@@ -67,13 +67,11 @@ public sealed class NativeBattleEffect323ControllerTests
         Assert.Equal(777u, result.State.ReadDword(InitializerGlobal));
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(4)]
-    public void Unsupported_recipient_count_cannot_resize_native_arrays(int count)
+    [Fact]
+    public void Zero_recipients_do_not_produce_a_path_divisor()
     {
         Harness harness = new();
-        harness.SetContacts(0, Enumerable.Range(0, count).ToArray());
+        harness.SetContacts(0);
         Assert.Throws<NotSupportedException>(() => CaptureRecipients(AddMain(Frame(0), 0), Arena, harness.Inputs()));
     }
 
@@ -95,6 +93,7 @@ public sealed class NativeBattleEffect323ControllerTests
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(11)]
     public void All_52_samples_stay_within_actual_initialized_controls(int count)
     {
         int maximum = 0;
@@ -105,6 +104,49 @@ public sealed class NativeBattleEffect323ControllerTests
             maximum = Math.Max(maximum, segment + 3);
         }
         Assert.Equal(count + 6, maximum);
+    }
+
+    [Fact]
+    public void Expanded_controls_and_contact_crossings_keep_native_prefix_and_private_suffix()
+    {
+        Harness harness = new()
+        {
+            Expanded = true,
+            ModelXs = Enumerable.Range(0, 11).Select(index => (short)(100 * index)).ToArray(),
+            Anchors = Enumerable.Range(0, 11).Select(index => new NativeBattleVector((short)(100 * index), (short)(2 * index), (short)(3 * index))).ToArray()
+        };
+        harness.SetContacts(0, Enumerable.Range(0, 11).ToArray());
+        NativeBattleEffect323Frame frame = CaptureRecipients(AddMain(Frame(0), 45), Arena, harness.Inputs());
+        NativeBattleModulePoolTask task = Read(frame, Arena);
+        Assert.Equal(harness.Owner(8), task.ReadExecutionReference<BattleExecutionReference.Model>(0x28, 4).Owner);
+        Assert.Equal(harness.Anchors[10], Vector(TaskView(task, 0x2C, 8)));
+        Assert.Equal(10, Signed(task, 0x16));
+        Assert.Equal(-985, Signed(task, 0x18));
+        frame = Write(frame, Arena, CopyTask(task, 0x9C, PointView(new(100, -200, 300)), 8));
+        frame = InitializeControls(frame, Arena);
+        for (int index = 0; index < 3; index++)
+        {
+            (frame, _) = Append(frame, ProgrammeDescriptor, 0x65A720);
+        }
+        for (int index = 0; index < 64; index++)
+        {
+            (frame, _) = Append(frame, ParticleDescriptor, 0x65A660);
+        }
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        Assert.Equal(harness.Anchors[3], Vector(frame.State.ExtendedPath!));
+        Assert.Equal(new NativeBattleVector(100, -200, 300), Vector(TaskView(Read(frame, Arena), 0x9C, 8)));
+        harness.OnSample = (_, controls, segment, _) =>
+        {
+            Assert.Equal(13, segment);
+            Assert.Equal(144, controls.Bound);
+            Assert.Equal(harness.Anchors[3], Vector(CopyBytes(controls, 80, NativeBattleEffectArena.Clear(), 0, 8)));
+            throw new SampleObservedException();
+        };
+        Assert.Throws<SampleObservedException>(() => AdvanceMain659DD0(frame, Arena, null!, harness.Inputs()));
+        NativeBattleEffect323Frame crossed = TriggerRecipient(frame, Arena, 45, PointView(new(-1, 0, 0)), null!, harness.Inputs());
+        Assert.Equal(Enumerable.Range(0, 11).Reverse().Select(index => new NativeBattleEffect323Contact506690(new BattleContactOccurrence(index))), harness.Operations);
+        Assert.Equal(11, Read(crossed, Arena).ReadWord(0x10));
+        Assert.Equal(frame.Random, crossed.Random);
     }
 
     [Fact]
@@ -271,6 +313,7 @@ public sealed class NativeBattleEffect323ControllerTests
 
     private sealed class Harness
     {
+        public bool Expanded { get; init; }
         public List<NativeBattleEffect323Operation> Operations { get; } = [];
         public List<BattleModelOwner> AnchorModels { get; } = [];
         public short[] ModelXs { get; set; } = new short[7];
@@ -279,9 +322,19 @@ public sealed class NativeBattleEffect323ControllerTests
         public Action<NativeBattleEffect323Frame, NativeBattleEffectArena, int, int>? OnSample { get; set; }
         public NativeBattleActionPacketsState Packets { get; private set; } = OriginalPackets();
 
+        public BattleModelOwner Owner(int index) => Expanded && index >= 3 ? new BattlePartyActorModel(new($"extra-{index}")) : OriginalOwner(index);
+
+        private int ModelIndex(BattleModelOwner owner) => Expanded ? Enumerable.Range(0, ModelXs.Length).First(index => Owner(index) == owner) : OriginalSlot(owner);
+
         public void SetContacts(int first, params int[] actors)
         {
             NativeBattleActionPacketsState packets = OriginalPackets();
+            if (Expanded)
+            {
+                BattleModelRoster roster = new(OriginalRoster.Owners.Concat(actors.Where(actor => actor >= 3).Distinct().Select(Owner)));
+                NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+                packets = packets.WithRoster(roster, aliases);
+            }
             for (int index = 0; index < first; index++)
             {
                 (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
@@ -289,12 +342,12 @@ public sealed class NativeBattleEffect323ControllerTests
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 0, 323, null));
             foreach (int actor in actors)
             {
-                (packets, _) = packets.AppendContact(new(new(OriginalOwner(actor), 0, 0, 0, 0, 0, 0), null));
+                (packets, _) = packets.AppendContact(new(new(Owner(actor), 0, 0, 0, 0, 0, 0), null));
             }
             Packets = packets.Publish(actors.Length).State;
         }
 
-        public NativeBattleEffect323Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes(ModelXs[OriginalSlot(model)])), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, selector, fraction, retained) =>
+        public NativeBattleEffect323Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Packets, (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes(ModelXs[ModelIndex(model)])), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, selector, fraction, retained) =>
         {
             Assert.Equal(24, selector);
             Assert.Equal(2048, fraction);
@@ -303,7 +356,7 @@ public sealed class NativeBattleEffect323ControllerTests
         }, (frame, model, retained) =>
         {
             AnchorModels.Add(model);
-            return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 777) }, PutPoint(retained, 0, Anchors[OriginalSlot(model)]));
+            return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 777) }, PutPoint(retained, 0, Anchors[ModelIndex(model)]));
         }, (frame, controls, segment, parameter, retained) =>
         {
             OnSample?.Invoke(frame, controls, segment, parameter);

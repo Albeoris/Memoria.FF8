@@ -1,10 +1,13 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect323Profile;
 
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect323Controller
 {
+    private const int PhysicalRecipientCount = 3;
+
     public static NativeBattleEffect323Step AdvanceRoot659B30(NativeBattleEffect323Frame frame, uint address, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
     {
         NativeBattleModulePoolTask root = Read(frame, address);
@@ -47,43 +50,57 @@ public static partial class NativeBattleEffect323Controller
 
     public static NativeBattleEffect323Frame CaptureRecipients(NativeBattleEffect323Frame frame, uint main, NativeBattleEffect323Inputs inputs)
     {
-        int count = CurrentHeader(frame, inputs.ReadPackets(frame)).ReadContactCount();
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
+        int count = header.ReadContactCount();
         RequireRecipientCount(count);
-        frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
+        BattleModelOwner[] recipients = new BattleModelOwner[count];
+        short[] positions = new short[count];
         for (int index = 0; index < count; index++)
         {
-            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
-            BattleModelOwner model = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-            NativeBattleModulePoolTask task = Read(frame, main);
-            task.WriteExecutionReference(0x20 + index * 4, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
-            frame = Write(frame, main, task);
+            BattleModelOwner model = packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
+            recipients[index] = model;
+            if (count > 1)
+            {
+                positions[index] = ModelX(frame, model, inputs);
+            }
         }
         for (int left = 0; left < count - 1; left++)
         {
             for (int right = left + 1; right < count; right++)
             {
-                NativeBattleModulePoolTask task = Read(frame, main);
-                BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + left * 4, 4).Owner;
-                BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + right * 4, 4).Owner;
-                if (ModelX(frame, a, inputs) < ModelX(frame, b, inputs))
+                if (positions[left] < positions[right])
                 {
-                    NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
-                    task.WriteExecutionReference(0x20 + left * 4, 4, new BattleExecutionReference.Model(b), aliases.EncodeAddress(b));
-                    task.WriteExecutionReference(0x20 + right * 4, 4, new BattleExecutionReference.Model(a), aliases.EncodeAddress(a));
-                    frame = Write(frame, main, task);
+                    (recipients[left], recipients[right]) = (recipients[right], recipients[left]);
+                    (positions[left], positions[right]) = (positions[right], positions[left]);
                 }
             }
         }
-        frame = Write(frame, main, Read(frame, main).WriteWord(0x12, unchecked((ushort)-1000)).WriteWord(0x14, 1000).WriteWord(0x16, 0).WriteWord(0x18, 0));
+        NativeBattleModulePoolTask task = Read(frame, main).WriteWord(14, checked((ushort)count));
+        int nativeCount = Math.Min(PhysicalRecipientCount, count);
+        for (int index = 0; index < nativeCount; index++)
+        {
+            BattleModelOwner model = recipients[index];
+            task.WriteExecutionReference(0x20 + index * 4, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
+        }
+        frame = Write(frame, main, task.WriteWord(0x12, unchecked((ushort)-1000)).WriteWord(0x14, 1000).WriteWord(0x16, 0).WriteWord(0x18, 0));
+        NativeBattleEffectArena? extraAnchors = count > nativeCount ? NativeBattleEffectArena.CreateUnknown((count - nativeCount) * 8) : null;
         for (int index = 0; index < count; index++)
         {
-            BattleModelOwner target = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(0x20 + index * 4, 4).Owner;
             int offset = 0x2C + index * 8;
-            NativeBattleEffect323PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), offset, 8));
-            frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), offset, anchor.Output8, 8));
+            NativeBattleEffectArena retained = index < nativeCount ? TaskView(Read(frame, main), offset, 8) : NativeBattleEffectArena.Clear();
+            NativeBattleEffect323PointStep anchor = inputs.Anchor571400(frame, recipients[index], retained);
+            frame = anchor.Frame;
+            task = Read(frame, main);
+            if (index < nativeCount)
+            {
+                task = CopyTask(task, offset, anchor.Output8, 8);
+            }
+            else
+            {
+                extraAnchors = CopyBytes(anchor.Output8, 0, extraAnchors!, (index - nativeCount) * 8, 8);
+            }
             NativeBattleVector point = Vector(anchor.Output8);
-            NativeBattleModulePoolTask task = Read(frame, main);
             task = task.WriteWord(0x16, unchecked((ushort)(task.ReadWord(0x16) + point.Y))).WriteWord(0x18, unchecked((ushort)(task.ReadWord(0x18) + point.Z)));
             if (Signed(task, 0x12) > point.X)
             {
@@ -95,6 +112,7 @@ public static partial class NativeBattleEffect323Controller
             }
             frame = Write(frame, main, task);
         }
+        frame = frame with { State = frame.State with { ExtendedRecipients = count > nativeCount ? recipients.Skip(nativeCount).ToImmutableArray() : default, ExtendedAnchors = extraAnchors, ExtendedPath = null } };
         NativeBattleModulePoolTask current = Read(frame, main);
         int meanY = Signed(current, 0x16) / count;
         int meanZ = Signed(current, 0x18) / count;
@@ -103,9 +121,9 @@ public static partial class NativeBattleEffect323Controller
 
     private static void RequireRecipientCount(int count)
     {
-        if (count is < 1 or > 3)
+        if (count <= 0)
         {
-            throw new NotSupportedException("Effect323 requires one to three native recipients within its physical target and path arrays.");
+            throw new NotSupportedException("Effect323 requires actual captured recipients for its path and mean.");
         }
     }
 
