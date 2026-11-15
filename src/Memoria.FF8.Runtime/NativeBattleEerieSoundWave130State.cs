@@ -13,6 +13,9 @@ public sealed record NativeBattleEerieSoundWave130State([property: JsonRequired]
     public const uint BaseAddress = 0x25210A8;
     public const int Length = 0x68;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MainActFinished { get; init; }
+
     public static NativeBattleEerieSoundWave130State FromColdProcess() => new(NativeBattleEffectArena.Clear());
     public static NativeBattleEerieSoundWave130State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, Length));
 

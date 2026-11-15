@@ -77,7 +77,19 @@ public static partial class NativeBattleBreath129Controller
         {
             frame = Write(frame, address, Read(frame, address).WriteByte(15, 1));
             uint working = Working(frame);
-            NativeBattleEffectTaskPool[] children = [NativeBattleEffectTaskPool.Initialize(0x2521180, working, 0x18, 9), NativeBattleEffectTaskPool.Initialize(0x2521190, working + 0xD8, 0x1E8, 3), NativeBattleEffectTaskPool.Initialize(0x25211A0, working + 0x690, 0x80, 16), NativeBattleEffectTaskPool.Initialize(0x25211B0, working + 0xE90, 0x20, 64), NativeBattleEffectTaskPool.Initialize(0x25211C0, working + 0x1690, 0x330, 1)];
+            NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
+            int count = header.ReadContactCount();
+            if (count == 0)
+            {
+                throw new InvalidDataException("Breath requires at least one published target.");
+            }
+            uint targetBank = working + 0xD8;
+            if (count > 3)
+            {
+                (NativeBattleEffectMemory memory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(frame.Memory, frame.Effect, inputs.Packets.Roster, 0x1E8, count);
+                frame = frame with { Memory = memory };
+            }
+            NativeBattleEffectTaskPool[] children = [NativeBattleEffectTaskPool.Initialize(0x2521180, working, 0x18, 9), NativeBattleEffectTaskPool.Initialize(0x2521190, targetBank, 0x1E8, checked((ushort)Math.Max(3, count))), NativeBattleEffectTaskPool.Initialize(0x25211A0, working + 0x690, 0x80, 16), NativeBattleEffectTaskPool.Initialize(0x25211B0, working + 0xE90, 0x20, 64), NativeBattleEffectTaskPool.Initialize(0x25211C0, working + 0x1690, 0x330, 1)];
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], .. children] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, children.ToImmutableArray()) };
             frame = WriteBytes(frame, working + 0x19C0, NativeBattleEffectArena.Clear(), 0x1C00);
             for (int index = 0; index < 256; index++)
@@ -99,33 +111,23 @@ public static partial class NativeBattleBreath129Controller
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(resources.Act(source), size);
                 task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace);
             }
-            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
-            if (count is < 1 or > 3)
-            {
-                throw new NotSupportedException("Breath targets must fit its three actual pointer fields.");
-            }
-            BattleContactCursor contact = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact;
-            task = task.WriteWord(14, checked((ushort)count));
-            for (int index = 0; index < count; index++)
-            {
-                task = task.WriteByte(0x1C + index, checked((byte)index));
-                BattleModelOwner recipient = inputs.Packets.ReadContact(contact.Advance(index)).Primary.Recipient;
-                task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(recipient), inputs.Packets.ModelAliases.EncodeAddress(recipient));
-            }
+            int[] ordered = Enumerable.Range(0, count).ToArray();
             for (int firstIndex = 0; firstIndex < count - 1; firstIndex++)
             {
                 for (int secondIndex = firstIndex + 1; secondIndex < count; secondIndex++)
                 {
-                    BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + firstIndex * 4, 4).Owner;
-                    BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + secondIndex * 4, 4).Owner;
+                    BattleModelOwner a = inputs.Packets.ReadContact(header.FirstContact.Advance(ordered[firstIndex])).Primary.Recipient;
+                    BattleModelOwner b = inputs.Packets.ReadContact(header.FirstContact.Advance(ordered[secondIndex])).Primary.Recipient;
                     if ((inputs.ReadModel(frame, a).Transform ?? throw new NotSupportedException("Breath requires its current first target X.")).Position28.X > (inputs.ReadModel(frame, b).Transform ?? throw new NotSupportedException("Breath requires its current second target X.")).Position28.X)
                     {
-                        byte mapping = task.ReadByte(0x1C + firstIndex);
-                        task.WriteExecutionReference(16 + firstIndex * 4, 4, new BattleExecutionReference.Model(b), inputs.Packets.ModelAliases.EncodeAddress(b));
-                        task.WriteExecutionReference(16 + secondIndex * 4, 4, new BattleExecutionReference.Model(a), inputs.Packets.ModelAliases.EncodeAddress(a));
-                        task = task.WriteByte(0x1C + firstIndex, task.ReadByte(0x1C + secondIndex)).WriteByte(0x1C + secondIndex, mapping);
+                        (ordered[firstIndex], ordered[secondIndex]) = (ordered[secondIndex], ordered[firstIndex]);
                     }
                 }
+            }
+            task = task.WriteContactCount(14, count).WriteOrderedContactRecipients(16, 3, inputs.Packets, header, ordered);
+            for (int index = 0; index < Math.Min(3, count); index++)
+            {
+                task = task.WriteTraversalPosition(0x1C + index, ordered[index]);
             }
             frame = Write(frame, mainAddress, task.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, unchecked((ushort)(count * 4096 / 33))));
             frame = NativeBattleBreath129Preprocessing.Initialize(frame, resources);
@@ -172,6 +174,16 @@ public static partial class NativeBattleBreath129Controller
             else if (arena.ReadUInt32(offset) != 0)
             {
                 throw new InvalidDataException("Breath selected-body entry has no live model owner.");
+            }
+        }
+        uint count = ReadDword(frame, Working(frame) + 0x35E0);
+        if (count > 3)
+        {
+            NativeBattleModulePoolTask main = frame.Effect.Pools[5].Slots[0];
+            var recipients = main.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients;
+            for (int index = 3; index < count; index++)
+            {
+                yield return recipients[index].Owner;
             }
         }
         yield return frame.State.ReadCaster();

@@ -55,9 +55,9 @@ public static partial class NativeBattleBreath129Controller
             task = Read(frame, address);
             int firstIndex = Signed(task, 0x20);
             int nextIndex = Signed(task, 0x22);
-            NativeBattleBreath129PointStep first = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16 + firstIndex * 4, 4).Owner, 0xF1, 0);
+            NativeBattleBreath129PointStep first = inputs.ReadBone502170(frame, ReadTarget(task, firstIndex), 0xF1, 0);
             frame = first.Frame;
-            NativeBattleBreath129PointStep second = inputs.ReadBone502170(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(16 + nextIndex * 4, 4).Owner, 0xF1, 0);
+            NativeBattleBreath129PointStep second = inputs.ReadBone502170(frame, ReadTarget(Read(frame, address), nextIndex), 0xF1, 0);
             frame = second.Frame;
             NativeBattleVector a = Point(first.Point8);
             NativeBattleVector b = Point(second.Point8);
@@ -135,15 +135,24 @@ public static partial class NativeBattleBreath129Controller
 
     private static NativeBattleBreath129Frame SpawnTarget(NativeBattleBreath129Frame frame, uint mainAddress, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
     {
+        NativeBattleModulePoolTask main = Read(frame, mainAddress);
+        int selectedCount = main.ReadWord(14);
+        uint count = ReadDword(frame, Working(frame) + 0x35E0);
+        if (selectedCount > 3 && count >= selectedCount)
+        {
+            return frame;
+        }
         (frame, uint address) = Append(frame, 2, 0x6B5FC0);
         if (address == 0)
         {
             return frame;
         }
-        NativeBattleModulePoolTask main = Read(frame, mainAddress);
         int index = Signed(main, 0x20);
-        BattleModelOwner actor = main.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
-        NativeBattleModulePoolTask targetTask = Read(frame, address).WriteWord(12, 0).WriteByte(14, main.ReadByte(0x1C + index));
+        BattleModelOwner actor = ReadTarget(main, index);
+        int ordinal = main.TryReadExecutionReference(16, 4, out BattleExecutionReference.OrderedContactRecipients? targets)
+            ? targets.Recipients[index].Occurrence.Ordinal - inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact.Ordinal
+            : main.ReadByte(0x1C + index);
+        NativeBattleModulePoolTask targetTask = Read(frame, address).WriteWord(12, 0).WriteTraversalPosition(14, ordinal);
         targetTask.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
         frame = Write(frame, address, targetTask);
         NativeBattleBreath129PointStep point = inputs.ReadBone502170(frame, actor, 0xF1, 0);
@@ -153,17 +162,26 @@ public static partial class NativeBattleBreath129Controller
         int angle = NativeWorldScriptedPathMath.NativeAngle(position.X - source.X, position.Z - source.Z);
         frame = Write(frame, address, Read(frame, address).WriteWord(22, unchecked((ushort)angle)));
         frame = NativeBattleBreath129Body.Capture6B73F0(frame, actor, address + 0x128, 4, resources, inputs);
-        uint count = ReadDword(frame, Working(frame) + 0x35E0);
-        if (count >= 3)
+        if (count < 3)
+        {
+            NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena.");
+            int offset = checked((int)(Working(frame) - NativeBattleEffectNodeMemory.ArenaAddress + 0x35E4 + count * 4));
+            arena = arena.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+            frame = frame with { Memory = frame.Memory with { Arena = arena } };
+        }
+        else if (selectedCount <= 3)
         {
             throw new InvalidDataException("Breath selected-body list leaves its three actual pointer entries.");
         }
-        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena.");
-        int offset = checked((int)(Working(frame) - NativeBattleEffectNodeMemory.ArenaAddress + 0x35E4 + count * 4));
-        arena = arena.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
-        frame = frame with { Memory = frame.Memory with { Arena = arena } };
         frame = StoreDword(frame, Working(frame) + 0x35E0, count + 1);
         return ResetWorkspace(frame, address, 24, 0x110, resources.Act(0x1225468));
+    }
+
+    private static BattleModelOwner ReadTarget(NativeBattleModulePoolTask task, int index)
+    {
+        return task.TryReadExecutionReference(16, 4, out BattleExecutionReference.OrderedContactRecipients? targets)
+            ? targets.Recipients[index].Owner
+            : task.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
     }
 
     private static NativeBattleBreath129Frame ResetWorkspace(NativeBattleBreath129Frame frame, uint address, int offset, int size, NativeBattleGfAnimationSource source)

@@ -34,18 +34,25 @@ public sealed partial class BattleSession
         }
         effect = effect with { DrawArenaOffset = root.ReadDword(16) != 0 ? 0xECC : 0x10ECC };
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
+        BattleContactCursor firstContact = header.FirstContact;
+        int count = header.ReadContactCount();
+        const int originalTargetCapacity = 3;
         if (WindWord(root, 12) == 1 && root.ReadByte(15) == 0)
         {
             root = root.WriteByte(15, 1);
-            pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2508780, 0x20DFAB8 + 0x7B0, 0x33C, 1), NativeBattleEffectTaskPool.Initialize(0x25087A0, 0x20DFAB8, 0x290, 3)];
+            uint targetBank = 0x20DFAB8;
+            if (count > originalTargetCapacity)
+            {
+                (NativeEffectMemory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(NativeEffectMemory!, effect, nativeActionPackets.Roster, 0x290, count);
+            }
+            pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2508780, 0x20DFAB8 + 0x7B0, 0x33C, 1), NativeBattleEffectTaskPool.Initialize(0x25087A0, targetBank, 0x290, checked((ushort)Math.Max(originalTargetCapacity, count)))];
             (pools[1], int slot) = pools[1].Append(0x6946D0);
             Put(1, slot, pools[1].Slots[slot].WriteWord(12, 0));
         }
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleActionMatrix moduleCamera = NativeBattleGfMatrices.Normalize67AAE0(view);
-        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        BattleContactCursor firstContact = header.FirstContact;
         int survivors = 1;
         if (root.ReadByte(15) != 0)
         {
@@ -102,18 +109,18 @@ public sealed partial class BattleSession
             {
                 if (frame == 7)
                 {
-                    short z = 0;
-                    int count = header.ReadContactCount();
+                    int z = 0;
                     for (int index = 0; index < count; index++)
                     {
                         BattleModelOwner actor = nativeActionPackets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
-                        z = unchecked((short)(z + graphics.ActorModels.Get(actor).Transform!.Position28.Z));
+                        z += graphics.ActorModels.Get(actor).Transform!.Position28.Z;
                     }
                     if (count == 0)
                     {
                         throw new InvalidDataException("Native White Wind requires a nonempty original target list.");
                     }
-                    task = WindStore(task, 0x1A0, new(0, Height(caster), (short)(z / count)));
+                    int average = count <= originalTargetCapacity ? unchecked((short)z) / count : z / count;
+                    task = WindStore(task, 0x1A0, new(0, Height(caster), checked((short)average)));
                 }
                 NativeBattleVector point = WindVector(task, 0x1A0);
                 NativeBattleActionMatrix world = new([4096, 0, 0, 0, 2048, 0, 0, 0, 2048], point.X, point.Y, point.Z, 4096);
@@ -124,24 +131,39 @@ public sealed partial class BattleSession
                 PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128 });
             }
             int targetIndex = frame - 19;
-            if ((uint)targetIndex < 12 && (targetIndex & 3) == 0 && targetIndex / 4 < header.ReadContactCount() && pools[2].Slots.Any(candidate => (candidate.Flags & 1) == 0))
+            if ((uint)targetIndex < count * 4 && (targetIndex & 3) == 0 && pools[2].Slots.Any(candidate => (candidate.Flags & 1) == 0))
             {
                 (pools[2], int slot) = pools[2].Append(0x694D40);
-                BattleModelOwner actor = nativeActionPackets.ReadContact(firstContact.Advance(targetIndex / 4)).Primary.Recipient;
+                NativeBattleContactPacket contact = nativeActionPackets.ReadContact(firstContact.Advance(targetIndex / 4));
+                BattleModelOwner actor = contact.Primary.Recipient;
                 NativeBattleModulePoolTask target = pools[2].Slots[slot];
-                target.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
+                BattleExecutionReference reference = count <= originalTargetCapacity
+                    ? new BattleExecutionReference.Model(actor)
+                    : new BattleExecutionReference.OrderedContactRecipients([(actor, contact.Occurrence ?? throw new InvalidDataException("Native White Wind requires its launched contact occurrence."))]);
+                target.WriteExecutionReference(12, 4, reference, nativeActionPackets.ModelAliases.EncodeAddress(actor));
                 target = WindStore(target, 16, Anchor(actor));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 0x278);
                 workspace = workspace.Initialize7016B0(resources.Target, 0x278);
                 Put(2, slot, PublishWorkspace(target, 0x18, workspace));
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));
-            return frame + 1 >= 29 ? 2 : 0;
+            return frame + 1 >= Math.Max(29, 20 + (count - 1) * 4) ? 2 : 0;
         }
 
         int Target(ref NativeBattleModulePoolTask task)
         {
-            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
+            BattleContactOccurrence? occurrence = null;
+            BattleModelOwner actor;
+            if (task.TryReadExecutionReference(12, 4, out BattleExecutionReference.OrderedContactRecipients? recipients))
+            {
+                var recipient = recipients.Recipients.Single();
+                actor = recipient.Owner;
+                occurrence = recipient.Occurrence;
+            }
+            else
+            {
+                actor = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
+            }
             int scale = SizeScale(graphics.ActorModels.Get(actor).Transform!.Scale38);
             NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(Billboard673810(view, WindVector(task, 16)), scale, scale, scale);
             int remaining = Play(ref task, 0x18, 0x278, resources.Target, matrix, false);
@@ -149,7 +171,12 @@ public sealed partial class BattleSession
             {
                 return 0;
             }
-            for (int index = 0; index < header.ReadContactCount(); index++)
+            if (occurrence is { } selected)
+            {
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(selected)] });
+                return 2;
+            }
+            for (int index = 0; index < count; index++)
             {
                 if (nativeActionPackets.ReadContact(firstContact.Advance(index)).Primary.Recipient == actor)
                 {

@@ -21,6 +21,20 @@ public sealed class ExpandedNativePresentationTests
     }
 
     [Theory]
+    [InlineData(130, 11)]
+    [InlineData(226, 6)]
+    public void Installed_enemy_effect_delivers_every_scheduled_contact(ushort effect, int contacts)
+    {
+        VerifyScenario(effect, world => EnemyFanOutScenario(world, effect), contacts);
+    }
+
+    [Fact]
+    public void Installed_breath_keeps_captured_body_triangles_live_for_all_fibres()
+    {
+        VerifyScenario(129, world => EnemyFanOutScenario(world, 129));
+    }
+
+    [Theory]
     [InlineData(71, 1)]
     [InlineData(72, 5)]
     [InlineData(73, 11)]
@@ -184,6 +198,31 @@ public sealed class ExpandedNativePresentationTests
             Target = new("enemy-0", 48, 27, 0, 3, 0xC3u, 1, null, null),
             Roster = new(donors, 0),
             Driver = new(command, 233) { ExpectedNativeCommand = 8, ExpectedNativeAction = 49, EnemyAbility = new(27, 0, 0, 4, 8, 49, 12, 204) }
+        };
+    }
+
+    private static DiagnosticBattleRequest EnemyFanOutScenario(GameWorld world, ushort effect)
+    {
+        (int Formation, int Stage, int Model, byte AbilitySlot, ushort Action, byte Sequence, byte Selector, (int Formation, int Slot)[] Donors) scenario = effect switch
+        {
+            129 => (553, 105, 53, 3, 102, 12, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
+            130 => (662, 105, 48, 2, 185, 13, 204, [(579, 1), (671, 1), (360, 1), (551, 1), (716, 0)]),
+            226 => (548, 107, 46, 6, 276, 11, 205, [(408, 0), (574, 1), (370, 2), (527, 1), (36, 0)]),
+            _ => throw new ArgumentOutOfRangeException(nameof(effect))
+        };
+        var (formation, stage, model, abilitySlot, action, sequence, selector, donorSlots) = scenario;
+        ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(donor => new BattleEnemyRosterSource(donor.Formation, donor.Slot, world.BattleResources.FormationSourceHash(donor.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation character = new(0, 0, [], [0]) { HitPoints = 486, Level = 7, MagicCommand = new(0, 20) };
+        const string caster = "enemy-0";
+        BattleInput command = new(BattleInputKind.Action, ActorId: caster, TargetId: selector == 204 ? "party-0" : caster, Ability: BattleAbility.EnemyAbility, ActionId: action);
+        return new(formation, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([new(0, true)], [character], true),
+            Target = new(caster, stage, model, 0, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 0),
+            Driver = new(command, effect) { ExpectedNativeCommand = 8, ExpectedNativeAction = action, EnemyAbility = new(model, 0, 0, abilitySlot, 8, action, sequence, selector) }
         };
     }
 

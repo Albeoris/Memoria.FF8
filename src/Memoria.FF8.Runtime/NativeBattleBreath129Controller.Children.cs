@@ -7,6 +7,11 @@ public static partial class NativeBattleBreath129Controller
     public static (NativeBattleBreath129Frame Frame, int Result) AdvanceTarget(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
+        const int targetLifetime = 24;
+        if (Signed(task, 12) >= targetLifetime)
+        {
+            return (frame, TargetTrianglesInUse(frame, address) ? 0 : 2);
+        }
         BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(15, 1).Owner;
         NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(Signed(task, 22)) with { X = Signed(task, 16), Y = Signed(task, 18), Z = Signed(task, 20) };
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
@@ -44,7 +49,13 @@ public static partial class NativeBattleBreath129Controller
             frame = SpawnFibres(frame, row, 0x12292F8u + (uint)(((age - 12) >> 2) * 8), address + 0x128, 12, 5, 0x800);
         }
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)));
-        return (Write(frame, address, task), Signed(task, 12) >= 24 ? 2 : 0);
+        return (Write(frame, address, task), Signed(task, 12) >= targetLifetime && !TargetTrianglesInUse(frame, address) ? 2 : 0);
+    }
+
+    private static bool TargetTrianglesInUse(NativeBattleBreath129Frame frame, uint address)
+    {
+        return frame.Effect.Pools[2].Slots.Length > 3 &&
+            frame.Effect.Pools[3].Slots.Any(fibre => (fibre.Flags & 1) != 0 && fibre.ReadDword(24) == address + 0x128);
     }
 
     public static (NativeBattleBreath129Frame Frame, int Result) AdvanceSprite(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)

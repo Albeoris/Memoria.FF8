@@ -100,7 +100,8 @@ public sealed class NativeBattleBreath129ControllerTests
         NativeBattleBreath129Frame frame = Frame();
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 2).WriteByte(15, 1));
         frame = Write(frame, MainAddress, Read(frame, MainAddress).WriteWord(12, 73));
-        frame = WriteBytes(frame, Arena + 0x35E4, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x1D9735Cu)), 4);
+        NativeBattleEffectArena arena = frame.Memory.Arena!.WriteExecutionReference(0x35E4, 4, new BattleExecutionReference.Model(OriginalOwner(1)), OriginalPackets().ModelAliases.EncodeAddress(OriginalOwner(1)));
+        frame = frame with { Memory = frame.Memory with { Arena = arena } };
         List<string> order = [];
         var advanced = AdvanceRoot(frame, RootBank, Resources(), Inputs(order));
         Assert.Equal(2, advanced.Result);
@@ -208,7 +209,7 @@ public sealed class NativeBattleBreath129ControllerTests
             arena = arena.Write(0x19C0 + index * 28, BitConverter.GetBytes((ushort)0xFFFF));
         }
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
-        NativeBattleBreath129State state = NativeBattleBreath129State.FromColdProcess().WriteDword(WorkingGlobal, Arena).WriteDword(CasterGlobal, 0x1D972C0) with { RootBankStorage = null };
+        NativeBattleBreath129State state = NativeBattleBreath129State.FromColdProcess().WriteDword(WorkingGlobal, Arena).WriteCaster(OriginalOwner(0), OriginalPackets().ModelAliases) with { RootBankStorage = null };
         return new(memory, effect, new(55), state);
     }
 
