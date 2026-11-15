@@ -139,7 +139,7 @@ public static partial class NativeBattleEffect83Controller
             throw new InvalidDataException("Effect83 target pointer changed physical owner.");
         }
         frame = ClearBytes(frame, TargetAddress, 0x54);
-        frame = inputs.Execute(frame, new NativeBattleEffect83Point502170(PhysicalModelAddress(Read(frame, address).ReadByte(0x2D)), 0xF1, TargetAddress + 8));
+        frame = inputs.Execute(frame, new NativeBattleEffect83Point502170(Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 0xF1, TargetAddress + 8));
         frame = frame with { State = frame.State.WriteWord(TargetAddress + 0xA, 0).WriteWord(TargetAddress, 0).WriteWord(TargetAddress + 2, 0).WriteWord(TargetAddress + 4, 0) };
         short x = unchecked((short)(frame.State.ReadWord(TargetAddress + 8) - frame.State.ReadWord(TargetAddress)));
         short z = unchecked((short)frame.State.ReadWord(TargetAddress + 0xC));

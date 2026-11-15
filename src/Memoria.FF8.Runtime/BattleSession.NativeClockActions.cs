@@ -80,7 +80,7 @@ public sealed partial class BattleSession
             EndDiagnosticInvocationFocalCompletion();
         }
         ObserveDiagnosticInvocationAftercareNativeEvent(aftercareCompletion, completed);
-        bool diagnosticAcknowledged = diagnosticCompletion is { } observed && completed && (presentation is not null && ReferenceEquals(ActiveAction, presentation) && presentation.ActorId == observed.Dispatch.ActorId && presentation.NativeHeaderIndex == observed.Dispatch.NativeHeaderIndex || queuedPresentations.Any(command => command.ActorId == observed.Dispatch.ActorId && command.NativeHeaderIndex == observed.Dispatch.NativeHeaderIndex));
+        bool diagnosticAcknowledged = diagnosticCompletion is { } observed && completed && (presentation is not null && ReferenceEquals(ActiveAction, presentation) && presentation.ActorId == observed.Dispatch.ActorId && OriginalDiagnosticHeaderIndex(presentation.NativeHeader) == observed.Dispatch.NativeHeaderIndex || queuedPresentations.Any(command => command.ActorId == observed.Dispatch.ActorId && OriginalDiagnosticHeaderIndex(command.NativeHeader) == observed.Dispatch.NativeHeaderIndex));
         if (completed)
         {
             AcknowledgeNativeEventPresentations(presentation, queuedPresentations);
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
 
     private bool HasCurrentNativeQueuedPresentation()
     {
-        if (!actions.TryPeek(out BattleAttackCommand? command) || command.NativeHeaderIndex is null)
+        if (!actions.TryPeek(out BattleAttackCommand? command) || command.NativeHeader is null)
         {
             return false;
         }
@@ -125,7 +125,7 @@ public sealed partial class BattleSession
 
     private void ValidateCurrentNativeQueuedHeader(BattleAttackCommand command)
     {
-        int header = command.NativeHeaderIndex ?? throw new InvalidDataException("Native queued presentation lacks its factual header.");
+        BattleActionHeaderReference header = command.NativeHeader ?? throw new InvalidDataException("Native queued presentation lacks its factual header.");
         ValidateNativeHeaderReference(GetActor(command.ActorId), header);
         //47DD90 resets only the counts; a queued104 still owns its physical prepared slot.
     }
@@ -136,7 +136,7 @@ public sealed partial class BattleSession
         byte? eventActor = null;
         foreach (BattleAttackCommand command in actions)
         {
-            if (command.NativeHeaderIndex is null)
+            if (command.NativeHeader is null)
             {
                 continue;
             }
@@ -146,7 +146,7 @@ public sealed partial class BattleSession
                 continue;
             }
             //47DD90 may already have cleared C0/C1; the final10 still owns these retained physical header mirrors.
-            ValidateNativeHeaderReference(GetActor(command.ActorId), command.NativeHeaderIndex);
+            ValidateNativeHeaderReference(GetActor(command.ActorId), command.NativeHeader);
             captured.Add(command);
         }
         return captured.ToArray();
@@ -154,7 +154,7 @@ public sealed partial class BattleSession
 
     private BattleActionPresentation? CaptureNativeEventPresentation()
     {
-        if (ActiveAction is not { NativeHeaderIndex: int headerIndex } action)
+        if (ActiveAction is not { NativeHeader: BattleActionHeaderReference headerIndex } action)
         {
             return null;
         }

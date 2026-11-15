@@ -160,7 +160,7 @@ public static partial class NativeBattleEffect31Actors
             case 1:
                 frame = InitializeProgramme(frame, address, resources);
                 (frame, _) = CasterMatrix(frame, address, 0x872B80, 0x19C, 32, inputs);
-                frame = UpdatePoint(frame, address + 0x1A4, Read(frame, address).ReadByte(0x2D), inputs);
+                frame = UpdatePoint(frame, address + 0x1A4, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, inputs);
                 return IncrementPhase(WriteBytes(frame, address + 0x1C, ReadBytes(frame, address + 0x19C, 8), 8), address);
             case 2:
                 break;
@@ -188,7 +188,7 @@ public static partial class NativeBattleEffect31Actors
         frame = Write(frame, address, task.WriteWord(0x1AE, unchecked((ushort)(index + 1))));
         NativeBattlePackedMatrix32 world = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0);
         world = Translation(world, Point(ReadBytes(frame, address + 0x1C, 8)));
-        short yaw = Word31(inputs.ReadPhysical(frame, ModelAddress(Caster(frame)), 0x10), 0x0E);
+        short yaw = inputs.ReadModel(frame, Caster(frame)).Rotation14 ?? throw new NotSupportedException("Effect31 requires its current caster yaw.");
         (frame, world) = Rotate(frame, world, 'Y', yaw);
         frame = Observe(frame, address, 0x872CB0, 0x872DF3, world, inputs);
         if ((Read(frame, address).ReadByte(0x26) & 1) == 0)
@@ -249,8 +249,7 @@ public static partial class NativeBattleEffect31Actors
         return (frame with { Random = random }, value);
     }
 
-    private static int Caster(NativeBattleEffect31Frame frame) => Parameters(frame).Source;
-    private static uint ModelAddress(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
+    private static BattleModelOwner Caster(NativeBattleEffect31Frame frame) => Parameters(frame).Source;
     private static NativeBattleVector Point(NativeBattleEffectArena point) => new(Word31(point, 0), Word31(point, 2), Word31(point, 4));
     private static NativeBattleEffectArena Word(NativeBattleEffectArena arena, int at, short value) => arena.Write(at, BitConverter.GetBytes(value));
     private static NativeBattleEffectArena Dword(NativeBattleEffectArena arena, int at, uint value) => arena.Write(at, BitConverter.GetBytes(value));

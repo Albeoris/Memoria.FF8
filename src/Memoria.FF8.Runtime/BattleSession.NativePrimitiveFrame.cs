@@ -21,8 +21,9 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { PrimitiveProcess = process with { Depth = depth.SetBucketMix460B60(0.8f) } };
     }
 
-    private NativeBattleGraphicsState InitializeNativePrimitiveFrame500400(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState InitializeNativeGraphicsFrame500400(NativeBattleGraphicsState graphics)
     {
+        graphics = graphics with { ModuleEffects = graphics.ModuleEffects.InitializeRinoaPhysicalHitStorage(graphics.Effects.StorageContract) };
         if (definition.NativeGraphics?.PrimitiveTables is null)
         {
             return graphics;

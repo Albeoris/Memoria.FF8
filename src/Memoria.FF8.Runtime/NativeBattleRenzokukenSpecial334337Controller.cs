@@ -8,7 +8,7 @@ public sealed record NativeBattleRenzokukenSpecialCameraSet(short Y) : NativeBat
 
 public static partial class NativeBattleRenzokukenSpecialController
 {
-    public static NativeBattleRenzokuken160ChildStep Advance334337(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, Func<byte, NativeBattleModuleAnchor> readAnchor)
+    public static NativeBattleRenzokuken160ChildStep Advance334337(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor)
     {
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -20,14 +20,14 @@ public static partial class NativeBattleRenzokukenSpecialController
         NativeBattleRenzokuken160State state = ReadState(frame).Core;
         if (counter == 0)
         {
-            ushort flags = inputs.ReadModel(state.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             task = task.WriteWord(14, (ushort)(flags & 0x800));
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(flags | 0x800)));
         }
         if (counter == 1)
         {
             Execute(new NativeBattleRenzokuken160ActorResource(resources.ActorResource, state.InitialControl ? (byte)2 : (byte)1));
-            Execute(new NativeBattleRenzokukenSpecialTargetResource(resources.ActorResource, (byte)state.FirstTarget, 0, 1));
+            Execute(new NativeBattleRenzokukenSpecialTargetResource(resources.ActorResource, NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 0, 1));
         }
         if (counter == 2)
         {
@@ -80,7 +80,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 336 => 0x5835D0,
                 337 => 0x580F50,
                 _ => throw new InvalidDataException()
-            }, 0, state.Actor));
+            }, 0, NativeBattleRenzokukenInvocation.Source(frame.Effect)));
         }
         switch (effect)
         {
@@ -107,12 +107,12 @@ public static partial class NativeBattleRenzokukenSpecialController
             case 335:
                 if (counter == 13)
                 {
-                    NativeBattleModuleAnchor anchor = readAnchor((byte)state.FirstTarget);
+                    NativeBattleModuleAnchor anchor = readAnchor(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect));
                     Execute(new NativeBattleRenzokukenSpecialActorPosition(anchor.X, unchecked((short)(anchor.Z + 3850))));
                 }
                 if (counter > 13 && counter == state.Duration - 5)
                 {
-                    NativeBattleModelTransform original = inputs.ReadModel(state.Actor).Transform ?? throw new NotSupportedException("Native5857D0 requires its original actor position20.");
+                    NativeBattleModelTransform original = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Transform ?? throw new NotSupportedException("Native5857D0 requires its original actor position20.");
                     Execute(new NativeBattleRenzokukenSpecialActorPosition(original.Initial20.X, original.Initial20.Z));
                 }
                 if (counter == 40)
@@ -210,7 +210,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 Execute(new NativeBattleRenzokuken160Stage(0));
             }
             Execute(new NativeBattleRenzokuken160ActorColor(resources.DefaultModelColor));
-            ushort flags = inputs.ReadModel(state.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(task.ReadWord(14) | (flags & 0xF7FF))));
         }
         return new(frame, pool.WriteSlot(slot, task), result);
@@ -250,7 +250,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 Set(child, 22, known);
             }
         }
-        NativeBattleVector TargetBone() => (inputs.ReadBone ?? throw new NotSupportedException("Native special Renzokuken requires its target bone241."))((byte)state.FirstTarget, 241, 0);
+        NativeBattleVector TargetBone() => (inputs.ReadBone ?? throw new NotSupportedException("Native special Renzokuken requires its target bone241."))(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 241, 0);
         void Capture(int child)
         {
             byte[] bank = ReadState(frame).ExtraStorage.ToArray();

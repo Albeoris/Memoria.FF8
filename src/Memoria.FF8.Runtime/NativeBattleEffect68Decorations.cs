@@ -13,7 +13,7 @@ public static partial class NativeBattleEffect68Lower
         {
             if (kind == 2)
             {
-                task = InitializeStat(task, Read(frame, task.ReadDword(0x18)), inputs.ReadDescriptor208(frame, task.ReadByte(0x2D)), resources);
+                task = InitializeStat(task, Read(frame, task.ReadDword(0x18)), inputs.ReadDescriptor208(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner), resources);
             }
             else
             {

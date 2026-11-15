@@ -6,7 +6,7 @@ public abstract record NativeBattleLionHeart165Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleLionHeart165MeshDraw(uint Address, NativeBattleActionMatrix Matrix, NativeBattleModuleMeshContext Context, bool Common) : NativeBattleLionHeart165Operation;
-public sealed record NativeBattleLionHeart165Inputs(uint GraphicsFlags, Func<int> Pending508500, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadPosition, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone, Func<byte, NativeBattleRenzokuken160WeaponTip> ReadWeaponTip, Func<NativeBattleLionHeart165Frame, NativeBattleLionHeart165Operation, NativeBattleLionHeart165Frame> Execute);
+public sealed record NativeBattleLionHeart165Inputs(uint GraphicsFlags, Func<int> Pending508500, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadPosition, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone, Func<BattleModelOwner, NativeBattleRenzokuken160WeaponTip> ReadWeaponTip, Func<NativeBattleLionHeart165Frame, NativeBattleLionHeart165Operation, NativeBattleLionHeart165Frame> Execute, BattleActorModels Models, NativeBattleModelAliases Aliases, Func<NativeBattleModelSlot, NativeBattleGraphicsModel> ReadOriginalCell);
 
 public static partial class NativeBattleLionHeart165Controller
 {

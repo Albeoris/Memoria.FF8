@@ -7,6 +7,17 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleNodeSource> NodeBanks, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena> InitializedSources, [property: JsonRequired] bool ColdSourceOrigin)
 {
+    [JsonIgnore]
+    internal ImmutableDictionary<BattlePartyModelOwner, ushort> SavedPartyFlags { get; init; } = ImmutableDictionary<BattlePartyModelOwner, ushort>.Empty;
+
+    internal BattleModelOwner ReadModelReference(uint address, int width) => Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, width), width).Owner;
+
+    internal NativeBattleEffect80State WriteModelReference(uint address, int width, BattleModelOwner owner, ImmutableArray<byte>? encoding)
+    {
+        NativeBattleEffectArena storage = Storage.WriteExecutionReference(Require(address, width), width, new BattleExecutionReference.Model(owner), encoding);
+        return this with { Storage = storage };
+    }
+
     public static NativeBattleEffect80State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), ImmutableDictionary<uint, NativeBattleNodeSource>.Empty, ImmutableDictionary<uint, NativeBattleEffectArena>.Empty, true);
 
     public static NativeBattleEffect80State FromUnknown()

@@ -5,13 +5,13 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleLionHeart165Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeLionHeart165Echo(NativeBattleLionHeart165Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporary, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity pilotIdentity)
+    private (NativeBattleLionHeart165Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeLionHeart165Echo(NativeBattleLionHeart165Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporary, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity pilotIdentity)
     {
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Lion Heart echo requires its actual view matrix.");
         if ((model.Flags0 & 0x20) == 0)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4121, false);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, model, projection, 4121, false);
             frame = frame with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Lion Heart echo lost its process owner."), Staging = NativeFileStaging ?? throw new NotSupportedException("Native Lion Heart echo lost its physical globals.") };
         }
         if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
@@ -33,14 +33,14 @@ public sealed partial class BattleSession
         frame = frame with { Staging = Matrix(frame.Staging, temporary + 200, world) };
         frame = frame with { Staging = Dword(frame.Staging, 0x23C32E8, 0x1D97778) };
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, world);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         uint color = model.Color40 ?? throw new NotSupportedException("Native Lion Heart echo requires its model DWORD40 color.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Lion Heart echo requires its actual mesh mask.");
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
         NativeBattleResourcePointer geometry = GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100);
         SubmitSource(geometry, bones, source.BoneCount, mask, resource.GeometryRelocated507550 ? null : model.BodyTextureSlots ?? throw new NotSupportedException("Native Lion Heart echo requires its body texture binding."));
-        model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actor], source);
-        graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+        model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actor), source);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         if (model.LinkedTransform is { } local && (model.Flags0 & 0x200) == 0)
         {
             NativeBattlePoseSource linkedSource = resource.LinkedPoseSource ?? throw new NotSupportedException("Native Lion Heart echo requires its independent linked skeleton.");
@@ -52,12 +52,12 @@ public sealed partial class BattleSession
             frame = frame with { Staging = Matrix(frame.Staging, temporary + 200, basis) };
             ImmutableArray<NativeBattleActionMatrix> linkedBones = NativeBattlePoseMatrices.ComposeStageCamera(linked.Matrices, basis, 0);
             model = model with { CurrentLinkedBoneMatrices = linked with { Matrices = linkedBones } };
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
             NativeBattleResourcePointer linkedGeometry = GeometryPointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow);
             SubmitSource(linkedGeometry, linkedBones, linkedSource.BoneCount, uint.MaxValue, resource.GeometryRelocated507550 ? null : model.LinkedTextureSlots ?? throw new NotSupportedException("Native Lion Heart echo requires its linked texture binding."));
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Lion Heart echo requires its linked pose owner.");
-            model = graphics.Models[actor] with { CurrentLinkedBoneMatrices = linked with { Matrices = NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource)) } };
-            graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            model = graphics.ActorModels.Get(actor) with { CurrentLinkedBoneMatrices = linked with { Matrices = NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource)) } };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         }
         return (frame, graphics);
 

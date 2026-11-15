@@ -5,9 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleElectrocute275Controller
 {
-    private static (NativeBattleElectrocute275Frame Frame, uint Head) StartWorld(NativeBattleElectrocute275Frame frame, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, short actor, short progress, short increment, short scale, short textureV, short branches)
+    private static (NativeBattleElectrocute275Frame Frame, uint Head) StartWorld(NativeBattleElectrocute275Frame frame, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, BattleModelOwner? actor, NativeBattleModelAliases aliases, short progress, short increment, short scale, short textureV, short branches)
     {
-        NativeBattleCpuTrailAddressStep step = NativeBattleCpuTrails.StartWorld(CpuTrailFrame(frame), CpuTrailLayout(frame), velocity, source, target, drift, actor, progress, increment, scale, textureV, branches);
+        NativeBattleCpuTrailAddressStep step = NativeBattleCpuTrails.StartWorld(CpuTrailFrame(frame), CpuTrailLayout(frame), velocity, source, target, drift, actor, aliases, progress, increment, scale, textureV, branches);
         return (WithCpuTrail(frame, step.Frame), step.Address);
     }
 

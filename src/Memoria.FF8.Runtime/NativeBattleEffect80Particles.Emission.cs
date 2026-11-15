@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect80Particles
             return frame;
         }
         NativeBattleVector first = RandomDirection(ref frame, 0x200);
-        NativeBattleVector caster = Vector(inputs.ReadPosition8(frame, task.ReadByte(0x2C)));
+        NativeBattleVector caster = Vector(inputs.ReadPosition8(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner));
         first = new(unchecked((short)(first.X + caster.X)), unchecked((short)(first.Y + caster.Y)), unchecked((short)(first.Z + caster.Z)));
         NativeBattleVector second = RandomDirection(ref frame, 0x100);
         short targetAge = unchecked((short)frame.State.ReadWord(TargetAddress + 0x50));
@@ -31,7 +31,7 @@ public static partial class NativeBattleEffect80Particles
         short endpointAge = unchecked((short)(targetAge + count));
         int endpointIndex = endpointAge >= 120 ? 119 : endpointAge;
         short endpointHeight = BinaryPrimitives.ReadInt16LittleEndian(resources.ReadStatic(unchecked((uint)(AgeTableAddress + endpointIndex * 2)), 2).AsSpan());
-        NativeBattleVector endpoint = Vector(inputs.ReadPosition8(frame, task.ReadByte(0x2C)));
+        NativeBattleVector endpoint = Vector(inputs.ReadPosition8(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner));
         endpoint = endpoint with { Y = unchecked((short)(endpoint.Y + endpointHeight)) };
         second = new(unchecked((short)(second.X + endpoint.X)), unchecked((short)(second.Y + endpoint.Y)), unchecked((short)(second.Z + endpoint.Z)));
         if (count > 0)

@@ -12,7 +12,7 @@ public static class NativeBattleLaserEye71BeamLower
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.ReadWord(0x24) == 0)
         {
-            NativeBattleLaserEye71PointStep target = inputs.ReadBone502170(frame, task.ReadByte(0x2D), 0xF1, 0);
+            NativeBattleLaserEye71PointStep target = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 0xF1, 0);
             frame = target.Frame;
             task = PutXyz(Read(frame, address), 0x7C, target.Position);
             NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(Rotation(inputs.ReadActorBasis(frame, caster)), new(Signed(task, 0x90), 0, 0));

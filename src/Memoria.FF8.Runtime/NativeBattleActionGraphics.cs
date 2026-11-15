@@ -17,7 +17,8 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] Ba
     public BattleModelTargets? HiddenPartyActors { get; init; }
     public BattleModelOwner? CameraActor { get; init; } = Actor;
 }
-public sealed record NativeBattleGuardianServiceState(BattleModelTargets HiddenPartyActors, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
+public sealed record NativeBattleGuardianServiceState(BattleModelTargets HiddenPartyActors, byte CameraSelector4E, ushort Control44, NativeBattleGuardianNeighbor? Neighbor = null);
+public sealed record NativeBattleGuardianNeighbor(BattlePartyModelOwner? Owner);
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
 
 public static class NativeBattleActionGraphics

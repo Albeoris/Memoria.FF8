@@ -79,7 +79,7 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = hierarchy.Read(address);
                 cursor = (task.ReadWord(92) & 1) != 0 ? 0 : 0x14000;
                 state = state.SetDword(0x278C8E0, checked(0x20DFAB8u + (uint)cursor));
-                task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, effect.Parameters!, graphics.Models, ReadPose);
+                task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, effect.Parameters!, graphics.ActorModels.Get, ReadPose);
                 RootPhase(address, ref task);
                 hierarchy = hierarchy.Write(address, Merge(address, task));
                 int survivors = 0;
@@ -155,7 +155,7 @@ public sealed partial class BattleSession
             return result.Address;
         }
 
-        private NativeBattlePoseSource ReadPose(int actor) => session.NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Quake requires its selected original actor skeleton.");
+        private NativeBattlePoseSource ReadPose(BattleModelOwner actor) => session.NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Quake requires its selected original actor skeleton.");
         private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static NativeBattleModulePoolTask SetWord(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)value));
         private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(41, unchecked((byte)(task.ReadByte(41) + 1)));

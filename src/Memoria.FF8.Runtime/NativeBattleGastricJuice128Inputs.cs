@@ -7,9 +7,9 @@ public sealed record NativeBattleGastricJuice128Frame(NativeBattleEffectMemory M
 
 
 public abstract record NativeBattleGastricJuice128Operation;
-public sealed record NativeBattleGastricJuice128SnapshotBody(byte Actor, uint CacheAddress) : NativeBattleGastricJuice128Operation;
+public sealed record NativeBattleGastricJuice128SnapshotBody(BattleModelOwner Actor, uint CacheAddress) : NativeBattleGastricJuice128Operation;
 public sealed record NativeBattleGastricJuice128AdvanceAct(uint TaskAddress) : NativeBattleGastricJuice128Operation;
-public sealed record NativeBattleGastricJuice128DrawBody132(byte Actor, short Fraction) : NativeBattleGastricJuice128Operation
+public sealed record NativeBattleGastricJuice128DrawBody132(BattleModelOwner Actor, short Fraction) : NativeBattleGastricJuice128Operation
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
@@ -17,7 +17,7 @@ public sealed record NativeBattleGastricJuice128DrawBody132(byte Actor, short Fr
 public sealed record NativeBattleGastricJuice128DeliverRibbonBatch(NativeBattleGfGeometryBatch Batch) : NativeBattleGastricJuice128Operation;
 public sealed record NativeBattleGastricJuice128ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleGastricJuice128Operation;
 public sealed record NativeBattleGastricJuice128Sound(uint Value, int Pan) : NativeBattleGastricJuice128Operation;
-public sealed record NativeBattleGastricJuice128Contact(int Index) : NativeBattleGastricJuice128Operation;
+public sealed record NativeBattleGastricJuice128Contact(BattleContactCursor Cursor) : NativeBattleGastricJuice128Operation;
 public sealed record NativeBattleGastricJuice128DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleGastricJuice128Operation
 {
     [System.Text.Json.Serialization.JsonIgnore]

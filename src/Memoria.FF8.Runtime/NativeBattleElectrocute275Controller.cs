@@ -16,7 +16,7 @@ public static partial class NativeBattleElectrocute275Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleElectrocute275State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattleElectrocute275State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).BindCaster(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state, Random = random, Memory = (frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }).SeedSharedEffectRandom7059D0(seed), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -54,12 +54,12 @@ public static partial class NativeBattleElectrocute275Controller
         frame = Put(frame, 0, slot, root.WriteDword(16, first ? 0u : 1u));
         BattleActionHeaderReference header = Parameters(frame).Header;
         int count = inputs.Packets.ReadHeader(header).ReadContactCount();
-        int firstContact = FirstContact(frame, inputs);
+        BattleContactCursor firstContact = FirstContact(frame, inputs);
         for (int index = 0; index < count; index++)
         {
-            frame = inputs.Execute(frame, new NativeBattleElectrocute275ActorFlags(inputs.Packets.ReadContact(firstContact + index).Primary.Recipient, 0x800, 0));
+            frame = inputs.Execute(frame, new NativeBattleElectrocute275ActorFlags(inputs.Packets.ReadContact(firstContact.Advance(index)).Primary.Recipient, 0x800, 0));
         }
-        byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
         {
             frame = Put(frame, 0, slot, Task(frame, 0, slot).WriteByte(15, 1));
@@ -81,12 +81,15 @@ public static partial class NativeBattleElectrocute275Controller
             {
                 throw new NotSupportedException("Electrocute reached a full original main task bank.");
             }
-            frame = Write(frame, address, Read(frame, address).WriteBytes(12, new byte[40]).WriteWord(14, unchecked((ushort)count)));
+            NativeBattleModulePoolTask mainTask = Read(frame, address).WriteBytes(12, new byte[40]).WriteContactCount(14, count);
+            BattleExecutionReference.ContactOffset start = new(0);
+            mainTask.WriteExecutionReference(16, 2, start, start.EncodeOriginalWord());
+            frame = Write(frame, address, mainTask);
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
+                BattleModelOwner actor = inputs.Packets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
                 uint color = inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Electrocute requires its target actor's actual retained color.");
-                frame = frame with { State = frame.State.WriteDword(SavedColorsGlobal + (uint)actor * 4, color) };
+                frame = frame with { State = frame.State.WriteSavedColor(actor, color, inputs.Packets.ModelAliases) };
             }
             frame = inputs.Execute(frame, new NativeBattleElectrocute275BindCaster(caster, address + 0x14, 0x10DA574));
             frame = inputs.Execute(frame, new NativeBattleElectrocute275RingSequence(caster, 1));

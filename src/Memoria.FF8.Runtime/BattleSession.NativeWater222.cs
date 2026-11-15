@@ -18,8 +18,12 @@ public sealed partial class BattleSession
         NativeBattleWaterInitializationResource first = WaterResource(effect, resources, 0);
         NativeBattleWaterInitializationResource second = WaterResource(effect, resources, 1);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-        ImmutableArray<byte> contacts = WaterContacts(header);
-        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.Header), 0x186C84C, parameters.Source, parameters.Header, contacts[0], contacts, header.ReadContactCount(), header.ReadRepeatModeMinusOne(), graphics.Models);
+        NativeBattleWaterResetCaptureInputs selection = CaptureCinematicAction(graphics, parameters, null, 0);
+        if (selection.Contacts.IsEmpty)
+        {
+            throw new NotSupportedException("Native Water entry requires its first actual contact actor.");
+        }
+        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, 0x186C84C, selection, header.ReadRepeatModeMinusOne());
         NativeBattleWater222Frame initialized = NativeBattleWater222Controller.InitializeA9B200(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Water requires its retained CRT state.")), resources, inputs);
         NativeEffectMemory = initialized.Memory;
         nativeCrtRandom = initialized.Random;
@@ -49,15 +53,12 @@ public sealed partial class BattleSession
             PublishNativeModuleSound(new(sound, unchecked((uint)(int)argument), null) { Pan = pan, RawPan = pan });
             return current;
         });
-        NativeBattleWaterContextServices context = new((_, pointer) =>
-        {
-            int? linked = graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).ReadLinkedModelIndex140();
-            return linked is int index ? ActorPointer(index) : 0;
-        }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer, graphics.Models.Length)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
+        NativeBattleWaterContextServices context = new((_, actor) => graphics.ActorModels.Get(actor).ReadLinkedModel(),
+            (_, actor) => NativeBattleScanModelSelection.Minimum501FF0(graphics.ActorModels, actor), (_, address, length) => ReadAction(address, length), (current, occurrence) =>
         {
             PublishMemory(current);
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(ContactIndex(address))] });
+            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(occurrence)] });
             graphics = graphics with { PendingContacts = pending };
             return ReadMemory(current);
         }, current =>
@@ -69,8 +70,8 @@ public sealed partial class BattleSession
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Water requires its four stage groups.");
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
-        }) { ActionPackets = nativeActionPackets.PresentationRoster is not null ? nativeActionPackets : null };
-        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)), ActorAnchor, (_, _, address) => address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.Header) : throw new NotSupportedException("Native Water parameter base does not identify its current action."), (_, _, address, _) => CaptureInputs(address), _ => RequireTextures(), (current, textures) =>
+        }, current => ReadCinematicHeader(current, parameters, null), () => nativeActionPackets, () => graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)), ActorAnchor, relative => CaptureCinematicAction(graphics, parameters, null, relative), _ => RequireTextures(), (current, textures) =>
         {
             NativeEffectMemory = RequireWaterMemory() with { Textures = textures };
             return current;
@@ -167,13 +168,6 @@ public sealed partial class BattleSession
             NativeBattlePoseSource source = PoseSource(index);
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
             return new(source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Water actor world matrix is unknown."));
-        }
-        NativeBattleWaterResetCaptureInputs CaptureInputs(uint address)
-        {
-            int index = HeaderIndex(address);
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-            NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(parameters.Header);
-            return new(parameters.Source, index, WaterContacts(first)[0], WaterContacts(header), header.ReadContactCount(), graphics.Models);
         }
         byte ParameterByte(uint address) => NativeBattleCinematicParameterBytes.Read(parameters, checked((int)(address - WaterParametersAddress)), 1)[0];
 
@@ -284,11 +278,37 @@ public sealed partial class BattleSession
         NativeBattleEffectResourcePointer pointer = effect.ResourcePointers.Single(value => value.GlobalAddress == global);
         return new(pointer.ArenaOffset, resources.Files[index].Data.Length, NativeBattleEffectNodeMemory.ArenaAddress + (uint)pointer.ArenaOffset);
     }
-    private ImmutableArray<byte> WaterContacts(NativeBattleActionHeaderSlot header)
+    private static BattleActionHeaderReference? ReadCinematicHeader(NativeBattleWaterExecutionFrame frame, NativeBattleEffectParameters? parameters, BattleModelOwner? positioningOwner)
     {
-        int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Water header has no actual contact owner.");
-        return Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(start + index).Primary.Recipient).ToImmutableArray();
+        if (positioningOwner is not null)
+        {
+            return null;
+        }
+        NativeBattleEffectParameters action = parameters ?? throw new InvalidDataException("Cinematic combat capture requires its actual action parameters.");
+        uint manager = CoreDword(frame, 0x27973EC);
+        return action.Header.Advance(frame.Core.Read(manager + 0xD0, 1)[0]);
     }
+
+    private NativeBattleWaterResetCaptureInputs CaptureCinematicAction(NativeBattleGraphicsState graphics, NativeBattleEffectParameters? parameters, BattleModelOwner? positioningOwner, byte relativeIndex)
+    {
+        if (positioningOwner is { } positioning)
+        {
+            if (relativeIndex != 0)
+            {
+                throw new InvalidDataException("Presentation-only Ifrit has no subsequent combat header.");
+            }
+            uint? originalHeader = graphics.NativeBindings.TryEncodeExactActor(positioning, graphics.ActorModels, out _) ? WaterHeadersAddress : null;
+            return new(positioning, null, originalHeader, positioning, [positioning], graphics.ActorModels, graphics.NativeBindings);
+        }
+        NativeBattleEffectParameters action = parameters ?? throw new InvalidDataException("Cinematic combat capture requires its actual action parameters.");
+        BattleActionHeaderReference reference = action.Header.Advance(relativeIndex);
+        NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(action.Header);
+        BattleModelOwner firstOwner = nativeActionPackets.ReadContact(first.FirstContact).Primary.Recipient;
+        ImmutableArray<BattleModelOwner> selected = nativeActionPackets.ReadHeaderContacts(reference).Select(contact => contact.Primary.Recipient).ToImmutableArray();
+        uint? address = reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? WaterHeadersAddress + (uint)(20 * reference.Ordinal) : null;
+        return new(action.Source, reference, address, firstOwner, selected, graphics.ActorModels, graphics.NativeBindings);
+    }
+
     private static int PhysicalActor(uint pointer, int actorCount)
     {
         return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, actorCount) ? actorIndex : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");

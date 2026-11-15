@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState EnterNativeDuel212(NativeBattleGraphicsState graphics, NativeBattleDuel212Resources resources)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Burning Rave requires its entered module.");
-        NativeBattleDuel212Frame frame = NativeBattleDuel212Controller.Enter6A0D20(NativeEffectMemory ?? throw new NotSupportedException("Native Burning Rave requires retained effect memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Burning Rave requires its CRT random owner."), current =>
+        NativeBattleDuel212Frame frame = NativeBattleDuel212Controller.Enter6A0D20(NativeEffectMemory ?? throw new NotSupportedException("Native Burning Rave requires retained effect memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Burning Rave requires its CRT random owner."), nativeActionPackets.ModelAliases, current =>
         {
             NativeBattleEffectResourcePointer texture = current.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25101F8) ?? throw new NotSupportedException("Native Burning Rave requires its actual initializer texture pointer.");
             NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Burning Rave requires its retained texture queue.");
@@ -33,30 +33,30 @@ public sealed partial class BattleSession
         NativeBattleDuel212Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Burning Rave requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Burning Rave requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Burning Rave requires retained CRT state."));
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Burning Rave requires its actual action contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         int count = header.ReadContactCount();
-        ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.Recipient).ToImmutableArray();
+        ImmutableArray<BattleModelOwner> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient).ToImmutableArray();
         NativeBattleDuel212PreparationServices preparation = null!;
         NativeBattleDuel212TargetServices actors = null!;
         NativeBattleDuel212Inputs drawing = new(view, Execute);
-        preparation = new(index => graphics.Models[index], WriteModel, Anchor, targets, Capture, Bind, Select);
-        actors = new(index => graphics.Models[index], WriteModel, Bounds, index => ReadNativeGraphicsBoneCount(graphics, index), (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), Body);
+        preparation = new(index => graphics.ActorModels.Get(index), WriteModel, Anchor, targets, nativeActionPackets.ModelAliases, slot => graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels), Capture, Bind, Select);
+        actors = new(index => graphics.ActorModels.Get(index), WriteModel, Bounds, index => ReadNativeGraphicsBoneCount(graphics, index), (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), Body, graphics.ActorModels.Roster);
         NativeBattleDuel212SceneInputs scene = new(drawing, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), Anchor);
         frame = NativeBattleDuel212Controller.AdvanceRoot(frame, drawing, Child, ReloadComplete);
         Publish(frame);
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires the actual model WORD36.")).Angle36 };
-        (short Maximum, short Minimum) Bounds(int index)
+        void WriteModel(BattleModelOwner index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        NativeBattleModuleAnchor Anchor(BattleModelOwner index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native571400 requires the actual model WORD36.")).Angle36 };
+        (short Maximum, short Minimum) Bounds(BattleModelOwner index)
         {
             if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
             {
                 return NativeBattleForeignModelDrawing.VertexBounds(foreign, point => NativeBattleGfMatrices.Transform460840(foreign.World, point).Y);
             }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-            return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.Models[index], resource.PoseSource ?? throw new NotSupportedException("Native6DFD90 requires its original skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, graphics.Models[index]));
+            return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.ActorModels.Get(index), resource.PoseSource ?? throw new NotSupportedException("Native6DFD90 requires its original skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, graphics.ActorModels.Get(index)));
         }
         void Publish(NativeBattleDuel212Frame current)
         {
@@ -78,10 +78,10 @@ public sealed partial class BattleSession
             StoreOrdering(written.Ordering);
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2510258, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)written.Cursor))) };
         }
-        NativeBattleDuel212Frame Bind(NativeBattleDuel212Frame current, int index, uint row)
+        NativeBattleDuel212Frame Bind(NativeBattleDuel212Frame current, BattleModelOwner index, uint row)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[index], NativeGraphicsPoseResource(graphics, index));
+            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(index), NativeGraphicsPoseResource(graphics, index));
             var bound = NativeBattleVictoryResources.Bind5022C0(resources.ReadActorDat(), NativeModelCpuResources ?? throw new NotSupportedException("Native Burning Rave requires its actual CPU rows."), model, row, 0x1181078, Read, (address, pointer) => current = current with { Effect = current.Effect with { Pools = NativeBattleEffectTaskMemory.WritePointer(current.Effect.Pools, address, pointer) } });
             WriteModel(index, bound.Model);
             return current;
@@ -95,19 +95,19 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? current.Memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : current.Staging.ReadResourcePointer(address);
             }
         }
-        NativeBattleDuel212Frame Select(NativeBattleDuel212Frame current, int index, byte sequence)
+        NativeBattleDuel212Frame Select(NativeBattleDuel212Frame current, BattleModelOwner index, byte sequence)
         {
             Publish(current);
-            graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
+            graphics = SelectNativeHeaderSequence(graphics, index, sequence);
             return current;
         }
-        NativeBattleDuel212Frame Body(NativeBattleDuel212Frame current, int index, NativeBattleVector angles, NativeBattleVector pivot)
+        NativeBattleDuel212Frame Body(NativeBattleDuel212Frame current, BattleModelOwner index, NativeBattleVector angles, NativeBattleVector pivot)
         {
             Publish(current);
-            NativeBattleActionMatrix world = graphics.Models[index].GeometryWorldMatrix ?? throw new NotSupportedException("Native Burning Rave body drawing requires its actual model matrix64.");
+            NativeBattleActionMatrix world = graphics.ActorModels.Get(index).GeometryWorldMatrix ?? throw new NotSupportedException("Native Burning Rave body drawing requires its actual model matrix64.");
             NativeBattleActionMatrix matrix = NativeBattleDuel212Body.Matrix6A2F60(world, view, angles, pivot);
             NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
-            graphics = DrawNativeEffectModelContext92(graphics, index, matrix, pivot, projection, -47, 4, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, TargetTask(current), 0, index));
+            graphics = DrawNativeEffectModelContext92(graphics, index, matrix, pivot, projection, -47, 4, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, TargetTask(current), 0) with { ModelOwner = index });
             return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Burning Rave body drawing lost its physical memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Burning Rave body drawing lost its canonical CPU memory.") };
         }
         NativeBattleDuel212Frame QueueFile(NativeBattleDuel212Frame current, NativeBattleEffectFileRequest request)
@@ -175,7 +175,7 @@ public sealed partial class BattleSession
                 case NativeBattleDuel212Contacts:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index))).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(first.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Burning Rave contact lost its current effect memory.") };
                 case NativeBattleDuel212Sound sound:
@@ -191,9 +191,9 @@ public sealed partial class BattleSession
                     NativeCamera = active.WriteEffectGlobals(captured with { Roll = active.Roll }) with { EyePaddingF6 = active.CapturedEyePadding806, TargetPaddingFE = active.CapturedTargetPadding80E };
                     return current;
                 case NativeBattleDuel212RestoreParty:
-                    for (int index = 0; index < 3; index++)
+                    foreach (BattlePartyModelOwner index in graphics.ActorModels.Roster.Party)
                     {
-                        NativeBattleGraphicsModel model = graphics.Models[index];
+                        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                         WriteModel(index, model with { Flags0 = (ushort)(model.Flags0 & ~4) });
                     }
                     return current;
@@ -208,7 +208,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleDuel212RingProgram ring:
-                    NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Burning Rave ring requires its actual caster position.");
+                    NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Burning Rave ring requires its actual caster position.");
                     NativeBattleActionMatrix basis = NativeBattleGfMatrices.Euler701310(new(0, 0, 0)) with { X = transform.Position28.X - 195, Z = transform.Position28.Z - 1167 };
                     NativeBattleDuel212Program program = new(0x1184ACC, 2720, 560, NativeBattleGfMatrices.Compose56C2F0(view, basis), "0000", null, null, -256, 0, 0, ring.Tick == 84);
                     return Execute(current, program);
@@ -223,11 +223,11 @@ public sealed partial class BattleSession
                         NativeBattleThundaga105Bounds secondBounds = NativeBattleDuel212Preparation.Bounds69A700(resources, checked(0x118BA10u + resources.Dword(0x118BA1C)));
                         current = Capture(current, new(unchecked((short)task.ReadWord(328)), 0, unchecked((short)task.ReadWord(332))), firstBounds with { Maximum = firstBounds.Maximum with { X = secondBounds.Maximum.X } });
                     }
-                    NativeBattleGraphicsModel hidden = graphics.Models[actor];
+                    NativeBattleGraphicsModel hidden = graphics.ActorModels.Get(actor);
                     WriteModel(actor, hidden with { Flags0 = (ushort)(hidden.Flags0 | 4) });
                     return current;
                 case NativeBattleDuel212Pulse pulse:
-                    NativeBattleGraphicsModel caster = graphics.Models[actor];
+                    NativeBattleGraphicsModel caster = graphics.ActorModels.Get(actor);
                     NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Burning Rave pulse requires its actual current skeleton.");
                     ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(caster, pose);
                     if (bones.Length <= 18)
@@ -240,7 +240,7 @@ public sealed partial class BattleSession
                     _ = ReadNativeGraphicsBone(graphics, actor, emission.First, 0);
                     _ = ReadNativeGraphicsBone(graphics, actor, emission.Second, 0);
                     NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Burning Rave seed requires its current skeleton.");
-                    NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actor], source);
+                    NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actor), source);
                     WriteModel(actor, published);
                     int offset = checked((int)(emission.PointAddress - 0x11AC200));
                     ImmutableArray<byte> seed = resources.SelectorTable.AsSpan().Slice(offset, 8).ToArray().ToImmutableArray();
@@ -265,15 +265,15 @@ public sealed partial class BattleSession
                     }
                     if (update.Tick == 2)
                     {
-                        for (int index = 0; index < 7; index++)
+                        foreach (BattleModelOwner index in graphics.ActorModels.Owners)
                         {
-                            NativeBattleGraphicsModel model = graphics.Models[index];
-                            if (index < 3 || (model.Flags0 & 2) != 0 || targets.Contains(checked((byte)index)))
+                            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+                            if (index.Side == BattleSide.Allies || (model.Flags0 & 2) != 0 || targets.Contains(index))
                             {
                                 WriteModel(index, model with { Flags0 = (ushort)(model.Flags0 | 4) });
                             }
                         }
-                        NativeBattleGraphicsModel visible = graphics.Models[actor];
+                        NativeBattleGraphicsModel visible = graphics.ActorModels.Get(actor);
                         WriteModel(actor, visible with { Flags0 = (ushort)(visible.Flags0 & ~4) });
                     }
                     int phase = update.Tick - 81;
@@ -291,7 +291,7 @@ public sealed partial class BattleSession
                     return echo.Frame;
                 case NativeBattleDuel212CaptureEcho:
                     NativeBattlePoseSource echoSource = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Burning Rave echo requires its current skeleton.");
-                    ImmutableArray<NativeBattleActionMatrix> currentBones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], echoSource);
+                    ImmutableArray<NativeBattleActionMatrix> currentBones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), echoSource);
                     NativeBattleModulePoolTask captured = NativeBattleDuelEcho.Capture68ADF0(task, 336, echoSource.BoneCount, index =>
                     {
                         NativeBattleActionMatrix matrix = currentBones[index];

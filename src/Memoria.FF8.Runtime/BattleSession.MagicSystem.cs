@@ -78,7 +78,7 @@ public sealed partial class BattleSession
 
     private BattleAttackCommand EnsureMagicReservation(BattleCombatant actor, BattleAttackCommand command)
     {
-        if (magicVitals is null || actor.MagicRecordId is not int row || !actor.IsPlayer || command.FreeNativeMagic || command.Ability == BattleAbility.Draw || command.MagicReservationId is not null || command.NativeHeaderIndex is not null || command.Ability != BattleAbility.Magic && command.NativeAction?.Command != 2)
+        if (magicVitals is null || actor.MagicRecordId is not int row || !actor.IsPlayer || command.FreeNativeMagic || command.Ability == BattleAbility.Draw || command.MagicReservationId is not null || command.NativeHeader is not null || command.Ability != BattleAbility.Magic && command.NativeAction?.Command != 2)
         {
             return command;
         }
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("A saved magic bank cannot change the current caster identity or profile.");
             }
         }
-        bool NeedsReservation(string actorId, BattleAbility ability, BattleNativeAction? native, bool free, int? header, BattleGuardianFormAction? formAction)
+        bool NeedsReservation(string actorId, BattleAbility ability, BattleNativeAction? native, bool free, BattleActionHeaderReference? header, BattleGuardianFormAction? formAction)
         {
             if (header is null && free && !(formAction == BattleGuardianFormAction.Fire && ability == BattleAbility.Magic && native?.Command == 2 && GetGuardianForm(actorId) is { EntryCompleted: true } || ability == BattleAbility.Magic && native?.Command == 247 || ability == BattleAbility.EnemyAbility && native?.Command == 2 && (NativeBattleStatusBits(GetActor(actorId)) & 0x2000000) != 0))
             {
@@ -145,21 +145,21 @@ public sealed partial class BattleSession
             }
             return header is null && !free && ability != BattleAbility.Draw && GetActor(actorId).MagicRecordId is not null && (ability == BattleAbility.Magic || native?.Command == 2);
         }
-        List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeaderIndex, command.GuardianFormAction))).ToList();
+        List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeader, command.GuardianFormAction))).ToList();
         if (ActiveAction is { } active)
         {
-            commands.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId, NeedsReservation(active.ActorId, active.Ability, active.NativeAction, active.FreeNativeMagic, active.NativeHeaderIndex, active.GuardianFormAction)));
+            commands.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId, NeedsReservation(active.ActorId, active.Ability, active.NativeAction, active.FreeNativeMagic, active.NativeHeader, active.GuardianFormAction)));
         }
         if (nativeTimedAction is { } timed)
         {
             BattleActionPresentation action = timed.Command;
-            commands.Add((action.MagicReservationId, action.ActorId, action.NativeAction?.ActionId ?? action.ActionId, NeedsReservation(action.ActorId, action.Ability, action.NativeAction, action.FreeNativeMagic, action.NativeHeaderIndex, action.GuardianFormAction)));
+            commands.Add((action.MagicReservationId, action.ActorId, action.NativeAction?.ActionId ?? action.ActionId, NeedsReservation(action.ActorId, action.Ability, action.NativeAction, action.FreeNativeMagic, action.NativeHeader, action.GuardianFormAction)));
         }
         if (commands.Any(command => command.Required && command.Identity is null))
         {
             throw new InvalidDataException("A saved ordinary spell requires its original cast reservation identity.");
         }
-        foreach (BattleAttackCommand command in actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeHeaderIndex is null && command.MagicReservationId is not null))
+        foreach (BattleAttackCommand command in actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeHeader is null && command.MagicReservationId is not null))
         {
             MagicCastReservation? reservation = magicVitals.MagicSystem.Reservations.FirstOrDefault(candidate => candidate.ActionId == command.MagicReservationId);
             int cost = Math.Min(MagicCost(GetActor(command.ActorId), command), GetAvailableMagicCasts(command.ActorId, command.ActionId, command.MagicReservationId));
@@ -186,7 +186,7 @@ public sealed partial class BattleSession
 
     private bool CanExecuteMagicReservation(BattleCombatant actor, BattleAttackCommand command, bool admitSilencedInvocation = false)
     {
-        if (command.NativeHeaderIndex is not null || command.MagicReservationId is null || magicVitals is null || actor.MagicRecordId is not int row)
+        if (command.NativeHeader is not null || command.MagicReservationId is null || magicVitals is null || actor.MagicRecordId is not int row)
         {
             return true;
         }

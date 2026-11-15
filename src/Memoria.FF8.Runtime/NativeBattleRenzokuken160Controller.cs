@@ -5,10 +5,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRenzokuken160Inputs(uint GraphicsFlags, ImmutableArray<byte> AbSegments, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Operation, NativeBattleRenzokuken160Frame> Execute)
 {
+    public Func<BattleModelOwner, byte, BattleModelOwner>? ResolveRelativeResourceTarget { get; init; }
     public bool CapturePresentation { get; init; }
     public Func<BattleModelOwner, int>? ReadBoneCount { get; init; }
     public Func<BattleModelOwner, int, short, NativeBattleVector>? ReadBone { get; init; }
-    public Func<byte, NativeBattleRenzokuken160WeaponTip>? ReadWeaponTip { get; init; }
+    public Func<BattleModelOwner, NativeBattleRenzokuken160WeaponTip>? ReadWeaponTip { get; init; }
 }
 public abstract record NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokuken160ActorFlags(ushort Flags) : NativeBattleRenzokuken160Operation;
@@ -16,7 +17,7 @@ public sealed record NativeBattleRenzokuken160ActorResource(BattleNativeRenzokuk
 public sealed record NativeBattleRenzokuken160Stage(int Intensity) : NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokuken160ActorColor(uint Color) : NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokuken160Sound(uint Descriptor, int First, int Second) : NativeBattleRenzokuken160Operation;
-public sealed record NativeBattleRenzokuken160SharedTask(uint Callback, ushort Counter, ushort Actor) : NativeBattleRenzokuken160Operation;
+public sealed record NativeBattleRenzokuken160SharedTask(uint Callback, ushort Counter, BattleModelOwner Actor) : NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokuken160TrailDraw(NativeBattleGfGeometryBatch Packets, int CursorAdvance) : NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokuken160MeshDraw(NativeBattleGfGeometryBatch Packets) : NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokuken160WeaponTip(NativeBattleVector Position, int DirectionX, int DirectionY, int DirectionZ, ushort? PositionPadding, ushort? EndpointPadding);
@@ -32,9 +33,9 @@ public static partial class NativeBattleRenzokuken160Controller
         NativeBattleRenzokuken160State retained = memory.Renzokuken160 ?? throw new NotSupportedException("Native160 requires its explicitly retained local storage; migrate the standalone snapshot.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        byte target = packets.ReadContact(contact).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(contact).Primary.Recipient;
         bool initial = header.Action == 0xFFFE;
-        NativeBattleRenzokuken160State state = retained.Enter(parameters.Source, parameters.Header, target, initial) with { RetainedResources = resources };
+        NativeBattleRenzokuken160State state = retained.Enter(initial) with { RetainedResources = resources };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23D4230, 0x23D4220, 16, 1);
         (main, int mainSlot) = main.Append(0x600930);
         main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
@@ -45,7 +46,7 @@ public static partial class NativeBattleRenzokuken160Controller
         textures = textures.Register5099A0(resources.Animation);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5FF080 requires its original initializer TIM asset.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));
-        return new(memory with { Renzokuken160 = state, Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = 0x23D4230, DrawArenaOffset = 0 }, random);
+        return new(memory with { Renzokuken160 = state, Textures = textures }, effect with { EntryFirstRecipient = target, Pools = [main, children], ReturnedDescriptor = 0x23D4230, DrawArenaOffset = 0 }, random);
     }
 
     public static NativeBattleRenzokuken160Frame Advance600930(NativeBattleRenzokuken160Frame frame, Func<NativeBattleRenzokuken160Frame, NativeBattleEffectTaskPool, int, NativeBattleRenzokuken160ChildStep> advanceChild, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Frame> drawParticles)
@@ -85,7 +86,7 @@ public static partial class NativeBattleRenzokuken160Controller
         NativeBattleRenzokuken160State state = State(frame);
         if (counter == 0)
         {
-            ushort flags = inputs.ReadModel(state.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             task = task.WriteWord(14, (ushort)(flags & 0x800));
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(flags | 0x800)));
         }
@@ -116,11 +117,11 @@ public static partial class NativeBattleRenzokuken160Controller
         state = State(frame);
         if (state.InitialControl && counter == state.Duration)
         {
-            Execute(new NativeBattleRenzokuken160SharedTask(0x5FF4E0, 0, state.Actor));
+            Execute(new NativeBattleRenzokuken160SharedTask(0x5FF4E0, 0, NativeBattleRenzokukenInvocation.Source(frame.Effect)));
         }
         if (counter == 45)
         {
-            short rotation = inputs.ReadModel(state.Actor).Rotation14 ?? throw new NotSupportedException("Native5FF180 requires original model rotationWORD14.");
+            short rotation = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Rotation14 ?? throw new NotSupportedException("Native5FF180 requires original model rotationWORD14.");
             Append(0x600780, child => child.WriteWord(16, unchecked((ushort)state.Origin.X)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)state.Origin.Z)).WriteWord(12, 0).WriteWord(32, 4096).WriteWord(34, 819).WriteWord(24, unchecked((ushort)rotation)));
         }
         if (counter <= 16)
@@ -150,7 +151,7 @@ public static partial class NativeBattleRenzokuken160Controller
                 Execute(new NativeBattleRenzokuken160Stage(0));
             }
             Execute(new NativeBattleRenzokuken160ActorColor(resources.DefaultModelColor));
-            ushort flags = inputs.ReadModel(state.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(task.ReadWord(14) | (flags & 0xF7FF))));
         }
         return new(frame, pool.WriteSlot(slot, task), result);

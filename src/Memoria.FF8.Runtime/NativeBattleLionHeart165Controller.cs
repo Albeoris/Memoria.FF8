@@ -3,12 +3,12 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleLionHeart165Silence : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165ForceCamera : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165BindActor : NativeBattleLionHeart165Operation;
-public sealed record NativeBattleLionHeart165Sequence(byte Actor, int Sequence) : NativeBattleLionHeart165Operation;
+public sealed record NativeBattleLionHeart165Sequence(BattleModelOwner Actor, int Sequence) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165Sound(uint Value) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165ReadTexture(short FileId) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165EnqueueTexture : NativeBattleLionHeart165Operation;
-public sealed record NativeBattleLionHeart165ModelFlags(byte Actor, ushort Set, ushort Clear) : NativeBattleLionHeart165Operation;
-public sealed record NativeBattleLionHeart165Position(byte Actor, NativeBattleVector Position, short Vertical34) : NativeBattleLionHeart165Operation;
+public sealed record NativeBattleLionHeart165ModelFlags(BattleModelOwner Actor, ushort Set, ushort Clear) : NativeBattleLionHeart165Operation;
+public sealed record NativeBattleLionHeart165Position(BattleModelOwner Actor, NativeBattleVector Position, short Vertical34) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165Stage(int Intensity) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165StageFlags(bool Set = true) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165Flash(short Rise, short Hold, short Fall, short Intensity) : NativeBattleLionHeart165Operation;
@@ -37,16 +37,22 @@ public static partial class NativeBattleLionHeart165Controller
         if (counter == 0)
         {
             Execute(new NativeBattleLionHeart165Silence());
-            NativeBattleLionHeart165ChildStep camera = BeginCamera63E960(frame, pool);
+            NativeBattleLionHeart165ChildStep camera = BeginCamera63E960(frame, pool, inputs.Aliases);
             frame = camera.Frame;
             pool = camera.Pool;
             Execute(new NativeBattleLionHeart165ForceCamera());
             Execute(new NativeBattleLionHeart165BindActor());
             SavePosition(0x23C6938, frame.FirstRecipient);
             SavePosition(0x23C6868, actor);
-            for (byte index = 0; index < 7; index++)
+            for (byte cell = 0; cell < NativeBattleGraphicsModelAddress.NativeRowCount; cell++)
             {
-                SavePosition(0x23C6744u + (uint)index * 40, index);
+                NativeBattleGraphicsModel original = inputs.ReadOriginalCell(NativeBattleModelSlot.Decode(cell));
+                frame = frame with { Staging = CopyRawPosition5E9650(frame.Staging, 0x23C6744u + (uint)cell * 40, original) };
+            }
+            foreach (BattleModelOwner owner in inputs.Models.Owners)
+            {
+                NativeBattleModelTransform? transform = inputs.ReadModel(owner).Transform;
+                frame = SaveModel(frame, owner, new(transform, null, null, null));
             }
             Anchor(0x23C32F0, inputs.ReadPosition(frame.FirstRecipient));
         }
@@ -190,8 +196,8 @@ public static partial class NativeBattleLionHeart165Controller
         Execute(new NativeBattleLionHeart165Stage(0));
         return new(frame, pool, 2);
 
-        NativeBattleModelTransform Transform(byte index) => inputs.ReadModel(index).Transform ?? throw new NotSupportedException("Native Lion Heart requires its actual raw model position WORDs.");
-        void SavePosition(uint destination, byte index)
+        NativeBattleModelTransform Transform(BattleModelOwner index) => inputs.ReadModel(index).Transform ?? throw new NotSupportedException("Native Lion Heart requires its actual raw model position WORDs.");
+        void SavePosition(uint destination, BattleModelOwner index)
         {
             frame = frame with { Staging = CopyRawPosition5E9650(frame.Staging, destination, inputs.ReadModel(index)) };
         }

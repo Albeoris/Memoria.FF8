@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattlePain34PlayerInputs(Func<int, NativeBattleVector> ReadBoneF1, Func<NativeBattlePain34Frame, NativeBattleGfAnimationSource, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePain34Frame> DrawNode)
+public sealed record NativeBattlePain34PlayerInputs(Func<BattleModelOwner, NativeBattleVector> ReadBoneF1, Func<NativeBattlePain34Frame, NativeBattleGfAnimationSource, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePain34Frame> DrawNode)
 {
     public Func<NativeBattlePain34Frame, NativeBattleGfAnimationSource, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePilotVisualIdentity, NativeBattlePain34Frame>? DrawVisualNode { get; init; }
 }
@@ -27,7 +27,7 @@ public static class NativeBattlePain34Players
                 NativeBattleGfAnimationWorkspace initialized = Workspace(task).Initialize7016B0(source, unchecked((int)task.ReadDword(120)));
                 task = WithWorkspace(task, initialized);
                 frame = frame with { PlayerQueueStack = initializedStack.StoreUInt32(-0x94, 0, task.Callback == 0x8659D0 ? 0x865A62u : 0x865E42u, "player-state0-bone-fraction") };
-                NativeBattleVector position = inputs.ReadBoneF1(task.ReadByte(45));
+                NativeBattleVector position = inputs.ReadBoneF1(task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner);
                 task = task.WriteWord(28, unchecked((ushort)position.X)).WriteWord(30, unchecked((ushort)position.Y)).WriteWord(32, unchecked((ushort)position.Z)).WriteByte(41, 1);
                 break;
             case 1:

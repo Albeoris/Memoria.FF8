@@ -197,9 +197,9 @@ public sealed partial class BattleSession
 
     private void ApplyExpandedDuelContact(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleNativeAction move, bool deferred, bool publish)
     {
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
-        _ = RequireExpandedPresentationRow(roster, actor);
-        byte row = RequireExpandedPresentationRow(roster, target);
+        BattleModelRoster roster = ReadBattlePresentationRoster();
+        _ = RequirePresentationModelOwner(roster, actor);
+        _ = RequirePresentationModelOwner(roster, target);
         BattleActionPresentation? previous = resolvingNativeAction;
         bool previousSuppression = suppressNativeImmediateCounter;
         nativeActionScratch = nativeActionScratch with { Command = move.Command, Action = move.ActionId, EventLane = 1, DeferredEffectsE00 = deferred };
@@ -211,7 +211,7 @@ public sealed partial class BattleSession
         nativeActionCommitDepth++;
         try
         {
-            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, contact, action, move, 255, presentationRow: row);
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, contact, action, move);
             if (publish)
             {
                 CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);

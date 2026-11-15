@@ -144,7 +144,7 @@ public static partial class NativeBattleEffect54Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect54 requires its current contact pointer.")) + task.ReadTraversalPosition(0x2B));
+                    BattleContactCursor contact = packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                     frame = inputs.Execute(frame, new NativeBattleEffect54Contact506690(contact));
                     task = Read(frame, address);
                     frame = Write(frame, address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));

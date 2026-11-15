@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDoomtrain191ActorSnapshot([property: JsonRequired] ImmutableArray<byte> Position, [property: JsonRequired] ImmutableArray<byte> Scale);
 
-public sealed record NativeBattleDoomtrain191State([property: JsonRequired] NativeBattlePackedMatrix32 BaseMatrix, [property: JsonRequired] NativeBattlePackedMatrix32 CameraBackup, [property: JsonRequired] NativeBattlePackedMatrix32 BaseView, [property: JsonRequired] uint ArenaAddress, [property: JsonRequired] ImmutableArray<uint> WorkPointers, [property: JsonRequired] int Caster, [property: JsonRequired] int FirstTarget, [property: JsonRequired] ImmutableArray<int> Targets, [property: JsonRequired] ImmutableArray<NativeBattleDoomtrain191ActorSnapshot?> ActorSnapshots, [property: JsonRequired] byte StreamReady, [property: JsonRequired] int VibrationHandle, [property: JsonRequired] uint LookupCounter)
+public sealed record NativeBattleDoomtrain191State([property: JsonRequired] NativeBattlePackedMatrix32 BaseMatrix, [property: JsonRequired] NativeBattlePackedMatrix32 CameraBackup, [property: JsonRequired] NativeBattlePackedMatrix32 BaseView, [property: JsonRequired] uint ArenaAddress, [property: JsonRequired] ImmutableArray<uint> WorkPointers, [property: JsonRequired] byte StreamReady, [property: JsonRequired] int VibrationHandle, [property: JsonRequired] uint LookupCounter)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDoomtrain191RigBank? Rigs { get; init; }
@@ -16,21 +16,25 @@ public sealed record NativeBattleDoomtrain191State([property: JsonRequired] Nati
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDoomtrain191TrailMemory? Trails { get; init; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDoomtrain191KnockbackMemory? Knockback { get; init; }
+    [JsonIgnore]
+    internal ImmutableArray<BattleModelOwner> Targets { get; init; } = [];
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleDoomtrain191ActorSnapshot> ActorSnapshots { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleDoomtrain191ActorSnapshot>.Empty;
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleDoomtrain191KnockbackRecord> Knockback { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleDoomtrain191KnockbackRecord>.Empty;
 
     public static NativeBattleDoomtrain191State FromColdProcess()
     {
         NativeBattlePackedMatrix32 zero = new(new byte[32].ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray());
-        NativeBattleDoomtrain191ActorSnapshot snapshot = new(new byte[8].ToImmutableArray(), new byte[8].ToImmutableArray());
-        return new(zero, zero, zero, 0, Enumerable.Repeat(uint.MaxValue, 7).ToImmutableArray(), 0, 0, [], Enumerable.Repeat<NativeBattleDoomtrain191ActorSnapshot?>(snapshot, 7).ToImmutableArray(), 0, 0, 0) { Rigs = new([zero, zero], [zero, zero]), Model = NativeBattleDoomtrain191ModelMemory.FromColdProcess(), Trails = NativeBattleDoomtrain191TrailMemory.FromColdProcess(), Knockback = NativeBattleDoomtrain191KnockbackMemory.FromColdProcess() };
+        return new(zero, zero, zero, 0, Enumerable.Repeat(uint.MaxValue, 7).ToImmutableArray(), 0, 0, 0) { Rigs = new([zero, zero], [zero, zero]), Model = NativeBattleDoomtrain191ModelMemory.FromColdProcess(), Trails = NativeBattleDoomtrain191TrailMemory.FromColdProcess() };
     }
 
     public void Validate()
     {
         Model?.Validate();
         Trails?.Validate();
-        Knockback?.Validate();
         BaseMatrix.Validate();
         CameraBackup.Validate();
         BaseView.Validate();
@@ -45,7 +49,7 @@ public sealed record NativeBattleDoomtrain191State([property: JsonRequired] Nati
                 matrix.Validate();
             }
         }
-        if (WorkPointers.IsDefault || WorkPointers.Length != 7 || Caster is < 0 or >= 7 || FirstTarget is < 0 or >= 7 || Targets.IsDefault || Targets.Any(actor => actor is < 0 or >= 7) || ActorSnapshots.IsDefault || ActorSnapshots.Length != 7 || ActorSnapshots.Any(snapshot => snapshot is not null && (snapshot.Position.IsDefault || snapshot.Position.Length != 8 || snapshot.Scale.IsDefault || snapshot.Scale.Length != 8)))
+        if (WorkPointers.IsDefault || WorkPointers.Length != 7 || Targets.IsDefault || ActorSnapshots.Values.Any(snapshot => snapshot.Position.IsDefault || snapshot.Position.Length != 8 || snapshot.Scale.IsDefault || snapshot.Scale.Length != 8))
         {
             throw new InvalidDataException("Native Doomtrain requires its retained matrices, work pointers, actor snapshots and camera cursor.");
         }

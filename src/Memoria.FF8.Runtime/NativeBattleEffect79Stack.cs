@@ -50,34 +50,36 @@ public static class NativeBattleEffect79Stack
         return stack.StoreUInt32(MatrixOffset, lastRotation, 0x460865, "Main target bounds last GTE matrix saved EDI");
     }
 
-    public static NativeBattleStackBytes ObserveBody(NativeBattleStackBytes stack, NativeBattleEffectTaskPool particlePool, uint taskAddress, NativeBattleModulePoolTask task, bool drewBody)
+    public static NativeBattleStackBytes ObserveBody(NativeBattleStackBytes stack, NativeBattleEffectTaskPool particlePool, uint taskAddress, NativeBattleModulePoolTask task, bool drewBody, NativeBattleModelAliases aliases)
     {
         Require(stack);
         if (particlePool.DescriptorAddress != 0x25E5100 || task.Callback != 0x7BCF10 || particlePool.Head is not int head || taskAddress != checked(particlePool.BankAddress + (uint)(head * particlePool.Stride)))
         {
             return Invalidate(stack, 0x7BCF10, "Body callback does not have the observed first surviving particle slot");
         }
-        uint caster = NativeBattleGraphicsModelAddress.Encode(task.ReadByte(0x2C));
-        if (task.ReadByte(0x2C) >= 7)
-        {
-            throw new InvalidDataException("Effect79 stack observation requires its current physical caster row.");
-        }
+        BattleModelOwner owner = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
+        uint? caster = aliases.TryEncodeExact(owner, out byte originalSlot) ? NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(originalSlot)) : null;
         if (drewBody)
         {
-            return stack.StoreUInt32(MatrixOffset + 16, 0, 0x7BD020, "Body draw saved EBX survivor count")
-                .StoreUInt32(MatrixOffset + 12, particlePool.DescriptorAddress, 0x7BD025, "Body draw saved EBP descriptor")
-                .StoreUInt32(MatrixOffset + 8, caster, 0x7BD026, "Body draw saved caller ESI model")
-                .StoreUInt32(MatrixOffset + 4, taskAddress, 0x7BD02E, "Body draw saved caller EDI task")
-                .StoreUInt32(MatrixOffset, checked(caster + 0x60), 0x7BD0FC, "Body draw final current pose restoration argument");
+            stack = stack.StoreUInt32(MatrixOffset + 16, 0, 0x7BD020, "Body draw saved EBX survivor count")
+                .StoreUInt32(MatrixOffset + 12, particlePool.DescriptorAddress, 0x7BD025, "Body draw saved EBP descriptor");
+            stack = StoreModelArgument(stack, MatrixOffset + 8, caster, 0x7BD026, "Body draw saved caller ESI model");
+            stack = stack.StoreUInt32(MatrixOffset + 4, taskAddress, 0x7BD02E, "Body draw saved caller EDI task");
+            return StoreModelArgument(stack, MatrixOffset, checked(caster + 0x60u), 0x7BD0FC, "Body draw final current pose restoration argument");
         }
         if (task.ReadByte(0x29) == 1 && unchecked((short)task.ReadWord(0x24)) > 0 && (task.ReadByte(0x26) & 8) == 0)
         {
-            return stack.StoreUInt32(MatrixOffset + 16, caster, 0x7BD900, "Waiting body saved caller ESI model")
+            return StoreModelArgument(stack, MatrixOffset + 16, caster, 0x7BD900, "Waiting body saved caller ESI model")
                 .StoreUInt32(MatrixOffset + 12, taskAddress, 0x7BD907, "Waiting body saved caller EDI task")
                 .StoreUInt32(MatrixOffset + 8, 2, 0x7BD90B, "Waiting body acknowledgement selector")
                 .StoreUInt32(MatrixOffset + 4, 0x7BD921, 0x7BD91C, "Waiting body acknowledgement return address");
         }
         return Invalidate(stack, 0x7BCF10, "Other body phase requires its reached stack writers");
+    }
+
+    private static NativeBattleStackBytes StoreModelArgument(NativeBattleStackBytes stack, int offset, uint? address, uint instruction, string role)
+    {
+        return address is uint value ? stack.StoreUInt32(offset, value, instruction, role) : stack.Invalidate(offset, 4, instruction, role);
     }
 
     public static NativeBattleStackBytes ObserveNode(NativeBattleStackBytes stack, uint instruction, uint? firstDword)

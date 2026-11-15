@@ -206,7 +206,7 @@ public sealed partial record NativeBattleModuleState
         {
             unknown |= mask;
         }
-        return task with { Payload = NativeBattleTelemetry.Immutable(telemetry, payload), ModelOwner = owner, UnknownModelPointerBytes = unknown };
+        return task with { Payload = NativeBattleTelemetry.Immutable(telemetry, payload), ModelOwner = owner, ModelPointerOffset = offset, UnknownModelPointerBytes = unknown };
     }
 
     private static NativeBattleModelAliases RequireModuleModelAliases(NativeBattleModuleInputs inputs)

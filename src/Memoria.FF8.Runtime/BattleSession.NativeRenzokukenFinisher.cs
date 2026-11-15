@@ -8,7 +8,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleNativeAction selected = FindInstalledNativeAction(249, index);
         BattleNativeAction preliminary = selected with { Command = 250, ActionId = ushort.MaxValue, SupplementalKernelIndex = index };
-        BattleActionPresentation command = timed.Command with { ActionId = ushort.MaxValue, NativeQueuedCommand = 250, NativeSequence = 0, NativeAction = preliminary, NativeTargetMask = targets, NativeHeaderIndex = null };
+        BattleActionPresentation command = timed.Command with { ActionId = ushort.MaxValue, NativeQueuedCommand = 250, NativeSequence = 0, NativeAction = preliminary, NativeTargetMask = targets, NativeHeader = null };
         if (nativeDispatchCommandLocation is { } location)
         {
             //48D200 command5 writes the selected finisher into this same row's second12-byte packet.
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
         {
             foreach (NativeBattleContactPacket recipient in recipients)
             {
-                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, FindNativeActor(recipient.Primary.Recipient), command, action, native, 255);
+                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, FindNativeActor(recipient.Primary.Recipient), command, action, native);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }
         }

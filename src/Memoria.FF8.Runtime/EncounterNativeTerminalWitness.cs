@@ -3,9 +3,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Recognizes the actual native terminal marker, independently of additional enemies' lives.</summary>
 public static class EncounterNativeTerminalWitness
 {
-    public static bool Matches(string encounter, string originalActorId, string actorId, NativeBattleActionHeaderSlot? header, byte physicalActor, byte bodySequence, bool nativeKo, bool nativeSuspended)
+    public static bool Matches(string encounter, string originalActorId, string actorId, NativeBattleActionHeaderSlot? header, BattleModelOwner actor, byte bodySequence, bool nativeKo, bool nativeSuspended)
     {
-        if (encounter != EncounterBindingResolver.Disc1Edea || actorId != originalActorId || !nativeKo || !nativeSuspended || header is null || header.Source != physicalActor || header.Command != 8 || header.Sequence != bodySequence)
+        if (encounter != EncounterBindingResolver.Disc1Edea || actorId != originalActorId || !nativeKo || !nativeSuspended || header is null || header.Source != actor || header.Command != 8 || header.Sequence != bodySequence)
         {
             return false;
         }
@@ -18,16 +18,16 @@ public sealed partial class BattleSession
 {
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleGraphicsState graphics)
     {
-        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || action.Actor != actor.EncodeNativeSlot() || nativeActionPackets.ActiveHeaderIndex != action.Header)
+        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || action.Actor != CreatePresentationModelOwner(actor) || nativeActionPackets.ActiveHeader != action.Header)
         {
             return;
         }
-        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.Headers[action.Header], action.Actor);
+        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.ReadHeader(action.Header), action.Actor);
     }
 
-    private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleActionHeaderSlot? header, byte row)
+    private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleActionHeaderSlot? header, BattleModelOwner owner)
     {
-        if (definition.EncounterMod is not { NativeEvents: not null } mod || !EncounterNativeTerminalWitness.Matches(mod.Encounter, mod.OriginalActorId, actor.Id, header, row, sequence, (NativeSavedStatusBits(actor) & 1) != 0, (actor.NativeCombatantFlags & 0x40) != 0))
+        if (definition.EncounterMod is not { NativeEvents: not null } mod || !EncounterNativeTerminalWitness.Matches(mod.Encounter, mod.OriginalActorId, actor.Id, header, owner, sequence, (NativeSavedStatusBits(actor) & 1) != 0, (actor.NativeCombatantFlags & 0x40) != 0))
         {
             return;
         }

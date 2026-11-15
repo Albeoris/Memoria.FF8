@@ -2,38 +2,33 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Maps the ordered contact occurrences of one action to recipients and temporary model rows.</summary>
+/// <summary>Maps the ordered contact occurrences of one action to recipients and bound model owners.</summary>
 public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient : notnull
 {
     private readonly ImmutableArray<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets;
-    private readonly BattleModelRoster? roster;
-    private readonly int firstContactIndex;
+    private readonly BattleModelRoster roster;
+    private readonly BattleContactCursor firstContact;
 
-    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets, BattleModelRoster? roster = null, int firstContactIndex = 0)
-        : this((targets ?? throw new ArgumentNullException(nameof(targets))).Select(target => (target.Recipient, new NativeBattleContactPacket(target.Contact, new(255, 0, 0, 0, 0, 0, 0)))), roster, firstContactIndex)
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets, BattleModelRoster roster, BattleContactCursor firstContact = default)
+        : this((targets ?? throw new ArgumentNullException(nameof(targets))).Select(target => (target.Recipient, new NativeBattleContactPacket(target.Contact, null))), roster, firstContact)
     {
     }
 
-    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets, BattleModelRoster? roster = null, int firstContactIndex = 0)
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets, BattleModelRoster roster, BattleContactCursor firstContact = default)
     {
         ArgumentNullException.ThrowIfNull(targets);
-        roster?.Validate();
+        ArgumentNullException.ThrowIfNull(roster);
         this.roster = roster;
-        int capacity = roster is null ? NativeBattleActionPacketsState.ContactCapacity : NativeBattleContactAddress.MaximumRowCount;
-        if ((uint)firstContactIndex >= (uint)capacity)
+        this.firstContact = firstContact;
+        this.targets = targets.ToImmutableArray();
+        if (this.targets.IsEmpty)
         {
-            throw new ArgumentOutOfRangeException(nameof(firstContactIndex));
+            throw new InvalidDataException("An effect action requires a nonempty contact stream.");
         }
-        this.firstContactIndex = firstContactIndex;
-        int remainingCapacity = capacity - firstContactIndex;
-        this.targets = targets.Take(remainingCapacity + 1).ToImmutableArray();
-        if (this.targets.IsEmpty || this.targets.Length > remainingCapacity)
-        {
-            throw new InvalidDataException("An effect action requires a nonempty contact stream within its packet capacity.");
-        }
+        _ = firstContact.Advance(this.targets.Length);
 
-        Dictionary<TRecipient, byte> rowsByRecipient = new();
-        Dictionary<byte, TRecipient> recipientsByRow = new();
+        Dictionary<TRecipient, BattleModelOwner> ownersByRecipient = new();
+        Dictionary<BattleModelOwner, TRecipient> recipientsByOwner = new();
         foreach ((TRecipient recipient, NativeBattleContactPacket packet) in this.targets)
         {
             if (recipient is null || packet is null)
@@ -41,54 +36,34 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
                 throw new InvalidDataException("An effect contact requires a recipient and a native packet.");
             }
             ValidatePacket(packet);
-            byte row = packet.Primary.Recipient;
-            if (rowsByRecipient.TryGetValue(recipient, out byte previousRow) && previousRow != row ||
-                recipientsByRow.TryGetValue(row, out TRecipient? previousRecipient) && !EqualityComparer<TRecipient>.Default.Equals(previousRecipient, recipient))
+            BattleModelOwner owner = packet.Primary.Recipient;
+            if (ownersByRecipient.TryGetValue(recipient, out BattleModelOwner? previousOwner) && previousOwner != owner ||
+                recipientsByOwner.TryGetValue(owner, out TRecipient? previousRecipient) && !EqualityComparer<TRecipient>.Default.Equals(previousRecipient, recipient))
             {
-                throw new InvalidDataException("An effect action requires a one-to-one binding between recipients and native model rows.");
+                throw new InvalidDataException("An effect action requires a one-to-one binding between recipients and their model owners.");
             }
-            rowsByRecipient[recipient] = row;
-            recipientsByRow[row] = recipient;
+            ownersByRecipient[recipient] = owner;
+            recipientsByOwner[owner] = recipient;
         }
     }
 
     public int Count => targets.Length;
 
-    public (NativeBattleActionPacketsState Packets, ushort TargetMask) Prepare(byte command, byte sequence, ushort action, ushort effect, byte source = 0)
+    public (NativeBattleActionPacketsState Packets, BattleModelTargets Targets) Prepare(NativeBattleActionPacketsState packets, byte command, byte sequence, ushort action, ushort effect, BattleModelOwner source)
     {
-        if (roster is not null)
+        ArgumentNullException.ThrowIfNull(packets);
+        ArgumentNullException.ThrowIfNull(source);
+        if (firstContact != default || packets.ActionCount != 0 || packets.ContactCount != 0 || !packets.Roster.Owners.SequenceEqual(roster.Owners))
         {
-            throw new InvalidOperationException("An effect bridge with a presentation roster requires PrepareHosted.");
+            throw new InvalidOperationException("Preparing an effect requires its empty packet owner and a contact stream starting at zero.");
         }
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (NativeBattleActionPacketsState prepared, BattleModelTargets selected) = Prepare(packets, command, sequence, action, effect, source);
-        return (prepared, selected.NativePhysicalBits);
-    }
-
-    public (NativeBattleActionPacketsState Packets, BattleModelTargets Targets) PrepareHosted(byte command, byte sequence, ushort action, ushort effect, byte source = 0)
-    {
-        BattleModelRoster presentationRoster = roster ?? throw new InvalidOperationException("Preparing hosted effects requires an explicit presentation roster.");
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(presentationRoster, Math.Max(NativeBattleActionPacketsState.ContactCapacity, targets.Length));
-        return Prepare(packets, command, sequence, action, effect, source);
-    }
-
-    private (NativeBattleActionPacketsState Packets, BattleModelTargets Targets) Prepare(NativeBattleActionPacketsState packets, byte command, byte sequence, ushort action, ushort effect, byte source)
-    {
-        if (firstContactIndex != 0)
+        if (targets.Any(target => target.Packet.Secondary is { } secondary && secondary.Recipient != source))
         {
-            throw new InvalidOperationException("Preparing a new effect bank requires a contact bridge starting at zero.");
-        }
-        if (targets.Any(target => target.Packet.Secondary.Recipient != 255 && target.Packet.Secondary.Recipient != source))
-        {
-            throw new InvalidDataException("The effect action's secondary contact requires its bound source row.");
+            throw new InvalidDataException("The effect action's secondary contact requires its bound source model.");
         }
         (packets, _) = packets.Prepare(new(source, command, sequence, -1, action, effect, null));
         packets = packets.AppendContacts(targets.Select(target => target.Packet));
-        BattleModelTargets selected = default;
-        foreach (var target in targets)
-        {
-            selected = selected.Add(target.Packet.Primary.Recipient);
-        }
+        BattleModelTargets selected = BattleModelTargets.From(targets.Select(target => target.Packet.Primary.Recipient));
         (packets, _) = packets.Publish(targets.Length);
         return (packets, selected);
     }
@@ -98,15 +73,14 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
     public (int Index, TRecipient Recipient) ResolveOccurrence(NativeBattleContactPacket packet)
     {
         ValidatePacket(packet);
-        if (packet.PhysicalContactIndex is int physicalIndex)
+        if (packet.Occurrence is { } occurrence)
         {
-            if (physicalIndex < firstContactIndex || physicalIndex >= firstContactIndex + targets.Length ||
-                targets[physicalIndex - firstContactIndex].Packet != packet)
+            int relative = occurrence.Ordinal - firstContact.Ordinal;
+            if ((uint)relative >= (uint)targets.Length || targets[relative].Packet != packet)
             {
                 throw new NotSupportedException("The native effect published a contact that does not match its prepared occurrence.");
             }
-            int index = physicalIndex - firstContactIndex;
-            return (index, targets[index].Recipient);
+            return (relative, targets[relative].Recipient);
         }
 
         int match = -1;
@@ -131,14 +105,20 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
 
     private void ValidatePacket(NativeBattleContactPacket packet)
     {
-        packet.Validate(roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount);
-        if (roster is { } presentationRoster)
+        ArgumentNullException.ThrowIfNull(packet);
+        packet.Validate();
+        RequireOwner(packet.Primary);
+        if (packet.Secondary is { } secondary)
         {
-            _ = presentationRoster[packet.Primary.Recipient];
-            if (packet.Secondary.Recipient != byte.MaxValue)
-            {
-                _ = presentationRoster[packet.Secondary.Recipient];
-            }
+            RequireOwner(secondary);
+        }
+    }
+
+    private void RequireOwner(NativeBattleContactHalf half)
+    {
+        if (!roster.Contains(half.Recipient) || half.CoverSource is { } cover && !roster.Contains(cover))
+        {
+            throw new InvalidDataException("An effect contact refers to a model outside its roster.");
         }
     }
 }

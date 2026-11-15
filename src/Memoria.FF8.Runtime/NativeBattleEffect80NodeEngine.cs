@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect80NodeStep(NativeBattleEffect80Frame Frame, int Result);
 public sealed record NativeBattleEffect80DeliverBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect80Operation;
-public sealed record NativeBattleEffect80ObserveBone(int Actor, byte Selector) : NativeBattleEffect80Operation;
+public sealed record NativeBattleEffect80ObserveBone(BattleModelOwner Actor, byte Selector) : NativeBattleEffect80Operation;
 
 public static class NativeBattleEffect80NodeEngine
 {

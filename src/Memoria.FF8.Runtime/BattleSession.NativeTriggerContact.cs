@@ -29,8 +29,8 @@ public sealed partial class BattleSession
         try
         {
             nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
-            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, definition, native, 255);
-            (nativeActionPackets, int contactIndex) = nativeActionPackets.AppendContact(packet);
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, definition, native);
+            (nativeActionPackets, BattleContactOccurrence contactIndex) = nativeActionPackets.AppendContact(packet);
             ObserveDiagnosticCounterAppend(packet, contactIndex, triggerRecomputed: true);
         }
         finally
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
 
     private void CompleteNativeComponentTrigger(BattleActionPresentation command)
     {
-        if (NativeGraphics is null && command.NativeHeaderIndex is not null && command.NativeQueuedCommand == 254)
+        if (NativeGraphics is null && command.NativeHeader is not null && command.NativeQueuedCommand == 254)
         {
             _ = NativeGuardianBoostBinding(command);
             //TODO(TD-009): The component contact represents56DD70 phase5 without its effect module;4850A0 math remains shared.
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (NativeGraphics is null && command.NativeHeaderIndex is not null && IsGunbladeAction(GetActor(command.ActorId), command))
+        if (NativeGraphics is null && command.NativeHeader is not null && IsGunbladeAction(GetActor(command.ActorId), command))
         {
             //TODO(TD-009): The component windup supplies485160 admission until the original AB/UI callbacks are present. Its math/physical contact consumer is shared.
             BattleCombatant actor = GetActor(command.ActorId);
@@ -118,10 +118,10 @@ public sealed partial class BattleSession
                 NativeBattleContactPacket prior = retained[contactIndex];
                 BattleCombatant recipient = FindNativeActor(prior.Primary.Recipient);
                 //4850A0 restores its invocation globals directly from header0 before48FE20; no queued presentation is consulted.
-                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())) };
+                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())) };
                 resolvingNativeAction = contact;
                 diagnosticNativeContact = ObserveDiagnosticGuardianContact(submitted, actor, recipient, first, prior, contactIndex, id);
-                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255);
+                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }
         }

@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, NativeBattleModuleCallback Callback) AdvanceNativeRinoaPhysicalHit(NativeBattleGraphicsState graphics, NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs)
     {
         inputs = inputs with { ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native571400 requires its angleWORD36.")).Angle36 } };
-        NativeBattleRinoaPhysicalHitInputs services = new(inputs, Aliases, actor => graphics.ActorModels.Get(actor).Flags0, Sound, () => NativeBattleActionGraphics.ReadCameraFlag50A6E0(nativeActionPackets) != 0, () => graphics = ApplyNativeNextSequenceContact(graphics), Sprite);
+        NativeBattleRinoaPhysicalHitInputs services = new(inputs, graphics.Effects.StorageContract, ReadActors, actor => graphics.ActorModels.Get(actor).Flags0, Sound, () => NativeBattleActionGraphics.ReadCameraFlag50A6E0(nativeActionPackets) != 0, () => graphics = ApplyNativeNextSequenceContact(graphics), Sprite);
         NativeBattleModuleCallback result;
         uint projectileTemporary = 0;
         switch (modules.Slots[slot].Callback)
@@ -34,16 +34,24 @@ public sealed partial class BattleSession
         NativeBattleFileStaging Staging() => NativeFileStaging ?? throw new NotSupportedException("Native Rinoa physical hit requires its retained temporary memory.");
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Native Rinoa physical hit requires its current camera.");
         NativeBattleEffectMemory Memory() => NativeEffectMemory ?? throw new NotSupportedException("Native Rinoa physical hit requires its retained process memory.");
-        (byte Actor, byte Target) Aliases()
+        (BattleModelOwner Actor, BattleModelOwner Target) ReadActors()
         {
             NativeBattleCameraAliases aliases = Memory().CameraAliases ?? throw new NotSupportedException("Native56F9C0 requires its actual actor and target aliases.");
-            return (aliases.Actor1D99B95 ?? throw new NotSupportedException("Native56F9C0 requires its caster alias."), aliases.Target1D99AAA ?? throw new NotSupportedException("Native56F9C0 requires its target alias."));
+            if (graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
+            {
+                return (
+                    aliases.Source ?? throw new NotSupportedException("Native56F9C0 requires its selected caster owner."),
+                    aliases.Target ?? throw new NotSupportedException("Native56F9C0 requires its selected target owner."));
+            }
+            return (
+                graphics.NativeBindings.DecodeLiteral(aliases.Actor1D99B95 ?? throw new NotSupportedException("Native56F9C0 requires its caster alias."), graphics.ActorModels),
+                graphics.NativeBindings.DecodeLiteral(aliases.Target1D99AAA ?? throw new NotSupportedException("Native56F9C0 requires its target alias."), graphics.ActorModels));
         }
-        void Sound(byte actor, int number, NativeBattleModuleAnchor anchor)
+        void Sound(BattleModelOwner actor, int number, NativeBattleModuleAnchor anchor)
         {
             byte model = graphics.ActorModels.Get(actor).ModelId4 ?? throw new NotSupportedException("Native501640 requires its actual model identity.");
             ImmutableArray<uint> sounds = definition.NativeGraphics?.Rules.ActorSounds1120 ?? throw new NotSupportedException("Native501640 requires its actor sound table.");
-            PublishNativeModuleSound(sounds[checked(model * 7 + number)], 0, anchor, graphics.ActorIds[actor]);
+            PublishNativeModuleSound(sounds[checked(model * 7 + number)], 0, anchor, ReadGraphicsPresentationId(actor));
         }
         void Append(NativeBattleGfGeometryBatch batch)
         {
@@ -100,7 +108,7 @@ public sealed partial class BattleSession
         }
         NativeBattleModuleState DrawProjectile(NativeBattleModuleState current, NativeBattleActionMatrix cameraCurve, int first, int next)
         {
-            NativeBattleRinoaPhysicalHitState hit = current.RinoaPhysicalHit ?? throw new NotSupportedException("Native56FE10 requires its current physical curve.");
+            NativeBattleRinoaPhysicalHitState hit = current.ReadRinoaPhysicalHit(services.StorageContract, inputs.ModelAliases ?? throw new NotSupportedException("Native56FE10 requires its current model bindings."));
             uint temporaryAddress = projectileTemporary;
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(hit.Actor);
             if (next < 64)
@@ -129,7 +137,7 @@ public sealed partial class BattleSession
                 ushort saved = BinaryPrimitives.ReadUInt16LittleEndian(current.Slots[slot].Payload.AsSpan().Slice(2));
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(hit.Actor, actor with { Flags0 = (ushort)((actor.Flags0 & ~0x200) | saved) }) };
             }
-            NativeBattleRinoaPhysicalRibbonDraw ribbon = NativeBattleRinoaPhysicalRibbon.Draw(Memory(), Staging(), temporaryAddress, hit.Curve, cameraCurve, first, next, Camera().Projection!, current);
+            NativeBattleRinoaPhysicalRibbonDraw ribbon = NativeBattleRinoaPhysicalRibbon.Draw(Memory(), Staging(), temporaryAddress, hit.Curve, cameraCurve, first, next, Camera().Projection!, current, services.StorageContract);
             NativeEffectMemory = ribbon.Memory;
             NativeFileStaging = ribbon.Staging;
             Append(ribbon.Batch);

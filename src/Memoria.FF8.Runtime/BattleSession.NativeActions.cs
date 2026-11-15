@@ -135,10 +135,10 @@ public sealed partial class BattleSession
         }
         (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
         ObserveDiagnosticPreparedHeader(headerIndex);
-        nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = checked((byte)actor.EncodeNativeSlot()), Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
         NativeBattleActionProductionResult produced;
-        int? previousDiagnosticHeader = diagnosticCounterProducingHeader;
-        int? previousEncounterHeader = encounterProducingHeaderIndex;
+        BattleActionHeaderReference? previousDiagnosticHeader = diagnosticCounterProducingHeader;
+        BattleActionHeaderReference? previousEncounterHeader = encounterProducingHeaderIndex;
         encounterProducingHeaderIndex = headerIndex;
         diagnosticCounterProducingHeader = ObservingDiagnosticCounter ? headerIndex : null;
         try
@@ -152,8 +152,8 @@ public sealed partial class BattleSession
         }
         foreach (NativeBattleContactPacket packet in produced.Contacts)
         {
-            (nativeActionPackets, int contactIndex) = nativeActionPackets.AppendContact(packet);
-            ObserveDiagnosticCounterAppend(packet, contactIndex);
+            (nativeActionPackets, BattleContactOccurrence occurrence) = nativeActionPackets.AppendContact(packet);
+            ObserveDiagnosticCounterAppend(packet, occurrence);
         }
         (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
         if (command.NativeAiCallbackStage is not null && context.MultiCastMode == 0)

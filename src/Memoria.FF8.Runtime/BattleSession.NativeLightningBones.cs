@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) PrepareNativeLightningBones(NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, bool compose)
+    private (NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) PrepareNativeLightningBones(NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, BattleModelOwner actor, bool compose)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Lightning requires its current caster skeleton.");
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         return (staging, graphics with { ActorModels = graphics.ActorModels.Set(actor, restored.Model) });
     }
 
-    private NativeBattleEffectMemory ProjectNativeLightningBoneTrail(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, uint head, uint bankAddress, int bankLength, Action<uint, System.Numerics.Vector3>? captureWorld = null)
+    private NativeBattleEffectMemory ProjectNativeLightningBoneTrail(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint head, uint bankAddress, int bankLength, Action<uint, System.Numerics.Vector3>? captureWorld = null)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Lightning bone projection requires its current caster skeleton.");

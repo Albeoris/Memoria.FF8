@@ -37,15 +37,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect83 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect83 requires its current projection.");
-        NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect83 requires its current actor skeleton.");
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect83 requires an actual physical model row.");
-            }
-            return actorIndex;
-        }
+        NativeBattlePoseSource Pose(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect83 requires its current actor skeleton.");
         void Publish(NativeBattleEffect83Frame current)
         {
             NativeEffectMemory = current.Memory with { Effect83 = current.State };
@@ -93,19 +85,19 @@ public sealed partial class BattleSession
                     NativeBattleBoneAnchorProducer observed = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(bone.Actor), Pose(bone.Actor), bone.Selector, 0);
                     return current with { Memory = ObserveNativeBoneAnchor(current.Memory, observed) };
                 case NativeBattleEffect83UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect83Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect83Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, actor => graphics.ActorModels.Get(actor), Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
                     return NativeBattleEffect83Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleEffect83UpdateTarget8DC610 target:
-                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect83Controller.Read(current, target.TaskAddress), graphics.Models, Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
+                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect83Controller.Read(current, target.TaskAddress), actor => graphics.ActorModels.Get(actor), Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
                     return NativeBattleEffect83Controller.Write(current, target.TaskAddress, targetTask);
                 case NativeBattleEffect83UpdateBounds8DC870 bounds:
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect83Controller.Read(current, bounds.TaskAddress);
-                    int boundsActor = boundsTask.ReadByte(0x2D);
+                    BattleModelOwner boundsActor = boundsTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = Pose(boundsActor);
                     boundsTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(boundsActor).SequenceState ?? throw new NotSupportedException("Effect83 requires its target pose."), source));
                     return NativeBattleEffect83Controller.Write(current, bounds.TaskAddress, boundsTask);
                 case NativeBattleEffect83Point502170 point:
-                    int pointActor = Actor(point.ModelAddress);
+                    BattleModelOwner pointActor = point.Actor;
                     NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(pointActor), Pose(pointActor), checked((byte)point.Selector), 0);
                     current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
                     NativeBattleVector vector = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -147,7 +139,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleEffect83TargetFlags flags:
-                    int flagActor = Actor(flags.ModelAddress);
+                    BattleModelOwner flagActor = flags.Actor;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(flagActor);
                     ushort mask = flags.WordWidth ? flags.AndMask : (ushort)(0xFF00 | (byte)flags.AndMask);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(flagActor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
@@ -164,10 +156,10 @@ public sealed partial class BattleSession
                     current = NativeBattleEffect83Controller.Write(current, owned.TaskAddress, drawn.Frame.Task);
                     return Deliver(current, drawn.Batch, 0x25C9F74, 0);
                 case NativeBattleEffect83TargetCapture79E590 capture:
-                    return CaptureNativeEffect83Target(current, capture.TaskAddress, graphics);
+                    return CaptureNativeEffect83Target(current, capture.TaskAddress, graphics, nativeActionPackets.ModelAliases);
                 case NativeBattleEffect83TargetDraw79DA20 draw:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect83Frame bodyFrame) = DrawNativeEffect83Target(graphics, current, draw.BodyAddress, Deliver);
-                    graphics = graphics with { ActorModels = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.ActorModels };
                     current = bodyFrame;
                     return current;
                 case NativeBattleEffect83StageTransition transition:

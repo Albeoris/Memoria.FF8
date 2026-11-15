@@ -54,7 +54,7 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect20Frame Frame) DrawNativeEffect20Body(NativeBattleGraphicsState graphics, NativeBattleEffect20Frame current, uint address)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
-        int index = task.ReadByte(0x2C);
+        BattleModelOwner index = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect20 body requires its actual original rig.");

@@ -68,7 +68,8 @@ public sealed partial class BattleSession
                     BattleModelOwner model = nativeActionPackets.ReadContact(first).Primary.Recipient;
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
-                    task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(model));
+                    task = task.WriteWord(14, checked((ushort)action));
+                    task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(model), nativeActionPackets.ModelAliases.EncodeAddress(model));
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (16), 0x6F4);
                     Store(1, slot, Workspace(task, workspace.Initialize7016B0(resources.Layout, 0x6F4)));
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -83,7 +84,7 @@ public sealed partial class BattleSession
                 pools[1] = pool;
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 int age = Word(task, 12);
-                int actor = NativeBattleStatusMagicController.ModelIndex(task.ReadDword(16));
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
                 if (age >= 30)
                 {
                     Mark(actor, true);
@@ -107,7 +108,7 @@ public sealed partial class BattleSession
                 task = Workspace(task, played.Workspace);
                 if ((uint)(age - 30) < 30 && (parameters.Flags79 & 2) == 0)
                 {
-                    (graphics, effect) = DrawNativeZombieOverlay(graphics, actor, age, reach, resources, projection, effect, identity with { Primitive = 0x10000000 });
+                    (graphics, effect) = DrawNativeZombieOverlay(graphics, actor, age, reach, resources, projection, effect, identity with { ModelOwner = actor, Primitive = 0x10000000 });
                 }
                 if (age == 0)
                 {
@@ -116,11 +117,11 @@ public sealed partial class BattleSession
                 if (age == 54)
                 {
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header.Advance(task.ReadWord(14)));
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Zombie result requires its original target list.");
+                    BattleContactCursor first = header.FirstContact;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {
-                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + index)] });
+                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first.Advance(index))] });
                     }
                     graphics = graphics with { PendingContacts = pending };
                 }
@@ -155,9 +156,9 @@ public sealed partial class BattleSession
         {
             pools[bank] = pools[bank].WriteSlot(slot, task);
         }
-        void Mark(int actor, bool marked)
+        void Mark(BattleModelOwner actor, bool marked)
         {
-            foreach (int index in NativeBattleModelRings.Walk(graphics.Models, actor))
+            foreach (BattleModelOwner index in NativeBattleModelRings.Walk(graphics.ActorModels, actor))
             {
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = marked ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };

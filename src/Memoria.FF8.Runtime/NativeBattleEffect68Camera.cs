@@ -6,23 +6,14 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect68Lower
 {
-    private static (ushort Category, NativeBattleScanByteOwner Profile) Profile(NativeBattleEffect68Frame frame, int actor, NativeBattleEffect68Resources resources, NativeBattleEffect68Inputs inputs)
+    private static (ushort Category, NativeBattleScanByteOwner Profile) Profile(NativeBattleEffect68Frame frame, BattleModelOwner actor, NativeBattleEffect68Resources resources, NativeBattleEffect68Inputs inputs)
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = inputs.ReadModels(frame).Select(row => ByteOwner(row, 0x9C)).ToImmutableArray();
-        byte category = NativeBattleScanModelSelection.Category84D410(models, checked((short)actor), _ => throw new NotSupportedException("Effect68 requires its current resource sequence."), index => inputs.ReadResourceSequence(frame, index));
+        byte category = NativeBattleScanModelSelection.Category84D410(inputs.ReadActorModels(frame), actor, owner => inputs.ReadResourceSequence(frame, owner));
         NativeBattleScanCameraProfile profile = resources.ReadCameraProfile(category);
         return (category, new(profile.Bytes, Enumerable.Repeat(true, 16).ToImmutableArray()));
     }
 
-    private static int PhysicalIndex(uint pointer)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
-        {
-            throw new InvalidDataException("Effect68 requires its current selected physical model.");
-        }
-        return row;
-    }
-
+    private static short ReadYaw(NativeBattleGraphicsModel model) => model.Rotation14 ?? throw new NotSupportedException("Effect68 camera requires the selected model yaw.");
     private static short V(NativeBattleEffectArena row, int offset) => BinaryPrimitives.ReadInt16LittleEndian(row.Read(offset, 2));
     private static NativeBattleEffectArena CW(NativeBattleEffectArena row, int offset, int value) => row.Write(offset, BitConverter.GetBytes(unchecked((ushort)value)));
     private static (NativeBattleEffect68Frame Frame, NativeBattleActionMatrix Matrix) Yaw(NativeBattleEffect68Frame frame, short angle)
@@ -34,7 +25,7 @@ public static partial class NativeBattleEffect68Lower
     private static NativeBattleEffect68Frame InitializeCamera(NativeBattleEffect68Frame frame, uint address, NativeBattleEffect68Resources resources, NativeBattleEffect68Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        (ushort category, NativeBattleScanByteOwner profile) = Profile(frame, task.ReadByte(0x2D), resources, inputs);
+        (ushort category, NativeBattleScanByteOwner profile) = Profile(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, resources, inputs);
         NativeBattleEffectArena camera = ReadBytes(frame, Camera, 80);
         camera = CW(CW(camera, 0x4C, category), 0x30, 0);
         int mode = task.ReadWord(0x68);
@@ -48,13 +39,13 @@ public static partial class NativeBattleEffect68Lower
         int dx = V(snapshot.Eye8, 0) - V(snapshot.Target8, 0);
         int dz = V(snapshot.Eye8, 4) - V(snapshot.Target8, 4);
         int distance = unchecked((int)(long)Math.Sqrt(unchecked(dx * dx + dz * dz)));
-        ImmutableArray<NativeBattleEffectArena> models = inputs.ReadModels(frame);
-        int primary = PhysicalIndex(D(frame, 0x25FFAA8));
-        camera = CW(CW(CW(CW(CW(CW(camera, 0x48, snapshot.Zoom), 0x4A, 576), 0x3C, -distance), 0x42, V(snapshot.Eye8, 2) - V(snapshot.Target8, 2)), 0x38, V(models[primary], 0x0E)), 0x36, (NativeWorldScriptedPathMath.NativeAngle(snapshot.Direction88, snapshot.Direction7C) - 1024) & 0xFFF);
+        BattleActorModels models = inputs.ReadActorModels(frame);
+        BattleModelOwner primary = frame.State.ReadPrimaryModel();
+        camera = CW(CW(CW(CW(CW(CW(camera, 0x48, snapshot.Zoom), 0x4A, 576), 0x3C, -distance), 0x42, V(snapshot.Eye8, 2) - V(snapshot.Target8, 2)), 0x38, ReadYaw(models.Get(primary))), 0x36, (NativeWorldScriptedPathMath.NativeAngle(snapshot.Direction88, snapshot.Direction7C) - 1024) & 0xFFF);
         frame = WriteBytes(frame, Camera, camera, 80);
         if (mode <= 3)
         {
-            int sampled = mode == 1 ? primary : task.ReadByte(0x2D);
+            BattleModelOwner sampled = mode == 1 ? primary : task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleEffectArena retained = NativeBattleEffectNodeContextMemory.Copy(camera, 0x18, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
             NativeBattleEffect68PointStep anchor = inputs.Point502170(frame, sampled, 0xF1, 0, retained);
             frame = anchor.Frame;
@@ -62,12 +53,12 @@ public static partial class NativeBattleEffect68Lower
             camera = NativeBattleEffectNodeContextMemory.Copy(anchor.Output8, 0, camera, 0x18, 8);
             if (profile.ReadWord(8) == 0)
             {
-                models = inputs.ReadModels(frame);
-                camera = NativeBattleEffectNodeContextMemory.Copy(models[sampled], 0x1C, camera, 0x18, 8);
+                NativeBattleEffectArena modelBytes = Arena(NativeBattleScanPhysicalModels.Capture(inputs.ReadActorModels(frame).Get(sampled)));
+                camera = NativeBattleEffectNodeContextMemory.Copy(modelBytes, 0x1C, camera, 0x18, 8);
             }
             camera = CW(camera, 0x1A, 0);
             frame = WriteBytes(frame, Camera, camera, 80);
-            (frame, NativeBattleActionMatrix yaw) = Yaw(frame, V(inputs.ReadModels(frame)[primary], 0x0E));
+            (frame, NativeBattleActionMatrix yaw) = Yaw(frame, ReadYaw(inputs.ReadActorModels(frame).Get(primary)));
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(yaw, new(mode == 1 ? unchecked((short)profile.ReadWord(2)) : (short)0, unchecked((short)profile.ReadWord(4)), 0));
             camera = ReadBytes(frame, Camera, 80);
             camera = CW(CW(CW(camera, 0x18, V(camera, 0x18) + rotated.X), 0x1A, V(camera, 0x1A) + rotated.Y), 0x1C, V(camera, 0x1C) + rotated.Z);
@@ -121,7 +112,7 @@ public static partial class NativeBattleEffect68Lower
 
     private static NativeBattleEffect68Frame ActiveCamera(NativeBattleEffect68Frame frame, uint address, NativeBattleEffect68Resources resources, NativeBattleEffect68Inputs inputs)
     {
-        (ushort category, NativeBattleScanByteOwner profile) = Profile(frame, Read(frame, address).ReadByte(0x2D), resources, inputs);
+        (ushort category, NativeBattleScanByteOwner profile) = Profile(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, resources, inputs);
         frame = PutWord(frame, Camera + 0x4C, category);
         NativeBattleEffectArena camera = ReadBytes(frame, Camera, 80);
         if (profile.ReadByte(0x0E) == 1)
@@ -177,7 +168,7 @@ public static partial class NativeBattleEffect68Lower
         {
             return frame;
         }
-        int actor = task.ReadByte(0x2D);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         NativeBattleModulePoolTask root = Read(frame, task.ReadDword(0x10));
         if (unchecked((sbyte)task.ReadByte(0x2A)) == S(root, 0x58))
         {
@@ -188,8 +179,7 @@ public static partial class NativeBattleEffect68Lower
             (frame, uint child) = Child(frame, 0x25FFC40, 0x7DD950, 0x78, address, inputs);
             frame = Write(frame, child, Read(frame, child).WriteWord(0x68, 3));
         }
-        NativeBattleEffectArena flags = inputs.ReadModels(frame)[actor];
-        flags = CW(NativeBattleEffectArena.Clear(), 0, BinaryPrimitives.ReadUInt16LittleEndian(flags.Read(0, 2)) & 0x87FF);
+        NativeBattleEffectArena flags = CW(NativeBattleEffectArena.Clear(), 0, inputs.ReadActorModels(frame).Get(actor).Flags0 & 0x87FF);
         frame = inputs.Execute(frame, new NativeBattleEffect68WriteModelBytes(actor, 0, flags, 2));
         return Write(frame, address, Next(Read(frame, address)));
     }

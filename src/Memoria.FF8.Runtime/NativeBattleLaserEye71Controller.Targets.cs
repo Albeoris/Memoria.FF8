@@ -47,7 +47,7 @@ public static partial class NativeBattleLaserEye71Controller
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                byte actor = task.ReadByte(0x2C);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
                 frame = inputs.Execute(frame, new NativeBattleLaserEye71BindCaster(actor, SavedBindingAddress));
                 frame = inputs.Execute(frame, new NativeBattleLaserEye71Ring(actor, 3));
                 frame = NextPhase(frame, address);

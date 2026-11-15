@@ -17,7 +17,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with
         {
-            State = frame.State.WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
+            State = frame.State.WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases),
             Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -78,8 +78,8 @@ public static partial class NativeBattleDisolvingAcid132Controller
             if (contact <= header.ReadRepeatModeMinusOne())
             {
                 BattleContactCursor firstContact = header.FirstContact;
-                uint target = ModelAddress(inputs.Packets.ReadContact(firstContact.Advance(contact)).Primary.Recipient);
-                if (frame.Effect.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == target))
+                BattleModelOwner target = inputs.Packets.ReadContact(firstContact.Advance(contact)).Primary.Recipient;
+                if (frame.Effect.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == target))
                 {
                     frame = Write(frame, address, Read(frame, address).WriteWord(12, 0));
                 }
@@ -88,7 +88,9 @@ public static partial class NativeBattleDisolvingAcid132Controller
                     (frame, uint child) = Append(frame, 1, MainCallback);
                     if (child != 0)
                     {
-                        frame = Write(frame, child, Read(frame, child).WriteDword(12, 0).WriteWord(14, contact).WriteDword(16, target));
+                        NativeBattleModulePoolTask task = Read(frame, child).WriteDword(12, 0).WriteWord(14, contact);
+                        task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), inputs.Packets.ModelAliases.EncodeAddress(target));
+                        frame = Write(frame, child, task);
                         frame = Write(frame, address, Read(frame, address).WriteBytes(14, [unchecked((byte)(contact + 1))]));
                     }
                 }

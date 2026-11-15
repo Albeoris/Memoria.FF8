@@ -1,45 +1,42 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Reads cinematic actor data from its hosted context or original header fields.</summary>
+/// <summary>Reads cinematic actor data from its captured model owners.</summary>
 public static class NativeBattleCinematicActorAccess
 {
     private const uint HeaderPointer = 0x279744C;
 
-    public static int ActorCapacity(NativeBattleWaterExecutionFrame frame) => ReadContext(frame)?.Roster.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
-
-    public static uint ReadModelPointer(NativeBattleWaterExecutionFrame frame, int row, uint? headerAddress = null)
+    public static BattleModelOwner ReadSlotActor(NativeBattleWaterExecutionFrame frame)
     {
-        return ReadContext(frame, headerAddress) is { } actors ? actors.ReadCachedActor(row).ModelAddress : CoreDword(frame, NativeField(frame, 0x60, row, 4, headerAddress));
+        BattleModelOwner actor = frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(SlotOffset(frame, 0x1B, 1), 1).Owner;
+        _ = ReadContext(frame).ReadCachedActor(actor);
+        return actor;
     }
 
-    public static ushort ReadCachedFlags0(NativeBattleWaterExecutionFrame frame, int row, uint? headerAddress = null)
+    internal static NativeBattleWaterExecutionFrame WriteSlotActor(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor, NativeBattleModelAliases aliases)
     {
-        return ReadContext(frame, headerAddress) is { } actors ? actors.ReadCachedActor(row).Flags0 : CoreWord(frame, NativeField(frame, 0x4E, row, 2, headerAddress));
+        _ = ReadContext(frame).ReadCachedActor(actor);
+        return frame with { Arena = frame.Arena.WriteExecutionReference(SlotOffset(frame, 0x1B, 1), 1, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 1)) };
     }
 
-    public static short ReadPositionWord(NativeBattleWaterExecutionFrame frame, int row, int lane, uint? headerAddress = null)
+    public static ushort ReadCachedFlags0(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, uint? headerAddress = null)
+    {
+        return ReadContext(frame, headerAddress).ReadCachedActor(owner).Flags0;
+    }
+
+    public static short ReadPositionWord(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, int lane, uint? headerAddress = null)
     {
         ValidateLane(lane);
-        if (ReadContext(frame, headerAddress) is not { } actors)
-        {
-            return NativeWord(frame, 0x84, row, lane, headerAddress);
-        }
-        NativeBattleCinematicActorCache actor = actors.ReadCachedActor(row);
+        NativeBattleCinematicActorCache actor = ReadContext(frame, headerAddress).ReadCachedActor(owner);
         return RequireWord(lane == 3 ? actor.Vertical34 : VectorLane(actor.Position28, lane));
     }
 
-    public static short ReadRotationWord(NativeBattleWaterExecutionFrame frame, int row, int lane, uint? headerAddress = null)
+    public static short ReadRotationWord(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, int lane, uint? headerAddress = null)
     {
         ValidateLane(lane);
-        if (ReadContext(frame, headerAddress) is not { } actors)
-        {
-            return NativeWord(frame, 0xD8, row, lane, headerAddress);
-        }
-        NativeBattleCinematicActorCache actor = actors.ReadCachedActor(row);
+        NativeBattleCinematicActorCache actor = ReadContext(frame, headerAddress).ReadCachedActor(owner);
         return RequireWord(lane switch
         {
             0 => actor.Rotation12,
@@ -49,98 +46,62 @@ public static class NativeBattleCinematicActorAccess
         });
     }
 
-    public static short ReadScaleWord(NativeBattleWaterExecutionFrame frame, int row, int lane, uint? headerAddress = null)
+    public static short ReadScaleWord(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, int lane, uint? headerAddress = null)
     {
         ValidateLane(lane);
-        if (ReadContext(frame, headerAddress) is not { } actors)
-        {
-            return NativeWord(frame, 0x120, row, lane, headerAddress);
-        }
-        NativeBattleCinematicActorCache actor = actors.ReadCachedActor(row);
+        NativeBattleCinematicActorCache actor = ReadContext(frame, headerAddress).ReadCachedActor(owner);
         return RequireWord(lane == 3 ? actor.Scale154 : VectorLane(actor.Scale148, lane));
     }
 
-    public static NativeBattleVector ReadPosition(NativeBattleWaterExecutionFrame frame, int row, uint? headerAddress = null)
+    public static NativeBattleVector ReadPosition(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, uint? headerAddress = null)
     {
-        return ReadContext(frame, headerAddress) is { } actors ? RequireVector(actors.ReadCachedActor(row).Position28) : NativeVector(frame, 0x84, row, headerAddress);
+        return RequireVector(ReadContext(frame, headerAddress).ReadCachedActor(owner).Position28);
     }
 
-    public static NativeBattleVector ReadRotation(NativeBattleWaterExecutionFrame frame, int row, uint? headerAddress = null)
+    public static NativeBattleVector ReadRotation(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, uint? headerAddress = null)
     {
-        if (ReadContext(frame, headerAddress) is not { } actors)
-        {
-            return NativeVector(frame, 0xD8, row, headerAddress);
-        }
-        NativeBattleCinematicActorCache actor = actors.ReadCachedActor(row);
+        NativeBattleCinematicActorCache actor = ReadContext(frame, headerAddress).ReadCachedActor(owner);
         return new(RequireWord(actor.Rotation12), RequireWord(actor.Rotation14), RequireWord(actor.Rotation16));
     }
 
-    public static NativeBattleVector ReadScale(NativeBattleWaterExecutionFrame frame, int row, uint? headerAddress = null)
+    public static NativeBattleVector ReadScale(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, uint? headerAddress = null)
     {
-        return ReadContext(frame, headerAddress) is { } actors ? RequireVector(actors.ReadCachedActor(row).Scale148) : NativeVector(frame, 0x120, row, headerAddress);
+        return RequireVector(ReadContext(frame, headerAddress).ReadCachedActor(owner).Scale148);
     }
 
-    public static byte ReadActorOrdinal(NativeBattleWaterExecutionFrame frame, int row, uint? headerAddress = null)
+    public static int ReadActorOrdinal(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, uint? headerAddress = null)
     {
-        return ReadContext(frame, headerAddress) is { } actors ? actors.ReadActorOrdinal(row) : NativeByte(frame, 0xCC, row, headerAddress);
+        return ReadContext(frame, headerAddress).ReadActorOrdinal(owner);
     }
 
-    public static int ReadCurrentCount(NativeBattleWaterExecutionFrame frame, bool signedNative = false, uint? headerAddress = null)
+    public static int ReadCurrentCount(NativeBattleWaterExecutionFrame frame, uint? headerAddress = null)
     {
-        return ReadContext(frame, headerAddress) is { } actors ? actors.CurrentActors.Length : NativeCount(frame, 0x41, signedNative, headerAddress);
+        return ReadContext(frame, headerAddress).CurrentActors.Length;
     }
 
-    public static byte ReadCurrentActor(NativeBattleWaterExecutionFrame frame, int index, uint? headerAddress = null)
+    public static BattleModelOwner ReadCurrentActor(NativeBattleWaterExecutionFrame frame, int index, uint? headerAddress = null)
     {
-        if (ReadContext(frame, headerAddress) is not { } actors)
+        NativeBattleCinematicActorContext context = ReadContext(frame, headerAddress);
+        return index == 0 && context.CurrentActors.IsEmpty ? context.ReadFirstActor() : ReadActor(context.CurrentActors, index);
+    }
+
+    public static int ReadSavedCount(NativeBattleWaterExecutionFrame frame, uint? headerAddress = null)
+    {
+        return ReadContext(frame, headerAddress).ReadSavedActors().Length;
+    }
+
+    public static BattleModelOwner ReadSavedActor(NativeBattleWaterExecutionFrame frame, int index, uint? headerAddress = null)
+    {
+        return ReadActor(ReadContext(frame, headerAddress).ReadSavedActors(), index);
+    }
+
+    internal static NativeBattleCinematicActorContext ReadContext(NativeBattleWaterExecutionFrame frame, uint? headerAddress = null)
+    {
+        if ((headerAddress ?? CoreDword(frame, HeaderPointer)) != NativeBattleScriptedEffectMemory.Address)
         {
-            return NativeByte(frame, 0x48, index, headerAddress);
+            throw new InvalidDataException("Cinematic actors require the current scripted-effect header owner.");
         }
-        return index == 0 && actors.CurrentActors.IsEmpty ? actors.ReadFirstActor() : ReadActor(actors.CurrentActors, index);
-    }
-
-    public static int ReadSavedCount(NativeBattleWaterExecutionFrame frame, bool signedNative, uint? headerAddress = null)
-    {
-        return ReadContext(frame, headerAddress) is { } actors ? actors.ReadSavedActors().Length : NativeCount(frame, 0x17A, signedNative, headerAddress);
-    }
-
-    public static byte ReadSavedActor(NativeBattleWaterExecutionFrame frame, int index, uint? headerAddress = null)
-    {
-        return ReadContext(frame, headerAddress) is { } actors ? ReadActor(actors.ReadSavedActors(), index) : NativeByte(frame, 0x174, index, headerAddress);
-    }
-
-    internal static NativeBattleCinematicActorContext? ReadContext(NativeBattleWaterExecutionFrame frame, uint? headerAddress = null)
-    {
-        NativeBattleCinematicActorContext? context = frame.Core.PresentationActors;
-        if (context is not null && (headerAddress ?? CoreDword(frame, HeaderPointer)) != NativeBattleScriptedEffectMemory.Address)
-        {
-            throw new InvalidDataException("Hosted cinematic actors require the current scripted-effect header owner.");
-        }
-        return context;
-    }
-
-    private static uint NativeField(NativeBattleWaterExecutionFrame frame, uint offset, int row, int stride, uint? headerAddress)
-    {
-        return unchecked((headerAddress ?? CoreDword(frame, HeaderPointer)) + offset + (uint)(row * stride));
-    }
-
-    private static short NativeWord(NativeBattleWaterExecutionFrame frame, uint offset, int row, int lane, uint? headerAddress)
-    {
-        return unchecked((short)CoreWord(frame, NativeField(frame, offset + (uint)(lane * 2), row, 8, headerAddress)));
-    }
-
-    private static NativeBattleVector NativeVector(NativeBattleWaterExecutionFrame frame, uint offset, int row, uint? headerAddress)
-    {
-        byte[] data = frame.Core.Read(NativeField(frame, offset, row, 8, headerAddress), 6);
-        return new(BinaryPrimitives.ReadInt16LittleEndian(data), BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(4)));
-    }
-
-    private static byte NativeByte(NativeBattleWaterExecutionFrame frame, uint offset, int index, uint? headerAddress) => frame.Core.Read(NativeField(frame, offset, index, 1, headerAddress), 1)[0];
-
-    private static int NativeCount(NativeBattleWaterExecutionFrame frame, uint offset, bool signed, uint? headerAddress)
-    {
-        byte raw = NativeByte(frame, offset, 0, headerAddress);
-        return signed ? unchecked((sbyte)raw) : raw;
+        return frame.Core.PresentationActors ?? throw new InvalidDataException("Cinematic actor context has not been captured.");
     }
 
     private static short? VectorLane(NativeBattleVector? value, int lane) => lane switch
@@ -150,9 +111,9 @@ public static class NativeBattleCinematicActorAccess
         _ => value?.Z
     };
 
-    private static short RequireWord(short? value) => value ?? throw new NotSupportedException("Hosted cinematic cache requires the retained actor field.");
+    private static short RequireWord(short? value) => value ?? throw new NotSupportedException("Cinematic cache requires the retained actor field.");
 
-    private static NativeBattleVector RequireVector(NativeBattleVector? value) => value ?? throw new NotSupportedException("Hosted cinematic cache requires the retained actor vector.");
+    private static NativeBattleVector RequireVector(NativeBattleVector? value) => value ?? throw new NotSupportedException("Cinematic cache requires the retained actor vector.");
 
     private static void ValidateLane(int lane)
     {
@@ -162,11 +123,11 @@ public static class NativeBattleCinematicActorAccess
         }
     }
 
-    private static byte ReadActor(ImmutableArray<byte> actors, int index)
+    private static BattleModelOwner ReadActor(ImmutableArray<BattleModelOwner> actors, int index)
     {
         if ((uint)index >= (uint)actors.Length)
         {
-            throw new InvalidDataException("Hosted cinematic actor index leaves its retained selection.");
+            throw new InvalidDataException("Cinematic actor index leaves its retained selection.");
         }
         return actors[index];
     }

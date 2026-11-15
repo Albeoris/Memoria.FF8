@@ -21,9 +21,9 @@ public static partial class NativeBattleEffect303Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header;
         BattleContactCursor first = packets.ReadHeader(header).FirstContact;
-        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-        uint caster = ModelAddress(Parameters(frame).Source);
-        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, caster).WriteDword(TargetGlobal, target).WriteDword(ArenaGlobal, ArenaAddress) };
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner caster = Parameters(frame).Source;
+        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, caster, packets.ModelAliases).WriteModel(TargetGlobal, target, packets.ModelAliases).WriteDword(ArenaGlobal, ArenaAddress) };
         frame = inputs.Execute(frame, new NativeBattleEffect303CopyPackedPosition(caster, target));
         frame = inputs.Execute(frame, new NativeBattleEffect303SelectSequence505C00(target, 13));
         frame = inputs.Execute(frame, new NativeBattleEffect303EnterSequence508F90(target));

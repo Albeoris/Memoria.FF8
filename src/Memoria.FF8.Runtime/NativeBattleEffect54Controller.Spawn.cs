@@ -23,7 +23,7 @@ public static partial class NativeBattleEffect54Controller
                 frame = PutU54(frame, row + 0x1BC, emitter);
                 frame = PutB54(frame, row + 0x1D7, 1);
                 frame = PutB54(frame, row + 0x1D6, unchecked((byte)sourceIndex));
-                frame = PutB54(frame, row + 0x1D9, ReadB54(frame, emitter + 0x6B));
+                frame = WriteRecipientPosition(frame, row + 0x1D9, ReadRecipientPosition(frame, emitter + 0x6B));
                 uint context = frame.State.ReadDword(CurrentContextGlobal);
                 frame = PutW54(frame, context + 0x16, unchecked((ushort)(ReadW54(frame, context + 0x16) + 1)));
                 frame = Link811790(frame, row, 1);
@@ -135,7 +135,7 @@ public static partial class NativeBattleEffect54Controller
         {
             if (source[0x28 + child] == 1)
             {
-                (frame, _) = NativeBattleEffect54Lower.AllocateEmitter810560(frame, rowAddress, unchecked((sbyte)source[0x2C + child]), unchecked((sbyte)ReadB54(frame, rowAddress + 0x1D9)), resources, inputs);
+                (frame, _) = NativeBattleEffect54Lower.AllocateEmitter810560(frame, rowAddress, unchecked((sbyte)source[0x2C + child]), ReadRecipientPosition(frame, rowAddress + 0x1D9), resources, inputs);
             }
         }
         return frame with { State = frame.State.WriteDword(ScratchPointerGlobal, checked(frame.State.ReadDword(ScratchPointerGlobal) + 80)) };

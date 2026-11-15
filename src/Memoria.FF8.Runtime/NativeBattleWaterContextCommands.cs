@@ -3,9 +3,21 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterContextServices(Func<NativeBattleWaterExecutionFrame, uint, uint> ReadLinkedModelPointer, Func<NativeBattleWaterExecutionFrame, uint, uint> ResolveRing501FF0, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadActionBytes, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> ApplyContact506690, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> ApplyCamera50A730, Func<NativeBattleWaterExecutionFrame, int, short, uint, NativeBattleWaterExecutionFrame> WriteStageColor)
+public sealed record NativeBattleWaterContextServices(
+    Func<NativeBattleWaterExecutionFrame, BattleModelOwner, BattleModelOwner?> ReadLinkedModel,
+    Func<NativeBattleWaterExecutionFrame, BattleModelOwner, BattleModelOwner> ResolveRing501FF0,
+    Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadActionBytes,
+    Func<NativeBattleWaterExecutionFrame, BattleContactOccurrence, NativeBattleWaterExecutionFrame> ApplyContact506690,
+    Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> ApplyCamera50A730,
+    Func<NativeBattleWaterExecutionFrame, int, short, uint, NativeBattleWaterExecutionFrame> WriteStageColor,
+    Func<NativeBattleWaterExecutionFrame, BattleActionHeaderReference?> ReadCurrentHeader,
+    Func<NativeBattleActionPacketsState> ReadPackets,
+    Func<NativeBattleModelAliases> CaptureAliases)
 {
-    public NativeBattleActionPacketsState? ActionPackets { get; init; }
+    internal BattleActionHeaderReference RequireCombatHeader(NativeBattleWaterExecutionFrame frame)
+    {
+        return ReadCurrentHeader(frame) ?? throw new InvalidDataException("Presentation-only Ifrit cannot apply offensive contacts before its landing handoff.");
+    }
 }
 
 /// <summary>Selected current actor context, contact, camera and stage-color operations.</summary>
@@ -59,79 +71,35 @@ public static class NativeBattleWaterContextCommands
         {
             return frame;
         }
-        int actor = ReadSlot(frame, 0x1B, 1)[0];
-        if (NativeBattleCinematicActorAccess.ReadContext(frame) is { } context)
-        {
-            return ExecuteHostedRing(frame, services, context, mode, actor);
-        }
-        if (actor >= 7)
-        {
-            throw new NotSupportedException("Native ring context leaves its seven physical graphics rows.");
-        }
-        uint header = CoreDword(frame, 0x279744C);
-        uint model = CoreDword(frame, unchecked(header + 0x60u + (uint)(4 * actor)));
-        _ = PhysicalIndex(model);
-        if (services.ReadLinkedModelPointer(frame, model) == 0)
-        {
-            frame = CoreByte(frame, unchecked(header + 0x17A), 0);
-        }
-        else
-        {
-            if (mode == 0)
-            {
-                frame = CoreByte(frame, unchecked(header + 0x174), (byte)actor);
-                frame = CoreByte(frame, unchecked(header + 0x17A), 1);
-            }
-            else
-            {
-                frame = CoreByte(frame, unchecked(header + 0x17A), frame.Core.Read(unchecked(header + 0x41), 1)[0]);
-                int count = unchecked((sbyte)frame.Core.Read(unchecked(header + 0x17A), 1)[0]);
-                for (int index = count; index > 0; index--)
-                {
-                    byte saved = frame.Core.Read(unchecked(header + 0x47u + (uint)index), 1)[0];
-                    frame = CoreByte(frame, unchecked(header + 0x173u + (uint)index), saved);
-                }
-            }
-            byte minimum = PhysicalIndex(services.ResolveRing501FF0(frame, model));
-            frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [minimum]) };
-            frame = CoreByte(frame, unchecked(header + 0x48), minimum);
-            frame = CoreByte(frame, unchecked(header + 0x41), 1);
-        }
-        return NativeBattleScriptedCommandReads.Advance(frame, 2);
-    }
-
-    private static NativeBattleWaterExecutionFrame ExecuteHostedRing(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services, NativeBattleCinematicActorContext context, int mode, int actor)
-    {
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        NativeBattleCinematicActorContext context = NativeBattleCinematicActorAccess.ReadContext(frame);
         uint header = NativeBattleScriptedEffectMemory.Address;
-        uint model = context.ReadCachedActor(actor).ModelAddress;
-        if (services.ReadLinkedModelPointer(frame, model) == 0)
+        if (services.ReadLinkedModel(frame, actor) is null)
         {
-            NativeBattleScriptedEffectMemory unlinked = frame.Core.Write(header + 0x17A, [0]);
-            frame = frame with { Core = unlinked with { PresentationActors = context.WithSavedActors([]) } };
+            NativeBattleScriptedEffectMemory core = frame.Core.Write(header + 0x17A, [0]);
+            frame = frame with { Core = core with { PresentationActors = context.WithSavedActors([]) } };
             return NativeBattleScriptedCommandReads.Advance(frame, 2);
         }
-
-        ImmutableArray<byte> saved = mode == 0 ? [(byte)actor] : context.CurrentActors;
-        uint minimumPointer = services.ResolveRing501FF0(frame, model);
-        if (!NativeBattleGraphicsModelAddress.TryDecode(minimumPointer, out int minimum, context.Roster.ActorCount))
+        ImmutableArray<BattleModelOwner> saved = mode == 0 ? [actor] : context.CurrentActors;
+        BattleModelOwner minimum = services.ResolveRing501FF0(frame, actor);
+        NativeBattleCinematicActorContext updated = context.WithSavedActors(saved).WithCurrentActors([minimum]);
+        NativeBattleModelAliases aliases = services.CaptureAliases();
+        NativeBattleScriptedEffectMemory written = saved.Length <= byte.MaxValue
+            ? frame.Core.Write(header + 0x17A, [(byte)saved.Length])
+            : frame.Core.MarkUnknown(header + 0x17A, 1);
+        int projectedCount = saved.All(owner => aliases.TryEncodeExact(owner, out _)) ? Math.Min(saved.Length, 7) : Math.Min(saved.Length, 6);
+        for (int index = projectedCount - 1; index >= 0; index--)
         {
-            throw new InvalidDataException("Hosted ring context requires an aligned model in its captured graphics bank.");
+            written = WriteActor(written, header + 0x174 + (uint)index, saved[index], aliases);
         }
-        NativeBattleCinematicActorContext updated = context.WithSavedActors(saved).WithCurrentActors([(byte)minimum]);
-        NativeBattleScriptedEffectMemory core = frame.Core.Write(header + 0x17A, [checked((byte)saved.Length)]);
-        if (!saved.IsEmpty)
-        {
-            core = core.Write(header + 0x174, saved.AsSpan()[..Math.Min(saved.Length, 6)]);
-        }
-        core = core.Write(header + 0x48, [(byte)minimum]).Write(header + 0x41, [1]);
-        frame = frame with { Core = core with { PresentationActors = updated }, Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [(byte)minimum]) };
+        written = WriteActor(written, header + 0x48, minimum, aliases).Write(header + 0x41, [1]);
+        frame = frame with { Core = written with { PresentationActors = updated } };
+        frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, minimum, aliases);
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
 
-    private static byte PhysicalIndex(uint pointer)
+    internal static NativeBattleScriptedEffectMemory WriteActor(NativeBattleScriptedEffectMemory core, uint address, BattleModelOwner actor, NativeBattleModelAliases aliases)
     {
-        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? (byte)row : throw new InvalidDataException("Native ring context requires one of the seven aligned physical graphics models.");
+        return aliases.EncodeOperand(actor, 1) is { } encoded ? core.Write(address, encoded.AsSpan()) : core.MarkUnknown(address, 1);
     }
-
-    private static NativeBattleWaterExecutionFrame CoreByte(NativeBattleWaterExecutionFrame frame, uint address, byte value) => frame with { Core = frame.Core.Write(address, new byte[] { value }) };
 }

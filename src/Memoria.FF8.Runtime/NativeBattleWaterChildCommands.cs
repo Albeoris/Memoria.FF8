@@ -5,19 +5,28 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Finite physical-slot creation and secondary instruction-stream attachment.</summary>
 public static class NativeBattleWaterChildCommands
 {
-    public static NativeBattleWaterExecutionFrame Execute5D(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
+    public static NativeBattleWaterExecutionFrame Execute5D(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint? incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected, NativeBattleModelAliases aliases)
     {
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
-        int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: header);
+        int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, header);
         for (int index = 0; index < count; index++)
         {
             frame = Spawn(frame, program, bank, incomingEcx, updateSelected);
             uint temporary = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797624);
             header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
             uint pointer = frame.ReadTemporaryDword(0xFC);
-            byte actor = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, header);
-            frame = WriteAddressedByte(frame, unchecked(pointer + 0x1B), actor);
-            incomingEcx = (temporary & 0xFFFFFF00) | actor;
+            BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, header);
+            uint destination = unchecked(pointer + 0x1B);
+            bool encoded = aliases.TryEncodeExact(actor, out byte alias);
+            if ((ulong)destination - NativeBattleEffectNodeMemory.ArenaAddress < (ulong)NativeBattleEffectArena.Length)
+            {
+                frame = frame with { Arena = frame.Arena.WriteExecutionReference(NativeBattleWaterExecutionFields.ArenaOffset(destination, 1), 1, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 1)) };
+            }
+            else
+            {
+                frame = WriteAddressedByte(frame, destination, encoded ? alias : throw new NotSupportedException("Cinematic child capacity spill requires an exact original actor operand."));
+            }
+            incomingEcx = encoded ? (temporary & 0xFFFFFF00) | alias : null;
             frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450) - 4));
         }
         return NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450) + 4));
@@ -82,7 +91,7 @@ public static class NativeBattleWaterChildCommands
         }
     }
 
-    public static NativeBattleWaterExecutionFrame Spawn(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
+    public static NativeBattleWaterExecutionFrame Spawn(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint? incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
     {
         uint pc = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450);
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
@@ -93,7 +102,7 @@ public static class NativeBattleWaterChildCommands
         }
         if (frame.Core.Read(0x2797454 + (uint)capacity - 1, 1)[0] != 0xFF)
         {
-            frame = frame.WriteTemporaryDword(0xFC, incomingEcx);
+            frame = frame.WriteTemporaryDword(0xFC, incomingEcx ?? throw new NotSupportedException("Cinematic child capacity spill requires an exact original register byte."));
             return NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(pc + 4));
         }
         int orderIndex = 0;
@@ -137,7 +146,10 @@ public static class NativeBattleWaterChildCommands
         CopyParent(0x58, 0x58, 4);
         CopyParent(0x18, 0x18, 1);
         CopyParent(0x48, 0x48, 2);
-        CopyParent(0x1B, 0x1B, 1);
+        int parentActorOffset = NativeBattleWaterExecutionFields.SlotOffset(frame, 0x1B, 1);
+        BattleExecutionReference.Model parentActor = frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(parentActorOffset, 1);
+        var actorSnapshot = frame.Arena.ReadSnapshot(parentActorOffset, 1);
+        frame = frame with { Arena = frame.Arena.WriteExecutionReference(childOffset + 0x1B, 1, parentActor, actorSnapshot.Known[0] ? [actorSnapshot.Data[0]] : null) };
         CopyParent(0xB0, 0xB0, 4);
         CopyParent(0xB4, 0xB4, 4);
         CopyParent(0x12, 0x14, 2);

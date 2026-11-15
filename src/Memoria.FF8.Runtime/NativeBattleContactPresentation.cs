@@ -4,7 +4,7 @@ public sealed record NativeBattleContactPresentation(byte Sequence, byte Flags2,
 
 public static class NativeBattleContactPresentations
 {
-    public static NativeBattleContactPresentation Complete(byte kernelSequence, byte flags2, byte hitFlags3, byte attackClass, byte specialSource)
+    public static NativeBattleContactPresentation Complete(byte kernelSequence, byte flags2, byte hitFlags3, byte attackClass, bool covered)
     {
         //48FE20 common tail, after the formula/status consumers have produced ADC/ADD/ADE.
         byte sequence = kernelSequence;
@@ -31,16 +31,8 @@ public static class NativeBattleContactPresentations
         {
             sequence = 5;
         }
-        if (specialSource != 255)
+        if (covered)
         {
-            //1D28E19's native linked source branch owns these high bits; other values preserve existing bits.
-            hitFlags3 = specialSource switch
-            {
-                0 => (byte)(hitFlags3 & 0x3F),
-                1 => (byte)(hitFlags3 & 0x3F | 0x40),
-                2 => (byte)(hitFlags3 & 0x3F | 0x80),
-                _ => hitFlags3
-            };
             sequence = 22;
             hitFlags3 |= 8;
         }

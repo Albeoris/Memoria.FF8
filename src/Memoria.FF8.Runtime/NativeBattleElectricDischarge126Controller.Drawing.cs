@@ -6,7 +6,7 @@ public static partial class NativeBattleElectricDischarge126Controller
 {
     public static (NativeBattleElectricDischarge126Frame Frame, int Result) AdvanceAct(NativeBattleElectricDischarge126Frame frame, uint address, NativeBattleElectricDischarge126Resources resources, NativeBattleElectricDischarge126Inputs inputs)
     {
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         NativeBattleElectricDischarge126AnchorStep anchor = inputs.ReadAnchor571400(frame, caster);
         frame = anchor.Frame;
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, BitConverter.GetBytes(anchor.Anchor.X)).Write(2, BitConverter.GetBytes(unchecked((short)(anchor.Anchor.Y + 200)))).Write(4, BitConverter.GetBytes(anchor.Anchor.Z)).Write(6, BitConverter.GetBytes(anchor.Anchor.W)).Write(8, BitConverter.GetBytes(Working(frame) + MorphOffset));
@@ -18,16 +18,12 @@ public static partial class NativeBattleElectricDischarge126Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        byte actor = task.ReadByte(15);
-        if (actor != 255 && age <= 4)
+        BattleModelOwner? owner = task.ReadExecutionReference<BattleExecutionReference.TrailTarget>(15, 1).Owner;
+        if (owner is { } actor && age <= 4)
         {
-            if (actor >= 3)
-            {
-                throw new NotSupportedException("Electric Discharge sprite color owner leaves its native saved three-party rows.");
-            }
             frame = inputs.Execute(frame, new NativeBattleElectricDischarge126ActorFlags(actor, 0, 0x800));
             short ratio = unchecked((short)NativeBattleCameraMath.Sine(age << 8));
-            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126BlendActorColor(actor, frame.State.ReadDword(SavedColorsGlobal + (uint)(actor * 4)), resources.ActorColor, unchecked((short)(4096 - ratio)), ratio));
+            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126BlendActorColor(actor, frame.State.ReadSavedColor(actor), resources.ActorColor, unchecked((short)(4096 - ratio)), ratio));
         }
         short scale = Signed(task, 0x16);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), Vector(task, 0x10), scale, scale, unchecked((short)-(scale >> 2))) };

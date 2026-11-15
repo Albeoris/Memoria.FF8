@@ -63,7 +63,7 @@ public static class NativeBattleScanController
             }
             //571B50 returns the fixed effect-arena base, independently of571B80's allocation cursor.
             current = current with { State = current.State with { CurrentDrawOffset = (task.ReadWord(0x5C) & 1) != 0 ? 0 : 0x4000 } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

@@ -14,8 +14,8 @@ public static partial class NativeBattleRenzokukenSpecialController
         bool advance = (inputs.GraphicsFlags & 0x201) == 0;
         if (advance && counter <= emissionLastFrame)
         {
-            Func<byte, int, short, NativeBattleVector> read = inputs.ReadBone ?? throw new NotSupportedException("Native target sprites require their original body-bone endpoints.");
-            byte target = checked((byte)state.Core.FirstTarget);
+            Func<BattleModelOwner, int, short, NativeBattleVector> read = inputs.ReadBone ?? throw new NotSupportedException("Native target sprites require their original body-bone endpoints.");
+            BattleModelOwner target = NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect);
             NativeBattleVector end;
             (int X, int Y, int Z) direction = default;
             if (random335)

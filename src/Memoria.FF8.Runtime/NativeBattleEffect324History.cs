@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect324History
 {
-    public static NativeBattleEffect324Frame Capture597750(NativeBattleEffect324Frame frame, uint model, uint destination, NativeBattleEffect324Inputs inputs)
+    public static NativeBattleEffect324Frame Capture597750(NativeBattleEffect324Frame frame, BattleModelOwner model, uint destination, NativeBattleEffect324Inputs inputs)
     {
         ImmutableArray<NativeBattlePackedMatrix32> bones = inputs.ReadCurrentBoneMatrices32(frame, model);
         for (int index = 0; index < bones.Length; index++)
@@ -16,7 +16,7 @@ public static class NativeBattleEffect324History
         return frame;
     }
 
-    public static NativeBattleEffect324Frame Restore597790(NativeBattleEffect324Frame frame, uint model, uint source, NativeBattleEffect324Inputs inputs)
+    public static NativeBattleEffect324Frame Restore597790(NativeBattleEffect324Frame frame, BattleModelOwner model, uint source, NativeBattleEffect324Inputs inputs)
     {
         int count = inputs.ReadCurrentBoneMatrices32(frame, model).Length;
         ImmutableArray<NativeBattlePackedMatrix32>.Builder bones = ImmutableArray.CreateBuilder<NativeBattlePackedMatrix32>(count);
@@ -31,7 +31,7 @@ public static class NativeBattleEffect324History
     public static NativeBattleEffect324Step Advance(NativeBattleEffect324Frame frame, uint address, NativeBattleEffect324Inputs inputs)
     {
         int age = Signed(Read(frame, address), 12);
-        uint model = Caster324(frame);
+        BattleModelOwner model = Caster324(frame);
         if (age == 0)
         {
             frame = Capture597750(frame, model, 0x22010A8, inputs);

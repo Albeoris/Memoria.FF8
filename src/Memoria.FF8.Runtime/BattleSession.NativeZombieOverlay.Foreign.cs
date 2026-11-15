@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeForeignZombieOverlay(NativeBattleGraphicsState graphics, int index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect, NativeBattlePilotVisualIdentity identity, NativeBattleForeignModelGeometry geometry)
+    private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeForeignZombieOverlay(NativeBattleGraphicsState graphics, BattleModelOwner index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect, NativeBattlePilotVisualIdentity identity, NativeBattleForeignModelGeometry geometry)
     {
         var parameters = NativeBattleZombieDrawing.OverlayParameters(age, reach);
         geometry = geometry with { World = geometry.World with { Y = unchecked(geometry.World.Y + parameters.Lift) } };

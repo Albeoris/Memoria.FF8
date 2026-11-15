@@ -296,7 +296,7 @@ public sealed partial class BattleSession
                 if (routedContact is not null)
                 {
                     StoreNativeAttackClass(recipient, routedContact.AttackClass);
-                    NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(routedContact.Sequence, 0, 0, routedContact.AttackClass, routedContact.SpecialSource);
+                    NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(routedContact.Sequence, 0, 0, routedContact.AttackClass, routedContact.CoverSource is not null);
                     routedContact.Sequence = presentation.Sequence;
                     routedContact.Flags = presentation.Flags2;
                     routedContact.HitFlags = presentation.HitFlags3;

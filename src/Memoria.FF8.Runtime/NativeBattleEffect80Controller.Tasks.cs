@@ -43,7 +43,7 @@ public static partial class NativeBattleEffect80Controller
                 frame = NativeBattleEffect80Programme.Initialize7016B0(frame, address, task.ReadDword(0x74), unchecked((int)task.ReadDword(0x78)), resources);
                 task = Read(frame, address).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x88, second ? (ushort)0xFC00 : (ushort)0);
                 frame = Write(frame, address, task);
-                frame = second ? WriteBytes(frame, address + 0x1C, inputs.ReadPosition8(frame, task.ReadByte(0x2C)), 8) : PositionAct7AC060(frame, address, Signed(task, 0x84), resources, inputs);
+                frame = second ? WriteBytes(frame, address + 0x1C, inputs.ReadPosition8(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner), 8) : PositionAct7AC060(frame, address, Signed(task, 0x84), resources, inputs);
                 frame = NativeBattleEffect80Programme.Draw7AC0B0(frame, address, resources, inputs).Frame;
                 frame = NextPhase(frame, address);
                 break;
@@ -73,7 +73,7 @@ public static partial class NativeBattleEffect80Controller
     public static NativeBattleEffect80Frame PositionAct7AC060(NativeBattleEffect80Frame frame, uint address, short age, NativeBattleEffect80Resources resources, NativeBattleEffect80Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        frame = WriteBytes(frame, address + 0x1C, inputs.ReadPosition8(frame, task.ReadByte(0x2C)), 8);
+        frame = WriteBytes(frame, address + 0x1C, inputs.ReadPosition8(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner), 8);
         int index = age >= 0x78 ? 0x77 : age;
         short offset = BinaryPrimitives.ReadInt16LittleEndian(resources.ReadStatic(unchecked((uint)((long)AgeTableAddress + 2 * index)), 2).AsSpan());
         task = Read(frame, address);
@@ -107,7 +107,7 @@ public static partial class NativeBattleEffect80Controller
 
     private static NativeBattleEffect80Frame BirthPointParticle7AE740(NativeBattleEffect80Frame frame, uint address, NativeBattleEffect80Inputs inputs)
     {
-        frame = inputs.Execute(frame, new NativeBattleEffect80Point502170(PhysicalModelAddress(Read(frame, address).ReadByte(0x2D)), 0xF1, address + 0x1C));
+        frame = inputs.Execute(frame, new NativeBattleEffect80Point502170(Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 0xF1, address + 0x1C));
         (frame, uint child) = AppendHierarchy(frame, 5, 0x7AE7D0, 0xA0, address, inputs);
         frame = WriteBytes(frame, child + 0x5C, TaskView(Read(frame, address), 0x1C, 8), 8);
         NativeBattleModulePoolTask task = Read(frame, child);

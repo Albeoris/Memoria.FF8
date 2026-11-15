@@ -175,7 +175,6 @@ public static partial class NativeBattleEffect80Controller
 
     public static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     public static NativeBattleVector Vector(NativeBattleEffectArena point) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2)));
-    public static uint PhysicalModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect80 requires an actual physical model row.");
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect80Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect80 requires its actual captured parameters.");
     private static bool IsStateRange(uint address, int length) => OwnedRanges.Any(range => Contains(range.Address, range.Length, address, length)) || NodeSourceLengths.Any(range => Contains(range.Key, range.Value, address, length)) || InitializedSourceLengths.Any(range => Contains(range.Key, range.Value, address, length));
     private static bool Contains(uint start, int extent, uint address, int length) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)extent;

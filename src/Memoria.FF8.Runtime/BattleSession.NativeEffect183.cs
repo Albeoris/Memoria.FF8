@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect183 ?? throw new InvalidDataException("Effect183 external service lost its retained storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect183 external service lost its temporary memory.") };
         }
 
-        NativeBattleEffect183PointStep Bone(NativeBattleEffect183Frame current, int actor, int selector, int distance)
+        NativeBattleEffect183PointStep Bone(NativeBattleEffect183Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect183 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleEffect183PointStep Anchor(NativeBattleEffect183Frame current, int actor)
+        NativeBattleEffect183PointStep Anchor(NativeBattleEffect183Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleEffect183ContactFirst contact:
                     Publish(current);
-                    int first = nativeActionPackets.Headers[contact.HeaderIndex].FirstContactIndex ?? throw new NotSupportedException("Effect183 requires its first captured contact.");
+                    BattleContactCursor first = nativeActionPackets.ReadHeader(contact.Header).FirstContact;
                     var pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                     graphics = graphics with { PendingContacts = pending };

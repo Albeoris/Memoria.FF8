@@ -7,11 +7,9 @@ public readonly record struct NativeBattleCinematicPoseTranslation(short Scale, 
 
 public static class NativeBattleCinematicPosePosition9
 {
-    public static NativeBattleWaterExecutionFrame Update(NativeBattleWaterExecutionFrame frame, Func<uint, NativeBattleCinematicPoseTranslation> readCurrentPose)
+    public static NativeBattleWaterExecutionFrame Update(NativeBattleWaterExecutionFrame frame, Func<BattleModelOwner, NativeBattleCinematicPoseTranslation> readCurrentPose)
     {
-        uint directory = CoreDword(frame, 0x279744C);
-        byte selector = ReadSlot(frame, 0x1B, 1)[0];
-        uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, selector, directory);
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         NativeBattleCinematicPoseTranslation pose = readCurrentPose(actor);
         uint block = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xA0, 4));
         ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(ArenaOffset(block, 2), 2));

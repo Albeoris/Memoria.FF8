@@ -2,12 +2,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed class NativeContactWorking(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction action, byte specialSource, byte? presentationRow = null)
+    private sealed class NativeContactWorking(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction action, BattleModelOwner? coverSource)
     {
         public BattleCombatant Actor { get; } = actor;
         public BattleCombatant Recipient { get; } = recipient;
         public BattleNativeAction Action { get; } = action;
-        public byte PrimaryIndex { get; } = presentationRow ?? checked((byte)recipient.EncodeNativeSlot());
+        public BattleModelOwner PrimaryOwner { get; } = CreatePresentationModelOwner(recipient);
         public byte Sequence { get; set; } = action.DamagePresentation;
         public byte Flags { get; set; }
         public byte HitFlags { get; set; }
@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         public BattleDiagnosticCounterPrimary? DiagnosticPrimary { get; set; }
         public (ushort Saved, uint Battle)? PrimaryStatusSnapshot { get; set; }
         public byte AttackClass { get; set; } = (byte)(action.AttackFlags & 3);
-        public byte SpecialSource { get; } = specialSource;
+        public BattleModelOwner? CoverSource { get; } = coverSource;
         public NativeBattleContactHalf? Secondary { get; set; }
         public bool CommittingSecondary { get; set; }
         public bool EncounterRedirectedDamage { get; set; }
@@ -28,30 +28,25 @@ public sealed partial class BattleSession
 
     private NativeContactWorking? nativeContactWorking;
 
-    private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native, byte? presentationRow = null)
+    private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
     {
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), 255);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), covered: false);
         RefreshNativePresentationStatus(recipient);
         (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
-        NativeBattleContactHalf primary = new(presentationRow ?? checked((byte)recipient.EncodeNativeSlot()), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
-        return new(primary, new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleContactHalf primary = new(CreatePresentationModelOwner(recipient), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
+        return new(primary, null);
     }
 
     private void ResolveInstalledNativeHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
-        ResolveInstalledNativeHit(actor, recipient, command, action, native, 255);
-    }
-
-    private void ResolveInstalledNativeHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource)
-    {
-        NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, specialSource);
+        NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native);
         if (NativeGraphics is not null)
         {
             QueueNativeContactPacket(packet);
         }
     }
 
-    private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource, bool preliminary = false, byte? presentationRow = null)
+    private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleModelOwner? coverSource = null, bool preliminary = false)
     {
         DecrementNativeRemainingHits(recipient);
         bool? deferred = native.Command switch
@@ -63,7 +58,7 @@ public sealed partial class BattleSession
         };
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred };
         NativeContactWorking? previous = nativeContactWorking;
-        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource, presentationRow) { DiagnosticPreliminary = preliminary };
+        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, coverSource) { DiagnosticPreliminary = preliminary };
         byte attackClass = preliminary || native.Command is 0 or 14 or 238 or 246 or 252 || native.Command == 241 && native.ActionId is 65530 or 65532 ? (byte)3 : native.Command is 1 or 12 or 28 or 243 or 248 or 251 or 253 ? (byte)0 : (byte)(native.AttackFlags & 3);
         if (native.Command == 6 && command.NativeDraw is not null && !command.DrawCast)
         {
@@ -114,13 +109,13 @@ public sealed partial class BattleSession
     private static NativeBattleContactPacket BuildNativeContactPacket(NativeContactWorking contact)
     {
         (ushort saved, uint battle) = contact.PrimaryStatusSnapshot ?? NativeContactStatusMirror(contact.Recipient);
-        NativeBattleContactHalf primary = NativeBattleContactHalf.FromScratch(contact.PrimaryIndex, contact.Sequence, contact.Flags, contact.HitFlags, saved, contact.Magnitude, battle);
+        NativeBattleContactHalf primary = NativeBattleContactHalf.FromScratch(contact.PrimaryOwner, contact.Sequence, contact.Flags, contact.HitFlags, saved, contact.Magnitude, battle, contact.CoverSource);
         if (contact.Magnitude > short.MaxValue && (contact.HitFlags & 1) == 0)
         {
             primary = primary with { ExtendedDamageAmount = contact.Magnitude };
         }
-        NativeBattleContactHalf secondary = contact.Secondary ?? new(255, 0, 0, 0, 0, 0, 0);
-        if (contact.Secondary is not null)
+        NativeBattleContactHalf? secondary = contact.Secondary;
+        if (secondary is not null)
         {
             (ushort secondarySaved, uint secondaryBattle) = NativeContactStatusMirror(contact.Actor);
             secondary = secondary with { SavedStatuses4 = secondarySaved, BattleStatuses8 = secondaryBattle };
@@ -207,7 +202,7 @@ public sealed partial class BattleSession
         {
             RemoveNativeStatuses(contact.Recipient, 0, 0x800000);
         }
-        NativeBattleContactPresentation result = NativeBattleContactPresentations.Complete(contact.Sequence, contact.Flags, contact.HitFlags, contact.AttackClass, contact.SpecialSource);
+        NativeBattleContactPresentation result = NativeBattleContactPresentations.Complete(contact.Sequence, contact.Flags, contact.HitFlags, contact.AttackClass, contact.CoverSource is not null);
         contact.Sequence = result.Sequence;
         contact.Flags = result.Flags2;
         contact.HitFlags = result.HitFlags3;
@@ -241,7 +236,7 @@ public sealed partial class BattleSession
         if (nativeContactWorking is { } contact)
         {
             contact.PrimaryStatusSnapshot = NativeContactStatusMirror(contact.Recipient);
-            contact.Secondary = NativeBattleContactHalf.FromScratch(UsesExpandedRoster ? ExpandedPresentationRow(actor) : checked((byte)actor.EncodeNativeSlot()), 0, 0, healing ? (byte)1 : (byte)0, 0, damage, 0);
+            contact.Secondary = NativeBattleContactHalf.FromScratch(CreatePresentationModelOwner(actor), 0, 0, healing ? (byte)1 : (byte)0, 0, damage, 0);
             contact.CommittingSecondary = true;
         }
     }

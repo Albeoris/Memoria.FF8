@@ -21,7 +21,7 @@ public static class NativeBattleDoomtrain191Controller
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Doomtrain requires its established571B50 arena.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        int actor = inputs.Packets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner actor = inputs.Packets.ReadContact(first).Primary.Recipient;
         int[] offsets = [0x2E000, 0x2F000, 0x30000, 0x31000, 0x32000, 0x33000];
         int[] counts = [170, 170, 150, 120, 130, 590];
         for (int pool = 0; pool < offsets.Length; pool++)
@@ -45,7 +45,7 @@ public static class NativeBattleDoomtrain191Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 0x24, 100);
         (children, int childSlot) = children.Append(0x63F2D0);
         children = Put(children, childSlot, children.Slots[childSlot].WriteWord(0xC, 0));
-        state = state with { BaseMatrix = Pack(rotation, state.BaseMatrix, true), ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress, WorkPointers = offsets.Append(0x37000).Select(value => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)value)).ToImmutableArray(), Caster = parameters.Source, FirstTarget = actor, LookupCounter = 0 };
+        state = state with { BaseMatrix = Pack(rotation, state.BaseMatrix, true), ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress, WorkPointers = offsets.Append(0x37000).Select(value => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)value)).ToImmutableArray(), Targets = [], ActorSnapshots = state.ActorSnapshots.Clear(), Knockback = state.Knockback.Clear(), LookupCounter = 0 };
         return new(memory with { Arena = arena, Textures = textures, Doomtrain191 = state }, effect with { Pools = [main, children], ReturnedDescriptor = MainDescriptor }, random);
     }
 
@@ -230,19 +230,19 @@ public static class NativeBattleDoomtrain191Controller
             NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
             int count = header.ReadContactCount();
-            int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain target capture requires its current contact pointer.");
-            List<int> targets = [];
+            BattleContactCursor first = header.FirstContact;
+            List<BattleModelOwner> targets = [];
             for (int contact = 0; contact < count; contact++)
             {
-                int source = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
+                BattleModelOwner source = inputs.Packets.ReadContact(first.Advance(contact)).Primary.Recipient;
                 if (targets.Contains(source))
                 {
                     continue;
                 }
                 targets.Add(source);
-                HashSet<int> visited = [source];
-                int? linked = inputs.ReadModel(source).ReadLinkedModelIndex140();
-                while (linked is int actor && actor != source)
+                HashSet<BattleModelOwner> visited = [source];
+                BattleModelOwner? linked = inputs.ReadModel(source).ReadLinkedModel();
+                while (linked is BattleModelOwner actor && actor != source)
                 {
                     if (!visited.Add(actor))
                     {
@@ -253,11 +253,11 @@ public static class NativeBattleDoomtrain191Controller
                     {
                         targets.Add(actor);
                     }
-                    linked = model.ReadLinkedModelIndex140() ?? throw new InvalidDataException("Native Doomtrain linked-model ring dereferenced NULL before its source.");
+                    linked = model.ReadLinkedModel() ?? throw new InvalidDataException("Native Doomtrain linked-model ring dereferenced NULL before its source.");
                 }
             }
-            ImmutableArray<NativeBattleDoomtrain191ActorSnapshot?> snapshots = State().ActorSnapshots;
-            foreach (int actor in targets)
+            ImmutableDictionary<BattleModelOwner, NativeBattleDoomtrain191ActorSnapshot> snapshots = State().ActorSnapshots;
+            foreach (BattleModelOwner actor in targets)
             {
                 NativeBattleModelTransform transform = inputs.ReadModel(actor).Transform ?? throw new NotSupportedException("Native Doomtrain requires each captured actor's current position and scale.");
                 snapshots = snapshots.SetItem(actor, new(RawVector(transform.Position28, transform.Vertical34), RawVector(transform.Scale148, transform.Scale154)));

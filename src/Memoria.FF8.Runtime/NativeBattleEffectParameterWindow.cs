@@ -21,18 +21,7 @@ internal sealed record NativeBattleEffectParameterWindow(ImmutableArray<byte> By
             bytes[0] = source;
             known |= 0x01;
         }
-        ushort mask = 0;
-        bool targetsEncodable = true;
-        foreach (BattleModelOwner target in parameters.TargetActors.Enumerate())
-        {
-            if (!aliases.TryEncodeExact(target, out byte operand))
-            {
-                targetsEncodable = false;
-                break;
-            }
-            mask |= (ushort)(1 << operand);
-        }
-        if (targetsEncodable)
+        if (aliases.EncodeTargetMask(parameters.TargetActors) is ushort mask)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), mask);
             known |= 0x0C;

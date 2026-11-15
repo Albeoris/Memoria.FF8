@@ -3,11 +3,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicActorCommandServices(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> DisableMenu, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> BeginOutcome, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> ResetStanding);
+public sealed record NativeBattleCinematicActorCommandServices(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> DisableMenu, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> BeginOutcome, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterExecutionFrame> ResetStanding);
 
 public static class NativeBattleCinematicActorCommands77
 {
-    public static NativeBattleWaterExecutionFrame BranchBE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<uint, byte> readModelFlags)
+    public static NativeBattleWaterExecutionFrame BranchBE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<BattleModelOwner, byte> readModelFlags)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         if ((instruction & 0x1FF) != 0xBE)
@@ -36,10 +36,8 @@ public static class NativeBattleCinematicActorCommands77
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
 
-    private static uint SelectedActor(NativeBattleWaterExecutionFrame frame)
+    private static BattleModelOwner SelectedActor(NativeBattleWaterExecutionFrame frame)
     {
-        byte slot = ReadSlot(frame, 0x1B, 1)[0];
-        uint directory = CoreDword(frame, 0x279744C);
-        return NativeBattleCinematicActorAccess.ReadModelPointer(frame, slot, directory);
+        return NativeBattleCinematicActorAccess.ReadSlotActor(frame);
     }
 }

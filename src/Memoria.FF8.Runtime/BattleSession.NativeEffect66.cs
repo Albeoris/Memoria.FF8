@@ -31,12 +31,12 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory latest = NativeEffectMemory ?? throw new InvalidDataException("Effect66 service lost its current memory.");
             return current with { Memory = latest, State = latest.Effect66 ?? throw new InvalidDataException("Effect66 service lost its storage."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Effect66 service lost its CRT stream.") };
         }
-        NativeBattlePoseSource PoseSource(NativeBattleEffect66Frame current, int actor)
+        NativeBattlePoseSource PoseSource(NativeBattleEffect66Frame current, BattleModelOwner actor)
         {
             NativeFileStaging = current.Staging;
             return NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect66 requires its current physical skeleton.");
         }
-        NativeBattleEffect66PointStep ReadBone(NativeBattleEffect66Frame current, int actor, int bone, int distance, NativeBattleEffectArena retained)
+        NativeBattleEffect66PointStep ReadBone(NativeBattleEffect66Frame current, BattleModelOwner actor, int bone, int distance, NativeBattleEffectArena retained)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(current, actor), checked((byte)bone), checked((short)distance));
             NativeFileStaging = current.Staging;
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Flags = (graphics.Flags & flags.AndMask) | flags.OrMask };
                     return current;
                 case NativeBattleEffect66Sequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleEffect66Sound501330 sound:
                     Publish(current);
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect66DrawBody176 body:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect66Frame bodyFrame) = DrawNativeEffect66Body(graphics, current, body.TemporaryAddress, resources, inputs, body.PilotIdentity);
-                    graphics = graphics with { ActorModels = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.ActorModels };
                     return bodyFrame;
                 case NativeBattleEffect66DrawStageBody44 stage:
                     (NativeBattleGraphicsState stageGraphics, NativeBattleEffect66Frame stageFrame) = DrawNativeEffect66Stage(graphics, current, stage.TemporaryAddress, stage.PilotIdentity);

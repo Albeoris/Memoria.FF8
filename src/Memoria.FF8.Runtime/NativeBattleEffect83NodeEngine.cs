@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect83NodeStep(NativeBattleEffect83Frame Frame, int Result);
-public sealed record NativeBattleEffect83ObserveBone(int Actor, byte Selector) : NativeBattleEffect83Operation;
+public sealed record NativeBattleEffect83ObserveBone(BattleModelOwner Actor, byte Selector) : NativeBattleEffect83Operation;
 
 public static class NativeBattleEffect83NodeEngine
 {

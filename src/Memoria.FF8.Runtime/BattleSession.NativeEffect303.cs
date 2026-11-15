@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         effect = effect with { PresentationPackets = [] };
         NativeBattleEffect303Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect303 requires its current CRT random owner."), memory.Effect303 ?? throw new NotSupportedException("Effect303 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect303 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect303 requires its original arithmetic constants.");
-        NativeBattleEffect303Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), ReadModelWorld, ReadCurrentBone, _ => nativeActionPackets, Execute, StartVibration, PollIo);
+        NativeBattleEffect303Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), ReadModelWorld, ReadCurrentBone, _ => nativeActionPackets, Execute, StartVibration, PollIo);
         frame = initialize ? NativeBattleEffect303Controller.Initialize(frame, resources, inputs) : NativeBattleEffect303Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -24,27 +24,18 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect303 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect303 requires its current projection.");
-        NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Effect303 requires its actual current skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect303 requires its actual current skeleton.");
 
-        int Actor(uint pointer)
+        NativeBattlePackedMatrix32 ReadModelWorld(NativeBattleEffect303Frame current, BattleModelOwner actor)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect303 requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
-
-        NativeBattlePackedMatrix32 ReadModelWorld(NativeBattleEffect303Frame current, uint pointer)
-        {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             return NativeBattlePackedMatrix32.FromMatrix(model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect303 requires its current model world matrix."), null);
         }
 
-        NativeBattlePackedMatrix32 ReadCurrentBone(NativeBattleEffect303Frame current, uint pointer, int bone)
+        NativeBattlePackedMatrix32 ReadCurrentBone(NativeBattleEffect303Frame current, BattleModelOwner actor, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, PoseSource(actor));
             if ((uint)bone >= (uint)bones.Length)
             {
                 throw new InvalidDataException("Effect303 bone selector leaves its actual current rig.");
@@ -120,11 +111,10 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleEffect303Profile.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleEffect303Frame RestorePose(NativeBattleEffect303Frame current, uint pointer)
+        NativeBattleEffect303Frame RestorePose(NativeBattleEffect303Frame current, BattleModelOwner actor)
         {
-            int actor = Actor(pointer);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Effect303 pose restoration requires its temporary memory."), 88);
-            NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), PoseSource(pointer), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+            NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), PoseSource(actor), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
             return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
@@ -200,18 +190,18 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect303CopyPackedPosition copy:
-                    NativeBattleModelTransform source = graphics.ActorModels.Get(Actor(copy.SourceModel)).Transform ?? throw new NotSupportedException("Effect303 requires the source packed position owner.");
-                    int targetIndex = Actor(copy.TargetModel);
+                    NativeBattleModelTransform source = graphics.ActorModels.Get(copy.SourceModel).Transform ?? throw new NotSupportedException("Effect303 requires the source packed position owner.");
+                    BattleModelOwner targetIndex = copy.TargetModel;
                     NativeBattleGraphicsModel target = graphics.ActorModels.Get(targetIndex);
                     NativeBattleModelTransform destination = target.Transform ?? throw new NotSupportedException("Effect303 requires the target packed position owner.");
                     target = target with { Transform = destination with { Position28 = source.Position28, Vertical34 = source.Vertical34 } };
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(targetIndex, target) };
                     return current;
                 case NativeBattleEffect303SelectSequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)Actor(sequence.ModelAddress)), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Model, sequence.Sequence);
                     return current;
                 case NativeBattleEffect303EnterSequence508F90 enter:
-                    int enteringActor = Actor(enter.ModelAddress);
+                    BattleModelOwner enteringActor = enter.Model;
                     NativeBattleGraphicsModel entering = graphics.ActorModels.Get(enteringActor);
                     NativeBattleSequenceState control = entering.SequenceState ?? throw new NotSupportedException("Effect303 requires the recipient's actual animation control.");
                     byte counter = control.PoseFrame114 ?? throw new NotSupportedException("Effect303 requires the actual decoded-frame counter.");
@@ -219,20 +209,20 @@ public sealed partial class BattleSession
                     if (counter < limit)
                     {
                         NativeBattlePoseProgress progress = new NativeBattlePoseProgress(control.Pose ?? throw new NotSupportedException("Effect303 requires the current animation selector."), counter, limit, control.PoseFlags109).Advance();
-                        control = control with { PoseFrame114 = progress.Frame, PoseFlags109 = progress.Flags, DecodedPose = PoseSource(enter.ModelAddress).Sample(progress.Pose, progress.Frame, progress.Flags) };
+                        control = control with { PoseFrame114 = progress.Frame, PoseFlags109 = progress.Flags, DecodedPose = PoseSource(enter.Model).Sample(progress.Pose, progress.Frame, progress.Flags) };
                         graphics = graphics with { ActorModels = graphics.ActorModels.Set(enteringActor, entering with { SequenceState = control }) };
                     }
                     return current;
                 case NativeBattleEffect303Activate487670 activation:
-                    graphics = QueueNativeDescriptor(graphics, 113, 0x487670, checked((ushort)Actor(activation.ModelAddress)));
+                    graphics = QueueNativeModelDescriptor(graphics, 113, 0x487670, activation.Model);
                     return current;
                 case NativeBattleEffect303ModelFields fields:
-                    int actor = Actor(fields.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
+                    BattleModelOwner modelOwner = fields.Model;
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(modelOwner);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelOwner, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
                     return current;
                 case NativeBattleEffect303RestorePose508C90 restore:
-                    return RestorePose(current, restore.ModelAddress);
+                    return RestorePose(current, restore.Model);
                 case NativeBattleEffect303DrawBody188 body:
                     (graphics, current) = DrawNativeEffect303Body(graphics, current, body);
                     return current;

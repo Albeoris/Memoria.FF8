@@ -25,26 +25,26 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Fated Circle requires its original color arithmetic.");
         NativeBattleFatedCircle162Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Fated Circle requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Fated Circle requires its entered physical resource bytes."), nativeCrtRandom ?? throw new NotSupportedException("Native Fated Circle requires its retained CRT random owner."));
         NativeBattlePilotVisualIdentity? drawingIdentity = null;
-        NativeBattleFatedCircle162Inputs inputs = new(graphics.Flags, nativeActionPackets, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Fated Circle requires its actual signed file IO result."), Anchor571400, Target5020A0, Bone240, actor => graphics.Models[actor], actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Fated Circle requires its actual target scaleWORD26."), Execute, Capture);
+        NativeBattleFatedCircle162Inputs inputs = new(graphics.Flags, nativeActionPackets, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Fated Circle requires its actual signed file IO result."), Anchor571400, Target5020A0, Bone240, actor => graphics.ActorModels.Get(actor), actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native Fated Circle requires its actual target scaleWORD26."), Execute, Capture);
         frame = NativeBattleFatedCircle162Controller.Advance5FD090(frame, Child, TextureLoad);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleModuleAnchor Anchor571400(byte actor)
+        NativeBattleModuleAnchor Anchor571400(BattleModelOwner actor)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            return anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires the actor angleWORD36.")).Angle36 };
+            return anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native571400 requires the actor angleWORD36.")).Angle36 };
         }
 
         NativeBattleModuleAnchor Target5020A0(BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native5020A0 requires each selected physical model position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native5020A0 requires each selected physical model position.")).ToArray());
             return new(center.X, center.Y, center.Z, 0);
         }
 
-        NativeBattleModuleAnchor Bone240(byte actor)
+        NativeBattleModuleAnchor Bone240(BattleModelOwner actor)
         {
             NativeBattleVector bone = ReadNativeGraphicsBone(graphics, actor, 240, 0);
             return new(bone.X, bone.Y, bone.Z, 0);
@@ -86,10 +86,10 @@ public sealed partial class BattleSession
             {
                 case NativeBattleFatedCircle162BindActor:
                     BattleModelOwner actor = (current.Effect.Parameters ?? throw new InvalidDataException("Native Fated Circle requires its entered parameters.")).Source;
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Fated Circle requires actual CPU resource rows."), model, 0x23CEA20, 0xDA0100);
                     NativeFileStaging = binding.Staging;
-                    graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(actor, binding.Model) }, actor, 1);
+                    graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(actor, binding.Model) }, actor, 1);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleFatedCircle162Sound sound:
                     PublishNativeModuleSound(new(sound.Address, 0x8000, null) { Pan = 128, RawPan = 128 });

@@ -36,8 +36,8 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Laser Eye requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Laser Eye requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Laser Eye requires its current actor skeleton.");
-        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Laser Eye requires its current actor skeleton.");
+        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, int target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
         NativeBattleLaserEye71LowerInputs LowerInputs() => new(Bone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Laser Eye requires its retained actor world matrix."), null), Look, _ => Camera().CapturePackedView1D97778(), SelectActors, Deliver, Projection(), colors);
 
         void Publish(NativeBattleLaserEye71Frame current)
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleLaserEye71PointStep Bone(NativeBattleLaserEye71Frame current, byte actor, byte selector, short distance)
+        NativeBattleLaserEye71PointStep Bone(NativeBattleLaserEye71Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeFileStaging = current.Staging;
             var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, distance);
@@ -75,14 +75,14 @@ public sealed partial class BattleSession
 
         NativeBattleLaserEye71Frame RefreshRoot(NativeBattleLaserEye71Frame current, uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleLaserEye71Controller.Read(current, address), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer), index => ReadNativeGraphicsForeignTarget(graphics, index), (index, selector) => current = Bone(current, checked((byte)index), selector, 0).Frame);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleLaserEye71Controller.Read(current, address), current.Effect.Parameters!, graphics.ActorModels.Get, PoseSource, producer => current = ObserveAnchor(current, producer), index => ReadNativeGraphicsForeignTarget(graphics, index), (index, selector) => current = Bone(current, index, selector, 0).Frame);
             return NativeBattleLaserEye71Controller.Write(current, address, task);
         }
 
         NativeBattleLaserEye71Frame PrepareTarget(NativeBattleLaserEye71Frame current, uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleLaserEye71Controller.Read(current, address), graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer), index => ReadNativeGraphicsForeignTarget(graphics, index), (index, selector) => current = Bone(current, checked((byte)index), selector, 0).Frame);
-            int actor = task.ReadByte(0x2D);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleLaserEye71Controller.Read(current, address), graphics.ActorModels.Get, PoseSource, producer => current = ObserveAnchor(current, producer), index => ReadNativeGraphicsForeignTarget(graphics, index), (index, selector) => current = Bone(current, index, selector, 0).Frame);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             if (ReadNativeGraphicsForeignTarget(graphics, actor) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
         {
             NativeBattleLaserEye71NodeInputs nodeInputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), PoseSource, Projection(), Camera().Roll, colors, Look, Deliver)
             {
-                ObserveBone = (value, actor, selector) => Bone(value, checked((byte)actor), selector, 0).Frame,
+                ObserveBone = (value, actor, selector) => Bone(value, actor, selector, 0).Frame,
                 ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector)
             };
             return NativeBattleLaserEye71Nodes.Advance(current, address, resources, nodeInputs);
@@ -160,10 +160,10 @@ public sealed partial class BattleSession
                 case NativeBattleLaserEye71Contact contact:
                     NativeBattleModulePoolTask task = NativeBattleLaserEye71Controller.Read(current, contact.TaskAddress);
                     BattleActionHeaderReference header = current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int index = checked((nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Laser Eye requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                    BattleContactCursor contactCursor = nativeActionPackets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contactCursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 default:

@@ -67,6 +67,13 @@ public sealed record NativeBattleEffect183State([property: JsonRequired] NativeB
         return this;
     }
 
+    internal BattleModelOwner ReadModelOperand(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    internal NativeBattleEffect183State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this with { Globals = globals };
+    }
+
     private static int PacketOffset(uint address, int length)
     {
         if (address < PacketBase || length < 0 || (ulong)address + (uint)length > (ulong)PacketBase + PacketBytes)

@@ -41,43 +41,7 @@ public sealed partial class BattleSession
         }
         NativeBattleCinematicActorContext context = core.PresentationActors is { } retained
             ? retained.RefreshCache(graphics.ActorModels)
-            : SeedHostedCinematicActors(core.ReadHeader(), NativeBattleCinematicActorContext.FromGraphics(graphics.ActorModels), graphics);
+            : NativeBattleWaterHeaderCapture.SeedRetainedActorFields(core.ReadHeader(), graphics.ActorModels, graphics.NativeBindings);
         NativeEffectMemory = NativeEffectMemory with { ScriptedEffects = core with { PresentationActors = context } };
-    }
-
-    private static NativeBattleCinematicActorContext SeedHostedCinematicActors(NativeBattleWaterHeader header, NativeBattleCinematicActorContext context, NativeBattleGraphicsState graphics)
-    {
-        ImmutableDictionary<BattleModelOwner, int?>.Builder ordinals = context.ActorOrdinals.ToBuilder();
-        Dictionary<byte, BattleModelOwner> originalOwners = [];
-        foreach (BattleModelOwner owner in graphics.ActorModels.Owners)
-        {
-            if (graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte slot))
-            {
-                originalOwners.Add(slot, owner);
-                if (header.Known[0xCC + slot] && header.Bytes[0xCC + slot] < graphics.ActorModels.Roster.Count)
-                {
-                    ordinals[owner] = header.Bytes[0xCC + slot];
-                }
-            }
-        }
-        context = context with { ActorOrdinals = ordinals.ToImmutable() };
-
-        if (!header.Known[0x17A] || header.Bytes[0x17A] > 6)
-        {
-            return context;
-        }
-        int savedCount = header.Bytes[0x17A];
-        ImmutableArray<BattleModelOwner>.Builder saved = ImmutableArray.CreateBuilder<BattleModelOwner>(savedCount);
-        for (int index = 0; index < savedCount; index++)
-        {
-            byte slot = header.Bytes[0x174 + index];
-            if (!header.Known[0x174 + index] || slot >= NativeBattleModelBoundary.CellCount ||
-                !originalOwners.TryGetValue(slot, out BattleModelOwner? owner))
-            {
-                return context;
-            }
-            saved.Add(owner);
-        }
-        return context.WithSavedActors(saved.MoveToImmutable());
     }
 }

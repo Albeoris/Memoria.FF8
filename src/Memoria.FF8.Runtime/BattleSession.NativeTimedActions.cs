@@ -78,9 +78,9 @@ public sealed partial class BattleSession
 
     private void PublishExpandedRenzokukenContact(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleNativeAction formula, bool deferred)
     {
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
-        _ = RequireExpandedPresentationRow(roster, actor);
-        byte row = RequireExpandedPresentationRow(roster, target);
+        BattleModelRoster roster = ReadBattlePresentationRoster();
+        _ = RequirePresentationModelOwner(roster, actor);
+        _ = RequirePresentationModelOwner(roster, target);
         BattleActionPresentation? previous = resolvingNativeAction;
         bool previousSuppression = suppressNativeImmediateCounter;
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred, Command = formula.Command };
@@ -89,7 +89,7 @@ public sealed partial class BattleSession
         try
         {
             BattleActionDefinition action = new(command.Ability, command.ActionId, formula.Command == 251 ? "Renzokuken" : formula.Name ?? "Renzokuken finisher", BattleActionEffect.Native, formula.Power, false) { NativeAction = formula };
-            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, resolvingNativeAction, action, formula, 255, presentationRow: row);
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, resolvingNativeAction, action, formula);
             CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
             PublishExpandedImpacts(command, [new(target.Id, packet)]);
         }
@@ -124,10 +124,10 @@ public sealed partial class BattleSession
         {
             BattleNativeAction control = actor.NativeAttack! with { Command = 5, ActionId = checked((ushort)command.ActionId), KernelSection = -1, KernelIndex = -1, MagicId = magicId, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, Statuses0 = 0, Statuses1 = 0, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
             BattleActionDefinition definition = new(command.Ability, command.ActionId, "Renzokuken", BattleActionEffect.Native, 0, false) { NativeAction = control };
-            int header = nativeActionPackets.ActionCount;
+            BattleActionHeaderReference header = nativeActionPackets.NextHeader;
             ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, definition);
             nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
-            nativeTimedAction = nativeTimedAction! with { Command = command with { NativeHeaderIndex = header } };
+            nativeTimedAction = nativeTimedAction! with { Command = command with { NativeHeader = header } };
             if (finisher is byte selected)
             {
                 PrepareNativeRenzokukenFinisher(selected, finisherTargets);
@@ -294,7 +294,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved native timed command lacks its canonical actor, contact or reaction owners.");
         }
-        if (UsesExpandedRoster && (saved.Command is not { NativeHeaderIndex: null, NativeTargetMask: 0, NativeAction: null, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
+        if (UsesExpandedRoster && (saved.Command is not { NativeHeader: null, NativeTargetMask: 0, NativeAction: null, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
         {
             throw new InvalidDataException("Saved expanded Renzokuken lacks its logical command5 transaction.");
         }

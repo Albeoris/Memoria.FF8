@@ -5,14 +5,13 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicActorPlacement
 {
-    public static NativeBattleWaterExecutionFrame DrawScaled65(NativeBattleWaterExecutionFrame frame, Func<uint, NativeBattleGraphicsModel> readActor, Action<uint, NativeBattleGraphicsModel> writeActor)
+    public static NativeBattleWaterExecutionFrame DrawScaled65(NativeBattleWaterExecutionFrame frame, Func<BattleModelOwner, NativeBattleGraphicsModel> readActor, Action<BattleModelOwner, NativeBattleGraphicsModel> writeActor)
     {
         uint payload = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4));
         int factor = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(payload, 2), 2));
         frame = frame.WriteTemporaryDword(0xF0, unchecked((uint)factor));
         uint header = CoreDword(frame, 0x279744C);
-        byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
+        BattleModelOwner address = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         NativeBattleGraphicsModel actor = readActor(address);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000) };
         writeActor(address, actor);
@@ -23,18 +22,17 @@ public static class NativeBattleCinematicActorPlacement
         NativeBattleVector scaled = new(Scale(0, factor), Scale(1, factor), Scale(2, zFactor));
         actor = actor with { Transform = actor.Transform with { Scale148 = scaled }, Rotation12 = 0 };
         writeActor(address, actor);
-        actor = actor with { Rotation14 = unchecked((short)((ushort)NativeBattleCinematicActorAccess.ReadRotationWord(frame, index, 1, header) + (SlotWord(frame, 0x8E) << 4))), Rotation16 = unchecked((short)((ushort)NativeBattleCinematicActorAccess.ReadRotationWord(frame, index, 2, header) + (SlotWord(frame, 0x90) << 4))) };
+        actor = actor with { Rotation14 = unchecked((short)((ushort)NativeBattleCinematicActorAccess.ReadRotationWord(frame, address, 1, header) + (SlotWord(frame, 0x8E) << 4))), Rotation16 = unchecked((short)((ushort)NativeBattleCinematicActorAccess.ReadRotationWord(frame, address, 2, header) + (SlotWord(frame, 0x90) << 4))) };
         writeActor(address, actor);
         return frame;
 
-        short Scale(int axis, int multiplier) => unchecked((short)(NativeBattleCinematicActorAccess.ReadScaleWord(frame, index, axis, header) * multiplier / 256));
+        short Scale(int axis, int multiplier) => unchecked((short)(NativeBattleCinematicActorAccess.ReadScaleWord(frame, address, axis, header) * multiplier / 256));
     }
 
-    public static NativeBattleWaterExecutionFrame DrawRadial64(NativeBattleWaterExecutionFrame frame, Func<uint, NativeBattleGraphicsModel> readActor, Action<uint, NativeBattleGraphicsModel> writeActor)
+    public static NativeBattleWaterExecutionFrame DrawRadial64(NativeBattleWaterExecutionFrame frame, Func<BattleModelOwner, NativeBattleGraphicsModel> readActor, Action<BattleModelOwner, NativeBattleGraphicsModel> writeActor)
     {
         uint header = CoreDword(frame, 0x279744C);
-        byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
+        BattleModelOwner address = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         NativeBattleGraphicsModel actor = readActor(address);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000) };
         writeActor(address, actor);
@@ -43,9 +41,9 @@ public static class NativeBattleCinematicActorPlacement
         int centerX = Word(payload + 6);
         int centerY = Word(payload + 8);
         int centerZ = Word(payload + 10);
-        int x = unchecked(centerX + unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, index, 0, header) - centerX) * factor) / 256);
-        int y = unchecked(centerY + unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, index, 1, header) - centerY) * factor) / 256);
-        int z = unchecked(centerZ + unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, index, 2, header) - centerZ) * factor) / 256);
+        int x = unchecked(centerX + unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, address, 0, header) - centerX) * factor) / 256);
+        int y = unchecked(centerY + unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, address, 1, header) - centerY) * factor) / 256);
+        int z = unchecked(centerZ + unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, address, 2, header) - centerZ) * factor) / 256);
         int dx = unchecked(x - centerX);
         int dy = unchecked(y - centerY);
         int dz = unchecked(z - centerZ);
@@ -66,7 +64,7 @@ public static class NativeBattleCinematicActorPlacement
         return frame;
 
         short Word(uint source) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(source, 2), 2));
-        short Scale(int axis) => unchecked((short)(NativeBattleCinematicActorAccess.ReadScaleWord(frame, index, axis, header) * factor / 256));
+        short Scale(int axis) => unchecked((short)(NativeBattleCinematicActorAccess.ReadScaleWord(frame, address, axis, header) * factor / 256));
         int Sqrt(int value) => unchecked((int)(long)Math.Sqrt(value));
     }
 }

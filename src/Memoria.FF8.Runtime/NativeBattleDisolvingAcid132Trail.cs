@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleDisolvingAcid132Trail
 {
-    public static (NativeBattleDisolvingAcid132Frame Frame, uint Point) Create6B1EC0(NativeBattleDisolvingAcid132Frame frame, NativeBattleEffectArena start, NativeBattleEffectArena end, short actor, short width, NativeBattleEffectArena direction, NativeBattleEffectArena sourceVector, NativeBattleActionMatrix casterWorld)
+    public static (NativeBattleDisolvingAcid132Frame Frame, uint Point) Create6B1EC0(NativeBattleDisolvingAcid132Frame frame, NativeBattleEffectArena start, NativeBattleEffectArena end, BattleModelOwner actor, NativeBattleModelAliases aliases, short width, NativeBattleEffectArena direction, NativeBattleEffectArena sourceVector, NativeBattleActionMatrix casterWorld)
     {
         (frame, uint point) = AllocatePoint(frame, width);
         if (point == 0)
@@ -36,7 +36,9 @@ public static partial class NativeBattleDisolvingAcid132Trail
         task = Copy(task, 32, start);
         task = task.WriteWord(32, unchecked((ushort)(Signed(task, 32) + (Signed(direction, 0) >> 1)))).WriteWord(34, unchecked((ushort)(Signed(task, 34) + Signed(direction, 2)))).WriteWord(36, unchecked((ushort)(Signed(task, 36) + (Signed(direction, 4) >> 1))));
         task = Copy(task, 40, end);
-        task = task.WriteWord(30, 0).WriteWord(14, 1).WriteWord(56, unchecked((ushort)actor)).WriteWord(58, unchecked((ushort)width)).WriteWord(60, 8);
+        task = task.WriteWord(30, 0).WriteWord(14, 1);
+        task.WriteExecutionReference(56, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+        task = task.WriteWord(58, unchecked((ushort)width)).WriteWord(60, 8);
         return (Write(frame, address, task), point);
     }
 

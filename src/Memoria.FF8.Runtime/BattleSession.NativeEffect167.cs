@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect167 ?? throw new InvalidDataException("Effect167 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect167 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect167 service lost its addressed memory.") };
         }
 
-        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEffect167Frame current, int actor, int selector)
+        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEffect167Frame current, BattleModelOwner actor, int selector)
         {
             NativeFileStaging = current.Staging;
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect167 requires its current skeleton.");
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             return NativeBattlePackedMatrix32.FromMatrix(bones[selector], null);
         }
 
-        NativeBattleEffect167PointStep Point502170(NativeBattleEffect167Frame current, int actor, byte selector, short fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect167PointStep Point502170(NativeBattleEffect167Frame current, BattleModelOwner actor, byte selector, short fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, retained.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z)));
         }
 
-        NativeBattleEffect167PointStep LocalPoint(NativeBattleEffect167Frame current, int actor, int selector, int fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect167PointStep LocalPoint(NativeBattleEffect167Frame current, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, ApplyNativeEffect167ModelBytes(graphics.ActorModels.Get(write.Actor), write)) };
                     return current;
                 case NativeBattleEffect167ResourceFlags44 flags:
-                    ushort retainedFlags = NativeCastingResourceFlags(graphics, checked((byte)flags.Actor));
+                    ushort retainedFlags = NativeCastingResourceFlags(graphics, flags.Actor);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { ResourceFlags44 = (ushort)((retainedFlags & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect167AllContacts506BA0 contacts:

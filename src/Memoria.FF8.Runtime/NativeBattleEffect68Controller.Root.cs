@@ -73,7 +73,7 @@ public static partial class NativeBattleEffect68Controller
         {
             case 0:
                 frame = frame with { State = frame.State.WriteWord(ControlFlagGlobal, 0).WriteWord(ContactFlagGlobal, 0) };
-                frame = NativeBattleEffect68Lower.Select7DC470(frame, task.ReadByte(0x2D), resources, inputs);
+                frame = NativeBattleEffect68Lower.Select7DC470(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, resources, inputs);
                 (frame, _) = AppendHierarchy(frame, 2, 0x7DC600, 0x78, address, inputs);
                 frame = NextPhase(frame, address);
                 break;
@@ -84,7 +84,7 @@ public static partial class NativeBattleEffect68Controller
                     frame = Write(frame, root, Read(frame, root).WriteByte(0x63, 0));
                     BattleActionHeaderReference group = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                    int contact = packets.ReadHeader(group).FirstContactIndex ?? throw new NotSupportedException("Effect68 requires its current header contact pointer.");
+                    BattleContactCursor contact = packets.ReadHeader(group).FirstContact;
                     frame = inputs.Execute(frame, new NativeBattleEffect68Contact506690(contact));
                     frame = NextPhase(MarkComplete(frame, address), address);
                 }
@@ -102,9 +102,8 @@ public static partial class NativeBattleEffect68Controller
         switch (Phase(frame, address))
         {
             case 0:
-                int actor = Read(frame, address).ReadByte(0x2D);
-                NativeBattleEffectArena row = inputs.ReadModels(frame)[actor];
-                byte flags = row.Read(1, 1)[0];
+                BattleModelOwner actor = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+                byte flags = (byte)(inputs.ReadActorModels(frame).Get(actor).Flags0 >> 8);
                 frame = inputs.Execute(frame, new NativeBattleEffect68WriteModelBytes(actor, 1, NativeBattleEffectArena.Clear().Write(0, [(byte)(flags | 0x78)]), 1));
                 (frame, uint first) = AppendHierarchy(frame, 2, 0x7DD950, 0x78, address, inputs);
                 frame = Write(frame, first, Read(frame, first).WriteWord(0x68, 2));

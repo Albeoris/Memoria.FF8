@@ -52,14 +52,14 @@ public sealed partial class BattleSession
 
     private static BattleNativeAction CreateNativeDuelControl241(ushort actionId, ushort effect) => NativeBattleDuelRules.Control(actionId, effect);
 
-    private BattleNativeAction ValidateNativeDuelControl241(BattleCombatant actor, int? headerIndex, BattleNativeAction native)
+    private BattleNativeAction ValidateNativeDuelControl241(BattleCombatant actor, BattleActionHeaderReference? headerIndex, BattleNativeAction native)
     {
-        if (actor.NativeLimit?.Command != 11 || headerIndex is not int index || index is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity)
+        if (actor.NativeLimit?.Command != 11 || headerIndex is not { } reference)
         {
             throw new InvalidDataException("Saved Duel control requires its original character and produced physical header.");
         }
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-        if (header.Source != actor.EncodeNativeSlot() || header.Command != 241 || header.Action != native.ActionId || header.Effect != native.MagicId || header.Data is not null)
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(reference);
+        if (header.Source != CreatePresentationModelOwner(actor) || header.Command != 241 || header.Action != native.ActionId || header.Effect != native.MagicId || header.Data is not null)
         {
             throw new InvalidDataException("Saved Duel control contradicts its produced48D200 header.");
         }
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
         nativeProductionContext = new(0, 0, false, 0x47DE70);
         try
         {
-            int header = nativeActionPackets.ActionCount;
+            BattleActionHeaderReference header = nativeActionPackets.NextHeader;
             BattleActionDefinition action = new(BattleAbility.EnemyAbility, actionId, native.Name ?? "Duel", BattleActionEffect.Native, 0, false) { NativeAction = native };
             ResolveInstalledNativeAction(actor, target, NativeCommandPresentation(queued), action, queueGraphics: false);
             bool unavailable = nativeActionScratch.TargetUnavailableB0E ?? throw new NotSupportedException("Native483400 requires its actual48EE50/48EEB0 target result BYTE B0E.");
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                 nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
                 NativeGraphics = QueueNativeActionDescriptor(NativeGraphics!, header);
                 NativeGraphics = QueueNativeDescriptor(NativeGraphics, 10, 0x47DD90);
-                actions.Enqueue(queued with { NativeHeaderIndex = header, NativeSequence = nativeActionPackets.Headers[header].ReadByte(2), NativeLimitCallback = actionId == 65532 ? NativeLimitCallback.DuelFinisher : callback });
+                actions.Enqueue(queued with { NativeHeader = header, NativeSequence = nativeActionPackets.ReadHeader(header).Sequence, NativeLimitCallback = actionId == 65532 ? NativeLimitCallback.DuelFinisher : callback });
             }
         }
         finally

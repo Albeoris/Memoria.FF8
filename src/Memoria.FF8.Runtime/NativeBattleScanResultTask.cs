@@ -27,12 +27,12 @@ public static class NativeBattleScanResultTask
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                frame = frame with { Complete269D93A = 0, Results = NativeBattleScanResults.BuildB68390(frame.Results, task.ReadByte(0x2D), services) };
+                frame = frame with { Complete269D93A = 0, Results = NativeBattleScanResults.BuildB68390(frame.Results, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, services) };
                 task = task.WriteWord(0x6A, unchecked((byte)frame.Results.Count));
                 Next();
                 break;
             case 1:
-                uint pointer = NativeBattleScanResults.PageB68810(frame.Results, task.ReadByte(0x2D), task.ReadByte(0x6C));
+                uint pointer = NativeBattleScanResults.PageB68810(frame.Results, task.ReadByte(0x6C));
                 NativeBattleScanTextWindows opened = frame.Text.Windows.SetText4A0410(1, pointer).SetFlags4A0700(1, 0).SetRect4A07A0(1, new(16, 180, 296, 28)).SetValue49FBC0(1, 0).Open4A0640(1);
                 frame = frame with { Text = frame.Text with { Windows = opened } };
                 task = task.WriteWord(0x66, 45);

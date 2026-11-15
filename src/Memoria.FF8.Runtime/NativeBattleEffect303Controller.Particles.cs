@@ -49,7 +49,7 @@ public static partial class NativeBattleEffect303Controller
         {
             NativeBattleEffect32Presentation.Allocated(frame.Effect, address, address + 32, 0);
         }
-        uint caster = frame.State.ReadDword(0x25075D8);
+        BattleModelOwner caster = frame.State.ReadModel(0x25075D8);
         NativeBattleGraphicsModel model = inputs.ReadModel(frame, caster);
         var transform = model.Transform ?? throw new NotSupportedException("Effect303 child requires its current caster transform.");
         NativeBattleEffectArena position = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((short)transform.Position28.X))).Write(2, BitConverter.GetBytes(unchecked((short)transform.Position28.Y))).Write(4, BitConverter.GetBytes(unchecked((short)transform.Position28.Z))).Write(6, BitConverter.GetBytes(transform.Vertical34));
@@ -64,7 +64,7 @@ public static partial class NativeBattleEffect303Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.ReadWord(30) != 0)
         {
-            uint caster = frame.State.ReadDword(0x25075D8);
+            BattleModelOwner caster = frame.State.ReadModel(0x25075D8);
             int angle = unchecked((short)-(inputs.ReadModel(frame, caster).Rotation14 ?? throw new NotSupportedException("Effect303 child requires its current caster rotation WORD14.")));
             NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(angle) with { X = Signed(task, 16), Y = Signed(task, 18), Z = Signed(task, 20) };
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local), 0));

@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState EnterNativeDuel215(NativeBattleGraphicsState graphics, NativeBattleDuel215Resources resources)
     {
-        NativeBattleDuel215Frame frame = NativeBattleDuel215Controller.Enter69AB90(NativeEffectMemory ?? throw new NotSupportedException("Native Duel215 requires retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel215 requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel215 requires retained shared memory."), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Duel215 requires its actual CRT random owner."));
+        NativeBattleDuel215Frame frame = NativeBattleDuel215Controller.Enter69AB90(NativeEffectMemory ?? throw new NotSupportedException("Native Duel215 requires retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel215 requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel215 requires retained shared memory."), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Duel215 requires its actual CRT random owner."), nativeActionPackets.ModelAliases);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging.Write(NativeBattleDuel215Resources.ActorDirectory, resources.ReadActorDat().AsSpan());
         nativeCrtRandom = frame.Random;
@@ -25,20 +25,20 @@ public sealed partial class BattleSession
         NativeBattleDuel215Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel215 requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel215 requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel215 requires retained CRT state."));
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Duel215 requires its actual action contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         int count = header.ReadContactCount();
-        ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.Recipient).ToImmutableArray();
-        NativeBattleDuel215PreparationServices preparation = new(index => graphics.Models[index], WriteModel, Anchor, targets, Bind, Select);
-        NativeBattleDuel215TargetServices recipients = new(index => graphics.Models[index], WriteModel, targets, Bounds, Body);
+        ImmutableArray<BattleModelOwner> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient).ToImmutableArray();
+        NativeBattleDuel215PreparationServices preparation = new(index => graphics.ActorModels.Get(index), WriteModel, Anchor, targets, nativeActionPackets.ModelAliases, Bind, Select);
+        NativeBattleDuel215TargetServices recipients = new(index => graphics.ActorModels.Get(index), WriteModel, targets, Bounds, Body);
         NativeBattleDuel215Inputs inputs = new(Execute);
-        NativeBattleDuel215SceneServices scene = new(index => graphics.Models[index], WriteModel, Anchor, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), checked((short)fraction)), targets, view, ExecuteScene);
+        NativeBattleDuel215SceneServices scene = new(index => graphics.ActorModels.Get(index), WriteModel, Anchor, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), checked((short)fraction)), targets, graphics.ActorModels.Roster, view, ExecuteScene);
         frame = NativeBattleDuel215Controller.Advance69AC00(frame, inputs, Child);
         Publish(frame);
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native Duel215 requires its actual model WORD36.")).Angle36 };
+        void WriteModel(BattleModelOwner index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        NativeBattleModuleAnchor Anchor(BattleModelOwner index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Duel215 requires its actual model WORD36.")).Angle36 };
         void Publish(NativeBattleDuel215Frame current)
         {
             NativeEffectMemory = current.Memory;
@@ -51,10 +51,10 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Duel215 requires its actual ordering table.");
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordering } };
         }
-        NativeBattleDuel215Frame Bind(NativeBattleDuel215Frame current, int index, uint row)
+        NativeBattleDuel215Frame Bind(NativeBattleDuel215Frame current, BattleModelOwner index, uint row)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[index], NativeGraphicsPoseResource(graphics, index));
+            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(index), NativeGraphicsPoseResource(graphics, index));
             var bound = NativeBattleVictoryResources.Bind5022C0(resources.ReadActorDat(), NativeModelCpuResources ?? throw new NotSupportedException("Native Duel215 requires its actual CPU resource rows."), model, row, NativeBattleDuel215Resources.ActorDirectory, Read, (address, pointer) => current = current with { Effect = current.Effect with { Pools = NativeBattleEffectTaskMemory.WritePointer(current.Effect.Pools, address, pointer) } });
             WriteModel(index, bound.Model);
             return current;
@@ -68,16 +68,16 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? current.Memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : current.Staging.ReadResourcePointer(address);
             }
         }
-        NativeBattleDuel215Frame Select(NativeBattleDuel215Frame current, int index, byte sequence)
+        NativeBattleDuel215Frame Select(NativeBattleDuel215Frame current, BattleModelOwner index, byte sequence)
         {
             Publish(current);
-            graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
+            graphics = SelectNativeHeaderSequence(graphics, index, sequence);
             return current;
         }
-        NativeBattleDuel215TargetBoundsResult Bounds(NativeBattleDuel215Frame current, int index)
+        NativeBattleDuel215TargetBoundsResult Bounds(NativeBattleDuel215Frame current, BattleModelOwner index)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             NativeBattleDuel215BoundsStep bounds;
             if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
             {
@@ -91,11 +91,11 @@ public sealed partial class BattleSession
             WriteModel(index, bounds.Model);
             return new(current with { Staging = bounds.Staging }, bounds.Maximum, bounds.Minimum);
         }
-        NativeBattleDuel215Frame Body(NativeBattleDuel215Frame current, int index, NativeBattleVector angles, NativeBattleVector pivot)
+        NativeBattleDuel215Frame Body(NativeBattleDuel215Frame current, BattleModelOwner index, NativeBattleVector angles, NativeBattleVector pivot)
         {
             Publish(current);
             NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
-            graphics = DrawNativeDuel215Body69D200(graphics, index, view, angles, pivot, projection, NativeBattleDuel28Presentation.Identity(215, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[0], 0, index));
+            graphics = DrawNativeDuel215Body69D200(graphics, index, view, angles, pivot, projection, NativeBattleDuel28Presentation.Identity(215, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[0], 0) with { ModelOwner = index });
             return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 body drawing lost its effect memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 body drawing lost its temporary memory.") };
         }
         NativeBattleDuel215Step Child(NativeBattleDuel215Frame current, NativeBattleEffectTaskPool pool, int slot)
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
                 case NativeBattleDuel215BodyDraw body:
                     Publish(current);
                     NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
-                    graphics = DrawNativeDuel215Body69D100(graphics, body.Actor, view, projection, NativeBattleDuel28Presentation.Identity(215, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[0], 0, body.Actor));
+                    graphics = DrawNativeDuel215Body69D100(graphics, body.Actor, view, projection, NativeBattleDuel28Presentation.Identity(215, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[0], 0) with { ModelOwner = body.Actor });
                     return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 actor drawing lost its effect memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 actor drawing lost its temporary memory.") };
                 case NativeBattleDuel215TargetsDraw target:
                     return NativeBattleDuel215Targets.Advance69B070(current, target.Slot, target.Tick, recipients);
@@ -178,7 +178,7 @@ public sealed partial class BattleSession
                 case NativeBattleDuel215Contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index))).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(first.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 contact lost its actual effect memory.") };
                 case NativeBattleDuel215Camera pose:

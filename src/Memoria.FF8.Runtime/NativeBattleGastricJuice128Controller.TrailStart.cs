@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleGastricJuice128Controller
 {
-    public static (NativeBattleGastricJuice128Frame Frame, uint Point) StartTrail(NativeBattleGastricJuice128Frame frame, NativeBattleVector source, NativeBattleVector destination, short tag, short progress, short increment, short scale, int angle)
+    public static (NativeBattleGastricJuice128Frame Frame, uint Point) StartTrail(NativeBattleGastricJuice128Frame frame, NativeBattleVector source, NativeBattleVector destination, BattleModelOwner owner, NativeBattleModelAliases aliases, short progress, short increment, short scale, int angle)
     {
         (frame, uint head) = AllocatePoint(frame, PointView(source), scale);
         if (head == 0)
@@ -17,7 +17,8 @@ public static partial class NativeBattleGastricJuice128Controller
         {
             return (WriteArena(frame, head + 6, BitConverter.GetBytes(ushort.MaxValue)), 0);
         }
-        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[68]).WriteWord(12, 0).WriteWord(14, 1).WriteDword(0x10, head).WriteDword(0x14, head).WriteWord(0x18, unchecked((ushort)source.X)).WriteWord(0x1A, unchecked((ushort)source.Y)).WriteWord(0x1C, unchecked((ushort)source.Z)).WriteWord(0x1E, unchecked((ushort)progress)).WriteWord(0x20, unchecked((ushort)destination.X)).WriteWord(0x22, unchecked((ushort)destination.Y)).WriteWord(0x24, unchecked((ushort)destination.Z)).WriteWord(0x26, unchecked((ushort)increment)).WriteWord(0x48, unchecked((ushort)tag)).WriteWord(0x4A, unchecked((ushort)angle)).WriteWord(0x4C, unchecked((ushort)scale));
+        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[68]).WriteWord(12, 0).WriteWord(14, 1).WriteDword(0x10, head).WriteDword(0x14, head).WriteWord(0x18, unchecked((ushort)source.X)).WriteWord(0x1A, unchecked((ushort)source.Y)).WriteWord(0x1C, unchecked((ushort)source.Z)).WriteWord(0x1E, unchecked((ushort)progress)).WriteWord(0x20, unchecked((ushort)destination.X)).WriteWord(0x22, unchecked((ushort)destination.Y)).WriteWord(0x24, unchecked((ushort)destination.Z)).WriteWord(0x26, unchecked((ushort)increment)).WriteWord(0x4A, unchecked((ushort)angle)).WriteWord(0x4C, unchecked((ushort)scale));
+        task.WriteExecutionReference(0x48, 2, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 2));
         NativeBattleActionMatrix basis = NativeBattleFunguarLaser277.Basis50CBA0(destination.X - source.X, destination.Y - source.Y, destination.Z - source.Z).Matrix;
         for (int index = 0; index < 9; index++)
         {

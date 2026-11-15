@@ -100,6 +100,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public NativeCrtRandomState Random => owner.ReadEffectPresentationRandom();
     public NativeGlobalRandomState? GlobalRandom => owner.ReadEffectPresentationGlobalRandom();
     public NativeBattleGraphicsModel Source => owner.ReadEffectPresentationSource();
+    internal BattleModelOwner SourceOwner => owner.ReadEffectPresentationSourceOwner();
     public NativeBattleGraphicsResource SourceResource => owner.ReadEffectPresentationSourceResource();
     public bool Invoked => owner.EffectPresentationInvoked;
     public bool ServiceComplete => owner.ReadEffectPresentationServiceComplete();

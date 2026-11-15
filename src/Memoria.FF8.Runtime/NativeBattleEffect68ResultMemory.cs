@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect68Results
 {
-    public static NativeBattleEffect68ResultStep BuildB67EF0(NativeBattleEffect68Frame frame, int actor, NativeBattleScanResultServices services)
+    public static NativeBattleEffect68ResultStep BuildB67EF0(NativeBattleEffect68Frame frame, BattleModelOwner actor, NativeBattleScanResultServices services)
     {
         NativeBattleScanProcess process = frame.Memory.Scan ?? throw new NotSupportedException("Effect68 requires its current shared Scan process.");
         NativeBattleScanResultMemory shared = process.Results;
@@ -19,7 +19,7 @@ public static class NativeBattleEffect68Results
         working = NativeBattleScanResults.BuildB68390(working, actor, services, ResultEmptyAddress);
         NativeBattleEffect68State state = WriteOwner(frame.State, ResultElementAddress, working.Element8, 8);
         state = WriteOwner(state, ResultPagesAddress, working.Pages32, 32).WriteDword(ResultCountAddress, working.Count).Write(ResultEmptyAddress, [working.Empty]);
-        NativeBattleScanResultMemory published = shared with { Scratch48 = working.Scratch48, Cursor = working.Cursor, Ring768 = working.Ring768 };
+        NativeBattleScanResultMemory published = shared with { Scratch48 = working.Scratch48, Cursor = working.Cursor, Ring768 = working.Ring768, ExtraTextBindings = working.ExtraTextBindings };
         frame = frame with { State = state, Memory = frame.Memory with { Scan = process with { Results = published } } };
         return new(frame, unchecked((byte)working.Count));
     }

@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         diagnosticReflectionProduction = null;
     }
 
-    private void ObserveDiagnosticPreparedHeader(int header)
+    private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
     {
         if (DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter)
         {
@@ -127,25 +127,29 @@ public sealed partial class BattleSession
             }
             return;
         }
+        if (OriginalDiagnosticHeaderIndex(reference) is not int header)
+        {
+            return;
+        }
         diagnosticHeaderGenerations ??= [];
         diagnosticHeaderGenerations[header] = ++diagnosticHeaderGeneration;
         diagnosticHeaderDispatches?.Remove(header);
         diagnosticReflectedHeaders?.Remove(header);
-        if (diagnosticReflectionProduction is { } proof && nativeActionPackets.Headers[header].ReadByte(1) == 247)
+        if (diagnosticReflectionProduction is { } proof && nativeActionPackets.ReadHeader(reference).Command == 247)
         {
             diagnosticReflectedHeaders ??= [];
             diagnosticReflectedHeaders[header] = proof;
         }
     }
 
-    private PendingDiagnosticReflection? PrepareDiagnosticReflection(int header, BattleCombatant actor, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction source, BattleNativeAction reflected, ushort targetMask)
+    private PendingDiagnosticReflection? PrepareDiagnosticReflection(BattleActionHeaderReference reference, BattleCombatant actor, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction source, BattleNativeAction reflected, ushort targetMask)
     {
-        if (DiagnosticEffectDispatched is null || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
+        if (DiagnosticEffectDispatched is null || OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
         {
             return null;
         }
-        NativeBattleActionHeaderSlot original = nativeActionPackets.Headers[header];
-        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.Command, (ushort)(original.ReadByte(4) | original.ReadByte(5) << 8), source, reflected, targetMask);
+        NativeBattleActionHeaderSlot original = nativeActionPackets.ReadHeader(reference);
+        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.Command, original.Action, source, reflected, targetMask);
     }
 
     private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)
@@ -161,19 +165,29 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ObserveDiagnosticPublishedReflectionHeader(int header)
+    private void ObserveDiagnosticPublishedReflectionHeader(BattleActionHeaderReference reference)
     {
-        if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.TryGetValue(header, out var pending) || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
+        if (OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.TryGetValue(header, out var pending) || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
         {
             return;
         }
-        NativeBattleActionHeaderSlot slot = nativeActionPackets.Headers[header];
-        int firstContact = slot.FirstContactIndex!.Value;
+        NativeBattleActionHeaderSlot slot = nativeActionPackets.ReadHeader(reference);
+        if (slot.FirstContact.Ordinal >= NativeBattleContactAddress.NativeRowCount)
+        {
+            return;
+        }
+        int firstContact = slot.FirstContact.Ordinal;
         int count = slot.ReadContactCount();
         ImmutableArray<byte>.Builder recipients = ImmutableArray.CreateBuilder<byte>(count);
         for (int index = 0; index < count; index++)
         {
-            recipients.Add(nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient);
+            BattleContactCursor cursor = slot.FirstContact.Advance(index);
+            BattleModelOwner owner = nativeActionPackets.ReadContact(cursor).Primary.Recipient;
+            if (cursor.Ordinal >= NativeBattleContactAddress.NativeRowCount || !nativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte originalOwner))
+            {
+                return;
+            }
+            recipients.Add(originalOwner);
         }
         pending.PublishedTargets = new(0x48E830, header, generation, firstContact, pending.Resolutions?.ToImmutableArray() ?? [], recipients.MoveToImmutable());
     }
@@ -187,7 +201,7 @@ public sealed partial class BattleSession
         dispatch = dispatch with { NativeHeaderGeneration = generation };
         if (dispatch.NativeCommand == 247)
         {
-            if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))
+            if (OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))
             {
                 dispatch = RejectDiagnosticReflection(dispatch, "PENDING_HEADER_ABSENT");
             }

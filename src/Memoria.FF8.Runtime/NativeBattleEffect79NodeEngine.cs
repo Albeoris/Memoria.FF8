@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect79NodeStep(NativeBattleEffect79Frame Frame, int Result);
-public sealed record NativeBattleEffect79ObserveBone(int Actor, byte Selector) : NativeBattleEffect79Operation;
+public sealed record NativeBattleEffect79ObserveBone(BattleModelOwner Actor, byte Selector) : NativeBattleEffect79Operation;
 public sealed record NativeBattleEffect79DeliverBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect79Operation;
 
 public static class NativeBattleEffect79NodeEngine
@@ -73,7 +73,7 @@ public static class NativeBattleEffect79NodeEngine
             {
                 EmitterAdvanced = () => ObserveStack(0x7BA490, null),
                 GeometryAdvanced = (_, complete) => ObserveStack(complete ? 0x7B9250u : 0x7B9265u, complete ? 0x7B9255u : 0x7B926Au),
-                ActorAnchor = (int actor, ref NativeCrtRandomState currentRandom) =>
+                ActorAnchor = (BattleModelOwner actor, ref NativeCrtRandomState currentRandom) =>
                 {
                     currentRandom = currentRandom.Draw(out ushort value);
                     byte selector = checked((byte)resources.PointSelectors[value % 18]);

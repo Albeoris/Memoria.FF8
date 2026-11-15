@@ -46,7 +46,7 @@ public sealed partial class BattleSession
 
         private void Emitter(uint address, ref NativeBattleModulePoolTask task)
         {
-            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, graphics.Models, ReadPose, session.ReadNativeForeignTarget);
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, graphics.ActorModels.Get, ReadPose, session.ReadNativeForeignTarget);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {
                 case 0:
@@ -68,11 +68,11 @@ public sealed partial class BattleSession
                     if (task.ReadByte(40) == 0)
                     {
                         NativeBattleActionHeaderSlot header = Header(task);
-                        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Quake contact requires its actual target packet list.");
+                        BattleContactCursor first = header.FirstContact;
                         for (int index = 0; index < header.ReadContactCount(); index++)
                         {
                             var pending = graphics.PendingContacts;
-                            graphics = session.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [session.nativeActionPackets.ReadContact(first + index)] });
+                            graphics = session.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [session.nativeActionPackets.ReadContact(first.Advance(index))] });
                             graphics = graphics with { PendingContacts = pending };
                         }
                         uint root = task.ReadDword(16);

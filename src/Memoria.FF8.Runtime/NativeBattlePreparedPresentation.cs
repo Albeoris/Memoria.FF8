@@ -34,12 +34,14 @@ public enum NativeBattlePreparedScanExtraFailure
     None,
     MissingName,
     InvalidIndex,
-    InvalidLength
+    InvalidLength,
+    MissingOwner
 }
 public sealed record NativeBattlePreparedScanExtra(NativeBattleScanByteOwner? Row, NativeBattlePreparedScanExtraFailure Failure)
 {
     public byte ReadByte(int offset) => Failure switch
     {
+        NativeBattlePreparedScanExtraFailure.MissingOwner => throw new NotSupportedException("Native Scan extra text owner is no longer allocated."),
         NativeBattlePreparedScanExtraFailure.MissingName => throw new NotSupportedException("Native Scan extra text requires its actual AI name buffer."),
         NativeBattlePreparedScanExtraFailure.InvalidIndex => throw new IndexOutOfRangeException(),
         NativeBattlePreparedScanExtraFailure.InvalidLength => throw new InvalidDataException("Native Scan extra text exceeds its physical row."),
@@ -50,6 +52,8 @@ public sealed record NativeBattlePreparedScanExtra(NativeBattleScanByteOwner? Ro
 /// <summary>Scan text reads only these retained immutable banks, never a live battle callback.</summary>
 public sealed record NativeBattlePreparedScan(NativeBattleScanTextFrame Text, NativeBattleScanResultMemory Results, NativeBattleScanByteOwner Name, ImmutableDictionary<int, NativeBattlePreparedScanExtra> EnemyExtra, ImmutableDictionary<byte, ImmutableArray<byte>> Names, NativeBattleScanTextResources? Resources, NativeBattleScanByteOwner? Effect68Empty, NativeBattlePreparedScanActor? Actor)
 {
+    internal ImmutableDictionary<uint, NativeBattlePreparedScanExtra> BoundEnemyExtra { get; init; } = ImmutableDictionary<uint, NativeBattlePreparedScanExtra>.Empty;
+
     public NativeBattleScanTextExpansionServices CreateExpansionServices() => new(ReadByte, _ => throw new NotSupportedException("Native Scan names are supplied by their canonical encoded content owner."))
     {
         ReadNameBytes = operand => Names.TryGetValue(operand, out ImmutableArray<byte> bytes) ? bytes : throw new NotSupportedException($"Native Scan replacement name{operand:X2} has no canonical content owner.")
@@ -66,6 +70,14 @@ public sealed record NativeBattlePreparedScan(NativeBattleScanTextFrame Text, Na
 
     private byte ReadExternal(uint address)
     {
+        foreach ((uint start, NativeBattlePreparedScanExtra extra) in BoundEnemyExtra)
+        {
+            uint offset = unchecked(address - start);
+            if (offset < 71)
+            {
+                return extra.ReadByte((int)offset);
+            }
+        }
         if (address >= 0x269AA78 && address < 0x269AA90)
         {
             return Name.ReadByte((int)(address - 0x269AA78));

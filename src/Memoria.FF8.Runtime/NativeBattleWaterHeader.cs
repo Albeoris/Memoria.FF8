@@ -39,93 +39,56 @@ public sealed record NativeBattleWaterHeader([property: JsonRequired] ImmutableA
     }
 }
 
-public sealed record NativeBattleWaterHeaderCaptureResult(NativeBattleWaterHeader Header, NativeBattleEffectArena Arena, int CurrentHeaderIndex);
+public sealed record NativeBattleWaterHeaderCaptureResult(NativeBattleWaterHeader Header, NativeBattleEffectArena Arena);
 
 public static class NativeBattleWaterHeaderCapture
 {
-    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, byte caster, int currentHeaderIndex, byte firstHeaderFirstActor, ImmutableArray<byte> currentContacts, int contactCount, ImmutableArray<NativeBattleGraphicsModel> graphics)
+    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, BattleModelOwner caster, BattleModelOwner firstHeaderFirstActor, ImmutableArray<BattleModelOwner> contacts, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
-        if (header.PresentationActors is { } hosted)
-        {
-            if ((uint)currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || contactCount is < 0 or > NativeBattleContactAddress.MaximumRowCount ||
-                contactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < contactCount))
-            {
-                throw new InvalidDataException("Hosted header capture requires its actual selected header and contact occurrences.");
-            }
-            _ = hosted.ReadCachedActor(caster);
-            NativeBattleCinematicActorContext captured = hosted.RefreshFlags(graphics).CaptureCurrentContacts(contactCount == 0 ? [] : currentContacts[..contactCount], firstHeaderFirstActor);
-            HeaderWriter hostedWriter = new(header);
-            hostedWriter.Byte(0x44, caster);
-            hostedWriter.Byte(0x48, captured.ReadFirstActor());
-            for (int row = 0; row < NativeBattleGraphicsModelAddress.NativeRowCount; row++)
-            {
-                hostedWriter.Word(0x4E + 2 * row, unchecked((short)graphics[row].Flags0));
-            }
-            for (int ordinal = 0; ordinal < captured.CurrentActors.Length; ordinal++)
-            {
-                byte actor = captured.CurrentActors[ordinal];
-                if (ordinal < 6)
-                {
-                    hostedWriter.Byte(0x48 + ordinal, actor);
-                }
-                if (actor < NativeBattleGraphicsModelAddress.NativeRowCount)
-                {
-                    hostedWriter.Byte(0xCC + actor, checked((byte)ordinal));
-                }
-            }
-            arena = arena.Write(bank.SlotOffset(arena, slotIndex) + 0x1B, [captured.ReadFirstActor()]);
-            hostedWriter.Byte(0x41, checked((byte)captured.CurrentActors.Length));
-            return new(hostedWriter.Freeze() with { PresentationActors = captured }, arena, currentHeaderIndex);
-        }
-        ValidateRows(graphics);
-        if (caster >= 7 || currentHeaderIndex < 0 || currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || firstHeaderFirstActor >= 7 ||
-            contactCount is < 0 or > byte.MaxValue || contactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < contactCount))
-        {
-            throw new NotSupportedException("Native header capture requires its actual caster, selected header and contact owners.");
-        }
+        NativeBattleCinematicActorContext context = header.PresentationActors ?? NativeBattleCinematicActorContext.FromGraphics(models);
+        _ = context.ReadCachedActor(caster);
+        NativeBattleCinematicActorContext captured = context.RefreshFlags(models).CaptureCurrentContacts(contacts, firstHeaderFirstActor);
+        NativeBattleModelAliases aliases = boundary.CaptureAliases(models);
         HeaderWriter writer = new(header);
-        writer.Byte(0x44, caster);
-        writer.Byte(0x48, firstHeaderFirstActor);
-        for (int index = 0; index < 7; index++)
+        writer.Byte(0x44, Alias(caster));
+        writer.Byte(0x48, Alias(firstHeaderFirstActor));
+        for (byte slot = 0; slot < NativeBattleGraphicsModelAddress.NativeRowCount; slot++)
         {
-            writer.Word(0x4E + 2 * index, unchecked((short)graphics[index].Flags0));
+            NativeBattleGraphicsModel model = boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(slot), models);
+            writer.Word(0x4E + 2 * slot, unchecked((short)model.Flags0));
         }
-        uint seen = 0;
-        byte unique = 0;
-        for (int index = 0; index < contactCount; index++)
+        // The seventh original list byte shares the low byte of the first raw flags field.
+        bool allOriginal = captured.CurrentActors.All(actor => aliases.TryEncodeExact(actor, out _));
+        int listExtent = allOriginal ? NativeBattleGraphicsModelAddress.NativeRowCount : 6;
+        for (int ordinal = 0; ordinal < captured.CurrentActors.Length; ordinal++)
         {
-            byte actor = currentContacts[index];
-            if (actor >= 7)
+            byte? alias = Alias(captured.CurrentActors[ordinal]);
+            if (ordinal < listExtent)
             {
-                throw new NotSupportedException("Native header contact leaves the seven physical graphics rows.");
+                writer.Byte(0x48 + ordinal, alias);
             }
-            uint bit = 1u << (actor & 31);
-            if ((seen & bit) == 0)
+            if (alias is byte slot)
             {
-                seen |= bit;
-                writer.Byte(0x48 + unique, actor);
-                writer.Byte(0xCC + actor, unique);
-                unique++;
+                writer.Byte(0xCC + slot, EncodeByte(ordinal));
             }
         }
-        NativeBattleWaterHeader result = writer.Freeze();
-        arena = arena.Write(bank.SlotOffset(arena, slotIndex) + 0x1B, [result.Bytes[0x48]]);
-        writer.Byte(0x41, unique);
-        return new(writer.Freeze(), arena, currentHeaderIndex);
+        BattleModelOwner first = captured.ReadFirstActor();
+        arena = arena.WriteExecutionReference(bank.SlotOffset(arena, slotIndex) + 0x1B, 1, new BattleExecutionReference.Model(first), aliases.EncodeOperand(first, 1));
+        writer.Byte(0x41, EncodeByte(captured.CurrentActors.Length));
+        return new(writer.Freeze() with { PresentationActors = captured }, arena);
+
+        byte? Alias(BattleModelOwner actor) => aliases.TryEncodeExact(actor, out byte alias) ? alias : null;
     }
 
-    public static NativeBattleWaterHeader CacheRowsAA4B60(NativeBattleWaterHeader header, ImmutableArray<NativeBattleGraphicsModel> graphics)
+    public static NativeBattleWaterHeader CacheRowsAA4B60(NativeBattleWaterHeader header, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
         HeaderWriter writer = new(header);
-        NativeBattleCinematicActorContext? cached = header.PresentationActors?.RefreshCache(graphics);
-        if (cached is null)
+        NativeBattleCinematicActorContext cached = (header.PresentationActors ?? throw new InvalidDataException("Cinematic actor cache requires its captured live context.")).RefreshCache(models);
+        for (byte index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
-            ValidateRows(graphics);
-        }
-        for (int index = 0; index < 7; index++)
-        {
-            NativeBattleGraphicsModel model = graphics[index];
-            writer.Dword(0x60 + 4 * index, NativeBattleGraphicsModelAddress.Encode(index));
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(index);
+            NativeBattleGraphicsModel model = boundary.ReadOriginalCell(slot, models);
+            writer.Dword(0x60 + 4 * index, NativeBattleGraphicsModelAddress.EncodeOriginalCell(slot));
             NativeBattleModelTransform? transform = model.Transform;
             writer.Word(0x84 + 8 * index, transform?.Position28.X);
             writer.Word(0x86 + 8 * index, transform?.Position28.Y);
@@ -143,13 +106,44 @@ public static class NativeBattleWaterHeaderCapture
         return writer.Freeze() with { PresentationActors = cached };
     }
 
-    private static void ValidateRows(ImmutableArray<NativeBattleGraphicsModel> graphics)
+    internal static NativeBattleCinematicActorContext SeedRetainedActorFields(NativeBattleWaterHeader header, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
-        if (graphics.IsDefault || graphics.Length != 7 || graphics.Where((model, index) => model is null || model.Index != index).Any())
+        NativeBattleCinematicActorContext context = NativeBattleCinematicActorContext.FromGraphics(models);
+        ImmutableDictionary<BattleModelOwner, int?>.Builder ordinals = context.ActorOrdinals.ToBuilder();
+        Dictionary<byte, BattleModelOwner> originalOwners = [];
+        foreach (BattleModelOwner owner in models.Owners)
         {
-            throw new NotSupportedException("Native header capture requires all seven physical graphics rows in bank order.");
+            if (boundary.TryEncodeExactActor(owner, models, out byte slot))
+            {
+                originalOwners.Add(slot, owner);
+                if (header.Known[0xCC + slot] && header.Bytes[0xCC + slot] < models.Roster.Count)
+                {
+                    ordinals[owner] = header.Bytes[0xCC + slot];
+                }
+            }
         }
+        context = context with { ActorOrdinals = ordinals.ToImmutable() };
+
+        if (!header.Known[0x17A] || header.Bytes[0x17A] > 6)
+        {
+            return context;
+        }
+        int savedCount = header.Bytes[0x17A];
+        ImmutableArray<BattleModelOwner>.Builder saved = ImmutableArray.CreateBuilder<BattleModelOwner>(savedCount);
+        for (int index = 0; index < savedCount; index++)
+        {
+            byte slot = header.Bytes[0x174 + index];
+            if (!header.Known[0x174 + index] || slot >= NativeBattleModelBoundary.CellCount ||
+                !originalOwners.TryGetValue(slot, out BattleModelOwner? owner))
+            {
+                return context;
+            }
+            saved.Add(owner);
+        }
+        return context.WithSavedActors(saved.MoveToImmutable());
     }
+
+    private static byte? EncodeByte(int value) => value <= byte.MaxValue ? (byte)value : null;
 
     private sealed class HeaderWriter
     {
@@ -165,10 +159,10 @@ public static class NativeBattleWaterHeaderCapture
             presentationActors = header.PresentationActors;
         }
 
-        public void Byte(int offset, byte value)
+        public void Byte(int offset, byte? value)
         {
-            bytes[offset] = value;
-            known[offset] = true;
+            bytes[offset] = value.GetValueOrDefault();
+            known[offset] = value.HasValue;
         }
 
         public void Word(int offset, short? value)

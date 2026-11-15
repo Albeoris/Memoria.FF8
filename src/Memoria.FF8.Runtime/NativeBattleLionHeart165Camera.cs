@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleLionHeart165Controller
 {
-    public static NativeBattleLionHeart165ChildStep BeginCamera63E960(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool)
+    public static NativeBattleLionHeart165ChildStep BeginCamera63E960(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, NativeBattleModelAliases aliases)
     {
         NativeBattleLionHeart165State state = frame.Memory.LionHeart165 ?? throw new InvalidDataException("Native Lion Heart camera requires its entered owner.");
         NativeBattleLionHeart165Resources resources = state.RetainedResources ?? throw new NotSupportedException("Native Lion Heart camera requires resources retained by actual entry.");
@@ -12,7 +12,8 @@ public static partial class NativeBattleLionHeart165Controller
         NativeBattleGuardianCameraTask camera = NativeBattleGuardianCameraProgram.Begin63E960(process, resources.Read(0xD88930, 0x170).ToImmutableArray(), 0);
         (pool, int slot) = pool.Append(0x63E9C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
-        task = TaskDword(TaskDword(TaskDword(task, 20, 0xD88930), 24, 0x23C58E0), 28, NativeBattleGraphicsModelAddress.Encode(frame.Parameters.Source));
+        task = TaskDword(TaskDword(task, 20, 0xD88930), 24, 0x23C58E0);
+        task.WriteExecutionReference(28, 4, new BattleExecutionReference.Model(frame.Parameters.Source), aliases.EncodeAddress(frame.Parameters.Source));
         pool = pool.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { LionHeart165 = state with { CameraTask = camera }, GuardianCameraProcess = camera.Process } };
         return new(frame, pool, 0);
@@ -23,7 +24,7 @@ public static partial class NativeBattleLionHeart165Controller
         NativeBattleLionHeart165State state = frame.Memory.LionHeart165 ?? throw new InvalidDataException("Native Lion Heart camera requires its entered owner.");
         NativeBattleGuardianCameraTask camera = state.CameraTask ?? throw new NotSupportedException("Native Lion Heart camera requires its actually appended program task.");
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xD88930u + camera.Offset || TaskDword(task, 24) != 0x23C58E0 || TaskDword(task, 28) != NativeBattleGraphicsModelAddress.Encode(frame.Parameters.Source))
+        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xD88930u + camera.Offset || TaskDword(task, 24) != 0x23C58E0 || task.ReadExecutionReference<BattleExecutionReference.Model>(28, 4).Owner != frame.Parameters.Source)
         {
             throw new InvalidDataException("Native Lion Heart camera lost its physical task operands.");
         }

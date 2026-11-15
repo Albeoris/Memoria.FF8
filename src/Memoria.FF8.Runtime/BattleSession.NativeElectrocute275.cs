@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleElectrocute275Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleElectrocute275AnchorStep Anchor(NativeBattleElectrocute275Frame current, int actor)
+        NativeBattleElectrocute275AnchorStep Anchor(NativeBattleElectrocute275Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Electrocute requires its actual actor heading.")).Angle36 });
         }
 
-        NativeBattleElectrocute275PointStep Bone(NativeBattleElectrocute275Frame current, int actor, short selector, short distance)
+        NativeBattleElectrocute275PointStep Bone(NativeBattleElectrocute275Frame current, BattleModelOwner actor, short selector, short distance)
         {
             Publish(current);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Electrocute bone query requires its addressed temporary memory.");

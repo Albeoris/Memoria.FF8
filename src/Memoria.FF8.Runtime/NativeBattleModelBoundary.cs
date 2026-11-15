@@ -112,6 +112,45 @@ public sealed partial class NativeBattleModelBoundary
         return new(models.Roster, mappings);
     }
 
+    internal ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility> CaptureUnboundVisibility()
+    {
+        var results = ImmutableDictionary.CreateBuilder<NativeBattleModelSlot, NativeBattleGuardianModelVisibility>();
+        for (byte index = 0; index < CellCount; index++)
+        {
+            if (cells[index] is { Owner: null, Retained: { } state })
+            {
+                results.Add(NativeBattleModelSlot.Decode(index), new(state.Flags0, state.Flags2));
+            }
+        }
+        return results.ToImmutable();
+    }
+
+    internal NativeBattleModelBoundary RestoreUnboundVisibility(ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility> visibility)
+    {
+        ImmutableArray<Cell> updated = cells;
+        foreach ((NativeBattleModelSlot slot, NativeBattleGuardianModelVisibility saved) in visibility)
+        {
+            if (updated[slot.Offset] is { Owner: null, Retained: { } model } cell)
+            {
+                updated = updated.SetItem(slot.Offset, cell with { Retained = RestoreVisibility(model, saved) });
+            }
+        }
+        return updated == cells ? this : new(updated);
+    }
+
+    internal static NativeBattleGraphicsModel RestoreVisibility(NativeBattleGraphicsModel model, NativeBattleGuardianModelVisibility saved)
+    {
+        ushort flags = (ushort)((model.Flags0 & ~0xC) | (saved.Flags0 & 0xC));
+        ushort? flags2 = model.Flags2 is ushort current ? (ushort)((current & ~4) | ((saved.Flags2 ?? 0) & 4)) : null;
+        return model with { Flags0 = flags, Flags2 = flags2 };
+    }
+
+    internal BattleModelOwner? FindOriginalOwner(NativeBattleModelSlot slot, BattleActorModels models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        return cells[slot.Offset].Owner is { } owner && models.Contains(owner) ? owner : null;
+    }
+
     internal BattleModelOwner DecodeLiteral(byte operand, BattleActorModels models)
     {
         ArgumentNullException.ThrowIfNull(models);

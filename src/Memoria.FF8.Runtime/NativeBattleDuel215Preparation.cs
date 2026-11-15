@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel215PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, Func<NativeBattleDuel215Frame, int, uint, NativeBattleDuel215Frame> BindActor5022C0, Func<NativeBattleDuel215Frame, int, byte, NativeBattleDuel215Frame> SelectSequence505C00);
+public sealed record NativeBattleDuel215PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<BattleModelOwner> Targets, NativeBattleModelAliases Aliases, Func<NativeBattleDuel215Frame, BattleModelOwner, uint, NativeBattleDuel215Frame> BindActor5022C0, Func<NativeBattleDuel215Frame, BattleModelOwner, byte, NativeBattleDuel215Frame> SelectSequence505C00);
 
 public static class NativeBattleDuel215Preparation
 {
@@ -13,8 +13,8 @@ public static class NativeBattleDuel215Preparation
         for (int index = 0; index < services.Targets.Length; index++)
         {
             int offset = 64 + index * 32;
-            int target = services.Targets[index];
-            if (task.ReadDword(offset) != NativeBattleGraphicsModelAddress.Encode(target))
+            BattleModelOwner target = services.Targets[index];
+            if (task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner != target)
             {
                 throw new InvalidDataException("Native Duel215 restoration lost its actual target model pointer.");
             }
@@ -27,7 +27,7 @@ public static class NativeBattleDuel215Preparation
         Restore(actor, 48, 56, true);
         return frame;
 
-        void Restore(int index, int position, int rotation, bool clearFlag8)
+        void Restore(BattleModelOwner index, int position, int rotation, bool clearFlag8)
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel215 restoration requires its actual raw model transform.");
@@ -51,7 +51,7 @@ public static class NativeBattleDuel215Preparation
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel215 preparation requires its entered parameters.");
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleDuel215Controller.Scene);
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        if (task.Callback != 0x69B070 || services.Targets.IsDefault || services.Targets.Length > 10 || services.Targets.Any(index => index >= 7))
+        if (task.Callback != 0x69B070 || services.Targets.IsDefault || services.Targets.Length > 10 || services.Targets.Any(target => !services.Aliases.Roster.Contains(target)))
         {
             throw new InvalidDataException("Native Duel215 preparation requires its actual scene and target rows.");
         }
@@ -61,12 +61,12 @@ public static class NativeBattleDuel215Preparation
         NativeBattleDuel215TargetBounds[] bounds = new NativeBattleDuel215TargetBounds[services.Targets.Length];
         for (int index = 0; index < services.Targets.Length; index++)
         {
-            int target = services.Targets[index];
+            BattleModelOwner target = services.Targets[index];
             NativeBattleGraphicsModel model = services.ReadModel(target);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel215 preparation requires the target's raw position WORDs.");
             NativeBattleEffectLocalBounds localBounds = model.GeometryBounds52 ?? throw new NotSupportedException("Native Duel215 placement requires the target's actual local bounds.");
             int offset = 64 + index * 32;
-            task = task.WriteDword(offset, NativeBattleGraphicsModelAddress.Encode(target));
+            task.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(target), services.Aliases.EncodeAddress(target));
             task = SavePosition(task, offset + 4, transform);
             task = SaveRotation(task, offset + 12, model);
             task = task.WriteBytes(offset + 20, frame.Staging.Read(0x2508990, 8));
@@ -94,7 +94,7 @@ public static class NativeBattleDuel215Preparation
         frame = services.BindActor5022C0(frame, actor, checked(pool.BankAddress + (uint)(slot * pool.Stride) + 16));
         frame = services.SelectSequence505C00(frame, actor, 1);
         frame = frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 28880) };
-        for (int index = 0; index < 3; index++)
+        foreach (BattlePartyModelOwner index in services.Aliases.Roster.Party)
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             services.WriteModel(index, model with { Flags0 = (ushort)(model.Flags0 | 4) });

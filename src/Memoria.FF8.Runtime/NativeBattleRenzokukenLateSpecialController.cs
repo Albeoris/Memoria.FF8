@@ -18,20 +18,25 @@ public static partial class NativeBattleRenzokukenSpecialController
         bool delayedBinding = effect is 339 or 340;
         if (counter == 0)
         {
-            ushort flags = inputs.ReadModel(state.Core.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             task = task.WriteWord(14, (ushort)(flags & 0x800));
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(flags | 0x800)));
         }
         if (counter == 1 && delayedBinding)
         {
-            Execute(new NativeBattleRenzokukenSpecialTargetSequence(checked((byte)state.Core.FirstTarget), 1));
+            Execute(new NativeBattleRenzokukenSpecialTargetSequence(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 1));
         }
         if (counter == (delayedBinding ? 2 : 1))
         {
             Execute(new NativeBattleRenzokuken160ActorResource(resources.ActorResource, state.Core.InitialControl ? (byte)2 : (byte)1));
             for (int bank = 0; bank < resources.ActorResource.TargetResources.Length; bank++)
             {
-                Execute(new NativeBattleRenzokukenSpecialTargetResource(resources.ActorResource, checked((byte)(state.Core.FirstTarget + bank)), checked((byte)bank), 1) { StartSequence = !delayedBinding });
+                byte resourceBank = checked((byte)bank);
+                BattleModelOwner firstTarget = NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect);
+                BattleModelOwner target = resourceBank == 0
+                    ? firstTarget
+                    : (inputs.ResolveRelativeResourceTarget ?? throw new NotSupportedException("Native special Renzokuken requires an associated model for its reached target resource bank."))(firstTarget, resourceBank);
+                Execute(new NativeBattleRenzokukenSpecialTargetResource(resources.ActorResource, target, resourceBank, 1) { StartSequence = !delayedBinding });
             }
         }
         if (counter == (delayedBinding ? 3 : 2))
@@ -68,7 +73,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 343 => 0x575BA0,
                 _ => throw new InvalidDataException()
             };
-            Execute(new NativeBattleRenzokuken160SharedTask(emitter, 0, state.Core.Actor));
+            Execute(new NativeBattleRenzokuken160SharedTask(emitter, 0, NativeBattleRenzokukenInvocation.Source(frame.Effect)));
         }
         switch (effect)
         {
@@ -97,7 +102,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                     NativeBattleVector origin = state.Core.Origin;
                     if (counter == 35)
                     {
-                        NativeBattleActionMatrix body = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken requires its current actor matrix64.");
+                        NativeBattleActionMatrix body = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken requires its current actor matrix64.");
                         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(body, new(600, 100, -400));
                         Set(stored, 16, offset.X);
                         Set(stored, 18, offset.Y);
@@ -110,7 +115,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 if (counter == 59)
                 {
                     int mesh = Append(0x57D840);
-                    NativeBattleVector bone = (inputs.ReadBone ?? throw new NotSupportedException("Native special Renzokuken requires its current target bone29."))(checked((byte)state.Core.FirstTarget), 29, 0);
+                    NativeBattleVector bone = (inputs.ReadBone ?? throw new NotSupportedException("Native special Renzokuken requires its current target bone29."))(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 29, 0);
                     Position(mesh, bone);
                     Scale(mesh, 28, (Rand(2048) + 8192) / 3);
                 }
@@ -146,7 +151,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 }
                 if (state.Core.InitialControl && counter is 90 or 125)
                 {
-                    ushort flags = inputs.ReadModel(state.Core.Actor).Flags0;
+                    ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
                     Execute(new NativeBattleRenzokuken160ActorFlags(counter == 90 ? (ushort)(flags | 8) : (ushort)(flags & ~8)));
                 }
                 break;
@@ -162,7 +167,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                     int mesh = Allocate(0x5795C0);
                     Set(mesh, 26, counter == 105 ? 20 : 22);
                     Scale(mesh, 28, counter == 105 ? (Rand(768) + 2560) / 3 : (Rand(1408) + 3328) / 3);
-                    NativeBattleActionMatrix body = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken requires its current actor matrix64.");
+                    NativeBattleActionMatrix body = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken requires its current actor matrix64.");
                     var rotated = NativeBattleGfMatrices.RotateLong56C600(body, resources.ImpactAxis[0], resources.ImpactAxis[1], resources.ImpactAxis[2]);
                     int distance = counter == 105 ? -100 : -800;
                     NativeBattleVector origin = AddLate(state.Core.Origin, LateVector(unchecked(distance * rotated.X) >> 12, unchecked(distance * rotated.Y) >> 12, unchecked(distance * rotated.Z) >> 12));
@@ -181,7 +186,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                     int mesh = Append(0x577240);
                     Position(mesh, state.Core.Origin, true);
                     Scale(mesh, 28, (Rand(3072) + 7168) / 3);
-                    frame = Store(frame, ReadState(frame) with { CapturedMatrix = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken requires its captured actor matrix64.") });
+                    frame = Store(frame, ReadState(frame) with { CapturedMatrix = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken requires its captured actor matrix64.") });
                 }
                 break;
         }
@@ -212,7 +217,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 Execute(new NativeBattleRenzokuken160Stage(0));
             }
             Execute(new NativeBattleRenzokuken160ActorColor(resources.DefaultModelColor));
-            ushort flags = inputs.ReadModel(state.Core.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)((flags & 0xF7FF) | task.ReadWord(14))));
         }
         return new(frame, pool.WriteSlot(slot, task), result);

@@ -165,8 +165,8 @@ public static partial class NativeBattleSandStorm176Controller
             Emit(new NativeBattleSandStorm176Actor(actor, restored));
             int dust = Spawn(0x5D1820);
             BattleExecutionReference.ContactOffset contactOffset = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2);
-            int offset = contactOffset.Offset ?? throw new InvalidDataException("Sand Storm lift requires its contact offset.");
-            NativeBattleModulePoolTask dustTask = children.Slots[dust].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(0x100 << (offset & 31)))).WriteDword(16, PackWords(saved.Position.X, saved.Position.Y)).WriteDword(20, PackWords(saved.Position.Z, saved.Vertical34));
+            int ordinal = contactOffset.Offset ?? throw new InvalidDataException("Sand Storm lift requires its contact offset.");
+            NativeBattleModulePoolTask dustTask = children.Slots[dust].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(0x100 << (ordinal & 31)))).WriteDword(16, PackWords(saved.Position.X, saved.Position.Y)).WriteDword(20, PackWords(saved.Position.Z, saved.Vertical34));
             dustTask.WriteExecutionReference(26, 2, contactOffset, contactOffset.EncodeOriginalWord());
             Put(dust, dustTask);
             Emit(new NativeBattleSandStorm176Sound(resources.LandingSound));

@@ -26,7 +26,12 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Expanded model lifecycle roster contains an actor without a current allocation.");
         }
-        return new(facts.ToImmutable()) { ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty };
+        return new(facts.ToImmutable())
+        {
+            ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty,
+            ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
+            ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
+        };
     }
 
     private NativeBattleGraphicsState PublishHostedModelLifecycleCue(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleModelActorFacts actor, NativeBattleSequenceCue cue, NativeBattleModelLifecycleServices services)

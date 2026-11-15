@@ -36,8 +36,10 @@ public static partial class NativeBattleEffect68Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        byte target = checked((byte)packets.ReadContact(first).Primary.Recipient);
-        frame = Write(frame, root, Read(frame, root).WriteDword(12, 0x1D99A78).WriteByte(0x2D, target).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()));
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+        NativeBattleModulePoolTask rootTask = Read(frame, root).WriteDword(12, 0x1D99A78);
+        rootTask.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeOperand(target, 1));
+        frame = Write(frame, root, rootTask.WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()));
         if ((Parameters(frame).Flags79 & 1) == 0)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect68UploadTim505E30(source));

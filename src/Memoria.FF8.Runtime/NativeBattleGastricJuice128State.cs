@@ -49,6 +49,13 @@ public sealed record NativeBattleGastricJuice128State([property: JsonRequired] N
         NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
         return this;
     }
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    internal NativeBattleGastricJuice128State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = globals };
+    }
+
     private static int Require(uint address, int length)
     {
         ulong end = (ulong)address + (uint)Math.Max(length, 0);

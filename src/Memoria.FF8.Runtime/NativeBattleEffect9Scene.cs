@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleEffect9StageColor(short Depth, bool ClearRgb) : NativeBattleEffect9Operation;
 public sealed record NativeBattleEffect9CaptureBody(uint Address) : NativeBattleEffect9Operation;
 public sealed record NativeBattleEffect9SetupBody(uint Address) : NativeBattleEffect9Operation;
-public sealed record NativeBattleEffect9RestoreBody(byte Actor, ushort SavedFlags) : NativeBattleEffect9Operation;
+public sealed record NativeBattleEffect9RestoreBody(BattleModelOwner Actor, ushort SavedFlags) : NativeBattleEffect9Operation;
 public sealed record NativeBattleEffect9DrawBody(uint Address) : NativeBattleEffect9Operation;
 
 public static class NativeBattleEffect9Scene
@@ -53,7 +53,7 @@ public static class NativeBattleEffect9Scene
                 if (shade <= 0)
                 {
                     frame = frame with { State = frame.State.WriteWord(0x274F046, 0).WriteWord(NativeBattleEffect9State.ControlAddress + 0x48, 1) };
-                    frame = inputs.Execute(frame, new NativeBattleEffect9RestoreBody(task.ReadByte(0x2D), unchecked((ushort)task.ReadDword(0x74))));
+                    frame = inputs.Execute(frame, new NativeBattleEffect9RestoreBody(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, unchecked((ushort)task.ReadDword(0x74))));
                     frame = NativeBattleEffect9Controller.Write(frame, address, NativeBattleEffect9Controller.Read(frame, address).WriteByte(0x26, (byte)(task.ReadByte(0x26) & ~8)).WriteWord(0x78, 10));
                     frame = NativeBattleEffect9Controller.NextPhase(frame, address);
                 }
@@ -122,9 +122,9 @@ public static class NativeBattleEffect9Scene
         return NativeBattleEffect9Controller.Finish(frame, address);
     }
 
-    public static NativeBattleEffect9State InitializeBody(NativeBattleEffect9State state, uint modelAddress, short minimumY, short maximumY, short positionY)
+    public static NativeBattleEffect9State InitializeBody(NativeBattleEffect9State state, BattleModelOwner owner, NativeBattleModelAliases aliases, short minimumY, short maximumY, short positionY)
     {
-        state = state.Write(0x274EFF0, new byte[92]).WriteDword(0x274F030, 0x274F638).WriteDword(0x274F034, 0x27584D0).WriteDword(0x274F038, modelAddress).WriteDword(0x274F03C, 0x274EFEC).WriteDword(0x274F040, 0x274EFEC);
+        state = state.Write(0x274EFF0, new byte[92]).WriteDword(0x274F030, 0x274F638).WriteDword(0x274F034, 0x27584D0).WriteModel(0x274F038, owner, aliases).WriteDword(0x274F03C, 0x274EFEC).WriteDword(0x274F040, 0x274EFEC);
         state = state.WriteDword(0x27584D4, 0x274F638).WriteWord(0x27584E4, 0).WriteWord(0x27584E6, 0).WriteWord(0x27584E8, 320).WriteWord(0x27584EA, 0).Write(0x27584EC, [128, 128, 128]).WriteDword(0x27584F0, uint.MaxValue).WriteWord(0x27584F4, 0);
         return state.WriteWord(0x274F04A, unchecked((ushort)(maximumY - positionY))).WriteWord(0x274F048, unchecked((ushort)((minimumY + maximumY) / 2))).WriteWord(0x274F046, 64);
     }

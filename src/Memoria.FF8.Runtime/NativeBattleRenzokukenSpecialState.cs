@@ -102,11 +102,11 @@ public sealed partial record NativeBattleEffectMemory
     }
 }
 
-public sealed record NativeBattleRenzokukenSpecialTargetResource(BattleNativeRenzokukenResource Resource, byte Target, byte Bank, byte Sequence) : NativeBattleRenzokuken160Operation
+public sealed record NativeBattleRenzokukenSpecialTargetResource(BattleNativeRenzokukenResource Resource, BattleModelOwner Target, byte Bank, byte Sequence) : NativeBattleRenzokuken160Operation
 {
     public bool StartSequence { get; init; } = true;
 }
-public sealed record NativeBattleRenzokukenSpecialTargetSequence(byte Target, byte Sequence) : NativeBattleRenzokuken160Operation;
+public sealed record NativeBattleRenzokukenSpecialTargetSequence(BattleModelOwner Target, byte Sequence) : NativeBattleRenzokuken160Operation;
 public sealed record NativeBattleRenzokukenSpecialCameraRotation(short Delta) : NativeBattleRenzokuken160Operation;
 
 public static partial class NativeBattleRenzokukenSpecialController

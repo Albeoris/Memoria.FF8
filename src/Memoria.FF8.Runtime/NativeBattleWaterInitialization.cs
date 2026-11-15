@@ -4,11 +4,11 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterInitializationResource(int ArenaOffset, int Length, uint Address);
-public sealed record NativeBattleWaterInitializationInputs(NativeBattleWaterInitializationResource Resource0, NativeBattleWaterInitializationResource Resource1, NativeBattleWaterTemporaryFrame TemporaryFrame, uint ActionParametersAddress, uint HeaderBaseAddress, uint InitializationDirectoryAddress, byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, int ContactCount, byte FirstHeaderCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
-public sealed record NativeBattleWaterResetCaptureInputs(byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, int ContactCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
-public sealed record NativeBattleWaterResetResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterTemporaryFrame TemporaryFrame, NativeBattleWaterSlotBank SlotBank, int CurrentHeaderIndex);
+public sealed record NativeBattleWaterInitializationInputs(NativeBattleWaterInitializationResource Resource0, NativeBattleWaterInitializationResource Resource1, NativeBattleWaterTemporaryFrame TemporaryFrame, uint ActionParametersAddress, uint InitializationDirectoryAddress, NativeBattleWaterResetCaptureInputs Selection, byte FirstHeaderCount);
+public sealed record NativeBattleWaterResetCaptureInputs(BattleModelOwner Caster, BattleActionHeaderReference? Header, uint? OriginalHeaderAddress, BattleModelOwner FirstHeaderFirstActor, ImmutableArray<BattleModelOwner> Contacts, BattleActorModels Models, NativeBattleModelBoundary Boundary);
+public sealed record NativeBattleWaterResetResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterTemporaryFrame TemporaryFrame, NativeBattleWaterSlotBank SlotBank, BattleActionHeaderReference? CurrentHeader);
 public sealed record NativeBattleWaterInitialPoolRequest(uint DescriptorAddress, uint BankAddress, int Stride, int Capacity, uint Callback);
-public sealed record NativeBattleWaterInitializationResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterSlotBank SlotBank, NativeBattleWaterTemporaryFrame TemporaryFrame, int CurrentHeaderIndex, NativeBattleWaterInitialPoolRequest PoolRequest);
+public sealed record NativeBattleWaterInitializationResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterSlotBank SlotBank, NativeBattleWaterTemporaryFrame TemporaryFrame, BattleActionHeaderReference? CurrentHeader, NativeBattleWaterInitialPoolRequest PoolRequest);
 
 /// <summary>The exact initializer over explicit current resources and a caller-bound, transient temporary frame.</summary>
 public static class NativeBattleWaterInitialization
@@ -29,7 +29,7 @@ public static class NativeBattleWaterInitialization
         inputs.TemporaryFrame.Validate();
         using NativeBattleWaterTemporaryFrame.PrivateWrite temporary = inputs.TemporaryFrame.BeginPrivateWrite();
         NativeBattleWaterTemporaryFrame frame = temporary.View;
-        if (frame.Address == 0 || frame.Address > uint.MaxValue - 0x180 || inputs.ActionParametersAddress == 0 || inputs.HeaderBaseAddress == 0 || directories.OwnerAddress(2) != NativeBattleScriptedEffectMemory.Address)
+        if (frame.Address == 0 || frame.Address > uint.MaxValue - 0x180 || inputs.ActionParametersAddress == 0 || directories.OwnerAddress(2) != NativeBattleScriptedEffectMemory.Address)
         {
             throw new InvalidDataException("Native initialization requires its actual bounded temporary frame and parameter/header bindings.");
         }
@@ -97,8 +97,14 @@ public static class NativeBattleWaterInitialization
         Byte(0x2798218, 0xFF);
         Word(manager + 0xA0, unchecked((ushort)sourceBase));
         Word(command, 1);
-        NativeBattleWaterResetResult reset = ResetAA4B60(core, arena, frame, inputs.Resource1, (_, _, _) => inputs.HeaderBaseAddress, (_, _, _, _) => new(inputs.Caster, inputs.CurrentHeaderIndex, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.ContactCount, inputs.Graphics));
-        return new(reset.Core, reset.Arena, reset.SlotBank, temporary.Publish(), reset.CurrentHeaderIndex, poolRequest);
+        BattleActorModels models = inputs.Selection.Models;
+        NativeBattleCinematicActorContext? retained = core.PresentationActors;
+        if (retained is null || !retained.Owners.SequenceEqual(models.Owners))
+        {
+            core = core with { PresentationActors = NativeBattleWaterHeaderCapture.SeedRetainedActorFields(core.ReadHeader(), models, inputs.Selection.Boundary) };
+        }
+        NativeBattleWaterResetResult reset = ResetAA4B60(core, arena, frame, inputs.Resource1, _ => inputs.Selection);
+        return new(reset.Core, reset.Arena, reset.SlotBank, temporary.Publish(), reset.CurrentHeader, poolRequest);
 
         void Resource(NativeBattleWaterInitializationResource resource, int minimum)
         {
@@ -138,7 +144,7 @@ public static class NativeBattleWaterInitialization
         }
     }
 
-    public static NativeBattleWaterResetResult ResetAA4B60(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, NativeBattleWaterTemporaryFrame temporaryFrame, NativeBattleWaterInitializationResource resource1, Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, uint> readHeaderBase, Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, byte, NativeBattleWaterResetCaptureInputs> readCaptureInputs)
+    public static NativeBattleWaterResetResult ResetAA4B60(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, NativeBattleWaterTemporaryFrame temporaryFrame, NativeBattleWaterInitializationResource resource1, Func<byte, NativeBattleWaterResetCaptureInputs> readCaptureInputs)
     {
         uint manager = Dword(0x27973EC);
         uint command = Dword(0x27973C0);
@@ -171,7 +177,7 @@ public static class NativeBattleWaterInitialization
         StoreByte(header + 0x3A, 0);
         if (core.PresentationActors is { } presentationActors)
         {
-            core = core with { PresentationActors = presentationActors.WithContactCursor(0) };
+            core = core with { PresentationActors = presentationActors.WithContactsProcessed(0) };
         }
         StoreByte(0x2798219, 0);
         StoreByte(0x2798218, 0xFF);
@@ -188,17 +194,22 @@ public static class NativeBattleWaterInitialization
         arena = NativeBattleWaterSlots.InitializeB65160(arena, bank, 0, BinaryPrimitives.ReadUInt16LittleEndian(core.Read(command + 0xC, 2)), BinaryPrimitives.ReadUInt16LittleEndian(core.Read(command + 0xE, 2)), BinaryPrimitives.ReadUInt16LittleEndian(core.Read(header + 0x1C, 2)));
         arena = arena.Write(bank.SlotOffset(arena, 0) + 0x12, new byte[2]);
         byte relativeIndex = core.Read(manager + 0xD0, 1)[0];
-        uint parameters = Dword(manager + 0xC0);
-        uint headerAddress = unchecked(readHeaderBase(core, arena, parameters) + (uint)(0x14 * relativeIndex));
-        StoreDword(manager + 0xCC, headerAddress);
-        NativeBattleWaterResetCaptureInputs inputs = readCaptureInputs(core, arena, headerAddress, relativeIndex);
-        NativeBattleWaterHeaderCaptureResult captured = NativeBattleWaterHeaderCapture.CaptureAA4E90(core.ReadHeader(), arena, bank, 0, inputs.Caster, inputs.CurrentHeaderIndex, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.ContactCount, inputs.Graphics);
+        NativeBattleWaterResetCaptureInputs inputs = readCaptureInputs(relativeIndex);
+        if (inputs.OriginalHeaderAddress is uint originalHeader)
+        {
+            StoreDword(manager + 0xCC, originalHeader);
+        }
+        else
+        {
+            core = core.MarkUnknown(manager + 0xCC, 4);
+        }
+        NativeBattleWaterHeaderCaptureResult captured = NativeBattleWaterHeaderCapture.CaptureAA4E90(core.ReadHeader(), arena, bank, 0, inputs.Caster, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.Models, inputs.Boundary);
         arena = captured.Arena;
-        core = core.WithHeader(NativeBattleWaterHeaderCapture.CacheRowsAA4B60(captured.Header, inputs.Graphics));
+        core = core.WithHeader(NativeBattleWaterHeaderCapture.CacheRowsAA4B60(captured.Header, inputs.Models, inputs.Boundary));
         byte[] main = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(main, Dword(manager + 0x94));
         arena = arena.Write(bank.SlotOffset(arena, 0), main);
-        return new(core, arena, temporary.Publish(), bank, captured.CurrentHeaderIndex);
+        return new(core, arena, temporary.Publish(), bank, inputs.Header);
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
         void StoreByte(uint address, byte value) => core = core.Write(address, new byte[] { value });

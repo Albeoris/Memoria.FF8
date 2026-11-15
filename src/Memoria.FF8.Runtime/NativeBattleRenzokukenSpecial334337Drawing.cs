@@ -54,7 +54,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             world = NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { X = unchecked((short)task.ReadWord(16)), Y = 0, Z = unchecked((short)task.ReadWord(20)) };
             return DrawGroupMesh(frame, pool, slot, inputs, resources.Meshes[5], world, view, projection, colors, 6, 409, 16, 5);
         }
-        world = inputs.ReadModel(ReadState(frame).Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken mesh requires its current actor matrix64.");
+        world = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken mesh requires its current actor matrix64.");
         world = world with { X = unchecked((short)task.ReadWord(16)), Y = unchecked((short)task.ReadWord(18)), Z = unchecked((short)task.ReadWord(20)) };
         return callback switch
         {

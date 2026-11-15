@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicEntryStep(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleWaterSlotBank SlotBank, NativeBattleWaterTemporaryFrame TemporaryFrame, int CurrentHeaderIndex);
+public sealed record NativeBattleCinematicEntryStep(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleWaterSlotBank SlotBank, NativeBattleWaterTemporaryFrame TemporaryFrame, BattleActionHeaderReference? CurrentHeader);
 
 /// <summary>Selected cinematic entry over the shared initialization and single physical callback pool.</summary>
 public static class NativeBattleCinematicEntry
@@ -20,9 +20,8 @@ public static class NativeBattleCinematicEntry
         RequireBinding(profile, effect);
         effect.Validate();
         directories.Validate();
-        NativeBattleCinematicActorContext? actorContext = memory.ScriptedEffects?.PresentationActors;
-        bool isPartyCaster = actorContext is null ? inputs.Caster < 3 : inputs.Caster < actorContext.Roster.ActorCount && actorContext.Roster.Rows[inputs.Caster]?.IsParty == true;
-        if (presentationOnly ? effect.Parameters is not null || !isPartyCaster || inputs.Contacts.Length != 1 || inputs.Contacts[0] != inputs.Caster : effect.Parameters is not { } parameters || inputs.Caster != parameters.Source || inputs.CurrentHeaderIndex != parameters.Header)
+        NativeBattleWaterResetCaptureInputs selection = inputs.Selection;
+        if (presentationOnly ? effect.Parameters is not null || selection.Header is not null || selection.Caster.Side != BattleSide.Allies || selection.Contacts.Length != 1 || selection.Contacts[0] != selection.Caster : effect.Parameters is not { } parameters || selection.Caster != parameters.Source || selection.Header != parameters.Header)
         {
             throw new InvalidDataException("Native cinematic entry requires its actual invocation positioning owner.");
         }
@@ -42,7 +41,7 @@ public static class NativeBattleCinematicEntry
         NativeBattleWaterInitializationResult initialized = NativeBattleWaterInitialization.InitializeScriptedEntry(core, arena, directories, inputs, new(profile.QueueAddress, profile.BankAddress, 0x10, 1, profile.Callback), checked((short)profile.SourceBase));
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.QueueAddress, profile.BankAddress, 0x10, 1);
         (pool, _) = pool.Append(profile.Callback);
-        return new(memory with { Arena = initialized.Arena, ScriptedEffects = initialized.Core, Cinematic = new(profile.Effect, initialized.TemporaryFrame.ReadByte(0x145)) }, effect with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress }, initialized.SlotBank, initialized.TemporaryFrame, initialized.CurrentHeaderIndex);
+        return new(memory with { Arena = initialized.Arena, ScriptedEffects = initialized.Core, Cinematic = new(profile.Effect, initialized.TemporaryFrame.ReadByte(0x145)) }, effect with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress }, initialized.SlotBank, initialized.TemporaryFrame, initialized.CurrentHeader);
 
         void RequireResource(uint publication, NativeBattleWaterInitializationResource resource)
         {

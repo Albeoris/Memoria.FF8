@@ -60,16 +60,11 @@ public static partial class NativeBattleEffect68Lower
         };
     }
 
-    public static NativeBattleEffect68Frame Select7DC470(NativeBattleEffect68Frame frame, short actor, NativeBattleEffect68Resources resources, NativeBattleEffect68Inputs inputs)
+    public static NativeBattleEffect68Frame Select7DC470(NativeBattleEffect68Frame frame, BattleModelOwner actor, NativeBattleEffect68Resources resources, NativeBattleEffect68Inputs inputs)
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = inputs.ReadModels(frame).Select(row => ByteOwner(row, 0x9C)).ToImmutableArray();
-        NativeBattleScanModelSelectionResult selected = NativeBattleScanModelSelection.Select84D320(models, actor, _ => throw new NotSupportedException("Effect68 requires the current resource sequence."), index => inputs.ReadResourceSequence(frame, index));
-        frame = PutDword(frame, 0x25FFAA8, selected.SelectedPhysicalModel);
-        for (int index = 0; index < 7; index++)
-        {
-            frame = PutDword(frame, 0x25FCE34 + (uint)(index * 4), selected.SelectionFlags[index]);
-        }
-        return frame;
+        NativeBattleScanModelSelectionResult selected = NativeBattleScanModelSelection.Select84D320(inputs.ReadActorModels(frame), actor, owner => inputs.ReadResourceSequence(frame, owner));
+        NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+        return frame with { State = frame.State.WriteModelSelection(selected, aliases) };
     }
 
     internal static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

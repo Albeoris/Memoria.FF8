@@ -145,7 +145,7 @@ public sealed partial class BattleSession
 
     private BattleDiagnosticNativeContact? ObserveDiagnosticGuardianContact(BattleActionPresentation? submitted, BattleCombatant actor, BattleCombatant recipient, NativeBattleActionHeaderSlot header, NativeBattleContactPacket retained, int contactIndex, ushort actionId)
     {
-        if (DiagnosticResolution is null || submitted is null || submitted.ActorId != actor.Id || submitted.Ability != BattleAbility.GuardianForce || submitted.ActionId != actionId - 64 || submitted.NativeHeaderIndex != 0 || submitted.NativeQueuedCommand is byte queued && queued != 254 || submitted.NativeAction is { } native && (native.Command != 254 || native.ActionId != actionId) || diagnosticDispatchSerial == 0)
+        if (DiagnosticResolution is null || submitted is null || submitted.ActorId != actor.Id || submitted.Ability != BattleAbility.GuardianForce || submitted.ActionId != actionId - 64 || submitted.NativeHeader != new BattleActionHeaderReference(0) || submitted.NativeQueuedCommand is byte queued && queued != 254 || submitted.NativeAction is { } native && (native.Command != 254 || native.ActionId != actionId) || diagnosticDispatchSerial == 0)
         {
             return null;
         }
@@ -183,7 +183,7 @@ public sealed partial class BattleSession
         if (effect.Parameters is { HeaderIndex7C: >= 0 and < NativeBattleActionPacketsState.HeaderCapacity } entered)
         {
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(entered.Header);
-            actionId = header.ReadByte(4) | header.ReadByte(5) << 8;
+            actionId = header.Action;
             nativeCommand = header.Command;
             if (actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
             {
@@ -193,7 +193,7 @@ public sealed partial class BattleSession
         BattleAttackCommand? callbackBound = bound ?? nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect);
         byte? callbackStage = action?.NativeAiCallbackStage ?? callbackBound?.NativeAiCallbackStage;
         string? scriptSha256 = callbackStage is byte stage && actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
-        BattleDiagnosticEffectDispatch dispatch = new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = effect.Parameters?.TargetActors, NativeActorIndex = effect.Parameters?.Source, NativeHeaderIndex = effect.Parameters?.Header };
+        BattleDiagnosticEffectDispatch dispatch = new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = OriginalDiagnosticTargets(effect.Parameters), NativeActorIndex = OriginalDiagnosticSource(effect.Parameters), NativeHeaderIndex = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header) };
         PublishDiagnosticEnteredEffect(observer, CompleteDiagnosticReflection(dispatch), effect);
     }
 

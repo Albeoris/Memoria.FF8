@@ -57,6 +57,19 @@ public sealed class NativeBattleActionPacketsState
         return ReferenceEquals(Roster, roster) && ReferenceEquals(this.aliases, aliases) ? this : new(roster, aliases, RetainedStorage, headers, contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
     }
 
+    internal BattleActionHeaderReference NextHeader => new(ActionCount);
+
+    internal bool HasPublishedHeader(BattleActionHeaderReference header) => header.Ordinal < ActionCount;
+
+    internal IEnumerable<(BattleActionHeaderReference Reference, NativeBattleActionHeaderSlot Slot)> PublishedHeaders()
+    {
+        for (int index = 0; index < ActionCount; index++)
+        {
+            var reference = new BattleActionHeaderReference(index);
+            yield return (reference, ReadHeader(reference));
+        }
+    }
+
     public (NativeBattleActionPacketsState State, BattleActionHeaderReference Header) Prepare(NativeBattleActionHeaderPreparation preparation)
     {
         ArgumentNullException.ThrowIfNull(preparation);

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
         {

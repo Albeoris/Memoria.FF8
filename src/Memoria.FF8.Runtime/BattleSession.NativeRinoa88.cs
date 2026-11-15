@@ -155,9 +155,9 @@ public sealed partial class BattleSession
                         NativeStage = NativeBattleRinoa88Stage.Visibility(NativeStage ?? throw new NotSupportedException("Native Rinoa88 requires its stage visibility rows."), visibility.Callback);
                         return current;
                     }
-                    NativeBattleRinoa88VisibilityStep visible = NativeBattleRinoa88ModelOperations.ApplyVisibility(NativeBattleRinoa88Scene.Read(current), graphics.Models, visibility.Callback);
+                    NativeBattleRinoa88VisibilityStep visible = NativeBattleRinoa88ModelOperations.ApplyVisibility(NativeBattleRinoa88Scene.Read(current), graphics.ActorModels, current.Effect, nativeActionPackets.ModelAliases, visibility.Callback);
                     graphics = graphics with { ActorModels = visible.Models };
-                    return current with { State = current.State with { Scene = visible.Scene } };
+                    return current with { State = current.State with { Scene = visible.Scene }, Effect = visible.Effect };
                 case NativeBattleRinoa88BindActor bind when bind.Resource == 0x15560C0 && bind.SavedOwner == 0x25ACD10:
                     NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(bind.Actor), NativeGraphicsPoseResource(graphics, bind.Actor));
                     NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(bind.Resource, resources.ActorOverride.Data.AsSpan());

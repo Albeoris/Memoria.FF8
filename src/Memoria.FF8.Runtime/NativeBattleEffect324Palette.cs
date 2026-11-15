@@ -9,7 +9,7 @@ public static class NativeBattleEffect324Palette
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        uint model = Model324(Signed(task, 14));
+        BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
         uint color;
         if (age < 4)
         {

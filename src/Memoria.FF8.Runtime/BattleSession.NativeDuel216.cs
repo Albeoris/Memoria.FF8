@@ -31,32 +31,18 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Different Beat requires its authenticated color arithmetic.");
         NativeBattleDuel216Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Different Beat requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Different Beat requires its retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Different Beat requires its retained CRT random owner."));
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
-        int target = NativeBattleDuel274Controller.Index(BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x2508884, 4)));
-        ImmutableArray<byte>.Builder ring = ImmutableArray.CreateBuilder<byte>();
-        int? node = target;
-        while (node is int index)
-        {
-            if (ring.Contains((byte)index))
-            {
-                if (index != target)
-                {
-                    throw new InvalidDataException("Native Different Beat target ring repeats outside its starting row.");
-                }
-                break;
-            }
-            ring.Add(checked((byte)index));
-            node = graphics.Models[index].ReadLinkedModelIndex140();
-        }
-        NativeBattleDuel216PreparationServices preparation = new(index => graphics.Models[index], WriteModel, Anchor, Capture, Bind, Select, Bounds, RestoreFocal);
-        NativeBattleDuel216SceneServices scene = new(index => graphics.Models[index], WriteModel, Anchor, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ring.ToImmutable(), view, ExecuteScene);
+        BattleModelOwner target = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508884);
+        ImmutableArray<BattleModelOwner> ring = NativeBattleModelRings.Walk(graphics.ActorModels, target).ToImmutableArray();
+        NativeBattleDuel216PreparationServices preparation = new(index => graphics.ActorModels.Get(index), WriteModel, Anchor, Capture, Bind, Select, Bounds, RestoreFocal);
+        NativeBattleDuel216SceneServices scene = new(index => graphics.ActorModels.Get(index), WriteModel, Anchor, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ring, view, ExecuteScene);
         NativeBattleDuel216ParticleServices particles = new(Sprite, Mesh);
         frame = NativeBattleDuel216Controller.Advance695AB0(frame, new(Execute), Child);
         Publish(frame);
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native Different Beat requires actual model WORD36.")).Angle36 };
+        void WriteModel(BattleModelOwner index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        NativeBattleModuleAnchor Anchor(BattleModelOwner index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Different Beat requires actual model WORD36.")).Angle36 };
         void Publish(NativeBattleDuel216Frame current)
         {
             NativeEffectMemory = current.Memory;
@@ -76,10 +62,10 @@ public sealed partial class BattleSession
             StoreOrdering(written.Ordering);
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2508874, BitConverter.GetBytes(checked(NativeBattleDuel216Controller.Arena + (uint)written.Cursor))) };
         }
-        NativeBattleDuel216Frame Bind(NativeBattleDuel216Frame current, int index, uint row)
+        NativeBattleDuel216Frame Bind(NativeBattleDuel216Frame current, BattleModelOwner index, uint row)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[index], NativeGraphicsPoseResource(graphics, index));
+            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(index), NativeGraphicsPoseResource(graphics, index));
             var bound = NativeBattleVictoryResources.Bind5022C0(resources.ReadActorDat(), NativeModelCpuResources ?? throw new NotSupportedException("Native Different Beat requires its actual CPU resource rows."), model, row, NativeBattleDuel216Resources.ActorDirectory, Read, (address, pointer) => current = current with { Effect = current.Effect with { Pools = NativeBattleEffectTaskMemory.WritePointer(current.Effect.Pools, address, pointer) } });
             WriteModel(index, bound.Model);
             return current;
@@ -93,15 +79,15 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? current.Memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : current.Staging.ReadResourcePointer(address);
             }
         }
-        NativeBattleDuel216Frame Select(NativeBattleDuel216Frame current, int index, byte sequence)
+        NativeBattleDuel216Frame Select(NativeBattleDuel216Frame current, BattleModelOwner index, byte sequence)
         {
             Publish(current);
-            graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
+            graphics = SelectNativeHeaderSequence(graphics, index, sequence);
             return current;
         }
-        NativeBattleDuel216PreparationBounds Bounds(NativeBattleDuel216Frame current, int index)
+        NativeBattleDuel216PreparationBounds Bounds(NativeBattleDuel216Frame current, BattleModelOwner index)
         {
-            NativeBattleGraphicsModel model = graphics.Models[index];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Different Beat bounds require actual depth-cue controls.");
             NativeBattleScriptedColorRegisters registers = current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Different Beat bounds require their actual packed V0 owner.");
             NativeBattleDuel216BoundsStep result;
@@ -229,7 +215,7 @@ public sealed partial class BattleSession
                     return StoreBank(measured.Frame, main);
                 case NativeBattleDuel216BodyDraw body:
                     Publish(current);
-                    NativeBattleActionMatrix world = graphics.Models[body.Model].GeometryWorldMatrix ?? throw new NotSupportedException("Native Different Beat body draw requires its actual model matrix64.");
+                    NativeBattleActionMatrix world = graphics.ActorModels.Get(body.Model).GeometryWorldMatrix ?? throw new NotSupportedException("Native Different Beat body draw requires its actual model matrix64.");
                     NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(body.Rotation) with { X = body.Pivot.X, Y = body.Pivot.Y, Z = body.Pivot.Z };
                     NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(world, local);
                     matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, body.Scale.X, body.Scale.Y, body.Scale.Z);
@@ -237,7 +223,7 @@ public sealed partial class BattleSession
                     (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(matrix, body.Pivot);
                     matrix = matrix with { X = unchecked(matrix.X - x), Y = unchecked(matrix.Y - y), Z = unchecked(matrix.Z - z) };
                     NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
-                    graphics = DrawNativeEffectModelContext92(graphics, body.Model, matrix, body.Pivot, projection, 4112, 16, pilotIdentity: NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0, body.Model));
+                    graphics = DrawNativeEffectModelContext92(graphics, body.Model, matrix, body.Pivot, projection, 4112, 16, pilotIdentity: NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0) with { ModelOwner = body.Model });
                     return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleDuel216EchoDraw:
                     var echo = DrawNativeDuel216Echo(current, graphics, parameters.Source, view, projection);
@@ -277,7 +263,7 @@ public sealed partial class BattleSession
             }
             return staging.Write(0x2508924, BitConverter.GetBytes(billboard.X)).Write(0x2508928, BitConverter.GetBytes(billboard.Y)).Write(0x250892C, BitConverter.GetBytes(billboard.Z));
         }
-        NativeBattleVector Position(int index) => (graphics.Models[index].Transform ?? throw new NotSupportedException("Native Different Beat requires actual model position WORDs.")).Position28;
+        NativeBattleVector Position(BattleModelOwner index) => (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Different Beat requires actual model position WORDs.")).Position28;
         NativeBattleEffectTaskPool Bank(NativeBattleDuel216Frame current, uint descriptor) => current.Effect.Pools.Single(pool => pool.DescriptorAddress == descriptor);
         NativeBattleDuel216Frame StoreBank(NativeBattleDuel216Frame current, NativeBattleEffectTaskPool pool) => current with { Effect = current.Effect with { Pools = current.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         NativeBattleDuel216Frame StoreBirth(NativeBattleDuel216ParticleBirth birth) => StoreBank(birth.Frame, birth.Pool);

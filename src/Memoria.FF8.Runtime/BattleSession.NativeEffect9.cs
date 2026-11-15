@@ -33,7 +33,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect9 requires its actual camera owner.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect9 requires its current projection.");
-        NativeBattlePoseSource Source(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect9 requires its actual selected body rig.");
+        NativeBattlePoseSource Source(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect9 requires its actual selected body rig.");
         NativeBattleSummonColors Colors() => definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect9 requires its current interpolation constants.");
 
         void Publish(NativeBattleEffect9Frame current)
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleEffect9NodeAnchor Anchor(NativeBattleEffect9Frame current, int actor)
+        NativeBattleEffect9NodeAnchor Anchor(NativeBattleEffect9Frame current, BattleModelOwner actor)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), Source(actor), 0xF1, 0);
             current = Observe(current, producer);
@@ -108,16 +108,16 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect9UpdateCaster caster:
-                    NativeBattleModulePoolTask root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect9Controller.Read(current, caster.Address), current.Effect.Parameters!, graphics.Models, Source, producer => current = Observe(current, producer));
+                    NativeBattleModulePoolTask root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect9Controller.Read(current, caster.Address), current.Effect.Parameters!, graphics.ActorModels.Get, Source, producer => current = Observe(current, producer));
                     return NativeBattleEffect9Controller.Write(current, caster.Address, root);
                 case NativeBattleEffect9UpdateTarget target:
-                    NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect9Controller.Read(current, target.Address), graphics.Models, Source, producer => current = Observe(current, producer));
-                    int actor = task.ReadByte(0x2D);
+                    NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect9Controller.Read(current, target.Address), graphics.ActorModels.Get, Source, producer => current = Observe(current, producer));
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = Source(actor);
                     task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState!, source));
                     return NativeBattleEffect9Controller.Write(current, target.Address, task);
                 case NativeBattleEffect9InitializeControl control:
-                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeBattleEffect9Controller.Read(current, control.Address).ReadByte(0x2D));
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeBattleEffect9Controller.Read(current, control.Address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                     NativeBattleVector position = (model.Transform ?? throw new NotSupportedException("Effect9 requires its current target position.")).Position28;
                     uint xy = unchecked((ushort)position.X) | unchecked((uint)(ushort)position.Y << 16);
                     uint zw = unchecked((ushort)position.Z) | unchecked((uint)(ushort)model.Transform.Vertical34 << 16);
@@ -126,10 +126,10 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask contactTask = NativeBattleEffect9Controller.Read(current, contact.Address);
                     NativeBattleEffectParameters parameters = current.Effect.Parameters!;
                     BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)contactTask.ReadByte(0x2A)));
-                    int contactIndex = checked((nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Effect9 contact requires its physical header pointer.")) + unchecked((sbyte)contactTask.ReadByte(0x2B)));
+                    BattleContactCursor contactCursor = nativeActionPackets.ReadHeader(headerIndex).FirstContact.Advance(contactTask.ReadTraversalPosition(0x2B));
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contactCursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory!, Random = nativeCrtRandom ?? throw new NotSupportedException("Effect9 lost its current CRT owner."), Staging = NativeFileStaging };
                 case NativeBattleEffect9Sound sound:
@@ -146,7 +146,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect9CaptureBody capture:
                     NativeBattleModulePoolTask body = NativeBattleEffect9Controller.Read(current, capture.Address);
-                    int targetActor = body.ReadByte(0x2D);
+                    BattleModelOwner targetActor = body.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattleGraphicsModel targetModel = graphics.ActorModels.Get(targetActor);
                     current = NativeBattleEffect9Controller.Write(current, capture.Address, body.WriteDword(0x74, targetModel.Flags0));
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(targetActor, targetModel with { Flags0 = (ushort)(targetModel.Flags0 | 8) }) };
@@ -157,11 +157,11 @@ public sealed partial class BattleSession
                     BinaryPrimitives.WriteInt16LittleEndian(vector.AsSpan(4), anchor.Point.Z);
                     return anchor.Frame with { State = anchor.Frame.State.Write(0x27571B8, vector) };
                 case NativeBattleEffect9SetupBody setup:
-                    int setupActor = NativeBattleEffect9Controller.Read(current, setup.Address).ReadByte(0x2D);
+                    BattleModelOwner setupActor = NativeBattleEffect9Controller.Read(current, setup.Address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattleGraphicsModel setupModel = graphics.ActorModels.Get(setupActor);
                     NativeBattleEffectLocalBounds bounds = setupModel.GeometryBounds52 ?? throw new NotSupportedException("Effect9 requires its actual model bounds.");
                     short currentY = (setupModel.Transform ?? throw new NotSupportedException("Effect9 requires its actual model position.")).Position28.Y;
-                    return current with { State = NativeBattleEffect9Scene.InitializeBody(current.State, NativeBattleGraphicsModelAddress.Encode(setupActor), bounds.Minimum.Y, bounds.Maximum.Y, currentY) };
+                    return current with { State = NativeBattleEffect9Scene.InitializeBody(current.State, setupActor, nativeActionPackets.ModelAliases, bounds.Minimum.Y, bounds.Maximum.Y, currentY) };
                 case NativeBattleEffect9RestoreBody restore:
                     NativeBattleGraphicsModel restored = graphics.ActorModels.Get(restore.Actor);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(restore.Actor, restored with { Flags0 = (ushort)(restored.Flags0 ^ ((restored.Flags0 ^ restore.SavedFlags) & 8)) }) };
@@ -176,12 +176,12 @@ public sealed partial class BattleSession
         NativeBattleEffect9Frame DrawBody(NativeBattleEffect9Frame current, uint address)
         {
             NativeBattleModulePoolTask bodyTask = NativeBattleEffect9Controller.Read(current, address);
-            int actor = bodyTask.ReadByte(0x2D);
+            BattleModelOwner actor = bodyTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect9 body requires its current rig.");
             NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actor), source);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
-            NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(9, bodyTask) with { ResourceGeneration = model.ModelId4 ?? throw new NotSupportedException("Effect9 body requires its selected resource identity.") };
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(9, bodyTask) with { ModelOwner = actor, ResourceGeneration = model.ModelId4 ?? throw new NotSupportedException("Effect9 body requires its selected resource identity.") };
             NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect9 body requires its retained world matrix.");
             world = world with { Y = unchecked(world.Y + (short)current.State.ReadWord(0x274F044)) };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(Camera().CapturePackedView1D97778().ReadMatrix(), world);

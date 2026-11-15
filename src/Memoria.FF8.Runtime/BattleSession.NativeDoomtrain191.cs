@@ -21,7 +21,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector ReadCentroid(BattleModelTargets targets)
         {
-            return NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Doomtrain requires every selected target's current position.")).ToArray());
+            return NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Doomtrain requires every selected target's current position.")).ToArray());
         }
 
         NativeBattleCameraPose ReadPose()
@@ -150,7 +150,7 @@ public sealed partial class BattleSession
 
         NativeBattleDoomtrain191Frame HideTargets(NativeBattleDoomtrain191Frame current, bool hidden)
         {
-            foreach (int actor in (current.Memory.Doomtrain191 ?? throw new NotSupportedException("Native Doomtrain requires its captured target list.")).Targets)
+            foreach (BattleModelOwner actor in (current.Memory.Doomtrain191 ?? throw new NotSupportedException("Native Doomtrain requires its captured target list.")).Targets)
             {
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & 0xFFFB) }) };
@@ -167,11 +167,8 @@ public sealed partial class BattleSession
             if (address == 0x646AA0)
             {
                 NativeBattleEffectParameters parameters = current.Effect.Parameters!;
-                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-                int count = header.ReadContactCount();
-                int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain knockback requires its actual current contact pointer.");
-                ImmutableArray<int> actors = Enumerable.Range(first, count).Select(index => (int)nativeActionPackets.ReadContact(index).Primary.Recipient).ToImmutableArray();
-                return NativeBattleDoomtrain191Knockback.Spawn646AA0(current, actors, ReadCentroid(parameters.TargetActors), KnockbackServices());
+                ImmutableArray<BattleModelOwner> actors = nativeActionPackets.ReadHeaderContacts(parameters.Header).Select(contact => contact.Primary.Recipient).ToImmutableArray();
+                return NativeBattleDoomtrain191Knockback.Spawn646AA0(current, actors, ReadCentroid(parameters.TargetActors), nativeActionPackets.ModelAliases, KnockbackServices());
             }
             if (address == 0x6437F0)
             {
@@ -193,7 +190,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleDoomtrain191State state = current.Memory.Doomtrain191!;
                 var snapshots = state.ActorSnapshots;
-                foreach (int actor in state.Targets)
+                foreach (BattleModelOwner actor in state.Targets)
                 {
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Doomtrain target placement requires its current actor transform.");
@@ -206,13 +203,13 @@ public sealed partial class BattleSession
                         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), position.Y);
                         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), position.Z);
                         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(6), fourth);
-                        NativeBattleDoomtrain191ActorSnapshot saved = snapshots[actor] ?? throw new NotSupportedException("Native Doomtrain target placement requires its captured scale.");
+                        NativeBattleDoomtrain191ActorSnapshot saved = snapshots.GetValueOrDefault(actor) ?? throw new NotSupportedException("Native Doomtrain target placement requires its captured scale.");
                         snapshots = snapshots.SetItem(actor, saved with { Position = raw.ToImmutableArray() });
                         transform = transform with { Position28 = position with { Z = unchecked((short)(position.Z - 24000)) } };
                     }
                     else
                     {
-                        NativeBattleDoomtrain191ActorSnapshot saved = snapshots[actor] ?? throw new NotSupportedException("Native Doomtrain target restore requires its captured position and scale.");
+                        NativeBattleDoomtrain191ActorSnapshot saved = snapshots.GetValueOrDefault(actor) ?? throw new NotSupportedException("Native Doomtrain target restore requires its captured position and scale.");
                         transform = transform with { Position28 = ReadVector(saved.Position), Vertical34 = BinaryPrimitives.ReadInt16LittleEndian(saved.Position.AsSpan().Slice(6)), Scale148 = ReadVector(saved.Scale), Scale154 = BinaryPrimitives.ReadInt16LittleEndian(saved.Scale.AsSpan().Slice(6)) };
                     }
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform }) };
@@ -426,14 +423,13 @@ public sealed partial class BattleSession
                     (textures, _) = textures.EnqueueArenaTim505E30(current.Memory.Arena ?? throw new NotSupportedException("Native Doomtrain requires its current TIM source."), tim.ArenaOffset);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleDoomtrain191Contacts:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
-                    int count = header.ReadContactCount();
+                    BattleActionHeaderReference header = current.Effect.Parameters!.Header;
+                    int count = nativeActionPackets.ReadHeader(header).ReadContactCount();
                     if (count > 0)
                     {
-                        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain requires its actual contact pointer.");
                         ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                         NativeEffectMemory = current.Memory;
-                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(first, count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts(header) });
                         graphics = graphics with { PendingContacts = pending };
                         return current with { Memory = NativeEffectMemory! };
                     }

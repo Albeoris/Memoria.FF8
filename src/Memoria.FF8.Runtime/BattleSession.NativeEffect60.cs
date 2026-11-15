@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect60Contact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Effect60 contact lost its process memory.") };
                 case NativeBattleEffect60Rotate rotate:
@@ -112,7 +112,7 @@ public sealed partial class BattleSession
             NativeBattleModulePoolTask task = hierarchy.Read(address);
             if (task.ReadByte(0x29) == 0 && unchecked((short)task.ReadWord(0x24)) >= unchecked((short)task.ReadWord(0x298)))
             {
-                int actor = task.ReadByte(0x2C);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
                 NativeBattleBoneAnchorProducer anchor = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), 0x19, 0x400);
                 current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, anchor) };
                 NativeBattleScriptedColorRegisters registers = current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect60 requires its actual anchor outputs.");
@@ -138,12 +138,12 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleEffectArena PackedModel(int actor, int offset)
+        NativeBattleEffectArena PackedModel(BattleModelOwner actor, int offset)
         {
             return NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
         }
 
-        void WriteActor(int actor, int offset, NativeBattleEffectArena bytes, int sourceOffset, int length)
+        void WriteActor(BattleModelOwner actor, int offset, NativeBattleEffectArena bytes, int sourceOffset, int length)
         {
             NativeBattleGraphicsModel updated = NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(actor), offset, bytes, sourceOffset, length);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, updated) };

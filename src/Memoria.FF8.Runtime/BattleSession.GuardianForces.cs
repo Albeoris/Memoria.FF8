@@ -96,7 +96,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (summoning && cast.Command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly } && (ActiveAction is not null || nativeTimedAction is not null || QueuedActions.Any(command => command.NativeHeaderIndex is not null) || NativeGraphics is { } activeGraphics && NativeOriginalEffectBusy(activeGraphics)))
+        if (summoning && cast.Command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly } && (ActiveAction is not null || nativeTimedAction is not null || QueuedActions.Any(command => command.NativeHeader is not null) || NativeGraphics is { } activeGraphics && NativeOriginalEffectBusy(activeGraphics)))
         {
             return false;
         }
@@ -259,7 +259,7 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
         BattleNativeAction? native = action.NativeAction;
         BattleGuardianForceVital? gf = guardianForces.GetValueOrDefault(command.ActionId);
-        if (command.NativeQueuedCommand is not (3 or 254) || bankIndex != (command.NativeQueuedCommand == 3 ? 2 : 1) || command.NativeHeaderIndex is not null || command.NativeAction is not null || !command.NativeMagicTargets.IsDefaultOrEmpty || guardianForceCasts.ContainsKey(actor.Id) || !actor.IsPlayer || !actor.EquipmentIds.Contains(command.ActionId) || gf is not { Acquired: true, HitPoints: > 0 } || !action.Available || native is null || native.Command != 254 || native.ActionId != command.ActionId + 64)
+        if (command.NativeQueuedCommand is not (3 or 254) || bankIndex != (command.NativeQueuedCommand == 3 ? 2 : 1) || command.NativeHeader is not null || command.NativeAction is not null || !command.NativeMagicTargets.IsDefaultOrEmpty || guardianForceCasts.ContainsKey(actor.Id) || !actor.IsPlayer || !actor.EquipmentIds.Contains(command.ActionId) || gf is not { Acquired: true, HitPoints: > 0 } || !action.Available || native is null || native.Command != 254 || native.ActionId != command.ActionId + 64)
         {
             throw new InvalidDataException("Saved GF input lacks its equipped living GF and original3/FE command owner.");
         }

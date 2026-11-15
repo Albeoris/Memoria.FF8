@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeZombieOverlay(NativeBattleGraphicsState graphics, int index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect, NativeBattlePilotVisualIdentity identity)
+    private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeZombieOverlay(NativeBattleGraphicsState graphics, BattleModelOwner index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect, NativeBattlePilotVisualIdentity identity)
     {
         if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
         {

@@ -23,7 +23,7 @@ public static partial class NativeBattleEffect80Controller
                 frame = NextPhase(frame, address);
                 break;
             case 1:
-                frame = inputs.Execute(frame, new NativeBattleEffect80CopyActorPoint(PhysicalModelAddress(task.ReadByte(0x2C)), PhysicalModelAddress(task.ReadByte(0x2D)), -1768, true));
+                frame = inputs.Execute(frame, new NativeBattleEffect80CopyActorPoint(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, -1768, true));
                 frame = NextPhase(frame, address);
                 break;
             case 2:
@@ -143,11 +143,12 @@ public static partial class NativeBattleEffect80Controller
             throw new InvalidDataException("Effect80 target pointer changed its physical owner.");
         }
         NativeBattleModulePoolTask task = Read(frame, address);
-        int target = task.ReadByte(0x2D);
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         frame = ClearBytes(frame, TargetAddress, TargetLength);
+        frame = frame with { State = frame.State with { SavedPartyFlags = frame.State.SavedPartyFlags.Clear() } };
         frame = WriteBytes(frame, TargetAddress + 8, inputs.ReadPosition8(frame, target), 8);
-        frame = WriteBytes(frame, TargetAddress, inputs.ReadPosition8(frame, task.ReadByte(0x2C)), 8);
-        frame = frame with { State = frame.State.WriteDword(TargetAddress + 0x1C, PhysicalModelAddress(target)) };
+        frame = WriteBytes(frame, TargetAddress, inputs.ReadPosition8(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner), 8);
+        frame = frame with { State = frame.State.WriteModelReference(TargetAddress + 0x1C, 4, target, inputs.ReadPackets(frame).ModelAliases.EncodeAddress(target)) };
         short x = unchecked((short)(frame.State.ReadWord(TargetAddress + 8) - frame.State.ReadWord(TargetAddress)));
         short z = unchecked((short)(frame.State.ReadWord(TargetAddress + 0xC) - frame.State.ReadWord(TargetAddress + 4)));
         ushort angle = unchecked((ushort)((NativeWorldScriptedPathMath.NativeAngle(x, z) - 0x800) & 0xFFF));

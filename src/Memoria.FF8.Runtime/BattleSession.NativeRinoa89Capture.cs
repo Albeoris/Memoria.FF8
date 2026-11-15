@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             stage = stage with { Groups = stage.Groups.SetItem(index, group with { Flags = (byte)(group.Flags & ~2) }) };
         }
         NativeStage = stage;
-        foreach (int index in ReadPresentationSideActors(false))
+        foreach (BattleEnemyModelOwner index in graphics.ActorModels.Roster.Enemies)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             if ((model.Flags0 & 2) == 0)
@@ -84,7 +84,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = frame.Memory;
             NativeFileStaging = frame.Staging;
             short depth = BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(context + 68, 2));
-            graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, 4112, 16, 4, NativeBattleRinoa89Capture.TableAddress, depth, context + 64, pilotIdentity: NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 200 + index), pilotScreenSpace: true, pilotContinuous: false);
+            graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, 4112, 16, 4, NativeBattleRinoa89Capture.TableAddress, depth, context + 64, pilotIdentity: NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 200) with { ModelOwner = index }, pilotScreenSpace: true, pilotContinuous: false);
             frame = frame with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 76) };

@@ -169,7 +169,7 @@ public static partial class NativeBattleEffect83Controller
     public static NativeBattleEffect83Step AdvanceTargetBody(NativeBattleEffect83Frame frame, uint address, NativeBattleEffect83Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        uint target = PhysicalModelAddress(task.ReadByte(0x2D));
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         switch (Phase(frame, address))
         {
             case 0:

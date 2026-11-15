@@ -7,13 +7,13 @@ public abstract record NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215Stage(int Intensity) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215StageFlags(bool Enabled) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215ProgramDraw(int Slot, int Offset, int Size, NativeBattleDuel215Program Context, bool Anchored) : NativeBattleDuel215SceneOperation;
-public sealed record NativeBattleDuel215BodyDraw(int Actor) : NativeBattleDuel215SceneOperation;
+public sealed record NativeBattleDuel215BodyDraw(BattleModelOwner Actor) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215TargetsDraw(int Slot, short Tick) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215DebrisDraw(int Slot) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215Sound(uint Identifier) : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215Contact : NativeBattleDuel215SceneOperation;
 public sealed record NativeBattleDuel215Camera(short Tick, short OriginX, short OriginZ, short CenterX, short FarZ) : NativeBattleDuel215SceneOperation;
-public sealed record NativeBattleDuel215SceneServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone502170, ImmutableArray<byte> Targets, NativeBattleActionMatrix View, Func<NativeBattleDuel215Frame, NativeBattleDuel215SceneOperation, NativeBattleDuel215Frame> Execute);
+public sealed record NativeBattleDuel215SceneServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone502170, ImmutableArray<BattleModelOwner> Targets, BattleModelRoster Roster, NativeBattleActionMatrix View, Func<NativeBattleDuel215Frame, NativeBattleDuel215SceneOperation, NativeBattleDuel215Frame> Execute);
 
 public static partial class NativeBattleDuel215Controller
 {
@@ -25,7 +25,7 @@ public static partial class NativeBattleDuel215Controller
             throw new InvalidDataException("Native Duel215 scene requires its actual registered callback.");
         }
         BattleModelOwner actor = frame.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Duel215 scene requires its entered actor.");
-        NativeBattleDuel215Resources resources = frame.Memory.Duel215.Resources ?? throw new NotSupportedException("Native Duel215 scene requires its entered resources.");
+        NativeBattleDuel215Resources resources = frame.Memory.Duel215?.Resources ?? throw new NotSupportedException("Native Duel215 scene requires its entered resources.");
         short tick = Signed(12);
         int intensity = tick < 12 ? 2300 * tick / 12 : tick < 270 ? 2300 : 2300 * (282 - tick) / 12;
         Execute(new NativeBattleDuel215Stage(intensity));
@@ -73,7 +73,7 @@ public static partial class NativeBattleDuel215Controller
             }
             if (phase >= 20)
             {
-                foreach (int target in services.Targets)
+                foreach (BattleModelOwner target in services.Targets)
                 {
                     NativeBattleGraphicsModel model = services.ReadModel(target);
                     int difference = (Transform(model).Position28.X - Transform(services.ReadModel(actor)).Position28.X) >> 2;
@@ -94,7 +94,7 @@ public static partial class NativeBattleDuel215Controller
                 Execute(new NativeBattleDuel215StageFlags(false));
                 for (int index = 0; index < services.Targets.Length; index++)
                 {
-                    int target = Target(index);
+                    BattleModelOwner target = Target(index);
                     int offset = 64 + index * 32;
                     NativeBattleGraphicsModel model = services.ReadModel(target);
                     bool paddingUnknown = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < offset + 20 && range.Offset + range.Length > offset + 18) == true;
@@ -156,7 +156,7 @@ public static partial class NativeBattleDuel215Controller
                 }
                 if (phase == 26)
                 {
-                    foreach (int target in services.Targets)
+                    foreach (BattleModelOwner target in services.Targets)
                     {
                         NativeBattleModuleAnchor anchor = services.ReadAnchor571400(target);
                         int scale = Transform(services.ReadModel(target)).Scale38;
@@ -253,7 +253,7 @@ public static partial class NativeBattleDuel215Controller
         {
             short far = Signed(388);
             task = task.WriteWord(384, 0);
-            foreach (int target in services.Targets)
+            foreach (BattleModelOwner target in services.Targets)
             {
                 NativeBattleGraphicsModel model = services.ReadModel(target);
                 NativeBattleModelTransform transform = Transform(model);
@@ -265,11 +265,11 @@ public static partial class NativeBattleDuel215Controller
         int result = 0;
         if (unchecked((short)(tick + 1)) >= 282)
         {
-            foreach (int target in services.Targets)
+            foreach (BattleModelOwner target in services.Targets)
             {
                 Flags(target, 0, 12);
             }
-            for (int index = 0; index < 3; index++)
+            foreach (BattlePartyModelOwner index in services.Roster.Party)
             {
                 Flags(index, 0, 4);
             }
@@ -334,7 +334,7 @@ public static partial class NativeBattleDuel215Controller
             NativeBattleModelTransform transform = Transform(model);
             services.WriteModel(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Z = unchecked((short)(transform.Position28.Z + difference)) } } });
         }
-        void Flags(int index, int set, int clear)
+        void Flags(BattleModelOwner index, int set, int clear)
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             services.WriteModel(index, model with { Flags0 = unchecked((ushort)((model.Flags0 | set) & ~clear)) });
@@ -348,10 +348,10 @@ public static partial class NativeBattleDuel215Controller
             frame = frame with { Random = frame.Random.Draw(out ushort value) };
             return value;
         }
-        int Target(int index)
+        BattleModelOwner Target(int index)
         {
-            int target = services.Targets[index];
-            if (task.ReadDword(64 + index * 32) != NativeBattleGraphicsModelAddress.Encode(target))
+            BattleModelOwner target = services.Targets[index];
+            if (task.ReadExecutionReference<BattleExecutionReference.Model>(64 + index * 32, 4).Owner != target)
             {
                 throw new InvalidDataException("Native Duel215 scene lost its actual target pointer.");
             }

@@ -17,14 +17,14 @@ public sealed partial class BattleSession
     private void BeginExpandedGuardianSummon(BattleCombatant caster, BattleActionPresentation command, BattleCombatant[] targets)
     {
         BattleNativeAction action = command.NativeAction!;
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
-        _ = RequireExpandedPresentationRow(roster, caster);
+        BattleModelRoster roster = ReadBattlePresentationRoster();
+        _ = RequirePresentationModelOwner(roster, caster);
         ImmutableArray<ExpandedBattleContact> layout = targets.Select(target =>
         {
-            byte index = RequireExpandedPresentationRow(roster, target);
+            BattleModelOwner owner = RequirePresentationModelOwner(roster, target);
             RefreshNativePresentationStatus(target);
             (ushort saved, uint status) = NativeContactStatusMirror(target);
-            return new ExpandedBattleContact(target.Id, new(new(index, 0, 0, 0, saved, 0, status), new(255, 0, 0, 0, 0, 0, 0)));
+            return new ExpandedBattleContact(target.Id, new(new(owner, 0, 0, 0, saved, 0, status), null));
         }).ToImmutableArray();
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = true, GuardianFormulaE1E = false, GuardianBoostPercent = 0, EventLane = 2, Command = action.Command, Action = action.ActionId };
         BeginExpandedEffect(caster, command, action, command.NativeSequence ?? 1, layout);
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("A GF form entrance already owns expanded battle presentation.");
         }
         BattleNativeAction summon = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction!;
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadBattlePresentationRoster();
         byte source = RequireExpandedPresentationRow(roster, actor);
         NativeBattleContactPacket positioning = new(new(source, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         try
@@ -216,7 +216,7 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
         if (!actor.IsPlayer || !actor.Abilities.Contains(BattleAbility.GuardianForce) || actor.GuardianForceCompatibility is not { Count: 16 } ||
             definition.NativeBattleSpeed is null || !SupportsExpandedAction(action) || !byId.ContainsKey(command.TargetId) ||
-            command.NativeQueuedCommand != 254 || command.NativeTargetMask != 0 || command.NativeHeaderIndex is not null ||
+            command.NativeQueuedCommand != 254 || command.NativeTargetMask != 0 || command.NativeHeader is not null ||
             guardianForceCasts.Values.Count(other => other.Command.ActionId == command.ActionId) != 1)
         {
             throw new InvalidDataException("Saved expanded GF charge lacks its logical caster, target or original GF action.");

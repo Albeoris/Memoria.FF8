@@ -32,8 +32,9 @@ public static class NativeBattleGastricJuice128Trail
                 NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(basis, radial);
                 point = new(unchecked((short)(point.X + rotated.X)), unchecked((short)(point.Y + rotated.Y)), unchecked((short)(point.Z + rotated.Z)));
                 frame = Write(frame, address, Read(frame, address).WriteWord(0x4A, unchecked((ushort)(task.ReadWord(0x4A) + 256))));
-                if (progress >= 4096 && Signed(task, 0x48) >= 0)
+                if (progress >= 4096)
                 {
+                    _ = task.ReadExecutionReference<BattleExecutionReference.Model>(0x48, 2);
                     (frame, uint child) = Append(frame, 3, 0x6B9030);
                     if (child != 0)
                     {

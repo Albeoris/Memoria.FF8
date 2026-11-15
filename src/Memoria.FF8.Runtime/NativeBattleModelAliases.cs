@@ -70,6 +70,20 @@ public sealed class NativeBattleModelAliases
         }
     }
 
+    internal ushort? EncodeTargetMask(BattleModelTargets targets)
+    {
+        ushort mask = 0;
+        foreach (BattleModelOwner target in targets.Enumerate())
+        {
+            if (!TryEncodeExact(target, out byte operand))
+            {
+                return null;
+            }
+            mask |= (ushort)(1 << operand);
+        }
+        return mask;
+    }
+
     internal bool TryEncodeExact(BattleModelOwner owner, out byte operand)
     {
         ArgumentNullException.ThrowIfNull(owner);

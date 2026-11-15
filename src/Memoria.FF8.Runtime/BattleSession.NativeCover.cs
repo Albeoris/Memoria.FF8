@@ -2,18 +2,18 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (BattleCombatant[] Targets, byte Source) ResolveNativeCover(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, BattleCombatant[] targets)
+    private (BattleCombatant[] Targets, BattleModelOwner? Source) ResolveNativeCover(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, BattleCombatant[] targets)
     {
         //48E830 passes native hit count to48EB90, rather than the number of selected recipients.
         bool all = (command.NativeTargetMask & 0x8000) != 0 && (command.NativeTargetMask & 0x2000) == 0;
         if (native.HitCount != 1 || actor.EncodeNativeSlot() < 3 || (command.NativeQueuedCommand ?? native.Command) != 8 || all || (native.AttackFlags & 3) != 0 || targets.Length == 0)
         {
-            return (targets, 255);
+            return (targets, null);
         }
         BattleCombatant original = targets[0];
         if (original.EncodeNativeSlot() is < 0 or >= 3 || (NativeSavedStatusBits(original) & 0x100) == 0)
         {
-            return (targets, 255);
+            return (targets, null);
         }
         int chosen;
         if (original.EncodeNativeSlot() == 0)
@@ -40,10 +40,10 @@ public sealed partial class BattleSession
         }
         if (chosen is < 0 or >= 3)
         {
-            return (targets, 255);
+            return (targets, null);
         }
         BattleCombatant cover = combatants.Single(candidate => candidate.EncodeNativeSlot() == chosen && candidate.IsPlayer);
-        return ([cover], checked((byte)original.EncodeNativeSlot()));
+        return ([cover], CreatePresentationModelOwner(original));
     }
 
     private int NativeCoverCandidate(int index)

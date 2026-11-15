@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -26,35 +25,21 @@ public static class NativeBattleCinematicNextActionAE
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 
-    public static NativeBattleWaterExecutionFrame CaptureCurrent(NativeBattleWaterExecutionFrame frame, int resourceLength, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> readActionBytes, ImmutableArray<NativeBattleGraphicsModel> graphics, NativeBattleActionPacketsState? packets = null)
+    public static NativeBattleWaterExecutionFrame CaptureCurrent(NativeBattleWaterExecutionFrame frame, int resourceLength, Func<byte, NativeBattleWaterResetCaptureInputs> readCaptureInputs)
     {
         uint manager = CoreDword(frame, 0x27973EC);
-        uint parameters = CoreDword(frame, manager + 0xC0);
         byte relative = frame.Core.Read(manager + 0xD0, 1)[0];
-        uint first = Dword(parameters + 4);
-        uint selected = unchecked(first + (uint)(20 * relative));
-        frame = WriteCoreDword(frame, manager + 0xCC, selected);
-        byte caster = Read(parameters, 1)[0];
-        uint firstContacts = Dword(first + 8);
-        byte firstActor = Read(firstContacts, 1)[0];
-        uint contacts = Dword(selected + 8);
-        int count = NativeBattleCinematicContacts.ReadCount(frame, selected, readActionBytes, packets, signedNative: false);
-        ImmutableArray<byte>.Builder actors = ImmutableArray.CreateBuilder<byte>(count);
-        for (int index = 0; index < count; index++)
+        NativeBattleWaterResetCaptureInputs inputs = readCaptureInputs(relative);
+        if (CoreDword(frame, 0x279744C) != NativeBattleScriptedEffectMemory.Address)
         {
-            actors.Add(Read(NativeBattleCinematicContacts.Offset(contacts, index, packets), 1)[0]);
+            throw new NotSupportedException("Native cinematic action capture requires its actual shared header.");
         }
-        if (CoreDword(frame, 0x279744C) != NativeBattleScriptedEffectMemory.Address || selected < 0x1D280C4 || (selected - 0x1D280C4) % 20 != 0 || (selected - 0x1D280C4) / 20 >= NativeBattleActionPacketsState.HeaderCapacity)
-        {
-            throw new NotSupportedException("Native cinematic action capture requires its actual shared header and selected physical action row.");
-        }
+        frame = inputs.OriginalHeaderAddress is uint originalHeader
+            ? WriteCoreDword(frame, manager + 0xCC, originalHeader)
+            : frame with { Core = frame.Core.MarkUnknown(manager + 0xCC, 4) };
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
         int indexInBank = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
-        NativeBattleWaterHeaderCaptureResult capture = NativeBattleWaterHeaderCapture.CaptureAA4E90(frame.Core.ReadHeader(), frame.Arena, bank, indexInBank, caster, checked((int)((selected - 0x1D280C4) / 20)), firstActor, actors.MoveToImmutable(), count, graphics);
+        NativeBattleWaterHeaderCaptureResult capture = NativeBattleWaterHeaderCapture.CaptureAA4E90(frame.Core.ReadHeader(), frame.Arena, bank, indexInBank, inputs.Caster, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.Models, inputs.Boundary);
         return frame with { Core = frame.Core.WithHeader(capture.Header), Arena = capture.Arena };
-
-        uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-
-        byte[] Read(uint address, int length) => NativeBattleCinematicContacts.ReadBytes(frame, address, length, readActionBytes);
     }
 }

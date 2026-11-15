@@ -12,7 +12,7 @@ public static partial class NativeBattleRenzokuken160Controller
         short counter = Word(task, 12);
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Euler56CD50(new(0, Word(task, 24), 0));
         NativeBattleActionMatrix world = NativeBattlePoseMatrices.Scale56BEF0(rotation, 6144, Word(task, 32), 6144);
-        NativeBattleGraphicsModel actor = inputs.ReadModel(State(frame).Actor);
+        NativeBattleGraphicsModel actor = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect));
         NativeBattleActionMatrix body = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native600780 requires its retained model matrix64.");
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(body, new(0, 0, -850));
         world = world with { X = unchecked(Word(task, 16) + offset.X), Y = unchecked(Word(task, 18) + offset.Y), Z = unchecked(Word(task, 20) + offset.Z) };

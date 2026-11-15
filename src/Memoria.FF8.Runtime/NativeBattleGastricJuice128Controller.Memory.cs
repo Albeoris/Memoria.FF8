@@ -7,14 +7,14 @@ public static partial class NativeBattleGastricJuice128Controller
 {
     public static NativeBattleGastricJuice128Frame DrawRandom(NativeBattleGastricJuice128Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
     private static NativeBattleEffectParameters Parameters(NativeBattleGastricJuice128Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Gastric Juice requires its captured action parameters.");
-    private static int FirstContact(NativeBattleGastricJuice128Frame frame, NativeBattleGastricJuice128Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleGastricJuice128Frame frame, NativeBattleGastricJuice128Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
         if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Gastric Juice requires its first captured target contact.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Gastric Juice requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContact;
     }
     private static void RequireBinding(NativeBattleGastricJuice128Frame frame)
     {
@@ -23,15 +23,6 @@ public static partial class NativeBattleGastricJuice128Controller
             throw new InvalidDataException("Gastric Juice requires its original selected entry.");
         }
     }
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Gastric Juice actor pointer leaves the native seven-model bank.");
-        }
-        return row;
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Gastric Juice actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleGastricJuice128Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleGastricJuice128Frame WithPool(NativeBattleGastricJuice128Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleGastricJuice128Frame Put(NativeBattleGastricJuice128Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));

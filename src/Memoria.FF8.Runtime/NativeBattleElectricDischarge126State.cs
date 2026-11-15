@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -57,6 +58,28 @@ public sealed record NativeBattleElectricDischarge126State([property: JsonRequir
         NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
         return this;
     }
+    [JsonIgnore]
+    private ImmutableDictionary<BattleModelOwner, uint> SavedColors { get; init; } = ImmutableDictionary<BattleModelOwner, uint>.Empty;
+
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    internal NativeBattleElectricDischarge126State BindCaster(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = globals, SavedColors = ImmutableDictionary<BattleModelOwner, uint>.Empty };
+    }
+
+    internal NativeBattleElectricDischarge126State WriteSavedColor(BattleModelOwner actor, uint color, NativeBattleModelAliases aliases)
+    {
+        NativeBattleElectricDischarge126State state = this with { SavedColors = SavedColors.SetItem(actor, color) };
+        return aliases.TryEncodeExact(actor, out byte slot)
+            ? state.WriteDword(NativeBattleElectricDischarge126Profile.SavedColorsGlobal + (uint)slot * 4, color)
+            : state;
+    }
+
+    internal uint ReadSavedColor(BattleModelOwner actor) => SavedColors.TryGetValue(actor, out uint color)
+        ? color
+        : throw new InvalidDataException("Lightning requires a captured color for this model owner.");
+
     private static int Require(uint address, int length)
     {
         ulong end = (ulong)address + (uint)Math.Max(0, length);

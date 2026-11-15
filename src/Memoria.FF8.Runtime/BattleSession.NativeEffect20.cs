@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect20 requires its actual current model rig.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect20 requires its actual current model rig.");
 
         void Publish(NativeBattleEffect20Frame current)
         {
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect20Contact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Effect20 contact lost its process memory.") };
                 case NativeBattleEffect20StageInitialize:
@@ -77,19 +77,14 @@ public sealed partial class BattleSession
                     NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Effect20 requires its retained vibration process.")).Stop4A2940(vibration.Handle);
                     return current;
                 case NativeBattleEffect20RingSequence ring:
-                    if (ring.Address != NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(6)))
-                    {
-                        throw new NotSupportedException("Effect20 requires its original actor ring owner.");
-                    }
-                    BattleModelOwner ringOwner = graphics.NativeBindings.DecodeLiteral(6, graphics.ActorModels);
                     if (presentationNativeTargets is not null)
                     {
-                        presentationActivationSequences.Add(ringOwner);
+                        presentationActivationSequences.Add(ring.Actor);
                     }
-                    graphics = ScheduleNativeRingSequence505C00(graphics, ringOwner, ring.Count);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, ring.Actor, ring.Count);
                     return current;
                 case NativeBattleEffect20Activate activation:
-                    graphics = QueueEffectPresentationActivation(graphics, graphics.NativeBindings.DecodeLiteral(checked((byte)activation.Actor), graphics.ActorModels));
+                    graphics = QueueEffectPresentationActivation(graphics, activation.Actor);
                     return current;
                 case NativeBattleEffect20BodyDraw body:
                     (graphics, current) = DrawNativeEffect20Body(graphics, current, body.Address);

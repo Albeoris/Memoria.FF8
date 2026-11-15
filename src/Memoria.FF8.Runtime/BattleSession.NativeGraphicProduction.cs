@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         StoreNativeAttackClass(target, 3);
         RefreshNativePresentationStatus(target);
         (ushort saved, uint battle) = NativeContactStatusMirror(target);
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, 255);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, covered: false);
         (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(targetIndex, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle), new(255, 0, 0, 0, 0, 0, 0)));
         (nativeActionPackets, _) = nativeActionPackets.Publish(1);
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = 1 };
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                 resolvingNativeAction = resolved;
                 try
                 {
-                    NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, 255);
+                    NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native);
                     (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
                 }
                 finally

@@ -75,7 +75,7 @@ public static class NativeBattleDuel216Preparation
         return services.RestoreFocal1D8E038(frame);
 
         short Signed(int offset) => unchecked((short)task.ReadWord(offset));
-        void RestorePosition(int index, int offset)
+        void RestorePosition(BattleModelOwner index, int offset)
         {
             NativeBattleGraphicsModel current = services.ReadModel(index);
             NativeBattleModelTransform transform = current.Transform ?? throw new NotSupportedException("Native Duel216 restoration requires the actual raw model transform.");

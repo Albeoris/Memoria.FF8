@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect31Resources resources = effect.Binding.Effect31Resources ?? throw new NotSupportedException("Effect31 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect31 requires its current process memory.");
         NativeBattleEffect31Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect31 requires its current CRT stream."), memory.Effect31 ?? throw new NotSupportedException("Effect31 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect31 requires its current addressed memory.") };
-        NativeBattleEffect31Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect31 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (current, actor) => ReadNativeEffect31Pose(graphics, current, actor), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect31 requires its current projection."), _ => Camera().Roll, (current, address, length) => ReadNativeEffect31Physical(graphics, current, address, length), (current, address, selector, fraction, retained) => ReadNativeEffect31Point(graphics, current, address, selector, fraction, retained), Execute)
+        NativeBattleEffect31Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect31 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (current, actor) => ReadNativeEffect31Pose(graphics, current, actor), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect31 requires its current projection."), _ => Camera().Roll, (current, address, selector, fraction, retained) => ReadNativeEffect31Point(graphics, current, address, selector, fraction, retained), Execute)
         {
             ReadActorStack = (current, _, stateBody) => new(current, NativeBattleEffect31Stack.ReadMatrix(current.State.ReadCallbackStack(), stateBody)),
             ObserveActorStack = (current, task, stateBody, instruction, matrix) => current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveActor(current.State.ReadCallbackStack(), task, NativeBattleEffect31Controller.Read(current, task), stateBody, instruction, matrix) } }
@@ -28,13 +28,13 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect31UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect31Controller.Read(current, caster.TaskAddress), current.Effect.Parameters ?? throw new NotSupportedException("Effect31 requires its current parameters."), graphics.Models, actor => ReadNativeEffect31Pose(graphics, current, actor), producer => current = ObserveNativeEffect31Point(current, producer));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect31Controller.Read(current, caster.TaskAddress), current.Effect.Parameters ?? throw new NotSupportedException("Effect31 requires its current parameters."), owner => graphics.ActorModels.Get(owner), actor => ReadNativeEffect31Pose(graphics, current, actor), producer => current = ObserveNativeEffect31Point(current, producer));
                     return NativeBattleEffect31Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleEffect31UpdateTarget8DC610 target:
                     NativeBattleModulePoolTask targetTask = NativeBattleEffect31Controller.Read(current, target.TaskAddress);
-                    int targetActor = targetTask.ReadByte(0x2D);
+                    BattleModelOwner targetActor = targetTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     int anchors = 0;
-                    targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, graphics.Models, actor => ReadNativeEffect31Pose(graphics, current, actor), producer =>
+                    targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, owner => graphics.ActorModels.Get(owner), actor => ReadNativeEffect31Pose(graphics, current, actor), producer =>
                     {
                         anchors++;
                         uint temporary = BinaryPrimitives.ReadUInt32LittleEndian((current.Staging ?? throw new NotSupportedException("Effect31 requires its current target temporary cursor.")).Read(NativeBattleTemporaryMemory.Cursor, 4));
@@ -53,13 +53,13 @@ public sealed partial class BattleSession
                         current = ObserveNativeEffect31Point(current, producer);
                         if (anchors == 2)
                         {
-                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, NativeBattleGraphicsModelAddress.Encode(targetActor), boneMatrix!) } };
+                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, targetActor, nativeActionPackets.ModelAliases, boneMatrix!) } };
                         }
                     });
                     return NativeBattleEffect31Controller.Write(current, target.TaskAddress, targetTask);
                 case NativeBattleEffect31UpdateBounds8DC870 bounds:
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect31Controller.Read(current, bounds.TaskAddress);
-                    int boundsActor = boundsTask.ReadByte(0x2D);
+                    BattleModelOwner boundsActor = boundsTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource boundsSource = ReadNativeEffect31Pose(graphics, current, boundsActor);
                     ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect31BodyBones(graphics, current, boundsActor, boundsSource);
                     NativeBattleEffect31BoundsStep bounded = NativeBattleEffect31Bounds.Advance(current.Memory, current.Staging ?? throw new NotSupportedException("Effect31 requires its bounds temporary owner."), boundsTask, boundsSource, bones);
@@ -97,7 +97,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect31Contact506690 contact:
                     PublishNativeEffect31Frame(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.AbsoluteIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return ImportNativeEffect31Frame(current);
                 case NativeBattleEffect31DrawBatch draw:

@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Electric Discharge requires its original interpolation constants.");
         Dictionary<uint, System.Numerics.Vector3> worldPoints = [];
         Dictionary<uint, System.Numerics.Vector3> bonePoints = [];
-        NativeBattleElectricDischarge126Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its current skeleton.")).BoneCount, CurrentBinding, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
+        NativeBattleElectricDischarge126Inputs inputs = new(nativeActionPackets, colors, CapturePartyColors, ClearPartyFlash, () => graphics.ActorModels.Party.Entries.Select(entry => entry.Owner), actor => graphics.ActorModels.Get(actor), actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its current skeleton.")).BoneCount, CurrentBinding, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
         frame = initialize ? NativeBattleElectricDischarge126Controller.Initialize(frame, resources, inputs) : NativeBattleElectricDischarge126Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleElectricDischarge126Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleElectricDischarge126AnchorStep Anchor(NativeBattleElectricDischarge126Frame current, int actor)
+        NativeBattleElectricDischarge126AnchorStep Anchor(NativeBattleElectricDischarge126Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Electric Discharge requires its actual actor heading.")).Angle36 });
         }
 
-        NativeBattleElectricDischarge126PointStep Bone(NativeBattleElectricDischarge126Frame current, int actor, short selector, short distance)
+        NativeBattleElectricDischarge126PointStep Bone(NativeBattleElectricDischarge126Frame current, BattleModelOwner actor, short selector, short distance)
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its selected current actor skeleton.");
@@ -84,7 +84,46 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
         }
 
-        NativeBattleResourceRowReference CurrentBinding(int actor)
+        NativeBattleElectricDischarge126State CapturePartyColors(NativeBattleElectricDischarge126State state)
+        {
+            NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
+            for (byte operand = 0; operand < 3; operand++)
+            {
+                NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(operand);
+                NativeBattleGraphicsModel model = graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels);
+                uint color = model.Color40 ?? throw new NotSupportedException("Electric Discharge requires all three actual retained party colors.");
+                state = graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is { } actor
+                    ? state.WriteSavedColor(actor, color, aliases)
+                    : state.WriteDword(NativeBattleElectricDischarge126Profile.SavedColorsGlobal + (uint)operand * 4, color);
+            }
+            foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
+            {
+                if (!aliases.TryEncodeExact(entry.Owner, out _))
+                {
+                    uint color = entry.State.Color40 ?? throw new NotSupportedException("Electric Discharge requires its current party model color.");
+                    state = state.WriteSavedColor(entry.Owner, color, aliases);
+                }
+            }
+            return state;
+        }
+
+        void ClearPartyFlash()
+        {
+            for (byte operand = 0; operand < 3; operand++)
+            {
+                NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(operand);
+                if (graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is null)
+                {
+                    graphics = graphics with { NativeBindings = graphics.NativeBindings.ClearUnboundPartyCellFlags(slot, 0x800) };
+                }
+            }
+            foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
+            {
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(entry.Owner, entry.State with { Flags0 = (ushort)(entry.State.Flags0 & ~0x800) }) };
+            }
+        }
+
+        NativeBattleResourceRowReference CurrentBinding(BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (model.ActiveStagedResourceRow100 is uint staged)
@@ -158,7 +197,7 @@ public sealed partial class BattleSession
                 case NativeBattleElectricDischarge126ContactAll contacts:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(contacts.First, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, contacts.Count).Select(index => nativeActionPackets.ReadContact(contacts.First.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 default:

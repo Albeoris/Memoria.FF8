@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         presentationForeignActors = [];
         presentationNativeTargets = [];
         NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(retained), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
-        graphics = InitializeNativePrimitiveFrame500400(graphics);
+        graphics = InitializeNativeGraphicsFrame500400(graphics);
         InitializeHostedPresentationModelOwners(roster, useRetainedModelOwners: true);
         NativeGraphics = QueueHostedNativeEntryLoads(graphics);
     }

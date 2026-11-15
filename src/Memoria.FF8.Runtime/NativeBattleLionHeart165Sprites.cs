@@ -65,7 +65,7 @@ public static partial class NativeBattleLionHeart165Controller
                 NativeBattleVector bone = default;
                 if (callback == 0x5EB410)
                 {
-                    byte actor = unchecked((byte)ReadBankDword(staging, 0x23C6870));
+                    BattleModelOwner actor = staging.ReadExecutionReference<BattleExecutionReference.Model>(0x23C6870, 4).Owner;
                     NativeBattleVector first = inputs.ReadBone(actor, 19, 3584);
                     NativeBattleVector second = inputs.ReadBone(actor, 19, 3584);
                     staging = Point(Point(staging, temporary, first), temporary + 8, second);
@@ -87,7 +87,7 @@ public static partial class NativeBattleLionHeart165Controller
                 {
                     if (callback == 0x5EB070)
                     {
-                        bone = inputs.ReadBone(unchecked((byte)ReadBankDword(staging, 0x23C6870)), (byte)(19 + index), 4096);
+                        bone = inputs.ReadBone(staging.ReadExecutionReference<BattleExecutionReference.Model>(0x23C6870, 4).Owner, (byte)(19 + index), 4096);
                     }
                     staging = Point(staging, row + 8, bone);
                     for (uint axis = 0; axis < 6; axis += 2)

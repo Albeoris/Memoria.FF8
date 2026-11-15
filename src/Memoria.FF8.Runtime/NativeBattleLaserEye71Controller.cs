@@ -26,7 +26,9 @@ public static partial class NativeBattleLaserEye71Controller
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask root = appended.Hierarchy.Read(appended.Address).WriteDword(0xC, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, inputs.Packets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
+        NativeBattleModulePoolTask root = appended.Hierarchy.Read(appended.Address).WriteDword(0xC, 0x1D99A78);
+        root = new NativeBattleEffectTaskActors(header.Source, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteTo(root);
+        root = root.WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         frame = frame with { Effect = frame.Effect with { Pools = appended.Hierarchy.Write(appended.Address, root).Pools, ReturnedDescriptor = Pools[0].Descriptor, DrawArenaOffset = null }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)source)).WriteDword(0x25FCDCC, 0).WriteDword(0x25FAAE4, 0) };
         if ((parameters.Flags79 & 1) == 0)
         {

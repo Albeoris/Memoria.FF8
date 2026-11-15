@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokukenSpecialController
 {
-    public static NativeBattleRenzokuken160ChildStep Advance5FD230(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, Func<byte, NativeBattleModuleAnchor> readAnchor)
+    public static NativeBattleRenzokuken160ChildStep Advance5FD230(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor)
     {
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -16,14 +16,14 @@ public static partial class NativeBattleRenzokukenSpecialController
         NativeBattleRenzokuken160State state = ReadState(frame).Core;
         if (counter == 0)
         {
-            ushort flags = inputs.ReadModel(state.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             task = task.WriteWord(14, (ushort)(flags & 0x800));
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(flags | 0x800)));
         }
         if (counter == 1)
         {
             Execute(new NativeBattleRenzokuken160ActorResource(resources.ActorResource, state.InitialControl ? (byte)2 : (byte)1));
-            Execute(new NativeBattleRenzokukenSpecialTargetResource(resources.ActorResource, (byte)state.FirstTarget, 0, 1));
+            Execute(new NativeBattleRenzokukenSpecialTargetResource(resources.ActorResource, NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 0, 1));
         }
         if (counter == 2)
         {
@@ -48,7 +48,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         state = ReadState(frame).Core;
         if (state.InitialControl && counter == state.Duration)
         {
-            Execute(new NativeBattleRenzokuken160SharedTask(0x5FD810, 0, state.Actor));
+            Execute(new NativeBattleRenzokuken160SharedTask(0x5FD810, 0, NativeBattleRenzokukenInvocation.Source(frame.Effect)));
         }
         if (counter is >= 28 and <= 80)
         {
@@ -56,7 +56,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         }
         if (counter == 46)
         {
-            NativeBattleModuleAnchor original = readAnchor((byte)state.FirstTarget);
+            NativeBattleModuleAnchor original = readAnchor(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect));
             NativeBattleVector anchor = new(original.X, original.W, original.Z);
             Append(0x5FEA70, child => child.WriteWord(12, 0).WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, unchecked((ushort)anchor.Y)).WriteWord(20, unchecked((ushort)anchor.Z)).WriteWord(28, 6144).WriteWord(30, 6144));
             frame = EmitBurst161(frame, anchor);
@@ -92,7 +92,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 Execute(new NativeBattleRenzokuken160Stage(0));
             }
             Execute(new NativeBattleRenzokuken160ActorColor(resources.DefaultModelColor));
-            ushort flags = inputs.ReadModel(state.Actor).Flags0;
+            ushort flags = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(task.ReadWord(14) | (flags & 0xF7FF))));
         }
         return new(frame, pool.WriteSlot(slot, task), result);

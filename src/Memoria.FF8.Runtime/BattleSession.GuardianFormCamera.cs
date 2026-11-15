@@ -40,12 +40,12 @@ public sealed partial class BattleSession
         }
         NativeBattleCameraPose pose = camera.CurrentPose!;
         NativeBattleCameraProjection projection = camera.Projection!;
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(presentation.ActorIndex);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(presentation.Actor);
         if ((model.Flags0 & 6) != 2 || (model.Flags2!.Value & 0x84) != 0)
         {
             return graphics;
         }
-        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, presentation.ActorIndex);
+        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, presentation.Actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("GF camera framing requires its active body rig.");
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("GF camera framing requires its original body geometry.");
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("GF camera framing requires its active pose owner.");

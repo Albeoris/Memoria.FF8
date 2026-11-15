@@ -11,17 +11,17 @@ public sealed partial class BattleSession
         NativeBattleEffect54Resources resources = effect.Binding.Effect54Resources ?? throw new NotSupportedException("Effect54 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect54 requires current process memory.");
         NativeBattleEffect54Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect54 requires its current CRT stream."), memory.Effect54 ?? throw new NotSupportedException("Effect54 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect54 requires its current addressed memory.") };
-        NativeBattleEffect54Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect54 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => ReadModel(address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect54 requires its current projection."), _ => Camera().Roll, Point, Execute) { CapturePresentation = true };
+        NativeBattleEffect54Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect54 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => ReadModel(actor), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect54 requires its current projection."), _ => Camera().Roll, Point, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect54Controller.Initialize(frame, resources, inputs) : NativeBattleEffect54Controller.Advance(frame, resources, inputs);
         PublishNativeEffect54Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect54 requires its current camera.");
-        NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect54 requires its current physical skeleton.");
+        NativeBattlePoseSource Pose(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect54 requires its current physical skeleton.");
 
-        NativeBattleEffectArena ReadModel(uint address)
+        NativeBattleEffectArena ReadModel(BattleModelOwner actor)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect54Actor(graphics, address));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleEffectArena bytes = CaptureNativeEffect210Model(model);
             if (model.GeometryBounds52 is { } bounds)
             {
@@ -37,9 +37,8 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleEffect54PointStep Point(NativeBattleEffect54Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect54PointStep Point(NativeBattleEffect54Frame current, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect54Actor(graphics, address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : Pose(actor);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
@@ -53,14 +52,14 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect54UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect54Controller.Read(current, caster.TaskAddress), current.Effect.Parameters ?? throw new NotSupportedException("Effect54 requires its current parameters."), graphics.Models, Pose, producer => current = Observe(current, producer));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect54Controller.Read(current, caster.TaskAddress), current.Effect.Parameters ?? throw new NotSupportedException("Effect54 requires its current parameters."), actor => graphics.ActorModels.Get(actor), Pose, producer => current = Observe(current, producer));
                     return NativeBattleEffect54Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleEffect54UpdateTarget8DC610 target:
-                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect54Controller.Read(current, target.TaskAddress), graphics.Models, Pose, producer => current = Observe(current, producer));
+                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect54Controller.Read(current, target.TaskAddress), actor => graphics.ActorModels.Get(actor), Pose, producer => current = Observe(current, producer));
                     return NativeBattleEffect54Controller.Write(current, target.TaskAddress, targetTask);
                 case NativeBattleEffect54UpdateBounds8DC870 bounds:
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect54Controller.Read(current, bounds.TaskAddress);
-                    int boundsActor = boundsTask.ReadByte(0x2D);
+                    BattleModelOwner boundsActor = boundsTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource poseSource = Pose(boundsActor);
                     NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(boundsActor).SequenceState ?? throw new NotSupportedException("Effect54 requires its current target pose."), poseSource);
                     return NativeBattleEffect54Controller.Write(current, bounds.TaskAddress, NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, poseSource, decoded));
@@ -88,7 +87,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect54Contact506690 contact:
                     PublishNativeEffect54Frame(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.AbsoluteIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return ImportNativeEffect54Frame(current);
                 case NativeBattleEffect54DrawBatch draw:
@@ -111,15 +110,6 @@ public sealed partial class BattleSession
                     throw new NotSupportedException($"Effect54 emitted unsupported service {operation.GetType().Name}.");
             }
         }
-    }
-
-    private static int NativeEffect54Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect54 requires an actual current physical model address.");
-        }
-        return actorIndex;
     }
 
     private void PublishNativeEffect54Frame(NativeBattleEffect54Frame frame)

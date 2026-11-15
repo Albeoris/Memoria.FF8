@@ -74,7 +74,7 @@ public sealed partial class BattleSession
 
     private void BeginComponentGuardianBoost(BattleActionPresentation action)
     {
-        if (NativeGraphics is not null || action.NativeQueuedCommand != 254 || action.NativeHeaderIndex is null)
+        if (NativeGraphics is not null || action.NativeQueuedCommand != 254 || action.NativeHeader is null)
         {
             return;
         }
@@ -95,7 +95,7 @@ public sealed partial class BattleSession
     private (ushort ActionId, BattleActionDefinition Action) NativeGuardianBoostBinding(BattleActionPresentation action)
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[0];
-        if (action.NativeQueuedCommand != 254 || action.NativeHeaderIndex != 0 || header.Command != 254 || header.Source != GetActor(action.ActorId).EncodeNativeSlot())
+        if (action.NativeQueuedCommand != 254 || action.NativeHeader != new BattleActionHeaderReference(0) || header.Command != 254 || header.Source != GetActor(action.ActorId).EncodeNativeSlot())
         {
             throw new InvalidDataException("Native GF Boost requires its admitted actor and original254 header0.");
         }
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                BattleActionPresentation action = ActiveAction is { NativeQueuedCommand: 254, NativeHeaderIndex: 0 } active ? active : throw new InvalidDataException("Saved component Boost widget lacks its admitted GF action.");
+                BattleActionPresentation action = ActiveAction is { NativeQueuedCommand: 254, NativeHeader: { Ordinal: 0 } } active ? active : throw new InvalidDataException("Saved component Boost widget lacks its admitted GF action.");
                 (admittedId, _) = NativeGuardianBoostBinding(action);
             }
             bool computed = nativeActionScratch.GuardianFormulaE1E ?? throw new InvalidDataException("Saved Boost widget lacks its actual E1E formula gate.");

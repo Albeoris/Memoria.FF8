@@ -150,7 +150,7 @@ public static class NativeBattleEffect20Controller
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect20 target requires its actual pose.");
-            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Effect20 target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Effect20 target requires its current pose frame."), sequence.PoseFlags109));
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -171,7 +171,7 @@ public static class NativeBattleEffect20Controller
                     if (Word(task, 0x24) >= 30)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect20 requires its actual contact pointer.")) + task.ReadTraversalPosition(0x2B));
+                        BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect20Contact(contact));
                         hierarchy = new(current.Effect.Pools);
                         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x26, (byte)(hierarchy.Read(address).ReadByte(0x26) | 1)));
@@ -201,7 +201,7 @@ public static class NativeBattleEffect20Controller
                     current = inputs.Execute(current, new NativeBattleEffect20VibrationEnqueue(address));
                     hierarchy = new(current.Effect.Pools);
                     task = hierarchy.Read(address);
-                    int actor = task.ReadByte(0x2C);
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
                     NativeBattleModelTransform transform = inputs.ReadModel(actor).Transform ?? throw new NotSupportedException("Effect20 main effect requires its caster's actual packed position.");
                     task = task.WriteDword(0x1C, unchecked((ushort)transform.Position28.X) | (uint)unchecked((ushort)transform.Position28.Y) << 16).WriteDword(0x20, unchecked((ushort)transform.Position28.Z) | (uint)unchecked((ushort)transform.Vertical34) << 16);
                     task = task.WriteWord(0x1E, unchecked((ushort)(task.ReadWord(0x1E) - 4416)));
@@ -215,7 +215,7 @@ public static class NativeBattleEffect20Controller
                         NativeBattleEffectHierarchyAppend overlay = hierarchy.Append8DC540(4, 0x8DDC30, 64, address, Select);
                         hierarchy = overlay.Hierarchy.Write(overlay.Address, overlay.Hierarchy.Read(overlay.Address).WriteDword(0x34, 0x1629F14).WriteWord(0x38, 1));
                         task = hierarchy.Read(address).WriteWord(0x60, 288).WriteWord(0x62, unchecked((ushort)-320)).WriteWord(0x64, 32);
-                        current = inputs.Execute(With(current, hierarchy.Write(address, task)), new NativeBattleEffect20RingSequence(NativeBattleGraphicsModelAddress.Encode(6), 12));
+                        current = inputs.Execute(With(current, hierarchy.Write(address, task)), new NativeBattleEffect20RingSequence(inputs.Packets.ModelAliases.DecodeLiteral(6), 12));
                         hierarchy = new(current.Effect.Pools);
                         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteWord(0x70, 24));
                         hierarchy = Next(hierarchy, address);
@@ -229,7 +229,7 @@ public static class NativeBattleEffect20Controller
                     hierarchy = hierarchy.Write(address, task);
                     if (Word(task, 0x70) <= 0)
                     {
-                        current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect20Activate(6));
+                        current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect20Activate(inputs.Packets.ModelAliases.DecodeLiteral(6)));
                         current = inputs.Execute(current, new NativeBattleEffect20VibrationStop(Word(task, 0x74)));
                         hierarchy = new(current.Effect.Pools);
                         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x26, (byte)(hierarchy.Read(address).ReadByte(0x26) | 1)));

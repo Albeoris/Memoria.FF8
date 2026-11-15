@@ -6,19 +6,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static NativeBattleEffect83Frame CaptureNativeEffect83Target(NativeBattleEffect83Frame frame, uint taskAddress, NativeBattleGraphicsState graphics)
+    private static NativeBattleEffect83Frame CaptureNativeEffect83Target(NativeBattleEffect83Frame frame, uint taskAddress, NativeBattleGraphicsState graphics, NativeBattleModelAliases aliases)
     {
         NativeBattleModulePoolTask task = NativeBattleEffect83Controller.Read(frame, taskAddress);
-        byte actor = task.ReadByte(0x2D);
-        if (actor >= graphics.Models.Length)
-        {
-            throw new InvalidDataException("Effect83 target capture leaves its physical model bank.");
-        }
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+        _ = graphics.ActorModels.Get(actor);
         uint body = checked(taskAddress + 0x6C);
         frame = NativeBattleEffect83Controller.ClearBytes(frame, body, 88);
         NativeBattleEffectArena context = NativeBattleEffect83Controller.ReadBytes(frame, body, 88);
-        context = context.Write(0x40, BitConverter.GetBytes(TransformedAddress)).Write(0x44, BitConverter.GetBytes(DescriptorAddress)).Write(0x48, BitConverter.GetBytes(NativeBattleGraphicsModelAddress.Encode(actor))).Write(0x4C, BitConverter.GetBytes(0x25C9F74u)).Write(0x50, BitConverter.GetBytes(0x25C9F74u));
+        context = context.Write(0x40, BitConverter.GetBytes(TransformedAddress)).Write(0x44, BitConverter.GetBytes(DescriptorAddress)).Write(0x4C, BitConverter.GetBytes(0x25C9F74u)).Write(0x50, BitConverter.GetBytes(0x25C9F74u));
         frame = NativeBattleEffect83Controller.WriteBytes(frame, body, context, 88);
+        task = NativeBattleEffect83Controller.Read(frame, taskAddress);
+        task.WriteExecutionReference(0xB4, 4, new BattleExecutionReference.Model(actor), aliases.EncodeAddress(actor));
+        frame = NativeBattleEffect83Controller.Write(frame, taskAddress, task);
         NativeBattleEffect83State state = frame.State.WriteDword(DescriptorAddress + 4, TransformedAddress).WriteWord(DescriptorAddress + 0x14, 0).WriteWord(DescriptorAddress + 0x16, 0).WriteWord(DescriptorAddress + 0x18, 320).WriteWord(DescriptorAddress + 0x1A, 0).Write(DescriptorAddress + 0x1C, [128, 128, 128]).WriteDword(DescriptorAddress + 0x20, uint.MaxValue).WriteWord(DescriptorAddress + 0x24, 0).WriteDword(0x25CF3F0, 0x209FAB8);
         NativeBattleGuardianWorkBuffer work = frame.Memory.GuardianWorkBuffer ?? throw new NotSupportedException("Effect83 requires its separately retained work buffer.");
         return frame with { State = state, Memory = frame.Memory with { GuardianWorkBuffer = work.Write(0, new byte[0x7D00]) } };
@@ -27,11 +27,8 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect83Frame Frame) DrawNativeEffect83Target(NativeBattleGraphicsState graphics, NativeBattleEffect83Frame frame, uint bodyAddress, Func<NativeBattleEffect83Frame, NativeBattleGfGeometryBatch, uint, ushort, NativeBattleEffect83Frame> deliver)
     {
         NativeBattleEffectArena context = NativeBattleEffect83Controller.ReadBytes(frame, bodyAddress, 88);
-        uint modelAddress = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0x48, 4));
-        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
-        {
-            throw new InvalidDataException("Effect83 body requires its captured physical model.");
-        }
+        uint taskAddress = checked(bodyAddress - 0x6C);
+        BattleModelOwner actor = NativeBattleEffect83Controller.Read(frame, taskAddress).ReadExecutionReference<BattleExecutionReference.Model>(0xB4, 4).Owner;
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect83 requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect83 requires observed linked geometry presence.");
@@ -62,7 +59,7 @@ public sealed partial class BattleSession
             context = context.Write(0x34 + row * 4, BitConverter.GetBytes(registers.Colors.Mac[row] ?? throw new NotSupportedException("Effect83 matrix translation requires full current MAC.")));
         }
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
-        frame = NativeBattleEffect83Controller.WriteBytes(frame, bodyAddress, context, 88);
+        frame = NativeBattleEffect83Controller.WriteBytes(frame, bodyAddress, context, 0x40);
         Draw(false, NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose));
         if (graphics.ActorModels.Get(actor).LinkedTransform is not null)
         {
@@ -98,7 +95,7 @@ public sealed partial class BattleSession
             int workOffset = checked((int)(faceAddress - 0x209FAB8));
             NativeBattleGuardianWorkBuffer work = frame.Memory.GuardianWorkBuffer ?? throw new NotSupportedException("Effect83 requires its current face records.");
             NativeBattleEffectArena faces = NativeBattleEffectArena.Clear().Write(0, work.Read(workOffset, 0x7D00));
-            NativeBattleEffect83SpiralDrawingStep drawn = NativeBattleEffect83SpiralDrawing.Draw(frame.Memory, temporary, geometrySource, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), basis, camera.Projection ?? throw new NotSupportedException("Effect83 requires its projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect83 requires its depth controls."), frame.State.ReadView(TransformedAddress, TransformedLength), TransformedLength, faces, NativeBattlePilotVisualLifetimes.Identity(83, NativeBattleEffect83Controller.Read(frame, checked(bodyAddress - 0x6C)), linked ? 1 : 0) with { ResourceGeneration = geometrySource.PresentationIdentity });
+            NativeBattleEffect83SpiralDrawingStep drawn = NativeBattleEffect83SpiralDrawing.Draw(frame.Memory, temporary, geometrySource, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), basis, camera.Projection ?? throw new NotSupportedException("Effect83 requires its projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect83 requires its depth controls."), frame.State.ReadView(TransformedAddress, TransformedLength), TransformedLength, faces, NativeBattlePilotVisualLifetimes.Identity(83, NativeBattleEffect83Controller.Read(frame, checked(bodyAddress - 0x6C)), linked ? 1 : 0) with { ModelOwner = actor, ResourceGeneration = geometrySource.PresentationIdentity });
             NativeBattleFileStaging staged = NativeBattleTemporaryMemory.PublishResourceView(allocated.Staging, allocated.Address, drawn.Temporary148, 148);
             frame = frame with { Memory = drawn.Memory with { GuardianWorkBuffer = work.Write(workOffset, drawn.Faces.Read(0, 0x7D00)) }, State = frame.State.WriteView(TransformedAddress, drawn.Transformed, TransformedLength), Staging = NativeBattleTemporaryMemory.Release5082D0(staged, 148) };
             frame = deliver(frame, drawn.Batch, 0x25C9F74, 0);

@@ -48,7 +48,7 @@ public static partial class NativeBattleRenzokukenVariantController
         state = state with { LateOrigin = state.Core.Origin, LateDirection = state.Core.Direction };
         if (profile.HasContactOffsets)
         {
-            state = state with { LateMatrix = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken late controller requires its actual captured actor matrix64.") };
+            state = state with { LateMatrix = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken late controller requires its actual captured actor matrix64.") };
         }
         return (Store(frame, state), pool);
 
@@ -72,7 +72,7 @@ public static partial class NativeBattleRenzokukenVariantController
     public static NativeBattleRenzokuken160ChildStep Advance5A8340(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
         NativeBattleRenzokukenVariantState state = ReadState(frame);
-        NativeBattleActionMatrix body = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native5A8340 requires the current actor matrix64.");
+        NativeBattleActionMatrix body = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native5A8340 requires the current actor matrix64.");
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(body, new(0, -800, 0));
         NativeBattleActionMatrix world = body with { X = offset.X + state.LateOrigin.X, Y = offset.Y + state.LateOrigin.Y, Z = offset.Z + state.LateOrigin.Z };
         return DrawLate(frame, pool, slot, inputs, resources.Meshes[2], world, view, projection, colors, 28, 30, 4, 341, 16);

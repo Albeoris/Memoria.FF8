@@ -33,15 +33,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect80 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect80 requires its current projection.");
-        NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect80 requires its current actor skeleton.");
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect80 requires an actual physical model row.");
-            }
-            return actorIndex;
-        }
+        NativeBattlePoseSource Pose(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect80 requires its current actor skeleton.");
         void Publish(NativeBattleEffect80Frame current)
         {
             NativeEffectMemory = current.Memory with { Effect80 = current.State };
@@ -85,9 +77,8 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(0x20DFAB8u + (uint)written.Cursor)) };
         }
-        NativeBattleEffect80Frame Position(NativeBattleEffect80Frame current, uint address, NativeBattleVector position, bool publishWorld, short? vertical)
+        NativeBattleEffect80Frame Position(NativeBattleEffect80Frame current, BattleModelOwner actor, NativeBattleVector position, bool publishWorld, short? vertical)
         {
-            int actor = Actor(address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect80 requires its current model transform.");
             model = model with { Transform = transform with { Position28 = position, Vertical34 = vertical ?? transform.Vertical34 } };
@@ -106,19 +97,19 @@ public sealed partial class BattleSession
                     NativeBattleBoneAnchorProducer observed = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(bone.Actor), Pose(bone.Actor), bone.Selector, 0);
                     return ObserveNativeEffect80BoneAnchor(current, observed);
                 case NativeBattleEffect80UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect80Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, Pose, producer => current = ObserveNativeEffect80BoneAnchor(current, producer));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect80Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, actor => graphics.ActorModels.Get(actor), Pose, producer => current = ObserveNativeEffect80BoneAnchor(current, producer));
                     return NativeBattleEffect80Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleEffect80UpdateTarget8DC610 target:
-                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect80Controller.Read(current, target.TaskAddress), graphics.Models, Pose, producer => current = ObserveNativeEffect80BoneAnchor(current, producer));
+                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect80Controller.Read(current, target.TaskAddress), actor => graphics.ActorModels.Get(actor), Pose, producer => current = ObserveNativeEffect80BoneAnchor(current, producer));
                     return NativeBattleEffect80Controller.Write(current, target.TaskAddress, targetTask);
                 case NativeBattleEffect80UpdateBounds8DC870 bounds:
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect80Controller.Read(current, bounds.TaskAddress);
-                    int boundsActor = boundsTask.ReadByte(0x2D);
+                    BattleModelOwner boundsActor = boundsTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = Pose(boundsActor);
                     boundsTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(boundsTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(boundsActor).SequenceState ?? throw new NotSupportedException("Effect80 requires its target pose."), source));
                     return NativeBattleEffect80Controller.Write(current, bounds.TaskAddress, boundsTask);
                 case NativeBattleEffect80Point502170 point:
-                    int pointActor = Actor(point.ModelAddress);
+                    BattleModelOwner pointActor = point.Actor;
                     NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(pointActor), Pose(pointActor), checked((byte)point.Selector), 0);
                     current = ObserveNativeEffect80BoneAnchor(current, producer);
                     NativeBattleVector vector = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -152,7 +143,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleEffect80TargetFlags flags:
-                    int flagActor = Actor(flags.ModelAddress);
+                    BattleModelOwner flagActor = flags.Actor;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(flagActor);
                     if (flags.ByteOffset > 1 || flags.WordWidth && flags.ByteOffset != 0)
                     {
@@ -167,20 +158,20 @@ public sealed partial class BattleSession
                     return Deliver(current, packets.Batch, packets.CursorGlobal, packets.Flags);
                 case NativeBattleEffect80DrawBody7AFEC0 draw:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect80Frame bodyFrame) = DrawNativeEffect80Body(graphics, current, draw.ContextAddress, Deliver, draw.PilotIdentity);
-                    graphics = graphics with { ActorModels = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.ActorModels };
                     return bodyFrame;
                 case NativeBattleEffect80BodyAnchor7B4750 anchor:
                     return ObserveNativeEffect80Anchor(graphics, current, anchor.TaskAddress, anchor.ContextAddress);
                 case NativeBattleEffect80StageTransition transition:
                     return ApplyNativeEffect80StageTransition(current, transition);
                 case NativeBattleEffect80SetSequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)Actor(sequence.ModelAddress)), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleEffect80CopyActorPoint copy:
-                    NativeBattleModelTransform sourceTransform = graphics.ActorModels.Get(Actor(copy.SourceModel)).Transform ?? throw new NotSupportedException("Effect80 requires its actual source position.");
+                    NativeBattleModelTransform sourceTransform = graphics.ActorModels.Get(copy.SourceModel).Transform ?? throw new NotSupportedException("Effect80 requires its actual source position.");
                     return Position(current, copy.DestinationModel, sourceTransform.Position28 with { Y = unchecked((short)(sourceTransform.Position28.Y + copy.YOffset)) }, copy.PublishWorld, sourceTransform.Vertical34);
                 case NativeBattleEffect80SetActorPosition position:
-                    return Position(current, position.ModelAddress, position.Position, position.PublishWorld, null);
+                    return Position(current, position.Actor, position.Position, position.PublishWorld, null);
                 case NativeBattleEffect80Vibration4A29A0 vibration:
                     if (vibration.SourceAddress != VibrationAddress)
                     {

@@ -28,6 +28,24 @@ public sealed record NativeBattleEffect68State([property: JsonRequired] NativeBa
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
+    internal BattleModelOwner ReadPrimaryModel() => Core.ReadExecutionReference<BattleExecutionReference.Model>(Require(TargetModelGlobal, 4, BaseAddress, CoreRanges), 4).Owner;
+
+    internal NativeBattleEffect68State WriteModelSelection(NativeBattleScanModelSelectionResult selection, NativeBattleModelAliases aliases)
+    {
+        int offset = Require(TargetModelGlobal, 4, BaseAddress, CoreRanges);
+        NativeBattleEffectArena core = Core.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(selection.Primary), aliases.EncodeAddress(selection.Primary));
+        Span<byte> originalMembership = stackalloc byte[28];
+        originalMembership.Clear();
+        foreach (BattleModelOwner target in selection.Targets.Enumerate())
+        {
+            if (aliases.TryEncodeExact(target, out byte originalSlot))
+            {
+                originalMembership[originalSlot * 4] = 1;
+            }
+        }
+        return (this with { Core = core }).Write(MembershipAddress, originalMembership);
+    }
+
     public NativeBattleEffect68State Write(uint address, ReadOnlySpan<byte> bytes)
     {
         bool header = address >= HeaderBase;

@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect183Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x22F4218)?.ArenaOffset ?? throw new NotSupportedException("Effect183 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect183 requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Effect183 requires its loaded texture bytes."), tim);
-        NativeBattleEffect183State state = frame.State.WriteDword(0x22F33C8, inputs.Packets.ReadContact(first).Primary.Recipient).WriteDword(0x22F4210, 0x1D99A78).WriteDword(0x22F4214, Parameters(frame).Source).WriteDword(0x22F4218, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim));
+        NativeBattleEffect183State state = frame.State.WriteModelOperand(0x22F33C8, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteDword(0x22F4210, 0x1D99A78).WriteModelOperand(0x22F4214, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(0x22F4218, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim));
         return frame with { State = state with { RootBankStorage = null, ChildBankStorage = null }, Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [roots, children], ReturnedDescriptor = 0x22F33E0, DrawArenaOffset = null } };
     }
 
@@ -82,7 +82,7 @@ public static partial class NativeBattleEffect183Controller
             return (frame, 0);
         }
         short age = unchecked((short)Read(frame, address).ReadWord(12));
-        int caster = checked((int)frame.State.ReadDword(0x22F4214));
+        BattleModelOwner caster = frame.State.ReadModelOperand(0x22F4214);
         if (age == 0)
         {
             NativeBattleEffect183PointStep point = inputs.ReadBone502170(frame, caster, 0xF1, 0);

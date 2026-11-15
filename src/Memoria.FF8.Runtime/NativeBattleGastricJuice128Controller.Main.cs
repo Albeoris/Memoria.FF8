@@ -12,7 +12,7 @@ public static partial class NativeBattleGastricJuice128Controller
             throw new NotSupportedException("Gastric Juice reached an unsupported target callback.");
         }
         int age = Signed(target, 12);
-        byte actor = checked((byte)Actor(target.ReadDword(16)));
+        BattleModelOwner actor = target.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
         if (age >= 21)
         {
             frame = inputs.Execute(frame, new NativeBattleGastricJuice128AdvanceAct(address));
@@ -36,12 +36,12 @@ public static partial class NativeBattleGastricJuice128Controller
         {
             for (int angle = 4095; angle != 0; angle -= 1365)
             {
-                NativeBattleGastricJuice128PointStep mouth = inputs.ReadBone502170(frame, Actor(frame.State.ReadDword(CasterGlobal)), 3, 4095);
+                NativeBattleGastricJuice128PointStep mouth = inputs.ReadBone502170(frame, frame.State.ReadModel(CasterGlobal), 3, 4095);
                 frame = mouth.Frame;
-                NativeBattleGastricJuice128AnchorStep caster = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(CasterGlobal)));
+                NativeBattleGastricJuice128AnchorStep caster = inputs.ReadAnchor571400(frame, frame.State.ReadModel(CasterGlobal));
                 frame = caster.Frame;
                 frame = RandomBone(frame, actor, inputs, out NativeBattleVector destination);
-                (frame, uint head) = StartTrail(frame, mouth.Position, destination, actor, 0, 256, 150, angle);
+                (frame, uint head) = StartTrail(frame, mouth.Position, destination, actor, inputs.Packets.ModelAliases, 0, 256, 150, angle);
                 if (head != 0)
                 {
                     NativeBattleEffectArena parameters = frame.State.ReadView(CurveParametersGlobal, 8);
@@ -58,7 +58,7 @@ public static partial class NativeBattleGastricJuice128Controller
                 {
                     continue;
                 }
-                NativeBattleGastricJuice128PointStep mouth = inputs.ReadBone502170(frame, Actor(frame.State.ReadDword(CasterGlobal)), 20, 0);
+                NativeBattleGastricJuice128PointStep mouth = inputs.ReadBone502170(frame, frame.State.ReadModel(CasterGlobal), 20, 0);
                 frame = mouth.Frame;
                 NativeBattleModulePoolTask particle = Position(Read(frame, child).WriteDword(12, 0), mouth.Position);
                 frame = DrawRandom(frame, out ushort size);
@@ -97,7 +97,7 @@ public static partial class NativeBattleGastricJuice128Controller
         }
         if (age == 53)
         {
-            frame = inputs.Execute(frame, new NativeBattleGastricJuice128Contact(FirstContact(frame, inputs) + Signed(target, 14)));
+            frame = inputs.Execute(frame, new NativeBattleGastricJuice128Contact(FirstContact(frame, inputs).Advance(Signed(target, 14))));
         }
         if (age >= 69)
         {
@@ -106,7 +106,7 @@ public static partial class NativeBattleGastricJuice128Controller
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);
     }
 
-    private static NativeBattleGastricJuice128Frame RandomBone(NativeBattleGastricJuice128Frame frame, int actor, NativeBattleGastricJuice128Inputs inputs, out NativeBattleVector position)
+    private static NativeBattleGastricJuice128Frame RandomBone(NativeBattleGastricJuice128Frame frame, BattleModelOwner actor, NativeBattleGastricJuice128Inputs inputs, out NativeBattleVector position)
     {
         frame = DrawRandom(frame, out ushort random);
         int count = inputs.ReadBoneCount(actor);

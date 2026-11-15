@@ -151,7 +151,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect345Contact506690 contact:
                     PublishNativeEffect345Frame(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.AbsoluteIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return ImportNativeEffect345Frame(current);
                 case NativeBattleEffect345DrawBatch draw:

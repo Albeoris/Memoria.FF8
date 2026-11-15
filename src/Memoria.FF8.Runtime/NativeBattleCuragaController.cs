@@ -25,12 +25,12 @@ public sealed record NativeBattleCuragaState([property: JsonRequired] int Source
 public sealed record NativeBattleCuragaFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCuragaState State);
 public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Func<NativeBattleCuragaFrame, int, NativeBattleCuragaFrame>? ApplyContact { get; init; }
-    public Func<NativeBattleCuragaFrame, int, byte, NativeBattleCuragaFrame>? ObserveBoneAnchor { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Func<NativeBattleCuragaFrame, BattleContactCursor, NativeBattleCuragaFrame>? ApplyContact { get; init; }
+    public Func<NativeBattleCuragaFrame, BattleModelOwner, byte, NativeBattleCuragaFrame>? ObserveBoneAnchor { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleCuragaLeafStep(NativeBattleCuragaFrame Frame, int Result);
-public sealed record NativeBattleCuragaControllerStep(NativeBattleCuragaFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleCuragaControllerStep(NativeBattleCuragaFrame Frame, ImmutableArray<BattleContactCursor> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
 /// <summary>87DB10/87DC50/87DF70's physical pools, ordered callbacks and original header/contact selectors.</summary>
 public static class NativeBattleCuragaController
@@ -57,8 +57,7 @@ public static class NativeBattleCuragaController
         else
         {
             NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-            int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
-            byte target = packets.ReadContact(firstContact).Primary.Recipient;
+            BattleModelOwner target = packets.ReadContact(header.FirstContact).Primary.Recipient;
             int targets = header.ReadContactCount();
             byte groups = header.ReadRepeatModeMinusOne();
             int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
@@ -66,7 +65,10 @@ public static class NativeBattleCuragaController
             {
                 maximum = groups;
             }
-            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
+            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0);
+            task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(header.Source), packets.ModelAliases.EncodeOperand(header.Source, 1));
+            task.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeOperand(target, 1));
+            task = task.WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         }
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native87DB10 requires the actual26D75BC initializer pointer, including texture-skip entries.");
@@ -97,7 +99,7 @@ public static class NativeBattleCuragaController
         inputs.Camera.Validate();
         NativeBattleCuragaFrame current = frame with { State = frame.State with { CopiedCamera = inputs.Camera } };
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactCursor>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactCursor>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
@@ -109,7 +111,7 @@ public static class NativeBattleCuragaController
             }
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 0x6000)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0x6000 : 0xC000)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -225,7 +227,7 @@ public static class NativeBattleCuragaController
             {
                 throw new NotSupportedException("Native Curaga child pool has an unsupported callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -251,8 +253,7 @@ public static class NativeBattleCuragaController
                     if (unchecked((short)task.ReadWord(0x24)) >= 30)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native882F00 requires its selected group's contact pointer.");
-                        int contact = checked(first + task.ReadTraversalPosition(0x2B));
+                        BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         if (inputs.ApplyContact is { } applyContact)
                         {
                             current = applyContact(current, contact);

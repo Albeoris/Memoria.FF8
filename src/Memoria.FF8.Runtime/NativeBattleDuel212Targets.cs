@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel212TargetServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90, Func<BattleModelOwner, int> ReadBoneCount, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone502170, Func<NativeBattleDuel212Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleDuel212Frame> DrawBody6A2F60);
+public sealed record NativeBattleDuel212TargetServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, (short Maximum, short Minimum)> ReadBounds6DFD90, Func<BattleModelOwner, int> ReadBoneCount, Func<BattleModelOwner, byte, short, NativeBattleVector> ReadBone502170, Func<NativeBattleDuel212Frame, BattleModelOwner, NativeBattleVector, NativeBattleVector, NativeBattleDuel212Frame> DrawBody6A2F60, BattleModelRoster Roster);
 
 public static class NativeBattleDuel212Targets
 {
@@ -15,7 +15,7 @@ public static class NativeBattleDuel212Targets
         {
             for (int index = 0; index < count; index++)
             {
-                int target = Actor(task.ReadDword(64 + index * 24));
+                BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(64 + index * 24, 4).Owner;
                 frame = services.DrawBody6A2F60(frame, target, new(0, 0, 0), new(0, 0, 0));
                 NativeBattleGraphicsModel model = services.ReadModel(target);
                 services.WriteModel(target, model with { Flags0 = (ushort)(model.Flags0 | 4) });
@@ -47,7 +47,7 @@ public static class NativeBattleDuel212Targets
             for (int index = 0; index < count; index++)
             {
                 int offset = 64 + index * 24;
-                int target = Actor(task.ReadDword(offset));
+                BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
                 (short maximum, short minimum) = services.ReadBounds6DFD90(target);
                 task = task.WriteWord(offset + 20, unchecked((ushort)maximum)).WriteWord(offset + 22, unchecked((ushort)minimum));
                 NativeBattleGraphicsModel model = services.ReadModel(target);
@@ -58,7 +58,7 @@ public static class NativeBattleDuel212Targets
         for (int index = 0; index < count; index++)
         {
             int offset = 64 + index * 24;
-            int target = Actor(task.ReadDword(offset));
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
             short xAngle = unchecked((short)(ratio + rx));
             short yAngle = unchecked((short)(2 * ratio + ry));
             task = task.WriteWord(offset + 12, unchecked((ushort)xAngle)).WriteWord(offset + 14, unchecked((ushort)yAngle));
@@ -82,7 +82,7 @@ public static class NativeBattleDuel212Targets
                 {
                     break;
                 }
-                int target = Actor(task.ReadDword(64 + index * 24));
+                BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(64 + index * 24, 4).Owner;
                 (sprites, int slot) = sprites.Append(0x6A3800);
                 frame = frame with { Memory = frame.Memory.DrawSharedEffectRandom7059E0(out ushort random) };
                 int bones = services.ReadBoneCount(target);
@@ -118,7 +118,7 @@ public static class NativeBattleDuel212Targets
         for (int index = 0; index < count; index++)
         {
             int offset = 64 + index * 24;
-            int target = Actor(task.ReadDword(offset));
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
             NativeBattleGraphicsModel model = services.ReadModel(target);
             if (restorePositions)
             {
@@ -149,25 +149,19 @@ public static class NativeBattleDuel212Targets
 
     private static void RestoreEnemyVisibility6A2F20(NativeBattleDuel212Frame frame, NativeBattleDuel212TargetServices services)
     {
-        for (int index = 3; index < 7; index++)
+        foreach (BattleEnemyModelOwner index in services.Roster.Enemies)
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             if ((model.Flags0 & 2) != 0)
             {
-                byte original = frame.Staging.Read(checked(0x25102A0u + (uint)index * 4), 1)[0];
+                if (!frame.Effect.Duel212SavedFlags.TryGetValue(index, out ushort original))
+                {
+                    throw new InvalidDataException("Native Burning Rave cannot restore flags without its captured model owner.");
+                }
                 services.WriteModel(index, model with { Flags0 = (ushort)(model.Flags0 ^ ((model.Flags0 ^ original) & 4)) });
             }
         }
     }
 
     private static NativeBattleEffectTaskPool Target(NativeBattleDuel212Frame frame) => frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets);
-
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Native Burning Rave retained target pointer leaves the seven original model rows.");
-        }
-        return row;
-    }
 }

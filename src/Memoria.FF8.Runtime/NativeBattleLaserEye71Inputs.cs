@@ -6,7 +6,7 @@ public sealed record NativeBattleLaserEye71RegisterCamera(NativeBattleEffectHeap
 public sealed record NativeBattleLaserEye71EnqueueTim(int ArenaOffset) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71Stage(short Depth, bool ClearRgb) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71BindCaster(BattleModelOwner Actor, uint SaveAddress) : NativeBattleLaserEye71Operation;
-public sealed record NativeBattleLaserEye71Ring(byte Actor, int Sequence) : NativeBattleLaserEye71Operation;
+public sealed record NativeBattleLaserEye71Ring(BattleModelOwner Actor, int Sequence) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71Sound(uint Value, uint Flags, byte Pan) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71Contact(uint TaskAddress) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71Inputs(NativeBattleActionPacketsState Packets, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleLaserEye71Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleLaserEye71Frame, NativeBattleLaserEye71Operation, NativeBattleLaserEye71Frame> Execute)

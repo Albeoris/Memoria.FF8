@@ -5,6 +5,38 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokuken160Controller
 {
+    internal static NativeBattleModuleTask WriteSharedModel(NativeBattleModuleTask task, byte[] payload, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        return AttachSharedModel(task, payload, owner, aliases) with { Payload = payload.ToImmutableArray() };
+    }
+
+    private static NativeBattleModuleTask AttachSharedModel(NativeBattleModuleTask task, byte[] payload, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        const uint operandBytes = 3u << 14;
+        uint unknown = task.UnknownModelPointerBytes;
+        if (aliases.EncodeOperand(owner, 2) is { } bytes)
+        {
+            bytes.AsSpan().CopyTo(payload.AsSpan(14, 2));
+            unknown &= ~operandBytes;
+        }
+        else
+        {
+            unknown |= operandBytes;
+        }
+        return task with { ModelOwner = owner, UnknownModelPointerBytes = unknown };
+    }
+
+    private static NativeBattleModelAliases RequireSharedAliases(NativeBattleModuleInputs inputs) => inputs.ModelAliases ?? throw new NotSupportedException("Native Renzokuken requires its shared task model bindings.");
+
+    private static BattleModelOwner ReadSharedModel(NativeBattleModuleTask task, NativeBattleModelAliases aliases)
+    {
+        if (task.ModelOwner is not { } owner || !aliases.Roster.Contains(owner))
+        {
+            throw new InvalidDataException("Native Renzokuken shared task does not name a current model owner.");
+        }
+        return owner;
+    }
+
     public static NativeBattleModuleCallback AdvanceShared5FF4E0(NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs, uint streakCallback = 0x5FF770, bool skipUnavailable = false)
     {
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -14,10 +46,11 @@ public static partial class NativeBattleRenzokuken160Controller
         NativeBattleModuleTask task = modules.Slots[slot];
         byte[] payload = task.Payload.ToArray();
         short counter = Read(payload, 0);
-        short actor = Read(payload, 14);
         NativeCrtRandomState? random = inputs.CrtRandom;
         if (counter is >= 4 and <= 8)
         {
+            NativeBattleModelAliases aliases = RequireSharedAliases(inputs);
+            BattleModelOwner actor = ReadSharedModel(task, aliases);
             NativeBattleModuleAnchor original = (inputs.ReadModelAnchor ?? throw new NotSupportedException("Native5FF4E0 requires actual571400 anchor coordinates."))(actor);
             NativeBattleVector anchor = new(original.X, original.W, original.Z);
             for (int emitted = 0; emitted < 6; emitted++)
@@ -48,15 +81,16 @@ public static partial class NativeBattleRenzokuken160Controller
                 Write(bytes, 6, y + (unchecked(direction.Y * distance) >> 12));
                 Write(bytes, 8, z + (unchecked(direction.Z * distance) >> 12));
                 Write(bytes, 12, bone);
-                Write(bytes, 14, actor);
+                NativeBattleModuleTask childTask = AttachSharedModel(modules.Slots[child], bytes, actor, aliases);
                 Write(bytes, 16, Rand() % 8);
                 Write(bytes, 20, Rand() % 1664 + 128);
-                modules = modules with { Slots = modules.Slots.SetItem(child, modules.Slots[child] with { Payload = bytes.ToImmutableArray() }) };
+                modules = modules with { Slots = modules.Slots.SetItem(child, childTask with { Payload = bytes.ToImmutableArray() }) };
             }
         }
         if (counter == 1)
         {
-            modules = modules.AppendModelEffect(actor, 3, null, inputs.PresentationRoster);
+            NativeBattleModelAliases aliases = RequireSharedAliases(inputs);
+            modules = modules.AppendModelEffect(ReadSharedModel(task, aliases), 3, aliases);
         }
         ushort next = unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(payload) + 1));
         Write(payload, 0, next);
@@ -87,7 +121,7 @@ public static partial class NativeBattleRenzokuken160Controller
         }
         short counter = Read(payload, 0);
         byte bone = checked((byte)Read(payload, 12));
-        int actor = Read(payload, 14);
+        BattleModelOwner actor = ReadSharedModel(task, RequireSharedAliases(inputs));
         NativeBattleVector point = (inputs.ReadModelBone ?? throw new NotSupportedException("Native5FF770 requires actual502170 body-bone positions."))(actor, bone, unchecked((short)(counter << 9)));
         var horizontal = NativeBattleActionGeometryRules.NormalizeVector56BC50(referencePoint.X - point.X, 0, referencePoint.Z - point.Z);
         NativeBattleModuleAxisAngle cameraAxis = NativeBattleModuleAlignment.Between571480(0, 0, -4096, horizontal.X, horizontal.Y, horizontal.Z);

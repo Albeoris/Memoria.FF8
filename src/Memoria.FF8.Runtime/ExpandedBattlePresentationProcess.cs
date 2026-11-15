@@ -154,7 +154,7 @@ public sealed class ExpandedBattlePresentationProcess
         presentation.PublishHostedCompletionAck(prepared);
     }
 
-    internal void PressGunblade(long token, byte actor, NativeBattleTriggerWidget widget)
+    internal void PressGunblade(long token, BattleModelOwner actor, NativeBattleTriggerWidget widget)
     {
         RequireIdle();
         presentation.PressHostedGunblade(token, actor, widget);

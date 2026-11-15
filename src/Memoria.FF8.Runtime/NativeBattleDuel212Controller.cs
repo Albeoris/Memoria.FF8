@@ -10,7 +10,7 @@ public sealed record NativeBattleDuel212CloseScene : NativeBattleDuel212Operatio
 
 public static partial class NativeBattleDuel212Controller
 {
-    public static NativeBattleDuel212Frame Enter6A0D20(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel212Resources resources, NativeCrtRandomState random, Func<NativeBattleDuel212Frame, NativeBattleDuel212Frame> enqueueInitialTexture)
+    public static NativeBattleDuel212Frame Enter6A0D20(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel212Resources resources, NativeCrtRandomState random, NativeBattleModelAliases aliases, Func<NativeBattleDuel212Frame, NativeBattleDuel212Frame> enqueueInitialTexture)
     {
         if (effect.Binding is not { Effect: 212, Entry: 0x6A0D20, Initializer: 0x6A0D30 } || effect.Parameters is not { } parameters)
         {
@@ -27,7 +27,7 @@ public static partial class NativeBattleDuel212Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         staging = Put(staging, 0x2510278, 0x20DFAB8);
         staging = Put(staging, 0x25101FC, 0x1D99A78);
-        staging = Put(staging, 0x2510200, NativeBattleGraphicsModelAddress.Encode(parameters.Source));
+        staging = staging.WriteExecutionReference(0x2510200, 4, new BattleExecutionReference.Model(parameters.Source), aliases.EncodeAddress(parameters.Source));
         state = new(true, resources);
         return enqueueInitialTexture(new(memory with { Duel212 = state }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random));
     }

@@ -121,7 +121,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             {
                 throw new NotSupportedException("Native578A00 requires its original eight contact offsets.");
             }
-            NativeBattleActionMatrix body = inputs.ReadModel(state.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native578A00 requires current actor matrix64.");
+            NativeBattleActionMatrix body = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native578A00 requires current actor matrix64.");
             NativeBattleVector delta = NativeBattleGfMatrices.RotateShort56C4F0(body, offsets[contact]);
             return new(new(unchecked((short)(state.Origin.X + delta.X)), unchecked((short)(state.Origin.Y + delta.Y)), unchecked((short)(state.Origin.Z + delta.Z))), null);
         }

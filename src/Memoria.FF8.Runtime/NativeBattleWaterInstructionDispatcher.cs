@@ -11,8 +11,7 @@ public sealed record NativeBattleWaterInstructionServices(
     Func<NativeBattleWaterExecutionFrame, uint, byte> ReadParameterByte,
     Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor,
     Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterActorAnchorSource> ReadActorAnchor,
-    Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, uint> ReadHeaderBase,
-    Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, byte, NativeBattleWaterResetCaptureInputs> ReadCaptureInputs,
+    Func<byte, NativeBattleWaterResetCaptureInputs> ReadCaptureInputs,
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectTextureState> ReadTextures,
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectTextureState, NativeBattleWaterExecutionFrame> PublishTextures,
     Func<NativeBattleWaterExecutionFrame, NativeBattleWaterFileReadRequest, NativeBattleWaterExecutionFrame> SubmitFileRead,
@@ -42,7 +41,7 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0:
                 return NativeBattleWaterStopCommand.StopRemoveAA5120(frame);
             case 1:
-                NativeBattleWaterHeaderNextResult next = NativeBattleWaterHeaderNextCommand.Execute(frame, current => services.ResolveProgram(current, CoreDword(current, 0x2797450)), current => Resource1(current, resources), services.ReadHeaderBase, services.ReadCaptureInputs);
+                NativeBattleWaterHeaderNextResult next = NativeBattleWaterHeaderNextCommand.Execute(frame, current => services.ResolveProgram(current, CoreDword(current, 0x2797450)), current => Resource1(current, resources), services.ReadCaptureInputs);
                 return next.Frame;
             case 2:
             case 3:

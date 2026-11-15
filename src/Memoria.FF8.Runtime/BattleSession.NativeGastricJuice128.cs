@@ -53,7 +53,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleGastricJuice128Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleGastricJuice128AnchorStep Anchor(NativeBattleGastricJuice128Frame current, int actor)
+        NativeBattleGastricJuice128AnchorStep Anchor(NativeBattleGastricJuice128Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Gastric Juice requires the actual actor heading.")).Angle36 });
         }
 
-        NativeBattleGastricJuice128PointStep Bone(NativeBattleGastricJuice128Frame current, int actor, short selector, short distance)
+        NativeBattleGastricJuice128PointStep Bone(NativeBattleGastricJuice128Frame current, BattleModelOwner actor, short selector, short distance)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its selected current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, checked((byte)selector), distance);
@@ -112,7 +112,7 @@ public sealed partial class BattleSession
                 case NativeBattleGastricJuice128Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 default:

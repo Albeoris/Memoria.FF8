@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = advanced.Memory;
         return graphics with { OriginalEffect = PublishNativeDrainFamilyState(advanced.Effect, advanced.State) };
 
-        NativeBattleDrain39Frame ApplyContact(NativeBattleDrain39Frame current, int index)
+        NativeBattleDrain39Frame ApplyContact(NativeBattleDrain39Frame current, BattleContactCursor index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

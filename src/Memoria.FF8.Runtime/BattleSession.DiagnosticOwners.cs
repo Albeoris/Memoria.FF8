@@ -20,9 +20,9 @@ public sealed partial class BattleSession
             EffectIoResult = NativeEffectIoResult,
             CameraMask = NativeCamera?.Mask,
             SoundBusy = graphics is null ? (bool?)null : NativeOriginalSoundBusy(),
-            Action = ActiveAction is { } action ? new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.Phase, action.NativeHeaderIndex, action.NativeQueuedCommand, action.NativeSequence } : null,
+            Action = ActiveAction is { } action ? new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.Phase, action.NativeHeader, action.NativeQueuedCommand, action.NativeSequence } : null,
             GuardianCharges = guardianForceCasts.Values.Select(cast => new { cast.ActorId, GuardianForceId = cast.Command.ActionId, cast.RemainingTicks, cast.InitialTicks }).ToArray(),
-            Commands = nativeCommandBanks.BoundCommands.Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeQueuedCommand, command.NativeHeaderIndex, command.NativeCallback }).ToArray(),
+            Commands = nativeCommandBanks.BoundCommands.Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeQueuedCommand, command.NativeHeader, command.NativeCallback }).ToArray(),
             Graphics = graphics is null ? null : new
             {
                 graphics.Callback,

@@ -4,13 +4,13 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoaPhysicalHitState(byte Actor, byte Target, NativeBattleModuleAnchor TargetAnchor, NativeBattleVector Origin)
+public sealed record NativeBattleRinoaPhysicalHitState(BattleModelOwner Actor, BattleModelOwner Target, NativeBattleModuleAnchor TargetAnchor, NativeBattleVector Origin)
 {
     public ImmutableArray<NativeBattleVector> Controls { get; init; } = [];
     public ImmutableArray<NativeBattleVector> Curve { get; init; } = [];
 }
 
-public sealed record NativeBattleRinoaPhysicalHitInputs(NativeBattleModuleInputs Modules, Func<(byte Actor, byte Target)> ReadAliases, Func<byte, ushort> ReadActorFlags, Action<byte, int, NativeBattleModuleAnchor> PlaySound, Func<bool> ReadSecondaryContact, Action ConsumeContact, Action<NativeBattleModuleDraw> DrawSprite);
+public sealed record NativeBattleRinoaPhysicalHitInputs(NativeBattleModuleInputs Modules, BattleContactTaskStorageContract StorageContract, Func<(BattleModelOwner Actor, BattleModelOwner Target)> ReadActors, Func<BattleModelOwner, ushort> ReadActorFlags, Action<BattleModelOwner, int, NativeBattleModuleAnchor> PlaySound, Func<bool> ReadSecondaryContact, Action ConsumeContact, Action<NativeBattleModuleDraw> DrawSprite);
 
 /// <summary>56F9C0's shared physical-hit owner and56FCD0's eight sparks.</summary>
 public static partial class NativeBattleRinoaPhysicalHit
@@ -25,11 +25,11 @@ public static partial class NativeBattleRinoaPhysicalHit
         NativeCrtRandomState? random = inputs.Modules.CrtRandom;
         if (age == 0)
         {
-            (byte actor, byte target) = inputs.ReadAliases();
+            (BattleModelOwner actor, BattleModelOwner target) = inputs.ReadActors();
             NativeBattleModuleAnchor anchor = (inputs.Modules.ReadModelAnchor ?? throw new NotSupportedException("Native56F9C0 requires its target571400 anchor."))(target);
             NativeBattleVector origin = (inputs.Modules.ReadModelBone ?? throw new NotSupportedException("Native56F9C0 requires its actor502170 bone21."))(actor, 21, 0);
             origin = origin with { Y = unchecked((short)(origin.Y - 50)) };
-            state = state with { RinoaPhysicalHit = new(actor, target, anchor, origin) };
+            state = state.WriteRinoaPhysicalHit(inputs.StorageContract, RequireAliases(inputs), new(actor, target, anchor, origin));
             (state, int projectile) = state.AppendCallback(0x56FE10);
             state = Store(state, projectile, task => task.WriteWord(12, 0).WriteWord(14, (ushort)(inputs.ReadActorFlags(actor) & 0x200)).WriteWord(24, 0).WriteWord(26, 3));
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(origin.X - anchor.X, origin.Y - anchor.Y, origin.Z - anchor.Z);
@@ -43,18 +43,18 @@ public static partial class NativeBattleRinoaPhysicalHit
                 crt = crt.Draw(out ushort yRoll);
                 crt = crt.Draw(out ushort zRoll);
                 crt = crt.Draw(out ushort scaleRoll);
-                state = Store(state, spark, task => task.WriteWord(12, 0).WriteDword(16, Pack(origin.X, origin.Y)).WriteWord(20, unchecked((ushort)origin.Z)).WriteWord(22, BinaryPrimitives.ReadUInt16LittleEndian(state.ReadPhysicalModuleBytes(0x209D796, 2))).WriteWord(24, unchecked((ushort)(((direction.X * speed) >> 12) + xRoll % 40))).WriteWord(26, unchecked((ushort)(((direction.Y * speed) >> 12) + yRoll % 40))).WriteWord(28, unchecked((ushort)(((direction.Z * speed) >> 12) + zRoll % 40))).WriteWord(32, (ushort)(scaleRoll % 1024 + 2048)));
+                state = Store(state, spark, task => task.WriteWord(12, 0).WriteDword(16, Pack(origin.X, origin.Y)).WriteWord(20, unchecked((ushort)origin.Z)).WriteWord(22, BinaryPrimitives.ReadUInt16LittleEndian(state.ReadRinoaPhysicalHitView(inputs.StorageContract, 22, 2).Read(0, 2))).WriteWord(24, unchecked((ushort)(((direction.X * speed) >> 12) + xRoll % 40))).WriteWord(26, unchecked((ushort)(((direction.Y * speed) >> 12) + yRoll % 40))).WriteWord(28, unchecked((ushort)(((direction.Z * speed) >> 12) + zRoll % 40))).WriteWord(32, (ushort)(scaleRoll % 1024 + 2048)));
             }
             random = crt;
         }
         if (age == 11)
         {
-            NativeBattleRinoaPhysicalHitState retained = RequireState(state);
-            state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 20), 0x100014, inputs.Modules.PresentationRoster);
+            NativeBattleRinoaPhysicalHitState retained = RequireState(state, inputs);
+            state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 20), 0x100014, RequireAliases(inputs));
             inputs.PlaySound(retained.Actor, 1, retained.TargetAnchor);
             if (inputs.ReadSecondaryContact())
             {
-                state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 21), 0x100015, inputs.Modules.PresentationRoster);
+                state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 21), 0x100015, RequireAliases(inputs));
                 inputs.PlaySound(retained.Actor, 2, retained.TargetAnchor);
             }
             inputs.ConsumeContact();
@@ -113,7 +113,8 @@ public static partial class NativeBattleRinoaPhysicalHit
         return new(Store(state, slot, _ => task), next >= 15, []);
     }
 
-    private static NativeBattleRinoaPhysicalHitState RequireState(NativeBattleModuleState state) => state.RinoaPhysicalHit ?? throw new NotSupportedException("Native56FE10 requires its initialized56F9C0 process globals.");
+    private static NativeBattleModelAliases RequireAliases(NativeBattleRinoaPhysicalHitInputs inputs) => inputs.Modules.ModelAliases ?? throw new NotSupportedException("Native Rinoa physical hit requires its current model bindings.");
+    private static NativeBattleRinoaPhysicalHitState RequireState(NativeBattleModuleState state, NativeBattleRinoaPhysicalHitInputs inputs) => state.ReadRinoaPhysicalHit(inputs.StorageContract, RequireAliases(inputs));
     private static NativeBattleModuleResource Resource(NativeBattleModuleInputs inputs, byte id) => inputs.Resources.SingleOrDefault(resource => resource.Id == id) ?? throw new NotSupportedException($"Native Rinoa physical hit requires its original resource{id}.");
     private static uint Pack(short first, short second) => (uint)(unchecked((ushort)first) | unchecked((ushort)second) << 16);
     private static short Word(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(offset - 12));

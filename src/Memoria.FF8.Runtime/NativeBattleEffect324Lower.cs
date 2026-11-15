@@ -19,14 +19,13 @@ public static class NativeBattleEffect324Lower
         };
     }
 
-    public static uint Model324(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
-    public static uint Caster324(NativeBattleEffect324Frame frame) => Model324(checked((int)frame.State.ReadDword(0x2203C4C)));
+    public static BattleModelOwner Caster324(NativeBattleEffect324Frame frame) => frame.State.ReadModelOperand(NativeBattleEffect324Profile.CasterGlobal);
     public static bool Paused324(NativeBattleEffect324Frame frame, NativeBattleEffect324Inputs inputs) => (inputs.ReadFlags(frame) & 0x201) != 0;
     public static short Word324(NativeBattleEffectArena bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.Read(offset, 2));
     public static uint Dword324(NativeBattleEffectArena bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.Read(offset, 4));
     public static NativeBattleEffectArena Put324(NativeBattleEffectArena bytes, int offset, uint value) => bytes.Write(offset, BitConverter.GetBytes(value));
     public static NativeBattleEffectArena PutWord324(NativeBattleEffectArena bytes, int offset, int value) => bytes.Write(offset, BitConverter.GetBytes(unchecked((short)value)));
-    public static NativeBattleEffect324Frame WriteModel324(NativeBattleEffect324Frame frame, uint model, int offset, NativeBattleEffectArena data, int length, NativeBattleEffect324Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect324WriteModelBytes(model, offset, data, length));
+    public static NativeBattleEffect324Frame WriteModel324(NativeBattleEffect324Frame frame, BattleModelOwner model, int offset, NativeBattleEffectArena data, int length, NativeBattleEffect324Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect324WriteModelBytes(model, offset, data, length));
 
     public static NativeBattleEffect324Frame Color324(NativeBattleEffect324Frame frame, uint source, uint farColor, uint factor, NativeBattleEffect324Inputs inputs, out uint color)
     {

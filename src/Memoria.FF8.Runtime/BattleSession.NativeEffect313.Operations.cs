@@ -22,16 +22,9 @@ public sealed partial class BattleSession
                 PublishNativeModuleSound(new(BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(sound.SourceAddress, 4)), sound.Flags, null) { Pan = sound.Pan });
                 return ImportNativeEffect313Frame(frame);
             case NativeBattleEffect313Contact506690 contact:
-                NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect313 requires its current action header.");
-                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect313 requires its current contact cursor.");
-                if ((uint)contact.HeaderRelativeIndex >= header.ReadContactCount())
-                {
-                    throw new InvalidDataException("Effect313 contact leaves its current action header.");
-                }
                 PublishNativeEffect313Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(first + contact.HeaderRelativeIndex))] });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect313Frame(frame);
             case NativeBattleEffect313WriteModelBytes write:

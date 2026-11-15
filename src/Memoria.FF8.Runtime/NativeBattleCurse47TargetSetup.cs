@@ -16,11 +16,7 @@ public static class NativeBattleCurse47TargetSetup
         {
             throw new NotSupportedException("Curse target initialization requires its actual shared allocation.");
         }
-        int target = task.ReadByte(0x2D);
-        if ((uint)target >= 7)
-        {
-            throw new InvalidDataException("Curse target initialization exceeds its physical model rows.");
-        }
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         NativeBattleModelTransform transform = readModel(target).Transform ?? throw new NotSupportedException("Curse target initialization requires its actual packed position.");
         NativeBattleCurse47State state = frame.State.Write(NativeBattleCurse47State.SharedAddress, new byte[NativeBattleCurse47State.SharedLength]);
         state = state.WithSharedWord(8, unchecked((ushort)transform.Position28.X)).WithSharedWord(10, unchecked((ushort)transform.Position28.Y)).WithSharedWord(12, unchecked((ushort)transform.Position28.Z)).WithSharedWord(14, unchecked((ushort)transform.Vertical34));

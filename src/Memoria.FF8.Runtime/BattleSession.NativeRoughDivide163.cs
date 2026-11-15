@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Rough Divide requires its selected original module.");
         BattleModelOwner actor = effect.Parameters?.Source ?? throw new InvalidDataException("Native Rough Divide requires its actual caster.");
-        NativeBattleActionMatrix matrix = graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Native5F5B80 requires its actual actor matrix64.");
+        NativeBattleActionMatrix matrix = graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native5F5B80 requires its actual actor matrix64.");
         NativeBattleRoughDivide163Frame frame = NativeBattleRoughDivide163Controller.Enter5F5B80(NativeEffectMemory ?? throw new NotSupportedException("Native Rough Divide requires its retained effect memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Rough Divide requires its retained CRT random owner."), matrix);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
@@ -34,9 +34,9 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleModuleAnchor Position(byte actor)
+        NativeBattleModuleAnchor Position(BattleModelOwner actor)
         {
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Rough Divide requires actual model position WORDs.");
+            NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Rough Divide requires actual model position WORDs.");
             return new(transform.Position28.X, transform.Position28.Y, transform.Position28.Z, transform.Vertical34);
         }
 
@@ -87,19 +87,19 @@ public sealed partial class BattleSession
                     return NativeBattleRoughDivide163Controller.ComposeCapturedActor(current, view);
                 case NativeBattleRoughDivide163BindActor:
                     BattleModelOwner actor = current.Parameters.Source;
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Rough Divide requires actual CPU resource rows."), model, 0x23CD0B8, 0xD99DC8);
                     NativeFileStaging = binding.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, binding.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, binding.Model) };
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleRoughDivide163Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleRoughDivide163SetPosition moved:
-                    NativeBattleGraphicsModel positioned = graphics.Models[moved.Actor];
+                    NativeBattleGraphicsModel positioned = graphics.ActorModels.Get(moved.Actor);
                     NativeBattleModelTransform transform = positioned.Transform ?? throw new NotSupportedException("Native Rough Divide requires its actual actor transform.");
                     transform = transform with { Position28 = new(moved.Position.X, moved.Position.Y, moved.Position.Z), Vertical34 = moved.Position.W };
-                    graphics = graphics with { Models = graphics.Models.SetItem(moved.Actor, positioned with { Transform = transform }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(moved.Actor, positioned with { Transform = transform }) };
                     return current;
                 case NativeBattleRoughDivide163Sound sound:
                     PublishNativeModuleSound(new(sound.Descriptor, 0, null) { Pan = 128, RawPan = 128 });

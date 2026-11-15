@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleElectricDischarge126Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -12,7 +13,7 @@ public static partial class NativeBattleElectricDischarge126Controller
         {
             frame = frame with { State = frame.State.WriteDword(FadeGlobal, unchecked((uint)fade)) };
         }
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (unchecked((uint)age) < 8)
         {
             int paths = resources.ReadPathWord(BonePathsAddress);
@@ -45,7 +46,7 @@ public static partial class NativeBattleElectricDischarge126Controller
             frame = DrawRandom(frame, out ushort vy);
             frame = DrawRandom(frame, out ushort vz);
             frame = DrawRandom(frame, out ushort texture);
-            (frame, uint head) = StartWorld(frame, new((short)((vx & 127) - 64), (short)((vy & 127) - 64), (short)((vz & 127) - 64)), source, target, null, -1, 0, 256, 250, (short)(texture & 1), 3);
+            (frame, uint head) = StartWorld(frame, new((short)((vx & 127) - 64), (short)((vy & 127) - 64), (short)((vz & 127) - 64)), source, target, null, null, inputs.Packets.ModelAliases, 0, 256, 250, (short)(texture & 1), 3);
             frame = ClearHeadVelocity(frame, head);
         }
         int targetAge = age - 14;
@@ -58,25 +59,30 @@ public static partial class NativeBattleElectricDischarge126Controller
                 frame = source.Frame;
                 NativeBattleElectricDischarge126AnchorStep casterAnchor = inputs.ReadAnchor571400(frame, caster);
                 frame = casterAnchor.Frame;
-                int actor = -1;
-                for (int attempt = 0; attempt < 3; attempt++)
+                BattlePartyModelOwner[] party = inputs.ReadPartyOwners().ToArray();
+                BattlePartyModelOwner? actor = null;
+                for (int attempt = 0; attempt < party.Length; attempt++)
                 {
                     NativeBattleModulePoolTask task = Read(frame, address);
-                    int index = Signed(task, 16);
-                    if ((uint)index >= 3)
+                    int index = task.ReadExecutionReference<BattleExecutionReference.TraversalPosition>(16, 2).Value;
+                    if ((uint)index >= (uint)party.Length)
                     {
-                        throw new NotSupportedException("Electric Discharge party cycle leaves its native three-model bank.");
+                        throw new InvalidDataException("Electric Discharge party cycle leaves its current owners.");
                     }
-                    frame = Write(frame, address, task.WriteWord(16, unchecked((ushort)(index + 1 < 3 ? index + 1 : 0))));
-                    if ((inputs.ReadModel(index).Flags0 & 2) != 0)
+                    BattlePartyModelOwner selectedActor = party[index];
+                    int next = index + 1 < party.Length ? index + 1 : 0;
+                    ImmutableArray<byte>? original = inputs.Packets.ModelAliases.TryEncodeExact(selectedActor, out byte slot) ? [(byte)((slot + 1) % 3), 0] : null;
+                    task.WriteExecutionReference(16, 2, new BattleExecutionReference.TraversalPosition(next), original);
+                    frame = Write(frame, address, task);
+                    if ((inputs.ReadModel(selectedActor).Flags0 & 2) != 0)
                     {
-                        actor = index;
+                        actor = selectedActor;
                         break;
                     }
                 }
-                if (actor < 0)
+                if (actor is null)
                 {
-                    throw new NotSupportedException("Electric Discharge requires an enabled actor in its native party cycle.");
+                    throw new NotSupportedException("Electric Discharge requires an enabled actor in its party cycle.");
                 }
                 frame = DrawRandom(frame, out ushort selectedTargetBone);
                 int bones = inputs.ReadBoneCount(actor);
@@ -89,7 +95,7 @@ public static partial class NativeBattleElectricDischarge126Controller
                 short dy = unchecked((short)(source.Position.Y - casterAnchor.Anchor.Y));
                 NativeBattleVector velocity = new(unchecked((short)(source.Position.X - casterAnchor.Anchor.X)), unchecked((short)(dy > 0 ? dy >> 3 : dy >> 1)), unchecked((short)(unchecked((short)(source.Position.Z - casterAnchor.Anchor.Z)) >> 2)));
                 frame = DrawRandom(frame, out ushort texture);
-                (frame, uint head) = StartWorld(frame, velocity, source.Position, target.Position, null, unchecked((short)actor), 0, 256, 250, (short)(texture & 1), 3);
+                (frame, uint head) = StartWorld(frame, velocity, source.Position, target.Position, null, actor, inputs.Packets.ModelAliases, 0, 256, 250, (short)(texture & 1), 3);
                 frame = ClearHeadVelocity(frame, head);
             }
             if ((targetAge & 3) == 0)
@@ -107,7 +113,7 @@ public static partial class NativeBattleElectricDischarge126Controller
         if (age >= 52)
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs);
-            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126ContactAll(header.FirstContactIndex ?? throw new NotSupportedException("Electric Discharge requires its actual captured contact pointer."), header.ReadContactCount()));
+            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126ContactAll(header.FirstContact, header.ReadContactCount()));
             return (frame, 2);
         }
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);

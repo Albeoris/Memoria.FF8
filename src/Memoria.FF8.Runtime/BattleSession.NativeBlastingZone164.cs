@@ -12,12 +12,12 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation Z."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Source, 241, 0);
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Blasting Zone requires actual target positions.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Blasting Zone requires actual target positions.")).ToArray());
         NativeBattleBlastingZone164EntryStep entry = NativeBattleBlastingZone164Controller.Enter5F0260(NativeEffectMemory ?? throw new NotSupportedException("Native Blasting Zone requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Blasting Zone requires its retained CRT random owner."), rotation, bone, center, model.RotationPadding18);
         NativeEffectMemory = entry.Frame.Memory;
         NativeFileStaging = entry.Frame.Staging;
         nativeCrtRandom = entry.Frame.Random;
-        return graphics with { OriginalEffect = entry.Frame.Effect, Models = graphics.Models.SetItem(parameters.Source, model with { Rotation14 = entry.Facing14 }) };
+        return graphics with { OriginalEffect = entry.Frame.Effect, ActorModels = graphics.ActorModels.Set(parameters.Source, model with { Rotation14 = entry.Facing14 }) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeBlastingZone164(NativeBattleGraphicsState graphics)
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Blasting Zone requires its original color arithmetic.");
         NativeBattleBlastingZone164Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Blasting Zone requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native Blasting Zone requires its entered physical resource bytes."), nativeCrtRandom ?? throw new NotSupportedException("Native Blasting Zone requires its retained CRT random owner."));
         NativeBattlePilotVisualIdentity drawingIdentity = default;
-        NativeBattleBlastingZone164Inputs inputs = new(graphics.Flags, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Blasting Zone requires its signed file IO result."), actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Blasting Zone requires actual actor scale."), actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), Execute);
+        NativeBattleBlastingZone164Inputs inputs = new(graphics.Flags, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Blasting Zone requires its signed file IO result."), actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native Blasting Zone requires actual actor scale."), actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), Execute, nativeActionPackets.ModelAliases);
         frame = NativeBattleBlastingZone164Controller.Advance5F5B10(frame, Child);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
@@ -74,10 +74,10 @@ public sealed partial class BattleSession
             {
                 case NativeBattleBlastingZone164BindActor:
                     BattleModelOwner actor = current.Parameters.Source;
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Blasting Zone requires its actual CPU resource rows."), model, 0x23C8EF8, 0xD88AA0);
                     NativeFileStaging = bound.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, bound.Model) };
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleBlastingZone164ForceCamera:
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Blasting Zone requires its actual camera owner.")).Apply50A730();
@@ -86,8 +86,8 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleBlastingZone164ModelFlags flags:
-                    NativeBattleGraphicsModel changed = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, changed with { Flags0 = unchecked((ushort)((changed.Flags0 | flags.Set) & ~flags.Clear)) }) };
+                    NativeBattleGraphicsModel changed = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, changed with { Flags0 = unchecked((ushort)((changed.Flags0 | flags.Set) & ~flags.Clear)) }) };
                     return current;
                 case NativeBattleBlastingZone164StageFlags flags:
                     NativeBattleStageState stageFlags = NativeStage ?? throw new NotSupportedException("Native Blasting Zone requires its actual stage groups.");

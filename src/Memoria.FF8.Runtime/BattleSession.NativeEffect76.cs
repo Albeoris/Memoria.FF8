@@ -35,17 +35,17 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory latest = NativeEffectMemory ?? throw new InvalidDataException("Effect76 service lost its current memory.");
             return current with { Memory = latest, State = latest.Effect76 ?? throw new InvalidDataException("Effect76 service lost its storage."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Effect76 service lost its CRT stream.") };
         }
-        NativeBattlePoseSource PoseSource(NativeBattleEffect76Frame current, int actor)
+        NativeBattlePoseSource PoseSource(NativeBattleEffect76Frame current, BattleModelOwner actor)
         {
             NativeFileStaging = current.Staging;
             return NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect76 requires its current physical skeleton.");
         }
-        NativeBattleEffectArena Position(NativeBattleEffect76Frame current, int actor)
+        NativeBattleEffectArena Position(NativeBattleEffect76Frame current, BattleModelOwner actor)
         {
             NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Effect76 requires its current physical model point.");
             return NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(transform.Position28.X)).Write(2, BitConverter.GetBytes(transform.Position28.Y)).Write(4, BitConverter.GetBytes(transform.Position28.Z)).Write(6, BitConverter.GetBytes(transform.Vertical34));
         }
-        NativeBattleEffect76PointStep ReadBone(NativeBattleEffect76Frame current, int actor, byte selector, short distance, NativeBattleEffectArena retained)
+        NativeBattleEffect76PointStep ReadBone(NativeBattleEffect76Frame current, BattleModelOwner actor, byte selector, short distance, NativeBattleEffectArena retained)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(current, actor), selector, distance);
             NativeFileStaging = current.Staging;
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
                     events.Add(new(Frame, "NativeFileAudio", null, null, 0, string.Empty) { NativeFileAudio = request });
                     return current;
                 case NativeBattleEffect76Sequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleEffect76Text4876F0 text:
                     BattleCombatant actor = GraphicsActor(graphics, text.Actor);

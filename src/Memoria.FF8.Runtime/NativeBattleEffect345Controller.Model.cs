@@ -104,8 +104,8 @@ public static partial class NativeBattleEffect345Controller
         if (task.ReadWord(0x136) == 5)
         {
             frame = WriteBytes(frame, Workspace(frame) + 0x48, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)1)), 2);
-            int contact = ContactIndex(frame, task, inputs);
-            if ((inputs.ReadPackets(frame).ReadContact(contact).Primary.HitFlags3 & 4) == 0)
+            BattleContactCursor contact = ContactCursor(frame, task, inputs);
+            if ((inputs.ReadPackets(frame).ReadContact(contact).Primary.HitFlags & 4) == 0)
             {
                 (frame, _) = AppendParticle706A30(frame, address, 0x164808C, 0, 20, 0, inputs);
                 (frame, _) = AppendHierarchy(frame, 5, 0x70C9E0, 280, address, inputs);

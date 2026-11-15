@@ -14,7 +14,7 @@ public static class NativeBattleEffect60Particles
         {
             if (NativeBattleEffect60Act.Word(task, 0x24) >= 36)
             {
-                short angle = inputs.ReadModel(task.ReadByte(0x2D)).Rotation14 ?? throw new NotSupportedException("Effect60 emitter requires its target yaw.");
+                short angle = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Rotation14 ?? throw new NotSupportedException("Effect60 emitter requires its target yaw.");
                 NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
                 for (int index = 0; index < 9; index++)
                 {
@@ -33,7 +33,7 @@ public static class NativeBattleEffect60Particles
         }
         else if (phase == 1)
         {
-            NativeBattleEffectArena position = NativeBattleEffect60Act.RequirePacked8(inputs.ReadPackedPosition8(task.ReadByte(0x2D)));
+            NativeBattleEffectArena position = NativeBattleEffect60Act.RequirePacked8(inputs.ReadPackedPosition8(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
             position = NativeBattleEffect60Act.WriteWord(position, 2, 0);
             task = NativeBattleEffect60Act.Copy(position, 0, task, 0x1C, 8);
             frame = NativeBattleEffect60Act.Put(frame, address, task);

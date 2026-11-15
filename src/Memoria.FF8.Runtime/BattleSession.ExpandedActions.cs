@@ -31,10 +31,10 @@ public sealed partial class BattleSession
         }
         if (actorId == ActiveAction.ActorId)
         {
-            return expandedEffect.ReplacesHostModel(expandedEffect.Source.Index);
+            return expandedEffect.ReplacesHostModel(expandedEffect.SourceOwner);
         }
-        return expandedModelRoster is { } roster && Enumerable.Range(0, roster.ActorCount).Any(row =>
-            StringComparer.Ordinal.Equals(roster.Rows[row]?.ActorId, actorId) && expandedEffect.ReplacesHostModel(row));
+        BattleModelOwner owner = CreatePresentationModelOwner(GetActor(actorId));
+        return expandedModelRoster?.Contains(owner) == true && expandedEffect.ReplacesHostModel(owner);
     }
 
     public bool SupportsExpandedAction(BattleActionDefinition action)
@@ -503,7 +503,7 @@ public sealed partial class BattleSession
     {
         foreach (NativeBattleForeignSequenceRequest request in step.Sequences)
         {
-            string recipient = ReadExpandedEffectModelActor(request.ActorIndex);
+            string recipient = ReadExpandedEffectModelActor(request.Owner);
             int sequence = request.Kind == NativeBattleForeignSequenceKind.Hit ? 4 : 1;
             Log("EffectModelSequence", command.ActorId, recipient, sequence, "Native effect model sequence.", actionContext: command);
         }
@@ -529,18 +529,18 @@ public sealed partial class BattleSession
 
     private void AcknowledgeExpandedEffectContact(BattleActionPresentation command, NativeBattleContactPacket packet)
     {
-        bool hasSecondary = HasExpandedSecondaryContact(command, packet);
+        NativeBattleContactHalf? secondary = ReadExpandedSecondaryContact(command, packet);
         (int ordinal, string recipient) = expandedContactBridge!.ResolveOccurrence(packet);
         PublishExpandedEffectContact(command, ordinal, recipient, packet.Primary);
-        if (hasSecondary)
+        if (secondary is not null)
         {
-            PublishExpandedImpact(command, command.ActorId, packet.Secondary, "SecondaryEffectContact", deferredImpact: true);
+            PublishExpandedImpact(command, command.ActorId, secondary, "SecondaryEffectContact", deferredImpact: true);
         }
     }
 
     private NativeBattleEffectPresentation CreateExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts)
     {
-        return PrepareExpandedEffect(actor, action, sequence, contacts, command.GuardianFormInvocation?.Mode, ReadExpandedPresentationRoster());
+        return PrepareExpandedEffect(actor, action, sequence, contacts, command.GuardianFormInvocation?.Mode, ReadBattlePresentationRoster());
     }
 
     private NativeBattleEffectPresentation PrepareExpandedEffect(BattleCombatant actor, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? mode, BattleModelRoster roster)
@@ -556,9 +556,8 @@ public sealed partial class BattleSession
         try
         {
             NativeBattleGraphicsState graphics = prepared.Graphics;
-            if (graphics.PresentationRoster is not { } declared || !declared.Rows.SequenceEqual(roster.Rows) ||
-                prepared.Source.Index != RequireExpandedPresentationRow(roster, actor) ||
-                !graphics.ActorIds.SequenceEqual(roster.Rows.Select(row => row?.ActorId), StringComparer.Ordinal))
+            if (!graphics.ActorModels.Owners.SequenceEqual(roster.Owners) ||
+                prepared.SourceOwner != RequirePresentationModelOwner(roster, actor))
             {
                 throw new InvalidDataException("The prepared expanded effect does not match its current roster and caster.");
             }
@@ -572,7 +571,7 @@ public sealed partial class BattleSession
 
     private void BeginExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, NativeBattleEffectPresentation? prepared = null)
     {
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadBattlePresentationRoster();
         if (prepared is null)
         {
             prepared = PrepareExpandedEffect(actor, action, sequence, contacts, command.GuardianFormInvocation?.Mode, roster);
@@ -595,7 +594,7 @@ public sealed partial class BattleSession
 
     private void SetExpandedEffectContacts(BattleCombatant actor, ImmutableArray<ExpandedBattleContact> contacts)
     {
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadBattlePresentationRoster();
         ValidateExpandedEffectContacts(actor, contacts, roster);
         SetExpandedEffectContacts(contacts, roster);
     }
@@ -609,38 +608,31 @@ public sealed partial class BattleSession
 
     private static void ValidateExpandedEffectContacts(BattleCombatant actor, ImmutableArray<ExpandedBattleContact> contacts, BattleModelRoster roster)
     {
-        byte source = ExpandedPresentationRow(actor);
-        if (!StringComparer.Ordinal.Equals(roster[source].ActorId, actor.Id))
-        {
-            throw new InvalidDataException("The expanded effect source does not own its presentation row.");
-        }
+        BattleModelOwner source = RequirePresentationModelOwner(roster, actor);
         foreach (ExpandedBattleContact contact in contacts)
         {
-            if (!StringComparer.Ordinal.Equals(roster[contact.Contact.Recipient].ActorId, contact.RecipientId) ||
-                contact.Packet.Secondary.Recipient != byte.MaxValue && contact.Packet.Secondary.Recipient != source)
+            BattleModelOwner recipient = contact.Contact.Recipient;
+            if (!roster.Contains(recipient) || !StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(recipient), contact.RecipientId) ||
+                contact.Packet.Secondary is { } secondary && secondary.Recipient != source)
             {
-                throw new InvalidDataException("The expanded contact differs from its bound recipient or source presentation row.");
+                throw new InvalidDataException("The expanded contact differs from its bound recipient or source model.");
             }
         }
     }
 
-    private string ReadExpandedEffectModelActor(int index)
+    private string ReadExpandedEffectModelActor(BattleModelOwner owner)
     {
         BattleModelRoster roster = expandedModelRoster ?? throw new InvalidDataException("The expanded effect has no bound model roster.");
-        return roster[index].ActorId;
+        return roster.Contains(owner) ? RequireCanonicalGraphicsActorId(owner) : throw new InvalidDataException("The expanded effect model is no longer bound.");
     }
 
-    private bool HasExpandedSecondaryContact(BattleActionPresentation command, NativeBattleContactPacket packet)
+    private NativeBattleContactHalf? ReadExpandedSecondaryContact(BattleActionPresentation command, NativeBattleContactPacket packet)
     {
-        if (packet.Secondary.Recipient == byte.MaxValue)
+        if (packet.Secondary is { } secondary && secondary.Recipient != CreatePresentationModelOwner(GetActor(command.ActorId)))
         {
-            return false;
+            throw new InvalidDataException("The expanded contact secondary recipient must name its actual caster.");
         }
-        if (packet.Secondary.Recipient != ExpandedPresentationRow(GetActor(command.ActorId)))
-        {
-            throw new InvalidDataException("The expanded contact secondary row must name its actual caster.");
-        }
-        return true;
+        return packet.Secondary;
     }
 
     private void ValidateExpandedEffectContactCompletion()
@@ -713,9 +705,12 @@ public sealed partial class BattleSession
     private (ImmutableArray<ExpandedBattleContact> Contacts, BattleCombatant? Reflector) ResolveExpandedHitPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleCombatant[][] hitPlan, bool preliminary = false)
     {
         IGrouping<BattleCombatant, BattleCombatant>[] recipientHits = hitPlan.SelectMany(targets => targets).GroupBy(recipient => recipient).ToArray();
-        BattleModelRoster roster = ReadExpandedPresentationRoster();
-        _ = RequireExpandedPresentationRow(roster, actor);
-        Dictionary<BattleCombatant, byte> recipientRows = recipientHits.ToDictionary(entry => entry.Key, entry => RequireExpandedPresentationRow(roster, entry.Key));
+        BattleModelRoster roster = ReadBattlePresentationRoster();
+        _ = RequirePresentationModelOwner(roster, actor);
+        foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)
+        {
+            _ = RequirePresentationModelOwner(roster, entry.Key);
+        }
         foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)
         {
             entry.Key.NativeRemainingHits = checked((byte)entry.Count());
@@ -741,7 +736,6 @@ public sealed partial class BattleSession
                     {
                         ResolveNativeMug(actor, recipient);
                     }
-                    byte row = recipientRows[recipient];
                     NativeBattleContactPacket packet;
                     if (NativeActionReflects(recipient, native))
                     {
@@ -751,7 +745,7 @@ public sealed partial class BattleSession
                         recipient.LastNativeHealing = 1;
                         RecordNativeActionMemory(actor, recipient, command);
                         DispatchNativeActionCounter(recipient);
-                        packet = CreateNativeReflectedContact(recipient, native, row);
+                        packet = CreateNativeReflectedContact(recipient, native);
                         Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
                     }
                     else
@@ -760,7 +754,7 @@ public sealed partial class BattleSession
                         suppressNativeImmediateCounter |= preliminary;
                         try
                         {
-                            packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, 255, preliminary, presentationRow: row);
+                            packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, preliminary: preliminary);
                         }
                         finally
                         {
@@ -785,11 +779,11 @@ public sealed partial class BattleSession
     {
         foreach (ExpandedBattleContact contact in contacts)
         {
-            bool hasSecondary = HasExpandedSecondaryContact(command, contact.Packet);
+            NativeBattleContactHalf? secondary = ReadExpandedSecondaryContact(command, contact.Packet);
             PublishExpandedImpact(command, contact.RecipientId, contact.Contact, contactKind);
-            if (hasSecondary)
+            if (secondary is not null)
             {
-                PublishExpandedImpact(command, command.ActorId, contact.Packet.Secondary, "SecondaryEffectContact");
+                PublishExpandedImpact(command, command.ActorId, secondary, "SecondaryEffectContact");
             }
         }
     }
@@ -923,7 +917,7 @@ public sealed partial class BattleSession
         Log(eventKind, command.ActorId, recipient, contact.PresentedAmount, actionName, actionContext: command);
         if (contact.PresentedAmount > 0)
         {
-            bool healing = (contact.HitFlags3 & 1) != 0;
+            bool healing = (contact.HitFlags & 1) != 0;
             Log(healing ? "EffectHealing" : "EffectDamage", command.ActorId, recipient, contact.PresentedAmount, actionName, actionContext: command, deferredImpact: deferredImpact);
         }
     }

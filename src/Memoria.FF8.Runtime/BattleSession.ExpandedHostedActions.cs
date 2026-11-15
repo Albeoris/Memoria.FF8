@@ -65,7 +65,7 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedHostedInvocations(BattleModelRoster roster)
     {
-        if (!roster.Rows.SequenceEqual(ReadExpandedPresentationRoster().Rows))
+        if (!roster.Owners.SequenceEqual(ReadBattlePresentationRoster().Owners))
         {
             throw new InvalidDataException("Hosted invocation roster differs from the logical allocations.");
         }
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         {
             BattleCombatant actor = GetActor(invocation.Command.ActorId);
             _ = GetActor(invocation.Command.TargetId);
-            if (invocation.Header.Actor != RequireExpandedPresentationRow(roster, actor))
+            if (invocation.Header.Source != RequirePresentationModelOwner(roster, actor))
             {
                 throw new InvalidDataException("Hosted invocation header does not identify its canonical caster.");
             }
@@ -141,7 +141,7 @@ public sealed partial class BattleSession
             return;
         }
 
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         ValidateExpandedHostedInvocations(roster);
         ImmutableArray<ExpandedHostedInvocation> remaining = expandedHostedInvocations.RemoveAt(0);
         ExpandedHostedInvocation invocation = remaining[0];

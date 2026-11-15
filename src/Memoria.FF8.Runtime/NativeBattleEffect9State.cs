@@ -77,6 +77,13 @@ public sealed record NativeBattleEffect9State([property: JsonRequired] NativeBat
         return Write(address, bytes);
     }
 
+    internal NativeBattleEffect9State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        RequireRange(address, 4);
+        Globals.WriteExecutionReference(checked((int)(address - BaseAddress)), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     private static void RequireRange(uint address, int length)
     {
         if (length < 0 || address < BaseAddress || (ulong)address + (uint)length > (ulong)BaseAddress + GlobalLength)

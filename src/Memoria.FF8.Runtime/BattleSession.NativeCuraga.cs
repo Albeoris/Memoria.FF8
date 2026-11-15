@@ -43,7 +43,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = step.Frame.Memory;
         return graphics with { OriginalEffect = step.Frame.Effect with { Curaga = step.Frame.State } };
 
-        NativeBattleCuragaFrame ApplyContact(NativeBattleCuragaFrame current, int index)
+        NativeBattleCuragaFrame ApplyContact(NativeBattleCuragaFrame current, BattleContactCursor index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

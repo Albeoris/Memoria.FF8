@@ -19,17 +19,17 @@ public static partial class NativeBattleDisolvingAcid132Controller
             NativeBattleEffectArena row = NativeBattleEffectArena.Clear().Write(0, resources.EmissionVectors.AsSpan().Slice((phase >> 1) * 16, 8));
             NativeBattleDisolvingAcid132PointStep emitter = inputs.ReadEmitter6B2B70(frame, row);
             frame = emitter.Frame;
-            uint target = Read(frame, address).ReadDword(16);
+            BattleModelOwner target = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             frame = DrawRandom(frame, out ushort random);
             byte selector = checked((byte)((random * inputs.ReadModelBoneCount(target)) >> 15));
             NativeBattleDisolvingAcid132PointStep recipient = inputs.ReadBone502170(frame, target, selector, 0);
             frame = recipient.Frame;
-            NativeBattlePackedMatrix32 world = inputs.ReadModelMatrix(frame, frame.State.ReadDword(CasterGlobal));
+            NativeBattlePackedMatrix32 world = inputs.ReadModelMatrix(frame, frame.State.ReadModel(CasterGlobal));
             NativeBattleEffectArena sourceVector = NativeBattleEffectArena.Clear().Write(0, resources.EmissionVectors.AsSpan().Slice((phase >> 1) * 16 + 8, 8));
             byte[] vector = sourceVector.Read(0, 6);
             NativeBattleVector direction = new(BinaryPrimitives.ReadInt16LittleEndian(vector), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(4)));
             direction = NativeBattleGfMatrices.RotateShort56C4F0(world.ReadMatrix(), direction);
-            (frame, _) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(emitter.Point), PointView(recipient.Point), unchecked((short)Actor(target)), 150, PointView(direction), sourceVector, world.ReadMatrix());
+            (frame, _) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(emitter.Point), PointView(recipient.Point), target, inputs.Packets.ModelAliases, 150, PointView(direction), sourceVector, world.ReadMatrix());
         }
         if (age >= 45)
         {

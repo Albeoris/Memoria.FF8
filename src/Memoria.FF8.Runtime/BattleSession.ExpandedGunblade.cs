@@ -9,15 +9,15 @@ public sealed partial class BattleSession
         return Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual &&
             expandedHostedActionToken is long token && process.ActiveActionToken == token &&
             expandedHostedInvocations is [{ PendingGunblade: true } invocation] &&
-            process.TriggerWidget is { SourceMagicId: null } widget && widget.Actor == invocation.Header.Actor &&
+            process.TriggerWidget is { SourceMagicId: null } widget && widget.Actor == invocation.Header.Source &&
             CanPressNativeTriggerWidget(widget, process.TriggerOptions);
     }
 
-    internal void PressHostedGunblade(long token, byte actor, NativeBattleTriggerWidget widget)
+    internal void PressHostedGunblade(long token, BattleModelOwner actor, NativeBattleTriggerWidget widget)
     {
         if (!hostedBattlePresentation || hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation ||
-            invocation.Token != token || NativeGraphics is not { PresentationRoster: { } roster } graphics ||
-            !roster.ContainsRow(actor) || !roster[actor].IsParty || graphics.PendingTrigger is not null ||
+            invocation.Token != token || NativeGraphics is not { } graphics ||
+            actor is not BattlePartyModelOwner || !graphics.ActorModels.Contains(actor) || graphics.PendingTrigger is not null ||
             !ReferenceEquals(graphics.TriggerWidget, widget) || widget.Actor != actor || widget.SourceMagicId is not null ||
             !CanPressNativeTriggerWidget(widget, definition.LimitProgress?.Options978))
         {
@@ -34,12 +34,12 @@ public sealed partial class BattleSession
     private void AcknowledgeExpandedGunbladeRegistration(NativeBattleModelTriggerRegistered receipt, long? actionToken)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         if (actionToken is null || expandedHostedActionToken != actionToken || process.ActiveActionToken != actionToken ||
             expandedHostedInvocations is not [{ PendingGunblade: true } invocation] ||
-            receipt.Row != invocation.Header.Actor || !roster.ContainsRow(receipt.Row) || !roster[receipt.Row].IsParty ||
-            receipt.ActorId != roster[receipt.Row].ActorId || receipt.ActorId != invocation.Command.ActorId ||
-            receipt.Widget is not { SourceMagicId: null } widget || widget.Actor != receipt.Row ||
+            receipt.Owner != invocation.Header.Source || !roster.Contains(receipt.Owner) || receipt.Owner is not BattlePartyModelOwner ||
+            receipt.ActorId != RequireCanonicalGraphicsActorId(receipt.Owner) || receipt.ActorId != invocation.Command.ActorId ||
+            receipt.Widget is not { SourceMagicId: null } widget || widget.Actor != receipt.Owner ||
             widget.Block.Timeline.InputThresholds.Length != 1 || process.TriggerWidget is not { } current ||
             current.Actor != widget.Actor || !ReferenceEquals(current.Block, widget.Block) ||
             current.SourceSequence != widget.SourceSequence || current.SourceAbOffset != widget.SourceAbOffset || current.SourceMagicId != widget.SourceMagicId)
@@ -56,21 +56,21 @@ public sealed partial class BattleSession
         {
             return;
         }
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         receipt.Validate(roster);
         if (expandedHostedActionToken is not long token || process.ActiveActionToken != token ||
             expandedHostedInvocations is not [{ PendingGunblade: true, Contacts: [var previous] } invocation] ||
-            receipt is not { ContactIndex: 1, TotalContacts: 1 } || receipt.Actor != invocation.Header.Actor ||
+            receipt is not { ContactIndex: 1, TotalContacts: 1 } || receipt.Actor != invocation.Header.Source ||
             invocation.Header.Command is not (1 or 12 or 28) || expandedExpectedContacts != 1 || expandedPresentedOccurrences.Count != 0 ||
-            !ReferenceEquals(expandedModelRoster, roster) || !ReferenceEquals(expandedEffectCommand, invocation.Command) ||
+            expandedModelRoster?.Contains(receipt.Actor) != true || !ReferenceEquals(expandedEffectCommand, invocation.Command) ||
             nativeReactionOrder is null)
         {
             throw new InvalidDataException("Hosted Gunblade receipt does not replace its unacknowledged ordinary placeholder.");
         }
         BattleCombatant actor = GetActor(invocation.Command.ActorId);
         BattleCombatant recipient = GetActor(previous.RecipientId);
-        if (RequireExpandedPresentationRow(roster, actor) != receipt.Actor ||
-            RequireExpandedPresentationRow(roster, recipient) != previous.Packet.Primary.Recipient || recipient.NativeRemainingHits != 0)
+        if (RequirePresentationModelOwner(roster, actor) != receipt.Actor ||
+            RequirePresentationModelOwner(roster, recipient) != previous.Packet.Primary.Recipient || recipient.NativeRemainingHits != 0)
         {
             throw new InvalidDataException("Hosted Gunblade placeholder lost its original caster or recipient.");
         }
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         nativeActionCommitDepth++;
         try
         {
-            return ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255, presentationRow: previous.Packet.Primary.Recipient);
+            return ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native);
         }
         finally
         {

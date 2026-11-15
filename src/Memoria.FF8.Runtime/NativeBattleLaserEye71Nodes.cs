@@ -4,9 +4,9 @@ using static Memoria.FF8.Runtime.NativeBattleLaserEye71Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleLaserEye71NodeInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleLaserEye71Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleLaserEye71MatrixStep> LookBasis8DDA50, Func<NativeBattleLaserEye71Frame, NativeBattleGfGeometryBatch, NativeBattleLaserEye71Frame> DeliverPrivate)
+public sealed record NativeBattleLaserEye71NodeInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleLaserEye71Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleLaserEye71MatrixStep> LookBasis8DDA50, Func<NativeBattleLaserEye71Frame, NativeBattleGfGeometryBatch, NativeBattleLaserEye71Frame> DeliverPrivate)
 {
-    public Func<NativeBattleLaserEye71Frame, int, byte, NativeBattleLaserEye71Frame>? ObserveBone { get; init; }
+    public Func<NativeBattleLaserEye71Frame, BattleModelOwner, byte, NativeBattleLaserEye71Frame>? ObserveBone { get; init; }
     public Func<BattleModelOwner, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
 }
 

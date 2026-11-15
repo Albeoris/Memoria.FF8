@@ -14,11 +14,11 @@ public static partial class NativeBattleRenzokukenSpecialController
         }
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        byte target = packets.ReadContact(contact).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(contact).Primary.Recipient;
         bool initial = header.Action == 0xFFFE;
         ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState> states = memory.RenzokukenSpecials ?? ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty;
         NativeBattleRenzokukenSpecialState retained = states.GetValueOrDefault(profile.Effect) ?? new(NativeBattleRenzokuken160State.FromColdProcess(), resources);
-        NativeBattleRenzokukenSpecialState state = retained with { Core = retained.Core.Enter(parameters.Source, parameters.Header, target, initial), Resources = resources };
+        NativeBattleRenzokukenSpecialState state = retained with { Core = retained.Core.Enter(initial), Resources = resources };
         if (profile.Effect is 334 or 337 or 339 or 341 or 343 && state.ContactOffsets.IsEmpty)
         {
             state = state with { ContactOffsets = new NativeBattleVector[resources.ContactLeadFrames.Length].ToImmutableArray() };
@@ -50,7 +50,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         textures = textures.Register5099A0(resources.Animation);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native special Renzokuken entry requires its original initializer TIM asset.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));
-        return new(memory with { RenzokukenSpecials = states.SetItem(profile.Effect, state), Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = profile.MainDescriptor, DrawArenaOffset = 0 }, random);
+        return new(memory with { RenzokukenSpecials = states.SetItem(profile.Effect, state), Textures = textures }, effect with { EntryFirstRecipient = target, Pools = [main, children], ReturnedDescriptor = profile.MainDescriptor, DrawArenaOffset = 0 }, random);
     }
 
     public static NativeBattleRenzokuken160Frame AdvanceRoot(NativeBattleRenzokuken160Frame frame, NativeBattleRenzokukenSpecialProfile profile, Func<NativeBattleRenzokuken160Frame, NativeBattleEffectTaskPool, int, NativeBattleRenzokuken160ChildStep> advanceChild, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Frame> drawParticles)

@@ -74,7 +74,7 @@ public sealed partial class BattleSession
         NativeBattleRenzokuken159Frame Execute(NativeBattleRenzokuken159Frame current, NativeBattleRenzokuken159Operation operation)
         {
             NativeEffectMemory = current.Memory;
-            byte actor = current.Memory.Renzokuken159!.Actor;
+            BattleModelOwner actor = NativeBattleRenzokukenInvocation.Source(current.Effect);
             switch (operation)
             {
                 case NativeBattleRenzokuken159ActorFlags flags:
@@ -106,8 +106,8 @@ public sealed partial class BattleSession
                     modules = NativeBattleRenzokukenVisualLifetimes.Shared(modules, slot, NativeBattleRenzokukenVisualLifetimes.Task(current.Effect, current.Effect.Pools[0].Slots[0], 0));
                     byte[] bytes = modules.Slots[slot].Payload.ToArray();
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes, shared.Counter);
-                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), shared.Actor);
-                    modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = bytes.ToImmutableArray() }) };
+                    NativeBattleModuleTask sharedTask = NativeBattleRenzokuken160Controller.WriteSharedModel(modules.Slots[slot], bytes, shared.Actor, nativeActionPackets.ModelAliases);
+                    modules = modules with { Slots = modules.Slots.SetItem(slot, sharedTask) };
                     graphics = graphics with { ModuleEffects = modules };
                     return current;
                 case NativeBattleRenzokuken159TrailDraw trail:
@@ -133,7 +133,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleRenzokuken159WeaponTip ReadNativeRenzokuken159WeaponTip(NativeBattleGraphicsState graphics, byte actor)
+    private NativeBattleRenzokuken159WeaponTip ReadNativeRenzokuken159WeaponTip(NativeBattleGraphicsState graphics, BattleModelOwner actor)
     {
         NativeBattleRenzokuken160WeaponTip tip = ReadNativeRenzokuken160WeaponTip(graphics, actor);
         return new(tip.Position, tip.DirectionX, tip.DirectionY, tip.DirectionZ, tip.PositionPadding, tip.EndpointPadding);

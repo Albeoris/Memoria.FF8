@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = frame.Memory with { Scan = process with { Controller = frame.State } };
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattlePoseSource PoseSource(int index) => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Scan requires the current physical model skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner index) => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Scan requires the current physical model skeleton.");
         NativeBattleScanFrame Begin(NativeBattleScanFrame current)
         {
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Scan requires its current camera process.")).Apply50A730();
@@ -48,11 +48,11 @@ public sealed partial class BattleSession
             switch (task.Callback)
             {
                 case 0x84D230:
-                    NativeBattleScanTargetStep target = NativeBattleScanTarget.Advance84D230(new(current, graphics.Models, NativeBattleScanPhysicalModels.Capture(graphics.Models)), address, new(nativeActionPackets, PoseSource, ReadExternal, Sound, Contact) { ReadResourceSequence = ReadResourceSequence });
+                    NativeBattleScanTargetStep target = NativeBattleScanTarget.Advance84D230(new(current, graphics.ActorModels), address, new(nativeActionPackets, PoseSource, ReadResourceSequence, Sound, Contact));
                     graphics = graphics with { ActorModels = target.Frame.Models };
                     return new(target.Frame.Scan, target.Result);
                 case 0x84D4B0:
-                    NativeBattleScanPrimaryStep primary = NativeBattleScanPrimary.Advance84D4B0(new(current, graphics.Models, shared.Presentation.Highlight269AA90, unchecked((short)shared.Presentation.Camera269A168.ReadWord(0x3A))), address, nativeActionPackets);
+                    NativeBattleScanPrimaryStep primary = NativeBattleScanPrimary.Advance84D4B0(new(current, graphics.ActorModels, shared.Presentation.Highlight269AA90, unchecked((short)shared.Presentation.Camera269A168.ReadWord(0x3A))), address, nativeActionPackets);
                     graphics = graphics with { ActorModels = primary.Frame.Models };
                     return new(SetHighlight(primary.Frame.Scan, primary.Frame.Highlight269AA90), primary.Result);
                 case 0x84D5B0:
@@ -88,12 +88,12 @@ public sealed partial class BattleSession
                     return new(CaptureVisual(decoration.Frame.Visual), decoration.Result);
                 case 0x84ED90:
                 case 0x8507F0:
-                    NativeBattleScanVisibilityStep visibility = NativeBattleScanModelVisibility.Advance(new(current, graphics.Models, NativeStage ?? throw new NotSupportedException("Native Scan requires its current stage."), definition.NativeGraphics!.Rules.SummonColors!.Transition), address);
+                    NativeBattleScanVisibilityStep visibility = NativeBattleScanModelVisibility.Advance(new(current, graphics.ActorModels, NativeStage ?? throw new NotSupportedException("Native Scan requires its current stage."), definition.NativeGraphics!.Rules.SummonColors!.Transition), address, nativeActionPackets.ModelAliases);
                     graphics = graphics with { ActorModels = visibility.Frame.Models };
                     NativeStage = visibility.Frame.Stage;
                     return new(visibility.Frame.Scan, visibility.Result);
                 case 0x850B40:
-                    NativeBattleScanAlternateStep alternate = NativeBattleScanAlternate.Advance850B40(new(CameraFrame(current), graphics.Models, shared.Presentation.Highlight269AA90, shared.Complete269D93A, shared.Presentation.Exit269CE2C), address, new(nativeActionPackets, actor => Profile(current, actor)));
+                    NativeBattleScanAlternateStep alternate = NativeBattleScanAlternate.Advance850B40(new(CameraFrame(current), graphics.ActorModels, shared.Presentation.Highlight269AA90, shared.Complete269D93A, shared.Presentation.Exit269CE2C), address, new(nativeActionPackets, actor => Profile(current, actor)));
                     graphics = graphics with { ActorModels = alternate.Frame.Models };
                     PublishCamera(alternate.Frame.Camera.Eye, alternate.Frame.Camera.Target, alternate.Frame.Camera.Zoom);
                     current = SetHighlight(alternate.Frame.Camera.Scan, alternate.Frame.Highlight269AA90);
@@ -109,26 +109,34 @@ public sealed partial class BattleSession
                     NativeBattleScanPairMorphStep alternateDecoration = NativeBattleScanAlternateDecorations.Advance(new(current, shared.Presentation.Highlight269AA90, shared.MutableMeshes), address, shared.Presentation.Exit269CE2C, new(nativeActionPackets, (f, draw) => DrawNativeScanMesh(f, draw, resources, ref graphics), DrawAlternateSpinner));
                     return new(CaptureVisual(alternateDecoration.Frame), alternateDecoration.Result);
                 case 0x84E810:
-                    NativeBattleScanViewerProfile profile = Profile(current, task.ReadByte(0x2D));
+                    NativeBattleScanViewerProfile profile = Profile(current, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                     NativeBattleActionMatrix view = Camera().Projection?.View ?? throw new NotSupportedException("Native Scan requires its current published camera view.");
-                    NativeBattleScanCameraStep camera = NativeBattleScanCameraTransition.Advance84E810(new(current, CameraVector(Camera().CurrentPose!.Eye, Camera().EyePaddingF6), CameraVector(Camera().CurrentPose!.Target, Camera().TargetPaddingFE), unchecked((ushort)(Camera().FocalLength ?? throw new NotSupportedException("Native Scan requires its actual focal length.")))), address, new(NativeBattleScanPhysicalModels.Capture(graphics.Models), profile.Bytes16, profile.Category, view.Rotation[2], view.Rotation[8], (index, selector, fraction) => ReadNativeGraphicsBone(graphics, index, selector, checked((short)fraction))));
+                    NativeBattleScanCameraStep camera = NativeBattleScanCameraTransition.Advance84E810(new(current, CameraVector(Camera().CurrentPose!.Eye, Camera().EyePaddingF6), CameraVector(Camera().CurrentPose!.Target, Camera().TargetPaddingFE), unchecked((ushort)(Camera().FocalLength ?? throw new NotSupportedException("Native Scan requires its actual focal length.")))), address, new(graphics.ActorModels, profile.Bytes16, profile.Category, view.Rotation[2], view.Rotation[8], (index, selector, fraction) => ReadNativeGraphicsBone(graphics, index, selector, checked((short)fraction))));
                     PublishCamera(camera.Frame.Eye, camera.Frame.Target, camera.Frame.Zoom);
                     return new(camera.Frame.Scan, camera.Result);
                 case 0x84F860:
-                    NativeBattleScanViewerStep viewer = NativeBattleScanViewer.Advance84F860(new(current, NativeBattleScanPhysicalModels.Capture(graphics.Models), CameraVector(Camera().CurrentPose!.Target, Camera().TargetPaddingFE), ReadText(current)), address, new(nativeActionPackets, shared.Input.Input, Options(), definition.NativeInputButtonMap, ReadNativeScanName24, actor => current.Effect.Binding.ScanTextResources!.DescriptionPointer(ReadNativeScanDescriptor208(actor).ReadByte(0xBB)), actor => Profile(current, actor), (f, index, selector, fraction) => ReadNativeGraphicsBone(graphics with { ActorModels = NativeBattleScanPhysicalModels.Apply(graphics.Models, f.Models) }, index, selector, checked((short)fraction))) { UnrestrictedRotation = definition.Tuning.UnrestrictedScanRotation });
-                    graphics = graphics with { ActorModels = NativeBattleScanPhysicalModels.Apply(graphics.Models, viewer.Frame.Models) };
+                    NativeBattleScanViewerStep viewer = NativeBattleScanViewer.Advance84F860(new(current, graphics.ActorModels, CameraVector(Camera().CurrentPose!.Target, Camera().TargetPaddingFE), ReadText(current)), address, new(nativeActionPackets, shared.Input.Input, Options(), definition.NativeInputButtonMap, ReadNativeScanName24, actor => current.Effect.Binding.ScanTextResources!.DescriptionPointer(ReadNativeScanDescriptor208(actor).ReadByte(0xBB)), actor => Profile(current, actor), (f, index, selector, fraction) => ReadNativeGraphicsBone(graphics with { ActorModels = f.Models }, index, selector, checked((short)fraction))) { UnrestrictedRotation = definition.Tuning.UnrestrictedScanRotation });
+                    graphics = graphics with { ActorModels = viewer.Frame.Models };
                     NativeBattleCameraPose pose = Camera().CurrentPose!;
                     PublishCamera(CameraVector(pose.Eye, Camera().EyePaddingF6), viewer.Frame.CameraTarget8, unchecked((ushort)Camera().FocalLength!.Value));
                     return new(CaptureText(viewer.Frame.Scan, viewer.Frame.Text), viewer.Result);
                 case 0x84FAF0:
                 case 0x850FD0:
                     NativeBattleScanResultTaskFrame resultFrame = new(current, shared.Results, ReadText(current), shared.Complete269D93A);
-                    NativeBattleScanResultServices resultServices = new(ReadNativeScanDescriptor208, id => current.Effect.Binding.ScanTextResources!.ReadEncodedMiscText(id) ?? throw new NotSupportedException("Native Scan requires its actual reached miscellaneous text template."), actor => ReadNativeScanEnemyInformation(actor)[0xF7], ReadNativeScanExtra71);
+                    NativeBattleEffectMemory allocationMemory = current.Memory;
+                    NativeBattleScanResultServices resultServices = new(nativeActionPackets.ModelAliases, ReadNativeScanDescriptor208, id => current.Effect.Binding.ScanTextResources!.ReadEncodedMiscText(id) ?? throw new NotSupportedException("Native Scan requires its actual reached miscellaneous text template."), actor => ReadNativeScanEnemyInformation(actor)[0xF7], ReadNativeScanExtra71)
+                    {
+                        ReserveByteRange = length =>
+                        {
+                            (allocationMemory, uint resource) = NativeBattlePresentationTaskStorage.ReserveByteRange(allocationMemory, current.Effect, nativeActionPackets.Roster, length);
+                            return resource;
+                        }
+                    };
                     ushort held = NativeInputConfiguration.Project(shared.Input.Input.Read49ED30(0, 0), Options(), definition.NativeInputButtonMap);
                     NativeBattleScanResultTaskStep result = task.Callback == 0x84FAF0 ? NativeBattleScanResultTask.Advance84FAF0(resultFrame, address, held, resultServices) : NativeBattleScanResultTask.Advance850FD0(resultFrame, address, held, resultServices);
                     current = CaptureText(result.Frame.Scan, result.Frame.Text);
                     shared = current.Memory.Scan!;
-                    return new(current with { Memory = current.Memory with { Scan = shared with { Results = result.Frame.Results, Complete269D93A = result.Frame.Complete269D93A } } }, result.Result);
+                    return new(current with { Memory = current.Memory with { PresentationTaskNextAddress = allocationMemory.PresentationTaskNextAddress, Scan = shared with { Results = result.Frame.Results, Complete269D93A = result.Frame.Complete269D93A } } }, result.Result);
                 default:
                     throw new NotSupportedException($"Native Scan callback{task.Callback:X8} requires its reached implementation.");
             }
@@ -146,9 +154,9 @@ public sealed partial class BattleSession
             NativeBattleScanFrame current = SetHighlight(f.Scan, f.Highlight269AA90);
             return current with { Memory = current.Memory with { Scan = current.Memory.Scan! with { MutableMeshes = f.MutableMeshes } } };
         }
-        NativeBattleScanViewerProfile Profile(NativeBattleScanFrame current, int actor)
+        NativeBattleScanViewerProfile Profile(NativeBattleScanFrame current, BattleModelOwner actor)
         {
-            ushort category = NativeBattleScanModelSelection.Category84D410(NativeBattleScanPhysicalModels.Capture(graphics.Models), checked((short)actor), ReadExternal, ReadResourceSequence);
+            ushort category = NativeBattleScanModelSelection.Category84D410(graphics.ActorModels, actor, ReadResourceSequence);
             NativeBattleScanCameraProfile profile = current.Effect.Binding.ScanCameraProfiles?.Single(item => item.Category == category) ?? throw new NotSupportedException("Native Scan requires its original category camera profile.");
             return new(category, new(profile.Bytes, Enumerable.Repeat(true, 16).ToImmutableArray()));
         }
@@ -161,7 +169,7 @@ public sealed partial class BattleSession
             PublishNativeModuleSound(new(resources.Sound15D0B3C, argument, null) { Pan = pan, RawPan = pan });
             return f;
         }
-        NativeBattleScanTargetFrame Contact(NativeBattleScanTargetFrame f, int index)
+        NativeBattleScanTargetFrame Contact(NativeBattleScanTargetFrame f, BattleContactOccurrence index)
         {
             NativeEffectMemory = f.Scan.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -177,8 +185,7 @@ public sealed partial class BattleSession
             return f with { Memory = f.Memory with { Scan = f.Memory.Scan! with { Text = captured } } };
         }
         uint Options() => definition.NativeSavedOptions ?? throw new NotSupportedException("Native Scan requires its actual saved input mapping.");
-        byte ReadResourceSequence(int actor) => graphics.ActorModels.Get(actor).Sequence ?? throw new NotSupportedException("Native Scan category requires its current resource sequence header BYTE0.");
-        byte ReadExternal(uint pointer) => throw new NotSupportedException($"Native Scan model source{pointer:X8} requires its retained owner.");
+        byte ReadResourceSequence(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Sequence ?? throw new NotSupportedException("Native Scan category requires its current resource sequence header BYTE0.");
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Native Scan requires its current camera.");
         void PublishCamera(NativeBattleScanByteOwner eye, NativeBattleScanByteOwner target, ushort zoom)
         {

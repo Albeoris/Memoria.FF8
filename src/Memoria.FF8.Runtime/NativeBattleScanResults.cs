@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanResultMemory([property: JsonRequired] NativeBattleScanByteOwner Element8, [property: JsonRequired] NativeBattleScanByteOwner Pages32, [property: JsonRequired] uint Count, [property: JsonRequired] byte Empty, [property: JsonRequired] NativeBattleScanByteOwner Scratch48, [property: JsonRequired] byte Cursor, [property: JsonRequired] NativeBattleScanByteOwner Ring768)
 {
+    [JsonIgnore]
+    internal ImmutableArray<NativeBattleScanExtraTextBinding> ExtraTextBindings { get; init; } = [];
+
     public static NativeBattleScanResultMemory FromColdProcess() => new(Known(8), Known(32), 0, 0, Known(48), 0, Known(768));
 
     public void Validate()
@@ -18,7 +21,12 @@ public sealed record NativeBattleScanResultMemory([property: JsonRequired] Nativ
     private static NativeBattleScanByteOwner Known(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());
 }
 
-public sealed record NativeBattleScanResultServices(Func<int, NativeBattleScanByteOwner> ReadDescriptor208, Func<int, ImmutableArray<byte>> ReadMiscText, Func<int, byte> ReadEnemyInfoFlags, Func<int, NativeBattleScanByteOwner> ReadEnemyExtra71);
+internal sealed record NativeBattleScanExtraTextBinding(uint Address, BattleModelOwner Owner, int Length);
+
+public sealed record NativeBattleScanResultServices(NativeBattleModelAliases Aliases, Func<BattleModelOwner, NativeBattleScanByteOwner> ReadDescriptor208, Func<int, ImmutableArray<byte>> ReadMiscText, Func<BattleModelOwner, byte> ReadEnemyInfoFlags, Func<BattleModelOwner, NativeBattleScanByteOwner> ReadEnemyExtra71)
+{
+    public Func<int, uint>? ReserveByteRange { get; init; }
+}
 
 public static class NativeBattleScanResults
 {
@@ -27,7 +35,7 @@ public static class NativeBattleScanResults
     public const uint EmptyAddress = 0x279CC94;
     public const uint EnemyExtraAddress = 0x1D28F28;
 
-    public static NativeBattleScanResultMemory BuildB68390(NativeBattleScanResultMemory memory, int actor, NativeBattleScanResultServices services, uint emptyAddress = EmptyAddress)
+    public static NativeBattleScanResultMemory BuildB68390(NativeBattleScanResultMemory memory, BattleModelOwner actor, NativeBattleScanResultServices services, uint emptyAddress = EmptyAddress)
     {
         memory.Validate();
         ArgumentNullException.ThrowIfNull(services);
@@ -35,7 +43,10 @@ public static class NativeBattleScanResults
         ArgumentNullException.ThrowIfNull(services.ReadMiscText);
         ArgumentNullException.ThrowIfNull(services.ReadEnemyInfoFlags);
         ArgumentNullException.ThrowIfNull(services.ReadEnemyExtra71);
-        actor &= 0xFF;
+        if (!services.Aliases.Roster.Contains(actor))
+        {
+            throw new InvalidDataException("Native Scan result requires a current model owner.");
+        }
         NativeBattleScanByteOwner descriptor = services.ReadDescriptor208(actor);
         descriptor.RequireLength(208);
         memory = memory with { Count = 0 };
@@ -67,7 +78,7 @@ public static class NativeBattleScanResults
         Concat(ReadString(ScratchAddress), separator, current);
         Concat(ReadString(ScratchAddress), slash, maximum);
         StorePage();
-        if (actor >= 3)
+        if (actor.Side == BattleSide.Enemies)
         {
             byte flags = services.ReadEnemyInfoFlags(actor);
             if ((flags & 3) != 0)
@@ -129,13 +140,29 @@ public static class NativeBattleScanResults
                 StorePage();
             }
         }
-        if (actor >= 3)
+        if (actor.Side == BattleSide.Enemies)
         {
             NativeBattleScanByteOwner extra = services.ReadEnemyExtra71(actor);
             extra.RequireLength(71);
             if (extra.ReadByte(0) != 0)
             {
-                PublishPage(checked(EnemyExtraAddress + (uint)(71 * (actor - 3))));
+                if (services.Aliases.TryEncodeExact(actor, out byte alias))
+                {
+                    PublishPage(checked(EnemyExtraAddress + (uint)(71 * (alias - 3))));
+                }
+                else
+                {
+                    const int length = 71;
+                    NativeBattleScanExtraTextBinding? retained = memory.ExtraTextBindings.FirstOrDefault(binding => binding.Owner == actor);
+                    if (retained is null)
+                    {
+                        Func<int, uint> reserve = services.ReserveByteRange ?? throw new NotSupportedException("Native Scan extra text requires a presentation text resource interval.");
+                        uint address = reserve(length);
+                        retained = new(address, actor, length);
+                        memory = memory with { ExtraTextBindings = memory.ExtraTextBindings.Add(retained) };
+                    }
+                    PublishPage(retained.Address);
+                }
             }
         }
         return memory;
@@ -248,7 +275,23 @@ public static class NativeBattleScanResults
         throw new InvalidDataException("Native encoded ring copy source has no bounded terminator.");
     }
 
-    public static uint PageB68810(NativeBattleScanResultMemory memory, int actor, int index) => memory.Pages32.ReadDword((index & 0xFF) * 4);
+    public static uint PageB68810(NativeBattleScanResultMemory memory, int index) => memory.Pages32.ReadDword((index & 0xFF) * 4);
+
+    internal static bool TryReadBoundExtraByte(NativeBattleScanResultMemory memory, uint address, Func<BattleModelOwner, NativeBattleScanByteOwner> readExtra71, out byte value)
+    {
+        foreach (NativeBattleScanExtraTextBinding binding in memory.ExtraTextBindings)
+        {
+            if (address >= binding.Address && (ulong)address < (ulong)binding.Address + (uint)binding.Length)
+            {
+                NativeBattleScanByteOwner source = readExtra71(binding.Owner);
+                source.RequireLength(binding.Length);
+                value = source.ReadByte(checked((int)(address - binding.Address)));
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
 
     public static byte ReadByte(NativeBattleScanResultMemory memory, uint pointer, Func<uint, byte> readOriginalByte, uint emptyAddress = EmptyAddress)
     {

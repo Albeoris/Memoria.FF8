@@ -158,7 +158,8 @@ public static partial class NativeBattleEffect79Controller
             throw new InvalidDataException("Effect79 target pointer changed physical owner.");
         }
         frame = ClearBytes(frame, TargetAddress, 0x54);
-        NativeBattleGraphicsModel model = inputs.ReadModel(frame, Read(frame, address).ReadByte(0x2D));
+        frame = frame with { State = frame.State with { SavedPartyFlags = frame.State.SavedPartyFlags.Clear() } };
+        NativeBattleGraphicsModel model = inputs.ReadModel(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect79 requires its current target transform.");
         frame = frame with { State = frame.State.WriteWord(TargetAddress + 8, unchecked((ushort)transform.Position28.X)).WriteWord(TargetAddress + 10, unchecked((ushort)transform.Position28.Y)).WriteWord(TargetAddress + 12, unchecked((ushort)transform.Position28.Z)).WriteWord(TargetAddress + 14, unchecked((ushort)transform.Vertical34)) };
         short x = unchecked((short)(frame.State.ReadWord(TargetAddress + 8) - frame.State.ReadWord(TargetAddress)));

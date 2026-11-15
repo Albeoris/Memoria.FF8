@@ -146,15 +146,15 @@ public static partial class NativeBattleEffect31Actors
         return (frame, Translation(matrix, Point(ReadBytes(frame, checked(address + (uint)pointOffset), 8))));
     }
 
-    private static NativeBattleEffect31Frame UpdatePoint(NativeBattleEffect31Frame frame, uint address, int actor, NativeBattleEffect31Inputs inputs)
+    private static NativeBattleEffect31Frame UpdatePoint(NativeBattleEffect31Frame frame, uint address, BattleModelOwner actor, NativeBattleEffect31Inputs inputs)
     {
-        NativeBattleEffect31PointStep point = inputs.Point502170(frame, ModelAddress(actor), 0xF1, 0, ReadBytes(frame, address, 8));
+        NativeBattleEffect31PointStep point = inputs.Point502170(frame, actor, 0xF1, 0, ReadBytes(frame, address, 8));
         return WriteBytes(point.Frame, address, point.Output8, 8);
     }
 
     private static (NativeBattleEffect31Frame Frame, NativeBattlePackedMatrix32 Matrix) Bone(NativeBattleEffect31Frame frame, NativeBattlePackedMatrix32 output, NativeBattleEffect31Inputs inputs)
     {
-        int actor = Caster(frame);
+        BattleModelOwner actor = Caster(frame);
         NativeBattleBoneMatrixOutputStep queried = NativeBattleBoneMatrixOutput8DE8F0.Query(frame.Memory, RequireStaging(frame), inputs.ReadModel(frame, actor), inputs.ReadPoseSource(frame, actor), 0xF1, 0, output);
         return (frame with { Memory = queried.Memory, Staging = queried.Staging }, queried.Output);
     }

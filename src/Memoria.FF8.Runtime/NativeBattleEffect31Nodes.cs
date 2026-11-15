@@ -47,7 +47,7 @@ public static class NativeBattleEffect31Nodes
         NativeBattleModulePoolTask root = Read(frame, task.ReadDword(0x10));
         task = NativeBattleEffectNodeContext.Initialize(task, root, Parameters(frame), inputs.ReadPackets(frame), actor => inputs.ReadModel(frame, actor), actor => inputs.ReadPoseSource(frame, actor), resource, observeBone: (actor, selector) =>
         {
-            NativeBattleEffect31PointStep point = inputs.Point502170(frame, NativeBattleGraphicsModelAddress.Encode(actor), selector, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
+            NativeBattleEffect31PointStep point = inputs.Point502170(frame, actor, selector, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
             frame = point.Frame;
         });
         frame = Write(frame, address, task);

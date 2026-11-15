@@ -14,9 +14,9 @@ public static partial class NativeBattleElectricDischarge126Controller
         return (WithCpuFrame(frame, result.Frame), result.Address);
     }
 
-    public static (NativeBattleElectricDischarge126Frame Frame, uint Address) StartWorld(NativeBattleElectricDischarge126Frame frame, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, short actor, short progress, short increment, short scale, short textureV, short branches)
+    public static (NativeBattleElectricDischarge126Frame Frame, uint Address) StartWorld(NativeBattleElectricDischarge126Frame frame, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, BattleModelOwner? actor, NativeBattleModelAliases aliases, short progress, short increment, short scale, short textureV, short branches)
     {
-        NativeBattleCpuTrailAddressStep result = NativeBattleCpuTrails.StartWorld(CpuFrame(frame), Layout(frame), velocity, source, target, drift, actor, progress, increment, scale, textureV, branches);
+        NativeBattleCpuTrailAddressStep result = NativeBattleCpuTrails.StartWorld(CpuFrame(frame), Layout(frame), velocity, source, target, drift, actor, aliases, progress, increment, scale, textureV, branches);
         return (WithCpuFrame(frame, result.Frame), result.Address);
     }
 

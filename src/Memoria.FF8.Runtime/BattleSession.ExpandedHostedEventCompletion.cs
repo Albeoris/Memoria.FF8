@@ -7,11 +7,11 @@ public sealed partial class BattleSession
     private void CompleteExpandedHostedEvent(NativeBattlePresentationCompletionRequested receipt, long? graphicsToken)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted completion lost its presentation process.");
-        BattleModelRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         if (expandedHostedEvent is not { } hostedEvent || hostedEvent.CompletionToken != receipt.Token ||
             hostedEvent.Callback != receipt.Callback || hostedEvent.Command.ActorId != receipt.ActorId ||
             !ReferenceEquals(hostedEvent.ActivePresentation, ActiveAction) ||
-            RequireExpandedPresentationRow(roster, GetActor(receipt.ActorId)) != receipt.Row ||
+            RequirePresentationModelOwner(roster, GetActor(receipt.ActorId)) != receipt.Owner ||
             !ReferenceEquals(process.PendingCompletion, receipt) || graphicsToken is long frameToken && frameToken != expandedHostedActionToken)
         {
             throw new InvalidDataException("Native completion does not belong to the current hosted event.");
@@ -120,11 +120,11 @@ public sealed partial class BattleSession
         BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
         BattleActionDefinition definition = new(command.Ability, id, native.Name!, BattleActionEffect.Native, 0, true) { NativeAction = native };
         NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, native);
-        byte row = RequireExpandedPresentationRow(ReadExpandedPresentationRoster(), actor);
+        _ = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);
         nativeActionScratch = nativeActionScratch with { Command = 0, Action = id, DeferredEffectsE00 = false };
         resolvingNativeAction = command;
         actor.NativeRemainingHits = 1;
-        NativeBattleContactPacket contact = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, native, 255, presentationRow: row);
+        NativeBattleContactPacket contact = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, native);
         ImmutableArray<ExpandedBattleContact> contacts = [new(actor.Id, contact)];
         StageExpandedHostedInvocation(command, header, contacts, TakePendingHostedEnemyDraw());
     }

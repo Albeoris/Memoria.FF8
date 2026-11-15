@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect174 ?? throw new InvalidDataException("Effect174 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect174 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect174 service lost its addressed memory.") };
         }
 
-        NativeBattleEffect174PointStep Point502170(NativeBattleEffect174Frame current, int actor, byte selector, short fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect174PointStep Point502170(NativeBattleEffect174Frame current, BattleModelOwner actor, byte selector, short fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
             return address switch { 0xB8B7D8 => colors.Color40, 0xB8B9A8 => colors.Color44, _ => throw new NotSupportedException("Effect174 selected an unsupported current color owner.") };
         }
 
-        NativeBattleEffect174PointStep Anchor571400(NativeBattleEffect174Frame current, int actor, NativeBattleEffectArena retained)
+        NativeBattleEffect174PointStep Anchor571400(NativeBattleEffect174Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect174 requires its current actor transform.");
@@ -62,14 +62,14 @@ public sealed partial class BattleSession
             return new(second.Frame, retained.Write(0, BitConverter.GetBytes(Average(0))).Write(2, BitConverter.GetBytes(Average(2))).Write(4, BitConverter.GetBytes(Average(4))).Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
 
-        ImmutableArray<NativeBattlePackedMatrix32> ReadBones(NativeBattleEffect174Frame current, int actor)
+        ImmutableArray<NativeBattlePackedMatrix32> ReadBones(NativeBattleEffect174Frame current, BattleModelOwner actor)
         {
             NativeBattleBodyBoneMatrices bones = graphics.ActorModels.Get(actor).CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect174 requires its current primary bone publication.");
             bones.Validate();
             return bones.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         }
 
-        NativeBattleEffect174Frame WriteBones(NativeBattleEffect174Frame current, int actor, ImmutableArray<NativeBattlePackedMatrix32> packed)
+        NativeBattleEffect174Frame WriteBones(NativeBattleEffect174Frame current, BattleModelOwner actor, ImmutableArray<NativeBattlePackedMatrix32> packed)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleBodyBoneMatrices bones = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect174 requires its current primary bone publication.");
@@ -107,7 +107,7 @@ public sealed partial class BattleSession
                     NativeStage = currentStage with { Groups = currentStage.Groups.SetItem(group.Group, currentStage.Groups[group.Group] with { Flags = unchecked((byte)((currentStage.Groups[group.Group].Flags & group.AndMask) | group.OrMask)) }) };
                     return current;
                 case NativeBattleEffect174DrawBody136 body:
-                    (current, graphics) = DrawNativeEffect174Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress, body.PilotIdentity);
+                    (current, graphics) = DrawNativeEffect174Body(current, graphics, body.Actor, body.TemporaryAddress, body.PilotIdentity);
                     return current;
                 case NativeBattleEffect174DrawModelHistory5120 history:
                     (current, graphics) = DrawNativeEffect174History(current, graphics, history.Actor, history.PilotIdentity);
@@ -124,7 +124,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect174FirstContact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect174AppendCommonTextureLoad508630 load:

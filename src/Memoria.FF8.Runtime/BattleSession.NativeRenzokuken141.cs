@@ -97,7 +97,7 @@ public sealed partial class BattleSession
         NativeBattleRenzokuken160Frame Execute(NativeBattleRenzokuken160Frame current, NativeBattleRenzokuken160Operation operation)
         {
             NativeEffectMemory = current.Memory;
-            byte actor = NativeBattleRenzokukenVariantController.ReadState(current).Core.Actor;
+            BattleModelOwner actor = NativeBattleRenzokukenInvocation.Source(current.Effect);
             switch (operation)
             {
                 case NativeBattleRenzokuken160ActorFlags flags:
@@ -123,8 +123,8 @@ public sealed partial class BattleSession
                     modules = NativeBattleRenzokukenVisualLifetimes.Shared(modules, slot, NativeBattleRenzokukenVisualLifetimes.Task(current.Effect, current.Effect.Pools[0].Slots[0], 0));
                     byte[] bytes = modules.Slots[slot].Payload.ToArray();
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes, shared.Counter);
-                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), shared.Actor);
-                    modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = bytes.ToImmutableArray() }) };
+                    NativeBattleModuleTask sharedTask = NativeBattleRenzokuken160Controller.WriteSharedModel(modules.Slots[slot], bytes, shared.Actor, nativeActionPackets.ModelAliases);
+                    modules = modules with { Slots = modules.Slots.SetItem(slot, sharedTask) };
                     graphics = graphics with { ModuleEffects = modules };
                     return current;
                 case NativeBattleRenzokuken160TrailDraw trail:

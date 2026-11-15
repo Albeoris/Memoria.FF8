@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokukenSpecialController
 {
-    public static NativeBattleRenzokuken160ChildStep AdvanceChild334337(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short cameraRoll, Func<byte, NativeBattleModuleAnchor> readAnchor)
+    public static NativeBattleRenzokuken160ChildStep AdvanceChild334337(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short cameraRoll, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor)
     {
         return pool.Slots[slot].Callback switch
         {
@@ -43,7 +43,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             {
                 throw new NotSupportedException("Native Renzokuken contact requires its actual retained offset vector.");
             }
-            NativeBattleActionMatrix matrix = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken contact requires its current actor matrix64.");
+            NativeBattleActionMatrix matrix = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken contact requires its current actor matrix64.");
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, offsets[contact]);
             return new(new(unchecked((short)(state.Core.Origin.X + rotated.X)), unchecked((short)(state.Core.Origin.Y + rotated.Y)), unchecked((short)(state.Core.Origin.Z + rotated.Z))), null);
         }

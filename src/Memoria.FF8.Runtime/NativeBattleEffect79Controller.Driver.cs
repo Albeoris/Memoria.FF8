@@ -117,19 +117,25 @@ public static partial class NativeBattleEffect79Controller
 
     public static NativeBattleEffect79Frame PartyFlags(NativeBattleEffect79Frame frame, bool restore, NativeBattleEffect79Inputs inputs)
     {
-        for (int actor = 0; actor < 3; actor++)
+        NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+        foreach (BattlePartyModelOwner actor in aliases.Roster.Party)
         {
             NativeBattleGraphicsModel model = inputs.ReadModel(frame, actor);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;
             }
-            uint saved = TargetAddress + 0x20u + (uint)(actor * 4);
             if (!restore)
             {
-                frame = frame with { State = frame.State.WriteDword(saved, model.Flags0) };
+                NativeBattleEffect79State state = frame.State;
+                if (aliases.TryEncodeExact(actor, out byte originalSlot))
+                {
+                    state = state.WriteDword(TargetAddress + 0x20u + (uint)(originalSlot * 4), model.Flags0);
+                }
+                frame = frame with { State = state with { SavedPartyFlags = state.SavedPartyFlags.SetItem(actor, model.Flags0) } };
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect79TargetFlags(PhysicalModelAddress(actor), restore ? (ushort)0xFFFB : (ushort)0xFFFF, restore ? (ushort)(frame.State.ReadByte(saved) & 4) : (ushort)4, true));
+            ushort saved = frame.State.SavedPartyFlags.GetValueOrDefault(actor);
+            frame = inputs.Execute(frame, new NativeBattleEffect79TargetFlags(actor, restore ? (ushort)0xFFFB : (ushort)0xFFFF, restore ? (ushort)(saved & 4) : (ushort)4, true));
         }
         return frame;
     }

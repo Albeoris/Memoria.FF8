@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             return NativeBattleModelResourceRowAddress.Encode(row, capacity);
         }
 
-        NativeBattleVector ReadBone(BattleModelOwner bone, short fraction)
+        NativeBattleVector ReadBone(int bone, short fraction)
         {
             NativeBattlePoseSource pose = Pose();
             short parent = BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + bone * 48));
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
                     return current;
                 case NativeBattleXatmDeath276Model model:
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, model.Model) };
                     return current;
                 case NativeBattleXatmDeath276Caster body:
                     return DrawCaster(current, body.Hidden);

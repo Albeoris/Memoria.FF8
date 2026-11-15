@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeDuel215Body69D100(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private NativeBattleGraphicsState DrawNativeDuel215Body69D100(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
         {
@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 76);
         staging = allocation.Staging;
         uint address = allocation.Address;
-        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Duel215 body requires its actual world matrix.");
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, world);
         for (int lane = 0; lane < 9; lane++)
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         NativeFileStaging = staging;
         graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, 33, 6, 6, pilotIdentity: pilotIdentity);
         staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 body lost its temporary owner during drawing.");
-        model = graphics.Models[index];
+        model = graphics.ActorModels.Get(index);
         if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
         {
             staging = staging.Write(address + 64, BitConverter.GetBytes(uint.MaxValue));
@@ -42,9 +42,9 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState DrawNativeDuel215Body69D200(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix view, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private NativeBattleGraphicsState DrawNativeDuel215Body69D200(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleActionMatrix view, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleActionMatrix world = graphics.Models[index].GeometryWorldMatrix ?? throw new NotSupportedException("Native Duel215 transformed body requires its actual model world matrix.");
+        NativeBattleActionMatrix world = graphics.ActorModels.Get(index).GeometryWorldMatrix ?? throw new NotSupportedException("Native Duel215 transformed body requires its actual model world matrix.");
         NativeBattleActionMatrix matrix = NativeBattleDuel212Body.Matrix6A2F60(world, view, angles, pivot);
         return DrawNativeEffectModelContext92(graphics, index, matrix, pivot, projection, 33, 4, 4, pilotIdentity: pilotIdentity);
     }

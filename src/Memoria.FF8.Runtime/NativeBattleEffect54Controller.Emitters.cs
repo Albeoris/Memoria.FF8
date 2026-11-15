@@ -23,7 +23,8 @@ public static partial class NativeBattleEffect54Controller
             }
             if (descriptor[0x37] == 1)
             {
-                for (int target = 0; target < ReadS54(frame, context + 0x1C); target++)
+                int count = ReadRecipientContext(frame, context).Recipients.Length;
+                for (int target = 0; target < count; target++)
                 {
                     (frame, _) = NativeBattleEffect54Lower.AllocateEmitter810560(frame, 0, index, target, resources, inputs);
                 }
@@ -100,10 +101,18 @@ public static partial class NativeBattleEffect54Controller
                 int selector = unchecked((sbyte)source[0x25]);
                 if (selector is >= 0 and <= 3)
                 {
-                    int target = unchecked((sbyte)ReadB54(frame, node + 0x6B));
+                    int target = ReadRecipientPosition(frame, node + 0x6B);
                     uint context = frame.State.ReadDword(CurrentContextGlobal);
-                    uint origin = checked(context + 0x94 + (uint)(selector * 64 + target * 16));
-                    frame = WriteBytes(frame, node + 0x4C, ReadBytes(frame, origin, 16), 16);
+                    NativeBattleEffectNodeVector origin = ReadRecipientContext(frame, context).ReadRecipient(target).ReadAnchor(selector);
+                    NativeBattleEffectArena anchor = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(origin.X)).Write(4, BitConverter.GetBytes(origin.Y)).Write(8, BitConverter.GetBytes(origin.Z)).Write(12, BitConverter.GetBytes(origin.Padding));
+                    for (int index = 0; index < 4; index++)
+                    {
+                        if (!origin.IsPaddingByteKnown(index))
+                        {
+                            anchor = anchor.MarkUnknown(12 + index, 1);
+                        }
+                    }
+                    frame = WriteBytes(frame, node + 0x4C, anchor, 16);
                 }
                 NativeBattleEffectArena point = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
                 for (int lane = 0; lane < 3; lane++)

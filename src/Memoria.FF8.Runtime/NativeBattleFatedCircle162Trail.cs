@@ -4,7 +4,7 @@ public sealed record NativeBattleFatedCircle162Trail(NativeBattleGfGeometryBatch
 
 public static partial class NativeBattleFatedCircle162Controller
 {
-    public static NativeBattleFatedCircle162ChildStep Advance5F99C0(NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleFatedCircle162Inputs inputs, Func<byte, NativeBattleRenzokuken160WeaponTip> readWeaponTip, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors)
+    public static NativeBattleFatedCircle162ChildStep Advance5F99C0(NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleFatedCircle162Inputs inputs, Func<BattleModelOwner, NativeBattleRenzokuken160WeaponTip> readWeaponTip, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         short counter = Word(task, 12);

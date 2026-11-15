@@ -181,17 +181,17 @@ public static partial class NativeBattleEffect54Controller
         }
         return length;
     }
-    public static NativeBattleEffectArena CopyBytes(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
+    public static NativeBattleEffectArena CopyBytes(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count) => destination.CopyResourceSnapshot(source, sourceOffset, destinationOffset, count);
+
+    internal static BattleExecutionReference.NodeContext ReadRecipientContext(NativeBattleEffect54Frame frame, uint context) => NativeBattleEffectNodeContext.Read(Read(frame, checked(context - 0x34)));
+
+    internal static int ReadRecipientPosition(NativeBattleEffect54Frame frame, uint address) => ReadBytes(frame, address, 1).ReadExecutionReference<BattleExecutionReference.TraversalPosition>(0, 1).Value;
+
+    internal static NativeBattleEffect54Frame WriteRecipientPosition(NativeBattleEffect54Frame frame, uint address, int target)
     {
-        destination = NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, destination, destinationOffset, count);
-        foreach ((int offset, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
-        {
-            if (offset >= sourceOffset && offset + 4 <= sourceOffset + count)
-            {
-                destination = destination.WriteResourcePointer(destinationOffset + offset - sourceOffset, pointer);
-            }
-        }
-        return destination;
+        var position = new BattleExecutionReference.TraversalPosition(target);
+        NativeBattleEffectArena data = NativeBattleEffectArena.Clear().WriteExecutionReference(0, 1, position, position.EncodeOriginalByte());
+        return WriteBytes(frame, address, data, 1);
     }
 
     public static NativeBattleVector Vector(NativeBattleEffectArena point, int offset = 0) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(offset, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(offset + 2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(offset + 4, 2)));
@@ -276,7 +276,6 @@ public static partial class NativeBattleEffect54Controller
         return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }
     public static NativeBattleEffect54Frame ClearBytes(NativeBattleEffect54Frame frame, uint address, int length) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[length]), length);
-    public static uint PhysicalModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect54 model index leaves its physical bank.");
     public static NativeBattleEffectParameters Parameters(NativeBattleEffect54Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect54 requires its current action parameters.");
     public static NativeBattleEffectArena Source(NativeBattleEffect54Frame frame, NativeBattleEffect54Resources resources, uint address, int length) => NativeBattleEffectArena.Clear().Write(0, resources.ReadResource(RequireStaging(frame), address, length));
     private static bool Contains(uint start, int extent, uint address, int length) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)extent;

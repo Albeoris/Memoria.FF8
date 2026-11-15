@@ -3,12 +3,12 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private sealed record EncounterImmediateCounter(BattleCombatant Actor, NativeContactWorking? Contact, BattleActionPresentation? Action, bool Suppressed, bool Death);
-    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, ushort? DiagnosticMask, int? SourceHeader, NativeBattleActionProductionContext? Context);
+    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, ushort? DiagnosticMask, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context);
     private readonly Queue<EncounterCounterCommand> encounterCounterCommands = [];
     private bool capturingEncounterCounterCommands;
     private bool flushingEncounterCounterCommands;
-    private int? encounterProducingHeaderIndex;
-    private int? encounterProducingCommandFirstHeader;
+    private BattleActionHeaderReference? encounterProducingHeaderIndex;
+    private BattleActionHeaderReference? encounterProducingCommandFirstHeader;
 
     private void RunEncounterImmediateCounter(BattleCombatant actor, bool death = false)
     {
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticMask, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeaderIndex, nativeProductionContext));
+        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticMask, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeader, nativeProductionContext));
         return true;
     }
 
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
         {
             while (encounterCounterCommands.TryPeek(out EncounterCounterCommand? pending))
             {
-                if (pending.SourceHeader is int header && (header >= nativeActionPackets.ActionCount || ActiveAction?.NativeHeaderIndex != header && !actions.Any(command => command.NativeHeaderIndex == header)))
+                if (pending.SourceHeader is BattleActionHeaderReference header && (!nativeActionPackets.HasPublishedHeader(header) || ActiveAction?.NativeHeader != header && !actions.Any(command => command.NativeHeader == header)))
                 {
                     return;
                 }
@@ -108,12 +108,13 @@ public sealed partial class BattleSession
                     {
                         byte sourceIndex = nativeActionScratch.EventActorB0F ?? throw new InvalidDataException("Deferred counter lacks its native source-event actor.");
                         BattleCombatant sourceActor = combatants.Single(actor => actor.EncodeNativeSlot() == sourceIndex);
-                        int sourceHeader = Enumerable.Range(0, nativeActionPackets.ActionCount).FirstOrDefault(index => nativeActionPackets.Headers[index].ReadByte(0) == sourceIndex, -1);
-                        if (sourceHeader < 0)
+                        BattleModelOwner sourceOwner = CreatePresentationModelOwner(sourceActor);
+                        BattleActionHeaderReference? sourceHeader = nativeActionPackets.PublishedHeaders().Where(header => header.Slot.Source == sourceOwner).Select(header => (BattleActionHeaderReference?)header.Reference).FirstOrDefault();
+                        if (sourceHeader is null)
                         {
                             throw new InvalidDataException("Deferred counter lacks its accepted source-event header.");
                         }
-                        command = command with { NativeEventOwner = new(sourceActor.Id, sourceHeader) };
+                        command = command with { NativeEventOwner = new(sourceActor.Id, sourceHeader.Value) };
                     }
                     EnqueueNativePacket(pending.Actor, command, pending.Name, pending.PlayerInput, pending.DiagnosticMask);
                 }

@@ -29,6 +29,8 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
+    internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanDescriptor { get; init; }
+    internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanExtra { get; init; }
 
     internal ImmutableArray<NativeBattleModelLifecycleReceipt> ReadReceipts() => receipts.OfType<NativeBattleModelLifecycleReceipt>().ToImmutableArray();
 

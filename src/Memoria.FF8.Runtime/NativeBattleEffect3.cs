@@ -4,12 +4,12 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect3Resources(NativeBattleEffectHeapAllocation Texture, NativeBattleEffectHeapAllocation Animation, ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound, uint FlashColor);
-public sealed record NativeBattleEffect3Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform)
+public sealed record NativeBattleEffect3Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform)
 {
-    public Action<int>? ApplyContact { get; init; }
+    public Action<BattleContactOccurrence>? ApplyContact { get; init; }
 }
 public sealed record NativeBattleEffect3Sound(uint Sound, uint Flags, NativeBattleModuleAnchor Position);
-public sealed record NativeBattleEffect3Step(NativeBattleOriginalEffectState Effect, ImmutableArray<NativeBattleModuleDraw> Draws, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleEffect3Sound> Sounds);
+public sealed record NativeBattleEffect3Step(NativeBattleOriginalEffectState Effect, ImmutableArray<NativeBattleModuleDraw> Draws, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleEffect3Sound> Sounds);
 public readonly record struct NativeBattleScreenPoint(short X, short Y);
 
 public sealed partial record NativeBattleModuleDraw
@@ -55,7 +55,7 @@ public static class NativeBattleEffect3
         }
         NativeBattleEffectTaskPool children = effect.Pools[1];
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleEffect3Sound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleEffect3Sound>();
         int? drawArenaOffset = effect.DrawArenaOffset;
         NativeBattlePilotVisualIdentity? drawingIdentity = null;
@@ -75,10 +75,8 @@ public static class NativeBattleEffect3
                 byte sequence = task.ReadByte(14);
                 if (sequence <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
                 {
-                    int first = FirstContact(Header(sequence));
-                    int model = inputs.Packets.ReadContact(first).Primary.Recipient;
-                    uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
-                    bool busy = children.Slots.Any(child => (child.Flags & 1) != 0 && BinaryPrimitives.ReadUInt32LittleEndian(child.ReadRawPayloadSpan().Slice(4)) == modelAddress && Word(child, 12) <= 15);
+                    BattleModelOwner model = inputs.Packets.ReadContact(Header(sequence).FirstContact).Primary.Recipient;
+                    bool busy = children.Slots.Any(child => (child.Flags & 1) != 0 && child.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == model && Word(child, 12) <= 15);
                     if (busy)
                     {
                         task.WriteWord(12, 0);
@@ -88,13 +86,15 @@ public static class NativeBattleEffect3
                         (children, int childSlot) = children.Append(0x700DE0);
                         byte[] childPayload = new byte[16];
                         BinaryPrimitives.WriteUInt16LittleEndian(childPayload.AsSpan(2), sequence);
-                        BinaryPrimitives.WriteUInt32LittleEndian(childPayload.AsSpan(4), modelAddress);
+                        ImmutableArray<byte>? modelEncoding = inputs.Packets.ModelAliases.EncodeAddress(model);
                         NativeBattleVector anchor = inputs.ReadBone241(model);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(8), anchor.X);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(10), anchor.Y);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(12), anchor.Z);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(14), unchecked((short)((-4096 - inputs.ReadTransform(model).Scale38) >> 2)));
-                        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteBytes(12, childPayload));
+                        NativeBattleModulePoolTask child = children.Slots[childSlot].WriteBytes(12, childPayload);
+                        child.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(model), modelEncoding);
+                        children = children.WriteSlot(childSlot, child);
                         task.WriteByte(14, unchecked((byte)(sequence + 1)));
                     }
                 }
@@ -120,11 +120,7 @@ public static class NativeBattleEffect3
                 throw new NotSupportedException("Native effect3 child lost its700DE0 callback.");
             }
             short frame = Word(task, 12);
-            uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(4));
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int model))
-            {
-                throw new InvalidDataException("Native700DE0 model pointer leaves the original seven-row bank.");
-            }
+            BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             NativeBattleModuleAnchor anchor = new(Word(task, 20), Word(task, 22), Word(task, 24), 0);
             int depth = Word(task, 26);
             if (frame == 0)
@@ -158,9 +154,9 @@ public static class NativeBattleEffect3
             }
             if (frame == 5)
             {
-                int first = FirstContact(Header(Word(task, 14)));
-                contacts.Add(first);
-                inputs.ApplyContact?.Invoke(first);
+                BattleContactOccurrence contact = inputs.Packets.ReadContact(Header(Word(task, 14)).FirstContact).Occurrence ?? throw new InvalidDataException("Native effect3 requires its stored contact occurrence.");
+                contacts.Add(contact);
+                inputs.ApplyContact?.Invoke(contact);
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));
             return new(pool.WriteSlot(slot, task), Word(task, 12) >= 25 ? 2 : 0);
@@ -183,6 +179,5 @@ public static class NativeBattleEffect3
         }
     }
 
-    private static int FirstContact(NativeBattleActionHeaderSlot header) => header.FirstContactIndex ?? throw new InvalidDataException("Native effect3 requires its original physical contact pointer.");
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
 }

@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         effect = effect with { DrawArenaOffset = root.ReadDword(16) != 0 ? 0x26B8 : 0x126B8 };
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Storm Breath requires its actual first contact.");
+        BattleContactCursor firstContact = header.FirstContact;
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
@@ -80,8 +80,8 @@ public sealed partial class BattleSession
                 {
                     for (int b = a + 1; b < count; b++)
                     {
-                        int ia = nativeActionPackets.ReadContact(firstContact + ordered[a]).Primary.Recipient;
-                        int ib = nativeActionPackets.ReadContact(firstContact + ordered[b]).Primary.Recipient;
+                        BattleModelOwner ia = nativeActionPackets.ReadContact(firstContact.Advance(ordered[a])).Primary.Recipient;
+                        BattleModelOwner ib = nativeActionPackets.ReadContact(firstContact.Advance(ordered[b])).Primary.Recipient;
                         short za = graphics.ActorModels.Get(ia).Transform!.Position28.X;
                         short zb = graphics.ActorModels.Get(ib).Transform!.Position28.X;
                         if (za < zb)
@@ -92,10 +92,11 @@ public sealed partial class BattleSession
                 }
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = nativeActionPackets.ReadContact(firstContact + ordered[index]).Primary.Recipient;
-                    target = target.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor)).WriteByte(0x1C + index, (byte)ordered[index]);
+                    BattleModelOwner actor = nativeActionPackets.ReadContact(firstContact.Advance(ordered[index])).Primary.Recipient;
+                    target.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
+                    target = target.WriteTraversalPosition(0x1C + index, ordered[index]);
                 }
-                target = target.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, (ushort)((count << 12) / 40)).WriteWord(0x2C, unchecked((ushort)CountVertices(Model(target.ReadDword(16)))));
+                target = target.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, (ushort)((count << 12) / 40)).WriteWord(0x2C, unchecked((ushort)CountVertices(TargetOwner(target, 0))));
                 Put(1, slot, target);
             }
         }
@@ -148,8 +149,8 @@ public sealed partial class BattleSession
                 NativeEffectMemory = NativeEffectMemory with { Storm11 = NativeEffectMemory.Storm11 with { StreamVertices = current } };
                 int cur = Word(task, 0x20);
                 int next = Word(task, 0x22);
-                NativeBattleVector from = ReadNativeGraphicsBone(graphics, Model(task.ReadDword(16 + cur * 4)), 0xF1, 0);
-                NativeBattleVector to = ReadNativeGraphicsBone(graphics, Model(task.ReadDword(16 + next * 4)), 0xF1, 0);
+                NativeBattleVector from = ReadNativeGraphicsBone(graphics, TargetOwner(task, cur), 0xF1, 0);
+                NativeBattleVector to = ReadNativeGraphicsBone(graphics, TargetOwner(task, next), 0xF1, 0);
                 int t = Word(task, 0x24);
                 NativeBattleVector aim = new(unchecked((short)(from.X + ((to.X - from.X) * t >> 12))), unchecked((short)(from.Y + ((to.Y - from.Y) * t >> 12))), unchecked((short)(from.Z + ((to.Z - from.Z) * t >> 12))));
                 if (frame >= 30)
@@ -157,13 +158,13 @@ public sealed partial class BattleSession
                     t = unchecked((short)(t + Word(task, 0x26)));
                     if (t >= 4096)
                     {
-                        int contact = firstContact + task.ReadByte(0x1C + cur);
+                        BattleContactCursor contact = firstContact.Advance(task.ReadTraversalPosition(0x1C + cur));
                         ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                         graphics = graphics with { PendingContacts = pending };
                         if (cur != next)
                         {
-                            task = task.WriteWord(0x2C, unchecked((ushort)CountVertices(Model(task.ReadDword(16 + next * 4)))));
+                            task = task.WriteWord(0x2C, unchecked((ushort)CountVertices(TargetOwner(task, next))));
                         }
                         t -= 4096;
                         task = task.WriteWord(0x20, (ushort)next).WriteWord(0x22, (ushort)Math.Min(next + 1, Word(task, 14) - 1));
@@ -225,7 +226,7 @@ public sealed partial class BattleSession
                         continue;
                     }
                     NativeBattleModulePoolTask child = Clear(2, slot);
-                    NativeBattleVector point = SampleVertex(Model(task.ReadDword(16 + Word(task, 0x20) * 4)), vertex);
+                    NativeBattleVector point = SampleVertex(TargetOwner(task, Word(task, 0x20)), vertex);
                     child = Store(child, 16, point).WriteWord(0x16, (ushort)((Roll() & 2047) + 3072)).WriteWord(0x18, unchecked((ushort)((dx << 7) / distance))).WriteWord(0x1C, unchecked((ushort)((dz << 7) / distance)));
                     Put(2, slot, child);
                     vertex += Word(task, 0x2C) >> 1;
@@ -412,12 +413,12 @@ public sealed partial class BattleSession
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
-        int CountVertices(int actor)
+        int CountVertices(BattleModelOwner actor)
         {
             var data = VertexInputs(actor);
             return NativeBattleStorm11Vertices.Count69EEE0(data.Body, data.Mask) + NativeBattleStorm11Vertices.Count69EEE0(data.Linked, uint.MaxValue);
         }
-        NativeBattleVector SampleVertex(int actor, int vertex)
+        NativeBattleVector SampleVertex(BattleModelOwner actor, int vertex)
         {
             var data = VertexInputs(actor);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
@@ -437,7 +438,7 @@ public sealed partial class BattleSession
             }
             return point;
         }
-        (ImmutableArray<NativeBattleRawMesh> Body, ImmutableArray<NativeBattleRawMesh> Linked, uint Mask, NativeBattlePoseSource Source, NativeBattlePoseSource? LinkedSource) VertexInputs(int actor)
+        (ImmutableArray<NativeBattleRawMesh> Body, ImmutableArray<NativeBattleRawMesh> Linked, uint Mask, NativeBattlePoseSource Source, NativeBattlePoseSource? LinkedSource) VertexInputs(BattleModelOwner actor)
         {
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
             ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native Storm Breath requires actual body geometry.");
@@ -470,9 +471,9 @@ public sealed partial class BattleSession
         }
     }
 
-    private static int Model(uint address)
+    private static BattleModelOwner TargetOwner(NativeBattleModulePoolTask task, int index)
     {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native Storm Breath model pointer exceeds its actual bank.");
+        return task.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
     }
     private static NativeBattleModulePoolTask WriteBasis(NativeBattleModulePoolTask task, NativeBattleActionMatrix matrix)
     {

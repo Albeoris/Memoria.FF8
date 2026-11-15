@@ -21,12 +21,13 @@ public static partial class NativeBattleFatedCircle162Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23D0CE0) ?? throw new NotSupportedException("Native5F90F0 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23D0CE0, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
-        staging = WriteDword(staging, 0x23CE608, packets.ReadContact(first).Primary.Recipient);
-        staging = WriteDword(staging, 0x23D0798, parameters.Source);
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
+        staging = staging.WriteExecutionReference(0x23CE608, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 4));
+        staging = staging.WriteExecutionReference(0x23D0798, 4, new BattleExecutionReference.Model(parameters.Source), packets.ModelAliases.EncodeOperand(parameters.Source, 4));
         staging = WriteDword(staging, 0x23D0D74, 170);
         staging = WriteDword(staging, 0x23D0D7C, 0);
         staging = WriteDword(staging, 0x23CE61C, 0);

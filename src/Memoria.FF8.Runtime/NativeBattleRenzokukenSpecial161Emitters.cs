@@ -8,9 +8,9 @@ public static partial class NativeBattleRenzokukenSpecialController
     private static NativeBattleRenzokuken160Frame EmitTarget161(NativeBattleRenzokuken160Frame frame, NativeBattleRenzokuken160Inputs inputs)
     {
         NativeBattleRenzokukenSpecialState state = ReadState(frame);
-        Func<byte, int, short, NativeBattleVector> read = inputs.ReadBone ?? throw new NotSupportedException("Native5FD230 requires actual target bone240 endpoints.");
-        NativeBattleVector start = read((byte)state.Core.FirstTarget, 240, 0);
-        NativeBattleVector end = read((byte)state.Core.FirstTarget, 240, 4096);
+        Func<BattleModelOwner, int, short, NativeBattleVector> read = inputs.ReadBone ?? throw new NotSupportedException("Native5FD230 requires actual target bone240 endpoints.");
+        NativeBattleVector start = read(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 240, 0);
+        NativeBattleVector end = read(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect), 240, 4096);
         var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(unchecked((short)end.X) - unchecked((short)start.X), unchecked((short)end.Y) - unchecked((short)start.Y), unchecked((short)end.Z) - unchecked((short)start.Z));
         byte[] particles = state.TargetParticles.ToArray();
         for (int emitted = 0; emitted < 3; emitted++)

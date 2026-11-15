@@ -9,12 +9,12 @@ public static partial class NativeBattleRinoaPhysicalHit
     {
         var task = Read(state, slot);
         short age = Signed(task, 12);
-        NativeBattleRinoaPhysicalHitState retained = RequireState(state);
+        NativeBattleRinoaPhysicalHitState retained = RequireState(state, inputs);
         if (age == 15)
         {
             NativeBattleVector origin = (inputs.Modules.ReadModelBone ?? throw new NotSupportedException("Native56FE10 requires its actor502170 bone21."))(retained.Actor, 21, 0);
             retained = retained with { Origin = origin with { Y = unchecked((short)(origin.Y - 80)) } };
-            state = state with { RinoaPhysicalHit = retained };
+            state = state.WriteRinoaPhysicalHit(inputs.StorageContract, RequireAliases(inputs), retained);
         }
         int x = retained.TargetAnchor.X - retained.Origin.X;
         int y = retained.TargetAnchor.Y - retained.Origin.Y;
@@ -67,7 +67,7 @@ public static partial class NativeBattleRinoaPhysicalHit
             }
             publishCurveWork?.Invoke(work);
             retained = retained with { Controls = controls, Curve = curve.MoveToImmutable() };
-            state = state with { RinoaPhysicalHit = retained };
+            state = state.WriteRinoaPhysicalHit(inputs.StorageContract, RequireAliases(inputs), retained);
         }
         if (retained.Controls.Length != 5 || retained.Curve.Length != 64)
         {

@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -23,54 +22,48 @@ public static class NativeBattleIfritContactCommand
         {
             throw new NotSupportedException("Native cinematic contact command requires its selected instruction.");
         }
-        uint manager = CoreDword(frame, 0x27973EC);
-        uint action = CoreDword(frame, unchecked(manager + 0xCC));
-        uint contacts = BinaryPrimitives.ReadUInt32LittleEndian(ReadAction(unchecked(action + 8), 4));
-        int count = NativeBattleCinematicContacts.ReadCount(frame, action, services.ReadActionBytes, services.ActionPackets, signedNative: true);
+        BattleActionHeaderReference header = services.RequireCombatHeader(frame);
+        int count = services.ReadPackets().ReadHeader(header).ReadContactCount();
         if ((instruction & 0xF000) == 0x8000)
         {
             for (int index = 0; index < count; index++)
             {
-                frame = services.ApplyContact506690(frame, NativeBattleCinematicContacts.Offset(contacts, index, services.ActionPackets));
+                frame = services.ApplyContact506690(frame, services.ReadPackets().ResolveContact(header, index));
             }
         }
         else if (savedActorSelection && instruction >> 12 == 1)
         {
-            uint header = CoreDword(frame, 0x279744C);
-            int saved = NativeBattleCinematicActorAccess.ReadSavedCount(frame, signedNative: true, headerAddress: header);
+            int saved = NativeBattleCinematicActorAccess.ReadSavedCount(frame);
             if (saved == 0)
             {
-                ApplyFirst(contacts, ReadSlot(frame, 0x1B, 1)[0]);
+                ApplyFirst(NativeBattleCinematicActorAccess.ReadSlotActor(frame));
             }
             else
             {
                 for (int index = saved; index > 0; index--)
                 {
-                    byte wanted = NativeBattleCinematicActorAccess.ReadSavedActor(frame, index - 1, header);
-                    uint currentContacts = BinaryPrimitives.ReadUInt32LittleEndian(ReadAction(unchecked(action + 8), 4));
-                    ApplyFirst(currentContacts, wanted);
+                    ApplyFirst(NativeBattleCinematicActorAccess.ReadSavedActor(frame, index - 1));
                 }
             }
         }
         else
         {
-            ApplyFirst(contacts, ReadSlot(frame, 0x1B, 1)[0]);
+            ApplyFirst(NativeBattleCinematicActorAccess.ReadSlotActor(frame));
         }
         return WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + 2));
 
-        void ApplyFirst(uint first, byte wanted)
+        void ApplyFirst(BattleModelOwner wanted)
         {
+            NativeBattleActionPacketsState packets = services.ReadPackets();
             for (int index = 0; index < count; index++)
             {
-                uint contact = NativeBattleCinematicContacts.Offset(first, index, services.ActionPackets);
-                if (ReadAction(contact, 1)[0] == wanted)
+                BattleContactOccurrence occurrence = packets.ResolveContact(header, index);
+                if (packets.ReadContact(occurrence).Primary.Recipient == wanted)
                 {
-                    frame = services.ApplyContact506690(frame, contact);
+                    frame = services.ApplyContact506690(frame, occurrence);
                     return;
                 }
             }
         }
-
-        byte[] ReadAction(uint address, int length) => NativeBattleCinematicContacts.ReadBytes(frame, address, length, services.ReadActionBytes);
     }
 }

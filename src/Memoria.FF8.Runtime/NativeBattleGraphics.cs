@@ -187,6 +187,10 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         if (action.Guardian is { } guardian)
         {
             RequireBoundPartyTargets(roster, guardian.HiddenPartyActors);
+            if (guardian.Neighbor?.Owner is { } neighbor && !roster.Contains(neighbor))
+            {
+                throw new InvalidDataException("The guardian service neighbor must remain a bound party model.");
+            }
         }
         if (action.FirstHeaderTargetCount is < 0)
         {

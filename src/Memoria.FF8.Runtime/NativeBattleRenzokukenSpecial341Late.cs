@@ -35,7 +35,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         return new(frame, pool.WriteSlot(slot, task), unchecked((short)task.ReadWord(12)) >= 10 ? 2 : 0);
     }
 
-    public static NativeBattleRenzokuken160ChildStep Advance57B520(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, Func<byte, NativeBattleModuleAnchor> readAnchor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleRenzokuken160ChildStep Advance57B520(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         bool advance = (inputs.GraphicsFlags & 0x201) == 0;
@@ -58,7 +58,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         {
             if (counter == 0)
             {
-                NativeBattleModuleAnchor anchor = readAnchor((byte)ReadState(frame).Core.FirstTarget);
+                NativeBattleModuleAnchor anchor = readAnchor(NativeBattleRenzokukenInvocation.FirstTarget(frame.Effect));
                 task = task.WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, unchecked((ushort)anchor.Y)).WriteWord(20, unchecked((ushort)anchor.Z)).WriteWord(22, unchecked((ushort)anchor.W));
             }
             for (int emitted = 0; emitted < 16; emitted++)

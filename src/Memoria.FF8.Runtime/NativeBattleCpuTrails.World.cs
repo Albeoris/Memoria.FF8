@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleCpuTrails
 {
-    public static NativeBattleCpuTrailAddressStep StartWorld(NativeBattleCpuTrailFrame frame, NativeBattleCpuTrailLayout layout, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, short actor, short progress, short increment, short scale, short textureV, short branches)
+    public static NativeBattleCpuTrailAddressStep StartWorld(NativeBattleCpuTrailFrame frame, NativeBattleCpuTrailLayout layout, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, BattleModelOwner? actor, NativeBattleModelAliases aliases, short progress, short increment, short scale, short textureV, short branches)
     {
         (frame, uint head) = AllocateWorldPoint(frame, layout, source, scale);
         if (head == 0)
@@ -32,7 +32,9 @@ public static partial class NativeBattleCpuTrails
                 task = task.WriteWord(0x30 + axis * 2, unchecked((ushort)((random & 255) - 128)));
             }
         }
-        task = task.WriteWord(0x36, unchecked((ushort)actor)).WriteWord(0x38, unchecked((ushort)scale)).WriteWord(0x3A, unchecked((ushort)textureV));
+        BattleExecutionReference.TrailTarget targetOwner = new(actor);
+        task.WriteExecutionReference(0x36, 2, targetOwner, targetOwner.EncodeOriginal(aliases, 2));
+        task = task.WriteWord(0x38, unchecked((ushort)scale)).WriteWord(0x3A, unchecked((ushort)textureV));
         return new(Write(frame, address, task), head);
     }
 

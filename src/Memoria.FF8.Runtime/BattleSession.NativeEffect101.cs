@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect101 requires its current camera.");
-        NativeBattleModelTransform Transform(int actor) => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Effect101 requires its actual actor position WORDs.");
+        NativeBattleModelTransform Transform(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Effect101 requires its actual actor position WORDs.");
 
         void Publish(NativeBattleEffect101Frame current)
         {
@@ -41,21 +41,21 @@ public sealed partial class BattleSession
             return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Effect101 lost its process memory."), Staging = NativeFileStaging };
         }
 
-        NativeBattleEffect101PositionStep Position8(NativeBattleEffect101Frame current, int actor)
+        NativeBattleEffect101PositionStep Position8(NativeBattleEffect101Frame current, BattleModelOwner actor)
         {
             NativeBattleModelTransform transform = Transform(actor);
             NativeBattleEffectArena position = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(transform.Position28.X)).Write(2, BitConverter.GetBytes(transform.Position28.Y)).Write(4, BitConverter.GetBytes(transform.Position28.Z)).Write(6, BitConverter.GetBytes(transform.Vertical34));
             return new(current, position);
         }
 
-        NativeBattleEffect101WordStep Bone0X(NativeBattleEffect101Frame current, int actor)
+        NativeBattleEffect101WordStep Bone0X(NativeBattleEffect101Frame current, BattleModelOwner actor)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect101 requires its target skeleton.");
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose);
             return new(current, unchecked((short)bones[0].X));
         }
 
-        NativeBattleEffect101PointStep Blend(NativeBattleEffect101Frame current, int actor, NativeBattleEffectArena saved, short firstFactor, short secondFactor)
+        NativeBattleEffect101PointStep Blend(NativeBattleEffect101Frame current, BattleModelOwner actor, NativeBattleEffectArena saved, short firstFactor, short secondFactor)
         {
             NativeBattleVector first = Transform(actor).Position28;
             NativeBattleVector second = new(BinaryPrimitives.ReadInt16LittleEndian(saved.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(saved.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(saved.Read(4, 2)));
@@ -125,7 +125,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect101RingSequence sequence:
                     Publish(current);
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return Import(current);
                 case NativeBattleEffect101Sound sound:
                     Publish(current);

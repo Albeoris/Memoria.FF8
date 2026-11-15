@@ -6,12 +6,9 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect303Frame Frame) DrawNativeEffect303Body(NativeBattleGraphicsState graphics, NativeBattleEffect303Frame frame, NativeBattleEffect303DrawBody188 operation)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(operation.ModelAddress, out int actor, graphics.Models.Length))
-        {
-            throw new InvalidDataException("Effect303 body requires its actual physical recipient model.");
-        }
+        BattleModelOwner actor = operation.Model;
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
-        NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity;
+        NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity is { } identity ? identity with { ModelOwner = actor } : null;
         int geometryPass = 0;
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect303 body requires its actual current recipient skeleton.");
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Effect303 body requires its actual loaded recipient geometry.");

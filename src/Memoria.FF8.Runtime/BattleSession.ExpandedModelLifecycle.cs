@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private BattleModelRoster RequireExpandedLifecycleRoster()
     {
-        return expandedPresentationProcess?.Graphics.PresentationRoster ?? throw new InvalidOperationException("Expanded model lifecycle requires its attached presentation roster.");
+        return expandedPresentationProcess?.Graphics.ActorModels.Roster ?? throw new InvalidOperationException("Expanded model lifecycle requires its attached presentation roster.");
     }
 
     private void AcknowledgeExpandedModelRelease(BattleModelRoster roster, NativeBattleModelParticipantReleased receipt)
@@ -19,15 +19,15 @@ public sealed partial class BattleSession
         BattleCombatant actor = RequireExpandedLifecycleActor(roster, receipt);
         actor.NativeCombatantFlags |= 0x40;
         actor.NativeStatus0 |= 1;
-        ObserveEncounterNativeTerminal(actor, receipt.Sequence, receipt.ActiveHeader, checked((byte)receipt.Row));
+        ObserveEncounterNativeTerminal(actor, receipt.Sequence, receipt.ActiveHeader, receipt.Owner);
     }
 
     private BattleCombatant RequireExpandedLifecycleActor(BattleModelRoster roster, NativeBattleModelLifecycleReceipt receipt)
     {
-        if (!UsesExpandedRoster || !roster.ContainsRow(receipt.Row) || !StringComparer.Ordinal.Equals(roster[receipt.Row].ActorId, receipt.ActorId) ||
-            !byId.TryGetValue(receipt.ActorId, out BattleCombatant? actor) || actor.Slot is null || actor.IsPlayer != roster[receipt.Row].IsParty || RequireExpandedPresentationRow(roster, actor) != receipt.Row)
+        if (!UsesExpandedRoster || !roster.Contains(receipt.Owner) || !StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(receipt.Owner), receipt.ActorId) ||
+            !byId.TryGetValue(receipt.ActorId, out BattleCombatant? actor) || actor.Slot is null || RequirePresentationModelOwner(roster, actor) != receipt.Owner)
         {
-            throw new InvalidDataException("Expanded model lifecycle receipt does not belong to its current allocated actor row.");
+            throw new InvalidDataException("Expanded model lifecycle receipt does not belong to its current allocated actor.");
         }
         return actor;
     }

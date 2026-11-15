@@ -8,7 +8,7 @@ public sealed record NativeBattleRinoaPhysicalRibbonDraw(NativeBattleEffectMemor
 /// <summary>56FE10's paired G4 ribbon and retained 248-byte caller scratch.</summary>
 public static class NativeBattleRinoaPhysicalRibbon
 {
-    public static NativeBattleRinoaPhysicalRibbonDraw Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, uint temporary248, ImmutableArray<NativeBattleVector> curve, NativeBattleActionMatrix cameraCurveMatrix, int i, int j, NativeBattleCameraProjection projection, NativeBattleModuleState modules)
+    public static NativeBattleRinoaPhysicalRibbonDraw Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, uint temporary248, ImmutableArray<NativeBattleVector> curve, NativeBattleActionMatrix cameraCurveMatrix, int i, int j, NativeBattleCameraProjection projection, NativeBattleModuleState modules, BattleContactTaskStorageContract storageContract)
     {
         if (curve.IsDefault || curve.Length != 64)
         {
@@ -59,7 +59,7 @@ public static class NativeBattleRinoaPhysicalRibbon
             Put(156, unchecked((uint)axisY));
             Put(160, unchecked((uint)axisZ));
             NativeBattleVector center = curve[k];
-            NativeBattleEffectArena row = NativeBattleEffectArena.Clear().Write(0, modules.ReadPhysicalModuleBytes(checked(0x209D7C0u + (uint)k * 8), 8));
+            NativeBattleEffectArena row = modules.ReadRinoaPhysicalHitView(storageContract, checked(64 + k * 8), 8);
             temporary = NativeBattleEffectNodeContextMemory.Copy(row, 0, temporary, 96, 8);
             Word(96, center.X);
             Word(98, center.Y);
@@ -104,8 +104,7 @@ public static class NativeBattleRinoaPhysicalRibbon
         void Copy(int source, int destination, int length) => temporary = NativeBattleEffectNodeContextMemory.Copy(temporary, source, temporary, destination, length);
         NativeBattleVector ReadCurve(int index)
         {
-            uint address = checked(0x209D7C0u + (uint)index * 8);
-            byte[] bytes = modules.ReadPhysicalModuleBytes(address, 6);
+            byte[] bytes = modules.ReadRinoaPhysicalHitView(storageContract, checked(64 + index * 8), 6).Read(0, 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
         }
         void Emit(ImmutableArray<uint> words, int bucket)

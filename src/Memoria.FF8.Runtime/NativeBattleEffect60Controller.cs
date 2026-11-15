@@ -156,7 +156,7 @@ public static class NativeBattleEffect60Controller
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect60 target requires its pose.");
-            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Effect60 target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Effect60 target requires its current pose frame."), sequence.PoseFlags109));
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -170,7 +170,7 @@ public static class NativeBattleEffect60Controller
                     if (current.State.Word(0x48) == 1)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect60 requires its actual contact pointer.")) + task.ReadTraversalPosition(0x2B));
+                        BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect60Contact(contact));
                         hierarchy = Next(new(current.Effect.Pools), address);
                     }
@@ -265,8 +265,8 @@ public static class NativeBattleEffect60Controller
 
     public static NativeBattleEffect60State InitializeShared(NativeBattleEffect60State retained, NativeBattleModulePoolTask task, NativeBattleEffect60Inputs inputs)
     {
-        NativeBattleEffectArena actor = NativeBattleEffect60Act.RequirePacked8(inputs.ReadPackedPosition8(task.ReadByte(0x2C)));
-        NativeBattleEffectArena target = NativeBattleEffect60Act.RequirePacked8(inputs.ReadPackedPosition8(task.ReadByte(0x2D)));
+        NativeBattleEffectArena actor = NativeBattleEffect60Act.RequirePacked8(inputs.ReadPackedPosition8(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner));
+        NativeBattleEffectArena target = NativeBattleEffect60Act.RequirePacked8(inputs.ReadPackedPosition8(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
         NativeBattleEffectArena shared = NativeBattleEffectArena.Clear();
         shared = CopyPacked(actor, shared, 0);
         shared = CopyPacked(target, shared, 8);

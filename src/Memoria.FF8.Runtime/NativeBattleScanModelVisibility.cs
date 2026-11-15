@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanVisibilityFrame(NativeBattleScanFrame Scan, BattleActorModels Models, NativeBattleStageState Stage, uint BackgroundB8B7D8);

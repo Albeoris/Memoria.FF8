@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect66Frame Frame) DrawNativeEffect66Body(NativeBattleGraphicsState graphics, NativeBattleEffect66Frame frame, uint temporaryAddress, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect66 body requires its current temporary memory.");
         NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect66 body requires its current physical skeleton.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

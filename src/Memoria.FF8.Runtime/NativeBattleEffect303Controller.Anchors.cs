@@ -9,7 +9,7 @@ public static partial class NativeBattleEffect303Controller
     {
         byte[] point = sourcePoint8.Read(0, 8);
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(6));
-        uint model = frame.State.ReadDword(0x25075D8);
+        BattleModelOwner model = frame.State.ReadModel(0x25075D8);
         frame = inputs.Execute(frame, new NativeBattleEffect303RestorePose508C90(model));
         NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, model).ReadMatrix();
         NativeBattleActionMatrix current = inputs.ReadCurrentBoneMatrix(frame, model, bone).ReadMatrix();

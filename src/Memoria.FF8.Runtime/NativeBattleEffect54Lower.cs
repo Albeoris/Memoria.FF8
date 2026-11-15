@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect54Lower
 {
+    private const int OriginalRecipientCapacity = 4;
     public static NativeBattleEffect54Frame Initialize80D090(NativeBattleEffect54Frame frame, uint taskAddress, NativeBattleEffect54Resources resources, NativeBattleEffect54Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
@@ -25,31 +26,43 @@ public static partial class NativeBattleEffect54Lower
         }
         NativeBattleModulePoolTask parent = Read(frame, task.ReadDword(0x10));
         int count = parent.ReadContactCount(0x5A);
-        Store16(ref frame, context + 0x1C, unchecked((ushort)count));
-        Store16(ref frame, context + 0x1E, task.ReadByte(0x2C));
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        var countReference = new BattleExecutionReference.ContactCount(count);
+        frame = WriteBytes(frame, context + 0x1C, NativeBattleEffectArena.Clear().WriteExecutionReference(0, 2, countReference, countReference.EncodeOriginalWord()), 2);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
+        frame = WriteBytes(frame, context + 0x1E, NativeBattleEffectArena.Clear().WriteExecutionReference(0, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2)), 2);
         BattleActionHeaderReference headerIndex = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
         BattleContactCursor first = packets.ReadHeader(headerIndex).FirstContact;
+        var contacts = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
         for (int index = 0; index < count; index++)
         {
-            Store32(ref frame, context + 4 + (uint)(index * 4), packets.ReadContact(first.Advance(index)).Primary.Recipient);
+            NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
+            contacts.Add((contact.Primary.Recipient, contact.Occurrence ?? throw new InvalidDataException("Effect54 requires its stored contact occurrence.")));
+            if (index < OriginalRecipientCapacity)
+            {
+                NativeBattleEffectArena rawModel = NativeBattleEffectArena.Clear().WriteExecutionReference(0, 4, new BattleExecutionReference.Model(contact.Primary.Recipient), packets.ModelAliases.EncodeOperand(contact.Primary.Recipient, 4));
+                frame = WriteBytes(frame, context + 4 + (uint)(index * 4), rawModel, 4);
+            }
         }
         Store16(ref frame, context + 0x1A, task.ReadWord(0x29E));
         if (Read16(frame, context + 0x24) != 0)
         {
             throw new NotSupportedException("Effect54 requires its selected current-anchor context mode.");
         }
-        int actor = Read16(frame, context + 0x1E);
         frame = InitializeActor80D320(frame, actor, context, inputs);
-        frame = InitializeTargets80D670(frame, context, inputs);
-        NativeBattleVector casterPosition = Vector(inputs.ReadModelArena9C(frame, PhysicalModelAddress(actor)), 0x1C);
-        NativeBattleVector targetPosition = Vector(inputs.ReadModelArena9C(frame, PhysicalModelAddress(unchecked((int)Read32(frame, context + 4)))), 0x1C);
+        (frame, ImmutableArray<NativeBattleEffectNodeRecipient> recipients) = InitializeTargets80D670(frame, context, contacts.MoveToImmutable(), inputs);
+        var modelContext = new BattleExecutionReference.NodeContext(actor, recipients);
+        BattleModelOwner firstTarget = modelContext.ReadRecipient(0).Owner;
+        NativeBattleVector casterPosition = Vector(inputs.ReadModelArena9C(frame, actor), 0x1C);
+        NativeBattleVector targetPosition = Vector(inputs.ReadModelArena9C(frame, firstTarget), 0x1C);
         int dx = unchecked((short)(casterPosition.X - targetPosition.X));
         int dy = unchecked((short)(casterPosition.Y - targetPosition.Y));
         int dz = unchecked((short)(casterPosition.Z - targetPosition.Z));
         int square = unchecked(dx * dx + dy * dy + dz * dz);
         Store32(ref frame, context, unchecked((uint)(long)Math.Sqrt(square)));
-        return frame;
+        task = Read(frame, taskAddress);
+        task.WriteExecutionReference(NativeBattleEffectNodeContext.ReferenceOffset, 4, modelContext, packets.ModelAliases.EncodeOperand(firstTarget, 4));
+        return Write(frame, taskAddress, task);
     }
 
     public static NativeBattleEffect54Frame Relocate80D880(NativeBattleEffect54Frame frame, uint source, NativeBattleEffect54Resources resources)
@@ -65,9 +78,8 @@ public static partial class NativeBattleEffect54Lower
         return frame with { Staging = resources.PublishBank(staging, relocated.ToImmutableArray()) };
     }
 
-    public static NativeBattleEffect54Frame InitializeActor80D320(NativeBattleEffect54Frame frame, int actor, uint context, NativeBattleEffect54Inputs inputs)
+    public static NativeBattleEffect54Frame InitializeActor80D320(NativeBattleEffect54Frame frame, BattleModelOwner model, uint context, NativeBattleEffect54Inputs inputs)
     {
-        uint model = PhysicalModelAddress(actor);
         NativeBattleEffectArena packed = inputs.ReadModelArena9C(frame, model);
         NativeBattleEffect54PointStep first = inputs.Point502170(frame, model, 241, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
         frame = first.Frame;
@@ -84,34 +96,34 @@ public static partial class NativeBattleEffect54Lower
         return frame;
     }
 
-    public static NativeBattleEffect54Frame InitializeTargets80D670(NativeBattleEffect54Frame frame, uint context, NativeBattleEffect54Inputs inputs)
+    private static (NativeBattleEffect54Frame Frame, ImmutableArray<NativeBattleEffectNodeRecipient> Recipients) InitializeTargets80D670(NativeBattleEffect54Frame frame, uint context, ImmutableArray<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)> contacts, NativeBattleEffect54Inputs inputs)
     {
-        int count = Read16(frame, context + 0x1C);
+        var recipients = ImmutableArray.CreateBuilder<NativeBattleEffectNodeRecipient>(contacts.Length);
         int minX = 0;
         int maxX = 0;
         int minZ = 0;
         int maxZ = 0;
         NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
-        for (int index = 0; index < count; index++)
+        for (int index = 0; index < contacts.Length; index++)
         {
-            uint model = PhysicalModelAddress(unchecked((int)Read32(frame, context + 4 + (uint)(index * 4))));
+            (BattleModelOwner model, BattleContactOccurrence occurrence) = contacts[index];
             NativeBattleEffectArena packed = inputs.ReadModelArena9C(frame, model);
             NativeBattleEffect54PointStep first = inputs.Point502170(frame, model, 241, 0, retained);
             frame = first.Frame;
             NativeBattleVector point = Vector(first.Output8);
-            uint offset = (uint)(index * 16);
-            PutQ16(ref frame, context + 0x54 + offset, point with { Y = Word54(packed, 0x24) });
-            PutQ16(ref frame, context + 0x94 + offset, point with { Y = 0 });
+            NativeBattleEffectNodeVector heading = WriteTargetAnchor(ref frame, context, index, 0x54, point with { Y = Word54(packed, 0x24) });
+            NativeBattleEffectNodeVector ground = WriteTargetAnchor(ref frame, context, index, 0x94, point with { Y = 0 });
             NativeBattleEffect54PointStep second = inputs.Point502170(frame, model, 241, 0, first.Output8);
             frame = second.Frame;
-            PutQ16(ref frame, context + 0xD4 + offset, Vector(second.Output8));
+            NativeBattleEffectNodeVector boneF1 = WriteTargetAnchor(ref frame, context, index, 0xD4, Vector(second.Output8));
             NativeBattleEffect54PointStep third = inputs.Point502170(frame, model, 240, 0, second.Output8);
             frame = third.Frame;
             retained = third.Output8;
-            PutQ16(ref frame, context + 0x114 + offset, Vector(third.Output8));
-            PutQ16(ref frame, context + 0x154 + offset, point with { Y = Word54(packed, 0x3C) });
-            int x = unchecked((int)Read32(frame, context + 0x54 + offset));
-            int z = unchecked((int)Read32(frame, context + 0x5C + offset));
+            NativeBattleEffectNodeVector boneF0 = WriteTargetAnchor(ref frame, context, index, 0x114, Vector(third.Output8));
+            NativeBattleEffectNodeVector upperBound = WriteTargetAnchor(ref frame, context, index, 0x154, point with { Y = Word54(packed, 0x3C) });
+            recipients.Add(new(model, occurrence, heading, ground, boneF1, boneF0, upperBound));
+            int x = unchecked((int)heading.X);
+            int z = unchecked((int)heading.Z);
             if (index == 0)
             {
                 minX = maxX = x;
@@ -128,7 +140,23 @@ public static partial class NativeBattleEffect54Lower
         Store32(ref frame, context + 0x194, unchecked((uint)(unchecked(minX + maxX) / 2)));
         Store32(ref frame, context + 0x198, 0);
         Store32(ref frame, context + 0x19C, unchecked((uint)(unchecked(minZ + maxZ) / 2)));
-        return frame;
+        return (frame, recipients.MoveToImmutable());
+    }
+
+    private static NativeBattleEffectNodeVector WriteTargetAnchor(ref NativeBattleEffect54Frame frame, uint context, int index, uint lane, NativeBattleVector point)
+    {
+        uint x = unchecked((uint)(point.X << 16));
+        uint y = unchecked((uint)(point.Y << 16));
+        uint z = unchecked((uint)(point.Z << 16));
+        if (index >= OriginalRecipientCapacity)
+        {
+            return new(x, y, z, 0);
+        }
+        uint address = checked(context + lane + (uint)(index * 16));
+        PutQ16(ref frame, address, point);
+        (byte[] bytes, bool[] known) = ReadBytes(frame, address + 12, 4).ReadSnapshot(0, 4);
+        return new(x, y, z, BinaryPrimitives.ReadUInt32LittleEndian(bytes), NativeBattleEffectNodeMemory.KnownBytes(known));
+
     }
 
     public static NativeBattleEffect54Step Advance80DAE0(NativeBattleEffect54Frame frame, uint taskAddress, NativeBattleEffect54Resources resources, NativeBattleEffect54Inputs inputs)
@@ -233,7 +261,7 @@ public static partial class NativeBattleEffect54Lower
             {
                 frame = WriteBytes(frame, node, NativeBattleEffectArena.Clear().Write(0, new byte[EmitterStride]), EmitterStride);
                 Store8(ref frame, node + 0x6A, unchecked((byte)source));
-                Store8(ref frame, node + 0x6B, unchecked((byte)target));
+                frame = WriteRecipientPosition(frame, node + 0x6B, target);
                 Store32(ref frame, node + 0x5C, parent);
                 Store8(ref frame, node + 0x69, 1);
                 uint counter = frame.State.ReadDword(CurrentContextGlobal) + 0x14;

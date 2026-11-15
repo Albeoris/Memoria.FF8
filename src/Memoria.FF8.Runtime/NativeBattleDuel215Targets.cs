@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel215TargetBoundsResult(NativeBattleDuel215Frame Frame, short Maximum, short Minimum);
-public sealed record NativeBattleDuel215TargetServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, ImmutableArray<byte> Targets, Func<NativeBattleDuel215Frame, int, NativeBattleDuel215TargetBoundsResult> ReadBounds69D360, Func<NativeBattleDuel215Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleDuel215Frame> Draw69D200);
+public sealed record NativeBattleDuel215TargetServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, ImmutableArray<BattleModelOwner> Targets, Func<NativeBattleDuel215Frame, BattleModelOwner, NativeBattleDuel215TargetBoundsResult> ReadBounds69D360, Func<NativeBattleDuel215Frame, BattleModelOwner, NativeBattleVector, NativeBattleVector, NativeBattleDuel215Frame> Draw69D200);
 
 public static class NativeBattleDuel215Targets
 {
@@ -29,7 +29,7 @@ public static class NativeBattleDuel215Targets
                 Refresh();
                 for (int index = 0; index < services.Targets.Length; index++)
                 {
-                    int target = Target(index);
+                    BattleModelOwner target = Target(index);
                     Store();
                     NativeBattleDuel215TargetBoundsResult bounds = services.ReadBounds69D360(frame, target);
                     frame = bounds.Frame;
@@ -42,7 +42,7 @@ public static class NativeBattleDuel215Targets
         }
         for (int index = 0; index < services.Targets.Length; index++)
         {
-            int target = Target(index);
+            BattleModelOwner target = Target(index);
             int offset = 64 + index * 32;
             NativeBattleGraphicsModel model = services.ReadModel(target);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel215 target motion requires its actual raw position WORDs.");
@@ -85,7 +85,7 @@ public static class NativeBattleDuel215Targets
         }
         if (phase == 40)
         {
-            foreach (int target in services.Targets)
+            foreach (BattleModelOwner target in services.Targets)
             {
                 NativeBattleGraphicsModel model = services.ReadModel(target);
                 services.WriteModel(target, model with { Flags0 = (ushort)(model.Flags0 & ~8) });
@@ -110,10 +110,10 @@ public static class NativeBattleDuel215Targets
         }
         short Signed(int offset) => unchecked((short)task.ReadWord(offset));
         short ReadWord(uint address) => System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(address, 2));
-        int Target(int index)
+        BattleModelOwner Target(int index)
         {
-            int target = services.Targets[index];
-            if (task.ReadDword(64 + index * 32) != NativeBattleGraphicsModelAddress.Encode(target))
+            BattleModelOwner target = services.Targets[index];
+            if (task.ReadExecutionReference<BattleExecutionReference.Model>(64 + index * 32, 4).Owner != target)
             {
                 throw new InvalidDataException("Native Duel215 target motion lost its actual model pointer.");
             }

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect9NodeAnchor(NativeBattleEffect9Frame Frame, NativeBattleVector Point);
 
-public sealed record NativeBattleEffect9NodeInputs(Func<uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleEffect9Frame, int, NativeBattleEffect9NodeAnchor> ReadTargetF1, NativeBattlePackedMatrix32 View, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<NativeBattleEffect9Frame, NativeBattleGfGeometryBatch, NativeBattleEffect9Frame> Append);
+public sealed record NativeBattleEffect9NodeInputs(Func<uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleEffect9Frame, BattleModelOwner, NativeBattleEffect9NodeAnchor> ReadTargetF1, NativeBattlePackedMatrix32 View, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<NativeBattleEffect9Frame, NativeBattleGfGeometryBatch, NativeBattleEffect9Frame> Append);
 
 public static class NativeBattleEffect9Nodes
 {
@@ -34,7 +34,7 @@ public static class NativeBattleEffect9Nodes
                 }
                 else
                 {
-                    NativeBattleEffect9NodeAnchor anchor = inputs.ReadTargetF1(frame, task.ReadByte(0x2D));
+                    NativeBattleEffect9NodeAnchor anchor = inputs.ReadTargetF1(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                     frame = anchor.Frame;
                     NativeBattleVector point = anchor.Point;
                     task = task.WriteWord(0x1C, unchecked((ushort)point.X)).WriteWord(0x1E, unchecked((ushort)point.Y)).WriteWord(0x20, unchecked((ushort)point.Z));

@@ -5,16 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static int NativeEffect31Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect31 requires an actual current physical model address.");
-        }
-        return actorIndex;
-    }
-
-    private NativeBattlePoseSource ReadNativeEffect31Pose(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor)
+    private NativeBattlePoseSource ReadNativeEffect31Pose(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattleModelOwner actor)
     {
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect31 requires its current addressed pose owner.");
         return NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect31 requires its current physical skeleton.");
@@ -72,7 +63,7 @@ public sealed partial class BattleSession
         return NativeBattleEffect31Controller.ReadBytes(frame, address, length);
     }
 
-    private NativeBattleResourcePointer ReadNativeEffect31SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor)
+    private NativeBattleResourcePointer ReadNativeEffect31SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
@@ -88,7 +79,7 @@ public sealed partial class BattleSession
         return new(cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect31 requires its current CPU resource row.")].Require(12), null);
     }
 
-    private NativeBattleResourcePointer ReadNativeEffect31BonePointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, int bone)
+    private NativeBattleResourcePointer ReadNativeEffect31BonePointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattleModelOwner actor, int bone)
     {
         NativeBattleResourcePointer pointer = ReadNativeEffect31SkeletonPointer(graphics, frame, actor);
         int offset = checked(32 + bone * 48);
@@ -99,7 +90,7 @@ public sealed partial class BattleSession
         return pointer with { Cpu = pointer.Cpu is { } reference ? reference.Advance(offset) : null, StagingAddress = pointer.StagingAddress is uint address ? checked(address + (uint)offset) : null, Length = 32 };
     }
 
-    private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect31BodyBones(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, NativeBattlePoseSource source)
+    private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect31BodyBones(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattleModelOwner actor, NativeBattlePoseSource source)
     {
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         ImmutableArray<NativeBattlePackedMatrix32>.Builder result = ImmutableArray.CreateBuilder<NativeBattlePackedMatrix32>(matrices.Length);
@@ -120,9 +111,8 @@ public sealed partial class BattleSession
         return frame with { Memory = memory, Staging = NativeFileStaging };
     }
 
-    private NativeBattleEffect31PointStep ReadNativeEffect31Point(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, uint modelAddress, int selector, int fraction, NativeBattleEffectArena retained)
+    private NativeBattleEffect31PointStep ReadNativeEffect31Point(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
     {
-        int actor = NativeEffect31Actor(graphics, modelAddress);
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : ReadNativeEffect31Pose(graphics, frame, actor);
         NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));

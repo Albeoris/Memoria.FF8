@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         return NativeBattleReflectionRules.CanReflect(native.Command, native.AttackFlags, native.AttackType) && (recipient.NativeStatus1 & 0x80) != 0;
     }
 
-    private void ResolveNativeReflection(BattleCombatant actor, BattleCombatant reflector, BattleActionPresentation command, BattleNativeAction source, int sourceHeader)
+    private void ResolveNativeReflection(BattleCombatant actor, BattleCombatant reflector, BattleActionPresentation command, BattleNativeAction source, BattleActionHeaderReference sourceHeader)
     {
         //487DF0 consumes the first491AD0/493280/491940/493110 reflection receipt, retaining its original caster.
         BattleNativeAction reflected = FindInstalledNativeAction(247, unchecked((byte)source.ActionId));

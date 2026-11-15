@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Rapture requires its camera.")).RegisterControlResource(textures.Animation);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2507C78, 0x2507C88, 24, 1);
         (roots, int slot) = roots.Append(0x679290);
-        NativeBattleModulePoolTask task = roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0).WriteDword(20, 0);
+        NativeBattleModulePoolTask task = roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0).WriteTraversalPosition(16, 0).WriteDword(20, 0);
         roots = roots.WriteSlot(slot, task);
         return graphics with { OriginalEffect = effect with { Pools = [roots], ReturnedDescriptor = 0x2507C78, DrawArenaOffset = null } };
     }
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         effect = effect with { DrawArenaOffset = root.ReadDword(20) != 0 ? 9312 : 107616 };
         root = root.WriteDword(20, root.ReadDword(20) != 0 ? 0u : 1u);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Rapture requires its original target contact list.");
+        BattleContactCursor first = header.FirstContact;
         if (root.ReadWord(12) == 1)
         {
             if (root.ReadByte(17) == 0)
@@ -42,20 +42,21 @@ public sealed partial class BattleSession
                 root = root.WriteByte(17, 1);
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2507C68, 0x20DFAB8, 1056, 6), NativeBattleEffectTaskPool.Initialize(0x2507C58, 0x20DFAB8 + 6336, 36, 48), NativeBattleEffectTaskPool.Initialize(0x2507C48, 0x20DFAB8 + 8064, 20, 48)];
             }
-            int ordinal = root.ReadByte(16);
+            int ordinal = root.ReadTraversalPosition(16);
             if (ordinal < header.ReadContactCount())
             {
                 if (Allocate(1, 0x679510, out int slot))
                 {
-                    NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + ordinal);
+                    NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first.Advance(ordinal));
                     BattleModelOwner actor = contact.Primary.Recipient;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(1044);
-                    target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags & 4)).WriteDword(20, NativeBattleGraphicsModelAddress.Encode(actor));
+                    target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags & 4));
+                    target.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
                     target = Init(target, 24, 252, resources.First);
                     Put(1, slot, Init(target, 276, 780, resources.Second));
                 }
-                root = root.WriteByte(16, unchecked((byte)(ordinal + 1)));
+                root = root.WriteTraversalPosition(16, checked(ordinal + 1));
             }
         }
         var flash = NativeBattleRapture288Geometry.Flash(unchecked((short)root.ReadWord(14)), resources.Colors);
@@ -123,7 +124,7 @@ public sealed partial class BattleSession
         int Target(ref NativeBattleModulePoolTask task)
         {
             int age = WindWord(task, 12);
-            int actor = NativeBattleStatusMagicController.ModelIndex(task.ReadDword(20));
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Rapture requires its target transform.");
             NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
@@ -181,7 +182,7 @@ public sealed partial class BattleSession
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + index);
+                    NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first.Advance(index));
                     if (contact.Primary.Recipient == actor)
                     {
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] });

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Disolving Acid requires its actual process memory.");
         NativeBattleDisolvingAcid132Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Disolving Acid requires its CRT stream."), memory.DisolvingAcid132 ?? throw new NotSupportedException("Disolving Acid requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Disolving Acid requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Disolving Acid requires its original interpolation constants.");
-        NativeBattleDisolvingAcid132Inputs inputs = new(nativeActionPackets, colors, Emitter, ModelMatrix, pointer => checked((byte)PoseSource(Actor(pointer)).BoneCount), Bone, _ => Camera().CapturePackedView1D97778(), _ => Projection(), AdvanceAct, Execute) { CapturePresentation = true };
+        NativeBattleDisolvingAcid132Inputs inputs = new(nativeActionPackets, colors, Emitter, ModelMatrix, actor => checked((byte)PoseSource(actor).BoneCount), Bone, _ => Camera().CapturePackedView1D97778(), _ => Projection(), AdvanceAct, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleDisolvingAcid132Controller.Initialize(frame, resources, inputs) : NativeBattleDisolvingAcid132Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -28,7 +28,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Disolving Acid requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Disolving Acid requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Disolving Acid requires its current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Disolving Acid requires its current actor skeleton.");
 
         void Publish(NativeBattleDisolvingAcid132Frame current)
         {
@@ -44,20 +44,10 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Disolving Acid requires its actual current model pointer.");
-            }
-            return actorIndex;
-        }
+        NativeBattlePackedMatrix32 ModelMatrix(NativeBattleDisolvingAcid132Frame current, BattleModelOwner actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Disolving Acid requires its current caster world matrix."), null);
 
-        NativeBattlePackedMatrix32 ModelMatrix(NativeBattleDisolvingAcid132Frame current, uint pointer) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Disolving Acid requires its current caster world matrix."), null);
-
-        NativeBattleDisolvingAcid132PointStep Bone(NativeBattleDisolvingAcid132Frame current, uint pointer, byte selector, short distance)
+        NativeBattleDisolvingAcid132PointStep Bone(NativeBattleDisolvingAcid132Frame current, BattleModelOwner actor, byte selector, short distance)
         {
-            int actor = Actor(pointer);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -66,7 +56,7 @@ public sealed partial class BattleSession
 
         NativeBattleDisolvingAcid132PointStep Emitter(NativeBattleDisolvingAcid132Frame current, NativeBattleEffectArena row)
         {
-            int caster = Actor(current.State.ReadDword(NativeBattleDisolvingAcid132Profile.CasterGlobal));
+            BattleModelOwner caster = current.State.ReadModel(NativeBattleDisolvingAcid132Profile.CasterGlobal);
             NativeBattlePoseSource pose = PoseSource(caster);
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(caster), pose);
             byte[] anchor = row.Read(0, 8);
@@ -132,7 +122,7 @@ public sealed partial class BattleSession
                 case NativeBattleDisolvingAcid132Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new InvalidDataException("Disolving Acid requires its current first contact.")) + contact.Index))) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContact.Advance(contact.RelativeContact))) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Disolving Acid contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleDisolvingAcid132DrawSprite180 sprite:

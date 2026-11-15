@@ -15,11 +15,8 @@ public static partial class NativeBattleElectricDischarge126Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleElectricDischarge126State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
-        for (int actor = 0; actor < 3; actor++)
-        {
-            state = state.WriteDword(SavedColorsGlobal + (uint)(actor * 4), inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Electric Discharge requires all three actual retained party colors."));
-        }
+        NativeBattleElectricDischarge126State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).BindCaster(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
+        state = inputs.CapturePartyColors(state);
         return frame with { State = state, Memory = (frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }).SeedSharedEffectRandom7059D0(0), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -56,11 +53,8 @@ public static partial class NativeBattleElectricDischarge126Controller
         uint working = Working(frame);
         frame = frame with { State = frame.State.WriteDword(CursorGlobal, checked(working + (uint)(first ? FirstPacketOffset : SecondPacketOffset))).WriteDword(FadeGlobal, 0) };
         frame = Write(frame, address, root.WriteDword(16, first ? 0u : 1u));
-        for (byte actor = 0; actor < 3; actor++)
-        {
-            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126ActorFlags(actor, 0x800, 0));
-        }
-        byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
+        inputs.ClearPartyFlash();
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
         {
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
@@ -81,7 +75,9 @@ public static partial class NativeBattleElectricDischarge126Controller
             {
                 throw new NotSupportedException("Electric Discharge exhausted its actual single main task.");
             }
-            frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteBytes(12, new byte[8]));
+            NativeBattleModulePoolTask mainTask = Read(frame, mainAddress).WriteBytes(12, new byte[8]);
+            mainTask.WriteExecutionReference(16, 2, new BattleExecutionReference.TraversalPosition(0), [0, 0]);
+            frame = Write(frame, mainAddress, mainTask);
             frame = WriteArena(WriteArena(frame, working + WorldFreePointerOffset, BitConverter.GetBytes(0u)), working + BoneFreePointerOffset, BitConverter.GetBytes(0u));
         }
         int survivors = 0;

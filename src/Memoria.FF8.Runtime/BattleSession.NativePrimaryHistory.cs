@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleEffectMemory Memory, NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) DrawNativePrimaryHistory76(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging? currentStaging, NativeBattleGraphicsState graphics, int actor, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
+    private (NativeBattleEffectMemory Memory, NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) DrawNativePrimaryHistory76(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging? currentStaging, NativeBattleGraphicsState graphics, BattleModelOwner actor, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
@@ -17,10 +17,10 @@ public sealed partial class BattleSession
         NativeBattleFileStaging staging = currentStaging ?? throw new NotSupportedException("Primary body history requires its current temporary owner.");
         NativeBattleResourcePointer? hostedGeometry = null;
         NativeBattleModelTextureOwner? material = null;
-        if (graphics.PresentationRoster is not null && memory.Textures?.PresentationTextures is not null)
+        if (memory.Textures?.PresentationTextures is not null)
         {
             hostedGeometry = GeometryPointer();
-            material = SelectNativeModelMaterial(graphics, model, hostedGeometry, memory.Textures);
+            material = SelectNativeModelMaterial(graphics, actor, hostedGeometry, memory.Textures);
         }
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 76);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Primary body history requires its current world matrix.");
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             NativeBattleResourcePointer pointer = hostedGeometry ?? GeometryPointer();
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, Read);
             ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(geometrySource.Read, source.BoneCount);
-            NativeBattlePilotVisualIdentity? pilotIdentity = callerPilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ geometrySource.PresentationIdentity) } : null;
+            NativeBattlePilotVisualIdentity? pilotIdentity = callerPilotIdentity is { } identity ? identity with { ModelOwner = actor, ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ geometrySource.PresentationIdentity) } : null;
             process = process.PublishModelColor(color);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
             NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, NativeBattleBodyBoneMatrices.Require(model, source), projection, color, mask, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Primary body history requires its color arithmetic."), 4, new(0, 0, 320, 216), 17, pilotIdentity: pilotIdentity, pilotContinuous: callerPilotIdentity?.Effect != 174);

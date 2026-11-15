@@ -13,7 +13,7 @@ public static partial class NativeBattleEffect68Lower
         {
             case 0:
                 frame = PutWord(frame, 0x26005B2, 0);
-                NativeBattleEffect68ResultStep result = inputs.BuildResultsB67EF0(frame, task.ReadByte(0x2D));
+                NativeBattleEffect68ResultStep result = inputs.BuildResultsB67EF0(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 frame = result.Frame;
                 task = Next(Read(frame, address).WriteWord(0x6A, result.Count));
                 break;

@@ -19,7 +19,7 @@ public static partial class NativeBattleElectrocute275Controller
         {
             frame = frame with { State = frame.State.WriteDword(FadeGlobal, unchecked((uint)fade)) };
         }
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if ((uint)age < 8 && (age & 1) == 0)
         {
             int count = resources.ReadPathWord(BonePathsAddress);
@@ -48,7 +48,7 @@ public static partial class NativeBattleElectrocute275Controller
             frame = DrawRandom(frame, out ushort vy);
             frame = DrawRandom(frame, out ushort vz);
             frame = DrawRandom(frame, out ushort texture);
-            (frame, uint head) = StartWorld(frame, new((short)((vx & 127) - 64), (short)((vy & 127) - 64), (short)((vz & 127) - 64)), source, destination, null, -1, 0, 256, 250, (short)(texture & 1), 3);
+            (frame, uint head) = StartWorld(frame, new((short)((vx & 127) - 64), (short)((vy & 127) - 64), (short)((vz & 127) - 64)), source, destination, null, null, inputs.Packets.ModelAliases, 0, 256, 250, (short)(texture & 1), 3);
             frame = ClearHeadVelocity(frame, head);
         }
         int targetAge = age - 14;
@@ -62,29 +62,31 @@ public static partial class NativeBattleElectrocute275Controller
                 frame = sourceStep.Frame;
                 NativeBattleElectrocute275AnchorStep casterStep = inputs.ReadAnchor571400(frame, caster);
                 frame = casterStep.Frame;
-                int targetCount = Signed(Read(frame, address), 14);
+                int targetCount = Read(frame, address).ReadContactCount(14);
                 if (targetCount <= 0)
                 {
                     throw new InvalidDataException("Electrocute target cycle requires a captured target.");
                 }
-                int actor = -1;
+                BattleModelOwner? actor = null;
                 for (int attempt = 0; attempt < targetCount; attempt++)
                 {
                     task = Read(frame, address);
-                    int index = Signed(task, 16);
+                    int index = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(16, 2).Offset ?? throw new InvalidDataException("Electrocute target cycle requires its current contact position.");
                     if ((uint)index >= targetCount)
                     {
                         throw new InvalidDataException("Electrocute target cycle leaves its captured contacts.");
                     }
-                    actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.Recipient;
-                    frame = Write(frame, address, task.WriteWord(16, unchecked((ushort)(index + 1 >= targetCount ? 0 : index + 1))));
+                    actor = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(index)).Primary.Recipient;
+                    BattleExecutionReference.ContactOffset next = new(index + 1 >= targetCount ? 0 : index + 1);
+                    task.WriteExecutionReference(16, 2, next, next.EncodeOriginalWord());
+                    frame = Write(frame, address, task);
                     if ((inputs.ReadModel(actor).Flags0 & 2) != 0)
                     {
                         break;
                     }
-                    actor = -1;
+                    actor = null;
                 }
-                if (actor < 0)
+                if (actor is null)
                 {
                     throw new NotSupportedException("Electrocute target cycle has no original enabled actor.");
                 }
@@ -99,7 +101,7 @@ public static partial class NativeBattleElectrocute275Controller
                 short dy = unchecked((short)(sourceStep.Position.Y - casterStep.Anchor.Y));
                 NativeBattleVector velocity = new(unchecked((short)(sourceStep.Position.X - casterStep.Anchor.X)), unchecked((short)(dy > 0 ? dy >> 3 : dy >> 1)), unchecked((short)(unchecked((short)(sourceStep.Position.Z - casterStep.Anchor.Z)) >> 2)));
                 frame = DrawRandom(frame, out ushort texture);
-                (frame, uint head) = StartWorld(frame, velocity, sourceStep.Position, targetStep.Position, null, (short)actor, 0, 256, 250, (short)(texture & 1), 3);
+                (frame, uint head) = StartWorld(frame, velocity, sourceStep.Position, targetStep.Position, null, actor, inputs.Packets.ModelAliases, 0, 256, 250, (short)(texture & 1), 3);
                 frame = ClearHeadVelocity(frame, head);
             }
             if ((targetAge & 3) == 0)

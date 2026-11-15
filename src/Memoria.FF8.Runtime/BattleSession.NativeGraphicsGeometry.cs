@@ -45,21 +45,6 @@ public sealed partial class BattleSession
         return prepared;
     }
 
-    private static void RequireHostedActionModelBank(NativeBattleGraphicsState graphics, BattleModelRoster roster)
-    {
-        if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount || graphics.ActorIds.IsDefault || graphics.ActorIds.Length != roster.ActorCount)
-        {
-            throw new InvalidDataException("Hosted action services require a model bank and actor identities for their presentation roster.");
-        }
-        for (int row = 0; row < roster.ActorCount; row++)
-        {
-            if (graphics.ActorModels.Get(row)?.Index != row || !string.Equals(graphics.ActorIds[row], roster.Rows[row]?.ActorId, StringComparison.Ordinal))
-            {
-                throw new InvalidDataException($"Hosted action model or actor identity differs from its presentation binding at row {row}.");
-            }
-        }
-    }
-
     private int ReadNativeGraphicsActionVariable(NativeBattleGraphicsState graphics, byte variable)
     {
         if (variable == 25)

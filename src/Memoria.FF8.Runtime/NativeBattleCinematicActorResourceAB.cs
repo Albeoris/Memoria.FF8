@@ -5,11 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicActorResourceAB
 {
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> bind, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleWaterExecutionFrame> select)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, uint, NativeBattleWaterExecutionFrame> bind, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, short, NativeBattleWaterExecutionFrame> select)
     {
-        byte actor = frame.Arena.Read(SlotOffset(frame, 0x1B, 1), 1)[0];
-        uint owner = CoreDword(frame, 0x279744C);
-        uint model = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
+        BattleModelOwner model = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         uint row;
         (frame, row) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 32);
         frame = bind(frame, model, row);

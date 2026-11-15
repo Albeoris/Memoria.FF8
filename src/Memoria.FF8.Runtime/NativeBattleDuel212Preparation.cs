@@ -1,28 +1,31 @@
+using System.Text.Json.Serialization;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel212PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, Func<NativeBattleDuel212Frame, NativeBattleVector, NativeBattleThundaga105Bounds, NativeBattleDuel212Frame> Capture6A12B0, Func<NativeBattleDuel212Frame, int, uint, NativeBattleDuel212Frame> BindActor5022C0, Func<NativeBattleDuel212Frame, int, byte, NativeBattleDuel212Frame> SelectSequence505C00);
+public sealed record NativeBattleDuel212PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<BattleModelOwner> Targets, NativeBattleModelAliases Aliases, Func<NativeBattleModelSlot, NativeBattleGraphicsModel> ReadOriginalModel, Func<NativeBattleDuel212Frame, NativeBattleVector, NativeBattleThundaga105Bounds, NativeBattleDuel212Frame> Capture6A12B0, Func<NativeBattleDuel212Frame, BattleModelOwner, uint, NativeBattleDuel212Frame> BindActor5022C0, Func<NativeBattleDuel212Frame, BattleModelOwner, byte, NativeBattleDuel212Frame> SelectSequence505C00);
 
 public static class NativeBattleDuel212Preparation
 {
     public static NativeBattleDuel212Frame Initialize6A0DC0(NativeBattleDuel212Frame frame, int slot, NativeBattleDuel212PreparationServices services)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Burning Rave preparation requires its entered action parameters.");
-        NativeBattleDuel212Resources resources = frame.Memory.Duel212.Resources ?? throw new NotSupportedException("Native Burning Rave preparation requires its actual resources.");
+        NativeBattleDuel212Resources resources = frame.Memory.Duel212?.Resources ?? throw new NotSupportedException("Native Burning Rave preparation requires its actual resources.");
         BattleModelOwner actor = parameters.Source;
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleDuel212Controller.Targets);
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        if (task.Callback != 0x6A1660 || services.Targets.IsDefaultOrEmpty || services.Targets.Length > 7 || services.Targets.Any(target => target >= 7))
+        if (task.Callback != 0x6A1660 || services.Targets.IsDefaultOrEmpty || services.Targets.Length > 7 || services.Targets.Any(target => !services.Aliases.Roster.Contains(target)))
         {
             throw new InvalidDataException("Native Burning Rave preparation requires its actual scene and action contact rows.");
         }
         task = task.ClearPayload(3268);
-        for (int index = 0; index < 7; index++)
+        for (byte alias = 0; alias < NativeBattleModelBoundary.CellCount; alias++)
         {
-            frame = frame with { Staging = frame.Staging.Write(checked(0x25102A0u + (uint)index * 4), BitConverter.GetBytes((uint)services.ReadModel(index).Flags0)) };
+            ushort flags = services.ReadOriginalModel(NativeBattleModelSlot.Decode(alias)).Flags0;
+            frame = frame with { Staging = frame.Staging.Write(0x25102A0u + (uint)alias * 4, BitConverter.GetBytes((uint)flags)) };
         }
+        frame = frame with { Effect = frame.Effect with { Duel212SavedFlags = services.Aliases.Roster.Owners.ToImmutableDictionary(owner => owner, owner => services.ReadModel(owner).Flags0) } };
         int minX = short.MaxValue;
         int minY = short.MaxValue;
         int minZ = short.MaxValue;
@@ -31,11 +34,11 @@ public static class NativeBattleDuel212Preparation
         int maxZ = -32767;
         for (int index = 0; index < services.Targets.Length; index++)
         {
-            int target = services.Targets[index];
+            BattleModelOwner target = services.Targets[index];
             NativeBattleGraphicsModel model = services.ReadModel(target);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Burning Rave preparation requires its actual target position.");
             int offset = 64 + index * 24;
-            task = task.WriteDword(offset, NativeBattleGraphicsModelAddress.Encode(target));
+            task.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(target), services.Aliases.EncodeAddress(target));
             task = Position(task, offset + 4, transform);
             task = task.WriteBytes(offset + 12, frame.Staging.Read(0x2510270, 8));
             NativeBattleModuleAnchor point = services.ReadAnchor571400(target);
@@ -107,4 +110,10 @@ public static class NativeBattleDuel212Preparation
 
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, int offset, NativeBattleModelTransform transform) => task.WriteDword(offset, Pack(transform.Position28.X, transform.Position28.Y)).WriteDword(offset + 4, Pack(transform.Position28.Z, transform.Vertical34));
     private static uint Pack(short first, short second) => unchecked((ushort)first) | unchecked((uint)(ushort)second << 16);
+}
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> Duel212SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
 }

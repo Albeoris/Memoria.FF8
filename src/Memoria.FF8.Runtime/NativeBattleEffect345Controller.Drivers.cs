@@ -4,7 +4,7 @@ public static partial class NativeBattleEffect345Controller
 {
     public static uint Workspace(NativeBattleEffect345Frame frame) => Dword345(ReadBytes(frame, 0x1524658, 4), 0);
 
-    public static int ContactIndex(NativeBattleEffect345Frame frame, NativeBattleModulePoolTask task, NativeBattleEffect345Inputs inputs)
+    public static BattleContactCursor ContactCursor(NativeBattleEffect345Frame frame, NativeBattleModulePoolTask task, NativeBattleEffect345Inputs inputs)
     {
         if (task.ReadDword(0x0C) != 0x1D99A78)
         {
@@ -12,7 +12,7 @@ public static partial class NativeBattleEffect345Controller
         }
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect345 requires its physical contact pointer.")) + task.ReadTraversalPosition(0x2B));
+        BattleContactCursor contact = packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
         _ = packets.ReadContact(contact);
         return contact;
     }
@@ -32,7 +32,7 @@ public static partial class NativeBattleEffect345Controller
             case 1:
                 if (Word345(ReadBytes(frame, Workspace(frame) + 0x48, 2), 0) == 1)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleEffect345Contact506690(ContactIndex(frame, task, inputs)));
+                    frame = inputs.Execute(frame, new NativeBattleEffect345Contact506690(ContactCursor(frame, task, inputs)));
                     frame = IncrementPhase(frame, address);
                 }
                 break;
@@ -58,16 +58,15 @@ public static partial class NativeBattleEffect345Controller
     {
         uint workspace = Workspace(frame);
         frame = ClearBytes(frame, workspace, 0x54);
-        byte actor = Read(frame, address).ReadByte(0x2D);
-        uint modelAddress = PhysicalModelAddress(actor);
-        NativeBattleEffect345PointStep anchor = inputs.Point502170(frame, modelAddress, 241, 0, ReadBytes(frame, workspace + 8, 8));
+        BattleModelOwner actor = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+        NativeBattleEffect345PointStep anchor = inputs.Point502170(frame, actor, 241, 0, ReadBytes(frame, workspace + 8, 8));
         frame = WriteBytes(anchor.Frame, workspace + 8, anchor.Output8, 8);
-        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, modelAddress);
+        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, actor);
         NativeBattleEffectArena state = ReadBytes(frame, workspace, 0x54);
         state = CopyBytes(model, 0x1C, state, 0, 4);
         state = CopyBytes(model, 0x20, state, 4, 4).Write(2, BitConverter.GetBytes((short)0)).Write(0xA, BitConverter.GetBytes((short)0));
         int scaled = unchecked(Word345(model, 0x26) * 0x7D0) >> 12;
-        short z = unchecked((short)(Word345(state, 4) + (actor <= 2 ? -0x200 - scaled : 0x200 + scaled)));
+        short z = unchecked((short)(Word345(state, 4) + (actor.Side == BattleSide.Allies ? -0x200 - scaled : 0x200 + scaled)));
         state = state.Write(4, BitConverter.GetBytes(z));
         short dx = unchecked((short)(Word345(state, 8) - Word345(state, 0)));
         short dz = unchecked((short)(Word345(state, 0xC) - Word345(state, 4)));

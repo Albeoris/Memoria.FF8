@@ -33,8 +33,8 @@ public static partial class NativeBattleElectrocute275Controller
             frame = WeightedBlend(frame, Vector(task, 0x18), Vector(task, 0x20), 4096 - progress, progress, inputs, out NativeBattleVector position);
             if (progress >= 4096)
             {
-                short actor = Signed(task, 0x36);
-                if (actor >= 0)
+                BattleExecutionReference.TrailTarget target = task.ReadExecutionReference<BattleExecutionReference.TrailTarget>(0x36, 2);
+                if (target.Owner is not null)
                 {
                     frame = DrawRandom(frame, out ushort random);
                     uint threshold = frame.State.ReadFlashThreshold();
@@ -49,12 +49,13 @@ public static partial class NativeBattleElectrocute275Controller
                     }
                     frame = frame with { State = frame.State with { FlashThreshold = threshold } };
                 }
-                if (actor >= 0 || position.Y >= 0)
+                if (target.Owner is not null || position.Y >= 0)
                 {
                     (frame, uint spriteAddress) = Append(frame, 4, 0x688C60);
                     if (spriteAddress != 0)
                     {
-                        NativeBattleModulePoolTask sprite = Vector(Read(frame, spriteAddress).WriteWord(12, 0), 0x10, position).WriteByte(14, actor >= 0 ? (byte)0 : (byte)1).WriteWord(0x16, unchecked((ushort)(Signed(task, 0x38) << (actor >= 0 ? 4 : 5)))).WriteByte(15, unchecked((byte)actor));
+                        NativeBattleModulePoolTask sprite = Vector(Read(frame, spriteAddress).WriteWord(12, 0), 0x10, position).WriteByte(14, target.Owner is not null ? (byte)0 : (byte)1).WriteWord(0x16, unchecked((ushort)(Signed(task, 0x38) << (target.Owner is not null ? 4 : 5))));
+                        sprite.WriteExecutionReference(15, 1, target, target.EncodeOriginal(inputs.Packets.ModelAliases, 1));
                         frame = Write(frame, spriteAddress, sprite);
                     }
                 }
@@ -78,7 +79,7 @@ public static partial class NativeBattleElectrocute275Controller
                 frame = DrawRandom(frame, out ushort branch);
                 if (branch < (Signed(task, 0x2E) << 13))
                 {
-                    frame = BranchWorld(frame, address, point, position);
+                    frame = BranchWorld(frame, address, point, position, inputs.Packets.ModelAliases);
                 }
             }
         }
@@ -141,7 +142,7 @@ public static partial class NativeBattleElectrocute275Controller
         return (frame, 0);
     }
 
-    private static NativeBattleElectrocute275Frame BranchWorld(NativeBattleElectrocute275Frame frame, uint address, uint point, NativeBattleVector position)
+    private static NativeBattleElectrocute275Frame BranchWorld(NativeBattleElectrocute275Frame frame, uint address, uint point, NativeBattleVector position, NativeBattleModelAliases aliases)
     {
         short[] target = new short[3];
         for (int axis = 0; axis < 2; axis++)
@@ -160,7 +161,7 @@ public static partial class NativeBattleElectrocute275Controller
             frame = DrawRandom(frame, out ushort random);
             velocity[axis] = unchecked((short)(Signed(task, 0x28 + axis * 2) + (random & 511) - 256));
         }
-        (frame, uint child) = StartWorld(frame, new(velocity[0], velocity[1], velocity[2]), position, new(target[0], target[1], target[2]), Vector(task, 0x30), -1, Signed(task, 0x1E), 512, unchecked((short)(Signed(task, 0x38) >> 1)), Signed(task, 0x3A), 0);
+        (frame, uint child) = StartWorld(frame, new(velocity[0], velocity[1], velocity[2]), position, new(target[0], target[1], target[2]), Vector(task, 0x30), null, aliases, Signed(task, 0x1E), 512, unchecked((short)(Signed(task, 0x38) >> 1)), Signed(task, 0x3A), 0);
         if (child != 0)
         {
             frame = WriteArena(frame, child + 8, Arena(frame).Read(Offset(point + 8, 8), 8));

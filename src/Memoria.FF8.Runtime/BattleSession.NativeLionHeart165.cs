@@ -12,12 +12,12 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationX."), model.Rotation14 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationY."), model.Rotation16 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationZ."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Source, 241, 0);
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Lion Heart requires actual target positions.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Lion Heart requires actual target positions.")).ToArray());
         NativeBattleLionHeart165EntryStep entry = NativeBattleLionHeart165Controller.Enter5E9470(NativeEffectMemory ?? throw new NotSupportedException("Native Lion Heart requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Lion Heart requires its retained CRT random owner."), rotation, bone, center, model.RotationPadding18);
         NativeEffectMemory = entry.Frame.Memory;
         NativeFileStaging = entry.Frame.Staging;
         nativeCrtRandom = entry.Frame.Random;
-        return graphics with { OriginalEffect = entry.Frame.Effect, Models = graphics.Models.SetItem(parameters.Source, model with { Rotation14 = entry.Facing14 }) };
+        return graphics with { OriginalEffect = entry.Frame.Effect, ActorModels = graphics.ActorModels.Set(parameters.Source, model with { Rotation14 = entry.Facing14 }) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeLionHeart165(NativeBattleGraphicsState graphics)
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Lion Heart requires its original color arithmetic.");
         NativeBattleLionHeart165Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Lion Heart requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native Lion Heart requires its physical resource bytes."), nativeCrtRandom ?? throw new NotSupportedException("Native Lion Heart requires its retained CRT random owner."));
         NativeBattlePilotVisualIdentity drawingIdentity = default;
-        NativeBattleLionHeart165Inputs inputs = new(graphics.Flags, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Lion Heart requires its signed file IO result."), actor => graphics.Models[actor], actor => ReadNativeModelAnchor(graphics, actor), (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, selector, fraction), actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), Execute);
+        NativeBattleLionHeart165Inputs inputs = new(graphics.Flags, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Lion Heart requires its signed file IO result."), actor => graphics.ActorModels.Get(actor), actor => ReadNativeModelAnchor(graphics, actor), (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, selector, fraction), actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), Execute, graphics.ActorModels, nativeActionPackets.ModelAliases, cell => graphics.NativeBindings.ReadOriginalCell(cell, graphics.ActorModels));
         frame = NativeBattleLionHeart165Controller.Advance5F01F0(frame, Child);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
@@ -83,11 +83,11 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleLionHeart165BindActor:
                     BattleModelOwner actor = current.Parameters.Source;
-                    NativeBattleGraphicsModel actorModel = graphics.Models[actor];
+                    NativeBattleGraphicsModel actorModel = graphics.ActorModels.Get(actor);
                     RetainNativeDecodedPoseBeforeResourceChange(actorModel, NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(NativeFileStaging!, NativeModelCpuResources ?? throw new NotSupportedException("Native Lion Heart requires its actual CPU resource rows."), actorModel, 0x23C5688, 0xD780C8);
                     NativeFileStaging = bound.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, bound.Model) };
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleLionHeart165ForceCamera:
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Lion Heart requires its actual camera owner.")).Apply50A730();
@@ -96,17 +96,17 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleLionHeart165ModelFlags flags:
-                    NativeBattleGraphicsModel changed = graphics.Models[flags.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(flags.Actor, changed with { Flags0 = unchecked((ushort)((changed.Flags0 | flags.Set) & ~flags.Clear)) }) };
+                    NativeBattleGraphicsModel changed = graphics.ActorModels.Get(flags.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, changed with { Flags0 = unchecked((ushort)((changed.Flags0 | flags.Set) & ~flags.Clear)) }) };
                     return current;
                 case NativeBattleLionHeart165Position position:
-                    NativeBattleGraphicsModel moved = graphics.Models[position.Actor];
+                    NativeBattleGraphicsModel moved = graphics.ActorModels.Get(position.Actor);
                     NativeBattleModelTransform transform = moved.Transform ?? throw new NotSupportedException("Native Lion Heart requires its actual raw model position.");
-                    graphics = graphics with { Models = graphics.Models.SetItem(position.Actor, moved with { Transform = transform with { Position28 = position.Position, Vertical34 = position.Vertical34 } }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(position.Actor, moved with { Transform = transform with { Position28 = position.Position, Vertical34 = position.Vertical34 } }) };
                     return current;
                 case NativeBattleLionHeart165Rotation rotation:
-                    NativeBattleGraphicsModel rotated = graphics.Models[rotation.Actor];
-                    graphics = graphics with { Models = graphics.Models.SetItem(rotation.Actor, rotated with { Rotation12 = rotation.Rotation.X, Rotation14 = rotation.Rotation.Y, Rotation16 = rotation.Rotation.Z, RotationPadding18 = rotation.Padding }) };
+                    NativeBattleGraphicsModel rotated = graphics.ActorModels.Get(rotation.Actor);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(rotation.Actor, rotated with { Rotation12 = rotation.Rotation.X, Rotation14 = rotation.Rotation.Y, Rotation16 = rotation.Rotation.Z, RotationPadding18 = rotation.Padding }) };
                     return current;
                 case NativeBattleLionHeart165StageFlags flags:
                     NativeBattleStageState stageFlags = NativeStage ?? throw new NotSupportedException("Native Lion Heart requires its actual stage rows.");
@@ -131,9 +131,9 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleLionHeart165Contact contact:
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Parameters.Header);
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Lion Heart receipt requires its selected contact pointer.");
+                    BattleContactCursor first = header.FirstContact;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(first + contact.RelativeIndex))] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first.Advance(contact.RelativeIndex))] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleLionHeart165Stage stage:

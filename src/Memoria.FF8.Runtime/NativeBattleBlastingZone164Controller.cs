@@ -3,8 +3,8 @@ namespace Memoria.FF8.Runtime;
 public abstract record NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164BindActor : NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164ForceCamera : NativeBattleBlastingZone164Operation;
-public sealed record NativeBattleBlastingZone164Sequence(byte Actor, int Sequence) : NativeBattleBlastingZone164Operation;
-public sealed record NativeBattleBlastingZone164ModelFlags(byte Actor, ushort Set, ushort Clear) : NativeBattleBlastingZone164Operation;
+public sealed record NativeBattleBlastingZone164Sequence(BattleModelOwner Actor, int Sequence) : NativeBattleBlastingZone164Operation;
+public sealed record NativeBattleBlastingZone164ModelFlags(BattleModelOwner Actor, ushort Set, ushort Clear) : NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164StageFlags(bool Set) : NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164Sound(uint Value) : NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164ReadTexture(short FileId) : NativeBattleBlastingZone164Operation;
@@ -12,7 +12,7 @@ public sealed record NativeBattleBlastingZone164EnqueueTexture : NativeBattleBla
 public sealed record NativeBattleBlastingZone164Flash(int Mode, int First, int Last, int Intensity) : NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164Contacts : NativeBattleBlastingZone164Operation;
 public sealed record NativeBattleBlastingZone164Stage(int Intensity) : NativeBattleBlastingZone164Operation;
-public sealed record NativeBattleBlastingZone164Inputs(uint GraphicsFlags, Func<int> Pending508500, Func<byte, short> ReadScale38, Func<byte, NativeBattleRenzokuken160WeaponTip> ReadWeaponTip, Func<NativeBattleBlastingZone164Frame, NativeBattleBlastingZone164Operation, NativeBattleBlastingZone164Frame> Execute);
+public sealed record NativeBattleBlastingZone164Inputs(uint GraphicsFlags, Func<int> Pending508500, Func<BattleModelOwner, short> ReadScale38, Func<BattleModelOwner, NativeBattleRenzokuken160WeaponTip> ReadWeaponTip, Func<NativeBattleBlastingZone164Frame, NativeBattleBlastingZone164Operation, NativeBattleBlastingZone164Frame> Execute, NativeBattleModelAliases Aliases);
 
 public static partial class NativeBattleBlastingZone164Controller
 {
@@ -32,7 +32,7 @@ public static partial class NativeBattleBlastingZone164Controller
         switch (counter)
         {
             case 0:
-                NativeBattleBlastingZone164ChildStep camera = BeginCamera63E960(frame, pool);
+                NativeBattleBlastingZone164ChildStep camera = BeginCamera63E960(frame, pool, inputs.Aliases);
                 frame = camera.Frame;
                 pool = camera.Pool;
                 Execute(new NativeBattleBlastingZone164ForceCamera());

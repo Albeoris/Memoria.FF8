@@ -6,7 +6,7 @@ public static partial class NativeBattleEffect324Controller
 {
     public static NativeBattleEffect324Step AdvanceMain596C70(NativeBattleEffect324Frame frame, uint address, NativeBattleEffect324Inputs inputs)
     {
-        uint model = ModelAddress(checked((int)frame.State.ReadDword(CasterGlobal)));
+        BattleModelOwner model = frame.State.ReadModelOperand(CasterGlobal);
         NativeBattleEffect324PointStep point = inputs.Point502170(frame, model, 0xF0, 4096, frame.State.ReadView(PointAddress, 8));
         frame = point.Frame with { State = point.Frame.State.WriteView(PointAddress, point.Output8, 8) };
         if ((inputs.ReadFlags(frame) & 0x201) != 0)
@@ -27,7 +27,10 @@ public static partial class NativeBattleEffect324Controller
         if (age == 8)
         {
             frame = BirthTask(frame, ChildDescriptor, 0x597410, out uint child);
-            frame = Write(frame, child, Read(frame, child).WriteWord(14, unchecked((ushort)frame.State.ReadDword(CasterGlobal))));
+            NativeBattleModulePoolTask palette = Read(frame, child);
+            BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
+            palette.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(caster), inputs.ReadPackets(frame).ModelAliases.EncodeOperand(caster, 2));
+            frame = Write(frame, child, palette);
         }
         if (age == 18)
         {

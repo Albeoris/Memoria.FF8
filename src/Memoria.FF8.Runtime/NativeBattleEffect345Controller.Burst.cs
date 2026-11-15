@@ -8,7 +8,7 @@ public static partial class NativeBattleEffect345Controller
         switch (NativePhase(task, 2))
         {
             case 0:
-                NativeBattleEffect345PointStep point = inputs.Point502170(frame, PhysicalModelAddress(task.ReadByte(0x2D)), 241, 0, TaskView(task, 0x1C, 8));
+                NativeBattleEffect345PointStep point = inputs.Point502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 241, 0, TaskView(task, 0x1C, 8));
                 frame = Write(point.Frame, address, CopyTask(Read(point.Frame, address), 0x1C, point.Output8, 8));
                 frame = IncrementPhase(frame, address);
                 break;
@@ -24,7 +24,7 @@ public static partial class NativeBattleEffect345Controller
     public static NativeBattleEffect345Frame SpawnMotes70CA80(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
     {
         NativeBattleModulePoolTask parent = Read(frame, address);
-        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, PhysicalModelAddress(parent.ReadByte(0x2D)));
+        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, parent.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
         NativeBattleEffectArena basis = IdentityMatrix(NativeBattleEffectArena.Clear().MarkUnknown(0, 32));
         (frame, basis) = RotateMatrix(frame, basis, 1, Word345(model, 0xE));
         (frame, basis) = RotateMatrix(frame, basis, 2, 0x155);

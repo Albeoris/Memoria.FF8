@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicSequenceServices(Action<byte, short> Select, Func<byte, bool> PoseComplete);
+public sealed record NativeBattleCinematicSequenceServices(Action<BattleModelOwner, short> Select, Func<BattleModelOwner, bool> PoseComplete);
 
 public static class NativeBattleCinematicSequence42
 {
@@ -14,7 +14,7 @@ public static class NativeBattleCinematicSequence42
         {
             return frame;
         }
-        byte actor = ReadSlot(frame, 0x1B, 1)[0];
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         if (mode == 0)
         {
             short sequence = Operand();

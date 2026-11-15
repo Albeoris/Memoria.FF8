@@ -14,7 +14,7 @@ public static partial class NativeBattleRenzokuken160Controller
             throw new NotSupportedException("Native5FFAA0 signed negative ring index leaves its reached history bank.");
         }
         NativeBattleRenzokuken160State state = State(frame);
-        NativeBattleRenzokuken160WeaponTip bone = (inputs.ReadWeaponTip ?? throw new NotSupportedException("Native5FFAA0 requires its current5FFEE0 linked weapon bone1 position, direction and retained scratch padding."))(state.Actor);
+        NativeBattleRenzokuken160WeaponTip bone = (inputs.ReadWeaponTip ?? throw new NotSupportedException("Native5FFAA0 requires its current5FFEE0 linked weapon bone1 position, direction and retained scratch padding."))(NativeBattleRenzokukenInvocation.Source(frame.Effect));
         NativeBattleVector end = new(unchecked((short)(bone.Position.X + (unchecked(666 * bone.DirectionX) >> 12))), unchecked((short)(bone.Position.Y + (unchecked(666 * bone.DirectionY) >> 12))), unchecked((short)(bone.Position.Z + (unchecked(666 * bone.DirectionZ) >> 12))));
         byte[] history = state.TrailHistory.ToArray();
         int ring = counter % 7;

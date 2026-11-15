@@ -68,6 +68,17 @@ public sealed record NativeBattleEffect303State([property: JsonRequired] NativeB
         return this;
     }
 
+    internal NativeBattleEffect303State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
+    internal BattleModelOwner ReadModel(uint address)
+    {
+        return Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    }
+
     private static int Require(uint address, int length)
     {
         ulong end = (ulong)address + (uint)Math.Max(length, 0);

@@ -47,7 +47,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             int dy = direct340 ? -2304 - StoredRand(1280) : StoredWord(bank, source + 26) - StoredRand(768) - 256;
             int dz = direct340 ? StoredRand(1536) + 1024 : StoredRand(256) + StoredWord(bank, source + 28) + 128;
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(dx, dy, dz);
-            NativeBattleActionMatrix actor = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken burst requires its current actor matrix64.");
+            NativeBattleActionMatrix actor = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken burst requires its current actor matrix64.");
             var rotated = NativeBattleGfMatrices.RotateLong56C600(actor, direction.X, direction.Y, direction.Z);
             for (int emission = 0; emission < 3; emission++)
             {

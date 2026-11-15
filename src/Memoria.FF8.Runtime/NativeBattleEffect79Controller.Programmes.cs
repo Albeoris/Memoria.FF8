@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect79Controller
                 }
                 else
                 {
-                    NativeBattleModelTransform transform = inputs.ReadModel(frame, task.ReadByte(0x2C)).Transform ?? throw new NotSupportedException("Effect79 requires its current caster transform.");
+                    NativeBattleModelTransform transform = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Transform ?? throw new NotSupportedException("Effect79 requires its current caster transform.");
                     task = task.WriteWord(0x1C, unchecked((ushort)transform.Position28.X)).WriteWord(0x1E, unchecked((ushort)(transform.Position28.Y - 2048))).WriteWord(0x20, unchecked((ushort)transform.Position28.Z)).WriteWord(0x22, unchecked((ushort)transform.Vertical34));
                 }
                 frame = Write(frame, address, task);

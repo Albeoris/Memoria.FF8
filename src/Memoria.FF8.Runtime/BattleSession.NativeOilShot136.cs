@@ -32,27 +32,17 @@ public sealed partial class BattleSession
             nativeCrtRandom = current.Random;
         }
 
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Oil Shot requires its actual current model pointer.");
-            }
-            return actorIndex;
-        }
+        short ModelYaw(BattleModelOwner owner) => graphics.ActorModels.Get(owner).Rotation14 ?? throw new NotSupportedException("Oil Shot requires its actual current model rotation WORD14.");
 
-        short ModelYaw(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Oil Shot requires its actual current model rotation WORD14.");
-
-        NativeBattleOilShot136AnchorStep Anchor(NativeBattleOilShot136Frame current, uint pointer)
+        NativeBattleOilShot136AnchorStep Anchor(NativeBattleOilShot136Frame current, BattleModelOwner actor)
         {
-            int actor = Actor(pointer);
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor) with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Oil Shot requires its actual model WORD36.")).Angle36 };
             return new(current, anchor);
         }
 
         NativeBattleOilShot136PointStep Mouth(NativeBattleOilShot136Frame current)
         {
-            int caster = Actor(current.State.ReadDword(NativeBattleOilShot136Profile.CasterGlobal));
+            BattleModelOwner caster = current.State.ReadModelOwner(NativeBattleOilShot136Profile.CasterGlobal);
             var prepared = NativeBattleOilShot136Mouth.Prepare(current.Memory, graphics.ActorModels.Get(caster), PoseSource(caster), resources.BoneAnchor);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, prepared.Model) };
             return new(current with { Memory = prepared.Memory }, prepared.Position);

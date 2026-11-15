@@ -70,7 +70,7 @@ public sealed partial class BattleSession
         NativeBattleRenzokuken160Frame Execute(NativeBattleRenzokuken160Frame current, NativeBattleRenzokuken160Operation operation)
         {
             NativeEffectMemory = current.Memory;
-            byte actor = current.Memory.Renzokuken160!.Actor;
+            BattleModelOwner actor = NativeBattleRenzokukenInvocation.Source(current.Effect);
             switch (operation)
             {
                 case NativeBattleRenzokuken160ActorFlags flags:
@@ -96,8 +96,8 @@ public sealed partial class BattleSession
                     modules = NativeBattleRenzokukenVisualLifetimes.Shared(modules, slot, NativeBattleRenzokukenVisualLifetimes.Task(current.Effect, current.Effect.Pools[0].Slots[0], 0));
                     byte[] bytes = modules.Slots[slot].Payload.ToArray();
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes, shared.Counter);
-                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), shared.Actor);
-                    modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = bytes.ToImmutableArray() }) };
+                    NativeBattleModuleTask sharedTask = NativeBattleRenzokuken160Controller.WriteSharedModel(modules.Slots[slot], bytes, shared.Actor, nativeActionPackets.ModelAliases);
+                    modules = modules with { Slots = modules.Slots.SetItem(slot, sharedTask) };
                     graphics = graphics with { ModuleEffects = modules };
                     return current;
                 case NativeBattleRenzokuken160TrailDraw trail:
@@ -123,9 +123,9 @@ public sealed partial class BattleSession
         }
     }
 
-    private static NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, byte actor, NativeBattleGraphicsResource resource) => NativeBattleRenzokuken160Controller.ReadWeaponTip5FFEE0(graphics.ActorModels.Get(actor), resource);
+    private static NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, BattleModelOwner actor, NativeBattleGraphicsResource resource) => NativeBattleRenzokuken160Controller.ReadWeaponTip5FFEE0(graphics.ActorModels.Get(actor), resource);
 
-    private NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, byte actor) => ReadNativeRenzokuken160WeaponTip(graphics, actor, NativeGraphicsPoseResource(graphics, actor));
+    private NativeBattleRenzokuken160WeaponTip ReadNativeRenzokuken160WeaponTip(NativeBattleGraphicsState graphics, BattleModelOwner actor) => ReadNativeRenzokuken160WeaponTip(graphics, actor, NativeGraphicsPoseResource(graphics, actor));
 
     private (NativeBattleGraphicsState Graphics, NativeBattleModuleCallback Callback) AdvanceNativeRenzokuken160Shared(NativeBattleGraphicsState graphics, NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs)
     {

@@ -86,7 +86,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleAcid170DrawBody172 body:
                     Publish(current);
-                    var drawnBody = DrawNativeAcid170Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress, body.PilotIdentity);
+                    var drawnBody = DrawNativeAcid170Body(current, graphics, body.Actor, body.TemporaryAddress, body.PilotIdentity);
                     graphics = drawnBody.Graphics;
                     return drawnBody.Frame;
                 case NativeBattleAcid170DrawSprite180 sprite:

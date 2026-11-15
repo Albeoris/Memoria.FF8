@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             case NativeBattleEffect324Contact506690 contact:
                 PublishNativeEffect324Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.OriginalIndex)] });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect324Frame(frame);
             case NativeBattleEffect324VibrationStart4A29A0 vibration when vibration.SourceAddress == VibrationAddress && vibration.DestinationAddress == VibrationGlobal:
@@ -37,11 +37,11 @@ public sealed partial class BattleSession
                 NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Effect324 requires its current vibration process.")).Stop4A2940(stop.Handle);
                 return frame;
             case NativeBattleEffect324WriteModelBytes write:
-                int actor = NativeEffect324Actor(graphics, write.ModelAddress);
+                BattleModelOwner actor = write.Model;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect324ModelBytes(graphics.ActorModels.Get(actor), write)) };
                 return frame;
             case NativeBattleEffect324WriteCurrentBoneMatrices32 write:
-                int boneActor = NativeEffect324Actor(graphics, write.ModelAddress);
+                BattleModelOwner boneActor = write.Model;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(boneActor);
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, boneActor).PoseSource ?? throw new NotSupportedException("Effect324 requires its current primary skeleton.");
                 _ = NativeBattleBodyBoneMatrices.Require(model, source);
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
                 return frame;
             case NativeBattleEffect324DrawModel5977D0 body:
                 graphics = graphics with { OriginalEffect = frame.Effect };
-                var drawn = DrawNativePrimaryHistory76(frame.Memory, frame.Effect, frame.Staging, graphics, NativeEffect324Actor(graphics, body.ModelAddress), NativeBattleActor33Presentation.Resource(frame.PilotIdentity, body.ModelAddress));
+                var drawn = DrawNativePrimaryHistory76(frame.Memory, frame.Effect, frame.Staging, graphics, body.Model, frame.PilotIdentity);
                 graphics = drawn.Graphics;
                 return frame with { Effect = graphics.OriginalEffect ?? throw new InvalidDataException("The body history lost its selected effect owner."), Memory = drawn.Memory, Staging = drawn.Staging };
             case NativeBattleEffect324DrawBatch draw when draw.CursorGlobal == CursorGlobal:

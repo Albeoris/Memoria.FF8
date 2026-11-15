@@ -32,21 +32,21 @@ public sealed record NativeBattleEffect60Frame(NativeBattleEffectMemory Memory, 
 
 public sealed record NativeBattleEffect60LeafStep(NativeBattleEffect60Frame Frame, int Result);
 public abstract record NativeBattleEffect60Operation;
-public sealed record NativeBattleEffect60Contact(int Index) : NativeBattleEffect60Operation;
+public sealed record NativeBattleEffect60Contact(BattleContactCursor Cursor) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60Sound(NativeBattleModuleSound Sound) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60Rotate(NativeBattleActionMatrix Matrix, char Axis, short Angle, short? Padding18) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60TargetAnchor(uint Address, BattleModelOwner Actor, byte Selector, short Distance, int Destination) : NativeBattleEffect60Operation;
-public sealed record NativeBattleEffect60SetYaw(int Actor, short Value) : NativeBattleEffect60Operation;
-public sealed record NativeBattleEffect60SetPackedPosition(int Actor, NativeBattleEffectArena Packed8) : NativeBattleEffect60Operation;
-public sealed record NativeBattleEffect60RestoreRotation(int Actor, NativeBattleEffectArena Packed8) : NativeBattleEffect60Operation;
+public sealed record NativeBattleEffect60SetYaw(BattleModelOwner Actor, short Value) : NativeBattleEffect60Operation;
+public sealed record NativeBattleEffect60SetPackedPosition(BattleModelOwner Actor, NativeBattleEffectArena Packed8) : NativeBattleEffect60Operation;
+public sealed record NativeBattleEffect60RestoreRotation(BattleModelOwner Actor, NativeBattleEffectArena Packed8) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60StageInitialize : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60StageFade(short Value) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60ActDraw(uint Address) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60DebrisDraw(uint Address) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60TextureLoad(uint RootTaskAddress, int SourceArenaOffset) : NativeBattleEffect60Operation;
-public sealed record NativeBattleEffect60Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect60Frame, NativeBattleEffect60Operation, NativeBattleEffect60Frame> Execute, Func<NativeBattleEffect60Frame, uint, NativeBattleEffect60LeafStep> AdvanceGeneric)
+public sealed record NativeBattleEffect60Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect60Frame, NativeBattleEffect60Operation, NativeBattleEffect60Frame> Execute, Func<NativeBattleEffect60Frame, uint, NativeBattleEffect60LeafStep> AdvanceGeneric)
 {
-    public required Func<int, NativeBattleEffectArena> ReadRotation8 { get; init; }
-    public required Func<int, NativeBattleEffectArena> ReadPackedPosition8 { get; init; }
-    public required Func<int, NativeBattlePackedMatrix32> ReadWorld32 { get; init; }
+    public required Func<BattleModelOwner, NativeBattleEffectArena> ReadRotation8 { get; init; }
+    public required Func<BattleModelOwner, NativeBattleEffectArena> ReadPackedPosition8 { get; init; }
+    public required Func<BattleModelOwner, NativeBattlePackedMatrix32> ReadWorld32 { get; init; }
 }

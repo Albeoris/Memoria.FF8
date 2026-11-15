@@ -47,11 +47,12 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("A hosted battle frame is already advancing.");
         }
-        if (!hostedBattlePresentation || NativeGraphics is not { PresentationRoster: { } roster } graphics)
+        if (!hostedBattlePresentation || NativeGraphics is not { } graphics)
         {
             throw new InvalidOperationException("Hosted battle frames require their initialized graphics process and roster.");
         }
-        NativeBattleModelLifecycleServices services = logicalOwner.CaptureExpandedModelLifecycleServices(roster);
+        BattleModelRoster roster = logicalOwner.ReadBattlePresentationRoster();
+        NativeBattleModelLifecycleServices services = logicalOwner.CaptureModelLifecycleServices(roster);
         services.Validate(roster, graphics);
 
         hostedPreparationEpoch = checked(hostedPreparationEpoch + 1);
@@ -77,7 +78,8 @@ public sealed partial class BattleSession
                 if (beforeCore is not null)
                 {
                     beforeCore();
-                    services = logicalOwner.CaptureExpandedModelLifecycleServices(roster);
+                    roster = logicalOwner.ReadBattlePresentationRoster();
+                    services = logicalOwner.CaptureModelLifecycleServices(roster);
                     services.Validate(roster, NativeGraphics!);
                     hostedFrameServices = services;
                 }

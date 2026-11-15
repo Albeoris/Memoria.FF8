@@ -129,7 +129,7 @@ public sealed partial class BattleSession
         models = BindPresentationForeignModels(models);
         presentationInitialUi = NativeBattleUiServices.Initialize();
         BattleContactTaskStorageContract contactStorage = hasExtendedOwners ? BattleContactTaskStorageContract.ExpandableArena : BattleContactTaskStorageContract.OriginalArena;
-        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, boundary, 0, 0, NativeBattleEffectsState.Clear(contactStorage)) { UiServices = presentationInitialUi });
+        NativeGraphics = InitializeNativeGraphicsFrame500400(new(models, boundary, 0, 0, NativeBattleEffectsState.Clear(contactStorage)) { UiServices = presentationInitialUi });
         byte sourceModel = inputs.Source.ModelId4 ?? throw new NotSupportedException("Native effect presentation requires its source model identity.");
         if (hasExtendedOwners)
         {
@@ -302,6 +302,7 @@ public sealed partial class BattleSession
     internal NativeGlobalRandomState? ReadEffectPresentationGlobalRandom() => nativeGlobalRandom;
     internal int? ReadEffectPresentationMusicGain() => presentationInitialMusicGain is null ? null : (NativeGlobalSoundProcess?.MusicPlayback ?? throw new InvalidDataException("Native presentation lost its music gain owner.")).ReadGain(0);
     internal NativeCrtRandomState ReadEffectPresentationRandom() => nativeCrtRandom ?? throw new InvalidDataException("Native presentation lost its random owner.");
+    internal BattleModelOwner ReadEffectPresentationSourceOwner() => RequirePresentationSourceOwner();
     internal NativeBattleGraphicsModel ReadEffectPresentationSource() => NativeGraphics!.ActorModels.Get(RequirePresentationSourceOwner());
     internal NativeBattleGraphicsResource ReadEffectPresentationSourceResource() => NativeGraphicsPoseResource(NativeGraphics!, RequirePresentationSourceOwner());
     internal NativeBattleCameraPose? ReadHostedCinematicCamera() => presentationCameraMode == NativeBattleEffectCameraMode.NativeCinematic ? NativeCamera?.PublishedPresentationPose : null;

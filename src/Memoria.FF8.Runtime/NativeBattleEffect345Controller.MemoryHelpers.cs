@@ -287,7 +287,6 @@ public static partial class NativeBattleEffect345Controller
         return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }
     public static NativeBattleEffect345Frame ClearBytes(NativeBattleEffect345Frame frame, uint address, int length) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[length]), length);
-    public static uint PhysicalModelAddress(int actor) => (uint)actor < NativeBattleGraphicsModelAddress.MaximumRowCount ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect345 model index leaves its graphics model bank.");
     public static NativeBattleEffectParameters Parameters(NativeBattleEffect345Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect345 requires its current action parameters.");
     public static NativeBattleEffectArena Source(NativeBattleEffect345Frame frame, NativeBattleEffect345Resources resources, uint address, int length) => address >= 0x1643698 && (ulong)address + (uint)length <= 0x1643698UL + 18932 || address >= 0x164808C && (ulong)address + (uint)length <= 0x164808CUL + 9708 ? frame.State.ReadView(address, length) : NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(address, length).AsSpan());
     private static bool Contains(uint start, int extent, uint address, int length) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)extent;

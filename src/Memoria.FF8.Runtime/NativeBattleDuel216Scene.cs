@@ -300,18 +300,18 @@ public static class NativeBattleDuel216Scene
         short GlobalWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(address, 2));
         NativeBattleVector GlobalVector(uint address) => new(GlobalWord(address), GlobalWord(address + 2), GlobalWord(address + 4));
         NativeBattleModelTransform Transform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Native Different Beat requires actual model position WORDs.");
-        NativeBattleVector Position(int index) => Transform(services.ReadModel(index)).Position28;
-        void SetPosition(int index, NativeBattleVector position)
+        NativeBattleVector Position(BattleModelOwner index) => Transform(services.ReadModel(index)).Position28;
+        void SetPosition(BattleModelOwner index, NativeBattleVector position)
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             services.WriteModel(index, model with { Transform = Transform(model) with { Position28 = new(unchecked((short)position.X), unchecked((short)position.Y), unchecked((short)position.Z)) } });
         }
-        void Move(int index, int x, int y, int z)
+        void Move(BattleModelOwner index, int x, int y, int z)
         {
             NativeBattleVector point = Position(index);
             SetPosition(index, new(unchecked((short)(point.X + x)), unchecked((short)(point.Y + y)), unchecked((short)(point.Z + z))));
         }
-        void RestoreRotation(int index, int offset)
+        void RestoreRotation(BattleModelOwner index, int offset)
         {
             bool unknownPadding = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < offset + 8 && range.Offset + range.Length > offset + 6) == true;
             services.WriteModel(index, services.ReadModel(index) with { Rotation12 = Signed(offset), Rotation14 = Signed(offset + 2), Rotation16 = Signed(offset + 4), RotationPadding18 = unknownPadding ? null : task.ReadWord(offset + 6) });

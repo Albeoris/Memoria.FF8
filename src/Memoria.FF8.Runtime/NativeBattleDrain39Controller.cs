@@ -2,14 +2,14 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDrain39ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleDrain39ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
-    public Func<NativeBattleDrain39Frame, int, NativeBattleDrain39Frame>? ApplyContact { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
+    public Func<NativeBattleDrain39Frame, BattleContactCursor, NativeBattleDrain39Frame>? ApplyContact { get; init; }
 }
 public sealed record NativeBattleDrain39LeafStep(NativeBattleDrain39Frame Frame, int Result);
-public sealed record NativeBattleDrain39ControllerStep(NativeBattleDrain39Frame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleDrain39ControllerStep(NativeBattleDrain39Frame Frame, ImmutableArray<BattleContactCursor> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
 /// <summary>8513D0/851510/851830's physical pools, ordered callbacks and original header/contact selectors.</summary>
 public static class NativeBattleDrain39Controller
@@ -29,7 +29,7 @@ public static class NativeBattleDrain39Controller
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor firstContact = header.FirstContact;
-        byte target = packets.ReadContact(firstContact).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(firstContact).Primary.Recipient;
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
@@ -37,7 +37,10 @@ public static class NativeBattleDrain39Controller
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0);
+        task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(header.Source), packets.ModelAliases.EncodeOperand(header.Source, 1));
+        task.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeOperand(target, 1));
+        task = task.WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native8513D0 requires the actual269DA1C initializer pointer, including texture-skip entries.");
         if (source > NativeBattleEffectArena.Length - 0xC000)
@@ -67,7 +70,7 @@ public static class NativeBattleDrain39Controller
         NativeBattlePackedMatrix32 packedCamera = inputs.PackedCamera ?? throw new NotSupportedException("The siphon family requires its actual packed current camera.");
         NativeBattleDrain39Frame current = frame with { Memory = frame.Memory with { SharedEffectView2793E58 = packedCamera }, State = frame.State with { CopiedCamera = packedCamera.ReadMatrix() } };
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactCursor>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactCursor>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
@@ -79,7 +82,7 @@ public static class NativeBattleDrain39Controller
             }
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 0x6000)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0x6000 : 0xC000)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -183,7 +186,7 @@ public static class NativeBattleDrain39Controller
             {
                 throw new NotSupportedException("Native Drain child pool has an unsupported callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignActorGeometry);
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignActorGeometry);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -209,8 +212,7 @@ public static class NativeBattleDrain39Controller
                     if (unchecked((short)task.ReadWord(0x24)) >= 30)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8567E0 requires its selected group's contact pointer.");
-                        int contact = checked(first + task.ReadTraversalPosition(0x2B));
+                        BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         if (inputs.ApplyContact is { } applyContact)
                         {
                             current = applyContact(current, contact);

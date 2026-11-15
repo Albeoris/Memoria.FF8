@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleDegenerator306Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDegenerator306Body(NativeBattleDegenerator306Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattleDegenerator306Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDegenerator306Body(NativeBattleDegenerator306Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Degenerator target requires its current skeleton.");

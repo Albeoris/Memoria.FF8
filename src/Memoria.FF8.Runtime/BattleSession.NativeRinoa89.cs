@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState EnterNativeRinoa89(NativeBattleGraphicsState graphics, NativeBattleRinoa89Resources resources)
     {
-        NativeBattleRinoa89Frame frame = NativeBattleRinoa89Controller.Enter6F9D00(new(NativeEffectMemory ?? throw new NotSupportedException("Native Wishing Star requires retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Wishing Star requires its entered module."), NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeCrtRandom ?? throw new NotSupportedException("Native Wishing Star requires retained CRT state.")), resources);
+        NativeBattleRinoa89Frame frame = NativeBattleRinoa89Controller.Enter6F9D00(new(NativeEffectMemory ?? throw new NotSupportedException("Native Wishing Star requires retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Wishing Star requires its entered module."), NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeCrtRandom ?? throw new NotSupportedException("Native Wishing Star requires retained CRT state.")), resources, nativeActionPackets.ModelAliases);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
         nativeCrtRandom = frame.Random;
@@ -26,15 +26,15 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Wishing Star requires its current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Wishing Star requires authenticated color arithmetic.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wishing Star requires its actual contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         int count = header.ReadContactCount() >> 3;
-        ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.Recipient).ToImmutableArray();
-        NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, NativeBattleContactAddress.EncodeCursor(first, nativeActionPackets.StorageCapacity), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0) { PartyActors = ReadPresentationSideActors(true) };
+        ImmutableArray<BattleModelOwner> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient).ToImmutableArray();
+        NativeBattleRinoa89PreparationServices preparation = new(index => graphics.ActorModels.Get(index), WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, first, nativeActionPackets.ModelAliases, body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0);
         NativeBattleRinoa89BodyInputs inputs = new(resources, index => graphics.ActorModels.Get(index), WriteModel, Execute, ReadBone19, Contacts, Poll, Reload);
 
         int beamMesh = checked((int)(0x1497140 - NativeBattleRinoa89Resources.StaticAddress));
         NativeBattleRinoa89BeamServices beams = new(view, projection, colors, resources.StaticImage.Data.Slice(beamMesh, resources.StaticImage.Data.Length - beamMesh), resources.Program(0x14A3EB0), Append, Contacts);
-        frame = NativeBattleRinoa89Controller.AdvanceRoot6F9D80(frame, new(index => graphics.ActorModels.Get(index), (current, slot) => NativeBattleRinoa89Controller.PrepareBody6F9D80(current, slot, preparation), Child));
+        frame = NativeBattleRinoa89Controller.AdvanceRoot6F9D80(frame, new(nativeActionPackets.ModelAliases, index => graphics.ActorModels.Get(index), (current, slot) => NativeBattleRinoa89Controller.PrepareBody6F9D80(current, slot, preparation), Child));
         frame = frame with { Effect = frame.Effect with { DrawArenaOffset = NativeBattleWaterExecutionFields.ArenaOffset(BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x25565EC, 4)), 0) } };
         Publish(frame);
         nativeCrtRandom = frame.Random;
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }
         NativeBattleRinoa89Frame Particle(NativeBattleRinoa89ParticleDraw drawn) => Append(drawn.Frame, drawn.Packets, false);
-        NativeBattleRinoa89Frame Bind(NativeBattleRinoa89Frame current, int index, uint row)
+        NativeBattleRinoa89Frame Bind(NativeBattleRinoa89Frame current, BattleModelOwner index, uint row)
         {
             Publish(current);
             NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(index), NativeGraphicsPoseResource(graphics, index));
@@ -85,10 +85,10 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? current.Memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : current.Staging.ReadResourcePointer(address);
             }
         }
-        NativeBattleRinoa89Frame Select(NativeBattleRinoa89Frame current, int index, byte sequence)
+        NativeBattleRinoa89Frame Select(NativeBattleRinoa89Frame current, BattleModelOwner index, byte sequence)
         {
             Publish(current);
-            graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
+            graphics = SelectNativeHeaderSequence(graphics, index, sequence);
             return current;
         }
         NativeBattleRinoa89Frame QueueFile(NativeBattleRinoa89Frame current, NativeBattleEffectFileRequest request)
@@ -119,12 +119,11 @@ public sealed partial class BattleSession
         }
         NativeBattleRinoa89Frame Contacts(NativeBattleRinoa89Frame current)
         {
-            return NativeBattleRinoa89Contacts.Apply6FC410(current, nativeActionPackets, (active, pointer) =>
+            return NativeBattleRinoa89Contacts.Apply6FC410(current, nativeActionPackets, (active, occurrence) =>
             {
                 Publish(active);
-                int index = NativeBattleContactAddress.Decode(pointer, nativeActionPackets.StorageCapacity);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(occurrence)] });
                 graphics = graphics with { PendingContacts = pending };
                 return active with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Wishing Star contact lost its effect memory.") };
             });
@@ -221,7 +220,7 @@ public sealed partial class BattleSession
             byte[] reference = current.Staging.Read(emission.Reference, 8);
             NativeBattleVector point;
             NativeBattleEffectTaskPool bodyPool = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleRinoa89Controller.Body);
-            if (emission.Model == bodyPool.BankAddress + 52)
+            if (emission is NativeBattleRinoa89BodyBoneEmission { BodyAddress: uint bodyAddress } && bodyAddress == bodyPool.BankAddress + 52)
             {
                 NativeBattleRinoa89BoneStep bone = NativeBattleRinoa89BodyDrawing.ReadBone6FD2D0(current, bodyPool.Slots[0], body, reference);
                 current = bone.Frame;
@@ -229,10 +228,11 @@ public sealed partial class BattleSession
             }
             else
             {
-                if (!NativeBattleGraphicsModelAddress.TryDecode(emission.Model, out int index))
+                if (emission is not NativeBattleRinoa89ActorBoneEmission actorEmission)
                 {
-                    throw new InvalidDataException("Native6FD2D0 selected an unknown model address.");
+                    throw new InvalidDataException("Native6FD2D0 selected an unknown body task address.");
                 }
+                BattleModelOwner index = actorEmission.Actor;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 short selector = BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(6));
                 NativeBattleActionMatrix matrix;
@@ -279,14 +279,23 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Wishing Star selected an unknown visibility callback.");
             }
-            foreach (int index in ReadPresentationSideActors(callback == 0x6FBE40))
+            IEnumerable<BattleModelOwner> side = callback == 0x6FBE40 ? graphics.ActorModels.Roster.Party : graphics.ActorModels.Roster.Enemies;
+            foreach (BattleModelOwner index in side)
             {
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                 if ((model.Flags0 & 2) == 0)
                 {
                     continue;
                 }
-                ushort flags = callback == 0x6FBDE0 ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 ^ ((model.Flags0 ^ current.Staging.Read(checked(0x2556604u + (uint)index * 4), 1)[0]) & 4));
+                ushort flags = (ushort)(model.Flags0 | 4);
+                if (callback != 0x6FBDE0)
+                {
+                    if (!current.Effect.Rinoa89SavedFlags.TryGetValue(index, out ushort original))
+                    {
+                        throw new InvalidDataException("Native Wishing Star cannot restore flags without its captured model owner.");
+                    }
+                    flags = (ushort)(model.Flags0 ^ ((model.Flags0 ^ original) & 4));
+                }
                 WriteModel(index, model with { Flags0 = flags });
             }
             return current;

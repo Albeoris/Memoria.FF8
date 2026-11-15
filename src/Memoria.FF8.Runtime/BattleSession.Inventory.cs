@@ -75,7 +75,7 @@ public sealed partial class BattleSession
     private void RefundCancelledNativeItem(BattleAttackCommand command)
     {
         ReleaseMagicReservation(command.MagicReservationId);
-        if (command.NativeHeaderIndex is null && command.NativePlayerReaction is null && command.ReservedNativeItemSlot is int slot)
+        if (command.NativeHeader is null && command.NativePlayerReaction is null && command.ReservedNativeItemSlot is int slot)
         {
             RefundNativeReservedItem(slot, command.NativeAction?.ActionId ?? command.ActionId);
         }
@@ -84,7 +84,7 @@ public sealed partial class BattleSession
     private void RefundCancelledNativeItem(BattleActionPresentation command)
     {
         ReleaseMagicReservation(command.MagicReservationId);
-        if (command.NativeHeaderIndex is null && command.NativePlayerReaction is null && command.Phase == BattleActionPhase.Windup && command.ReservedNativeItemSlot is int slot)
+        if (command.NativeHeader is null && command.NativePlayerReaction is null && command.Phase == BattleActionPhase.Windup && command.ReservedNativeItemSlot is int slot)
         {
             RefundNativeReservedItem(slot, command.NativeAction?.ActionId ?? command.ActionId);
         }

@@ -50,6 +50,14 @@ public sealed partial class BattleSession
             ReadBoneCount = actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Renzokuken variant requires its actual body skeleton.")).BoneCount,
             ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction),
             ReadWeaponTip = actor => ReadNativeRenzokuken160WeaponTip(graphics, actor),
+            ResolveRelativeResourceTarget = (first, bank) =>
+            {
+                if (!graphics.NativeBindings.TryEncodeExactActor(first, graphics.ActorModels, out byte firstSlot))
+                {
+                    throw new NotSupportedException("A relative Renzokuken resource bank requires its original model role binding.");
+                }
+                return graphics.NativeBindings.DecodeLiteral(checked((byte)(firstSlot + bank)), graphics.ActorModels);
+            },
             CapturePresentation = profile.Effect != 161 && NativeBattleRenzokukenVisualLifetimes.Owns(current.Effect.Binding.Effect)
         };
 
@@ -81,7 +89,7 @@ public sealed partial class BattleSession
         NativeBattleRenzokuken160Frame Execute(NativeBattleRenzokuken160Frame current, NativeBattleRenzokuken160Operation operation)
         {
             NativeEffectMemory = current.Memory;
-            byte actor = NativeBattleRenzokukenSpecialController.ReadState(current).Core.Actor;
+            BattleModelOwner actor = NativeBattleRenzokukenInvocation.Source(current.Effect);
             switch (operation)
             {
                 case NativeBattleRenzokuken160ActorFlags flags:
@@ -137,8 +145,8 @@ public sealed partial class BattleSession
                     (NativeBattleModuleState modules, int slot) = graphics.ModuleEffects.AppendCallback(shared.Callback);
                     byte[] bytes = modules.Slots[slot].Payload.ToArray();
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes, shared.Counter);
-                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), shared.Actor);
-                    modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = bytes.ToImmutableArray() }) };
+                    NativeBattleModuleTask sharedTask = NativeBattleRenzokuken160Controller.WriteSharedModel(modules.Slots[slot], bytes, shared.Actor, nativeActionPackets.ModelAliases);
+                    modules = modules with { Slots = modules.Slots.SetItem(slot, sharedTask) };
                     if (profile.Effect != 161 && NativeBattleRenzokukenVisualLifetimes.Owns(current.Effect.Binding.Effect))
                     {
                         NativeBattleModulePoolTask owner = current.Effect.Pools[0].Slots[0];

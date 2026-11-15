@@ -7,14 +7,15 @@ public static partial class NativeBattleEffect79Controller
     public static NativeBattleEffect79Step AdvanceBody(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int caster = task.ReadByte(0x2C);
-        int target = task.ReadByte(0x2D);
+        BattleModelOwner caster = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         switch (Phase(frame, address))
         {
             case 0:
                 frame = inputs.Execute(frame, new NativeBattleEffect79ModelPatch(caster, Sequence: 17));
                 frame = ClearBytes(frame, BodyContextAddress, BodyContextLength);
-                frame = frame with { State = frame.State.WriteDword(BodyContextAddress + 0x60, DescriptorAddress).WriteDword(BodyContextAddress + 0x64, PhysicalModelAddress(caster)).WriteDword(BodyContextAddress + 0x68, 0x1D8E054).WriteDword(BodyContextAddress + 0x6C, 0x1D8E054).WriteWord(BodyContextAddress + 0xA8, (ushort)caster).WriteDword(DescriptorAddress + 4, TransformedAddress).WriteWord(DescriptorAddress + 0x14, 0).WriteWord(DescriptorAddress + 0x16, 0).WriteWord(DescriptorAddress + 0x18, 320).WriteWord(DescriptorAddress + 0x1A, 0).WriteByte(DescriptorAddress + 0x1C, 128).WriteByte(DescriptorAddress + 0x1D, 128).WriteByte(DescriptorAddress + 0x1E, 128).WriteDword(DescriptorAddress + 0x20, uint.MaxValue).WriteWord(DescriptorAddress + 0x24, 0) };
+                NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+                frame = frame with { State = frame.State.WriteDword(BodyContextAddress + 0x60, DescriptorAddress).WriteModelReference(BodyContextAddress + 0x64, 4, caster, aliases.EncodeAddress(caster)).WriteDword(BodyContextAddress + 0x68, 0x1D8E054).WriteDword(BodyContextAddress + 0x6C, 0x1D8E054).WriteModelReference(BodyContextAddress + 0xA8, 2, caster, aliases.EncodeOperand(caster, 2)).WriteDword(DescriptorAddress + 4, TransformedAddress).WriteWord(DescriptorAddress + 0x14, 0).WriteWord(DescriptorAddress + 0x16, 0).WriteWord(DescriptorAddress + 0x18, 320).WriteWord(DescriptorAddress + 0x1A, 0).WriteByte(DescriptorAddress + 0x1C, 128).WriteByte(DescriptorAddress + 0x1D, 128).WriteByte(DescriptorAddress + 0x1E, 128).WriteDword(DescriptorAddress + 0x20, uint.MaxValue).WriteWord(DescriptorAddress + 0x24, 0) };
                 frame = StoreModelPosition(frame, caster, BodyContextAddress + 0xBC, inputs);
                 frame = SpawnNode(frame, address, 0x1762E40, 0, 15, 0, resources, inputs);
                 frame = inputs.Execute(frame, new NativeBattleEffect79Sound501330(0x1580B24, 0, 128));
@@ -24,7 +25,7 @@ public static partial class NativeBattleEffect79Controller
                 if (Acknowledged(frame, 2))
                 {
                     frame = Write(frame, address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 8)).WriteWord(0xB0, 16));
-                    frame = inputs.Execute(frame, new NativeBattleEffect79TargetFlags(PhysicalModelAddress(caster), 0xFFFF, 4, false));
+                    frame = inputs.Execute(frame, new NativeBattleEffect79TargetFlags(caster, 0xFFFF, 4, false));
                     frame = frame with { State = frame.State.WriteWord(BodyContextAddress + 0x92, 0xD000).WriteWord(BodyContextAddress + 0x94, 0xE000).WriteWord(BodyContextAddress + 0xC6, 0x200).WriteWord(BodyContextAddress + 0xA2, 502).WriteWord(BodyContextAddress + 0xA4, 502).WriteWord(BodyContextAddress + 0xA6, 502) };
                     frame = inputs.Execute(frame, new NativeBattleEffect79ObserveCasterAnchor(address, BodyContextAddress));
                     frame = InitializeBodyMatrix(frame);
@@ -81,7 +82,7 @@ public static partial class NativeBattleEffect79Controller
                 frame = Write(frame, address, task.WriteWord(0xAC, 4096));
                 NativeBattleVector position = new(unchecked((short)(frame.State.ReadWord(BodyContextAddress + 0x78) + 128)), unchecked((short)(frame.State.ReadWord(BodyContextAddress + 0x7A) - 32)), unchecked((short)(frame.State.ReadWord(BodyContextAddress + 0x7C) - 336)));
                 frame = inputs.Execute(frame, new NativeBattleEffect79ModelPatch(target, Position: position, WorldTranslation: position));
-                frame = inputs.Execute(frame, new NativeBattleEffect79TargetFlags(PhysicalModelAddress(target), 0xFFFB, 0x800, true));
+                frame = inputs.Execute(frame, new NativeBattleEffect79TargetFlags(target, 0xFFFB, 0x800, true));
                 frame = FadeModel(frame, target, 4096, inputs);
                 frame = inputs.Execute(frame, new NativeBattleEffect79Sound501330(0x1580B2C, 0, 128));
                 frame = NextPhase(frame, address);
@@ -147,7 +148,7 @@ public static partial class NativeBattleEffect79Controller
         return frame with { State = frame.State.WriteWord(BodyContextAddress + 0x98, (ushort)((frame.State.ReadWord(BodyContextAddress + 0x98) - 128) & 4095)) };
     }
 
-    private static NativeBattleEffect79Frame StoreModelPosition(NativeBattleEffect79Frame frame, int actor, uint address, NativeBattleEffect79Inputs inputs)
+    private static NativeBattleEffect79Frame StoreModelPosition(NativeBattleEffect79Frame frame, BattleModelOwner actor, uint address, NativeBattleEffect79Inputs inputs)
     {
         NativeBattleModelTransform transform = inputs.ReadModel(frame, actor).Transform ?? throw new NotSupportedException("Effect79 requires its current model transform.");
         return frame with { State = frame.State.WriteWord(address, unchecked((ushort)transform.Position28.X)).WriteWord(address + 2, unchecked((ushort)transform.Position28.Y)).WriteWord(address + 4, unchecked((ushort)transform.Position28.Z)).WriteWord(address + 6, unchecked((ushort)transform.Vertical34)) };
@@ -163,7 +164,7 @@ public static partial class NativeBattleEffect79Controller
         return frame with { State = frame.State.WriteDword(BodyContextAddress + 20, 0).WriteDword(BodyContextAddress + 24, 0).WriteDword(BodyContextAddress + 28, 0) };
     }
 
-    private static NativeBattleEffect79Frame SetTargetScale(NativeBattleEffect79Frame frame, int target, int scale, NativeBattleEffect79Inputs inputs, bool detach, bool publishPointer = false)
+    private static NativeBattleEffect79Frame SetTargetScale(NativeBattleEffect79Frame frame, BattleModelOwner target, int scale, NativeBattleEffect79Inputs inputs, bool detach, bool publishPointer = false)
     {
         frame = frame with { State = frame.State.WriteDword(BodyContextAddress + 0xAC, unchecked((uint)scale)).WriteDword(BodyContextAddress + 0xB0, unchecked((uint)scale)).WriteDword(BodyContextAddress + 0xB4, unchecked((uint)scale)) };
         if (detach || publishPointer)
@@ -173,7 +174,7 @@ public static partial class NativeBattleEffect79Controller
         return frame;
     }
 
-    private static NativeBattleEffect79Frame FadeModel(NativeBattleEffect79Frame frame, int actor, short factor, NativeBattleEffect79Inputs inputs)
+    private static NativeBattleEffect79Frame FadeModel(NativeBattleEffect79Frame frame, BattleModelOwner actor, short factor, NativeBattleEffect79Inputs inputs)
     {
         uint color = inputs.ReadColor(frame, 0xB8B7D8);
         if (factor == 0)

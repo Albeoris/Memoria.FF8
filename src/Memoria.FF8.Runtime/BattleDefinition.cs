@@ -256,7 +256,7 @@ public sealed record ExpandedEnemyLevel(int MaximumHp, ImmutableArray<int> BaseS
 
 public sealed record ExpandedEnemyLevelProfile(ImmutableArray<ExpandedEnemyLevel> Levels, ImmutableArray<ImmutableArray<NativeBattleDrawSlot>> DrawBands);
 
-public sealed record BattleNativeEventOwner(string ActorId, int SourceHeaderIndex);
+public sealed record BattleNativeEventOwner(string ActorId, BattleActionHeaderReference SourceHeader);
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -265,8 +265,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
     public BattleSmartAttackPreview? SmartAttack { get; init; }
-    [System.Text.Json.Serialization.JsonRequired]
-    public int? NativeHeaderIndex { get; init; }
+    [JsonIgnore]
+    public BattleActionHeaderReference? NativeHeader { get; init; }
     public BattleNativeCallback? NativeCallback { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
@@ -288,6 +288,7 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public int? ReservedNativeItemSlot { get; init; }
     public BattleNativeSpecialContext? NativeSpecial { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
+    [JsonIgnore]
     public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }
@@ -300,8 +301,8 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
     public BattleSmartAttackPreview? SmartAttack { get; init; }
-    [System.Text.Json.Serialization.JsonRequired]
-    public int? NativeHeaderIndex { get; init; }
+    [JsonIgnore]
+    public BattleActionHeaderReference? NativeHeader { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
@@ -324,6 +325,7 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public BattleNativeSpecialContext? NativeSpecial { get; init; }
     public short? GunbladeTriggerTiming { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
+    [JsonIgnore]
     public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }

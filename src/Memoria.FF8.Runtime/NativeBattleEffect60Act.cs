@@ -18,7 +18,7 @@ public static class NativeBattleEffect60Act
         {
             if (Word(task, 0x24) >= 6)
             {
-                int actor = task.ReadByte(0x2D);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                 NativeBattleEffectArena packed = RequirePacked8(inputs.ReadPackedPosition8(actor));
                 NativeBattleEffectArena rotation = RequirePacked8(inputs.ReadRotation8(actor));
                 NativeBattleEffectNodeContextMemory.Copy(rotation, 0, frame.State.SavedRotation8, 0, 8);
@@ -41,8 +41,8 @@ public static class NativeBattleEffect60Act
             if (Word(task, 0x24) >= 36)
             {
                 task = Initialize(task, resources).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x88, unchecked((ushort)-512));
-                task = Copy(inputs.ReadWorld32(task.ReadByte(0x2C)), task, 0x30);
-                frame = Anchor(Put(frame, address, task), address, task.ReadByte(0x2C), 0x19, 1024, inputs);
+                task = Copy(inputs.ReadWorld32(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner), task, 0x30);
+                frame = Anchor(Put(frame, address, task), address, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner, 0x19, 1024, inputs);
                 frame = inputs.Execute(frame, new NativeBattleEffect60ActDraw(address));
                 frame = Append(frame, address, NativeBattleEffect60Profile.ActSecondaryCallback, 0x17A3150, 36, 1, selectActors, out _);
                 frame = Put(frame, address, Next(Read(frame, address).WriteWord(0x84, 0)));
@@ -54,7 +54,7 @@ public static class NativeBattleEffect60Act
         }
         else if (!primary && phase == 0)
         {
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             task = Initialize(task, resources).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x88, unchecked((ushort)-512));
             task = Copy(inputs.ReadWorld32(actor), task, 0x30);
             NativeBattleActionMatrix matrix = ReadMatrix(task, 0x30);
@@ -90,7 +90,7 @@ public static class NativeBattleEffect60Act
     public static NativeBattleEffect60Frame MoveTarget(NativeBattleEffect60Frame frame, uint address, NativeBattleEffect60Resources resources, NativeBattleEffect60Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int actor = task.ReadByte(0x2D);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         NativeBattleEffectArena previous = NativeBattleEffectNodeContextMemory.Copy(RequirePacked8(inputs.ReadPackedPosition8(actor)), 0, NativeBattleEffectArena.Clear(), 0, 8);
         NativeBattleEffectArena next = NativeBattleEffectNodeContextMemory.Copy(previous, 0, NativeBattleEffectArena.Clear(), 0, 8);
         int index = Word(task, 0x84);
@@ -154,7 +154,7 @@ public static class NativeBattleEffect60Act
         int table = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(4));
         return unchecked(BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(table + 4)) - (int)task.ReadDword(0x98));
     }
-    private static NativeBattleEffect60Frame Anchor(NativeBattleEffect60Frame frame, uint address, int actor, byte selector, short distance, NativeBattleEffect60Inputs inputs)
+    private static NativeBattleEffect60Frame Anchor(NativeBattleEffect60Frame frame, uint address, BattleModelOwner actor, byte selector, short distance, NativeBattleEffect60Inputs inputs)
     {
         frame = inputs.Execute(frame, new NativeBattleEffect60TargetAnchor(address, actor, selector, distance, 0x1C));
         NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), selector, distance);

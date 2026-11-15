@@ -4,10 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleDuel216Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDuel216Echo(NativeBattleDuel216Frame frame, NativeBattleGraphicsState graphics, int actor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    private (NativeBattleDuel216Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDuel216Echo(NativeBattleDuel216Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
     {
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native Different Beat echo requires its actual CPU resources.");
-        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleResourcePointer pointer;
         if (model.ActiveStagedResourceRow100 is uint row)
         {

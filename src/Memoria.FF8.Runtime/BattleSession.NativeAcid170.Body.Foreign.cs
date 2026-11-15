@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeForeignAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattleForeignModelGeometry geometry, NativeBattlePilotVisualIdentity? pilotIdentity)
+    private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeForeignAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattleForeignModelGeometry geometry, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleForeignModelDrawing.RequireIndexedTopology(geometry);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Host body deformation requires its current camera.");
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         NativeBattleAcid170ModelFrame DrawBody(NativeBattleAcid170ModelFrame current)
         {
             NativeBattleEffectArena scratch = NativeBattleEffectArena.CreateUnknown(checked(geometry.Vertices.Length * 8));
-            NativeBattleAcid170ModelStep drawn = NativeBattleAcid170ModelDrawing.DrawForeign(current.Memory, current.Temporary172, scratch, geometry, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Host body deformation requires its depth controls."), pilotIdentity ?? new(frame.Effect.Binding.Effect, 0x5099D0, actor, 0, 0));
+            NativeBattleAcid170ModelStep drawn = NativeBattleAcid170ModelDrawing.DrawForeign(current.Memory, current.Temporary172, scratch, geometry, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Host body deformation requires its depth controls."), pilotIdentity ?? NativeBattlePilotVisualIdentity.ForModel(frame.Effect.Binding.Effect, 0x5099D0, actor));
             return Append(current with { Memory = drawn.Memory, Temporary172 = drawn.Temporary172 }, drawn.Batch);
         }
 

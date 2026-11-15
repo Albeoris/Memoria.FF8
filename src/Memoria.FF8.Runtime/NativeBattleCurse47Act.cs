@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCurse47ActorIdentity(byte Flags, byte? ModelId);
 public sealed record NativeBattleCurse47AnchorStep(NativeBattleCurse47Frame Frame, NativeBattleVector Position);
 public sealed record NativeBattleCurse47ActPreparation(NativeBattleCurse47Frame Frame, NativeBattleEffectArena Context92);
-public sealed record NativeBattleCurse47ActInputs(Func<NativeBattleCurse47Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleCurse47Frame, int, NativeBattleCurse47ActorIdentity> ReadActorIdentity, Func<NativeBattleCurse47Frame, BattleModelOwner, short, int, NativeBattleCurse47AnchorStep> ReadAnchor, Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47ActPreparation> PrepareDraw, Func<NativeBattleCurse47Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleCurse47Frame> EmitNode);
+public sealed record NativeBattleCurse47ActInputs(Func<NativeBattleCurse47Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<IEnumerable<BattleModelOwner>> ReadActorOwners, Func<NativeBattleCurse47Frame, BattleModelOwner, NativeBattleCurse47ActorIdentity> ReadActorIdentity, Func<NativeBattleCurse47Frame, BattleModelOwner, short, int, NativeBattleCurse47AnchorStep> ReadAnchor, Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47ActPreparation> PrepareDraw, Func<NativeBattleCurse47Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleCurse47Frame> EmitNode);
 
 public static class NativeBattleCurse47Act
 {
@@ -52,12 +52,12 @@ public static class NativeBattleCurse47Act
                     frame = Initialize(frame, address, inputs);
                     if (task.Callback == MidpointCallback)
                     {
-                        int? first = FindActor(frame, 55, inputs);
+                        BattleModelOwner? first = FindActor(frame, 55, inputs);
                         if (first is { } firstActor)
                         {
                             NativeBattleCurse47AnchorStep a = inputs.ReadAnchor(frame, firstActor, 15, 0);
                             frame = a.Frame;
-                            int? second = FindActor(frame, 56, inputs);
+                            BattleModelOwner? second = FindActor(frame, 56, inputs);
                             if (second is { } secondActor)
                             {
                                 NativeBattleCurse47AnchorStep b = inputs.ReadAnchor(frame, secondActor, 15, 0);
@@ -69,7 +69,7 @@ public static class NativeBattleCurse47Act
                     }
                     else
                     {
-                        int? selected = FindActor(frame, task.Callback == FirstCallback ? (byte)56 : (byte)55, inputs);
+                        BattleModelOwner? selected = FindActor(frame, task.Callback == FirstCallback ? (byte)56 : (byte)55, inputs);
                         if (selected is { } actor)
                         {
                             NativeBattleCurse47AnchorStep anchored = inputs.ReadAnchor(frame, actor, 15, 0);
@@ -126,11 +126,11 @@ public static class NativeBattleCurse47Act
         NativeBattleGfAnimationWorkspace workspace = Workspace(task, size).Initialize7016B0(Source(frame, task.ReadDword(0x74), inputs), size);
         return Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, workspace));
     }
-    private static int? FindActor(NativeBattleCurse47Frame frame, byte modelId, NativeBattleCurse47ActInputs inputs)
+    private static BattleModelOwner? FindActor(NativeBattleCurse47Frame frame, byte modelId, NativeBattleCurse47ActInputs inputs)
     {
-        for (int index = 0; index < 7; index++)
+        foreach (BattleModelOwner actor in inputs.ReadActorOwners())
         {
-            NativeBattleCurse47ActorIdentity identity = inputs.ReadActorIdentity(frame, index);
+            NativeBattleCurse47ActorIdentity identity = inputs.ReadActorIdentity(frame, actor);
             if ((identity.Flags & 2) == 0)
             {
                 continue;
@@ -138,7 +138,7 @@ public static class NativeBattleCurse47Act
             byte selected = identity.ModelId ?? throw new NotSupportedException("Curse ACT placement requires the actual enabled actor model identity.");
             if (selected == modelId)
             {
-                return index;
+                return actor;
             }
         }
         return null;

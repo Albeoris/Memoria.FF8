@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -111,17 +110,12 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && task.Payload.Length == 32 && (task.UnknownByteMask & 0x20F) == 0 && task.Program is { } program)
+        if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && task.Payload.Length == 32 && (task.UnknownByteMask & 0x200) == 0 && task.Program is { } program && task.ModelOwner is { } actor && graphics.ActorModels.TryGet(actor, out NativeBattleGraphicsModel? model))
         {
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-            if (NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
+            program.Validate();
+            if (program.Source[program.Offset] == 255 && (model.Flags0 & 2) != 0 && model.ResourceFlags44 is ushort flags && (flags & 0x40) == 0 && model.Sequence == task.Payload[9])
             {
-                var model = graphics.ActorModels.Get(actorIndex);
-                program.Validate();
-                if (program.Source[program.Offset] == 255 && (model.Flags0 & 2) != 0 && model.ResourceFlags44 is ushort flags && (flags & 0x40) == 0 && model.Sequence == task.Payload[9])
-                {
-                    return;
-                }
+                return;
             }
         }
         InvalidateNativeMegaSpark279Stack(0x508434, $"Auxiliary callback {task.Kind}");

@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleDegenerator306Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleDegenerator306AnchorStep Anchor(NativeBattleDegenerator306Frame current, int actor)
+        NativeBattleDegenerator306AnchorStep Anchor(NativeBattleDegenerator306Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Degenerator requires the actual actor heading.")).Angle36 });
         }
 
-        NativeBattleDegenerator306PointStep Bone(NativeBattleDegenerator306Frame current, int actor, short selector, short distance)
+        NativeBattleDegenerator306PointStep Bone(NativeBattleDegenerator306Frame current, BattleModelOwner actor, short selector, short distance)
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Degenerator requires its selected current actor skeleton.");
@@ -125,7 +125,7 @@ public sealed partial class BattleSession
                 case NativeBattleDegenerator306Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleDegenerator306Stage fade:

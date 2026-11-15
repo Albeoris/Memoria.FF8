@@ -39,7 +39,7 @@ public static partial class NativeBattleLionHeart165Controller
             }
             frame = frame with { Memory = frame.Memory with { Arena = arena } };
             SaveFlag(actor);
-            foreach (byte targetActor in TargetRing(frame, inputs))
+            foreach (BattleModelOwner targetActor in TargetRing(frame, inputs))
             {
                 SaveFlag(targetActor);
             }
@@ -47,10 +47,10 @@ public static partial class NativeBattleLionHeart165Controller
         }
         else if (initializer == 0x5EEC00)
         {
-            foreach (byte targetActor in TargetRing(frame, inputs))
+            foreach (BattleModelOwner targetActor in TargetRing(frame, inputs))
             {
                 int echo = Append(0x5EECD0);
-                SetTask(echo, 14, targetActor);
+                pool = pool.WriteSlot(echo, WriteActor(pool.Slots[echo], targetActor, inputs.Aliases));
             }
             RestoreFlag(actor);
         }
@@ -81,16 +81,21 @@ public static partial class NativeBattleLionHeart165Controller
             SetTask(created, 14, marker);
             frame = frame with { Staging = WriteDword(frame.Staging, 0x23C6940, unchecked((uint)(marker + 1))) };
         }
-        void SaveFlag(byte index)
+        void SaveFlag(BattleModelOwner owner)
         {
-            NativeBattleGraphicsModel model = inputs.ReadModel(index);
-            frame = frame with { Staging = WriteWord(frame.Staging, 0x23C6738u + (uint)index * 40, (ushort)(model.Flags0 & 0x20)) };
-            frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(index, 0x20, 0));
+            NativeBattleGraphicsModel model = inputs.ReadModel(owner);
+            ushort flags = (ushort)(model.Flags0 & 0x20);
+            if (inputs.Aliases.TryEncodeExact(owner, out byte cell))
+            {
+                frame = frame with { Staging = WriteWord(frame.Staging, 0x23C6738u + (uint)cell * 40, flags) };
+            }
+            frame = SaveModel(frame, owner, ReadSavedModel(frame, owner) with { ShadowFlags = flags });
+            frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(owner, 0x20, 0));
         }
-        void RestoreFlag(byte index)
+        void RestoreFlag(BattleModelOwner owner)
         {
-            ushort old = unchecked((ushort)ReadWord(frame.Staging, 0x23C6738u + (uint)index * 40));
-            frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(index, old, old == 0 ? (ushort)0x20 : (ushort)0));
+            ushort old = ReadSavedShadowFlags(frame, owner);
+            frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(owner, old, old == 0 ? (ushort)0x20 : (ushort)0));
         }
         int Rand()
         {
@@ -103,17 +108,22 @@ public static partial class NativeBattleLionHeart165Controller
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         short counter = Word(task, 12);
-        byte actor = checked((byte)Word(task, 14));
+        BattleModelOwner actor = ReadActor(task);
         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Lion Heart echo requires its actual raw model transform.");
         if (counter == 0)
         {
             NativeBattleModuleAnchor point = inputs.ReadPosition(actor);
             task = task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, unchecked((ushort)point.Y)).WriteWord(20, unchecked((ushort)point.Z)).MarkPayloadUnknown(22, 2).WriteWord(32, unchecked((ushort)point.Y)).WriteWord(34, unchecked((ushort)(point.Y / 8)));
-            uint destination = 0x23C673Cu + (uint)actor * 40;
-            NativeBattleFileStaging staging = Point(frame.Staging, destination, new(model.Rotation12 ?? throw new NotSupportedException("Native Lion Heart echo requires its retained rotationX."), model.Rotation14 ?? throw new NotSupportedException("Native Lion Heart echo requires its retained rotationY."), model.Rotation16 ?? throw new NotSupportedException("Native Lion Heart echo requires its retained rotationZ.")));
-            staging = model.RotationPadding18 is ushort padding ? WriteWord(staging, destination + 6, padding) : Forget(staging, destination + 6, 2);
-            frame = frame with { Staging = staging };
+            NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Lion Heart echo requires its retained rotationX."), model.Rotation14 ?? throw new NotSupportedException("Native Lion Heart echo requires its retained rotationY."), model.Rotation16 ?? throw new NotSupportedException("Native Lion Heart echo requires its retained rotationZ."));
+            if (inputs.Aliases.TryEncodeExact(actor, out byte cell))
+            {
+                uint destination = 0x23C673Cu + (uint)cell * 40;
+                NativeBattleFileStaging staging = Point(frame.Staging, destination, rotation);
+                staging = model.RotationPadding18 is ushort padding ? WriteWord(staging, destination + 6, padding) : Forget(staging, destination + 6, 2);
+                frame = frame with { Staging = staging };
+            }
+            frame = SaveModel(frame, actor, ReadSavedModel(frame, actor) with { Rotation = rotation, RotationPadding = model.RotationPadding18 });
         }
         if (counter < 16)
         {
@@ -150,18 +160,17 @@ public static partial class NativeBattleLionHeart165Controller
             frame = frame with { Random = frame.Random.Draw(out ushort value) };
             int speed = (value % 2048 + 8192) / 4;
             pool = pool.WriteSlot(ring, pool.Slots[ring].WriteWord(30, (ushort)speed).WriteWord(28, (ushort)speed));
-            ushort old = unchecked((ushort)ReadWord(frame.Staging, 0x23C6738u + (uint)actor * 40));
+            ushort old = ReadSavedShadowFlags(frame, actor);
             frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(actor, old, old == 0 ? (ushort)0x20 : (ushort)0));
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
         short next = Word(task, 12);
         if (next == 16)
         {
-            uint saved = 0x23C6744u + (uint)actor * 40;
-            frame = inputs.Execute(frame, new NativeBattleLionHeart165Position(actor, new(ReadWord(frame.Staging, saved), ReadWord(frame.Staging, saved + 2), ReadWord(frame.Staging, saved + 4)), ReadWord(frame.Staging, saved + 6)));
-            uint rotation = 0x23C673Cu + (uint)actor * 40;
-            ushort? padding = NativeBattleTemporaryMemory.ReadView(frame.Staging, rotation + 6, 2).ReadSnapshot(0, 2).Known.All(value => value) ? unchecked((ushort)ReadWord(frame.Staging, rotation + 6)) : null;
-            frame = inputs.Execute(frame, new NativeBattleLionHeart165Rotation(actor, new(ReadWord(frame.Staging, rotation), ReadWord(frame.Staging, rotation + 2), ReadWord(frame.Staging, rotation + 4)), padding));
+            NativeBattleModelTransform saved = ReadSavedModel(frame, actor).Transform ?? throw new NotSupportedException("Native Lion Heart echo requires its saved model position.");
+            frame = inputs.Execute(frame, new NativeBattleLionHeart165Position(actor, saved.Position28, saved.Vertical34));
+            NativeBattleLionHeart165SavedModel rotation = ReadSavedModel(frame, actor);
+            frame = inputs.Execute(frame, new NativeBattleLionHeart165Rotation(actor, rotation.Rotation ?? throw new NotSupportedException("Native Lion Heart echo requires its saved model rotation."), rotation.RotationPadding));
             frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(actor, 0, 0x1000));
             if (actor == frame.FirstRecipient)
             {
@@ -186,5 +195,20 @@ public static partial class NativeBattleLionHeart165Controller
             pool = pool.WriteSlot(created, CopyStagingToTask(frame.Staging, 0x23C6938, pool.Slots[created], 16, 8));
             return created;
         }
+    }
+
+    private static NativeBattleLionHeart165Frame SaveModel(NativeBattleLionHeart165Frame frame, BattleModelOwner owner, NativeBattleLionHeart165SavedModel saved)
+    {
+        return frame with { Effect = frame.Effect with { LionHeartSavedModels = frame.Effect.LionHeartSavedModels.SetItem(owner, saved) } };
+    }
+
+    private static NativeBattleLionHeart165SavedModel ReadSavedModel(NativeBattleLionHeart165Frame frame, BattleModelOwner owner)
+    {
+        return frame.Effect.LionHeartSavedModels.TryGetValue(owner, out NativeBattleLionHeart165SavedModel? saved) ? saved : throw new NotSupportedException("Native Lion Heart requires its saved model state.");
+    }
+
+    private static ushort ReadSavedShadowFlags(NativeBattleLionHeart165Frame frame, BattleModelOwner owner)
+    {
+        return ReadSavedModel(frame, owner).ShadowFlags ?? throw new NotSupportedException("Native Lion Heart requires its saved model shadow flags.");
     }
 }

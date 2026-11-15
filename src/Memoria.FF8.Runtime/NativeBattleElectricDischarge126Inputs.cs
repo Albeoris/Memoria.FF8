@@ -11,14 +11,14 @@ public sealed record NativeBattleElectricDischarge126AnchorStep(NativeBattleElec
 public sealed record NativeBattleElectricDischarge126TaskStep(NativeBattleElectricDischarge126Frame Frame, int Result);
 public abstract record NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126LoadView : NativeBattleElectricDischarge126Operation;
-public sealed record NativeBattleElectricDischarge126ComposeCaster(byte Actor) : NativeBattleElectricDischarge126Operation;
-public sealed record NativeBattleElectricDischarge126RestoreCaster(byte Actor) : NativeBattleElectricDischarge126Operation;
+public sealed record NativeBattleElectricDischarge126ComposeCaster(BattleModelOwner Actor) : NativeBattleElectricDischarge126Operation;
+public sealed record NativeBattleElectricDischarge126RestoreCaster(BattleModelOwner Actor) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126BlendActorColor(BattleModelOwner Actor, uint FirstColor, uint SecondColor, short FirstFactor, short SecondFactor) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126Stage(short Depth, uint ColorFlags) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126SpatialSound(uint Value, int Volume, NativeBattleModuleAnchor Position) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126Flash(int Argument0, int Argument1, int Argument2, int Argument3) : NativeBattleElectricDischarge126Operation;
-public sealed record NativeBattleElectricDischarge126ContactAll(int First, int Count) : NativeBattleElectricDischarge126Operation;
+public sealed record NativeBattleElectricDischarge126ContactAll(BattleContactCursor First, int Count) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126ProjectWorld(uint HeadAddress, short Count) : NativeBattleElectricDischarge126Operation;
 public sealed record NativeBattleElectricDischarge126DrawWorld(uint HeadAddress, short Count, int TextureVOffset) : NativeBattleElectricDischarge126Operation
 {
@@ -36,4 +36,4 @@ public sealed record NativeBattleElectricDischarge126DrawSprite180(uint Temporar
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 
-public sealed record NativeBattleElectricDischarge126Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, int> ReadBoneCount, Func<int, NativeBattleResourceRowReference> ReadBindingReference, Func<NativeBattleElectricDischarge126Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleElectricDischarge126Frame, BattleModelOwner, NativeBattleElectricDischarge126AnchorStep> ReadAnchor571400, Func<NativeBattleElectricDischarge126Frame, BattleModelOwner, short, short, NativeBattleElectricDischarge126PointStep> ReadBone502170, Func<NativeBattleElectricDischarge126Frame, uint, NativeBattleEffectArena, NativeBattleElectricDischarge126TaskStep> AdvanceAct, Func<NativeBattleElectricDischarge126Frame, NativeBattleElectricDischarge126Operation, NativeBattleElectricDischarge126Frame> Execute);
+public sealed record NativeBattleElectricDischarge126Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, Func<NativeBattleElectricDischarge126State, NativeBattleElectricDischarge126State> CapturePartyColors, Action ClearPartyFlash, Func<IEnumerable<BattlePartyModelOwner>> ReadPartyOwners, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, int> ReadBoneCount, Func<BattleModelOwner, NativeBattleResourceRowReference> ReadBindingReference, Func<NativeBattleElectricDischarge126Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleElectricDischarge126Frame, BattleModelOwner, NativeBattleElectricDischarge126AnchorStep> ReadAnchor571400, Func<NativeBattleElectricDischarge126Frame, BattleModelOwner, short, short, NativeBattleElectricDischarge126PointStep> ReadBone502170, Func<NativeBattleElectricDischarge126Frame, uint, NativeBattleEffectArena, NativeBattleElectricDischarge126TaskStep> AdvanceAct, Func<NativeBattleElectricDischarge126Frame, NativeBattleElectricDischarge126Operation, NativeBattleElectricDischarge126Frame> Execute);

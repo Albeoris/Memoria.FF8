@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokukenSpecialController
 {
-    public static NativeBattleRenzokuken160ChildStep AdvanceLateSpecialChild(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, Func<byte, NativeBattleModuleAnchor> readAnchor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, short cameraRoll, NativeBattleSearchSpriteResource? commonSprite3 = null)
+    public static NativeBattleRenzokuken160ChildStep AdvanceLateSpecialChild(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, short cameraRoll, NativeBattleSearchSpriteResource? commonSprite3 = null)
     {
         uint callback = pool.Slots[slot].Callback;
         ushort effect = frame.Effect.Binding.Effect;
@@ -69,7 +69,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         NativeBattleRenzokukenSpecialState state = ReadState(frame);
         ImmutableArray<NativeBattleVector> offsets = resources.ContactOffsets ?? state.ContactOffsets;
         NativeBattleVector value = offsets[index];
-        NativeBattleActionMatrix matrix = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken contact requires its current actor matrix64.");
+        NativeBattleActionMatrix matrix = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken contact requires its current actor matrix64.");
         return new(AddLate(state.Core.Origin, NativeBattleGfMatrices.RotateShort56C4F0(matrix, value)), null);
     }
 
@@ -86,13 +86,13 @@ public static partial class NativeBattleRenzokukenSpecialController
         return FinishLateMesh(frame, pool, slot, inputs, resources, view, projection, colors, matrix, mesh, fadeStart, fadeStep, lifetime, scaleOffset, mode, offset);
     }
 
-    private static NativeBattleRenzokuken160ChildStep DrawStoredEuler(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool downward, Func<byte, NativeBattleModuleAnchor> readAnchor)
+    private static NativeBattleRenzokuken160ChildStep DrawStoredEuler(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool downward, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         NativeBattleRenzokukenSpecialState state = ReadState(frame);
         byte[] bank = state.ExtraStorage.ToArray();
         int offset = StoredOffset(task);
-        short angle = readAnchor(state.Core.Actor).W;
+        short angle = readAnchor(NativeBattleRenzokukenInvocation.Source(frame.Effect)).W;
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Euler56CE30(new(downward ? (short)1024 : (short)-1024, angle, 0));
         rotation = rotation with { X = StoredWord(bank, offset + 8), Y = StoredWord(bank, offset + 10), Z = StoredWord(bank, offset + 12) };
         int scale = unchecked((short)task.ReadWord(28));
@@ -113,7 +113,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         int lifetime;
         if (callback == 0x57D840)
         {
-            matrix = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken mesh requires its current actor matrix64.");
+            matrix = inputs.ReadModel(NativeBattleRenzokukenInvocation.Source(frame.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken mesh requires its current actor matrix64.");
             mesh = 0xC9B9EC;
             scaleOffset = 28;
             fadeStart = 6;

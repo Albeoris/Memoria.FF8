@@ -7,12 +7,12 @@ public static partial class NativeBattleEffect80Controller
     public static NativeBattleEffect80Step AdvanceBody(NativeBattleEffect80Frame frame, uint address, NativeBattleEffect80Resources resources, NativeBattleEffect80Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        uint target = PhysicalModelAddress(task.ReadByte(0x2D));
-        uint caster = PhysicalModelAddress(task.ReadByte(0x2C));
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+        BattleModelOwner caster = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
         switch (Phase(frame, address))
         {
             case 0:
-                frame = InitializeBody7B4480(frame, target, task.ReadByte(0x2D));
+                frame = InitializeBody7B4480(frame, target, inputs.ReadPackets(frame).ModelAliases);
                 frame = inputs.Execute(frame, new NativeBattleEffect80TargetFlags(target, 0xFF, 4, false));
                 frame = inputs.Execute(frame, new NativeBattleEffect80TargetFlags(caster, 0xFFFB, 0, true));
                 frame = inputs.Execute(frame, new NativeBattleEffect80TargetFlags(target, 0xFF, 8, false, 1));
@@ -45,7 +45,7 @@ public static partial class NativeBattleEffect80Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect80BodyAnchor7B4750(address, BodyContextAddress));
                 frame = IdentityBody(frame);
                 frame = SetBodyScale(frame, 0x200);
-                frame = WriteBytes(frame, BodyContextAddress + 0x78, inputs.ReadPosition8(frame, task.ReadByte(0x2C)), 8);
+                frame = WriteBytes(frame, BodyContextAddress + 0x78, inputs.ReadPosition8(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner), 8);
                 frame = frame with { State = frame.State.WriteWord(BodyContextAddress + 0xC2, 0x1000).WriteWord(BodyContextAddress + 0xA0, 0x1000) };
                 frame = BirthBodyNode(frame, address, 0x174F0BC, 12, inputs);
                 frame = inputs.Execute(frame, new NativeBattleEffect80Sound501330(resources.Sounds[0x157B2E8], 0, 128));
@@ -90,10 +90,10 @@ public static partial class NativeBattleEffect80Controller
         return Finish(frame, address);
     }
 
-    public static NativeBattleEffect80Frame InitializeBody7B4480(NativeBattleEffect80Frame frame, uint model, int actor)
+    public static NativeBattleEffect80Frame InitializeBody7B4480(NativeBattleEffect80Frame frame, BattleModelOwner model, NativeBattleModelAliases aliases)
     {
         frame = ClearBytes(frame, BodyContextAddress, BodyContextLength);
-        NativeBattleEffect80State state = frame.State.WriteDword(BodyContextAddress + 0x60, DescriptorAddress).WriteDword(BodyContextAddress + 0x64, model).WriteDword(BodyContextAddress + 0x68, 0x1D8E054).WriteDword(BodyContextAddress + 0x6C, 0x1D8E054).WriteWord(BodyContextAddress + 0xA8, checked((ushort)actor));
+        NativeBattleEffect80State state = frame.State.WriteDword(BodyContextAddress + 0x60, DescriptorAddress).WriteModelReference(BodyContextAddress + 0x64, 4, model, aliases.EncodeAddress(model)).WriteDword(BodyContextAddress + 0x68, 0x1D8E054).WriteDword(BodyContextAddress + 0x6C, 0x1D8E054).WriteModelReference(BodyContextAddress + 0xA8, 2, model, aliases.EncodeOperand(model, 2));
         state = state.WriteDword(DescriptorAddress + 4, RowsAddress).WriteWord(DescriptorAddress + 0x14, 0).WriteWord(DescriptorAddress + 0x16, 0).WriteWord(DescriptorAddress + 0x18, 0x140).WriteWord(DescriptorAddress + 0x1A, 0).Write(DescriptorAddress + 0x1C, [0x80, 0x80, 0x80]).WriteDword(DescriptorAddress + 0x20, uint.MaxValue).WriteWord(DescriptorAddress + 0x24, 0);
         return frame with { State = state };
     }
@@ -112,10 +112,10 @@ public static partial class NativeBattleEffect80Controller
     {
         uint child;
         (frame, child) = SpawnNode7B0A90(frame, parent, source, delay, 15, 4, inputs);
-        return WriteBytes(frame, child + 0x290, inputs.ReadPosition8(frame, Read(frame, parent).ReadByte(0x2C)), 8);
+        return WriteBytes(frame, child + 0x290, inputs.ReadPosition8(frame, Read(frame, parent).ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner), 8);
     }
 
-    private static NativeBattleEffect80Frame AdvanceBodyFade(NativeBattleEffect80Frame frame, uint address, uint target, NativeBattleEffect80Resources resources, NativeBattleEffect80Inputs inputs)
+    private static NativeBattleEffect80Frame AdvanceBodyFade(NativeBattleEffect80Frame frame, uint address, BattleModelOwner target, NativeBattleEffect80Resources resources, NativeBattleEffect80Inputs inputs)
     {
         short timer = unchecked((short)(Read(frame, address).ReadWord(0x9C) + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(0x9C, unchecked((ushort)timer)));

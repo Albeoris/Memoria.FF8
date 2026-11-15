@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCurse47UpdateCaster(uint Address) : NativeBattleCurse47Operation;
 public sealed record NativeBattleCurse47UpdateTargetBounds(uint Address) : NativeBattleCurse47Operation;
 public sealed record NativeBattleCurse47InitializeTarget(uint Address) : NativeBattleCurse47Operation;
-public sealed record NativeBattleCurse47Contact(int Index) : NativeBattleCurse47Operation;
+public sealed record NativeBattleCurse47Contact(BattleContactCursor Cursor) : NativeBattleCurse47Operation;
 public sealed record NativeBattleCurse47TextureLoad(uint RootAddress, uint SourceAddress) : NativeBattleCurse47Operation;
 public sealed record NativeBattleCurse47QueueFile(NativeBattleCurse47IoRequest Request) : NativeBattleCurse47Operation;
 public sealed record NativeBattleCurse47Inputs(NativeBattleActionPacketsState Packets, Func<NativeBattleCurse47Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleCurse47Frame, NativeBattleCurse47Operation, NativeBattleCurse47Frame> Execute, Func<NativeBattleCurse47Frame, uint, NativeBattleCurse47Step> AdvanceLeaf, uint DirectorSound);
@@ -211,12 +211,7 @@ public static class NativeBattleCurse47Controller
                 {
                     NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Curse target requires its captured action parameters.");
                     BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Curse requires its actual contact pointer.");
-                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
-                    if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)
-                    {
-                        throw new InvalidDataException("Curse contact leaves its actual captured arena.");
-                    }
+                    BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                     frame = inputs.Execute(frame, new NativeBattleCurse47Contact(contact));
                     frame = Next(frame, address);
                 }

@@ -57,6 +57,7 @@ public sealed partial record NativeBattleModuleTask([property: JsonRequired] ush
     [JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
     [JsonIgnore] public BattleModelOwner? ModelOwner { get; init; }
+    [JsonIgnore] internal int? ModelPointerOffset { get; init; }
     public uint UnknownModelPointerBytes { get; init; }
 }
 public sealed partial record NativeBattleModuleStep(NativeBattleModuleState State, ImmutableArray<NativeBattleModuleDraw> Draws);
@@ -129,7 +130,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new InvalidOperationException("Native effect module exhausted its300 physical task slots.");
         }
-        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null, ModelOwner = null, UnknownModelPointerBytes = 0, PresentationOwnerEffect = null, GilgameshFlashPresentation = null };
+        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null, ModelOwner = null, ModelPointerOffset = null, UnknownModelPointerBytes = 0, PresentationOwnerEffect = null, GilgameshFlashPresentation = null };
         NativeBattleModuleState allocation = ForgetCastingSlot(slot);
         ImmutableArray<NativeBattleModuleTask> slots = allocation.Slots.SetItem(slot, task);
         if (Tail is int tail)

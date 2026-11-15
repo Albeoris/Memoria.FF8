@@ -59,11 +59,6 @@ public static partial class NativeBattleDisolvingAcid132Controller
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(Signed(task, offset), Signed(task, offset + 2), Signed(task, offset + 4));
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
-    private static int Actor(uint address)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Disolving Acid model pointer leaves its seven-model bank.");
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Disolving Acid actor leaves its seven-model bank.");
     public static NativeBattleDisolvingAcid132Frame LoadMatrix(NativeBattleDisolvingAcid132Frame frame, NativeBattlePackedMatrix32 packed)
     {
         packed.Validate();
@@ -102,15 +97,6 @@ public static partial class NativeBattleDisolvingAcid132Controller
     {
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));
         return w is { } value ? result.Write(6, BitConverter.GetBytes(value)) : result;
-    }
-    private static int FirstContact(NativeBattleDisolvingAcid132Frame frame, NativeBattleDisolvingAcid132Inputs inputs)
-    {
-        BattleActionHeaderReference index = Parameters(frame).Header;
-        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
-        {
-            throw new NotSupportedException("Disolving Acid requires its actual captured contact header.");
-        }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Disolving Acid requires its actual contact pointer.");
     }
     private static void RequireBinding(NativeBattleDisolvingAcid132Frame frame)
     {

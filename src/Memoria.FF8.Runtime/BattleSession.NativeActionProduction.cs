@@ -88,7 +88,7 @@ public sealed partial class BattleSession
         bool aborted = false;
         for (int hit = 0; hit < plan.Length && !aborted; hit++)
         {
-            (BattleCombatant[] targets, byte coverSource) = plan[hit];
+            (BattleCombatant[] targets, BattleModelOwner? coverSource) = plan[hit];
             //The original adds the mask's population before checking first-hit admission or a later KO abort.
             publishedCount = unchecked((byte)(publishedCount + targets.Length));
             if (targets.Length == 0 || hit == 0 && !NativeFirstHitAdmitted(actor, command, context))

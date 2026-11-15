@@ -399,12 +399,12 @@ public sealed partial class BattleSession
 
     private bool HasCommittedGuardianFormAction(string actorId)
     {
-        return ActiveAction is { NativeHeaderIndex: not null } action && action.ActorId == actorId || expandedEffect is not null && ActiveAction is { GuardianFormAction: not null } expanded && expanded.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeaderIndex is not null) || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
+        return ActiveAction is { NativeHeader: not null } action && action.ActorId == actorId || expandedEffect is not null && ActiveAction is { GuardianFormAction: not null } expanded && expanded.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeader is not null) || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
     }
 
     private void CancelUncommittedGuardianFormCommands(BattleCombatant actor)
     {
-        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actor.Id || command.NativeHeaderIndex is not null || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
+        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actor.Id || command.NativeHeader is not null || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
         actions.Clear();
         foreach (BattleAttackCommand command in retained)
         {
@@ -420,7 +420,7 @@ public sealed partial class BattleSession
                     continue;
                 }
                 BattleAttackCommand? command = nativeCommandBanks.Banks[bank].LogicalCommands[2 * slot];
-                if (command?.ActorId == actor.Id && command.NativeHeaderIndex is null && (command.GuardianFormAction is not null || command.GuardianFormInvocation is not null))
+                if (command?.ActorId == actor.Id && command.NativeHeader is null && (command.GuardianFormAction is not null || command.GuardianFormInvocation is not null))
                 {
                     nativeCommandBanks = nativeCommandBanks.Release(location);
                 }
@@ -552,8 +552,8 @@ public sealed partial class BattleSession
         {
             presentation.Validate();
             BattleGuardianFormState owner = GetGuardianForm(presentation.ActorId) ?? throw new InvalidDataException("Saved GF presentation lacks its logical form owner.");
-            bool queuedFinisher = owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode == GuardianFormInvocationMode.EntryOnly && presentation.Phase == 3 && QueuedActions.Any(command => command.ActorId == owner.ActorId && command.NativeHeaderIndex is null && command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation && invocation.Id == owner.InvocationId);
-            if (owner.InvocationId != presentation.InvocationId || GetActor(owner.ActorId).EncodeNativeSlot() != presentation.ActorIndex || owner.Phase == BattleGuardianFormPhase.Entering && presentation.Mode != GuardianFormInvocationMode.EntryOnly || owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode != GuardianFormInvocationMode.FinisherWithoutEntry && !queuedFinisher)
+            bool queuedFinisher = owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode == GuardianFormInvocationMode.EntryOnly && presentation.Phase == 3 && QueuedActions.Any(command => command.ActorId == owner.ActorId && command.NativeHeader is null && command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation && invocation.Id == owner.InvocationId);
+            if (owner.InvocationId != presentation.InvocationId || CreatePresentationModelOwner(GetActor(owner.ActorId)) != presentation.Actor || owner.Phase == BattleGuardianFormPhase.Entering && presentation.Mode != GuardianFormInvocationMode.EntryOnly || owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode != GuardianFormInvocationMode.FinisherWithoutEntry && !queuedFinisher)
             {
                 throw new InvalidDataException("Saved GF presentation differs from its logical invocation.");
             }

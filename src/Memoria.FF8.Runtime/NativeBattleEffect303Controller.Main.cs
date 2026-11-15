@@ -53,7 +53,7 @@ public static partial class NativeBattleEffect303Controller
             {
                 return (frame, 0);
             }
-            uint target = frame.State.ReadDword(TargetGlobal);
+            BattleModelOwner target = frame.State.ReadModel(TargetGlobal);
             frame = inputs.Execute(frame, new NativeBattleEffect303Activate487670(target));
             return (inputs.Execute(frame, new NativeBattleEffect303ModelFields(target, 4, 0)), 2);
         }
@@ -67,8 +67,8 @@ public static partial class NativeBattleEffect303Controller
         {
             return (inputs.Execute(frame, new NativeBattleEffect303QueueFile5341D0(360, frame.State.ReadDword(CursorGlobal), 1)), 2);
         }
-        uint target = frame.State.ReadDword(TargetGlobal);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner target = frame.State.ReadModel(TargetGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (age == 0)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect303ModelFields(target, 4, 0));

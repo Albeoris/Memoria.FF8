@@ -22,13 +22,38 @@ public static class NativeBattlePresentationTaskStorage
         {
             throw new ArgumentOutOfRangeException(nameof(capacity));
         }
-        uint byteLength = checked((uint)stride * (uint)capacity);
+        return ReserveAlignedRange(memory, effect, checked((uint)stride * (uint)capacity));
+    }
+
+    internal static (NativeBattleEffectMemory Memory, uint Address) ReserveByteRange(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, BattleModelRoster roster, int byteCount)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
+        ArgumentNullException.ThrowIfNull(effect);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(byteCount);
+        effect.Validate(roster);
+        return ReserveAlignedRange(memory, effect, checked((uint)byteCount));
+    }
+
+    private static (NativeBattleEffectMemory Memory, uint Address) ReserveAlignedRange(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, uint byteLength)
+    {
         ValidateCursor(memory.PresentationTaskNextAddress);
         uint next = memory.PresentationTaskNextAddress ?? StartAddress;
         next = FindBankEnd(next, effect.Pools);
         if (memory.DetachedReturnedTask is { } detached)
         {
             next = FindBankEnd(next, detached.Pools);
+        }
+        if (memory.Scan is { } scan)
+        {
+            foreach (NativeBattleScanExtraTextBinding binding in scan.Results.ExtraTextBindings)
+            {
+                if (binding.Length <= 0 || binding.Address < StartAddress || binding.Address >= EndAddress ||
+                    (binding.Address & (BankAlignment - 1)) != 0 || (uint)binding.Length > EndAddress - binding.Address)
+                {
+                    throw new InvalidDataException("A retained hosted text resource leaves its aligned address range.");
+                }
+                next = Math.Max(next, checked(binding.Address + (uint)binding.Length));
+            }
         }
         uint address = AlignBank(next);
         if (address >= EndAddress || byteLength > EndAddress - address)

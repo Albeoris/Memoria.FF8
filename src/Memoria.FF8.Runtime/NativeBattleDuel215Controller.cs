@@ -15,7 +15,7 @@ public static partial class NativeBattleDuel215Controller
     public const uint Particles = 0x2508948;
     public const uint Arena = 0x20DFAB8;
 
-    public static NativeBattleDuel215Frame Enter69AB90(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel215Resources resources, NativeCrtRandomState random)
+    public static NativeBattleDuel215Frame Enter69AB90(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel215Resources resources, NativeCrtRandomState random, NativeBattleModelAliases aliases)
     {
         if (effect.Binding is not { Effect: 215, Entry: 0x69AB60, Initializer: 0x69AB70 } || effect.Parameters is not { } parameters)
         {
@@ -32,7 +32,7 @@ public static partial class NativeBattleDuel215Controller
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Duel215 requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Duel215 requires its retained resource arena."), initialTim.ArenaOffset);
         staging = Dword(staging, 0x2508938, checked(Arena + (uint)initialTim.ArenaOffset));
-        staging = Dword(Dword(Dword(staging, 0x25089A8, Arena), 0x250893C, 0x1D99A78), 0x2508940, NativeBattleGraphicsModelAddress.Encode(parameters.Source));
+        staging = Dword(Dword(staging, 0x25089A8, Arena), 0x250893C, 0x1D99A78).WriteExecutionReference(0x2508940, 4, new BattleExecutionReference.Model(parameters.Source), aliases.EncodeAddress(parameters.Source));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x2508978, 16, 1);
         (root, int slot) = root.Append(0x69AC00);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));

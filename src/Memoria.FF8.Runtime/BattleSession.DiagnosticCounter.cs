@@ -41,7 +41,7 @@ public sealed partial class BattleSession
     private long diagnosticCounterPrimarySerial;
     private long diagnosticCounterQueueEpoch;
     private long diagnosticCounterAiSerial;
-    private int? diagnosticCounterProducingHeader;
+    private BattleActionHeaderReference? diagnosticCounterProducingHeader;
     private readonly ConditionalWeakTable<NativeBattleContactPacket, BattleDiagnosticCounterPrimary> diagnosticCounterContacts = new();
     private readonly Dictionary<(int Header, long Generation), List<(int Index, BattleDiagnosticCounterPrimary Primary)>> diagnosticCounterAppended = [];
     private readonly Dictionary<(byte Actor, byte Order), long> diagnosticCounterPending = [];
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleActionPresentation? command = resolvingNativeAction ?? ActiveAction;
-        int? header = diagnosticCounterProducingHeader ?? command?.NativeHeaderIndex;
+        int? header = OriginalDiagnosticHeaderIndex(diagnosticCounterProducingHeader ?? command?.NativeHeader);
         if (command?.NativeAction is not { } native || header is not int index || DiagnosticCounterHeaderGeneration(index) is not long generation)
         {
             return;
@@ -99,13 +99,18 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ObserveDiagnosticCounterAppend(NativeBattleContactPacket packet, int index, bool triggerRecomputed = false)
+    private void ObserveDiagnosticCounterAppend(NativeBattleContactPacket packet, BattleContactOccurrence occurrence, bool triggerRecomputed = false)
     {
         if (!diagnosticCounterContacts.TryGetValue(packet, out BattleDiagnosticCounterPrimary? primary))
         {
             return;
         }
         diagnosticCounterContacts.Remove(packet);
+        if (occurrence.Ordinal >= NativeBattleContactAddress.NativeRowCount)
+        {
+            return;
+        }
+        int index = occurrence.Ordinal;
         if (DiagnosticCounterHeaderGeneration(primary.HeaderIndex) != primary.HeaderGeneration)
         {
             throw new InvalidDataException("Counter contact publication lost its actual prepared header generation.");
@@ -124,13 +129,13 @@ public sealed partial class BattleSession
         appended.Add((index, primary));
     }
 
-    private void ObserveDiagnosticCounterPublishedHeaders(int first)
+    private void ObserveDiagnosticCounterPublishedHeaders(BattleActionHeaderReference first)
     {
-        if (!ObservingDiagnosticCounter)
+        if (!ObservingDiagnosticCounter || OriginalDiagnosticHeaderIndex(first) is not int original)
         {
             return;
         }
-        for (int header = first; header < nativeActionPackets.ActionCount; header++)
+        for (int header = original; header < Math.Min(nativeActionPackets.ActionCount, NativeBattleRetainedActionPackets.HeaderCapacity); header++)
         {
             if (DiagnosticCounterHeaderGeneration(header) is not long generation || !diagnosticCounterAppended.Remove((header, generation), out var appended))
             {
@@ -190,7 +195,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticCounterCommand(BattleCombatant actor, BattleAttackCommand command, ushort? selectedTargetMask)
     {
-        if (DiagnosticCounterCommandQueued is not { } observer || diagnosticCounterAiScope is not { } scope || diagnosticCounterCurrentCallback is not { } queue || command.NativeAiCallbackStage != scope.Stage || command.NativeHeaderIndex is not int header || DiagnosticCounterHeaderGeneration(header) is not long generation || command.NativeAction is not { } native || command.NativeQueuedCommand is not byte queued || command.NativeSequence is not byte sequence || selectedTargetMask is not ushort selected)
+        if (DiagnosticCounterCommandQueued is not { } observer || diagnosticCounterAiScope is not { } scope || diagnosticCounterCurrentCallback is not { } queue || command.NativeAiCallbackStage != scope.Stage || OriginalDiagnosticHeaderIndex(command.NativeHeader) is not int header || DiagnosticCounterHeaderGeneration(header) is not long generation || command.NativeAction is not { } native || command.NativeQueuedCommand is not byte queued || command.NativeSequence is not byte sequence || selectedTargetMask is not ushort selected)
         {
             return;
         }

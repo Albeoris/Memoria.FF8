@@ -76,3 +76,11 @@ public sealed record NativeBattleLionHeart165Frame(NativeBattleEffectMemory Memo
 }
 
 public sealed record NativeBattleLionHeart165ChildStep(NativeBattleLionHeart165Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
+
+internal sealed record NativeBattleLionHeart165SavedModel(NativeBattleModelTransform? Transform, ushort? ShadowFlags, NativeBattleVector? Rotation, ushort? RotationPadding);
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleLionHeart165SavedModel> LionHeartSavedModels { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleLionHeart165SavedModel>.Empty;
+}

@@ -109,19 +109,25 @@ public static partial class NativeBattleEffect80Controller
 
     private static NativeBattleEffect80Frame PublishPartyVisibility(NativeBattleEffect80Frame frame, bool restore, NativeBattleEffect80Inputs inputs)
     {
-        for (int index = 0; index < 3; index++)
+        NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+        foreach (BattlePartyModelOwner actor in aliases.Roster.Party)
         {
-            ushort flags = inputs.ReadModel(frame, index).Flags0;
+            ushort flags = inputs.ReadModel(frame, actor).Flags0;
             if ((flags & 2) == 0)
             {
                 continue;
             }
             if (!restore)
             {
-                frame = frame with { State = frame.State.WriteDword(TargetAddress + 0x20u + 4u * (uint)index, flags) };
+                NativeBattleEffect80State state = frame.State;
+                if (aliases.TryEncodeExact(actor, out byte originalSlot))
+                {
+                    state = state.WriteDword(TargetAddress + 0x20u + 4u * originalSlot, flags);
+                }
+                frame = frame with { State = state with { SavedPartyFlags = state.SavedPartyFlags.SetItem(actor, flags) } };
             }
-            ushort bit = restore ? (ushort)(frame.State.Read(TargetAddress + 0x20u + 4u * (uint)index, 1)[0] & 4) : (ushort)4;
-            frame = inputs.Execute(frame, new NativeBattleEffect80TargetFlags(PhysicalModelAddress(index), restore ? (ushort)0xFFFB : (ushort)0xFFFF, bit, true));
+            ushort bit = restore ? (ushort)(frame.State.SavedPartyFlags.GetValueOrDefault(actor) & 4) : (ushort)4;
+            frame = inputs.Execute(frame, new NativeBattleEffect80TargetFlags(actor, restore ? (ushort)0xFFFB : (ushort)0xFFFF, bit, true));
         }
         return frame;
     }

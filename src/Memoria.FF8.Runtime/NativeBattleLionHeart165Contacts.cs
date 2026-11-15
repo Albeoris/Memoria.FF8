@@ -1,8 +1,8 @@
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleLionHeart165Contact(int RelativeIndex) : NativeBattleLionHeart165Operation;
-public sealed record NativeBattleLionHeart165Rotation(byte Actor, NativeBattleVector Rotation, ushort? Padding) : NativeBattleLionHeart165Operation;
-public sealed record NativeBattleLionHeart165Echo(byte Actor, uint TemporaryAddress) : NativeBattleLionHeart165Operation;
+public sealed record NativeBattleLionHeart165Rotation(BattleModelOwner Actor, NativeBattleVector Rotation, ushort? Padding) : NativeBattleLionHeart165Operation;
+public sealed record NativeBattleLionHeart165Echo(BattleModelOwner Actor, uint TemporaryAddress) : NativeBattleLionHeart165Operation;
 
 public static partial class NativeBattleLionHeart165Controller
 {
@@ -62,11 +62,11 @@ public static partial class NativeBattleLionHeart165Controller
             {
                 short duration = index == 0 ? (short)8 : unchecked((short)(ReadDword(frame.Staging, 0xD8871Cu + (uint)index * 4) - at));
                 short destination = unchecked((short)(ReadWord(frame.Staging, 0xD887D0u + (uint)index * 4) - 4000));
-                foreach (byte actor in TargetRing(frame, inputs))
+                foreach (BattleModelOwner actor in TargetRing(frame, inputs))
                 {
                     frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(actor, 0x1000, 0));
                     int motion = Append(0x5ED1A0);
-                    SetTask(motion, 14, actor);
+                    pool = pool.WriteSlot(motion, WriteActor(pool.Slots[motion], actor, inputs.Aliases));
                     SetTask(motion, 26, duration);
                     SetTask(motion, 28, destination);
                 }
@@ -111,7 +111,7 @@ public static partial class NativeBattleLionHeart165Controller
         }
         NativeBattleModulePoolTask task = pool.Slots[slot];
         short counter = Word(task, 12);
-        byte actor = checked((byte)Word(task, 14));
+        BattleModelOwner actor = ReadActor(task);
         NativeBattleModelTransform transform = inputs.ReadModel(actor).Transform ?? throw new NotSupportedException("Native Lion Heart target motion requires its actual raw model position.");
         if (counter == 0)
         {
@@ -159,24 +159,35 @@ public static partial class NativeBattleLionHeart165Controller
         return inputs.Execute(frame, new NativeBattleLionHeart165Contact(index));
     }
 
-    private static IEnumerable<byte> TargetRing(NativeBattleLionHeart165Frame frame, NativeBattleLionHeart165Inputs inputs)
+    private static IEnumerable<BattleModelOwner> TargetRing(NativeBattleLionHeart165Frame frame, NativeBattleLionHeart165Inputs inputs)
     {
         BattleModelOwner first = frame.FirstRecipient;
         yield return first;
-        int? next = inputs.ReadModel(first).ReadLinkedModelIndex140();
-        HashSet<int> seen = [first];
-        while (next is int actor && actor != first)
+        BattleModelOwner? next = inputs.ReadModel(first).ReadLinkedModel();
+        HashSet<BattleModelOwner> seen = [first];
+        while (next is BattleModelOwner actor && actor != first)
         {
             if (!seen.Add(actor))
             {
                 throw new InvalidDataException("Native Lion Heart target ring does not close at its original first target.");
             }
-            NativeBattleGraphicsModel model = inputs.ReadModel(checked((byte)actor));
+            NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             if ((model.Flags0 & 2) != 0)
             {
-                yield return checked((byte)actor);
+                yield return actor;
             }
-            next = model.ReadLinkedModelIndex140() ?? throw new InvalidDataException("Native Lion Heart linked target ring terminates before closing.");
+            next = model.ReadLinkedModel() ?? throw new InvalidDataException("Native Lion Heart linked target ring terminates before closing.");
         }
+    }
+
+    private static NativeBattleModulePoolTask WriteActor(NativeBattleModulePoolTask task, BattleModelOwner actor, NativeBattleModelAliases aliases)
+    {
+        task.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+        return task;
+    }
+
+    private static BattleModelOwner ReadActor(NativeBattleModulePoolTask task)
+    {
+        return task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
     }
 }

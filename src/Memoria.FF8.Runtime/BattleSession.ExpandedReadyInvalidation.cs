@@ -70,7 +70,7 @@ public sealed partial class BattleSession
 
     private bool IsExpandedQueuedReadyInput(BattleAttackCommand command, string actorId)
     {
-        if (command.ActorId != actorId || command.NativeCallback is not null || command.NativeHeaderIndex is not null || command.ExpandedAiDescriptor is not null || command.NativePlayerReaction is not null)
+        if (command.ActorId != actorId || command.NativeCallback is not null || command.NativeHeader is not null || command.ExpandedAiDescriptor is not null || command.NativePlayerReaction is not null)
         {
             return false;
         }
@@ -102,7 +102,7 @@ public sealed partial class BattleSession
             !nativeShotProcesses.TryGetValue(actorId, out BattleNativeShotState? shot) || shot.Phase != BattleNativeShotPhase.Opening || shot.ActionId != command.NativeAction?.ActionId ||
             ActiveAction is { } active && active.ActorId == actorId && IsShotCallback(active.NativeLimitCallback) ||
             expandedHostedInvocations.Any(invocation => invocation.Command.ActorId == actorId && IsShotCallback(invocation.Command.NativeLimitCallback)) ||
-            actions.Any(other => other.ActorId == actorId && (other.NativeHeaderIndex is not null || other.ExpandedAiDescriptor is not null) && IsShotCallback(other.NativeLimitCallback)))
+            actions.Any(other => other.ActorId == actorId && (other.NativeHeader is not null || other.ExpandedAiDescriptor is not null) && IsShotCallback(other.NativeLimitCallback)))
         {
             return;
         }

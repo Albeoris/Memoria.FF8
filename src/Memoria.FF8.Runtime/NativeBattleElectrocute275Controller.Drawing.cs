@@ -22,16 +22,12 @@ public static partial class NativeBattleElectrocute275Controller
             throw new NotSupportedException("Electrocute reached an unsupported sprite callback.");
         }
         int age = Signed(task, 12);
-        byte actor = task.ReadByte(15);
-        if (actor != 255 && age <= 4)
+        BattleModelOwner? owner = task.ReadExecutionReference<BattleExecutionReference.TrailTarget>(15, 1).Owner;
+        if (owner is { } actor && age <= 4)
         {
-            if (actor >= 7)
-            {
-                throw new InvalidDataException("Electrocute sprite actor leaves the original model bank.");
-            }
             frame = inputs.Execute(frame, new NativeBattleElectrocute275ActorFlags(actor, 0, 0x800));
             short ratio = unchecked((short)NativeBattleCameraMath.Sine(age << 8));
-            frame = inputs.Execute(frame, new NativeBattleElectrocute275BlendActorColor(actor, frame.State.ReadDword(SavedColorsGlobal + (uint)actor * 4), resources.ActorColor, unchecked((short)(4096 - ratio)), ratio));
+            frame = inputs.Execute(frame, new NativeBattleElectrocute275BlendActorColor(actor, frame.State.ReadSavedColor(actor), resources.ActorColor, unchecked((short)(4096 - ratio)), ratio));
         }
         short scale = Signed(task, 0x16);
         NativeBattleVector position = new(Signed(task, 0x10), Signed(task, 0x12), Signed(task, 0x14));

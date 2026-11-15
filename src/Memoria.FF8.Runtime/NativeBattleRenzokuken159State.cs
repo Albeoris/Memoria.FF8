@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Retained local storage of the159 module, separate from its physical task banks.</summary>
-public sealed record NativeBattleRenzokuken159State([property: JsonRequired] byte Actor, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] int FirstTarget, [property: JsonRequired] bool InitialControl, [property: JsonRequired] int Duration, [property: JsonRequired] ImmutableArray<byte> Sparks, [property: JsonRequired] ImmutableArray<byte> Debris, [property: JsonRequired] ImmutableArray<byte> Spirals, [property: JsonRequired] ImmutableArray<byte> TrailHistory, [property: JsonRequired] ImmutableArray<byte> ImpactStates, [property: JsonRequired] ImmutableArray<short> TrailInner, [property: JsonRequired] ImmutableArray<short> TrailOuter, [property: JsonRequired] NativeBattleVector Origin, [property: JsonRequired] NativeBattleVector Direction, [property: JsonRequired] int DrawParity)
+public sealed record NativeBattleRenzokuken159State([property: JsonRequired] bool InitialControl, [property: JsonRequired] int Duration, [property: JsonRequired] ImmutableArray<byte> Sparks, [property: JsonRequired] ImmutableArray<byte> Debris, [property: JsonRequired] ImmutableArray<byte> Spirals, [property: JsonRequired] ImmutableArray<byte> TrailHistory, [property: JsonRequired] ImmutableArray<byte> ImpactStates, [property: JsonRequired] ImmutableArray<short> TrailInner, [property: JsonRequired] ImmutableArray<short> TrailOuter, [property: JsonRequired] NativeBattleVector Origin, [property: JsonRequired] NativeBattleVector Direction, [property: JsonRequired] int DrawParity)
 {
     [JsonRequired]
     public ushort OriginPadding { get; init; }
@@ -18,20 +18,20 @@ public sealed record NativeBattleRenzokuken159State([property: JsonRequired] byt
     [JsonRequired]
     public ImmutableArray<byte> AbSegments { get; init; } = [];
 
-    public static NativeBattleRenzokuken159State FromColdProcess() => new(0, 0, 0, false, 0, new byte[40 * 12].ToImmutableArray(), new byte[80 * 20].ToImmutableArray(), new byte[60 * 16].ToImmutableArray(), new byte[7 * 20].ToImmutableArray(), new byte[12 * 156].ToImmutableArray(), new short[32 * 4].ToImmutableArray(), new short[32 * 4].ToImmutableArray(), new(0, 0, 0), new(0, 0, 0), 0);
+    public static NativeBattleRenzokuken159State FromColdProcess() => new(false, 0, new byte[40 * 12].ToImmutableArray(), new byte[80 * 20].ToImmutableArray(), new byte[60 * 16].ToImmutableArray(), new byte[7 * 20].ToImmutableArray(), new byte[12 * 156].ToImmutableArray(), new short[32 * 4].ToImmutableArray(), new short[32 * 4].ToImmutableArray(), new(0, 0, 0), new(0, 0, 0), 0);
 
     public void Validate()
     {
-        if (Actor >= 7 || HeaderIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || FirstTarget is < 0 or > 6 || Sparks.IsDefault || Sparks.Length != 480 || Debris.IsDefault || Debris.Length != 1600 || Spirals.IsDefault || Spirals.Length != 960 || TrailHistory.IsDefault || TrailHistory.Length != 140 || ImpactStates.IsDefault || ImpactStates.Length != 1872 || TrailInner.IsDefault || TrailInner.Length != 128 || TrailOuter.IsDefault || TrailOuter.Length != 128 || DrawParity is < 0 or > 1)
+        if (Sparks.IsDefault || Sparks.Length != 480 || Debris.IsDefault || Debris.Length != 1600 || Spirals.IsDefault || Spirals.Length != 960 || TrailHistory.IsDefault || TrailHistory.Length != 140 || ImpactStates.IsDefault || ImpactStates.Length != 1872 || TrailInner.IsDefault || TrailInner.Length != 128 || TrailOuter.IsDefault || TrailOuter.Length != 128 || DrawParity is < 0 or > 1)
         {
             throw new InvalidDataException("Native159 lost its physical particle, trail or retained action owners.");
         }
     }
 
-    public NativeBattleRenzokuken159State Enter(byte actor, int headerIndex, int firstTarget, bool initialControl)
+    public NativeBattleRenzokuken159State Enter(bool initialControl)
     {
         Validate();
-        NativeBattleRenzokuken159State entered = this with { Actor = actor, HeaderIndex = headerIndex, FirstTarget = firstTarget, InitialControl = initialControl, Duration = 4, AbSegments = [], Sparks = ClearMarkers(Sparks, 12), Debris = ClearMarkers(Debris, 20), Spirals = ClearMarkers(Spirals, 16) };
+        NativeBattleRenzokuken159State entered = this with { InitialControl = initialControl, Duration = 4, AbSegments = [], Sparks = ClearMarkers(Sparks, 12), Debris = ClearMarkers(Debris, 20), Spirals = ClearMarkers(Spirals, 16) };
         entered.Validate();
         return entered;
     }
