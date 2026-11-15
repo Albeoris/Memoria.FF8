@@ -11,12 +11,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly AutoPlayPlanner<Ff7AutoPlayDeferral> planner;
     private readonly Ff7AutoPlayChoiceWorkflow choices;
     private readonly Ff7AutoPlayScriptedInput scriptedInput;
+    private readonly Action<Ff7SessionSave>? checkpointBeforeWorldBattle;
     private readonly Queue<(int X, int Y, int Z, int Triangle)> recentPositions = new();
     private string? movementEvent;
 
-    public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint)
+    public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
     {
         this.session = session;
+        this.checkpointBeforeWorldBattle = checkpointBeforeWorldBattle;
         State = session.AutoPlayState?.Clone() ?? new();
         State.Validate();
         RestoreUnscopedMovementFailures(State);
@@ -26,6 +28,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         scriptedInput = new(session);
         session.InteractionScriptRequested += ObserveInteraction;
         session.NativeTickCompleted += ObserveTick;
+        session.WorldBattleStarting += SaveWorldBattleBoundary;
         ObserveWorldAllocation();
         Publish();
     }
@@ -64,8 +67,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return default;
         }
         ObserveWorldAllocation();
-        if (session.World is not null)
+        if (session.World is { } world)
         {
+            if (world.PendingBattle is not null)
+            {
+                return default;
+            }
             return ChooseWorldInput(driver);
         }
         if (session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { Ladder.Completed: false } climbing)
@@ -386,10 +393,21 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     {
         session.InteractionScriptRequested -= ObserveInteraction;
         session.NativeTickCompleted -= ObserveTick;
+        session.WorldBattleStarting -= SaveWorldBattleBoundary;
         if (observedWorld is not null)
         {
             observedWorld.NativeMeshDispatched -= ObserveWorldDispatch;
             observedWorld.NativeHostOperationObserved -= ObserveWorldHostOperation;
         }
+    }
+
+    private void SaveWorldBattleBoundary()
+    {
+        if (checkpointBeforeWorldBattle is null)
+        {
+            return;
+        }
+        Publish();
+        checkpointBeforeWorldBattle(session.Capture());
     }
 }

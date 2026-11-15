@@ -39,7 +39,13 @@ internal sealed partial class Ff7Scene
                 if (autoPlay is null || !autoPlay.Running)
                 {
                     autoPlayPolicy?.Dispose();
-                    autoPlayPolicy = new(Session, SaveAutoPlayChoiceCheckpoint);
+                    autoPlayPolicy = new(Session, SaveAutoPlayChoiceCheckpoint, state =>
+                    {
+                        if (AutoPlayRunning && !AutoPlayPaused)
+                        {
+                            SaveAutoPlayCheckpoint(state);
+                        }
+                    });
                     autoPlay = new Ff7AutoPlayController(Session, autoPlayPolicy.ChooseInput, present: PrepareAutoPlayDialogue, checkpoint: SaveAutoPlayCheckpoint, advanceTick: AdvanceFieldTick, chooseDialogueSelection: ChooseAutoPlayDialogueSelection, advanceDialoguePresentation: AdvanceCommonDialogue, advanceShop: cancel => Session.AdvanceShop(cancel));
                     autoPlay.Start();
                 }

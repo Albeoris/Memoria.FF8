@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--actor-reaction-motion-only", StringComparer.Ordinal))
+{
+    NativeReactionMotionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--actor-hitmark-only", StringComparer.Ordinal))
+{
+    NativeActorHitmarkTests.Run();
+    return 0;
+}
+
+if (args.Contains("--autoplay-world-battle-checkpoint-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldBattleCheckpointTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-discovery-only", StringComparer.Ordinal))
 {
     NativeAutoPlayDiscoveryTests.Run();
@@ -543,6 +561,9 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),
     ("native autoplay world navigation", AutoPlayWorldNavigationTests.Run),
     ("native autoplay world policy lifecycle", AutoPlayWorldPolicyTests.Run),
+    ("native autoplay pre-battle world checkpoints", AutoPlayWorldBattleCheckpointTests.Run),
+    ("native actor reaction fixed-motion ownership", NativeReactionMotionTests.Run),
+    ("native delayed actor hitmark ownership", NativeActorHitmarkTests.Run),
     ("native autoplay global visit guards", AutoPlayVisitGuardTests.Run),
     ("native autoplay transition progress guard", NativeAutoPlayTransitionGuardTests.Run),
     ("native autoplay successful target completion", NativeAutoPlayTests.RunCompletion),

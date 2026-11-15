@@ -102,6 +102,7 @@ public sealed partial class Ff7Session
         {
             return false;
         }
+        WorldBattleStarting?.Invoke();
         world.CompleteSpecialBattleDeparture(request);
         SceneFormation formation = GetBattleFormation(request.Formation);
         FieldVariables variables = world.PrepareBattleVariables(request);
