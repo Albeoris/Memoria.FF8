@@ -93,6 +93,60 @@ public sealed class NativeBattleSonic139ControllerTests
     }
 
     [Fact]
+    public void Expanded_tint_birth_waits_at_the_completed_wave_age_and_reuses_a_retired_slot()
+    {
+        BattleModelOwner extra = new BattlePartyActorModel(new("extra-target"));
+        BattleModelRoster roster = new(OriginalRoster.Owners.Append(extra));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        NativeBattleActionPacketsState packets = OriginalPackets().WithRoster(roster, aliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 11, -1, 182, 139, null));
+        foreach (BattleModelOwner recipient in Enumerable.Range(0, 4).Select(OriginalOwner).Append(extra))
+        {
+            (packets, _) = packets.AppendContact(new(new(recipient, 0, 0, 0, 0, 7, 0), null));
+        }
+        (packets, _) = packets.Publish(5);
+        NativeBattleSonic139Frame frame = Frame(70);
+        frame = Write(frame, MainAddress, Read(frame, MainAddress).WriteWord(14, 5));
+        NativeBattleEffectTaskPool lower = frame.Effect.Pools[2];
+        for (int slot = 0; slot < lower.Slots.Length; slot++)
+        {
+            (lower, _) = lower.Append(TargetCallback);
+        }
+        frame = frame with { State = frame.State with { NextTargetBirth = 4 }, Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, lower) } };
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        byte[] act = new byte[20];
+        act[4] = 8;
+        act[12] = 26;
+        NativeBattleSonic139Resources resources = Resources with { TargetAct = new(TargetActAddress, act.ToImmutableArray()) };
+        List<BattleModelOwner> anchors = [];
+        NativeBattleSonic139Inputs inputs = Inputs((_, _) => throw new InvalidOperationException("The wave must not signal completion while tint tasks are pending.")) with
+        {
+            Packets = packets,
+            ReadModel = (_, owner) => new(0) { Color40 = owner == extra ? 0xA0123456u : throw new InvalidOperationException() },
+            ReadAnchor571400 = (current, owner) =>
+            {
+                anchors.Add(owner);
+                return new(current, NativeBattleEffectArena.Clear().Write(0, [5, 0, 6, 0, 7, 0, 0, 0]));
+            }
+        };
+
+        var blocked = AdvanceMain(frame, MainAddress, resources, inputs);
+        Assert.Equal(4, blocked.Frame.State.NextTargetBirth);
+        Assert.Equal(70, Read(blocked.Frame, MainAddress).ReadWord(12));
+        Assert.Empty(anchors);
+        lower = blocked.Frame.Effect.Pools[2].Advance((pool, slot) => new(pool, slot == 0 ? 2 : 0)).Pool;
+        frame = blocked.Frame with { Effect = blocked.Frame.Effect with { Pools = blocked.Frame.Effect.Pools.SetItem(2, lower) } };
+        var admitted = AdvanceMain(frame, MainAddress, resources, inputs);
+        Assert.Equal(5, admitted.Frame.State.NextTargetBirth);
+        Assert.Equal(70, Read(admitted.Frame, MainAddress).ReadWord(12));
+        NativeBattleModulePoolTask child = admitted.Frame.Effect.Pools[2].Slots[0];
+        Assert.Equal(4, child.ReadWord(14));
+        Assert.Equal(extra, child.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner);
+        Assert.Equal(0xA0123456u, child.ReadDword(20));
+        Assert.Equal(extra, Assert.Single(anchors));
+    }
+
+    [Fact]
     public void Target_completion_restores_raw_color_clears_only_tint_flag_and_contacts_after_act()
     {
         NativeBattleSonic139Frame frame = Target(18, out uint address);
@@ -188,7 +242,9 @@ public sealed class NativeBattleSonic139ControllerTests
         (lower, int slot) = lower.Append(TargetCallback);
         address = checked(lower.BankAddress + (uint)(slot * lower.Stride));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, lower) } };
-        return Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)age)).WriteDword(16, 0x1D972C0).WriteDword(20, 0x9A123456));
+        NativeBattleModulePoolTask target = Read(frame, address).WriteBytes(12, new byte[20]).WriteWord(12, unchecked((ushort)age)).WriteDword(20, 0x9A123456);
+        target.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(OriginalOwner(0)), OriginalAliases.EncodeAddress(OriginalOwner(0)));
+        return Write(frame, address, target);
     }
 
     private static NativeBattleSonic139Frame Frame(short age)
@@ -197,7 +253,7 @@ public sealed class NativeBattleSonic139ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainAddress, 0x4DC, 1);
         (main, _) = main.Append(MainCallback);
-        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)age))) });
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(14, 0)) });
         NativeBattleEffectTaskPool lower = NativeBattleEffectTaskPool.Initialize(LowerDescriptor, NativeBattleEffectNodeMemory.ArenaAddress, 0x298, 4);
         NativeBattleOriginalEffectState effect = new(139, 138, new(139, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = [roots, main, lower] };
         NativeBattleGeometryRegisters geometry = NativeBattleGeometryRegisters.Unknown() with { Translation = [777, 888, 999] };

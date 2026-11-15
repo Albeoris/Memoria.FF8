@@ -81,35 +81,21 @@ public static partial class NativeBattleSonic139Controller
         {
             frame = inputs.Execute(frame, new NativeBattleSonic139Sound(resources.Sound, 0, 128));
         }
-        later = Signed(Read(frame, address), 12) - 30;
-        if ((uint)later < 16 && (later & 3) == 0)
+        if (age >= 30)
         {
-            int index = later >> 2;
             NativeBattleModulePoolTask main = Read(frame, address);
-            if (index < Signed(main, 14))
+            int next = frame.State.NextTargetBirth;
+            // At age 70 the wave is finished. Outstanding tint births continue as their physical slots retire.
+            if (next < Signed(main, 14) && (age >= 70 || (age - 30) / 4 >= next))
             {
-                (frame, uint childAddress) = Append(frame, 2, TargetCallback);
-                if (childAddress != 0)
-                {
-                    (BattleModelOwner actor, byte contactIndex) = ReadTarget(frame, inputs, main, index);
-                    uint color = inputs.ReadModel(frame, actor).Color40 ?? throw new NotSupportedException("Sonic Wave requires the actual target color DWORD.");
-                    NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteWord(14, contactIndex);
-                    child.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
-                    child = child.WriteDword(20, color);
-                    frame = Write(frame, childAddress, child);
-                    NativeBattleSonic139PointStep anchor = inputs.ReadAnchor571400(frame, actor);
-                    frame = WriteBytes(anchor.Frame, childAddress + 24, anchor.Point8, 8);
-                    child = Read(frame, childAddress);
-                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 32, 0x278).Initialize7016B0(resources.TargetAct, 0x278);
-                    frame = Write(frame, childAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 32, workspace));
-                }
+                frame = AdmitTarget(frame, main, resources, inputs, next);
             }
         }
         NativeBattleModulePoolTask current = Read(frame, address);
         age = Signed(current, 12);
         if (age >= 70)
         {
-            if (frame.Effect.Pools[2].Head is not null)
+            if (frame.State.NextTargetBirth < Signed(current, 14) || frame.Effect.Pools[2].Head is not null)
             {
                 return (frame, 0);
             }
@@ -121,6 +107,26 @@ public static partial class NativeBattleSonic139Controller
             return (frame, Read(frame, address).ReadByte(0x13) != 0 ? 2 : 0);
         }
         return (Write(frame, address, current.WriteWord(12, unchecked((ushort)(age + 1)))), 0);
+    }
+
+    private static NativeBattleSonic139Frame AdmitTarget(NativeBattleSonic139Frame frame, NativeBattleModulePoolTask main, NativeBattleSonic139Resources resources, NativeBattleSonic139Inputs inputs, int index)
+    {
+        (frame, uint address) = Append(frame, 2, TargetCallback);
+        if (address == 0)
+        {
+            return frame;
+        }
+        (BattleModelOwner actor, int contactIndex) = ReadTarget(frame, inputs, main, index);
+        uint color = inputs.ReadModel(frame, actor).Color40 ?? throw new NotSupportedException("Sonic Wave requires the actual target color DWORD.");
+        NativeBattleModulePoolTask child = Read(frame, address).WriteWord(12, 0).WriteWord(14, checked((ushort)contactIndex));
+        child.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+        frame = Write(frame, address, child.WriteDword(20, color));
+        NativeBattleSonic139PointStep anchor = inputs.ReadAnchor571400(frame, actor);
+        frame = WriteBytes(anchor.Frame, address + 24, anchor.Point8, 8);
+        child = Read(frame, address);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 32, 0x278).Initialize7016B0(resources.TargetAct, 0x278);
+        frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 32, workspace));
+        return frame with { State = frame.State with { NextTargetBirth = index + 1 } };
     }
 
     public static (NativeBattleSonic139Frame Frame, int Result) AdvanceTarget(NativeBattleSonic139Frame frame, uint address, NativeBattleSonic139Resources resources, NativeBattleSonic139Inputs inputs)

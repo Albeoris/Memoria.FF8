@@ -20,7 +20,7 @@ public static partial class NativeBattleSonic139Controller
         (roots, int slot) = roots.Append(RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
         NativeBattleSonic139State state = frame.State.CopyEntrySnapshot6A8860(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
-        return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        return frame with { State = state with { RootBankStorage = null, NextTargetBirth = 0 }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
     public static NativeBattleSonic139Frame Advance(NativeBattleSonic139Frame frame, NativeBattleSonic139Resources resources, NativeBattleSonic139Inputs inputs)
@@ -56,7 +56,7 @@ public static partial class NativeBattleSonic139Controller
             throw new InvalidDataException("Sonic Wave completion requires all physical queues to drain.");
         }
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(current.Memory, current.Effect);
-        return current with { Memory = transfer.Memory, Effect = transfer.Effect with { Pools = [] }, State = current.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(current.Effect.Pools[0]) } };
+        return current with { Memory = transfer.Memory, Effect = transfer.Effect with { Pools = [] }, State = current.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(current.Effect.Pools[0]), NextTargetBirth = 0 } };
     }
 
     public static (NativeBattleSonic139Frame Frame, int Result) AdvanceRoot(NativeBattleSonic139Frame frame, uint address, NativeBattleSonic139Resources resources, NativeBattleSonic139Inputs inputs)
@@ -82,10 +82,9 @@ public static partial class NativeBattleSonic139Controller
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x30, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
             task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x30, workspace);
             int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
-            int capacity = inputs.AllowFourthTarget ? HostedTargetCapacity : TargetCapacity;
-            if (count < 1 || count > capacity)
+            if (count == 0)
             {
-                throw new NotSupportedException("Sonic Wave target list exceeds the selected target capacity or has a zero divisor.");
+                throw new NotSupportedException("Sonic Wave requires actual captured targets for its target mean.");
             }
             task = task.WriteWord(14, checked((ushort)count));
             frame = Write(frame, mainAddress, task);
@@ -130,19 +129,14 @@ public static partial class NativeBattleSonic139Controller
         return inputs.Packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
     }
 
-    private static (BattleModelOwner Actor, byte ContactIndex) ReadTarget(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, NativeBattleModulePoolTask task, int index)
+    private static (BattleModelOwner Actor, int ContactIndex) ReadTarget(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, NativeBattleModulePoolTask task, int index)
     {
         if (index < TargetCapacity)
         {
             return (task.ReadExecutionReference<BattleExecutionReference.Model>(20 + index * 4, 4).Owner, task.ReadByte(16 + index));
         }
-        if (!inputs.AllowFourthTarget || index != TargetCapacity)
-        {
-            throw new InvalidDataException("Sonic Wave reached an unavailable hosted target.");
-        }
-
-        // The fourth contact remains in its action packet. A fourth task index or pointer would overwrite the completion byte or emitter anchor.
-        return (ReadContactActor(frame, inputs, index), checked((byte)index));
+        // Additional contacts stay in their action packet. The next physical fields are the completion byte and emitter anchor.
+        return (ReadContactActor(frame, inputs, index), index);
     }
 
     private static (NativeBattleSonic139Frame Frame, int Survivors) Scan(NativeBattleSonic139Frame frame, int index, NativeBattleSonic139Resources resources, NativeBattleSonic139Inputs inputs)

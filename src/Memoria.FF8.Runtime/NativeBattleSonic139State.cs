@@ -10,6 +10,8 @@ public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBa
     [JsonRequired]
     public bool PendingColdSources { get; init; }
 
+    internal int NextTargetBirth { get; init; }
+
     public static NativeBattleSonic139State FromColdProcess() => new(NativeBattleEffectArena.Clear(), null, NativeBattleEffectArena.Clear()) { PendingColdSources = true };
     public static NativeBattleSonic139State FromUnknown()
     {

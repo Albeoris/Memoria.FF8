@@ -12,10 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Sonic Wave requires its current process memory.");
         NativeBattleSonic139Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Sonic Wave requires its current CRT stream."), memory.Sonic139 ?? throw new NotSupportedException("Sonic Wave requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Sonic Wave requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Sonic Wave requires its color arithmetic.");
-        NativeBattleSonic139Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, address) => graphics.ActorModels.Get(address), (_, address) => (graphics.ActorModels.Get(address).Transform ?? throw new NotSupportedException("Sonic Wave requires its actual actor heading.")).Angle36, Emitter, Anchor, AdvanceAct, Execute)
-        {
-            AllowFourthTarget = presentationNativeTargets is not null && effect.Parameters?.TargetActors.Count == NativeBattleSonic139Profile.HostedTargetCapacity
-        };
+        NativeBattleSonic139Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, address) => graphics.ActorModels.Get(address), (_, address) => (graphics.ActorModels.Get(address).Transform ?? throw new NotSupportedException("Sonic Wave requires its actual actor heading.")).Angle36, Emitter, Anchor, AdvanceAct, Execute);
         frame = initialize ? NativeBattleSonic139Controller.Initialize(frame, resources, inputs) : NativeBattleSonic139Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -139,7 +136,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleSonic139WriteActorColor color:
                     BattleModelOwner actor = color.Actor;
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Color44 = color.Color }) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, graphics.ActorModels.Get(actor) with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleSonic139SetActorFlags flags:
                     BattleModelOwner selected = flags.Actor;
