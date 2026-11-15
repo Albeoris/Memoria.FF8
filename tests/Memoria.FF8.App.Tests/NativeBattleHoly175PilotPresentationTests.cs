@@ -22,6 +22,7 @@ public sealed class NativeBattleHoly175PilotPresentationTests
         NativeBattlePrimitiveCapabilities capabilities = active.Capture().Definition.NativeGraphics!.PrimitiveCapabilities!;
         int frames = 0;
         int packets = 0;
+        int offscreenSourcePackets = 0;
         int vertices = 0;
         for (int index = 0; index < 140 && frames < 40; index++)
         {
@@ -38,6 +39,11 @@ public sealed class NativeBattleHoly175PilotPresentationTests
                 NativeBattlePreparedPresentation later = isolated with { Callback = isolated.Callback + 1 };
                 renderer.RenderNativePrimitiveFrame(isolated.Primitives, isolated.Textures, capabilities: capabilities, textureWindowCache: isolated.TextureWindows);
                 TriangleVertex[] expected = capture.Vertices.ToArray();
+                if (command.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Source } source && (source.X >= 320 || source.Y >= 216))
+                {
+                    Assert.Empty(expected);
+                    offscreenSourcePackets++;
+                }
                 renderer.RenderNativePilotPrimitiveFrame(isolated, later, 0.5f, capabilities: capabilities);
                 Assert.True(expected.Length == capture.Vertices.Count, $"Holy frame {frames}, packet {command.Command.Packet}, opcode {command.Command.Opcode:X2}: vertex count {expected.Length}/{capture.Vertices.Count}.");
                 for (int corner = 0; corner < expected.Length; corner++)
@@ -53,6 +59,7 @@ public sealed class NativeBattleHoly175PilotPresentationTests
         }
         Assert.Equal(40, frames);
         Assert.True(packets > 1000);
+        Assert.True(offscreenSourcePackets > 0);
         Assert.True(vertices > 3000);
     }
 

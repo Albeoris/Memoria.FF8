@@ -169,9 +169,10 @@ public sealed partial class BattleRenderer
         nativeTextureOwner = textures;
         nativeDirectTextureFormat = capabilities?.DirectTextureFormat;
         DrawNativePcUi(uiFrame, uiTexture, false);
+        // Offscreen source packets have already populated VRAM and do not cover the visible framebuffer.
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
-            if (resolved.Pass == 0 || resolved.Command.Opcode is >= 0xE1 and <= 0xE6)
+            if (resolved.Pass == 0 || resolved.Command.Opcode is >= 0xE1 and <= 0xE6 || resolved.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Source } capture && (capture.X >= 320 || capture.Y >= 216))
             {
                 continue;
             }

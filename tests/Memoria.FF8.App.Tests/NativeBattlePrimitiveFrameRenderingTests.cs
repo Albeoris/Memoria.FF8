@@ -12,6 +12,26 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
     [Theory]
+    [InlineData(576, 256, true)]
+    [InlineData(384, 256, true)]
+    [InlineData(320, 0, true)]
+    [InlineData(0, 216, true)]
+    [InlineData(0, 0, false)]
+    public void Offscreen_capture_sources_do_not_cover_visible_geometry_or_submit_gpu_triangles(int x, int y, bool offscreen)
+    {
+        NativeBattleLogicalResolvedCommand visible = Quad(0x28, 0x006400, 200, 1);
+        NativeBattleLogicalResolvedCommand source = Quad(0x28, 0x000064, 100, 1);
+        source = source with { Command = source.Command with { SceneCapture = new(BattleSceneVisibleArea.Native, NativeBattleSceneCaptureKind.Source) { X = x, Y = y } } };
+        NativeBattlePrimitiveFrame frame = Frame([visible, source]);
+        BattleRenderer renderer = new(320, 216);
+        byte[] expected = offscreen ? [0, 100, 0, 255] : [100, 0, 0, 255];
+        Assert.Equal(expected, renderer.RenderNativePrimitiveFrame(frame, null).AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+        TextureCapture capture = new();
+        renderer.TriangleRenderer = capture;
+        renderer.RenderNativePrimitiveFrame(frame, null);
+        Assert.Equal(offscreen ? 2 : 4, capture.Materials.Count);
+    }
+    [Theory]
     [InlineData(0f, 0)]
     [InlineData(0.5f, 50)]
     [InlineData(1f, 100)]
