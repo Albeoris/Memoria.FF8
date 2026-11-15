@@ -186,7 +186,7 @@ public static class NativeBattleDeathModelDark
 
         short ReadY(uint index)
         {
-            uint address = checked(profile.ModuleAddress(0x273B550) + index * 8 + 2);
+            uint address = unchecked(profile.ModuleAddress(0x273B550) + index * 8 + 2);
             foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
             {
                 long delta = (long)address - pool.BankAddress;
@@ -211,9 +211,15 @@ public static class NativeBattleDeathModelDark
                 };
                 return unchecked((short)value);
             }
+            // 8B7660 reads a physical signed WORD with no vertex-count check.
+            if (profile.Effect == 14 && NativeBattleDarkMist13.ContainsActorTaskWord(address))
+            {
+                NativeBattleDarkMist13State neighboringBank = frame.Memory.DarkMist13 ?? throw new NotSupportedException("Native Death ground testing requires the adjacent Dark Mist actor bank.");
+                return neighboringBank.ReadActorTaskWord(address);
+            }
             if (address < profile.ModuleBase || (ulong)address + 2 > (ulong)profile.ModuleBase + (uint)profile.ModuleLength)
             {
-                throw new NotSupportedException("Native Death previous-quad ground test leaves its retained executable owner.");
+                throw new NotSupportedException($"Native Death previous-quad ground test index {index:X8} reaches {address:X8} from temporary {allocated.Address:X8}, outside the retained executable owner.");
             }
             return BinaryPrimitives.ReadInt16LittleEndian(module.Read(checked((int)(address - profile.ModuleBase)), 2));
         }

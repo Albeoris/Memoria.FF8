@@ -59,6 +59,27 @@ public sealed class NativeBattleDeathModelDarkTests
     }
 
     [Fact]
+    public void Neighboring_actor_bank_reads_cold_loader_zero_then_retained_native_payload()
+    {
+        const uint address = 0x27432A2;
+        NativeBattleDarkMist13State cold = NativeBattleDarkMist13State.FromColdProcess();
+        Assert.Equal(0, cold.ReadActorTaskWord(address));
+        Assert.Throws<ArgumentOutOfRangeException>(() => cold.ReadActorTaskWord(NativeBattleDarkMist13.ActorTaskDescriptor));
+
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDarkMist13.ActorTaskDescriptor, NativeBattleDarkMist13.ActorTaskBank, NativeBattleDarkMist13.ActorTaskStride, NativeBattleDarkMist13.ActorTaskCapacity);
+        NativeBattleDarkMist13State live = cold with { Swirl = [0], ActorTaskStorage = NativeBattleEffectTaskMemory.CaptureBank(pool) };
+        pool.Slots[26].WriteWord(0x32, 0xFFFE);
+        Assert.Equal(-2, live.ReadActorTaskWord(address));
+
+        NativeBattleEffectMemory retained = NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { DarkMist13 = live });
+        pool.Slots[26].WriteWord(0x32, 1);
+        Assert.Equal(1, live.ReadActorTaskWord(address));
+        Assert.Equal(-2, retained.DarkMist13!.ReadActorTaskWord(address));
+        NativeBattleDarkMist13State legacy = cold with { Swirl = [0] };
+        Assert.Throws<NotSupportedException>(() => legacy.ReadActorTaskWord(address));
+    }
+
+    [Fact]
     public void Camera_preparation_preserves_composed_padding_and_unwritten_scratch_tail()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();

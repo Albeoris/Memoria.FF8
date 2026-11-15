@@ -8,7 +8,28 @@ public sealed record NativeBattleDarkMist13Resources(ImmutableArray<byte> Swirl,
 
 public sealed record NativeBattleDarkMist13State([property: JsonRequired] ImmutableArray<byte>? Swirl, [property: JsonRequired] NativeBattleEffectArena ActorWork, [property: JsonRequired] short OverlayPhase, [property: JsonRequired] short OverlayAmplitude)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectArena? ActorTaskStorage { get; init; }
+
     public static NativeBattleDarkMist13State FromColdProcess() => new(null, NativeBattleEffectArena.Clear(), 0, 0);
+
+    internal short ReadActorTaskWord(uint address)
+    {
+        if (!NativeBattleDarkMist13.ContainsActorTaskWord(address))
+        {
+            throw new ArgumentOutOfRangeException(nameof(address));
+        }
+        if (ActorTaskStorage is { } storage)
+        {
+            return BinaryPrimitives.ReadInt16LittleEndian(storage.Read(checked((int)(address - NativeBattleDarkMist13.ActorTaskBank)), sizeof(short)));
+        }
+        if (Swirl is not null)
+        {
+            throw new NotSupportedException("The previously initialized Dark Mist actor bank must retain its physical bytes.");
+        }
+        // The uninitialized actor bank is in the executable's zero-filled data extent.
+        return 0;
+    }
 }
 
 public sealed partial record NativeBattleEffectMemory
@@ -23,6 +44,16 @@ public sealed partial record NativeBattleEffectMemory
 
 public static partial class NativeBattleDarkMist13
 {
+    internal const uint ActorTaskDescriptor = 0x27437B0;
+    internal const uint ActorTaskBank = 0x27428B0;
+    internal const ushort ActorTaskStride = 96;
+    internal const ushort ActorTaskCapacity = 40;
+
+    internal static bool ContainsActorTaskWord(uint address)
+    {
+        return address >= ActorTaskBank && address <= ActorTaskBank + ActorTaskStride * ActorTaskCapacity - sizeof(short);
+    }
+
     public static ImmutableArray<byte> Warp8BE7C0(ImmutableArray<byte> ring, ImmutableArray<byte> mesh, int angle)
     {
         byte[] output = mesh.ToArray();

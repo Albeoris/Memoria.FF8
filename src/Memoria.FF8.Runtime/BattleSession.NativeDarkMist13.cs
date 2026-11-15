@@ -15,8 +15,9 @@ public sealed partial class BattleSession
         NativeCamera = NativeCamera!.RegisterControlResource(textures.Animation);
         NativeBattleEffectInitializerAsset asset = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native Dark Mist requires its original TIM allocation.");
         (textures, _) = textures.EnqueueTim505E30(new(asset.Name, asset.Data));
-        NativeEffectMemory = memory with { Textures = textures, DarkMist13 = state.Swirl is null ? state with { Swirl = resources.Swirl } : state };
-        NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x2747720, 0x2747658, 100, 2), NativeBattleEffectTaskPool.Initialize(0x274E960, 0x274E970, 88, 4), NativeBattleEffectTaskPool.Initialize(0x274EAD8, 0x274EAE8, 48, 20), NativeBattleEffectTaskPool.Initialize(0x274C3C0, 0x27486D0, 104, 150), NativeBattleEffectTaskPool.Initialize(0x27437B0, 0x27428B0, 96, 40)]);
+        NativeBattleEffectTaskPool actors = NativeBattleEffectTaskPool.Initialize(ActorTaskDescriptor, ActorTaskBank, ActorTaskStride, ActorTaskCapacity);
+        NativeEffectMemory = memory with { Textures = textures, DarkMist13 = state with { Swirl = state.Swirl ?? resources.Swirl, ActorTaskStorage = NativeBattleEffectTaskMemory.CaptureBank(actors) } };
+        NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x2747720, 0x2747658, 100, 2), NativeBattleEffectTaskPool.Initialize(0x274E960, 0x274E970, 88, 4), NativeBattleEffectTaskPool.Initialize(0x274EAD8, 0x274EAE8, 48, 20), NativeBattleEffectTaskPool.Initialize(0x274C3C0, 0x27486D0, 104, 150), actors]);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x8BE2D0, 100);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
