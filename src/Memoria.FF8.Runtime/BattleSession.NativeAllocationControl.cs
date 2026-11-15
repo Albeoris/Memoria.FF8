@@ -71,6 +71,16 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
+        if (hostedBattlePresentation)
+        {
+            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted activation requires its ordered receipt owner.");
+            if (!graphics.ActorModels.Contains(owner) || !services.Facts.TryGetValue(owner, out NativeBattleModelActorFacts? actorFacts))
+            {
+                throw new InvalidDataException("Hosted activation lost its allocated model owner.");
+            }
+            services.Emit(new NativeBattleModelParticipantActivated(owner, actorFacts.ActorId));
+            return graphics;
+        }
         if (presentationNativeTargets is not null)
         {
             return CompleteEffectPresentationActivation(graphics, owner);

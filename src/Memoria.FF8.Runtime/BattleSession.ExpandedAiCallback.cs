@@ -2,7 +2,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private sealed record ExpandedAiInvocationReservation(BattleModelOwner Source, BattleActionPresentation Command);
     private bool producingExpandedAiCallback;
+    private ExpandedAiInvocationReservation? producingExpandedAiInvocation;
 
     private void QueueExpandedAiCallback(BattleCombatant actor, int stage)
     {
@@ -144,17 +146,11 @@ public sealed partial class BattleSession
             NativeAiCallbackStage = packet.NativeAiCallbackStage,
             NativeSequence = packet.NativeSequence
         };
-        if (resolvingNativeAction is not { } outer)
-        {
-            CommitExpandedAction(command);
-            return;
-        }
-
-        NativeBattleActionScratch outerScratch = nativeActionScratch;
-        BattleNativeAction? outerAffinity = nativeAffinityAction;
+        BattleActionPresentation? outer = resolvingNativeAction;
         bool outerImpacts = deferringExpandedImpacts;
         int? outerRecoverSourceHp = expandedRecoverSourceHp;
-        var outerHits = combatants.Select(actor => (Actor: actor, Remaining: actor.NativeRemainingHits)).ToArray();
+        ExpandedAiInvocationReservation? outerReservation = producingExpandedAiInvocation;
+        producingExpandedAiInvocation = null;
         try
         {
             CommitExpandedAction(command);
@@ -162,14 +158,10 @@ public sealed partial class BattleSession
         finally
         {
             resolvingNativeAction = outer;
-            nativeActionScratch = outerScratch;
-            nativeAffinityAction = outerAffinity;
             deferringExpandedImpacts = outerImpacts;
             expandedRecoverSourceHp = outerRecoverSourceHp;
-            foreach (var (actor, remaining) in outerHits)
-            {
-                actor.NativeRemainingHits = remaining;
-            }
+            producingExpandedAiInvocation = outerReservation;
         }
+        FlushEncounterCounterCommands();
     }
 }

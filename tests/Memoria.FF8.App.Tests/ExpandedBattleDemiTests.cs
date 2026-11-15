@@ -24,26 +24,14 @@ public sealed class ExpandedBattleDemiTests
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory) with { GlobalRandom = new(917) });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
         using GameWorld world = new(session, directory, sharedAssets: game);
-        world.EnsureField();
-        Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 4)).Accepted);
+        ExpandedBattleInstalledEntry.Prepare(world, session, PrepareParty);
         BattleActionDefinition demi = Assert.Single(world.BattleResources.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == DemiSpell);
         Assert.Equal("Demi", demi.Name);
         Assert.True(demi.NativeAction is { Command: 2, KernelSection: 1, MagicId: DemiEffect, AttackType: 8, HitCount: 1, TargetFlags: 0x54 });
         Assert.False(demi.AllTargets);
         Assert.True(BattleSession.CanSelectEitherTargetSide(demi));
-        PrepareParty(session);
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 4, AdditionalEnemies = 4 });
-        string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
-        NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
-        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, 133, world.Events.Frame, 87, source)));
-        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
-        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
-        {
-            world.ApplyBattleInput(new(BattleInputKind.Tick));
-        }
-        Assert.True(process.EntryReady);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
         Assert.True(battle.SupportsExpandedAction(demi));

@@ -16,6 +16,10 @@ public sealed partial class BattleSession
         {
             nativeScriptState = nativeScriptState with { Tasks = nativeScriptState.Tasks.AppendMessage(message, opcode == 34, checked((ushort)delay)) };
         }
+        else if (producingExpandedAiCallback)
+        {
+            StageExpandedHostedControl(new HostedDispatchControl.Message(message, 0));
+        }
         else
         {
             QueueNativeDescriptorMessage(message, 0);

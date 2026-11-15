@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private sealed record EncounterImmediateCounter(BattleCombatant Actor, NativeContactWorking? Contact, BattleActionPresentation? Action, bool Suppressed, bool Death);
-    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, ushort? DiagnosticMask, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context);
+    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, ushort? DiagnosticMask, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context, ExpandedAiInvocationReservation? ExpandedSource);
     private readonly Queue<EncounterCounterCommand> encounterCounterCommands = [];
     private bool capturingEncounterCounterCommands;
     private bool flushingEncounterCounterCommands;
@@ -72,7 +72,10 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticMask, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeader, nativeProductionContext));
+        ExpandedAiInvocationReservation? expandedSource = producingExpandedAiCallback
+            ? producingExpandedAiInvocation ?? throw new InvalidDataException("A captured expanded counter requires its actual source invocation reservation.")
+            : null;
+        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticMask, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeader, nativeProductionContext, expandedSource));
         return true;
     }
 
@@ -88,7 +91,8 @@ public sealed partial class BattleSession
         {
             while (encounterCounterCommands.TryPeek(out EncounterCounterCommand? pending))
             {
-                if (pending.SourceHeader is BattleActionHeaderReference header && (!nativeActionPackets.HasPublishedHeader(header) || ActiveAction?.NativeHeader != header && !actions.Any(command => command.NativeHeader == header)))
+                if (pending.ExpandedSource is { } reservation ? !IsStagedExpandedAiInvocation(reservation) :
+                    pending.SourceHeader is BattleActionHeaderReference header && (!nativeActionPackets.HasPublishedHeader(header) || ActiveAction?.NativeHeader != header && !actions.Any(command => command.NativeHeader == header)))
                 {
                     return;
                 }
@@ -99,11 +103,18 @@ public sealed partial class BattleSession
                 encounterCounterCommands.Dequeue();
                 NativeBattleActionProductionContext? previousContext = nativeProductionContext;
                 byte? previousStage = nativeAiCallbackStage;
+                bool previousExpandedProduction = producingExpandedAiCallback;
                 nativeProductionContext = pending.Context;
                 nativeAiCallbackStage = pending.Command.NativeAiCallbackStage;
                 try
                 {
                     BattleAttackCommand command = pending.Command;
+                    if (pending.ExpandedSource is not null)
+                    {
+                        producingExpandedAiCallback = true;
+                        ProduceExpandedAiCallbackCommand(command);
+                        continue;
+                    }
                     if (pending.SourceHeader is not null)
                     {
                         byte sourceIndex = nativeActionScratch.EventActorB0F ?? throw new InvalidDataException("Deferred counter lacks its native source-event actor.");
@@ -122,6 +133,7 @@ public sealed partial class BattleSession
                 {
                     nativeProductionContext = previousContext;
                     nativeAiCallbackStage = previousStage;
+                    producingExpandedAiCallback = previousExpandedProduction;
                 }
             }
         }

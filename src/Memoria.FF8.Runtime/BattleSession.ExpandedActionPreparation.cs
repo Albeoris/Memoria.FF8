@@ -29,21 +29,17 @@ public sealed partial class BattleSession
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;
-        if (process is not null && (!candidate.expandedHostedInvocations.IsEmpty || command.ExpandedAiCallback is not null))
+        if (process is not null && (candidate.HasStagedExpandedHostedOperations || command.ExpandedAiCallback is not null))
         {
             BattleModelRoster roster = process.Graphics.ActorModels.Roster;
-            candidate.ValidateExpandedHostedInvocations(roster);
             uint callback = UsesNativeOrdinaryCompletion(command) ? 0x47DE70u : 0x47DDA0u;
-            if (candidate.expandedHostedInvocations.IsEmpty)
-            {
-                admission = process.PrepareDispatch([], completion: candidate.ReadExpandedHostedCompletion(roster, command, callback));
-            }
-            else
-            {
-                admission = candidate.PrepareExpandedHostedEventSegment(process, roster, command, callback);
-                ExpandedHostedInvocation first = candidate.expandedHostedInvocations[0];
-                candidate.BindExpandedHostedContactTracking(first, roster, PrepareExpandedHostedContactBridge(first, roster));
-            }
+            candidate.StageExpandedHostedCompletion(roster, command, callback);
+            // Routed ordinary counters can publish only after their source mirror and its actual completion are staged.
+            candidate.FlushEncounterCounterCommands();
+            candidate.ValidateExpandedHostedInvocations(roster);
+            ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process);
+            admission = prefix.Dispatch;
+            candidate.BindExpandedHostedPrefix(prefix, roster);
             hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token);
         }
         BattleSnapshot prepared = candidate.CaptureState();
@@ -133,7 +129,9 @@ public sealed partial class BattleSession
     private void TakeExpandedActionPresentation(BattleSession candidate)
     {
         expandedEffect = candidate.expandedEffect;
-        expandedHostedInvocations = candidate.expandedHostedInvocations;
+        expandedHostedOperations = candidate.expandedHostedOperations;
+        expandedHostedNextOperation = candidate.expandedHostedNextOperation;
+        expandedHostedCurrentOperation = candidate.expandedHostedCurrentOperation;
         expandedEffectCommand = candidate.expandedEffectCommand;
         expandedContactBridge = candidate.expandedContactBridge;
         expandedExpectedContacts = candidate.expandedExpectedContacts;

@@ -99,6 +99,11 @@ public sealed partial class BattleSession
             actor.AiTurnCount = unchecked((byte)(actor.AiTurnCount + 1));
         }
         byte? previous = nativeAiCallbackStage;
+        bool previousProduction = producingExpandedAiCallback;
+        if (callback == 4 && preparingExpandedHostedAction && producingExpandedAiInvocation is not null)
+        {
+            producingExpandedAiCallback = true;
+        }
         nativeAiCallbackStage = checked((byte)callback);
         try
         {
@@ -109,6 +114,7 @@ public sealed partial class BattleSession
         }
         finally
         {
+            producingExpandedAiCallback = previousProduction;
             nativeAiCallbackStage = previous;
         }
     }
@@ -334,7 +340,10 @@ public sealed partial class BattleSession
         };
         if (producingExpandedAiCallback)
         {
-            ProduceExpandedAiCallbackCommand(packet);
+            if (!CaptureEncounterCounterCommand(actor, packet, "expanded AI counter", false, null))
+            {
+                ProduceExpandedAiCallbackCommand(packet);
+            }
         }
         else
         {

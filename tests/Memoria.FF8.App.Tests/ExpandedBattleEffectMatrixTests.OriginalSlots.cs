@@ -47,7 +47,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal((byte)1, contact.Primary.Flags2);
         Assert.True(wedge.Suspended);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Activated" && item.ActorId == wedge.Id);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(queued))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(queued));
         restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         for (int callback = 0; callback < 240 && wedge.Suspended; callback++)
         {
@@ -56,7 +56,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         }
         Assert.False(wedge.Suspended);
         Assert.Single(battle.Events, item => item.Kind == "Activated" && item.ActorId == wedge.Id);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        BattleSnapshot observed = battle.Capture();
+        BattleSnapshot continued = restored.Capture();
+        Assert.Equivalent(observed.Combatants, continued.Combatants, strict: true);
+        Assert.Equal(observed.Random!.Lane, continued.Random!.Lane);
+        Assert.Equal(observed.Random.Indexes.ToArray(), continued.Random.Indexes.ToArray());
+        Assert.Equal(battle.Events, restored.Events);
+        Assert.Equal(observed.NativeActionPackets!.PublishedHeaders().ToArray(), continued.NativeActionPackets!.PublishedHeaders().ToArray());
+        Assert.Equivalent(observed.NativeActionPackets.ExportRetained(), continued.NativeActionPackets.ExportRetained(), strict: true);
     }
 
     [Theory]

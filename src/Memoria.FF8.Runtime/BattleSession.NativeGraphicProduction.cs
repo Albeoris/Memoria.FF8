@@ -6,6 +6,30 @@ public sealed partial class BattleSession
 {
     private void QueueNativeEnemyEntrance(BattleCombatant actor, BattleCombatant target, byte sequence)
     {
+        if (producingExpandedAiCallback)
+        {
+            BattleModelOwner owner = ReadPresentationModelOwner(target.Id);
+            if (target.IsPlayer || (NativeSavedStatusBits(target) & 1) != 0)
+            {
+                throw new NotSupportedException("Native entrance requires the live enemy selected by the script.");
+            }
+            NativeBattleActionHeaderPreparation prepared = PrepareNativeEntranceHeader(actor);
+            NativeBattleContactPacket contact = PrepareNativeEntranceContact(target, owner, sequence);
+            BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Recovery, 1, SelectBattleTarget(target), BattleAbility.EnemyAbility, 3)
+            {
+                NativeQueuedCommand = 0,
+                NativeSequence = 0,
+                NativeAiCallbackStage = nativeAiCallbackStage
+            };
+            RecordPublishedNativeTargetCount(1);
+            BeginNativeBattleActionPause();
+            StageExpandedHostedControl(new HostedDispatchControl.Barrier());
+            ReserveExpandedAiInvocation(command, prepared);
+            StageExpandedHostedInvocation(command, prepared, [new(target.Id, contact)], null);
+            StageExpandedHostedControl(new HostedDispatchControl.Model(113, owner));
+            StageExpandedHostedControl(new HostedDispatchControl.ResetCounts());
+            return;
+        }
         if (NativeGraphics is not { } graphics)
         {
             // TODO(TD-009): Logical-only components retain the participant activation without driving the physical sequence VM.
@@ -19,14 +43,8 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native entrance requires the live, loaded physical enemy selected by the script.");
         }
         // 487DF0 selects command 0/id 3. 48FE20 writes ADC from the second operand and suppresses action memory with DF5.
-        (nativeActionPackets, BattleActionHeaderReference header) = nativeActionPackets.Prepare(new(CreatePresentationModelOwner(actor), 0, 0, -1, 3, 0, null));
-        target.NativeCombatantFlags &= ~0x4000u;
-        target.LastNativeHealing = 1;
-        StoreNativeAttackClass(target, 3);
-        RefreshNativePresentationStatus(target);
-        (ushort saved, uint battle) = NativeContactStatusMirror(target);
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, covered: false);
-        (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(targetOwner, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle), null));
+        (nativeActionPackets, BattleActionHeaderReference header) = nativeActionPackets.Prepare(PrepareNativeEntranceHeader(actor));
+        (nativeActionPackets, _) = nativeActionPackets.AppendContact(PrepareNativeEntranceContact(target, targetOwner, sequence));
         (nativeActionPackets, _) = nativeActionPackets.Publish(1);
         RecordPublishedNativeTargetCount(1);
         BeginNativeBattleActionPause();
@@ -34,6 +52,22 @@ public sealed partial class BattleSession
         graphics = QueueNativeActionDescriptor(graphics, header);
         graphics = QueueNativeModelDescriptor(graphics, 113, 0x487670, targetOwner);
         NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);
+    }
+
+    private static NativeBattleActionHeaderPreparation PrepareNativeEntranceHeader(BattleCombatant actor)
+    {
+        return new(CreatePresentationModelOwner(actor), 0, 0, -1, 3, 0, null);
+    }
+
+    private NativeBattleContactPacket PrepareNativeEntranceContact(BattleCombatant target, BattleModelOwner targetOwner, byte sequence)
+    {
+        target.NativeCombatantFlags &= ~0x4000u;
+        target.LastNativeHealing = 1;
+        StoreNativeAttackClass(target, 3);
+        RefreshNativePresentationStatus(target);
+        (ushort saved, uint battle) = NativeContactStatusMirror(target);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, covered: false);
+        return new(new(targetOwner, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle), null);
     }
 
     private void ResolveNativeGraphicCommand(BattleCombatant actor, BattleActionPresentation command, BattleNativeGraphicCommand graphic)

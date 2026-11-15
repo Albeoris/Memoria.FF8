@@ -106,10 +106,18 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null)
+    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment);
+        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders);
+    }
+
+    internal bool IsControlPrefixRetired => presentation.HostedControlPrefixRetired;
+
+    internal void AppendScriptMessage(BattleEvent message, byte tag, byte priority)
+    {
+        RequireAdmissionWindow();
+        presentation.AppendHostedScriptMessage(message, tag, priority);
     }
 
     internal void ValidatePreparedDispatch(BattleSession.PreparedHostedDispatch prepared)

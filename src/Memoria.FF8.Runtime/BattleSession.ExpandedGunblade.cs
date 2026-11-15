@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     {
         return Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual &&
             expandedHostedActionToken is long token && process.ActiveActionToken == token &&
-            expandedHostedInvocations is [{ PendingGunblade: true } invocation] &&
+            CurrentExpandedHostedInvocation is { PendingGunblade: true } invocation &&
             process.TriggerWidget is { SourceMagicId: null } widget && widget.Actor == invocation.Header.Source &&
             CanPressNativeTriggerWidget(widget, process.TriggerOptions);
     }
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
         BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         if (actionToken is null || expandedHostedActionToken != actionToken || process.ActiveActionToken != actionToken ||
-            expandedHostedInvocations is not [{ PendingGunblade: true } invocation] ||
+            CurrentExpandedHostedInvocation is not { PendingGunblade: true } invocation ||
             receipt.Owner != invocation.Header.Source || !roster.Contains(receipt.Owner) || receipt.Owner is not BattlePartyModelOwner ||
             receipt.ActorId != RequireCanonicalGraphicsActorId(receipt.Owner) || receipt.ActorId != invocation.Command.ActorId ||
             receipt.Widget is not { SourceMagicId: null } widget || widget.Actor != receipt.Owner ||
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         receipt.Validate(roster);
         if (expandedHostedActionToken is not long token || process.ActiveActionToken != token ||
-            expandedHostedInvocations is not [{ PendingGunblade: true, Contacts: [var previous] } invocation] ||
+            CurrentExpandedHostedInvocation is not { PendingGunblade: true, Contacts: [var previous] } invocation ||
             receipt is not { ContactIndex: 1, TotalContacts: 1 } || receipt.Actor != invocation.Header.Source ||
             invocation.Header.Command is not (1 or 12 or 28) || expandedExpectedContacts != 1 || expandedPresentedOccurrences.Count != 0 ||
             expandedModelRoster?.Contains(receipt.Actor) != true || !ReferenceEquals(expandedEffectCommand, invocation.Command) ||
@@ -80,13 +80,20 @@ public sealed partial class BattleSession
         BattleSession candidate = Restore(before, customHandlers);
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.pendingEnemyDraw ??= invocation.EnemyDraw;
+        candidate.preparingExpandedHostedAction = true;
+        candidate.producingExpandedAiCallback = true;
+        candidate.producingExpandedAiInvocation = new(invocation.Header.Source, invocation.Command);
         NativeBattleContactPacket packet = candidate.ResolveExpandedGunbladeContact(invocation, previous, receipt);
+        if (candidate.HasStagedExpandedHostedOperations || candidate.encounterCounterCommands.Count != 0)
+        {
+            // TODO(TD-009): Combine deferred contact replacement with publication of its nested suffix after the queued descriptors.
+            throw new NotSupportedException("Hosted Gunblade recompute emitted nested commands that require an atomic event extension.");
+        }
         ExpandedHostedInvocation resolved = invocation with
         {
             Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false
         };
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
-        var invocations = expandedHostedInvocations.SetItem(0, resolved);
         PreparedHostedContactReplacement replacement = process.PrepareGunbladeContact(token, packet, receipt);
         BattleSnapshot prepared = candidate.CaptureState();
         BattleSession preflight = Restore(before, customHandlers);
@@ -94,10 +101,7 @@ public sealed partial class BattleSession
         preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
         process.ValidateGunbladeContact(replacement);
         CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        expandedHostedInvocations = invocations;
-        expandedContactBridge = bridge;
-        expandedModelContacts = resolved.Contacts;
-        expandedEffectEnemyDraw = resolved.EnemyDraw;
+        ReplaceCurrentExpandedHostedInvocation(invocation, resolved, bridge);
         process.CommitGunbladeContact(replacement);
     }
 

@@ -305,9 +305,10 @@ public sealed class NativeBattleHostedCompletionTests
         Field(child, "hostedBattlePresentation").SetValue(child, true);
         FieldInfo entry = Field(child, "hostedEntryDescriptors");
         entry.SetValue(child, Activator.CreateInstance(entry.FieldType));
-        Field(child, "presentationNativeTargets").SetValue(child, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
+        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
+        Field(child, "definition").SetValue(child, definition with
         {
-            [Owner] = new(Owner, graphics.ActorModels.Get(Owner), new([0, 0]))
+            NativeGraphics = new(rules, [new(ActorId, 1, new([0, 0]))], [])
         });
         var process = (ExpandedBattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
         Field(process, "logicalOwner").SetValue(process, logical);

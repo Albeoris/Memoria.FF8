@@ -18,6 +18,7 @@ internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattl
 internal sealed record NativeBattlePresentationDescriptorText(BattleEvent Message) : NativeBattlePresentationReceipt;
 internal abstract record NativeBattleModelLifecycleReceipt(BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattleModelParticipantReleased(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleModelParticipantActivated(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 internal sealed record NativeBattleModelParticipantSuspended(BattleModelOwner Owner, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Owner, ActorId)
 {
     internal NativeBattleActionHeaderSlot? ActiveHeader { get; init; }

@@ -56,6 +56,7 @@ public sealed partial class BattleSession
 
             void DispatchExpandedCore()
             {
+                DispatchExpandedGuardianBoost(process);
                 if (process.Graphics.UiServices is { PauseDE9: false } ui && (ui.Flags942 & 0x40) != 0)
                 {
                     for (int poll = 0; poll < 3; poll++)

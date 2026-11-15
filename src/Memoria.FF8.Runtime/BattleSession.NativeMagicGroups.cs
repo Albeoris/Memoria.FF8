@@ -243,6 +243,7 @@ public sealed partial class BattleSession
                 resolvingNativeAction = cast;
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
                 NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(cast, native) : null;
+                ReserveExpandedAiInvocation(cast, hostedHeader);
                 bool presentsNativeEffect = hosted || expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
                 deferringExpandedImpacts = presentsNativeEffect;
                 (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan);

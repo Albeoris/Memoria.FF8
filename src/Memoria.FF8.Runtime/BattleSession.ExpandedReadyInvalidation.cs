@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         if (command.NativeLimitCallback != NativeLimitCallback.ShotOpening ||
             !nativeShotProcesses.TryGetValue(actorId, out BattleNativeShotState? shot) || shot.Phase != BattleNativeShotPhase.Opening || shot.ActionId != command.NativeAction?.ActionId ||
             ActiveAction is { } active && active.ActorId == actorId && IsShotCallback(active.NativeLimitCallback) ||
-            expandedHostedInvocations.Any(invocation => invocation.Command.ActorId == actorId && IsShotCallback(invocation.Command.NativeLimitCallback)) ||
+            expandedHostedOperations.OfType<ExpandedHostedInvocation>().Any(invocation => invocation.Command.ActorId == actorId && IsShotCallback(invocation.Command.NativeLimitCallback)) ||
             actions.Any(other => other.ActorId == actorId && (other.NativeHeader is not null || other.ExpandedAiDescriptor is not null) && IsShotCallback(other.NativeLimitCallback)))
         {
             return;

@@ -18,13 +18,13 @@ public sealed partial class BattleSession
         }
         if (expandedHostedActionToken is long token)
         {
-            if (!process.IsActionComplete(token) || expandedHostedInvocations is not [{ PendingGunblade: false }])
+            if (!process.IsActionComplete(token) || CurrentExpandedHostedInvocation is not { PendingGunblade: false, PendingGuardian: false })
             {
                 throw new InvalidDataException("Hosted completion requires its retired final action.");
             }
             ValidateExpandedEffectContactCompletion();
         }
-        else if (!expandedHostedInvocations.IsEmpty)
+        else if (CurrentExpandedHostedInvocation is not null)
         {
             throw new InvalidDataException("A completion-only event cannot own outstanding contacts.");
         }
@@ -43,6 +43,9 @@ public sealed partial class BattleSession
         BattleSession candidate = RestoreSnapshot(seed, customHandlers, proof);
         candidate.preparingExpandedHostedAction = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.expandedHostedOperations = expandedHostedOperations;
+        candidate.expandedHostedNextOperation = expandedHostedNextOperation;
+        int beforeAftercare = expandedHostedOperations.Length;
         BattleCombatant actor = candidate.GetActor(receipt.ActorId);
         if (retainCommittedMirror)
         {
@@ -54,17 +57,14 @@ public sealed partial class BattleSession
             candidate.PrepareExpandedHostedAftercare(actor, hostedEvent.Command);
         }
 
-        bool hasAftercare = !candidate.expandedHostedInvocations.IsEmpty;
+        bool hasAftercare = candidate.expandedHostedOperations.Length != beforeAftercare;
         PreparedHostedCompletionAck ack = process.PrepareCompletionAck(receipt.Token, resetCounts: !hasAftercare);
-        PreparedHostedDispatch dispatch;
-        ExpandedHostedEvent? nextEvent = null;
+        ExpandedHostedEvent nextEvent = hostedEvent with { CompletionToken = null };
         if (hasAftercare)
         {
             candidate.ValidateExpandedHostedInvocations(roster);
-            dispatch = candidate.PrepareExpandedHostedEventSegment(process, roster, hostedEvent.Command, 0x47E120, ack);
-            ExpandedHostedInvocation first = candidate.expandedHostedInvocations[0];
-            candidate.BindExpandedHostedContactTracking(first, roster, PrepareExpandedHostedContactBridge(first, roster));
-            nextEvent = hostedEvent with { ActivePresentation = candidate.ActiveAction!, Callback = 0x47E120, CompletionToken = dispatch.Completion?.Request.Token };
+            candidate.StageExpandedHostedCompletion(roster, hostedEvent.Command, 0x47E120);
+            nextEvent = nextEvent with { Callback = 0x47E120 };
         }
         else
         {
@@ -81,8 +81,17 @@ public sealed partial class BattleSession
                 candidate.CompleteExpandedHostedEventGauge(hostedEvent.Command);
             }
             candidate.CompleteActionPresentation(hostedEvent.ActivePresentation, "Expanded action completed.");
-            dispatch = process.PrepareDispatch([], acknowledgment: ack);
+            nextEvent = nextEvent with { LogicallyComplete = true };
+            if (candidate.expandedHostedNextOperation < candidate.expandedHostedOperations.Length || !process.IsControlPrefixRetired)
+            {
+                candidate.ActiveAction = hostedEvent.ActivePresentation;
+            }
         }
+        ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, ack,
+            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedHostedNextOperation == candidate.expandedHostedOperations.Length);
+        PreparedHostedDispatch dispatch = prefix.Dispatch;
+        candidate.BindExpandedHostedPrefix(prefix, roster);
+        nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };
 
         BattleSnapshot prepared = candidate.CaptureState();
         BattleSession preflight = RestoreSnapshot(seed, customHandlers, proof);

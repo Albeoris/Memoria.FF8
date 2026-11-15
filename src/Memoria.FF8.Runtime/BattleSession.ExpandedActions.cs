@@ -175,7 +175,7 @@ public sealed partial class BattleSession
         if (command.NativeLimitCallback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEnding)
         {
             Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeLimitCallback == NativeLimitCallback.ShotOpening ? "Shot started." : "Shot ended.");
-            CompleteActionPresentation(command, "Shot control completed.");
+            CompleteExpandedProducedCommand(command, "Shot control completed.");
             return;
         }
         if (!command.MagicCasts.IsDefaultOrEmpty)
@@ -199,7 +199,7 @@ public sealed partial class BattleSession
         }
         if (!hosted && graphicAction is not null && recipients.Length == 0)
         {
-            CompleteActionPresentation(command, "Native graphical effect completed.");
+            CompleteExpandedProducedCommand(command, "Native graphical effect completed.");
             return;
         }
         if (command.Ability == BattleAbility.Attack && actor.NativeAttack is null)
@@ -210,7 +210,7 @@ public sealed partial class BattleSession
             }
             CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
             ResolveAction(actor, target, command);
-            CompleteActionPresentation(command, "Attack completed.");
+            CompleteExpandedProducedCommand(command, "Attack completed.");
             return;
         }
         BattleActionDefinition? drawSpell = null;
@@ -223,7 +223,7 @@ public sealed partial class BattleSession
                 recipients = ResolveBattleTargets(command.TargetRequest, sampleRandom: false);
                 if (recipients.Length == 0)
                 {
-                    CompleteActionPresentation(command, "Expanded Draw Cast has no supported recipient.");
+                    CompleteExpandedProducedCommand(command, "Expanded Draw Cast has no supported recipient.");
                     return;
                 }
             }
@@ -243,7 +243,7 @@ public sealed partial class BattleSession
             PublishIndependentGuardianFailure(actor, target, failureMessage);
             CompleteNativeActionInventory(actor, command, false);
             CompleteNativeActionStatuses(actor);
-            CompleteActionPresentation(command, "Guardian item completed.");
+            CompleteExpandedProducedCommand(command, "Guardian item completed.");
             return;
         }
         BattleActionDefinition action = graphicAction is null
@@ -273,7 +273,7 @@ public sealed partial class BattleSession
         {
             QueueNativeSpecialText(actor, target, NativeBattleGlobalText(miniMogMessage), BattleTextIdentity.Global(miniMogMessage));
             CompleteNativeActionStatuses(actor);
-            CompleteActionPresentation(command, "MiniMog failed.");
+            CompleteExpandedProducedCommand(command, "MiniMog failed.");
             return;
         }
         if (command.Ability == BattleAbility.NativeCommand && IsExpandedTargetedSpecial(native))
@@ -285,7 +285,7 @@ public sealed partial class BattleSession
                 int message = native.AttackType == 17 ? 50 : 112;
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
                 CompleteNativeActionStatuses(actor);
-                CompleteActionPresentation(command, $"{action.Name} failed.");
+                CompleteExpandedProducedCommand(command, $"{action.Name} failed.");
                 return;
             }
             command = command with { NativeSpecial = special };
@@ -296,7 +296,7 @@ public sealed partial class BattleSession
             recipients = [recipient];
             command = command with { TargetId = recipient.Id, TargetRequest = SelectBattleTarget(recipient, command.TargetRequest.AllowsKnockedOutAllies, command.TargetRequest.Eligibility) };
         }
-        if (command is { Ability: BattleAbility.GuardianForce, GuardianFormInvocation: null } && expandedPresentationHost is not null && action.NativeGuardianBoostAvailable.HasValue && nativeBattleUiRandom is not null && CanPresentExpandedGuardianSummon(native))
+        if (!hosted && command is { Ability: BattleAbility.GuardianForce, GuardianFormInvocation: null } && expandedPresentationHost is not null && action.NativeGuardianBoostAvailable.HasValue && nativeBattleUiRandom is not null && CanPresentExpandedGuardianSummon(native))
         {
             BeginExpandedGuardianSummon(actor, command with { NativeAction = native }, recipients);
             return;
@@ -304,6 +304,15 @@ public sealed partial class BattleSession
         bool hostedSilence = hosted && NativeMagicInvocationSilenced(actor, command, originalNative);
         bool failedSpecial = hosted && (miniMogFailure.HasValue || NativeSpecialInvocationFailed(command, originalNative));
         NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(command, originalNative, miniMogFailure.HasValue) : null;
+        bool hostedGuardian = command.Ability == BattleAbility.GuardianForce && hostedHeader is { Command: 254 };
+        if (hostedGuardian)
+        {
+            if (hostedHeader!.Source is not BattlePartyModelOwner || originalNative is not { Command: 254, KernelSection: 2 })
+            {
+                throw new InvalidDataException("Hosted Guardian Force requires its original command and a current party caster.");
+            }
+            _ = CreateNativeGuardianBoost(hostedHeader.Action);
+        }
         bool hostedGraphicContext = hostedHeader is not null && ReadExpandedHostedContactDisposition(command, hostedHeader) == ExpandedHostedContactDisposition.ContextOnly;
         BattleActionPresentation resolved = command with { NativeAction = miniMog && !failedSpecial ? native with { ActionId = (ushort)native.KernelIndex } : native };
         BattleActionPresentation formulaCommand = resolved;
@@ -349,11 +358,10 @@ public sealed partial class BattleSession
 
         bool independentSupport = IsExpandedIndependentSupport(native, command.NativePlayerReaction);
         byte? eventLane = producingExpandedAiCallback ? nativeActionScratch.EventLane : actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0;
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = eventLane, Command = stockDraw is not null || native.Command is 0 or 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = hostedGuardian, EventLane = eventLane, Command = stockDraw is not null || native.Command is 0 or 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         if (command.Ability == BattleAbility.GuardianForce)
         {
-            // TODO(TD-009): A logical-only host has no summon presentation callback to own Boost.
-            nativeActionScratch = nativeActionScratch with { GuardianFormulaE1E = true, GuardianBoostPercent = 100 };
+            nativeActionScratch = nativeActionScratch with { GuardianFormulaE1E = !hostedGuardian, GuardianBoostPercent = hostedGuardian ? (byte)0 : (byte)100 };
         }
         ImmutableArray<ExpandedBattleContact> contacts;
         ImmutableArray<ExpandedBattleContact> reflectedContacts = [];
@@ -390,7 +398,7 @@ public sealed partial class BattleSession
             }
             BattleCombatant? reflector;
             deferringExpandedImpacts = presentsNativeEffect && !hostedGraphicContext && !IsExpandedOriginalGraphicPresentation(actor, command, native);
-            (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade);
+            (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade || hostedGuardian);
             deferringExpandedImpacts = false;
             if (command.NativeDraw is { Failed: true } || failedSpecial || hostedSilence)
             {
@@ -466,7 +474,7 @@ public sealed partial class BattleSession
             {
                 PublishExpandedImpacts(resolved, contacts);
             }
-            StageExpandedHostedInvocationCore(resolved, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw, pendingGunblade: hostedGunblade);
+            StageExpandedHostedInvocationCore(resolved, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw, pendingGunblade: hostedGunblade, pendingGuardian: hostedGuardian);
             if (reflectedCommand is not null)
             {
                 StageExpandedHostedInvocation(reflectedCommand, reflectedHeader!, reflectedContacts, contacts.IsEmpty ? hostedDraw : null);
@@ -479,7 +487,7 @@ public sealed partial class BattleSession
         }
         if (command.Ability == BattleAbility.Attack)
         {
-            CompleteActionPresentation(command, "Attack completed.");
+            CompleteExpandedProducedCommand(command, "Attack completed.");
             return;
         }
         if (!presentsNativeEffect && !presentsReflection)
@@ -494,7 +502,7 @@ public sealed partial class BattleSession
             {
                 PublishExpandedImpacts(revival.Command, revival.Contacts, "PhoenixRevivalContact");
             }
-            CompleteActionPresentation(command, "Action completed.");
+            CompleteExpandedProducedCommand(command, "Action completed.");
             return;
         }
         BattleNativeAction presentationAction = drawSpell is null ? native : native with { Command = 6 };
@@ -658,7 +666,7 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedEffectContactCompletion()
     {
-        if (expandedHostedInvocations is not [{ ContactDisposition: ExpandedHostedContactDisposition.ContextOnly }, ..] && expandedPresentedOccurrences.Count != expandedExpectedContacts)
+        if (CurrentExpandedHostedInvocation is not { ContactDisposition: ExpandedHostedContactDisposition.ContextOnly } && expandedPresentedOccurrences.Count != expandedExpectedContacts)
         {
             throw new InvalidDataException("The expanded effect completed before publishing all prepared contacts.");
         }
@@ -726,74 +734,64 @@ public sealed partial class BattleSession
 
     private (ImmutableArray<ExpandedBattleContact> Contacts, BattleCombatant? Reflector) ResolveExpandedHitPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleCombatant[][] hitPlan, bool preliminary = false)
     {
-        IGrouping<BattleCombatant, BattleCombatant>[] recipientHits = hitPlan.SelectMany(targets => targets).GroupBy(recipient => recipient).ToArray();
+        Dictionary<BattleCombatant, int> remainingHits = hitPlan.SelectMany(targets => targets.Distinct()).GroupBy(recipient => recipient).ToDictionary(group => group.Key, group => group.Count());
         BattleModelRoster roster = ReadBattlePresentationRoster();
         _ = RequirePresentationModelOwner(roster, actor);
-        foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)
+        foreach (BattleCombatant recipient in remainingHits.Keys)
         {
-            _ = RequirePresentationModelOwner(roster, entry.Key);
+            _ = RequirePresentationModelOwner(roster, recipient);
         }
-        foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)
+        foreach (BattleCombatant participant in combatants.Where(candidate => candidate.Slot is not null))
         {
-            entry.Key.NativeRemainingHits = entry.Count();
+            participant.NativeRemainingHits = remainingHits.GetValueOrDefault(participant);
         }
 
         ImmutableArray<ExpandedBattleContact>.Builder contacts = ImmutableArray.CreateBuilder<ExpandedBattleContact>(hitPlan.Sum(targets => targets.Length));
         BattleCombatant? firstReflector = null;
-        try
+        for (int hit = 0; hit < hitPlan.Length; hit++)
         {
-            for (int hit = 0; hit < hitPlan.Length; hit++)
+            foreach (BattleCombatant recipient in hitPlan[hit])
             {
-                foreach (BattleCombatant recipient in hitPlan[hit])
+                // Native48E830 stops the remaining pass when a previously selected target is KO.
+                bool deathSelfContact = recipient == actor && TargetActorReference(recipient) == command.TargetRequest.DeathCallbackSelf && command.NativeAiCallbackStage == 3;
+                bool targetsKnockedOutAlly = recipient.IsPlayer && command.TargetRequest.AllowsKnockedOutAllies;
+                if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
                 {
-                    // Native48E830 stops the remaining pass when a previously selected target is KO.
-                    bool deathSelfContact = recipient == actor && TargetActorReference(recipient) == command.TargetRequest.DeathCallbackSelf && command.NativeAiCallbackStage == 3;
-                    bool targetsKnockedOutAlly = recipient.IsPlayer && command.TargetRequest.AllowsKnockedOutAllies;
-                    if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
-                    {
-                        return (contacts.ToImmutable(), firstReflector);
-                    }
-                    if (hit == 0 && command.NativeQueuedCommand == 12)
-                    {
-                        ResolveNativeMug(actor, recipient);
-                    }
-                    NativeBattleContactPacket packet;
-                    if (NativeActionReflects(recipient, native))
-                    {
-                        DecrementNativeRemainingHits(recipient);
-                        firstReflector ??= recipient;
-                        recipient.NativeCombatantFlags |= 0x4000;
-                        recipient.LastNativeHealing = 1;
-                        RecordNativeActionMemory(actor, recipient, command);
-                        DispatchNativeActionCounter(recipient);
-                        packet = CreateNativeReflectedContact(recipient, native);
-                        Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
-                    }
-                    else
-                    {
-                        bool previousSuppression = suppressNativeImmediateCounter;
-                        suppressNativeImmediateCounter |= preliminary;
-                        try
-                        {
-                            packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, preliminary: preliminary);
-                        }
-                        finally
-                        {
-                            suppressNativeImmediateCounter = previousSuppression;
-                        }
-                    }
-                    contacts.Add(new(recipient.Id, packet));
+                    return (contacts.ToImmutable(), firstReflector);
                 }
+                if (hit == 0 && command.NativeQueuedCommand == 12)
+                {
+                    ResolveNativeMug(actor, recipient);
+                }
+                NativeBattleContactPacket packet;
+                if (NativeActionReflects(recipient, native))
+                {
+                    DecrementNativeRemainingHits(recipient);
+                    firstReflector ??= recipient;
+                    recipient.NativeCombatantFlags |= 0x4000;
+                    recipient.LastNativeHealing = 1;
+                    RecordNativeActionMemory(actor, recipient, command);
+                    DispatchNativeActionCounter(recipient);
+                    packet = CreateNativeReflectedContact(recipient, native);
+                    Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
+                }
+                else
+                {
+                    bool previousSuppression = suppressNativeImmediateCounter;
+                    suppressNativeImmediateCounter |= preliminary;
+                    try
+                    {
+                        packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native, preliminary: preliminary);
+                    }
+                    finally
+                    {
+                        suppressNativeImmediateCounter = previousSuppression;
+                    }
+                }
+                contacts.Add(new(recipient.Id, packet));
             }
-            return (contacts.ToImmutable(), firstReflector);
         }
-        finally
-        {
-            foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)
-            {
-                entry.Key.NativeRemainingHits = 0;
-            }
-        }
+        return (contacts.ToImmutable(), firstReflector);
     }
 
     private void PublishExpandedImpacts(BattleActionPresentation command, ImmutableArray<ExpandedBattleContact> contacts, string contactKind = "EffectContact")

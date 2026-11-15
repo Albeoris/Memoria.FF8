@@ -93,6 +93,7 @@ public sealed class ExpandedActionPreparationTests
         BattleModelRoster roster = candidate.ReadBattlePresentationRoster();
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(candidate, [invocation, roster, bridge]);
+        typeof(BattleSession).GetField("expandedHostedCurrentOperation", privateInstance)!.SetValue(candidate, 0);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(candidate, 1L);
         NativeBattleModelLifecycleServices services = candidate.CaptureModelLifecycleServices(roster);
         services.EmitContact(placeholder.Packet);
@@ -101,7 +102,7 @@ public sealed class ExpandedActionPreparationTests
         for (int repeat = 0; repeat < 2; repeat++)
         {
             TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => acknowledger.Invoke(candidate, [services, 1L]));
-            Assert.Contains("placeholder before trigger recomputation", Assert.IsType<InvalidDataException>(failure.InnerException).Message);
+            Assert.Contains("placeholder before recomputation", Assert.IsType<InvalidDataException>(failure.InnerException).Message);
         }
         Assert.Equal(staged, Snapshot(candidate));
         Assert.Same(invocation, ReadHostedInvocation(candidate));
@@ -124,6 +125,12 @@ public sealed class ExpandedActionPreparationTests
         string target = id == MiniMog ? "caster" : "enemy";
         BattleSession candidate = Create(card: id == Card, miniMog: id == MiniMog, failSpecial: id is Card or MiniMog);
         candidate.QueueAction("caster", target, ability, id);
+        if (id == MiniMog)
+        {
+            BattleAttackCommand queued = Assert.Single(candidate.QueuedActions);
+            Assert.Null(queued.NativeAction!.TargetFlags);
+            Assert.Equal(new BattleTargetSelection.SideGroup(BattleTargetSide.Both), queued.TargetRequest.Selection);
+        }
         ReachCommit(candidate);
         BattleCombatant caster = candidate.Combatants[0];
         BattleCombatant recipient = candidate.Combatants.Single(actor => actor.Id == target);
@@ -175,7 +182,7 @@ public sealed class ExpandedActionPreparationTests
         typeof(BattleSession).GetField("preparingExpandedHostedAction", privateInstance)!.SetValue(candidate, true);
         typeof(BattleSession).GetMethod("CommitExpandedAction", privateInstance)!.Invoke(candidate, [candidate.ActiveAction]);
         Assert.Null(candidate.ActiveAction);
-        Assert.Empty(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", privateInstance)!.GetValue(candidate)!).Cast<object>());
+        Assert.Empty(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedOperations", privateInstance)!.GetValue(candidate)!).Cast<object>());
         Assert.Equal(3, candidate.GetAvailableMagicCasts("caster", 1));
     }
 
@@ -210,6 +217,7 @@ public sealed class ExpandedActionPreparationTests
         object invocation = ReadHostedInvocation(owner);
         object? bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster]);
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
+        typeof(BattleSession).GetField("expandedHostedCurrentOperation", privateInstance)!.SetValue(owner, 0);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, 1L);
         MethodInfo validate = typeof(BattleSession).GetMethod("ValidateExpandedEffectContactCompletion", privateInstance)!;
         MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
@@ -253,10 +261,11 @@ public sealed class ExpandedActionPreparationTests
         Assert.Same(original, captured);
         Assert.Null(pending.GetValue(owner));
         typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!.Invoke(owner, [command, new NativeBattleActionHeaderPreparation(owner.ReadPresentationModelOwner("enemy"), 2, 5, -1, 1, 1, null), ImmutableArray.Create(new ExpandedBattleContact("caster", packet)), captured]);
-        object invocation = Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", privateInstance)!.GetValue(owner)!).Cast<object>());
+        object invocation = Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedOperations", privateInstance)!.GetValue(owner)!).Cast<object>());
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
         typeof(BattleSession).GetMethod("InitializeExpandedPartyPresentation", privateInstance)!.Invoke(owner, []);
+        typeof(BattleSession).GetField("expandedHostedCurrentOperation", privateInstance)!.SetValue(owner, 0);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, 1L);
         pending.SetValue(owner, newer);
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
@@ -282,6 +291,9 @@ public sealed class ExpandedActionPreparationTests
     {
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         BattleSession owner = Create(gunblade: true, enemyWithMagicStock: true);
+        Assert.Equal((byte)0, Assert.Single(owner.QueuedActions).ExpandedAiCallback!.Stage);
+        owner.Tick();
+        Assert.Empty(owner.QueuedActions);
         typeof(BattleSession).GetMethod("InitializeExpandedPartyPresentation", privateInstance)!.Invoke(owner, []);
         FieldInfo pending = typeof(BattleSession).GetField("pendingEnemyDraw", privateInstance)!;
         FieldInfo boundDraw = typeof(BattleSession).GetField("expandedEffectEnemyDraw", privateInstance)!;
@@ -306,9 +318,10 @@ public sealed class ExpandedActionPreparationTests
         PropertyInfo graphicsProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
         graphicsProperty.SetValue(child, graphics with { EntryReady = true });
         typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
-        typeof(BattleSession).GetField("presentationNativeTargets", privateInstance)!.SetValue(child, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
+        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
+        typeof(BattleSession).GetField("definition", privateInstance)!.SetValue(child, child.ReadDefinition() with
         {
-            [header.Source] = new(header.Source, graphics.ActorModels.Get(header.Source), new([0, 0]))
+            NativeGraphics = new(rules, [new("caster", 0, new([0, 0]))], [])
         });
         NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { Recipient = header.Source } };
         long token = child.BeginHostedAction(header, [wrongRecipient]);
@@ -316,6 +329,9 @@ public sealed class ExpandedActionPreparationTests
         graphicsProperty.SetValue(child, child.NativeGraphics! with { PendingTrigger = receipt });
         NativeBattleGraphicsState originalGraphics = child.NativeGraphics!;
         NativeBattleActionPacketsState rejectedPackets = child.NativeActionPackets;
+        BattleActionHeaderReference admittedHeader = Assert.Single(rejectedPackets.PublishedHeaders()).Reference;
+        invocation.GetType().GetProperty("HeaderReference", privateInstance)!.SetValue(invocation, admittedHeader);
+        typeof(BattleSession).GetField("expandedHostedCurrentOperation", privateInstance)!.SetValue(owner, 0);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, token);
         var process = (ExpandedBattlePresentationProcess)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
         typeof(ExpandedBattlePresentationProcess).GetField("logicalOwner", privateInstance)!.SetValue(process, owner);
@@ -369,7 +385,7 @@ public sealed class ExpandedActionPreparationTests
 
     private static object ReadHostedInvocation(BattleSession candidate)
     {
-        return Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(candidate)!).Cast<object>());
+        return Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedOperations", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(candidate)!).Cast<object>());
     }
 
     [Theory]

@@ -176,8 +176,8 @@ public static class NativeBattleExpandedAi
                     case 27 or 31 or 43 or 44 or 49 or 50 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
                         RequireOriginalSlots($"physical-opcode:{opcode}");
                         break;
-                    case 27:
-                        MarkUnsupportedService($"opcode:{opcode}");
+                    case 27 when script[pc] >= NativeBattleSlots.EnemyCount:
+                        MarkUnsupportedService($"physical-operand:{opcode}/{script[pc]}");
                         break;
                     case 29:
                         if (script[pc] != 200 && !originalEnemySlots)

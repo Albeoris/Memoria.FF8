@@ -29,14 +29,14 @@ public sealed partial class BattleSession
                     task = paused ? task.WriteWord(8, (ushort)(remaining - 1)) : task.WriteByte(15, 1);
                     break;
                 case 0x48AC60:
-                    QueueNativeDescriptorMessage(task.Message ?? throw new NotSupportedException("Native48AC60 lacks its original logical text pointer."), 0);
+                    QueueReachedNativeScriptMessage(task.Message ?? throw new NotSupportedException("Native48AC60 lacks its original logical text pointer."), 128);
                     task = task.WriteByte(15, 1);
                     break;
                 case 0x48AC90:
                     ushort delay = task.ReadWord(8);
                     if (delay == 0)
                     {
-                        QueueNativeDescriptorMessage(task.Message ?? throw new NotSupportedException("Native48AC90 lacks its original logical text pointer."), 0, 240);
+                        QueueReachedNativeScriptMessage(task.Message ?? throw new NotSupportedException("Native48AC90 lacks its original logical text pointer."), 240);
                         task = task.WriteByte(15, 1);
                     }
                     task = task.WriteWord(8, unchecked((ushort)(delay - 1)));
@@ -52,6 +52,17 @@ public sealed partial class BattleSession
             }
             return state with { Slots = state.Slots.SetItem(slot, task) };
         }
+    }
+
+    private void QueueReachedNativeScriptMessage(BattleEvent message, byte priority)
+    {
+        if (expandedPresentationProcess is { } process)
+        {
+            process.AppendScriptMessage(message, 0, priority);
+            StopTurnAdvance();
+            return;
+        }
+        QueueNativeDescriptorMessage(message, 0, priority);
     }
 
     private int EnqueueNativeGuardianScriptTask(BattleCombatant actor, BattleTargetRequest request, byte gfId)

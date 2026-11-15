@@ -91,6 +91,95 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal((byte)1, logical.ActiveAction!.ExpandedAiCallback!.Stage);
     }
 
+    [Fact]
+    public void A_second_command_without_its_original_target_does_not_cancel_the_callback()
+    {
+        byte[] init = [4, 38, 7, 100, 6, 7, 101, 6, 0];
+        BattleCombatantDefinition target = Combatant("first", 22, Program()) with { MaximumHp = 1, CurrentHp = 1 };
+        var (logical, child, process) = Fixture(Program(init: init), [target], [FixedHit(100), FixedHit(101)]);
+        BattleExpandedAiCallbackRequest? request = logical.QueuedActions.First().ExpandedAiCallback;
+
+        Dispatch(logical);
+
+        Assert.Equal(0, Actor(logical, "first").CurrentHp);
+        Assert.Equal((ushort)100, Assert.Single(child.NativeActionPackets.PublishedHeaders()).Slot.Action);
+        Assert.Equal(request, logical.ActiveAction!.ExpandedAiCallback);
+        Assert.True(Actor(logical, Enemy).IsBusy);
+        Assert.NotNull(process.ActiveActionToken);
+        NativeBattleDescriptorState descriptors = child.NativeGraphics!.Descriptors;
+        Assert.Collection(descriptors.Queue.Select(slot => descriptors.Packets[slot]),
+            action => Assert.Equal((ushort)104, action.Command),
+            completion =>
+            {
+                Assert.Equal((ushort)10, completion.Command);
+                Assert.Equal(0x47DDA0u, completion.Argument);
+            });
+    }
+
+    [Fact]
+    public void Routed_counter_produces_after_its_source_and_consumes_the_selector_once()
+    {
+        var routed = Run(201);
+        var exact = Run(0);
+
+        Assert.Equal(new ushort[] { 100, 102 }, routed.Child.NativeActionPackets.PublishedHeaders().Select(header => header.Slot.Action));
+        Assert.Equal(10000, Actor(routed.Logical, "first").CurrentHp);
+        Assert.Equal(9999, Actor(routed.Logical, "second").CurrentHp);
+        Assert.Equal(Actor(exact.Logical, "ally").CurrentHp, Actor(routed.Logical, "ally").CurrentHp);
+        NativeBattleRandomState exactRandom = Assert.IsType<NativeBattleRandomState>(exact.Logical.Capture().Random);
+        NativeBattleRandomState routedRandom = Assert.IsType<NativeBattleRandomState>(routed.Logical.Capture().Random);
+        Assert.Equal(exactRandom.Draw(out _).Indexes.ToArray(), routedRandom.Indexes.ToArray());
+
+        static (BattleSession Logical, BattleSession Child) Run(byte targetSelector)
+        {
+            byte[] turn = [4, 38, 7, 100, 6, 0];
+            byte[] immediate = [4, targetSelector, 7, 102, 6, 0];
+            BattleCombatantDefinition first = Combatant("first", 22, Program());
+            BattleCombatantDefinition second = Combatant("second", 23, Program(immediate: immediate));
+            EncounterCompiledDefinition mod = new("fixture.encounter", "Classic", "fixture-generation", "first", 22,
+                ImmutableDictionary<string, EncounterCompiledPolicy>.Empty, ImmutableDictionary<string, string>.Empty, ImmutableDictionary<string, EncounterCompiledTemplate>.Empty, ImmutableDictionary<string, ImmutableArray<string>>.Empty, ImmutableDictionary<string, EncounterCompiledPresentation>.Empty,
+                ImmutableDictionary<string, EncounterCompiledDamageRoute>.Empty.Add("share", new("share", "original", ["second"])), ImmutableDictionary<string, EncounterCompiledEventGate>.Empty, ImmutableDictionary<string, EncounterCompiledPlacement>.Empty, ImmutableDictionary<string, double>.Empty);
+            var (logical, child, process) = Fixture(Program(turn: turn), [first, second], [FixedHit(100), FixedHit(102)], mod);
+            while (logical.QueuedActions.Count > 0)
+            {
+                Dispatch(logical);
+                CompleteEmpty(logical, child, process, 0x47DDA0);
+            }
+            Queue(logical, Actor(logical, Enemy), 1);
+            Dispatch(logical);
+            return (logical, child);
+        }
+    }
+
+    [Fact]
+    public void Direct_callback_text_uses_its_reached_descriptor_before_completion()
+    {
+        NativeBattleAiDefinition program = Program(init: [1, 0, 0]) with { Texts = ["original callback text"] };
+        var (logical, child, process) = Fixture(program);
+        Dispatch(logical);
+        Assert.DoesNotContain(logical.Events, item => item.Kind == "NativeText");
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        Assert.Equal(new ushort[] { 8, 10 }, graphics.Descriptors.Queue.Select(slot => graphics.Descriptors.Packets[slot].Command));
+        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+
+        Field(child, "hostedFrameServices").SetValue(child, services);
+        try
+        {
+            SetGraphics(child, (NativeBattleGraphicsState)Invoke(child, "AdvanceNativeDescriptors", graphics)!);
+        }
+        finally
+        {
+            Field(child, "hostedFrameServices").SetValue(child, null);
+        }
+
+        NativeBattlePresentationCompletionRequested completion = Assert.IsType<NativeBattlePresentationCompletionRequested>(services.ReadOrderedReceipts()[1]);
+        Assert.IsType<NativeBattlePresentationDescriptorText>(services.ReadOrderedReceipts()[0]);
+        Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
+        Assert.Equal("original callback text", Assert.Single(logical.Events, item => item.Kind == "NativeText").Message);
+        Assert.True(process.IsCompletionAcknowledged(completion.Token));
+        Assert.Null(logical.ActiveAction);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -138,11 +227,12 @@ public sealed class ExpandedAiCallbackEventTests
         };
     }
 
-    private static (BattleSession Logical, BattleSession Child, ExpandedBattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null)
+    private static (BattleSession Logical, BattleSession Child, ExpandedBattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null, EncounterCompiledDefinition? encounter = null)
     {
         BattleDefinition definition = new()
         {
             UsesExpandedRoster = true,
+            EncounterMod = encounter,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeFieldBattleRules = 0,
             NativeGlobalRandom = new(123),

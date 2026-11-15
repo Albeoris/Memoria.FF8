@@ -112,6 +112,7 @@ public sealed partial class BattleSession
             observeRemoval?.Invoke(state, slot, packet);
             ObserveHostedActionPacketRemoved(slot, packet);
             ObserveHostedCompletionRemoved(graphics, state, slot, packet);
+            ObserveHostedControlPacketRemoved(slot, packet);
         }
 
         NativeBattleDescriptorDispatch Dispatch(NativeBattleDescriptorState descriptors, int slot)
