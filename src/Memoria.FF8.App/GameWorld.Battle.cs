@@ -176,7 +176,7 @@ internal sealed partial class GameWorld
         ImmutableSortedDictionary<int, BattleEnemyRosterSource>? addedEnemySources = restoredDefinition?.AddedEnemySources;
         if (diagnosticRoster is not null)
         {
-            addedEnemySources = diagnosticRoster.Donors.Select((source, ordinal) => KeyValuePair.Create(ExpandedBattleFormation.OriginalEnemyPrototypeCount + ordinal, source)).ToImmutableSortedDictionary();
+            addedEnemySources = SelectDiagnosticRosterDonors(encounter, diagnosticRoster);
         }
         else if (restoredDefinition is null && effectPreviewRequest is null && rosterAdmission.AllowsAdditionalEnemies)
         {

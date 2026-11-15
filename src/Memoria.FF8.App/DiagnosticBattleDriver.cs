@@ -24,6 +24,8 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public DiagnosticSlotsDeclaration? SlotsAdmission { get; init; }
     public DiagnosticFreshEntryDeclaration? FreshEntry { get; init; }
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
+    public DiagnosticEnemyTrigger? EnemyTrigger { get; init; }
+    public bool IndependentRosterEntry { get; init; }
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
     public ushort[] SupportingEffects { get; init; } = [];
@@ -59,6 +61,17 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             throw new InvalidDataException("Fresh entry requires one ordinary native invocation without repairs, rearm, hold or composed cycle protocols.");
         }
         EnemyAbility?.Validate();
+        EnemyTrigger?.Validate(Input);
+        if (IndependentRosterEntry && (FreshEntry is not null || Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 }))
+        {
+            throw new InvalidDataException("Independent roster entry cannot also use legacy fresh-entry, presentation transfer, terminal hold or between-use repairs.");
+        }
+        if (EnemyTrigger is not null && (ExpectedNativeAction is null || EnemyAbility is not null || LimitSelection is not null ||
+            FreshEntry is not null || ShotCycle is not null || DuelCycle is not null || CounterCycle is not null || SlotsAdmission is not null ||
+            Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 }))
+        {
+            throw new InvalidDataException("An enemy trigger preparation uses one independent entry and an explicit native action.");
+        }
         LimitSelection?.Validate();
         DuelCycle?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
         if (DuelCycle is not null && (LimitSelection is not { MinimumCrisisLevel: 1, MaximumCrisisLevel: 1 } || ShotCycle is not null || SlotsAdmission is not null || CounterCycle is not null || FreshEntry is not null || EnemyAbility is not null || Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 } || SupportingEffects is not { Length: 0 } || SupportingInvocations is not { Length: 0 }))
@@ -139,6 +152,7 @@ internal sealed record DiagnosticDriverObservation(double Seconds, long Callback
 internal sealed class DiagnosticBattleDriver
 {
     private readonly DiagnosticBattleDriverRecipe recipe;
+    private int enemyTriggerAttempts;
     private readonly double started;
     private double stageStarted;
     private double executionStarted;
@@ -322,7 +336,7 @@ internal sealed class DiagnosticBattleDriver
             }
             return;
         }
-        if (dispatch.ActorId != recipe.Input.ActorId)
+        if (dispatch.ActorId != (recipe.EnemyTrigger?.ActorId ?? recipe.Input.ActorId))
         {
             return;
         }
@@ -369,7 +383,8 @@ internal sealed class DiagnosticBattleDriver
         {
             return;
         }
-        if (dispatch.Ability != recipe.Input.Ability || dispatch.ActionId != (recipe.ExpectedNativeAction ?? recipe.Input.ActionId) || recipe.ExpectedNativeCommand is byte command && dispatch.NativeCommand != command)
+        BattleAbility? ability = recipe.EnemyTrigger is null ? recipe.Input.Ability : BattleAbility.EnemyAbility;
+        if (dispatch.Ability != ability || dispatch.ActionId != (recipe.ExpectedNativeAction ?? recipe.Input.ActionId) || recipe.ExpectedNativeCommand is byte command && dispatch.NativeCommand != command)
         {
             Fail("ACTION_IDENTITY_UNAVAILABLE_OR_MISMATCH");
             return;
@@ -377,6 +392,12 @@ internal sealed class DiagnosticBattleDriver
         if (dispatch.RequestedEffect != recipe.ExpectedEffect || dispatch.ExecutedEffect != recipe.ExpectedEffect)
         {
             Fail("REQUESTED_EXECUTED_EFFECT_MISMATCH");
+            return;
+        }
+        if (recipe.EnemyTrigger is { } trigger &&
+            (dispatch.NativeAiCallbackStage != trigger.Callback || !trigger.ScriptSha256.Equals(dispatch.NativeAiScriptSha256, StringComparison.OrdinalIgnoreCase)))
+        {
+            Fail("ENEMY_TRIGGER_CALLBACK_IDENTITY_MISMATCH");
             return;
         }
         if (Stage == DiagnosticDriverStage.AwaitDispatch)
@@ -439,6 +460,7 @@ internal sealed class DiagnosticBattleDriver
             {
                 Stage = recipe.Presentation is null ? DiagnosticDriverStage.AwaitDispatch : DiagnosticDriverStage.AwaitPresentation;
                 executionStarted = observation.Seconds;
+                enemyTriggerAttempts = recipe.EnemyTrigger is null ? 0 : 1;
                 return recipe.Presentation is null;
             }
         }
@@ -454,6 +476,16 @@ internal sealed class DiagnosticBattleDriver
                 executionStarted = observation.Seconds;
                 return true;
             }
+        }
+        else if (Stage == DiagnosticDriverStage.AwaitDispatch && recipe.EnemyTrigger is { } trigger && observation.Ready && observation.Drained)
+        {
+            if (enemyTriggerAttempts >= trigger.MaximumAttempts)
+            {
+                Fail("ENEMY_TRIGGER_ATTEMPTS_EXHAUSTED");
+                return false;
+            }
+            enemyTriggerAttempts++;
+            return true;
         }
         else if (Stage == DiagnosticDriverStage.Drain && drained)
         {
@@ -528,7 +560,7 @@ internal sealed class DiagnosticBattleDriver
             }
             else if (observation.PresentedFrame - tailStarted >= recipe.TailFrames)
             {
-                Stage = recipe.Presentation is not null ? DiagnosticDriverStage.PresentationHold : recipe.FreshEntry is not null || Execution == 2 ? DiagnosticDriverStage.Completed : DiagnosticDriverStage.Readiness;
+                Stage = recipe.Presentation is not null ? DiagnosticDriverStage.PresentationHold : recipe.FreshEntry is not null || recipe.EnemyTrigger is not null || recipe.IndependentRosterEntry || Execution == 2 ? DiagnosticDriverStage.Completed : DiagnosticDriverStage.Readiness;
                 if (recipe.FreshEntry is null && recipe.Presentation is null)
                 {
                     Execution = 2;

@@ -32,6 +32,10 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         }
         Fixture?.Validate();
         Roster?.Validate();
+        if (Driver is { } driver && (driver.IndependentRosterEntry || driver.EnemyTrigger is not null) && Roster is null)
+        {
+            throw new InvalidDataException("Independent roster and enemy trigger diagnostics require an explicit expanded scenario roster.");
+        }
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
@@ -65,6 +69,8 @@ internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string Ini
     public Memoria.FF8.BattleEffects.DiagnosticSlotsSource? SlotsSource { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticBattleRosterMember[]? RosterMembers { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<int, BattleEnemyRosterSource>? RosterDonors { get; init; }
 }
 
 internal sealed record DiagnosticBattleRosterMember(string Actor, int Model, bool Party, int? SceneSlot);
@@ -211,7 +217,11 @@ internal sealed partial class GameWorld
             DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? []] };
             if (request.Roster is not null)
             {
-                DiagnosticReceipt = DiagnosticReceipt with { RosterMembers = battle.Combatants.Where(actor => actor.IsActive || actor.IsPlayer).Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray() };
+                DiagnosticReceipt = DiagnosticReceipt with
+                {
+                    RosterMembers = battle.Combatants.Where(actor => actor.IsActive || actor.IsPlayer).Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray(),
+                    RosterDonors = battle.ReadDefinition().AddedEnemySources
+                };
             }
             DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge, FreshEntryHost = request.Driver?.FreshEntry is null ? null : DiagnosticFreshEntryHost.Capture(assets.GameDirectory, request.Driver.FreshEntry, retained.EffectMemory?.ExecutionStack, diagnosticBattle.InstanceId, battle.DiagnosticLifecycleId) };
             if (request.Driver?.SlotsAdmission is not null)

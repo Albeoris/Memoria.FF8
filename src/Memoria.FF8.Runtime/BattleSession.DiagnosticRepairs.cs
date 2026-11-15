@@ -106,7 +106,7 @@ public sealed partial class BattleSession
         }
         if (actor.IsPlayer)
         {
-            NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
+            NativeBattlePartyPresentedVital presented = RequireDiagnosticRepairPresentedRow(actor);
             if (presented.HitPoints != actor.CurrentHp || presented.MaximumHitPoints != actor.MaximumHp)
             {
                 throw new InvalidOperationException("Diagnostic repair requires the normally drained party presentation HP cache to match its current combat owner.");
@@ -158,14 +158,27 @@ public sealed partial class BattleSession
             diagnosticRepairProjection = previousProjection;
         }
         RefreshNativePresentationStatus(actor);
-        NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
+        NativeBattlePartyPresentedVital presented = RequireDiagnosticRepairPresentedRow(actor);
         int difference = actor.CurrentHp - presented.HitPoints;
-        PublishNativePresentedContact(RequireNativeGraphics(), new(CreatePresentationModelOwner(actor), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor)));
-        if (actor.CurrentHp != repair.HitPoints || RequireNativePartyPresentedRow(actor.RequireNativeActorIndex()).HitPoints != repair.HitPoints)
+        NativeBattleContactHalf contact = new(CreatePresentationModelOwner(actor), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor));
+        if (UsesExpandedRoster)
+        {
+            PublishExpandedReadyContact(ReadBattlePresentationRoster(), contact, actor.Id);
+        }
+        else
+        {
+            PublishNativePresentedContact(RequireNativeGraphics(), contact);
+        }
+        if (actor.CurrentHp != repair.HitPoints || RequireDiagnosticRepairPresentedRow(actor).HitPoints != repair.HitPoints)
         {
             throw new InvalidOperationException("Diagnostic repair did not produce its exact declared HP in the combat and presentation owners.");
         }
         Log("DiagnosticRepair", actor.Id, actor.Id, actor.CurrentHp - before, "Explicit between-execution HP/status repair; original clocks, random streams and scheduler owners retained.");
+    }
+
+    private NativeBattlePartyPresentedVital RequireDiagnosticRepairPresentedRow(BattleCombatant actor)
+    {
+        return ReadPartyPresentedRow(actor) ?? throw new NotSupportedException("Diagnostic repair requires the current party presentation HP cache.");
     }
 
     private BattleDiagnosticRepairRandomState ObserveDiagnosticRepairRandom() => new(random, nativeCrtRandom, nativeBattleUiRandom, nativeGlobalRandom);

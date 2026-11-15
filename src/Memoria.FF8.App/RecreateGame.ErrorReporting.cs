@@ -44,6 +44,11 @@ internal sealed partial class RecreateGame
         }
         catch (Exception exception)
         {
+            if (world?.IsDiagnosticBattle == true)
+            {
+                DiagnosticHostFailure.Write(exception, Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY"), Console.Error);
+                world.AbandonFaultedDiagnosticBattle();
+            }
             if (exception.Data["Memoria.ErrorIncidentCaptured"] is not true && (Environment.GetEnvironmentVariable("MEMORIA_FF8_HOST_FAILURE_FILE") is null || !GraphicsHostReadiness.IsInitializationFailure(exception)))
             {
                 CaptureErrorIncident(exception, "game host", force: true);

@@ -34,6 +34,7 @@ internal sealed partial class RecreateGame
     private readonly List<long> diagnosticGunbladeTriggers = [];
     private readonly List<BattleDiagnosticRepairReceipt> diagnosticRepairs = [];
     private readonly List<BattleDiagnosticEnemySubmission> diagnosticEnemySubmissions = [];
+    private readonly List<BattleDiagnosticEnemyTriggerReceipt> diagnosticEnemyTriggers = [];
     private bool diagnosticFreshEntryInitializationPublished;
 
     private static readonly string[] DiagnosticCampaignStages = ["initialization", "action_one", "cleanup_rearm", "action_two", "teardown"];
@@ -59,6 +60,7 @@ internal sealed partial class RecreateGame
             diagnosticDriverBattle.ArmDiagnosticVisualEntry(recipe.Input.ActorId!, recipe.ExpectedNativeCommand!.Value, checked((ushort)recipe.ExpectedNativeAction!.Value), recipe.ExpectedEffect, AdmitDiagnosticVisualPresentation);
         }
         diagnosticEnemySubmissions.Clear();
+        diagnosticEnemyTriggers.Clear();
         diagnosticSlotsAdmissions.Clear();
         diagnosticDriverStartedSeconds = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
         diagnosticDriver = new(recipe, diagnosticDriverStartedSeconds);
@@ -211,7 +213,14 @@ internal sealed partial class RecreateGame
                 if (driver.Advance(observation, presentationReleased))
                 {
                     diagnosticRenderer ??= battleGpu ?? throw new NotSupportedException("Scored diagnostic execution requires the GPU renderer.");
-                    diagnosticTelemetry.Begin(presentedTimestamp, diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
+                    if (diagnosticDriverRecipe!.EnemyTrigger is { } trigger)
+                    {
+                        diagnosticEnemyTriggers.Add(trigger.Prepare(active));
+                    }
+                    if (diagnosticDriverRecipe.EnemyTrigger is null || !diagnosticTelemetry.Active)
+                    {
+                        diagnosticTelemetry.Begin(presentedTimestamp, diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
+                    }
                     if (diagnosticDriverRecipe!.CounterCycle is not null)
                     {
                         BeginDiagnosticCounter(active, driver);
@@ -465,6 +474,7 @@ internal sealed partial class RecreateGame
                 diagnostic_capabilities = world?.DiagnosticCapabilities,
                 limit_selections = diagnosticLimitSelections.ToArray(),
                 enemy_submissions = diagnosticEnemySubmissions.ToArray(),
+                enemy_trigger = diagnosticEnemyTriggers.ToArray(),
                 gunblade_triggers = diagnosticGunbladeTriggers.ToArray(),
                 repairs = diagnosticRepairs.ToArray(),
                 terminal_holds = diagnosticDriverBattle?.DiagnosticTerminalHoldReceipts.ToArray(),
