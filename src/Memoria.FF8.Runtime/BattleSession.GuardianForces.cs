@@ -230,8 +230,8 @@ public sealed partial class BattleSession
         {
             BattleCombatant actor = GetActor(cast.ActorId);
             //4842B0 decrements the GF charge WORD separately from growing the participant's ATB DWORD.
-            //RestoreNativeAtb already checked the raw gauge and its HUD projection; components retain their zero-gauge invariant.
-            bool retainedRawGauge = saved.NativeGraphics is not null && actor.NativeAtb is not null;
+            //RestoreNativeAtb already checked the raw gauge and its HUD projection. Clockless components retain their zero-gauge invariant.
+            bool retainedRawGauge = actor.NativeAtb is not null;
             if (saved.Outcome != BattleOutcome.Active || cast.Command.ActorId != actor.Id || cast.Command.Ability != BattleAbility.GuardianForce || !guardianForces.ContainsKey(cast.Command.ActionId) || !actor.EquipmentIds.Contains(cast.Command.ActionId) || cast.RemainingTicks > cast.InitialTicks || !guardianForceCasts.TryAdd(actor.Id, cast) || !retainedRawGauge && actor.Atb != 0)
             {
                 throw new InvalidDataException("Invalid saved GF cast owner.");

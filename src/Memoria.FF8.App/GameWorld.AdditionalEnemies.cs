@@ -114,17 +114,8 @@ internal sealed partial class GameWorld
         return null;
     }
 
-    private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed)
+    private List<(int Formation, BattleEnemyPlacement[] Enemies)> BuildAdditionalEnemyDonorPool(BattleEncounter encounter)
     {
-        int originalCount = encounter.Enemies.Count;
-        int available = Math.Min(count, ExpandedBattleFormation.MaximumEnemies - originalCount);
-        ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Builder sources = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
-        if (available <= 0)
-        {
-            return sources.ToImmutable();
-        }
-        // Selection is replayable from the entry seed and does not spend battle or exploration RNG.
-        NativeBattleRandomState random = NativeBattleRandomState.ForecastPhase(seed);
         List<(int Formation, BattleEnemyPlacement[] Enemies)> pool = [];
         foreach (int formation in (ReadLocalEnemyFormations() ?? []).Distinct())
         {
@@ -139,6 +130,28 @@ internal sealed partial class GameWorld
                 pool.Add((formation, enemies));
             }
         }
+        if (pool.Count == 0)
+        {
+            BattleEnemyPlacement[] enemies = EligibleAdditionalEnemyPlacements(encounter, encounter.Id);
+            if (enemies.Length != 0)
+            {
+                pool.Add((encounter.Id, enemies));
+            }
+        }
+        return pool;
+    }
+
+    private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed)
+    {
+        int available = Math.Min(count, ExpandedBattleFormation.MaximumEnemies - encounter.Enemies.Count);
+        ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Builder sources = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
+        if (available <= 0)
+        {
+            return sources.ToImmutable();
+        }
+        // Selection is replayable from the entry seed and does not spend battle or exploration RNG.
+        NativeBattleRandomState random = NativeBattleRandomState.ForecastPhase(seed);
+        List<(int Formation, BattleEnemyPlacement[] Enemies)> pool = BuildAdditionalEnemyDonorPool(encounter);
         while (pool.Count != 0 && sources.Count < available)
         {
             List<(int Formation, BattleEnemyPlacement[] Enemies)> round = [.. pool];
@@ -191,7 +204,9 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("The added enemy roster does not use the required contiguous scene slots.");
         }
-        ImmutableArray<ushort>? localFormations = addedEnemies.Count == 0 ? null : ReadLocalEnemyFormations();
+        Dictionary<int, BattleEnemyPlacement[]> donors = addedEnemies.Count == 0
+            ? []
+            : BuildAdditionalEnemyDonorPool(encounter).ToDictionary(donor => donor.Formation, donor => donor.Enemies);
         foreach ((int slot, BattleEnemyRosterSource source) in addedEnemies)
         {
             if (source is null)
@@ -199,16 +214,15 @@ internal sealed partial class GameWorld
                 throw new InvalidDataException("The added enemy roster has no selected placement source.");
             }
             source.Validate();
-            if (localFormations is { } formations && (source.Formation > ushort.MaxValue || !formations.Contains((ushort)source.Formation)))
+            if (!donors.TryGetValue(source.Formation, out BattleEnemyPlacement[]? eligible))
             {
-                throw new InvalidDataException($"Added enemy source formation {source.Formation} is outside the suspended exploration encounter table.");
+                throw new InvalidDataException($"Added enemy source formation {source.Formation} is outside the suspended exploration encounter table's eligible pool and its destination fallback.");
             }
             if (source.Formation >= BattleResources.FormationCount || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The added enemy roster disagrees with its installed source formation.");
             }
-            BattleEncounter donor = BattleResources.LoadEncounter(source.Formation);
-            BattleEnemyPlacement enemy = donor.Enemies.SingleOrDefault(candidate => candidate.Slot == source.SceneSlot && IsEligibleAdditionalEnemyPlacement(candidate, encounter.Id))
+            BattleEnemyPlacement enemy = eligible.SingleOrDefault(candidate => candidate.Slot == source.SceneSlot)
                 ?? throw new InvalidDataException("The added enemy no longer has an eligible independent installed placement.");
             placements.Add(enemy with { Slot = slot });
         }

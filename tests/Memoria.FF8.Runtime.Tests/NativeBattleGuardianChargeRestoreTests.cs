@@ -1,6 +1,5 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -35,10 +34,85 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     }
 
     [Fact]
-    public void ComponentChargeCannotUseARawGaugeWithoutTheSavedGraphicsPath()
+    public void ClocklessComponentChargeStillRequiresAZeroDisplayGauge()
     {
-        BattleSnapshot snapshot = RawCharge() with { NativeGraphics = null };
-        AssertRestoreError<InvalidDataException>(snapshot);
+        BattleSnapshot raw = RawCharge();
+        BattleSnapshot clockless = raw with
+        {
+            Definition = raw.Definition with { NativeClockRules = null },
+            NativeGraphics = null,
+            Combatants = raw.Combatants.Select(actor => actor with { NativeAtb = null }).ToArray()
+        };
+        Assert.NotEqual(0, clockless.Combatants[0].Atb);
+        AssertRestoreError<InvalidDataException>(clockless);
+    }
+
+    [Fact]
+    public void ExpandedChargePrivateCopyAcceptsTheValidatedGrowingRawGauge()
+    {
+        BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x48, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        BattleSession battle = new(new BattleDefinition
+        {
+            UsesExpandedRoster = true,
+            NativeClockRules = new(10),
+            NativeBattleSpeed = 2,
+            GuardianForces = [new(0, 300, 300)],
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 0, false, AllTargets: true) { NativeAction = native }],
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat((ushort)3100, 16).ToArray(), Speed = 21 }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+        battle.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
+        battle.Tick();
+
+        BattleSnapshot snapshot = battle.Capture();
+        BattleCombatantSnapshot caster = snapshot.Combatants[0];
+        BattleGuardianForceCast cast = Assert.Single(snapshot.GuardianForceCasts);
+        Assert.Null(snapshot.NativeGraphics);
+        Assert.Equal(new NativeBattleAtbState(12000, 51), caster.NativeAtb);
+        Assert.Equal(42, caster.Atb);
+        Assert.Equal((ushort)1058, cast.RemainingTicks);
+
+        BattleSession copy = BattleSession.Restore(snapshot);
+        Assert.Equal(cast, Assert.Single(copy.GuardianForceCasts));
+        Assert.Equal(caster.NativeAtb, copy.Combatants[0].NativeAtb);
+        Assert.True(copy.Combatants[0].IsBusy);
+        copy.Tick();
+        Assert.Equal(new NativeBattleAtbState(12000, 102), copy.Combatants[0].NativeAtb);
+        Assert.Equal((ushort)1056, Assert.Single(copy.GuardianForceCasts).RemainingTicks);
+        Assert.Equal(caster.NativeAtb, battle.Combatants[0].NativeAtb);
+        Assert.Equal(cast, Assert.Single(battle.GuardianForceCasts));
+
+        BattleSnapshot mismatched = snapshot with { Combatants = [caster with { Atb = caster.Atb + 1 }, .. snapshot.Combatants.Skip(1)] };
+        Assert.Equal("Native raw ATB contradicts its allocated maximum or HUD projection.", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(mismatched)).Message);
+    }
+
+    [Fact]
+    public void ExpandedGuardianRecoveryRetainsDefeatedRecipientsWithoutAdmittingWindupOrQueuedInput()
+    {
+        BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x44, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        BattleSession battle = new(new BattleDefinition
+        {
+            UsesExpandedRoster = true,
+            NativeBattleSpeed = 2,
+            GuardianForces = [new(0, 300, 300)],
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 44, false) { NativeAction = native }],
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0] },
+                new() { Id = "defeated", Name = "Defeated enemy", CurrentHp = 0, NativeStatus0 = 1 },
+                new() { Id = "survivor", Name = "Other enemy" }
+            ]
+        }, BattleAtbMode.Normal);
+        Assert.False(battle.Combatants[1].IsAlive);
+        BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("defeated")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        BattleActionPresentation recovery = new("party", "defeated", BattleActionPhase.Recovery, 1, request, BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
+        BattleSnapshot baseline = battle.Capture();
+
+        BattleSession restored = BattleSession.Restore(baseline with { ActiveAction = recovery });
+        Assert.Equal(recovery, restored.ActiveAction);
+        Assert.False(restored.Combatants[1].IsAlive);
+        Assert.Equal("Invalid queued or active battle action.", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(baseline with { ActiveAction = recovery with { Phase = BattleActionPhase.Windup } })).Message);
+        BattleAttackCommand queued = new("party", "defeated", request, BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
+        Assert.Equal("Invalid queued or active battle action.", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(baseline with { QueuedActions = [queued] })).Message);
     }
 
     [Theory]
@@ -118,15 +192,16 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     }
 
     [Fact]
-    public void JsonRetainsBothIndependentChargeAndGaugeCounters()
+    public void PrivateCopyRetainsBothIndependentChargeAndGaugeCounters()
     {
         BattleSnapshot original = RawCharge();
-        BattleSnapshot saved = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(original))!;
+        BattleSnapshot copy = NativeBattleTestSnapshots.Independent(original);
         BattleSession first = RestoreChargeOwners(original);
-        BattleSession second = RestoreChargeOwners(saved);
+        BattleSession second = RestoreChargeOwners(copy);
+        Assert.Equal(original.Random, copy.Random);
         Invoke(first, "DispatchGuardianForceCasts");
         Invoke(second, "DispatchGuardianForceCasts");
-        Assert.Equal(JsonSerializer.Serialize(first.GuardianForceCasts), JsonSerializer.Serialize(second.GuardianForceCasts));
+        Assert.Equal(first.GuardianForceCasts, second.GuardianForceCasts);
         Assert.Equal(first.Combatants[0].NativeAtb, second.Combatants[0].NativeAtb);
     }
 

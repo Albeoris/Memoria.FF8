@@ -326,6 +326,10 @@ public sealed partial class BattleSession
         else if (WaitingForTurnBasedDecision && !HasPendingTurn && !combatants.Any(actor => actor.IsReady && (!actor.IsPlayer || UsesExpandedRoster && RequiresNativeCompelledCommand(actor))))
         {
             DispatchNativeScriptTasks();
+            if (expandedPresentationProcess is not null)
+            {
+                CompleteBattleIfNeeded();
+            }
         }
         else
         {
@@ -1935,7 +1939,7 @@ public sealed partial class BattleSession
         bool validTargetSide = native || formEntry || ability == BattleAbility.Attack || (ability == BattleAbility.Draw ? actor.IsPlayer != target.IsPlayer : CanSelectEitherTargetSide(FindAction(ability, actionId)) || (actor.IsPlayer == target.IsPlayer) == FindAction(ability, actionId).Allies);
         bool unique = busy.Add(actorId);
         bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || ActionHasValidTarget(targetRequest, graphic);
-        if (UsesExpandedRoster && ability == BattleAbility.GuardianForce)
+        if (UsesExpandedRoster && ability == BattleAbility.GuardianForce && !allowDefeatedTarget)
         {
             validTarget = ExpandedActionTargets(actor, targetId, ability, actionId, targetRequest).Length != 0;
         }

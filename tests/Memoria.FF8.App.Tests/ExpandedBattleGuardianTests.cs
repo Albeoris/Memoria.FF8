@@ -19,9 +19,33 @@ public sealed class ExpandedBattleGuardianTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory) with { GlobalRandom = new(917) });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game);
+        GameWorld world = new(session, directory, sharedAssets: game);
+        try
+        {
+            RunInstalledShiva(world, session, learnedBoost);
+        }
+        catch (Exception failure)
+        {
+            try
+            {
+                world.Dispose();
+            }
+            catch (Exception cleanup)
+            {
+                throw new AggregateException(failure, cleanup);
+            }
+            throw;
+        }
+        world.Dispose();
+    }
+
+    private static void RunInstalledShiva(GameWorld world, GameSession session, bool learnedBoost)
+    {
         ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, learnedBoost));
+        int initialResults = session.State.AppliedBattleResultIds.Length;
+        uint initialVictories = session.State.BattleStatistics!.Victories;
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
+        BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
         Assert.True(process.EntryReady);
 
@@ -134,6 +158,17 @@ public sealed class ExpandedBattleGuardianTests
         Assert.Null(battle.ExpandedEffect);
         Assert.All(process.Graphics.ActorModels.Party.Entries, entry => Assert.Equal(2, entry.State.Flags0 & 6));
 
+        if (!learnedBoost)
+        {
+            Assert.All(enemies, enemy =>
+            {
+                Assert.Equal(0, enemy.CurrentHp);
+                Assert.False(enemy.IsAlive);
+            });
+            VerifyLethalSummonReturn(world, session, battle, process, occurrence, initialResults, initialVictories);
+            return;
+        }
+
         string nextTarget = enemies.First(enemy => enemy.IsAlive && enemy.IsActive).Id;
         caster.Atb = BattleSession.AtbMaximum;
         int next = battle.Events.Count;
@@ -145,6 +180,34 @@ public sealed class ExpandedBattleGuardianTests
         Assert.Same(process, battle.ExpandedPresentationProcess);
         Assert.True(Completed(battle, next), "The next Attack did not complete on the attached Guardian Force process.");
         Assert.Equal(nextTarget, Assert.Single(battle.Events.Skip(next), entry => entry is { Kind: "EffectContact", ActorId: CasterId }).TargetId);
+    }
+
+    private static void VerifyLethalSummonReturn(GameWorld world, GameSession session, BattleSession battle, ExpandedBattlePresentationProcess process, BattleEncounterOccurrence occurrence, int initialResults, uint initialVictories)
+    {
+        for (int callback = 0; callback < 500 && battle.Outcome == BattleOutcome.Active; callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Same(process, world.Battle!.ExpandedPresentationProcess);
+            Assert.Equal(initialResults, session.State.AppliedBattleResultIds.Length);
+        }
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+        Assert.True(process.TerminalFinished);
+        Assert.True(battle.CanReturnToField);
+        Assert.Null(battle.DebugOutcome);
+        Assert.Single(battle.Events, item => item.Kind == "Outcome");
+
+        world.ApplyBattleInput(new(BattleInputKind.Return));
+        Assert.Null(world.Battle);
+        Assert.Null(world.Events.LastFault);
+        Assert.Null(session.State.PendingBattleEncounter);
+        Assert.Equal(initialResults + 1, session.State.AppliedBattleResultIds.Length);
+        Assert.Equal(occurrence.OccurrenceId, session.State.AppliedBattleResultIds[^1]);
+        Assert.Equal(initialVictories + 1, session.State.BattleStatistics!.Victories);
+        BattleRewardSummary rewards = Assert.IsType<BattleRewardSummary>(world.LastBattleRewards);
+        Assert.Contains(rewards.CharacterExperience, item => item.Value > 0);
+        NativeBattleFieldReturnReceipt receipt = Assert.IsType<NativeBattleFieldReturnReceipt>(world.Events.Scene.NativeBattleFieldReturn);
+        Assert.Equal((byte)4, receipt.Reload.NativeResult);
+        Assert.Equal(133, receipt.Reload.FieldId);
     }
 
     private static string DescribeStalledGuardian(BattleSession battle, BattleSession child, ExpandedBattlePresentationProcess process, bool sawModule, bool sawWidget, int delivered)

@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -29,14 +28,25 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     }
 
     [Fact]
-    public void ReadyInputJsonPreservesPhysicalBankAndCounterOwners()
+    public void ReadyInputPrivateCopyPreservesPhysicalBankAndCounterOwners()
     {
         BattleSnapshot saved = RawReadyInput();
-        BattleSnapshot json = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!;
+        BattleSnapshot copy = NativeBattleTestSnapshots.Independent(saved);
         BattleSession first = RestoreReadyInputOwners(saved);
-        BattleSession second = RestoreReadyInputOwners(json);
-        Assert.Equal(JsonSerializer.Serialize(first.NativeCommandBanks), JsonSerializer.Serialize(second.NativeCommandBanks));
-        Assert.Equal(JsonSerializer.Serialize(first.GuardianForces), JsonSerializer.Serialize(second.GuardianForces));
+        BattleSession second = RestoreReadyInputOwners(copy);
+        Assert.Equal(saved.Random, copy.Random);
+        foreach (var (left, right) in first.NativeCommandBanks.Banks.Zip(second.NativeCommandBanks.Banks))
+        {
+            Assert.Equal(left.Tail, right.Tail);
+            Assert.Equal(left.Links.AsEnumerable(), right.Links.AsEnumerable());
+            Assert.Equal(left.LogicalCommands.AsEnumerable(), right.LogicalCommands.AsEnumerable());
+            foreach (var (leftPacket, rightPacket) in left.Packets.Zip(right.Packets))
+            {
+                Assert.Equal(leftPacket.Bytes.AsEnumerable(), rightPacket.Bytes.AsEnumerable());
+                Assert.Equal(leftPacket.UnknownByteMask, rightPacket.UnknownByteMask);
+            }
+        }
+        Assert.Equal(first.GuardianForces, second.GuardianForces);
         Assert.Equal(first.Combatants[0].NativeAtb, second.Combatants[0].NativeAtb);
         Assert.Empty(first.Events);
         Assert.Empty(second.Events);
@@ -47,7 +57,9 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     {
         BattleSnapshot saved = RawReadyInput();
         BattleSession source = RestoreReadyInputOwners(saved);
-        BattleAttackCommand command = Assert.Single(source.QueuedActions) with { NativeQueuedCommand = 3, TargetRequest = BattleTargetRequest.None };
+        BattleAttackCommand ready = Assert.Single(source.QueuedActions);
+        BattleTargetSelection target = new BattleTargetSelection.Explicit([new BattleEnemyActorReference(ready.TargetId)]);
+        BattleAttackCommand command = ready with { NativeQueuedCommand = 3, TargetRequest = new(target, BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None) };
         typeof(BattleSession).GetField("nativeCommandBanks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(source, NativeBattleCommandBanks.Initialize());
         Method("EnqueueNativeInputCommand").Invoke(source, [command]);
         BattleSnapshot queued = source.Capture();
