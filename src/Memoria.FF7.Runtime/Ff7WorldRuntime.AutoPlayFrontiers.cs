@@ -1,0 +1,108 @@
+using System.Numerics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
+
+namespace Memoria.FF7.Runtime;
+
+public sealed record Ff7AutoPlayWorldFrontierFace(Ff7WorldTerrainReference Source, Vector3 A, Vector3 B, Vector3 C, int Terrain, int Location);
+public sealed record Ff7AutoPlayWorldFieldEntry(int ProgramCounter, ushort? Selector, PcWorldFieldEntry? Destination, string? Reason = null);
+public sealed record Ff7AutoPlayWorldScriptObservation(string Id, int Script, Ff7AutoPlayWorldFrontierFace[] Faces, WorldScriptAnalysis Analysis, string PredicateFingerprint, string GeometryFingerprint, Ff7AutoPlayWorldFieldEntry[] FieldEntries, bool Complete, string? Reason);
+public sealed record Ff7AutoPlayWorldFrontierCatalog(int WorldId, string ProgramIdentity, int ChunkX, int ChunkZ, Ff7AutoPlayWorldScriptObservation[] Scripts)
+{
+    public bool Complete => Scripts.All(script => script.Complete);
+    public IEnumerable<Ff7AutoPlayWorldScriptObservation> FieldEntryFrontiers => Scripts.Where(script => script.Analysis.MayEnterField);
+}
+
+public sealed partial class Ff7WorldRuntime
+{
+    private sealed record AutoPlayMeshAnalysis(WorldScriptAnalysis Analysis, string ExecutionFingerprint, string PredicateFingerprint);
+    private readonly Dictionary<(int X, int Z, int Script, int Budget), AutoPlayMeshAnalysis> autoPlayMeshAnalyses = [];
+    private readonly Queue<(int X, int Z, int Script, int Budget)> autoPlayMeshAnalysisOrder = new();
+
+    /// <summary>Observes only the requested native collision chunk. A polygon identifies a possible script source; it does not prove physical reachability or terrain-script change admission.</summary>
+    public Ff7AutoPlayWorldFrontierCatalog ReadAutoPlayFrontierCatalog(int chunkX, int chunkZ, int instructionBudget = 2048)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(instructionBudget, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(instructionBudget, 65536);
+        PcWorldMesh mesh = GetWorldCollisionMesh(chunkX, chunkZ);
+        WorldSnapshot execution = Machine.Capture() with { Tick = 0, NextRequestId = 1 };
+        string executionFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(execution)));
+        WorldScriptAnalysis Analyze(int script)
+        {
+            var key = (chunkX, chunkZ, script, instructionBudget);
+            if (autoPlayMeshAnalyses.TryGetValue(key, out AutoPlayMeshAnalysis? known) && known.ExecutionFingerprint == executionFingerprint && Machine.ReadPredicateFingerprint(known.Analysis.Reads) == known.PredicateFingerprint)
+            {
+                return known.Analysis;
+            }
+            WorldScriptAnalysis analysis = Machine.AnalyzeMeshDispatch(chunkX, chunkZ, script, instructionBudget);
+            if (analysis.Complete)
+            {
+                if (!autoPlayMeshAnalyses.ContainsKey(key))
+                {
+                    if (autoPlayMeshAnalysisOrder.Count == 64)
+                    {
+                        autoPlayMeshAnalyses.Remove(autoPlayMeshAnalysisOrder.Dequeue());
+                    }
+                    autoPlayMeshAnalysisOrder.Enqueue(key);
+                }
+                autoPlayMeshAnalyses[key] = new(analysis, executionFingerprint, Machine.ReadPredicateFingerprint(analysis.Reads));
+            }
+            return analysis;
+        }
+        return BuildAutoPlayFrontierCatalog(Resources.World, execution.ProgramIdentity, chunkX, chunkZ, mesh, Analyze, Machine.ReadPredicateFingerprint, selector => (fieldTable ??= Resources.ReadFieldTable()).Select(selector));
+    }
+
+    internal static Ff7AutoPlayWorldFrontierCatalog BuildAutoPlayFrontierCatalog(int worldId, string programIdentity, int chunkX, int chunkZ, PcWorldMesh mesh, Func<int, WorldScriptAnalysis> analyze, Func<IReadOnlyList<WorldVariableRead>, string> readPredicate, Func<ushort, PcWorldFieldEntry> selectField)
+    {
+        List<Ff7AutoPlayWorldScriptObservation> scripts = [];
+        foreach (var group in mesh.Triangles.Select((face, index) => (Face: face, Index: index)).Where(item => item.Face.Script >= 3).GroupBy(item => item.Face.Script).OrderBy(group => group.Key))
+        {
+            WorldScriptAnalysis analysis = analyze(group.Key);
+            List<Ff7AutoPlayWorldFieldEntry> entries = [];
+            string? reason = analysis.Reason;
+            foreach (WorldTransitionObservation transition in analysis.Transitions.Where(transition => transition.Operation == WorldOperation.FieldTransition))
+            {
+                if (transition.Selector is not ushort selector)
+                {
+                    string unresolved = "The native field-entry selector requires an unresolved script or host dependency.";
+                    entries.Add(new(transition.ProgramCounter, null, null, unresolved));
+                    reason ??= unresolved;
+                    continue;
+                }
+                try
+                {
+                    entries.Add(new(transition.ProgramCounter, selector, selectField(selector)));
+                }
+                catch (Exception error) when (error is InvalidDataException or NotSupportedException or ArgumentException)
+                {
+                    entries.Add(new(transition.ProgramCounter, selector, null, error.Message));
+                    reason ??= error.Message;
+                }
+            }
+            Vector3 WorldVertex(int index)
+            {
+                Vector3 vertex = mesh.Vertices[index];
+                return vertex + new Vector3(chunkX << 13, 0, chunkZ << 13);
+            }
+            Ff7AutoPlayWorldFrontierFace[] faces = group.Select(item => new Ff7AutoPlayWorldFrontierFace(new(chunkX, chunkZ, item.Index), WorldVertex(item.Face.A), WorldVertex(item.Face.B), WorldVertex(item.Face.C), item.Face.Terrain, item.Face.Location)).ToArray();
+            string geometry = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                mesh.BlockIndex,
+                mesh.MeshIndex,
+                Faces = faces.Select(face => new
+                {
+                    face.Source,
+                    A = new[] { BitConverter.SingleToInt32Bits(face.A.X), BitConverter.SingleToInt32Bits(face.A.Y), BitConverter.SingleToInt32Bits(face.A.Z) },
+                    B = new[] { BitConverter.SingleToInt32Bits(face.B.X), BitConverter.SingleToInt32Bits(face.B.Y), BitConverter.SingleToInt32Bits(face.B.Z) },
+                    C = new[] { BitConverter.SingleToInt32Bits(face.C.X), BitConverter.SingleToInt32Bits(face.C.Y), BitConverter.SingleToInt32Bits(face.C.Z) },
+                    face.Terrain,
+                    face.Location
+                }).ToArray()
+            })));
+            scripts.Add(new($"mesh:{chunkX}:{chunkZ}:script:{group.Key}", group.Key, faces, analysis, readPredicate(analysis.Reads), geometry, entries.ToArray(), analysis.Complete && reason is null, reason));
+        }
+        return new(worldId, programIdentity, chunkX, chunkZ, scripts.ToArray());
+    }
+}
