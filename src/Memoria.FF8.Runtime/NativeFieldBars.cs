@@ -14,13 +14,20 @@ public sealed record NativeFieldBarDisplay([property: JsonRequired] short X, [pr
 
 public sealed record NativeFieldBarSlot([property: JsonRequired] NativeFieldBarMirror Mirror, [property: JsonRequired] NativeFieldBarDisplay Display);
 
-/// <summary>The two global native field-bar mirror and UI records; null slots are hidden with otherwise opaque words.</summary>
+/// <summary>The two global native field-bar mirror and UI records; legacy null slots describe never displayed, hidden records.</summary>
 public sealed record NativeFieldBarsState([property: JsonRequired] int Version, [property: JsonRequired] NativeFieldBarSlot? First, [property: JsonRequired] NativeFieldBarSlot? Second)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ushort? AdjacentMirrorWord { get; init; }
 
     public static NativeFieldBarsState CreateHidden() => new(1, null, null);
+
+    /// <summary>The process image initializes both mirror and UI records to zero before any display command.</summary>
+    public static NativeFieldBarsState FromColdProcess()
+    {
+        NativeFieldBarSlot slot = new(new(0, 0, 0, 0, 0, 0, 0, 0), new(0, 0, 0, 0, 0, 0, 0, 0));
+        return new(1, slot, slot);
+    }
 
     [JsonIgnore]
     public IEnumerable<NativeFieldBarDisplay> VisibleBars => new[] { First, Second }.OfType<NativeFieldBarSlot>().Select(slot => slot.Display).Where(display => display.Visible);
@@ -68,7 +75,7 @@ public sealed record NativeFieldBarsState([property: JsonRequired] int Version, 
     public NativeFieldBarsState SetValue(int id, int value)
     {
         RequireId(id);
-        NativeFieldBarSlot slot = Get(id) ?? throw new NotSupportedException("Native SETBAR requires its retained UI min/max/width words from an executed display command.");
+        NativeFieldBarSlot slot = Get(id) ?? FromColdProcess().First!;
         int fill = Scale(value, slot.Display.Minimum, slot.Display.Maximum, slot.Display.Width);
         NativeFieldBarDisplay display = slot.Display with { Value = unchecked((short)value), Fill = (slot.Display.Flags & 2) != 0 ? unchecked((short)fill) : slot.Display.Fill };
         return Set(id, new(slot.Mirror with { Value = unchecked((short)value) }, display));

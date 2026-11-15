@@ -60,10 +60,14 @@ internal static partial class Program
         }
         (EventEngine variableInvalid, GameSession variableInvalidSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.BROKEN, 0)]);
         AssertNativeBarRefusal(variableInvalid, variableInvalidSession, Jsm.Opcode.BROKEN, 8);
-        (EventEngine invalid, GameSession invalidSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.KILLBAR, 0)]);
+        (EventEngine invalid, GameSession invalidSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.KILLBAR, 0)]);
         AssertNativeBarRefusal(invalid, invalidSession, Jsm.Opcode.KILLBAR, 1);
-        (EventEngine opaque, GameSession opaqueSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 50), (Jsm.Opcode.SETBAR, 0)]);
-        AssertNativeBarRefusal(opaque, opaqueSession, Jsm.Opcode.SETBAR, 2);
+        (EventEngine legacy, GameSession legacySession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 50), (Jsm.Opcode.SETBAR, 0)]);
+        for (int tick = 0; tick < 8; tick++)
+        {
+            legacy.Step();
+        }
+        Require(legacy.LastFault is null && legacySession.FieldBars?.First is { Mirror.Value: 50, Display.Value: 50, Display.Width: 0, Display.Visible: false }, "Legacy never displayed bar did not restore its cold zero words before SETBAR.");
         (EventEngine unknown, GameSession unknownSession) = CreateNativeBarFixture(vitals, economy, operations, known: false);
         AssertNativeBarRefusal(unknown, unknownSession, Jsm.Opcode.DISPBAR, 8);
         JsonObject malformed = JsonNode.Parse(issued.GetRawText())!.AsObject();

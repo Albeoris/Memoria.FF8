@@ -122,8 +122,8 @@ public sealed class GameplaySaveRuntimeOwnershipTests
         NativeSalaryPresentation salary = NativeSalaryPresentation.FromColdProcess().StartPayment(4, 5, 4000, 5000).Advance(21);
         NativeSalaryPresentation initialSalary = NativeSalaryPresentation.FromColdProcess();
         Check(salary, GameplaySaveSalaryPresentation.Capture(salary)!.Restore(initialSalary), initialSalary);
-        NativeFieldBarsState bars = NativeFieldBarsState.CreateHidden().DisplayWidth(0, 17, 23, 2, 1, 100, 37, 80) with { AdjacentMirrorWord = 123 };
-        NativeFieldBarsState initialBars = NativeFieldBarsState.CreateHidden();
+        NativeFieldBarsState bars = NativeFieldBarsState.FromColdProcess().DisplayWidth(0, 17, 23, 2, 1, 100, 37, 80) with { AdjacentMirrorWord = 123 };
+        NativeFieldBarsState initialBars = NativeFieldBarsState.FromColdProcess();
         Check(bars, GameplaySaveFieldPresentation.Capture(bars, null)!.RestoreBars(initialBars), initialBars);
         NativeFieldShake shake = NativeFieldShake.FromColdProcess() with { X = new(true, true, 17, -3, 80, -12, 20, 30, 7) };
         NativeFieldShake initialShake = NativeFieldShake.FromColdProcess();

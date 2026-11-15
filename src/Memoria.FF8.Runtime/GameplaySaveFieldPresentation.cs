@@ -22,7 +22,7 @@ public sealed record GameplaySaveFieldPresentation([property: JsonRequired] Game
     public static GameplaySaveFieldPresentation CreateDefaults()
     {
         // Hidden zeroed UI records also allow a later SETBAR to update a slot whose original display command was not saved.
-        NativeFieldBarsState bars = NativeFieldBarsState.CreateHidden().DisplayWidth(0, 0, 0, 0, 0, 0, 0, 0).Hide(0).DisplayWidth(1, 0, 0, 0, 0, 0, 0, 0).Hide(1);
+        NativeFieldBarsState bars = NativeFieldBarsState.FromColdProcess();
         return Capture(bars, NativeFieldShake.FromColdProcess())!;
     }
 
@@ -39,7 +39,8 @@ public sealed record GameplaySaveFieldPresentation([property: JsonRequired] Game
 
     public NativeFieldBarsState RestoreBars(NativeFieldBarsState initialized)
     {
-        NativeFieldBarsState result = initialized with { First = FirstBar?.Restore(), Second = SecondBar?.Restore() };
+        NativeFieldBarsState defaults = NativeFieldBarsState.FromColdProcess();
+        NativeFieldBarsState result = initialized with { First = FirstBar?.Restore() ?? defaults.First, Second = SecondBar?.Restore() ?? defaults.Second };
         result.Validate();
         return result;
     }
