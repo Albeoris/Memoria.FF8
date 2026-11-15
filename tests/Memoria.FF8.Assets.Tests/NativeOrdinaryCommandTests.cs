@@ -42,16 +42,22 @@ public sealed class NativeOrdinaryCommandTests
     }
 
     [Theory]
-    [InlineData(33, 10)]
-    [InlineData(34, 40)]
-    public void InstalledLevelCommandsRebindOriginalEnemyStatisticsAndPublishNativeText(byte command, int expectedLevel)
+    [InlineData(33, 20, 10, false)]
+    [InlineData(34, 20, 40, false)]
+    [InlineData(34, 79, 100, false)]
+    [InlineData(33, 100, 50, false)]
+    [InlineData(34, 100, 100, false)]
+    [InlineData(33, 1, 1, false)]
+    [InlineData(33, 20, 20, true)]
+    [InlineData(34, 20, 20, true)]
+    public void InstalledLevelCommandsRebindOriginalEnemyStatisticsAndPublishNativeText(byte command, int previousLevel, int expectedLevel, bool immune)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot snapshot = Create(game, assets, command).Capture();
         NativeBattleEnemyTemplate template = assets.ReadEnemyTemplate(0, 20);
-        NativeBattleEnemyLevel level = template.Levels[20];
-        BattleCombatantDefinition enemy = snapshot.Definition.Combatants[2] with { ModelId = 0, Level = 20, MaximumHp = level.MaximumHp, CurrentHp = level.MaximumHp / 2, NativeTemplate = template, NativeAi = assets.ReadEnemyAi(0, 20) with { Scripts = [[0], [0], [0], [0], [0]] } };
+        NativeBattleEnemyLevel level = template.Levels[previousLevel];
+        BattleCombatantDefinition enemy = snapshot.Definition.Combatants[2] with { ModelId = 0, Level = previousLevel, NativeCombatantFlags = immune ? (ushort)0x8000 : (ushort)0, MaximumHp = level.MaximumHp, CurrentHp = level.MaximumHp / 2, NativeTemplate = template, NativeAi = assets.ReadEnemyAi(0, 20) with { Scripts = [[0], [0], [0], [0], [0]] } };
         BattleDefinition definition = snapshot.Definition with { Combatants = [snapshot.Definition.Combatants[0], snapshot.Definition.Combatants[1], enemy] };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         QueueAndHit(battle, "enemy", command, assets.ReadNativeCommand(command).ActionId);
@@ -59,8 +65,37 @@ public sealed class NativeOrdinaryCommandTests
         BattleCombatant changed = battle.Combatants.Single(actor => actor.Id == "enemy");
         Assert.Equal(expectedLevel, changed.Level);
         Assert.Equal(template.Levels[expectedLevel].MaximumHp, changed.MaximumHp);
-        Assert.Single(battle.Events, entry => entry.Kind == "NativeText");
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary;
+        Assert.Equal(0, contact.PresentedAmount);
+        NativeBattleEffectsState text = NativeBattleEffectsState.Clear().PrependDamageText(contact.ActorIndex, contact.ContactFlags, contact.PresentedAmount);
+        if (immune)
+        {
+            Assert.Equal(4, contact.HitFlags3 & 4);
+            Assert.Equal(new byte[] { 16, 0 }, text.Slots[text.Head!.Value].Glyphs.ToArray());
+            Assert.DoesNotContain(battle.Events, entry => entry.Kind == "NativeText");
+            Assert.Equal(level.MaximumHp / 2, changed.CurrentHp);
+        }
+        else
+        {
+            Assert.Equal(1, contact.Flags2 & 1);
+            Assert.Null(text.Head);
+            BattleEvent message = Assert.Single(battle.Events, entry => entry.Kind == "NativeText");
+            Assert.Equal(new BattleLevelChange(previousLevel, expectedLevel), message.LevelChange);
+            Assert.Equal(message.LevelChange!.Format(), message.Message);
+            int expectedHp = command == 34 ? changed.MaximumHp - (level.MaximumHp - level.MaximumHp / 2) : Math.Min(level.MaximumHp / 2, changed.MaximumHp);
+            Assert.Equal(expectedHp, changed.CurrentHp);
+        }
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage" && entry.Amount != 0);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     [Theory]

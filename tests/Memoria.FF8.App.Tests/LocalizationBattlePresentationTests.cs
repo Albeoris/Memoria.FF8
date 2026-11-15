@@ -10,6 +10,36 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class LocalizationBattlePresentationTests
 {
+    [Theory]
+    [InlineData("ru", 79, 100, "Уровень: 79 -> 100 (+21)", "Green")]
+    [InlineData("ru", 100, 79, "Уровень: 100 -> 79 (-21)", "Red")]
+    [InlineData("en", 100, 100, "Level: 100 -> 100 (0)", "White")]
+    public void LevelChangeKeepsOldLevelAndColorsOnlyNewLevelAndDelta(string language, int previous, int current, string expected, string color)
+    {
+        using InMemoryResourceSource source = new(new("test", GameDataEdition.Classic, [], language));
+        ResourceService resources = new(source);
+        LocalizationBattlePresentation presentation = new(resources);
+        BattleLevelChange change = new(previous, current);
+        BattleEvent message = new(0, "NativeText", "actor", "enemy", 30, change.Format()) { LevelChange = change };
+        message = JsonSerializer.Deserialize<BattleEvent>(JsonSerializer.Serialize(message))!;
+        string formatted = presentation.Message(message);
+        Assert.Contains($"{{Color {color}}}{current}", formatted);
+        DialogueDocument document = DialogueTextFormatter.Parse(formatted);
+        Assert.Equal(expected, document.Text);
+        var runs = Assert.Single(Assert.Single(document.Pages).Lines).Runs;
+        Assert.Equal(Microsoft.Xna.Framework.Color.White, runs[0].Color);
+        if (previous != current)
+        {
+            Assert.Equal(2, runs.Count);
+            Assert.Equal(language == "ru" ? $"Уровень: {previous} -> " : $"Level: {previous} -> ", runs[0].Text);
+            Assert.Equal(color == "Green" ? Microsoft.Xna.Framework.Color.Lime : Microsoft.Xna.Framework.Color.Red, runs[1].Color);
+        }
+        Assert.Equal(new BattleLevelChange(previous, current), message.LevelChange);
+        Assert.Null(JsonSerializer.Deserialize<BattleEvent>("{\"Frame\":0,\"Kind\":\"NativeText\",\"Amount\":30,\"Message\":\"Old snapshot\"}")!.LevelChange);
+        resources.Prepare(null, localization: new(new Dictionary<string, LocalizationValue> { [SystemTextCatalog.Key("battle.message.level-label")] = new("Translated", "test", "test") })).Commit();
+        Assert.StartsWith("Translated:", presentation.Message(message));
+    }
+
     [Fact]
     public void ExistingBattleReadsUnicodeGenerationByNumericIdentityAndKeepsPlayerNames()
     {

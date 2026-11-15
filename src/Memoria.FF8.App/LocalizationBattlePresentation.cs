@@ -43,7 +43,15 @@ internal sealed class LocalizationBattlePresentation(ResourceService resources)
         return command >= 0 ? Kernel("BattleCommands", "Name", command, original) : original;
     }
 
-    public string Message(BattleEvent message) => message.NativeTextIdentity is { } identity ? Table(identity.File, identity.Ordinal, message.Message) : message.Message;
+    public string Message(BattleEvent message)
+    {
+        if (message.LevelChange is { } change)
+        {
+            string label = resources.Source.Language == "ru" ? "Уровень" : "Level";
+            return change.Format(SystemText("battle.message.level-label", label));
+        }
+        return message.NativeTextIdentity is { } identity ? Table(identity.File, identity.Ordinal, message.Message) : message.Message;
+    }
 
     private string Kernel(string collection, string role, int ordinal, string original) => ordinal < 0 ? original : Table(LocalizationSourceExporter.KernelTable(collection, role), ordinal, original);
 

@@ -29,24 +29,18 @@ public sealed partial class BattleSession
     {
         if ((recipient.NativeCombatantFlags & 0x8000) != 0 || native.StatusAttack <= NextRandomByte())
         {
+            MarkNativeContactFlags(0, 4);
             Log("Miss", actor.Id, recipient.Id, 0, $"{native.Name}: level change failed.");
             return;
         }
         int previousLevel = recipient.Level;
         int missingHp = recipient.MaximumHp - recipient.CurrentHp;
         int level = Math.Clamp(native.Power * recipient.Level / 8, 1, 100);
-        int difference = native.AttackType == 16 ? level - previousLevel : previousLevel - level;
-        string digits = NativeBattleGlobalText(11);
-        if (digits.Length < 11)
-        {
-            throw new InvalidDataException("Native level message requires its original separator and ten digits.");
-        }
-        //495330 renders only the low five decimal digits of its unsigned DWORD argument.
-        string number = string.Concat((unchecked((uint)difference) % 100000).ToString(System.Globalization.CultureInfo.InvariantCulture).Select(digit => digits[digit - '0' + 1]));
-        string text = recipient.Name + NativeBattleGlobalText(88) + NativeBattleGlobalText(native.AttackType == 16 ? 89 : 95) + digits[0] + number;
+        BattleLevelChange change = new(previousLevel, level);
+        MarkNativeContactFlags(1, 0);
         recipient.BindNativeLevel(level);
         recipient.CurrentHp = native.AttackType == 16 ? recipient.MaximumHp - missingHp : Math.Min(recipient.CurrentHp, recipient.MaximumHp);
-        QueueNativeSpecialText(actor, recipient, text);
+        QueueNativeSpecialText(actor, recipient, change.Format(), levelChange: change);
         RecordNativeActionMemory(actor, recipient, command);
         Log("LevelChanged", actor.Id, recipient.Id, Math.Abs(level - previousLevel), $"{recipient.Name}: level {previousLevel} → {level}.");
         DispatchNativeActionCounter(recipient);

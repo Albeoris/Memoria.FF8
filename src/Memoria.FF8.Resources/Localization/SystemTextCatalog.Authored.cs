@@ -5,6 +5,7 @@ public static partial class SystemTextCatalog
     private static void AddAuthoredDefaults(Dictionary<string, string> defaults)
     {
         defaults["font.missing-fallback"] = "{0} — unavailable; using {1}";
+        defaults["battle.message.level-label"] = "Level";
         defaults["battle.hud.command"] = "COMMAND";
         defaults["battle.hud.continue"] = "Continue";
         defaults["battle.hud.draw"] = "DRAW";
