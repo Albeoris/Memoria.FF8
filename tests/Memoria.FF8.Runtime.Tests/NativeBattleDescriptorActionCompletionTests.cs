@@ -41,7 +41,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     {
         var fixture = Fixture();
         Field("nativeActionPackets").SetValue(fixture.Session, fixture.Session.NativeActionPackets.ResetCounts());
-        Assert.Null(fixture.Session.NativeActionPackets.ActiveHeaderIndex);
+        Assert.Null(fixture.Session.NativeActionPackets.ActiveHeader);
         Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
         Assert.Null(fixture.Session.ActiveAction);
         Assert.False(fixture.Session.Combatants[0].IsBusy);
@@ -51,7 +51,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     }
 
     [Fact]
-    public void ActivatedPhysicalHeaderSurvivesIntermediateDd90CountsResetAndColdJsonUntilFinalEvent()
+    public void ActivatedHeaderSurvivesCountsResetAndPrivateCopyUntilFinalEvent()
     {
         var fixture = Fixture();
         NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets.ActivateHeader(new BattleActionHeaderReference(0)).ResetCounts();
@@ -116,14 +116,14 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     }
 
     [Fact]
-    public void MatchingHeaderOwnershipIsReadFromCurrentPhysicalPacketsAfterJson()
+    public void MatchingHeaderOwnershipIsReadFromCurrentPacketsAfterPrivateCopy()
     {
         var fixture = Fixture();
-        NativeBattleActionPacketsState packets = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(fixture.Session.NativeActionPackets))!;
-        Field("nativeActionPackets").SetValue(fixture.Session, packets);
-        SetAction(fixture.Session, JsonSerializer.Deserialize<BattleActionPresentation>(JsonSerializer.Serialize(fixture.Action))!);
-        Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
-        Assert.Null(fixture.Session.ActiveAction);
+        BattleSession restored = BattleSession.Restore(fixture.Session.Capture());
+        BattleActionHeaderReference header = Assert.IsType<BattleActionHeaderReference>(restored.ActiveAction?.NativeHeader);
+        Assert.Equal(new BattlePartyActorModel(new("party")), restored.NativeActionPackets.ReadHeader(header).Source);
+        Complete(restored, fixture.Graphics, 0x47DDA0);
+        Assert.Null(restored.ActiveAction);
     }
 
     [Fact]
@@ -131,7 +131,11 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     {
         var fixture = Fixture();
         NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets;
-        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { Payload = packets.ExportRetained().Headers[0].Payload.SetItem(0, 3) }) };
+        BattleModelOwner enemy = packets.ModelAliases.DecodeLiteral(3);
+        packets = NativeBattleActionPacketsState.Create(packets.Roster, packets.ExportRetained(), packets.ModelAliases);
+        (packets, _) = packets.Prepare(new(enemy, 252, 0, 0, 1, 1, null));
+        (packets, _) = packets.AppendContact(new(new(enemy, 0, 0, 0, 0, 0, 0), null));
+        (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(fixture.Session, packets);
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Complete(fixture.Session, fixture.Graphics, 0x47DDA0));
         Assert.IsType<InvalidDataException>(error.InnerException);
@@ -323,13 +327,13 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             Assert.True(exactFocal.NativeEventCompleted);
             Assert.Contains("contact-or-descriptor", exactFocal.Blockers);
             NativeBattleActionPacketsState laterPackets = captured.Session.NativeActionPackets;
-            (laterPackets, _) = laterPackets.Prepare(new(OriginalOwner(0), 1, 13, -1, 0, 0, null));
-            (laterPackets, _) = laterPackets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+            (laterPackets, _) = laterPackets.Prepare(new(laterPackets.ModelAliases.DecodeLiteral(0), 1, 13, -1, 0, 0, null));
+            (laterPackets, _) = laterPackets.AppendContact(new(new(laterPackets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
             (laterPackets, _) = laterPackets.Publish(1);
             Field("nativeActionPackets").SetValue(captured.Session, laterPackets);
             Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
             Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(captured.Session, 40L);
-            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.Attack, 0) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 1, NativeGraphic = new(1) });
+            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 1, NativeGraphic = new(1) });
             NativeBattleDescriptorState laterDescriptors = capturedResult.Descriptors.RemoveFirst().Enqueue(10, 128, 0x47DDA0).State;
             NativeBattleGraphicsState laterResult = Complete(captured.Session, capturedResult with { Descriptors = laterDescriptors }, 0x47DDA0);
             Assert.Null(captured.Session.ActiveAction);
@@ -364,7 +368,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         {
             task = task with { Program = task.Program! with { Offset = 4 } };
         }
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(2) { ResourceFlags44 = 0, Sequence = 7 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, OriginalOwner(0), new(2) { ResourceFlags44 = 0, Sequence = 7 })]);
         string original = NativeBattleTestSnapshots.Json(new { task, graphics });
         object? context = typeof(BattleSession).GetMethod("ObserveDiagnosticTextureAnimation", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [task, graphics]);
         Assert.Equal(original, NativeBattleTestSnapshots.Json(new { task, graphics }));
@@ -376,17 +380,18 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         Assert.False(observed.GetProperty("PayloadTruncated").GetBoolean());
         Assert.Equal(task.UnknownByteMask, observed.GetProperty("UnknownByteMask").GetUInt32());
         Assert.Equal(fault != "unknown", observed.GetProperty("PointerAndSequenceKnown").GetBoolean());
+        JsonElement observedModel = observed.GetProperty("Model");
         if (fault is "unknown" or "invalid-pointer")
         {
-            Assert.Equal(JsonValueKind.Null, observed.GetProperty("Model").ValueKind);
+            Assert.Equal(JsonValueKind.Null, observedModel.GetProperty("Index").ValueKind);
         }
         else
         {
-            Assert.Equal(0, observed.GetProperty("Model").GetProperty("Index").GetInt32());
-            Assert.Equal(2, observed.GetProperty("Model").GetProperty("Flags0").GetInt32());
-            Assert.Equal(0, observed.GetProperty("Model").GetProperty("ResourceFlags44").GetInt32());
-            Assert.Equal(7, observed.GetProperty("Model").GetProperty("Sequence").GetInt32());
+            Assert.Equal(0, observedModel.GetProperty("Index").GetInt32());
         }
+        Assert.Equal(2, observedModel.GetProperty("Flags0").GetInt32());
+        Assert.Equal(0, observedModel.GetProperty("ResourceFlags44").GetInt32());
+        Assert.Equal(7, observedModel.GetProperty("Sequence").GetInt32());
         Assert.Equal(fault == "invalid-program" ? 4 : 0, observed.GetProperty("Program").GetProperty("Offset").GetInt32());
         Assert.Equal(1, observed.GetProperty("Program").GetProperty("SourceLength").GetInt32());
         if (fault == "invalid-program")
@@ -422,12 +427,12 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         //485460 resets the pending-order BYTE before dispatching the event represented by this fixture.
         Method("BeginNativeReactionBatch").Invoke(session, null);
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 252, 0, 0, 1, 1, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 252, 0, 0, 1, 1, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
-        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
+        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
         SetAction(session, action);
         typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.IsBusy))!.SetValue(session.Combatants[0], true);
         return (session, new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { ActionCallbackReady = false, ActionActorId = "party" }, action);

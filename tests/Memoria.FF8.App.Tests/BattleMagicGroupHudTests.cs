@@ -25,7 +25,7 @@ public sealed class BattleMagicGroupHudTests
         Assert.False(hud.SelectingTarget);
         BattleAttackCommand queued = Assert.Single(session.QueuedActions);
         Assert.Equal(spell, queued.ActionId);
-        Assert.Equal(new ushort[] { 1, 2 }, queued.NativeMagicTargets.ToArray());
+        Assert.Equal(new ushort[] { 1, 2 }, queued.MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
         Assert.Equal(3, queued.NativeMagicCastMode);
         Assert.Equal(2, Assert.Single(session.Combatants[0].MagicStocks).Count);
     }
@@ -55,7 +55,7 @@ public sealed class BattleMagicGroupHudTests
             hud.SelectTarget(index % 2 == 0 ? "enemy-a" : "enemy-b", true);
         }
         BattleAttackCommand queued = Assert.Single(session.QueuedActions);
-        Assert.Equal(count == 1 ? [] : Enumerable.Range(0, count).Select(index => (ushort)(index % 2 == 0 ? 8 : 16)), queued.NativeMagicTargets);
+        Assert.Equal(count == 1 ? [] : Enumerable.Range(0, count).Select(index => (ushort)(index % 2 == 0 ? 8 : 16)), queued.MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
         Assert.False(hud.SelectingTarget);
     }
 
@@ -71,7 +71,7 @@ public sealed class BattleMagicGroupHudTests
         Assert.Equal(1, hud.MagicCastCount);
         hud.Choose(0);
         hud.SelectTarget("enemy-a", true);
-        Assert.Empty(Assert.Single(session.QueuedActions).NativeMagicTargets);
+        Assert.Empty(Assert.Single(session.QueuedActions).MagicCasts);
         Assert.False(hud.SelectingTarget);
     }
 
@@ -94,7 +94,7 @@ public sealed class BattleMagicGroupHudTests
         Assert.Empty(session.QueuedActions);
         hud.SelectTarget("enemy-b", true);
         BattleAttackCommand queued = Assert.Single(session.QueuedActions);
-        Assert.Equal(new ushort[] { 8, 8, 16 }, queued.NativeMagicTargets.ToArray());
+        Assert.Equal(new ushort[] { 8, 8, 16 }, queued.MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
         Assert.Equal(1, queued.ActionId);
         Assert.Equal(3, Assert.Single(session.Combatants[0].MagicStocks).Count);
         Assert.False(hud.SelectingTarget);

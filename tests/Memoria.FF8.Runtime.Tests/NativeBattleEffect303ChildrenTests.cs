@@ -116,7 +116,7 @@ public sealed class NativeBattleEffect303ChildrenTests
         var inputs = Inputs((current, operation) =>
         {
             var restore = Assert.IsType<NativeBattleEffect303RestorePose508C90>(operation);
-            Assert.Equal(0x1D97494u, restore.ModelAddress);
+            Assert.Equal(OriginalOwner(3), restore.Model);
             Assert.Equal(0, order++);
             return current;
         }) with

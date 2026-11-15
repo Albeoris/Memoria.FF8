@@ -19,11 +19,11 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
         Assert.True(graphics.Callback > 0);
         Assert.Null(graphics.OriginalEffect);
-        ImmutableArray<NativeBattleGraphicsModel>.Builder models = graphics.Models.ToBuilder();
+        BattleActorModels models = graphics.ActorModels;
         int changed = 0;
-        for (int index = 0; index < models.Count; index++)
+        foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
         {
-            NativeBattleGraphicsModel model = models[index];
+            NativeBattleGraphicsModel model = entry.State;
             if ((model.Flags0 & 2) == 0)
             {
                 continue;
@@ -33,16 +33,16 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
             Assert.Null(model.ActiveStagedResourceRow100);
             Assert.Null(model.ResourceMagicId);
             Assert.NotNull(model.SequenceState?.DecodedPose);
-            NativeBattleGraphicsResource resource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == ReadOriginalModelActorId(graphics, index)).Resource;
+            NativeBattleGraphicsResource resource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == (entry.Owner is BattlePartyActorModel party ? party.Actor.ActorId : Assert.IsType<BattleEnemyActorModel>(entry.Owner).Actor.ActorId)).Resource;
             if (model.ModelId4 >= 16)
             {
                 resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
             }
-            models[index] = NativeBattleBodyBoneMatrices.Publish508C90(model, resource.PoseSource!);
+            models = models.Set(entry.Owner, NativeBattleBodyBoneMatrices.Publish508C90(model, resource.PoseSource!));
             changed++;
         }
         Assert.True(changed > 0);
-        BattleSnapshot migrated = source with { NativeGraphics = graphics with { Models = models.ToImmutable() } };
+        BattleSnapshot migrated = source with { NativeGraphics = graphics with { ActorModels = models } };
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(migrated with { NativeGraphics = graphics }));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
         File.WriteAllText(output, JsonSerializer.Serialize(migrated));

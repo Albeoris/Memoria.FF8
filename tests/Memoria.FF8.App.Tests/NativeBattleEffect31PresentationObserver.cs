@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -216,14 +217,14 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
         {
             sounds.Add(item.NativeModuleSound!.Sound);
         }
-        contactGlyph |= hpTransitions > 0 && graphics.Effects.Slots.Any(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == 0 && task.Glyphs.AsSpan().SequenceEqual(new byte[] { 63, 0 }));
+        contactGlyph |= hpTransitions > 0 && graphics.Effects.Slots.Any(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && task.Glyphs.AsSpan().SequenceEqual(new byte[] { 63, 0 }));
         randomAdvanced |= current.NativeCrtRandom != prior.NativeCrtRandom;
         if (current.NativeFileStaging is { } retainedTemporary)
         {
             Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(retainedTemporary.Read(NativeBattleTemporaryMemory.Cursor, 4)));
             temporary = true;
         }
-        if (prior.NativeActionPackets!.ActiveHeaderIndex != current.NativeActionPackets!.ActiveHeaderIndex || prior.NativeActionPackets.ActiveContactIndex != current.NativeActionPackets.ActiveContactIndex)
+        if (prior.NativeActionPackets!.ActiveHeader != current.NativeActionPackets!.ActiveHeader || prior.NativeActionPackets.ActiveContact != current.NativeActionPackets.ActiveContact)
         {
             Mark("descriptor-header-contact-cursor", current, cold);
         }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Numerics;
 using Memoria.FF7.Formats;
@@ -78,13 +79,13 @@ public sealed class Ff7BattleShadowTests
         BattleModel body = assets.LoadPlayer(0);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref random);
-        model = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
+        }, 0, 0, true, ref random);
+        model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), Color44 = (rules.SummonColors!.Normal & 0xFFFFFFu) | 0x32000000u, GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         CrossoverGunbladeHostPlacement placement = new(new(0, 0, 1700), 0);
@@ -130,13 +131,13 @@ public sealed class Ff7BattleShadowTests
         BattleModel body = assets.LoadPlayer(0);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref random);
-        model = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
+        }, 0, 0, true, ref random);
+        model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
         model = model with { Flags0 = 2, Flags2 = 0, Color44 = 0x32404040, GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         NativeBattleShadowSource source = game.ReadNativeBattleGraphicsRules().ShadowSource!;
         CrossoverFf8BattleActorVisual visual = new(body, null, model, Matrix4x4.Identity) { ShadowSource = source };

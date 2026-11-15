@@ -206,7 +206,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
                 expected.Add(new(opcode, color, bucket, xy[0], xy[1], xy[2], face.Quad ? xy[3] : 0, z[0], z[1], z[2], face.Quad ? z[3] : 0, BinaryPrimitives.ReadUInt32LittleEndian(raw.Slice(8)), uv1, BinaryPrimitives.ReadUInt16LittleEndian(raw.Slice(face.Quad ? 16 : 6)), face.Quad ? BinaryPrimitives.ReadUInt16LittleEndian(raw.Slice(18)) : (ushort)0));
             }
         }
-        return current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
+        return Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
 
         bool Matches(NativeBattleLogicalCommand command)
         {

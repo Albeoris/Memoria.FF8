@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -46,7 +47,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
             }
             Assert.True(crisis > 0, "Select an available Limit through the same native refresh used by the command menu.");
             phase = "renzokuken";
-            uint?[] shadows = battle.NativeGraphics!.Models.Select(model => model.Color44).ToArray();
+            uint?[] shadows = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => model.Color44).ToArray();
             Assert.Contains(shadows, color => color is not null);
             battle.QueueNativePlayerCommand("party-0", target, 5, 0);
             Save("renzokuken-queued");
@@ -73,7 +74,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
                 {
                     Tick();
                 }
-                Assert.Equal(shadows, battle.NativeGraphics!.Models.Select(model => model.Color44).ToArray());
+                Assert.Equal(shadows, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => model.Color44).ToArray());
                 if (!started && battle.GetNativeRenzokuken("party-0") is not null)
                 {
                     started = true;

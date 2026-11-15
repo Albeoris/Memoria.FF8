@@ -55,7 +55,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         string party = ReadOriginalModelActorId(queued.NativeGraphics!, 0)!;
         Assert.Equal(2, beforeInput.Combatants.Single(actor => actor.Id == party).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count);
         Assert.Equal(1, queued.Combatants.Single(actor => actor.Id == party).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count);
-        int descriptor = Assert.Single(queued.NativeGraphics.Descriptors.Queue, index => queued.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(queued.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(queued.NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint offset = queued.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));

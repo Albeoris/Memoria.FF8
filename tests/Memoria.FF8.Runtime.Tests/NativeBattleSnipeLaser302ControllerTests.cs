@@ -74,7 +74,7 @@ public sealed class NativeBattleSnipeLaser302ControllerTests
             ReadBone502170 = (current, model, selector, displacement) =>
             {
                 captures++;
-                Assert.Equal(ModelAddress(0), model);
+                Assert.Equal(OriginalOwner(0), model);
                 Assert.Equal(0xF1, selector);
                 Assert.Equal(0, displacement);
                 return new(current, PointView(new(11, -333, 55)));
@@ -146,15 +146,13 @@ public sealed class NativeBattleSnipeLaser302ControllerTests
     public void Only_WORD_zero_clone_contacts_at_old_43_from_current_physical_pointer(ushort clone, int count)
     {
         var frame = MainAt(43, clone);
-        var packets = Packets();
-        var header = packets.Headers[1];
-        packets = packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, 0) }) };
+        NativeBattleActionPacketsState packets = Packets(0);
         List<NativeBattleSnipeLaser302Operation> operations = [];
         var actual = AdvanceTask(frame, Pools[4].Bank, Resources(), Inputs(operations) with { ReadPackets = _ => packets }).Frame;
         Assert.Equal(count, operations.OfType<NativeBattleSnipeLaser302Contact506690>().Count());
         if (count != 0)
         {
-            Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleSnipeLaser302Contact506690>()).ContactIndex);
+            Assert.Equal(new BattleContactOccurrence(1), Assert.Single(operations.OfType<NativeBattleSnipeLaser302Contact506690>()).Occurrence);
         }
         Assert.Equal((ushort)44, Read(actual, Pools[4].Bank).ReadWord(12));
     }
@@ -215,7 +213,7 @@ public sealed class NativeBattleSnipeLaser302ControllerTests
         Assert.NotNull(actual.State.RootBankStorage);
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Equal(frame.Random, actual.Random);
-        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleSnipeLaser302Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        var cold = NativeBattleTestSnapshots.Independent(actual);
         Assert.Single(Initialize(cold, Resources(), Inputs([])).Effect.Pools);
     }
 
@@ -247,15 +245,15 @@ public sealed class NativeBattleSnipeLaser302ControllerTests
         });
     }
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(int selectedCount = 1)
     {
-        var packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 155, 302, null));
+        var packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 155, 302, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        (packets, _) = packets.Prepare(new(3, 8, 13, -1, 155, 302, null));
+        (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 155, 302, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
-        (packets, _) = packets.Publish(1);
+        (packets, _) = packets.Publish(selectedCount);
         return packets;
     }
 
@@ -263,9 +261,9 @@ public sealed class NativeBattleSnipeLaser302ControllerTests
     private static NativeBattlePackedMatrix32 Identity() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
     private static NativeBattlePackedMatrix32 Bone() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 1000, Y = 2000, Z = 3000 }, null);
     private static uint ModelAddress(int actor) => 0x1D972C0u + (uint)(actor * 156);
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner owner)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
+        int actor = OriginalSlot(owner);
         return new(2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new(100, 200, 1000), (short)(444 + actor), 777, 4096) };
     }
 }

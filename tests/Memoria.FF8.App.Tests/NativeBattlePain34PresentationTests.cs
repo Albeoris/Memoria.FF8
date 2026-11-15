@@ -33,7 +33,7 @@ public sealed class NativeBattlePain34PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int queued = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        int queued = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint relative = source.NativeGraphics.Descriptors.Packets[queued].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
@@ -97,7 +97,7 @@ public sealed class NativeBattlePain34PresentationTests
                 {
                     players.Add(player.Callback);
                 }
-                NativeBattlePrimitiveFrame primitive = current.NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame primitive = Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).PrimitiveFrame!;
                 bool hasPrivate = primitive.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
                 privatePackets |= hasPrivate;
                 observedDrawMode |= current.NativeEffectMemory?.PrimitiveProcess?.DrawMode2795BD0 == 0xE1000220;

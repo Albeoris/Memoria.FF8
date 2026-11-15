@@ -92,7 +92,7 @@ internal sealed class NativeBattleEffect313PresentationObserver
         callbacks.UnionWith(tasks.Values.Select(task => task.Callback));
         if (oldAge == 122)
         {
-            eligibleActors.UnionWith(ReadOriginalModelCells(prior.NativeGraphics!).Take(3).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Index));
+            eligibleActors.UnionWith(Enumerable.Range(0, 3).Where(slot => (ReadOriginalModelCell(prior.NativeGraphics!, slot).Flags0 & 2) != 0));
             eligibilityCaptured = true;
             Mark("effect313-current-party-flags-at-birth122", current, cold);
         }

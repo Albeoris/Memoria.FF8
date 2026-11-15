@@ -36,7 +36,7 @@ public sealed class NativeBattleTheEnd85PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint relative = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
@@ -106,7 +106,7 @@ public sealed class NativeBattleTheEnd85PresentationTests
                     stages.Add(currentStage);
                 }
                 hiddenStage |= current.NativeStage!.Groups.Any(group => (group.Flags & 2) == 0 && group.ColorDepth != 0);
-                NativeBattlePrimitiveFrame primitive = current.NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame primitive = Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).PrimitiveFrame!;
                 privatePackets |= primitive.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
                 commonPackets |= primitive.LastCommands.Any(CommonEffect);
                 NativeBattleModulePoolTask? flower = after?.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0 && task.Callback == 0x788A90 && task.ReadDword(116) == 0x1715D28 && (task.ReadByte(38) & 4) == 0 && task.ReadDword(152) >= 36).OrderByDescending(task => task.ReadDword(152)).FirstOrDefault();

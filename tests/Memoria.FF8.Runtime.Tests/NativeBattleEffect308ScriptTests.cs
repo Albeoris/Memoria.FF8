@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect308Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect308Profile;
@@ -52,7 +53,7 @@ public sealed class NativeBattleEffect308ScriptTests
         NativeBattleEffect308Frame frame = NativeBattleEffect308TestFrame.Create(20);
         frame = frame with { State = frame.State.Write(ScriptRanges[0].Address, words.SelectMany(word => BitConverter.GetBytes(word)).ToArray()) };
         uint rows = NativeBattleEffect308TestFrame.Main + 0x20;
-        frame = BirthScript667940(frame, 0x1D97494, rows, ScriptRanges[0].Address);
+        frame = BirthScript667940(frame, OriginalOwner(3), rows, ScriptRanges[0].Address, OriginalAliases);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ScriptDescriptor);
         task = pool.BankAddress;
         row = rows + 16;

@@ -13,7 +13,7 @@ public sealed class NativeBattleDuel216DrawingTests
         int offset = checked((int)(0x1140AA4 - NativeBattleDuel216Resources.Address));
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset), 8);
         NativeBattleDuel216Resources resources = new(data.ToImmutableArray(), [], new("unused", []), []);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel216 = new(true, new(0, 0, 8, 0, 0, 0), resources) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel216 = new(true, resources) };
         NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel216Controller.Main);
         uint temporary = NativeBattleTemporaryMemory.Address;
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(temporary, Enumerable.Repeat((byte)0xA5, 152).ToArray());
@@ -39,7 +39,7 @@ public sealed class NativeBattleDuel216DrawingTests
         BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset + 8), 1024);
         BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset + 12), -123);
         NativeBattleDuel216Resources resources = new(data.ToImmutableArray(), [], new("unused", []), []);
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(11480, 8), Duel216 = new(true, new(0, 0, 8, 0, 0, 0), resources) };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(11480, 8), Duel216 = new(true, resources) };
         NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0), NativeBattleDuel216Controller.Main);
         NativeBattleDuel216Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());
         frame = NativeBattleDuel216Drawing.Morph69A670(frame, 0x113C3CC, 4096, 0);

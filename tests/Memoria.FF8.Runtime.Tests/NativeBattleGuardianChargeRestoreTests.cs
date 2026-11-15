@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 
@@ -143,7 +144,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat((ushort)3100, 16).ToArray(), Speed = 21 }, new() { Id = "enemy", Name = "Enemy" }]
         };
         BattleSession session = new(definition, BattleAtbMode.Normal);
-        Property(nameof(BattleSession.NativeGraphics)).SetValue(session, new NativeBattleGraphicsState([], [], 0, 0) { EntryReady = true });
+        Property(nameof(BattleSession.NativeGraphics)).SetValue(session, OriginalGraphics([]) with { EntryReady = true });
         session.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
         Assert.Equal((byte?)3, Assert.Single(session.QueuedActions).NativeQueuedCommand);
         Invoke(session, "DispatchAction");

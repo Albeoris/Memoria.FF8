@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -37,7 +38,7 @@ public sealed class EncounterCopyDeathContinuationTests
             EncounterAllocationRetirement retirement = battle.Capture().NativeAllocations.Single(current => current.Id == allocation.Id).Retirement!;
             Assert.NotNull(retirement);
             Assert.True(retirement.ResourcesReleased);
-            Assert.Equal(0, battle.NativeGraphics!.Models[retirement.PhysicalIndex].Flags0 & 3);
+            Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics!, retirement.PhysicalIndex).Flags0 & 3);
             Assert.False(battle.Combatants.Single(actor => actor.Id == allocation.Id).IsActive);
             Assert.Single(battle.Events, entry => entry.Kind == "NativeModelRemoved" && entry.ActorId == allocation.Id);
         }

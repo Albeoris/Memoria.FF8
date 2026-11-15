@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 using System.Text.Json;
@@ -79,7 +80,7 @@ public sealed class NativeBattleContactSequenceTests
         foreach (var test in cases)
         {
             NativeBattleGraphicsModel model = original with { Flags8 = test.Status, ResourceFlags44 = test.Flags, SequenceState = original.SequenceState! with { Pending3 = 0 } };
-            NativeBattleGraphicsState graphics = source with { Models = source.Models.SetItem(4, model) };
+            NativeBattleGraphicsState graphics = source with { ActorModels = source.ActorModels.Set(RequireOriginalModelOwner(source, 4), model) };
             NativeBattleGraphicsState result = Assert.IsType<NativeBattleGraphicsState>(select.Invoke(battle, [graphics, 4, test.Requested]));
             NativeBattleGraphicsModel selected = ReadOriginalModelCell(result, 4);
             Assert.Equal(test.Sequence, selected.Sequence);

@@ -290,7 +290,7 @@ internal sealed class NativeBattleEffect318PresentationObserver
         NativeBattleGeometryViewport viewport = new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8);
         ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0(geometry, scaled.CurrentBodyBoneMatrices!.Matrices, projection, color, objectMask, null, 17, 4, material, viewport: viewport);
         ImmutableArray<NativeBattleGeometryPrimitive> unmodified = NativeBattleRawGeometryPackets.Emit5099D0(geometry, baseline.CurrentBodyBoneMatrices!.Matrices, projection, color, objectMask, null, 17, 4, material, viewport: viewport);
-        NativeBattleLogicalCommand[] commands = current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank != "20DFAB8" && command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E).ToArray();
+        NativeBattleLogicalCommand[] commands = Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank != "20DFAB8" && command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E).ToArray();
         return expected.Any(packet => !unmodified.Any(original => original.Bucket == packet.Bucket && original.Words.SequenceEqual(packet.Words) && original.VertexPayload4.SequenceEqual(packet.VertexPayload4)) && commands.Any(command => MatchesBodyPacket(command, packet)));
     }
 

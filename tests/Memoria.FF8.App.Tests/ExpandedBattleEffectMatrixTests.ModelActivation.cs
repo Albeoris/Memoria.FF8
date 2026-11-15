@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -58,7 +59,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             if (battle.ExpandedEffect is { } effect)
             {
                 Assert.Equal((ushort)20, effect.Graphics.OriginalEffect!.Binding.Effect);
-                Assert.Equal((byte)93, effect.Graphics.Models[6].ModelId4);
+                Assert.Equal((byte)93, effect.Graphics.ActorModels.Get(new BattleEnemyActorModel(new(reserve.Id))).ModelId4);
                 invocation = true;
                 presentation.Descriptor |= effect.Graphics.Descriptors.Queue.Any(slot => effect.Graphics.Descriptors.Packets[slot].Command == 113);
                 presentation.Overlay |= effect.Overlay?.LastCommands.Length > 0;

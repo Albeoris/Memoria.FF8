@@ -276,7 +276,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                     NativeBattleEffectTask previous = before.NativeGraphics!.Effects.Slots[slot];
                     if ((current.Flags0 & 1) != 0 && current.Kind == NativeBattleEffectKind.DamageText5069B0 && current.Frame == 1 && !((previous.Flags0 & 1) != 0 && previous.Kind == current.Kind && previous.Frame == 1))
                     {
-                        Assert.Equal((byte)3, current.ModelIndex);
+                        Assert.Equal(RequireOriginalModelOwner(after.NativeGraphics, 3), current.ModelOwner);
                         byte[] expectedGlyphs = expectedDamage!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(character => (byte)(character - '0' + 56)).Append((byte)0).ToArray();
                         Assert.Equal(expectedGlyphs, current.Glyphs.ToArray());
                         Assert.Equal((short)((expectedDamage!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture).Length) * 4), current.HalfWidth);
@@ -454,10 +454,10 @@ public sealed class NativeBattleGilgamesh329PresentationTests
 
         void ObserveFormula(BattleSnapshot after)
         {
-            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
-            if (producedHeader?.FirstContactIndex is int contactIndex)
+            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
+            if (producedHeader?.FirstContact is BattleContactCursor contactIndex)
             {
-                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
+                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
                 if (!sawFormulaHeader)
                 {
                     Assert.Equal(JsonSerializer.Serialize(lastTickRandomAfterOneDraw), JsonSerializer.Serialize(after.Random));

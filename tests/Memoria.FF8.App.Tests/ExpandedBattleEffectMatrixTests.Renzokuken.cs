@@ -145,7 +145,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Equal((byte)5, command.NativeQueuedCommand);
             Assert.Equal(crisis, command.NativeRenzokuken!.CrisisLevel);
             Assert.Equal(target.Id, command.TargetId);
-            Assert.Equal(0, command.NativeTargetMask);
+            Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(command.TargetRequest.Selection);
             for (int frame = 0; frame < 240 && caster.IsBusy && battle.GetNativeRenzokuken(casterId) is null; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));

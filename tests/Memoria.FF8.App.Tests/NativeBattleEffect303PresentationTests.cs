@@ -98,7 +98,7 @@ public sealed class NativeBattleEffect303PresentationTests
         Assert.Equal((int?)0, header.FirstContact.Ordinal);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 258 && action.MagicId == 303).DamagePresentation;
         NativeBattleContactPacket contact = new(new(OriginalOwner(4), reaction, 1, 0, status.Saved, 7, status.Battle), null);
-        packets = packets with { Contacts = packets.Contacts.SetItem(0, contact) };
+        packets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [contact]);
         packets.Validate();
         source = source with { NativeActionPackets = packets };
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!).Capture()));

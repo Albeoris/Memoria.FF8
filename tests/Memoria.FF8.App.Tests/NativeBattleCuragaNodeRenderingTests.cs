@@ -83,7 +83,7 @@ public sealed class NativeBattleCuragaNodeRenderingTests
         packets = packets.WritePlayerRepeatMode(header, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleCuragaResources resources = game.ReadNativeCuragaResources();
-        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(28, game.ReadNativeEffectCatalogForEffects([28])) with { Parameters = new(OriginalOwner(0), 0, 1, header, 0, 0) };
+        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(28, game.ReadNativeEffectCatalogForEffects([28])) with { Parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(0)]), header, 0, 0) };
         var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         NativeBattleCuragaFrame frame = NativeBattleCuragaController.Initialize87DB10(initialized.Memory, initialized.Effect, packets, resources);
         NativeBattleEffectTextureDrain drain = frame.Memory.Textures!.Drain505D20(frame.Memory.Arena);

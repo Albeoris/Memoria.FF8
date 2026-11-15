@@ -9,6 +9,11 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
     private const string Fourth = "ally-3";
     private const string Eleventh = "ally-10";
 
+    private static readonly BattlePartyModelOwner FourthModel = new BattlePartyActorModel(new(Fourth));
+    private static readonly BattlePartyModelOwner EleventhModel = new BattlePartyActorModel(new(Eleventh));
+    private static readonly BattleEnemyModelOwner SparseEnemy = new BattleEnemyActorModel(new("sparse-enemy"));
+    private static readonly BattlePartyModelOwner Unbound = new BattlePartyActorModel(new("ally-5"));
+
     [Fact]
     public void OrderedCompelledTransitionsUsePriorMirrorAndExistingMenuEligibility()
     {
@@ -16,26 +21,26 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         BattleCombatant fourth = Actor(session, Fourth);
         BattleCombatant eleventh = Actor(session, Eleventh);
         BattleModelRoster roster = session.ReadBattlePresentationRoster();
-        Assert.Equal((byte)7, session.ReadExpandedPresentationRow(Fourth));
-        Assert.Equal((byte)14, session.ReadExpandedPresentationRow(Eleventh));
-        Assert.False(roster.ContainsRow(9));
+        Assert.Equal(FourthModel, session.ReadPresentationModelOwner(Fourth));
+        Assert.Equal(EleventhModel, session.ReadPresentationModelOwner(Eleventh));
+        Assert.False(roster.Contains(Unbound));
         Assert.True(session.CanChoosePlayerCommand(Fourth));
         Assert.True(session.CanChoosePlayerCommand(Eleventh));
 
         fourth.NativeStatus0 = 0x20;
         fourth.NativePresentationStatus = new(0x20, 0);
         fourth.NativeCombatantFlags |= 0xC;
-        Publish(session, roster, Half(7, saved: 0x20));
+        Publish(session, roster, Half(FourthModel, saved: 0x20));
         Assert.False(session.CanChoosePlayerCommand(Fourth));
         Assert.Equal(0u, fourth.NativeCombatantFlags & 0xC);
         Assert.Equal(new NativeBattleStatusMirror(0x20, 0), Mirrors(session)[Fourth]);
         fourth.NativeCombatantFlags |= 0xC;
-        Publish(session, roster, Half(7, saved: 0x20));
+        Publish(session, roster, Half(FourthModel, saved: 0x20));
         Assert.Equal(0xCu, fourth.NativeCombatantFlags & 0xC);
 
         fourth.NativeStatus0 = 0;
         fourth.NativePresentationStatus = new(0, 0);
-        Publish(session, roster, Half(7), caster: Fourth);
+        Publish(session, roster, Half(FourthModel), caster: Fourth);
         Assert.Equal(0xCu, fourth.NativeCombatantFlags & 0xC);
         Assert.True(session.CanChoosePlayerCommand(Fourth));
         Assert.True(session.CanChoosePlayerCommand(Eleventh));
@@ -43,20 +48,20 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         eleventh.NativeStatus1 = 0x4000;
         eleventh.NativePresentationStatus = new(0, 0x4000);
         eleventh.NativeCombatantFlags |= 0xC;
-        Publish(session, roster, Half(14, battle: 0x4000), caster: Fourth);
+        Publish(session, roster, Half(EleventhModel, battle: 0x4000), caster: Fourth);
         Assert.False(session.CanChoosePlayerCommand(Eleventh));
         eleventh.NativeStatus1 = 0;
         eleventh.NativePresentationStatus = new(0, 0);
         eleventh.NativeCombatantFlags |= 0xC;
-        Publish(session, roster, Half(14), caster: Fourth);
+        Publish(session, roster, Half(EleventhModel), caster: Fourth);
         Assert.True(session.CanChoosePlayerCommand(Eleventh));
         Assert.Equal(0u, eleventh.NativeCombatantFlags & 0xC);
 
         var mirrors = Mirrors(session);
-        Publish(session, roster, Half(15, saved: 1, battle: 0x80010000));
+        Publish(session, roster, Half(SparseEnemy, saved: 1, battle: 0x80010000));
         Assert.Same(mirrors, Mirrors(session));
         Assert.Equal(0, Actor(session, "sparse-enemy").NativeStatus0);
-        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Publish(session, roster, Half(9))).InnerException);
+        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Publish(session, roster, Half(Unbound))).InnerException);
         Assert.Same(mirrors, Mirrors(session));
     }
 
@@ -70,14 +75,14 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         actor.NativeCombatantFlags |= 0xC;
         actor.IsBusy = true;
         var random = session.NativeGlobalRandomChange;
-        Publish(session, roster, Half(14, saved: 1, amount: 500));
+        Publish(session, roster, Half(EleventhModel, saved: 1, amount: 500));
         Assert.Equal(0, session.ReadPresentedVital(Eleventh).HitPoints);
         Assert.Equal(321, actor.CurrentHp);
         Assert.Equal(0, actor.Atb);
         Assert.False(actor.IsBusy);
         Assert.Equal(0u, actor.NativeCombatantFlags & 0xC);
 
-        Publish(session, roster, Half(14, amount: 321, hitFlags: 1));
+        Publish(session, roster, Half(EleventhModel, amount: 321, hitFlags: 1));
         Assert.Equal(321, session.ReadPresentedVital(Eleventh).HitPoints);
         actor.Atb = BattleSession.AtbMaximum;
         Assert.True(session.CanChoosePlayerCommand(Eleventh));
@@ -86,7 +91,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         actor.NativeStatus1 = 0x10002;
         actor.NativePresentationStatus = new(0x22, 0x10002);
         actor.NativeCombatantFlags = 0xFF;
-        Publish(session, roster, Half(14, saved: 0x22, battle: 0x10002));
+        Publish(session, roster, Half(EleventhModel, saved: 0x22, battle: 0x10002));
         Assert.Equal(0x3, actor.NativeStatus0);
         Assert.Equal(2u, actor.NativeStatus1);
         Assert.Equal(0u, actor.NativeCombatantFlags);
@@ -107,14 +112,14 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         actor.NativeStatus1 = 0x80000000;
         actor.NativePresentationStatus = new(0, actor.NativeStatus1);
         var charges = Field<Dictionary<string, BattleGuardianForceCast>>(session, "guardianForceCasts");
-        BattleGuardianForceCast cast = new(Fourth, new(Fourth, "enemy", BattleAbility.GuardianForce), 2, 4);
+        BattleGuardianForceCast cast = new(Fourth, new(Fourth, "enemy", Target("enemy"), BattleAbility.GuardianForce), 2, 4);
         charges.Add(Fourth, cast);
 
-        Publish(session, roster, Half(7, battle: 0x80000001));
+        Publish(session, roster, Half(FourthModel, battle: 0x80000001));
         Assert.Equal(0x400u, actor.NativeCombatantFlags & 0x400);
-        Publish(session, roster, Half(7, battle: 0x80000000));
+        Publish(session, roster, Half(FourthModel, battle: 0x80000000));
         Assert.Equal(0u, actor.NativeCombatantFlags & 0x400);
-        Publish(session, roster, Half(7, battle: 0x80000001, amount: 100, hitFlags: 0x20));
+        Publish(session, roster, Half(FourthModel, battle: 0x80000001, amount: 100, hitFlags: 0x20));
         Assert.Equal(0, session.ReadPresentedVital(Fourth, gf.Id).HitPoints);
         Assert.Equal(0u, actor.NativeStatus1 & 0x80000000);
         Assert.Equal(0u, actor.NativeCombatantFlags & 0x400);
@@ -130,36 +135,39 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         var queue = Field<Queue<BattleAttackCommand>>(session, "actions");
         BattleModelRoster roster = session.ReadBattlePresentationRoster();
         int itemSlot = (int)Invoke(session, "ConsumeNativeItem", 1)!;
-        BattleAttackCommand magic = (BattleAttackCommand)Invoke(session, "EnsureMagicReservation", Actor(session, Fourth), new BattleAttackCommand(Fourth, "enemy", BattleAbility.Magic, 1))!;
+        BattleAttackCommand magic = (BattleAttackCommand)Invoke(session, "EnsureMagicReservation", Actor(session, Fourth), new BattleAttackCommand(Fourth, "enemy", Target("enemy"), BattleAbility.Magic, 1))!;
         Assert.NotNull(magic.MagicReservationId);
         Assert.Single(session.MagicVitals!.MagicSystem.Reservations);
-        BattleAttackCommand item = new(Fourth, Fourth, BattleAbility.Item, 1) { ReservedNativeItemSlot = itemSlot };
-        BattleAttackCommand callback = new(Fourth, Fourth) { NativeCallback = new(7, 7) };
-        BattleAttackCommand reaction = new(Fourth, "enemy") { NativePlayerReaction = BattleNativePlayerReaction.Counter };
-        BattleAttackCommand header = new(Fourth, "enemy") { NativeHeaderIndex = 0 };
-        BattleAttackCommand descriptor = new(Fourth, Fourth) { ExpandedAiDescriptor = new(BattleExpandedAiDescriptorKind.Barrier) };
-        BattleAttackCommand other = new(Eleventh, "enemy");
-        BattleAttackCommand charged = new(Fourth, "enemy", BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
-        BattleAttackCommand renzokuken = new(Fourth, "enemy", BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };
+        BattleAttackCommand item = new(Fourth, Fourth, Target(Fourth), BattleAbility.Item, 1) { ReservedNativeItemSlot = itemSlot };
+        BattleAttackCommand callback = new("ally-0", "ally-0", Target("ally-0")) { NativeCallback = new(0, 7) };
+        BattleAttackCommand reaction = new(Fourth, "enemy", Target("enemy")) { NativePlayerReaction = BattleNativePlayerReaction.Counter };
+        BattleAttackCommand header = new(Fourth, "enemy", Target("enemy")) { NativeHeader = new BattleActionHeaderReference(0) };
+        BattleAttackCommand descriptor = new(Fourth, Fourth, BattleTargetRequest.None) { ExpandedAiDescriptor = new(BattleExpandedAiDescriptorKind.Barrier) };
+        BattleAttackCommand other = new(Eleventh, "enemy", Target("enemy"));
+        BattleAttackCommand charged = new(Fourth, "enemy", Target("enemy"), BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
+        BattleAttackCommand renzokuken = new(Fourth, "enemy", Target("enemy"), BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };
         foreach (BattleAttackCommand command in new[] { callback, item, reaction, magic, other, header, charged, descriptor, renzokuken })
         {
             queue.Enqueue(command);
         }
-        BattleActionPresentation active = new(Fourth, "enemy", BattleActionPhase.Recovery, 1);
+        BattleActionPresentation active = new(Fourth, "enemy", BattleActionPhase.Recovery, 1, Target("enemy"));
         typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(session, active);
         typeof(BattleSession).GetField("expandedHostedActionToken", PrivateInstance)!.SetValue(session, 3L);
 
-        Publish(session, roster, Half(7, saved: 1), caster: Fourth);
+        Publish(session, roster, Half(FourthModel, saved: 1), caster: Fourth);
         Assert.Equal(new[] { callback, reaction, other, header, descriptor }, queue.ToArray());
         Assert.Equal(new BattleStock(1, 2), Assert.Single(session.Items));
         Assert.Empty(session.MagicVitals!.MagicSystem.Reservations);
         Assert.Equal(new BattleStock(1, 3), Assert.Single(Actor(session, Fourth).MagicStocks));
         Assert.Same(active, session.ActiveAction);
         Assert.Equal(3L, Field<long?>(session, "expandedHostedActionToken"));
-        Publish(session, roster, Half(7, saved: 1), caster: Fourth);
+        Publish(session, roster, Half(FourthModel, saved: 1), caster: Fourth);
         Assert.Equal(new[] { callback, reaction, other, header, descriptor }, queue.ToArray());
         Assert.Equal(new BattleStock(1, 2), Assert.Single(session.Items));
         Assert.Empty(session.MagicVitals!.MagicSystem.Reservations);
+
+        Publish(session, roster, Half(session.ReadPresentationModelOwner(callback.ActorId), saved: 1));
+        Assert.Equal(new[] { callback, reaction, other, header, descriptor }, queue.ToArray());
     }
 
     [Fact]
@@ -176,26 +184,26 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
             MagicId = 0, AttackType = 1, Power = 1, HitCount = 1, TargetFlags = 0x50, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = 0,
             StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
-        BattleAttackCommand opening = new(Fourth, "enemy", BattleAbility.LimitBreak, 14 << 16 | 2) { NativeAction = shotAction, NativeLimitCallback = NativeLimitCallback.ShotOpening };
+        BattleAttackCommand opening = new(Fourth, "enemy", Target("enemy"), BattleAbility.LimitBreak, 14 << 16 | 2) { NativeAction = shotAction, NativeLimitCallback = NativeLimitCallback.ShotOpening };
         queue.Enqueue(opening);
-        shots.Add(Fourth, new(2, 0, 40, 40, 2, BattleNativeShotPhase.Opening));
+        shots.Add(Fourth, new(2, Target("enemy"), 40, 40, 2, BattleNativeShotPhase.Opening));
         levels.Add(Fourth, 2);
 
-        Publish(session, roster, Half(7, saved: 1));
+        Publish(session, roster, Half(FourthModel, saved: 1));
         Assert.Empty(queue);
         Assert.Null(session.GetNativeShot(Fourth));
         Assert.DoesNotContain(Fourth, levels.Keys);
 
         BattleAttackCommand continuation = opening with { NativeLimitCallback = NativeLimitCallback.ShotEffect, NativeAction = shotAction with { Command = 237 } };
-        BattleAttackCommand duel = new(Eleventh, "enemy", BattleAbility.LimitBreak) { NativeLimitCallback = NativeLimitCallback.DuelEffect };
+        BattleAttackCommand duel = new(Eleventh, "enemy", Target("enemy"), BattleAbility.LimitBreak) { NativeLimitCallback = NativeLimitCallback.DuelEffect };
         queue.Enqueue(continuation);
         queue.Enqueue(duel);
-        BattleNativeShotState shot = new(2, 0, 40, 20, 1, BattleNativeShotPhase.AwaitingEffect);
+        BattleNativeShotState shot = new(2, Target("enemy"), 40, 20, 1, BattleNativeShotPhase.AwaitingEffect);
         shots.Add(Fourth, shot);
-        duels.Add(Eleventh, new(0, 0, 30, 15, BattleNativeDuelPhase.AwaitingEffect));
+        duels.Add(Eleventh, new(0, Target("enemy"), 30, 15, BattleNativeDuelPhase.AwaitingEffect));
 
-        Publish(session, roster, Half(7, saved: 1));
-        Publish(session, roster, Half(14, saved: 1));
+        Publish(session, roster, Half(FourthModel, saved: 1));
+        Publish(session, roster, Half(EleventhModel, saved: 1));
         Assert.Equal(new[] { continuation, duel }, queue.ToArray());
         Assert.Same(shot, session.GetNativeShot(Fourth));
         Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, duels[Eleventh].Phase);
@@ -229,7 +237,13 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
     }
 
     private static BattleCombatant Actor(BattleSession session, string id) => session.Combatants.Single(actor => actor.Id == id);
-    private static NativeBattleContactHalf Half(byte row, ushort saved = 0, uint battle = 0, ushort amount = 0, byte hitFlags = 0) => new(row, 0, 0, hitFlags, saved, amount, battle);
+    private static BattleTargetRequest Target(string id)
+    {
+        BattleActorReference actor = id == "enemy" ? new BattleEnemyActorReference(id) : new BattlePartyActorReference(id);
+        return new(new BattleTargetSelection.Explicit([actor]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+    }
+
+    private static NativeBattleContactHalf Half(BattleModelOwner owner, ushort saved = 0, uint battle = 0, ushort amount = 0, byte hitFlags = 0) => new(owner, 0, 0, hitFlags, saved, amount, battle);
     private static void Publish(BattleSession session, BattleModelRoster roster, NativeBattleContactHalf half, string caster = "enemy") => Invoke(session, "PublishExpandedReadyContact", roster, half, caster);
     private static ImmutableDictionary<string, NativeBattleStatusMirror> Mirrors(BattleSession session) => Field<ImmutableDictionary<string, NativeBattleStatusMirror>>(session, "expandedPartyReadyStatusMirrors");
     private static T Field<T>(BattleSession session, string name) => (T)typeof(BattleSession).GetField(name, PrivateInstance)!.GetValue(session)!;

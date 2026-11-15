@@ -39,8 +39,8 @@ public sealed class NativeBattleThundaga105PresentationTests
         Assert.Equal((ushort)105, header.Effect);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(initial.ActionGraphics is null || initial.ActionGraphics.Header.Ordinal == headerIndex);
-        int contactIndex = header.FirstContactIndex ?? throw new InvalidDataException("A physical contact owner is required.");
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
+        BattleContactCursor contactIndex = header.FirstContact;
+        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(contactIndex);
         int target = ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient);
         Assert.InRange(target, 0, 2);
         Assert.Equal((ushort)7, contact.Primary.Amount6);

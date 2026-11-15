@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -208,7 +209,7 @@ public sealed class NativeBattleActionGeometryMaskTests
                 Transform = new(position, position, 0, checked((short)(index * 120 - 240)), checked((short)(2048 + index * 256)))
             });
         }
-        return new(models, boundary, 0, 0);
+        return new(models, boundary, 0, 0, OriginalEffects());
     }
 
     private static NativeBattleGraphicsState Prepare(NativeBattleGraphicsState graphics, int index, ushort selection, NativeBattleActionGeometryGlobals globals, bool sourceHasNonActorSelectors = false)

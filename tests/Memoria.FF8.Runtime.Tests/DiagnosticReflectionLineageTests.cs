@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class DiagnosticReflectionLineageTests
 {
     private static BattleDiagnosticEffectDispatch Source => new(1, 10, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 2) { NativeActorIndex = 3, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
-    private static BattleDiagnosticEffectDispatch Child => new(2, 11, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 247) { NativeActorIndex = 3, NativeTargetMask = 1, NativeHeaderIndex = 1, NativeHeaderGeneration = 2, Reflection = new(0x487DF0, 1, 0, 1, 1, 2, "enemy", 3, "enemy", 3, 0x80, "party", 0, 2, 31, 106, 8, 0x10, 31, 106, 0, 1) };
+    private static BattleDiagnosticEffectDispatch Child => new(2, 11, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 247) { NativeActorIndex = 3, NativeHeaderIndex = 1, NativeHeaderGeneration = 2, Reflection = new(0x487DF0, 1, 0, 1, 1, 2, "enemy", 3, "enemy", 3, 0x80, "party", 0, 2, 31, 106, 8, 0x10, 31, 106, 0, 1) };
 
     [Fact]
     public void Reflection_retains_the_caster_and_changes_only_the_proved_recipient()
@@ -104,7 +104,7 @@ public sealed class DiagnosticReflectionLineageTests
         BattleNativeAction reflectedAction = sourceAction with { Command = 247 };
         BattleSession session = new(new BattleDefinition { InitialRandom = NativeBattleRandomState.ForecastPhase(0), NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [sourceAction, reflectedAction], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, NativeStatus1 = 0x80 }, new() { Id = "enemy", Name = "Enemy" }, new() { Id = "other-4", Name = "Other", InitialUntargetable = untargetable }, new() { Id = "other-5", Name = "Other", InitialUntargetable = untargetable }, new() { Id = "other-6", Name = "Other", InitialUntargetable = untargetable }] }, BattleAtbMode.TurnBased);
         session.DiagnosticEffectDispatched += static _ => { };
-        BattleAttackCommand command = new("party", "party", BattleAbility.Magic, 31) { NativeQueuedCommand = 2, NativeAction = sourceAction, NativeTargetMask = 1, FreeNativeMagic = true };
+        BattleAttackCommand command = new("party", "party", NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.Magic, 31) { NativeQueuedCommand = 2, NativeAction = sourceAction, FreeNativeMagic = true };
         (NativeBattleCommandBanks banks, NativeBattleCommandLocation location) = session.NativeCommandBanks.Allocate(2);
         banks = banks.WriteCommand(location, 0, 0, 2, 0, 0, 31, new ushort[] { 1 }).BindCommand(location, 0, command);
         typeof(BattleSession).GetField("nativeCommandBanks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, banks);
@@ -116,13 +116,13 @@ public sealed class DiagnosticReflectionLineageTests
         (packets, _) = packets.Publish(1);
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
         Invoke(session, "ObserveDiagnosticPreparedHeader", 0);
-        BattleActionPresentation presentation = new("party", "party", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 31) { NativeAction = sourceAction, NativeQueuedCommand = 2, NativeTargetMask = 1, FreeNativeMagic = true };
+        BattleActionPresentation presentation = new("party", "party", BattleActionPhase.Recovery, 1, NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.Magic, 31) { NativeAction = sourceAction, NativeQueuedCommand = 2, FreeNativeMagic = true };
         typeof(BattleSession).GetField("random", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, NativeBattleRandomState.ForecastPhase(0));
         Invoke(session, "ResolveNativeReflection", session.Combatants[0], session.Combatants[0], presentation, sourceAction, 0);
         Assert.Equal((byte)247, session.NativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot + 1].ReadByte(1));
         Invoke(session, "DispatchNativeSecondaryBankCommand");
         Assert.Equal(2, session.NativeActionPackets.ActionCount);
-        BattleDiagnosticEffectDispatch source = new(1, 10, "party", BattleAbility.Magic, 31, 106, 106, 2) { NativeActorIndex = 0, NativeTargetMask = 1, NativeHeaderIndex = 0 };
+        BattleDiagnosticEffectDispatch source = new(1, 10, "party", BattleAbility.Magic, 31, 106, 106, 2) { NativeActorIndex = 0, NativeHeaderIndex = 0 };
         source = (BattleDiagnosticEffectDispatch)Invoke(session, "CompleteDiagnosticReflection", source)!;
         ushort actualMask = untargetable ? (ushort)8 : (ushort)64;
         BattleDiagnosticEffectDispatch child = new(2, 11, "party", BattleAbility.Magic, 31, 106, 106, 247) { NativeActorIndex = 0, NativeTargetMask = actualMask, NativeHeaderIndex = 1 };

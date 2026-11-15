@@ -43,7 +43,7 @@ public sealed class NativeBattleGilgameshZantetsukenAttackTests
             }
         };
         NativeBattleGilgameshZantetsukenStep step = NativeBattleGilgameshZantetsukenAttack.Advance(frame, ZantetsukenFixture.Address, inputs);
-        Assert.Collection(operations, operation => Assert.Equal(0, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Ordinal), operation => Assert.Equal(OriginalOwner(3), Assert.IsType<NativeBattleGilgameshZantetsukenAnchor>(operation).Actor), operation => Assert.Equal(2, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Ordinal));
+        Assert.Collection(operations, operation => Assert.Equal(0, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Occurrence.Ordinal), operation => Assert.Equal(OriginalOwner(3), Assert.IsType<NativeBattleGilgameshZantetsukenAnchor>(operation).Actor), operation => Assert.Equal(2, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operation).Occurrence.Ordinal));
         NativeBattleModulePoolTask first = step.Frame.Effect.Pools[1].Slots[1];
         NativeBattleModulePoolTask second = step.Frame.Effect.Pools[1].Slots[2];
         Assert.Equal(0x58E3E0u, first.Callback);
@@ -131,7 +131,12 @@ internal static class ZantetsukenFixture
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         int slot;
         (children, slot) = children.Append(callback);
-        NativeBattleModulePoolTask task = children.Slots[slot].WriteWord(12, age).WriteWord(14, 3).WriteWord(0x10, 500).WriteWord(0x12, unchecked((ushort)-200)).WriteWord(0x14, unchecked((ushort)-300)).WriteWord(0x16, 0).WriteWord(0x18, 128).WriteWord(0x1A, 2).WriteWord(0x20, unchecked((ushort)-300)).WriteWord(0x22, unchecked((ushort)-300));
+        NativeBattleModulePoolTask task = children.Slots[slot].WriteWord(12, age);
+        task.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(OriginalOwner(3)), OriginalAliases.EncodeOperand(OriginalOwner(3), 2));
+        task = task.WriteWord(0x10, 500).WriteWord(0x12, unchecked((ushort)-200)).WriteWord(0x14, unchecked((ushort)-300)).WriteWord(0x16, 0).WriteWord(0x18, 128);
+        BattleExecutionReference.ContactOffset contact = new(2);
+        task.WriteExecutionReference(0x1A, 2, contact, contact.EncodeOriginalWord());
+        task = task.WriteWord(0x20, unchecked((ushort)-300)).WriteWord(0x22, unchecked((ushort)-300));
         children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, task) });
         NativeBattleOriginalEffectState effect = new(327, 326, new(327, 0x58D760, 0x58D6E0), null, null)
         {
@@ -141,7 +146,7 @@ internal static class ZantetsukenFixture
         return new(memory, effect, new(0x12345678));
     }
 
-    internal static NativeBattleGilgameshZantetsukenInputs Inputs(ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> contacts) => new(0, contacts, _ => 4096, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), Execute);
+    internal static NativeBattleGilgameshZantetsukenInputs Inputs(ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> contacts) => new(0, contacts, OriginalAliases, ordinal => new(ordinal), _ => 4096, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), Execute);
 
     internal static NativeBattleGilgameshFrame Execute(NativeBattleGilgameshFrame frame, NativeBattleGilgameshOperation operation)
     {

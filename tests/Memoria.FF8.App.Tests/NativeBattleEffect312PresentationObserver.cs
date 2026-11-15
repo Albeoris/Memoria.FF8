@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -180,11 +181,11 @@ internal sealed class NativeBattleEffect312PresentationObserver
                 Mark("effect312-thrown-actor-restored-contact-" + actor, current, cold);
             }
         }
-        foreach (NativeBattleEffectTask task in graphics.Effects.Slots.Where(task => task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex is >= 0 and <= 2))
+        foreach (NativeBattleEffectTask task in graphics.Effects.Slots.Where(task => task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner is BattlePartyModelOwner))
         {
             if (task.Glyphs.AsSpan().SequenceEqual(new byte[] { 63, 0 }))
             {
-                contacts.Add(task.ModelIndex);
+                contacts.Add(ReadOriginalModelOperand(graphics.NativeBindings.CaptureAliases(graphics.ActorModels), task.ModelOwner!));
             }
         }
         foreach (BattleEvent item in current.Events.Skip(prior.Events.Length).Where(item => item.NativeModuleSound is not null))
@@ -212,7 +213,7 @@ internal sealed class NativeBattleEffect312PresentationObserver
             drained = true;
             Mark("effect312-all-pools-returned", current, cold);
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Commands = commands.Length, Cursor = state.ReadDword(CursorGlobal), Random = current.NativeCrtRandom, Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, pool.BankAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Actors = ReadOriginalModelCells(graphics).Take(3).Select(model => new { model.Index, model.Flags0, model.Rotation12, model.Rotation14, model.Rotation16, model.RotationPadding18, model.Transform }) });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Commands = commands.Length, Cursor = state.ReadDword(CursorGlobal), Random = current.NativeCrtRandom, Pools = effect.Pools.Select(pool => new { pool.DescriptorAddress, pool.BankAddress, Live = pool.Slots.Count(task => (task.Flags & 1) != 0) }), Actors = ReadOriginalModelCells(graphics).Take(3).Select((model, slot) => new { Index = slot, model.Flags0, model.Rotation12, model.Rotation14, model.Rotation16, model.RotationPadding18, model.Transform }) });
     }
 
     public void Accept(BattleSnapshot completed, string output)

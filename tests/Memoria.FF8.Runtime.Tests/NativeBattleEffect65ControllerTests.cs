@@ -223,7 +223,7 @@ public sealed class NativeBattleEffect65ControllerTests
         (root, _) = root.Append(RootCallback);
         NativeBattleOriginalEffectState effect = new(65, 64, new(65, Entry, Initializer), null, null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect65Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(123), NativeBattleEffect65State.FromColdProcess() with { RootBankStorage = null });
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, ArenaAddress).WriteDword(CasterGlobal, ModelAddress(5)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, ArenaAddress).WriteModelAddress(CasterGlobal, OriginalOwner(5), OriginalAliases) };
         frame = InitializeMainBank(frame);
         (frame, _) = Append(frame, MainDescriptor, MainCallback);
         frame = ClearDwords701200(frame, ArenaAddress + 12, 0x36B);

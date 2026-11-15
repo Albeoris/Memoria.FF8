@@ -142,8 +142,8 @@ public sealed class BattleComponentGuardianBoostTests
         BattleSession battle = CreateBattle(assets, true, true);
         StartGuardian(battle);
         UntilPresentation(battle, () => battle.NativeGuardianBoost?.Phase == 4);
-        List<BattleAttackCommand> commands = [];
-        BattleHudController hud = new(battle, (actor, target) => commands.Add(new(actor, target)), () => { }, () => { });
+        List<(string Actor, string Target)> commands = [];
+        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
 
         hud.BuildView();
 
@@ -154,7 +154,7 @@ public sealed class BattleComponentGuardianBoostTests
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal(new BattleAttackCommand(battle.Combatants[2].Id, battle.Combatants[1].Id), Assert.Single(commands));
+        Assert.Equal((battle.Combatants[2].Id, battle.Combatants[1].Id), Assert.Single(commands));
         Assert.NotNull(battle.NativeGuardianBoost);
     }
 

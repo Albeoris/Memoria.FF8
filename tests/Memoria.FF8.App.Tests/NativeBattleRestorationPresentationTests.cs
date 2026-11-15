@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using Bitmap = SkiaSharp.SKBitmap;
@@ -180,7 +181,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 priorTimers = priorTimers.SetItem(bit, 0);
             }
         }
-        graphics = graphics with { Models = graphics.Models.SetItem(1, targetModel with { Flags8 = priorFlags, StatusTimers = priorTimers }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 1), targetModel with { Flags8 = priorFlags, StatusTimers = priorTimers }) };
         if (effect == 24)
         {
             BattleSession idle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics }));

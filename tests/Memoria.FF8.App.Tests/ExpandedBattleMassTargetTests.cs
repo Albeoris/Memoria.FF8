@@ -62,9 +62,9 @@ public sealed partial class ExpandedBattleMassTargetTests
                     presentation ??= current;
                     Assert.Same(presentation, current);
                     drewNativeOverlay |= current.Overlay?.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Opcode is >= 0x20 and < 0x80) == true;
-                    foreach (NativeBattleGraphicsModel model in current.Graphics.Models.Where(model => (model.Flags0 & 0x800) != 0))
+                    foreach (BattleModelEntry<BattleModelOwner> entry in current.Graphics.ActorModels.Entries.Where(entry => (entry.State.Flags0 & 0x800) != 0))
                     {
-                        tintedTargets.Add(Assert.IsType<string>(current.Graphics.ActorIds[model.Index]));
+                        tintedTargets.Add(Assert.IsType<BattlePartyActorModel>(entry.Owner).Actor.ActorId);
                     }
                 }
                 if (Contacts().Length > 0 && battle.ActiveAction is null)
@@ -96,7 +96,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             Assert.True(presentation.Complete);
             Assert.True(drewNativeOverlay);
             Assert.Equal(allies.Select(actor => actor.Id).Order(), tintedTargets.Order());
-            Assert.DoesNotContain(presentation.Graphics.Models, model => (model.Flags0 & 0x800) != 0);
+            Assert.DoesNotContain(presentation.Graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 0x800) != 0);
             Assert.True(damage.Max(entry => entry.Frame) < contacts.Min(entry => entry.Frame));
             Assert.Single(battle.Events, entry => entry.ActorId == first.ActorId && entry.Kind == "NativeModuleSound" && entry.NativeModuleSound?.Sound == sonicSound);
             Assert.Equal(allies.Select(actor => actor.Id), contacts.Select(entry => entry.TargetId));

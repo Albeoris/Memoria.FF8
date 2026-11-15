@@ -35,7 +35,7 @@ public sealed class DemasterBattleModelAnimationTests
         using BattleAssets assets = new(game, host.Resources);
         int verified = 0;
         List<object> report = [];
-        for (int index = 0; index < graphics.ActorIds.Length; index++)
+        for (int index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
             if (ReadOriginalModelActorId(graphics, index) is not string actorId || ReadOriginalModelCell(graphics, index).BodyTextureSlots is not { } binding)
             {

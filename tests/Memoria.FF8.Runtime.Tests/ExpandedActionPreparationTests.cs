@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -108,9 +107,9 @@ public sealed class ExpandedActionPreparationTests
         Assert.Same(invocation, ReadHostedInvocation(candidate));
         typeof(BattleSession).GetField("nativeActionScratch", privateInstance)!.SetValue(candidate, candidate.Capture().NativeActionScratch! with { FinisherPendingE03 = null });
         string unknownBefore = Snapshot(candidate);
-        byte sourceRow = candidate.ReadExpandedPresentationRow("caster");
+        BattleModelOwner source = candidate.ReadPresentationModelOwner("caster");
         MethodInfo recompute = typeof(BattleSession).GetMethod("ResolveExpandedGunbladeContact", privateInstance)!;
-        TargetInvocationException unknown = Assert.Throws<TargetInvocationException>(() => recompute.Invoke(candidate, [invocation, placeholder, new NativeBattleTriggerReceipt(sourceRow, 1, 1, 25, 32)]));
+        TargetInvocationException unknown = Assert.Throws<TargetInvocationException>(() => recompute.Invoke(candidate, [invocation, placeholder, new NativeBattleTriggerReceipt(source, 1, 1, 25, 32)]));
         Assert.Contains("E03", Assert.IsType<NotSupportedException>(unknown.InnerException).Message);
         Assert.Equal(unknownBefore, Snapshot(candidate));
     }
@@ -158,7 +157,7 @@ public sealed class ExpandedActionPreparationTests
         typeof(BattleSession).GetMethod("ValidateExpandedEffectContactCompletion", privateInstance)!.Invoke(candidate, []);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(candidate, 1L);
         NativeBattleModelLifecycleServices services = candidate.CaptureModelLifecycleServices(roster);
-        services.EmitContact(new(new(candidate.ReadExpandedPresentationRow(target), 0, 0, 0, 0, 0, 0), new(byte.MaxValue, 0, 0, 0, 0, 0, 0)));
+        services.EmitContact(new(new(candidate.ReadPresentationModelOwner(target), 0, 0, 0, 0, 0, 0), null));
         MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         Assert.Contains("unexpected contact", Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => acknowledge.Invoke(candidate, [services, 1L])).InnerException).Message);
     }
@@ -188,9 +187,10 @@ public sealed class ExpandedActionPreparationTests
         BattleCombatant caster = owner.Combatants.Single(actor => actor.Id == "caster");
         caster.NativePresentationStatus = new(caster.NativeStatus0, caster.NativeStatus1);
         BattleModelRoster roster = owner.ReadBattlePresentationRoster();
-        byte row = owner.ReadExpandedPresentationRow("caster");
-        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 1);
-        NativeBattleContactPacket packet = new(new(row, 0, 0, 0, 0, 0, 0), new(byte.MaxValue, 0, 0, 0, 0, 0, 0));
+        BattleModelOwner casterModel = owner.ReadPresentationModelOwner("caster");
+        BattleTargetRequest targeting = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("caster")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, targeting, BattleAbility.Magic, 1);
+        NativeBattleContactPacket packet = new(new(casterModel, 0, 0, 0, 0, 0, 0), null);
         BattlePendingEnemyDraw original = new("enemy", 1, 1);
         BattlePendingEnemyDraw newer = new("enemy", 1, 2);
         FieldInfo pending = typeof(BattleSession).GetField("pendingEnemyDraw", privateInstance)!;
@@ -199,7 +199,7 @@ public sealed class ExpandedActionPreparationTests
         object? captured = typeof(BattleSession).GetMethod("TakePendingHostedEnemyDraw", privateInstance)!.Invoke(owner, []);
         Assert.Same(original, captured);
         Assert.Null(pending.GetValue(owner));
-        typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!.Invoke(owner, [command, new NativeBattleActionHeaderPreparation(OriginalOwner(3), 2, 5, -1, 1, 1, null), ImmutableArray.Create(new ExpandedBattleContact("caster", packet)), captured]);
+        typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!.Invoke(owner, [command, new NativeBattleActionHeaderPreparation(owner.ReadPresentationModelOwner("enemy"), 2, 5, -1, 1, 1, null), ImmutableArray.Create(new ExpandedBattleContact("caster", packet)), captured]);
         object invocation = Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", privateInstance)!.GetValue(owner)!).Cast<object>());
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
@@ -248,18 +248,18 @@ public sealed class ExpandedActionPreparationTests
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
         pending.SetValue(owner, newer);
         BattleSession child = Create();
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
-        models[header.Actor] = models[header.Actor] with { ModelId4 = 0 };
+        var (_, aliases) = owner.ReadBattlePresentationPacketBindings();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = 0 });
         PropertyInfo graphicsProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
-        graphicsProperty.SetValue(child, new NativeBattleGraphicsState(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster, EntryReady = true });
+        graphicsProperty.SetValue(child, graphics with { EntryReady = true });
         typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
-        typeof(BattleSession).GetField("presentationNativeTargets", privateInstance)!.SetValue(child, new Dictionary<int, NativeBattleEffectModelBinding>
+        typeof(BattleSession).GetField("presentationNativeTargets", privateInstance)!.SetValue(child, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
         {
-            [header.Actor] = new("caster", models[header.Actor], new([0, 0])) { IsParty = true }
+            [header.Source] = new(header.Source, graphics.ActorModels.Get(header.Source), new([0, 0]))
         });
-        NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { ActorIndex = header.Actor } };
+        NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { Recipient = header.Source } };
         long token = child.BeginHostedAction(header, [wrongRecipient]);
-        NativeBattleTriggerReceipt receipt = new(header.Actor, 1, 1, 25, 32);
+        NativeBattleTriggerReceipt receipt = new(header.Source, 1, 1, 25, 32);
         graphicsProperty.SetValue(child, child.NativeGraphics! with { PendingTrigger = receipt });
         NativeBattleGraphicsState originalGraphics = child.NativeGraphics!;
         NativeBattleActionPacketsState rejectedPackets = child.NativeActionPackets;
@@ -277,7 +277,11 @@ public sealed class ExpandedActionPreparationTests
         Assert.Same(rejectedPackets, child.NativeActionPackets);
         Assert.Same(originalGraphics, child.NativeGraphics);
 
-        typeof(BattleSession).GetField("nativeActionPackets", privateInstance)!.SetValue(child, rejectedPackets with { Contacts = rejectedPackets.Contacts.SetItem(0, placeholder.Packet) });
+        NativeBattleActionPacketsState corrected = NativeBattleActionPacketsState.Create(roster, rejectedPackets.ExportRetained(), aliases);
+        (corrected, BattleActionHeaderReference reference) = corrected.Prepare(header);
+        (corrected, _) = corrected.AppendContact(placeholder.Packet);
+        (corrected, _) = corrected.Publish(1);
+        typeof(BattleSession).GetField("nativeActionPackets", privateInstance)!.SetValue(child, corrected.WritePlayerRepeatMode(reference, 1));
         BattleCombatant target = Assert.Single(owner.Combatants, actor => actor.Id == "enemy");
         Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
         recompute.Invoke(owner, [process]);

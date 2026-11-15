@@ -76,7 +76,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         NativeBattleEnemyAllocation allocation = Assert.Single(ready.NativeAllocations);
         Assert.Equal(3, allocation.SceneSlot);
         Assert.Equal(allocated.Id, allocation.Id);
-        int caster = ready.NativeLastAllocatedIndex;
+        int caster = Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(ready.NativeLastAllocatedTarget).Operand;
         Assert.InRange(caster, 3, 6);
         NativeBattleGraphicsModel loaded = ReadOriginalModelCell(ready.NativeGraphics!, caster);
         Assert.Equal((byte)110, loaded.ModelId4);
@@ -85,7 +85,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(current).PoseSource ?? throw new InvalidDataException("The original allocated caster requires its actual skeleton.");
         var bones = NativeBattleBodyBoneMatrices.Require(loaded, pose);
         Assert.Equal(pose.BoneCount, bones.Length);
-        Assert.Null(ready.NativeGraphics.OriginalEffect);
+        Assert.Null(Assert.IsType<NativeBattleGraphicsState>(ready.NativeGraphics).OriginalEffect);
         Save("after-entry", ready);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 266 && row.MagicId == 269);
         byte sequence = NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(94, allocated.Level), action);
@@ -112,7 +112,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
                 return false;
             }
             NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, participant.ActorIndex);
-            return snapshot.NativeGraphics.Descriptors.Queue.IsEmpty && model.CurrentBodyBoneMatrices is not null && model.GeometryWorldMatrix is not null;
+            return Assert.IsType<NativeBattleGraphicsState>(snapshot.NativeGraphics).Descriptors.Queue.IsEmpty && model.CurrentBodyBoneMatrices is not null && model.GeometryWorldMatrix is not null;
         }
 
         void Save(string name, BattleSnapshot snapshot)

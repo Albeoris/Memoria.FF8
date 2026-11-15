@@ -56,7 +56,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 if (cast is null && battle.ActiveAction is { NativeQueuedCommand: 240 } active && active.NativeAction?.ActionId == action.ActionId)
                 {
                     cast = active;
-                    Assert.Equal(0, cast.NativeTargetMask);
+                    Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(cast.TargetRequest.Selection);
                     Assert.Equal(action.MagicId, cast.NativeAction.MagicId);
                 }
                 if (cast is null)

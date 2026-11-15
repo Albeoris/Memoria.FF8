@@ -55,18 +55,20 @@ public sealed class CrossoverNativeForeignSpellTests
         Assert.NotEmpty(geometry.Bones);
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.RenderActorPlacement(0).Position), host.RenderActorPlacement(0).Yaw);
         CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, target, geometry, placement.Matrix, game.ReadNativeBattleGraphicsRules());
-        NativeBattleForeignActor actorGeometry = foreign.ToActor(OriginalOwner(3));
+        CrossoverBattleRoster roster = CrossoverBattleRoster.Create(Guid.NewGuid(), host.Capture(), [new(0, 0, 0)], []);
+        BattleModelOwner recipient = roster.ReadModelOwner(target);
+        NativeBattleForeignActor actorGeometry = foreign.ToActor(recipient);
         Assert.Equal(geometry.Bones.Length, actorGeometry.BoneCount);
         NativeBattleVector firstBone = actorGeometry.ReadBone(0, 0);
         Assert.InRange(Vector3.Distance(new(firstBone.X, firstBone.Y, firstBone.Z), Vector3.Transform(geometry.Bones[0].Start, foreign.HostToOrigin)), 0, 1);
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(game.ReadNewGameCharacterVitals(), battle, 0);
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = kit.Weapon });
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0) { Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096), LinkedTransform = new(default, default), SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() } }, 0, 0, ref random);
-        model = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0) { Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096), LinkedTransform = new(default, default), SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() } }, 0, 0, true, ref random);
+        model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
         model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(model, target, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, random);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 0, slot => slot == 0 ? OriginalOwner(0) : roster.ReadModelOwner(slot));
+        CrossoverNativeMagicPresentationState state = presentation.Begin(model, target, NativeCrtRandomState.FromColdProcess(), new(recipient, 4, 0, 0, 0, 83, 0), action, random);
         NativeBattleCameraProjection camera = CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix);
         CrossoverNativeSpriteRenderer compositor = new(battle.ReadNativePrimitiveTables(), game.ReadNativeEffectMeshes(), game.ReadNativeBattleGraphicsRules().SummonColors!);
         CountRenderer triangles = new();
@@ -74,7 +76,7 @@ public sealed class CrossoverNativeForeignSpellTests
         HashSet<uint> sounds = [];
         for (int callback = 0; callback < 4096 && !state.Complete; callback++)
         {
-            CrossoverNativeMagicPresentationStep step = presentation.Advance(state, () => foreign.ToActor(OriginalOwner(3)).Anchor, () => foreign.Transform, camera, () => foreign);
+            CrossoverNativeMagicPresentationStep step = presentation.Advance(state, () => foreign.ToActor(recipient).Anchor, () => foreign.Transform, camera, () => foreign);
             state = step.State;
             contacts += step.ContactTargets.Length;
             foreach (NativeBattleModuleSound sound in step.EffectSounds)

@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect63ControllerTests
         NativeBattleEffect63Step result = AdvanceMain6E6E10(frame, Arena + MainOffset, Resources(), harness.Inputs());
         Assert.Equal(2, result.Result);
         Assert.Equal(64, Read(result.Frame, Arena + MainOffset).ReadWord(12));
-        Assert.Equal(new[] { ModelAddress(4), ModelAddress(4) }, harness.PointModels);
+        Assert.Equal(new[] { OriginalOwner(4), OriginalOwner(4) }, harness.PointModels);
         Assert.Equal(2u, result.Frame.State.ReadDword(InitializerGlobal));
         Assert.Equal(new NativeBattleEffect63Operation[] { new NativeBattleEffect63Stage5713E0(0, 0), new NativeBattleEffect63Stage5713E0(0, 0) }, harness.Operations);
         Assert.Equal(frame.Random, result.Frame.Random);
@@ -127,7 +127,7 @@ public sealed class NativeBattleEffect63ControllerTests
         {
             pools = pools.Add(NativeBattleEffectTaskPool.Initialize(MainDescriptor, Arena + MainOffset, MainStride, 1)).Add(NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, Arena, SpriteStride, SpriteCount));
         }
-        NativeBattleEffect63State state = NativeBattleEffect63State.FromColdProcess().DetachBank(0).WriteDword(WorkGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(4)).WriteDword(TargetGlobal, ModelAddress(0));
+        NativeBattleEffect63State state = NativeBattleEffect63State.FromColdProcess().DetachBank(0).WriteDword(WorkGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(4), OriginalAliases).WriteModelAddress(TargetGlobal, OriginalOwner(0), OriginalAliases);
         NativeBattleOriginalEffectState effect = new(63, 62, new(63, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -142,7 +142,7 @@ public sealed class NativeBattleEffect63ControllerTests
     private sealed class Harness
     {
         public List<NativeBattleEffect63Operation> Operations { get; } = [];
-        public List<uint> PointModels { get; } = [];
+        public List<BattleModelOwner> PointModels { get; } = [];
         public NativeBattleVector Point { get; set; } = new(100, 20, 300);
         public NativeBattleVector Target { get; set; } = new(0, 0, 0);
 

@@ -56,6 +56,6 @@ public sealed class NativeBattleBadBreath300PresentationTests
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = 4 } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared Amount0 MISS presentation input with original command/action/sequence; actual HP/status retained; no status, accuracy, formula, ordinary command or AI admission", Before = contact, After = declared }));
-        return source with { NativeActionPackets = packets with { Contacts = packets.Contacts.SetItem(0, declared) } };
+        return source with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) };
     }
 }

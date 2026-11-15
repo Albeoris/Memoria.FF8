@@ -16,7 +16,7 @@ public sealed class NativeBattleEffect173ControllerTests
         NativeBattleEffect173Frame frame = Frame(1);
         frame = frame with { State = frame.State.Write(TargetPointAddress, Point(11, 0, -11, 0xABCD).Read(0, 8)).Write(AnchorAddress, Point(1, 2, 3, 0xBEEF).Read(0, 8)) };
         NativeBattleEffect173Step step = AdvanceMain5D7570(frame, ChildBank, null!, harness.Inputs());
-        Assert.Equal((3, 0xF0, 4096), Assert.Single(harness.Points));
+        Assert.Equal((OriginalOwner(3), 0xF0, 4096), Assert.Single(harness.Points));
         Assert.Equal(new NativeBattleVector(10, 20, -120), Vector(ReadBytes(step.Frame, AnchorAddress, 8)));
         Assert.Equal((ushort)0xBEEF, step.Frame.State.ReadWord(AnchorAddress + 6));
         Assert.Equal(new NativeBattleVector(10, 0, -65), Vector(ReadBytes(step.Frame, CenterAddress, 8)));
@@ -267,7 +267,7 @@ public sealed class NativeBattleEffect173ControllerTests
         public uint Flags { get; init; }
         public bool CompleteTexture { get; init; }
         public List<NativeBattleEffect173Operation> Operations { get; } = [];
-        public List<(int Actor, int Selector, int Fraction)> Points { get; } = [];
+        public List<(BattleModelOwner Actor, int Selector, int Fraction)> Points { get; } = [];
         public NativeBattleEffect173Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, actor) => new(2) { Rotation14 = 0x1234 }, (_, _) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)), null), _ => new(null, 512, 160, 108), _ => 0, (frame, actor, selector, fraction, retained) =>
         {
             Points.Add((actor, selector, fraction));
@@ -288,7 +288,7 @@ public sealed class NativeBattleEffect173ControllerTests
 
         private static NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 38, 173, null));
             (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);

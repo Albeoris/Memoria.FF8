@@ -131,7 +131,7 @@ public sealed class NativeBattleIncomingMulticastTests
         BattleNativeAction native = Action(attackType);
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "caster");
         BattleCombatant recipient = battle.Combatants.Single(actor => actor.Id == "recipient");
-        BattleActionPresentation command = new(caster.Id, recipient.Id, BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 8, NativeTargetMask = 1 };
+        BattleActionPresentation command = new(caster.Id, recipient.Id, BattleActionPhase.Windup, 0, NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 8 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Incoming action", BattleActionEffect.Native, 20, false) { NativeAction = native };
         typeof(BattleSession).GetMethod("BeginNativeReactionBatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, null);
         object produced = typeof(BattleSession).GetMethod("ProduceNativeInstalledContacts", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [caster, recipient, command, action, null])!;

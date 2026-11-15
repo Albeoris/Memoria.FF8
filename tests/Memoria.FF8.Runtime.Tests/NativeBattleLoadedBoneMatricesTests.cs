@@ -10,10 +10,10 @@ public sealed class NativeBattleLoadedBoneMatricesTests
     [Fact]
     public void ClearingTheModelBankRetainsOnlyExplicitlySuppliedWorldMatrices()
     {
-        Assert.All(NativeBattleGraphicsModels.ClearBank(), model => Assert.Null(model.GeometryWorldMatrix));
+        Assert.All(ReadOriginalModelCells(OriginalGraphics([])), model => Assert.Null(model.GeometryWorldMatrix));
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
         Assert.NotNull(cold.ModelWorldMatrices64);
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank(null, retainedWorldMatrices64: cold.ModelWorldMatrices64);
+        var models = NativeBattleModelBoundary.FromRetainedMemory(cold).CaptureOriginalCells(new BattleActorModels([]));
         Assert.All(models, model =>
         {
             Assert.NotNull(model.GeometryWorldMatrix);
@@ -23,10 +23,10 @@ public sealed class NativeBattleLoadedBoneMatricesTests
             Assert.Equal(0, model.GeometryWorldMatrix.Z);
         });
         ImmutableArray<NativeBattleActionMatrix?> retained = cold.ModelWorldMatrices64.Value.SetItem(2, null).SetItem(0, cold.ModelWorldMatrices64.Value[0]! with { X = -123 });
-        models = NativeBattleGraphicsModels.ClearBank(null, retainedWorldMatrices64: retained);
+        models = NativeBattleModelBoundary.FromRetainedMemory(cold with { ModelWorldMatrices64 = retained }).CaptureOriginalCells(new BattleActorModels([]));
         Assert.Equal(-123, models[0].GeometryWorldMatrix!.X);
         Assert.Null(models[2].GeometryWorldMatrix);
-        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.ClearBank(null, retainedWorldMatrices64: retained.RemoveAt(6)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelBoundary.FromRetainedMemory(cold with { ModelWorldMatrices64 = retained.RemoveAt(6) }));
     }
 
     [Fact]

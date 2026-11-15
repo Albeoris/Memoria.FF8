@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect308PrerequisiteTests
                     unlinked = true;
                     NativeBattleEffect308PresentationTests.VerifyColdNext("native90-unlinked", current, game, assets, output!);
                 }
-                if (unlinked && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104))
+                if (unlinked && !Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).Descriptors.Queue.Any(index => Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).Descriptors.Packets[index].Command == 104))
                 {
                     break;
                 }

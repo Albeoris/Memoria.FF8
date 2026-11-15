@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect303ControllerTests
         Assert.Equal(ModelAddress(3), actual.State.ReadDword(CasterGlobal));
         Assert.Equal(ModelAddress(4), actual.State.ReadDword(TargetGlobal));
         Assert.Equal(new[] { "copy", "select13", "enter" }, harness.Log);
-        Assert.Equal(new NativeBattleEffect303CopyPackedPosition(ModelAddress(3), ModelAddress(4)), harness.Operations[0]);
+        Assert.Equal(new NativeBattleEffect303CopyPackedPosition(OriginalOwner(3), OriginalOwner(4)), harness.Operations[0]);
         Assert.Equal(harness.Models[3].Transform!.Position28, harness.Models[4].Transform!.Position28);
         Assert.Equal(harness.Models[3].Transform!.Vertical34, harness.Models[4].Transform!.Vertical34);
         Assert.NotEqual(harness.Models[3].Transform!.Angle36, harness.Models[4].Transform!.Vertical34);
@@ -34,8 +34,8 @@ public sealed class NativeBattleEffect303ControllerTests
     public void Entry_rejects_a_missing_physical_first_contact_instead_of_substituting_target_mask()
     {
         var harness = new Harness();
-        harness.Packets = harness.Packets with { Headers = harness.Packets.Headers.SetItem(1, harness.Packets.Headers[1] with { FirstContactIndex = null }) };
-        Assert.Throws<NotSupportedException>(() => Initialize(Inactive(), Resources(), harness.Inputs()));
+        harness.Packets = Harness.MakePackets(includeSelectedContacts: false);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Initialize(Inactive(), Resources(), harness.Inputs()));
         Assert.Empty(harness.Operations);
     }
 
@@ -106,7 +106,7 @@ public sealed class NativeBattleEffect303ControllerTests
         if (body)
         {
             var draw = harness.Operations.OfType<NativeBattleEffect303DrawBody188>().Single();
-            Assert.Equal(ModelAddress(4), draw.ModelAddress);
+            Assert.Equal(OriginalOwner(4), draw.Model);
             Assert.Equal(new byte[] { 192, 2, 0, 1, 128, 0, 128, 0 }, draw.TextureRectangle8.Read(0, 8));
             Assert.Equal((ushort)0x3DD4, draw.Clut);
             Assert.Equal(age * 2, draw.VOffset);
@@ -211,7 +211,7 @@ public sealed class NativeBattleEffect303ControllerTests
         Assert.Equal(busy ? 0 : 1, harness.Operations.OfType<NativeBattleEffect303Activate487670>().Count());
         if (!busy)
         {
-            Assert.Equal(new NativeBattleEffect303Activate487670(ModelAddress(4)), harness.Operations.OfType<NativeBattleEffect303Activate487670>().Single());
+            Assert.Equal(new NativeBattleEffect303Activate487670(OriginalOwner(4)), harness.Operations.OfType<NativeBattleEffect303Activate487670>().Single());
             Assert.Equal("fields4", harness.Log[^1]);
         }
     }
@@ -272,7 +272,7 @@ public sealed class NativeBattleEffect303ControllerTests
         var pools = Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray();
         (var main, _) = pools[1].Append(MainCallback);
         (var root, _) = pools[0].Append(RootCallback);
-        frame = frame with { Effect = frame.Effect with { Pools = pools.SetItem(0, root).SetItem(1, main), ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteDword(CasterGlobal, ModelAddress(3)).WriteDword(TargetGlobal, ModelAddress(4)).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset + 124) with { RootBankStorage = null } };
+        frame = frame with { Effect = frame.Effect with { Pools = pools.SetItem(0, root).SetItem(1, main), ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteModel(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteModel(TargetGlobal, OriginalOwner(4), OriginalAliases).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset + 124) with { RootBankStorage = null } };
         frame = ClearDwords701200(frame, Pools[1].Bank + 12, 0x9ED);
         frame = Write(frame, Pools[1].Bank, Read(frame, Pools[1].Bank).WriteWord(12, age).WriteDword(16, 0x12345678));
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[MainProgrammeWorkspaceLength].ToImmutableArray()).Initialize7016B0(Resources().MainProgramme, MainProgrammeWorkspaceLength);
@@ -312,7 +312,7 @@ public sealed class NativeBattleEffect303ControllerTests
                     Log.Add("enter");
                     break;
                 case NativeBattleEffect303ModelFields fields:
-                    int actor = Index(fields.ModelAddress);
+                    int actor = Index(fields.Model);
                     Models[actor] = Models[actor] with { Flags0 = (ushort)((Models[actor].Flags0 & ~fields.ClearFlags0) | fields.SetFlags0) };
                     Log.Add("fields" + actor);
                     break;
@@ -340,17 +340,24 @@ public sealed class NativeBattleEffect303ControllerTests
             return new(frame, Busy);
         });
 
-        private static int Index(uint pointer) => checked((int)((pointer - 0x1D972C0) / 156));
-        private static NativeBattleActionPacketsState MakePackets()
+        private static int Index(BattleModelOwner owner)
+        {
+            Assert.True(OriginalAliases.TryEncodeExact(owner, out byte slot));
+            return slot;
+        }
+        internal static NativeBattleActionPacketsState MakePackets(bool includeSelectedContacts = true)
         {
             var packets = OriginalPackets();
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 258, 303, null));
             (packets, _) = packets.AppendContact(new(new(OriginalOwner(6), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 258, 303, null));
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 4, 0, 0, 0, 7, 0), null));
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
-            (packets, _) = packets.Publish(2);
+            if (includeSelectedContacts)
+            {
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 4, 0, 0, 0, 7, 0), null));
+                (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
+            }
+            (packets, _) = packets.Publish(includeSelectedContacts ? 2 : 0);
             return packets;
         }
     }

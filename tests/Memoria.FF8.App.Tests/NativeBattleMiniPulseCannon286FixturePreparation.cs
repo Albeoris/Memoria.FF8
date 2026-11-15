@@ -79,7 +79,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         NativeBattleParticipantSnapshot pendingActor = Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
         int actualIndex = pendingActor.ActorIndex;
         Assert.InRange(actualIndex, 3, 6);
-        Assert.Equal(actualIndex, pending.NativeLastAllocatedIndex);
+        Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(pending.NativeLastAllocatedTarget).Operand);
         Assert.True(pendingActor.AllocationPendingStatistics);
         NativeBattleDescriptorState descriptors = pending.NativeGraphics!.Descriptors;
         Assert.Contains(descriptors.Queue, slot => descriptors.Packets[slot].Command == 102);
@@ -97,7 +97,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.True(unactivated.Hidden && unactivated.Untargetable && unactivated.Suspended);
         Assert.False(unactivated.AllocationPendingStatistics);
         Assert.DoesNotContain(session.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
-        Assert.Equal(actualIndex, loaded.NativeLastAllocatedIndex);
+        Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(loaded.NativeLastAllocatedTarget).Operand);
         Assert.Equal(allocated.Id, ReadOriginalModelActorId(loaded.NativeGraphics!, actualIndex));
         Assert.NotNull(ReadOriginalModelCell(loaded.NativeGraphics!, actualIndex).ActiveResourceRow100);
         Save("allocation-ready-52-false", loaded);
@@ -147,8 +147,8 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         BattleSnapshot Activate(BattleSession owner, string name, out int callbacks)
         {
             BattleSnapshot source = owner.Capture();
-            Assert.Equal(actualIndex, source.NativeLastAllocatedIndex);
-            Invoke<object?>(owner, "QueueNativeActivation", [source.NativeLastAllocatedIndex]);
+            Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(source.NativeLastAllocatedTarget).Operand);
+            Invoke<object?>(owner, "QueueNativeActivation", [source.NativeLastAllocatedTarget]);
             BattleSnapshot queued = owner.Capture();
             NativeBattleDescriptorState queue = queued.NativeGraphics!.Descriptors;
             Assert.Contains(queue.Queue, slot => queue.Packets[slot].Command == 113 && queue.Packets[slot].Argument == 0x487670);

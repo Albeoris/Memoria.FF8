@@ -23,7 +23,7 @@ public sealed class NativeBattleGuardianLethalRestoreTests
         BattleCombatantSnapshot target = Assert.Single(lethal.Combatants, actor => actor.NativeParticipant!.ActorIndex == 3);
         Assert.Equal(0, target.CurrentHp);
         Assert.NotEqual(0, target.Atb);
-        Console.WriteLine($"Post-Boost snapshot frame{lethal.Frame}/callback{lethal.NativeGraphics.Callback}: Outcome={lethal.Outcome}, target3 HP{target.CurrentHp}/ATB{target.Atb}, ActionPause={lethal.NativeClock?.ActionPause}, ActiveHeader={lethal.NativeActionPackets!.ActiveHeaderIndex}.");
+        Console.WriteLine($"Post-Boost snapshot frame{lethal.Frame}/callback{lethal.NativeGraphics.Callback}: Outcome={lethal.Outcome}, target3 HP{target.CurrentHp}/ATB{target.Atb}, ActionPause={lethal.NativeClock?.ActionPause}, ActiveHeader={lethal.NativeActionPackets!.ActiveHeader}.");
         Assert.Equal(BattleOutcome.Active, lethal.Outcome);
         InvalidDataException immediate = Assert.Throws<InvalidDataException>(() => BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(lethal))!));
         Assert.Contains("Battle outcome contradicts", immediate.Message);

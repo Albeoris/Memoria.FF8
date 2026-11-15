@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -10,14 +11,16 @@ public sealed class NativeBattleRetainedModelFieldsTests
     public void Loaded_and_unloaded_rotation_XYZW_and_full_normal_color_survive_capture_JSON_and_clear()
     {
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess();
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: retained.ModelTransformRows).ToImmutableArray();
+        var models = NativeBattleModelBoundary.FromRetainedMemory(retained).CaptureOriginalCells(new BattleActorModels([]));
         NativeBattleModelTransform transform = new(new(1, 2, 3), new(-4, 5, -6), 7, 8, 9) { Scale148 = new(10, 11, 12), Scale154 = 13 };
         models = models.SetItem(0, models[0] with { Flags0 = 3, Rotation12 = -21, Rotation14 = 22, Rotation16 = -23, RotationPadding18 = 0xABCD, Transform = transform, Color44 = 0x87654321, GeometryBounds52 = new(new(-101, -202, -303), new(404, 505, 606)) });
         models = models.SetItem(6, models[6] with { Flags0 = 0, Rotation12 = 31, Rotation14 = -32, Rotation16 = 33, RotationPadding18 = 0xFEDC, Transform = transform with { Position28 = new(101, -102, 103), Vertical34 = -104 }, Color44 = 0xA5123456, GeometryBounds52 = new(new(-707, -808, -909), new(1010, 1111, 1212)) });
-        BattleSnapshot snapshot = Snapshot(retained) with { NativeGraphics = new(models, ["party", null, null, "enemy", null, null, null], 0, 0) };
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, new BattlePartyActorModel(new("party")), models[0]), (3, new BattleEnemyActorModel(new("enemy")), models[3])]);
+        graphics = graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(NativeBattleModelSlot.Decode(6), models[6]) };
+        BattleSnapshot snapshot = Snapshot(retained) with { NativeGraphics = graphics };
         NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot, retained.ColdExecutableSha256);
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(captured))!;
-        NativeBattleGraphicsModel[] next = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: restored.ModelTransformRows);
+        var next = NativeBattleModelBoundary.FromRetainedMemory(restored).CaptureOriginalCells(new BattleActorModels([]));
         foreach (int index in new[] { 0, 6 })
         {
             Assert.Equal(NativeBattleModelRetainedFields.Capture(models[index]), NativeBattleModelRetainedFields.Capture(next[index]));
@@ -31,10 +34,9 @@ public sealed class NativeBattleRetainedModelFieldsTests
     public void Missing_previous_fields_stay_unknown_when_captured_and_cleared()
     {
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess() with { ModelTransformRows = null };
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray();
-        NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(Snapshot(retained) with { NativeGraphics = new(models, ["party", null, null, "enemy", null, null, null], 0, 0) }, null);
+        NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(Snapshot(retained) with { NativeGraphics = OriginalGraphics([]) }, null);
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(captured))!;
-        Assert.All(NativeBattleGraphicsModels.ClearBank(retainedTransformRows: restored.ModelTransformRows), model =>
+        Assert.All(NativeBattleModelBoundary.FromRetainedMemory(restored).CaptureOriginalCells(new BattleActorModels([])), model =>
         {
             Assert.Null(model.Rotation12);
             Assert.Null(model.Rotation14);
@@ -49,9 +51,9 @@ public sealed class NativeBattleRetainedModelFieldsTests
     [Fact]
     public void Native_load_resets_rotation_XYZ_but_retains_the_adjacent_padding_WORD()
     {
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: NativeBattleRetainedMemory.FromColdProcess().ModelTransformRows)[3] with { Rotation12 = 91, Rotation14 = 92, Rotation16 = 93, RotationPadding18 = 0xBEEF, GeometryBounds52 = new(new(-100, -200, -300), new(400, 500, 600)) };
+        NativeBattleGraphicsModel model = NativeBattleModelBoundary.FromRetainedMemory(NativeBattleRetainedMemory.FromColdProcess()).ReadOriginalCell(NativeBattleModelSlot.Decode(3), new BattleActorModels([])) with { Rotation12 = 91, Rotation14 = 92, Rotation16 = 93, RotationPadding18 = 0xBEEF, GeometryBounds52 = new(new(-100, -200, -300), new(400, 500, 600)) };
         NativeGlobalRandomState random = new(1);
-        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(model, 77, 0, ref random, 2);
+        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(model, 77, 0, isParty: false, ref random, 2);
         Assert.Equal((short)0, loaded.Rotation12);
         Assert.Equal((short)2048, loaded.Rotation14);
         Assert.Equal((short)0, loaded.Rotation16);
@@ -89,7 +91,7 @@ public sealed class NativeBattleRetainedModelFieldsTests
     {
         NativeBattleEffectLocalBounds zero = new(new(0, 0, 0), new(0, 0, 0));
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: cold.ModelTransformRows);
+        var models = NativeBattleModelBoundary.FromRetainedMemory(cold).CaptureOriginalCells(new BattleActorModels([]));
         Assert.All(models, model => Assert.Equal(zero, model.GeometryBounds52));
         NativeBattleModelRetainedFields unknown = NativeBattleModelRetainedFields.Capture(new(0));
         Assert.Null(unknown.GeometryBounds52);

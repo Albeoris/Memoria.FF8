@@ -157,7 +157,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
         BattleAttackCommand response = Assert.Single(battle.QueuedActions, IsOchuDraw);
         Assert.Equal(caster.Id, response.TargetId);
-        Assert.Equal(caster.Id, Assert.Single(Assert.IsType<BattleAiRecipients>(response.AiRecipients).ActorIds));
+        Assert.Equal(caster.Id, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(response.TargetRequest.Selection).Actors.Select(actor => actor.ActorId)));
         Assert.Equal(ability.Sequence, response.NativeSequence);
         Assert.Contains(battle.Events, entry => entry is { Kind: "EffectContact", Ability: BattleAbility.Magic, ActorId: CasterId } && entry.TargetId == ochu.Id);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EnemyDrawStock");
@@ -167,7 +167,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         NativeBattleParticipantSnapshot participant = Assert.IsType<NativeBattleParticipantSnapshot>(before.Combatants.Single(actor => actor.Id == ochu.Id).NativeParticipant);
         Assert.Equal(caster.Id, participant.LastAttackerId);
         Assert.Equal<byte?>(1, participant.LastAction?.AttackType);
-        Assert.Equal(caster.Id, participant.ExpandedPreviousAiTargetId);
+        Assert.Equal(caster.Id, Assert.IsType<BattlePreviousTarget.Actor>(participant.PreviousTarget).Reference.ActorId);
         Assert.Equal<byte?>((byte)fire.Id, participant.DrawnSpell);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(restored.Capture()));

@@ -30,7 +30,7 @@ public sealed class NativeBattleFlare124PresentationTests
         BattleScenePresentation scene = new(assets, source.Definition, true);
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));

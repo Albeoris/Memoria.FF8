@@ -58,7 +58,7 @@ public sealed class NativeBattleEffect283ControllerTests
         Assert.Equal((ushort)0, main.ReadWord(0x1E));
         Assert.Equal((ushort)1, main.ReadWord(12));
         Assert.Equal((ushort)2, Read(frame, RootBank).ReadWord(12));
-        Assert.Equal(new NativeBattleEffect283ModelFlags(Model(target), 0, 4), harness.Operations[0]);
+        Assert.Equal(new NativeBattleEffect283ModelFlags(OriginalOwner(target), 0, 4), harness.Operations[0]);
         Assert.Equal(new byte[] { 0x5A }, frame.Memory.Arena!.Read(ScratchOffset, 1));
         Assert.Equal(1, harness.ContactReads);
     }
@@ -98,7 +98,7 @@ public sealed class NativeBattleEffect283ControllerTests
         NativeBattleEffect283Frame frame = Active((ushort)age);
         frame = Write(frame, ArenaAddress, Read(frame, ArenaAddress).WriteWord(0xE, 0xFFFE));
         frame = AdvanceMain(frame, ArenaAddress, Resources(), harness.Inputs()).Frame;
-        Assert.Equal(new[] { (Model(6), (short)-2, bank) }, harness.BodyCalls);
+        Assert.Equal(new[] { (OriginalOwner(6), (short)-2, bank) }, harness.BodyCalls);
         Assert.Equal((ushort)91, Read(frame, ArenaAddress).ReadWord(0xE));
         NativeBattleEffect283ModelColor44 color = Assert.Single(harness.Operations.OfType<NativeBattleEffect283ModelColor44>());
         Assert.Equal(0x32000000u, color.Value & 0xFF000000);
@@ -110,8 +110,8 @@ public sealed class NativeBattleEffect283ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect283Frame frame = AdvanceMain(Active(44), ArenaAddress, Resources(), harness.Inputs()).Frame;
-        Assert.Equal(new NativeBattleEffect283ModelFlags(Model(6), 4, 0), harness.Operations.OfType<NativeBattleEffect283ModelFlags>().Single());
-        Assert.Equal(new NativeBattleEffect283ModelColor44(Model(6), 0xA1B2C3D4), harness.Operations.OfType<NativeBattleEffect283ModelColor44>().Single());
+        Assert.Equal(new NativeBattleEffect283ModelFlags(OriginalOwner(6), 4, 0), harness.Operations.OfType<NativeBattleEffect283ModelFlags>().Single());
+        Assert.Equal(new NativeBattleEffect283ModelColor44(OriginalOwner(6), 0xA1B2C3D4), harness.Operations.OfType<NativeBattleEffect283ModelColor44>().Single());
         Assert.Empty(harness.BodyCalls);
         frame = Active(59);
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 60).WriteByte(15, 1));
@@ -183,7 +183,9 @@ public sealed class NativeBattleEffect283ControllerTests
         (NativeBattleEffectTaskPool main, _) = pools[1].Append(MainCallback);
         frame = frame with { Effect = frame.Effect with { Pools = pools.SetItem(0, root).SetItem(1, main), ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteDword(ArenaGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset) with { RootBankStorage = null } };
         frame = ClearDwords701200(frame, ArenaAddress + 12, 0x18F);
-        frame = Write(frame, ArenaAddress, Read(frame, ArenaAddress).WriteWord(12, age).WriteDword(0x10, 4096).WriteDword(0x14, 0xA1B2C3D4).WriteDword(0x28, Model(6)).WriteWord(0x24, 300));
+        NativeBattleModulePoolTask target = Read(frame, ArenaAddress).WriteWord(12, age).WriteDword(0x10, 4096).WriteDword(0x14, 0xA1B2C3D4);
+        target.WriteExecutionReference(0x28, 4, new BattleExecutionReference.Model(OriginalOwner(6)), OriginalAliases.EncodeAddress(OriginalOwner(6)));
+        frame = Write(frame, ArenaAddress, target.WriteWord(0x24, 300));
         foreach ((NativeBattleGfAnimationSource source, int offset, int length) in new[] { (Resources().MainProgramme, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength), (Resources().SecondaryProgramme, SecondaryProgrammeWorkspaceOffset, SecondaryProgrammeWorkspaceLength) })
         {
             NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[length].ToImmutableArray()).Initialize7016B0(source, length);
@@ -199,15 +201,15 @@ public sealed class NativeBattleEffect283ControllerTests
         public int Target { get; init; } = 6;
         public int ContactReads { get; private set; }
         public List<NativeBattleEffect283Operation> Operations { get; } = [];
-        public List<(uint, short, int)> BodyCalls { get; } = [];
+        public List<(BattleModelOwner, short, int)> BodyCalls { get; } = [];
         public List<(uint Source, NativeBattleEffectArena Caller)> Programmes { get; } = [];
 
-        public NativeBattleEffect283Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, address) => new((int)((address - Model(0)) / 156), 2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 999, 777, -123), Color44 = 0xA1B2C3D4 }, currentFrame =>
+        public NativeBattleEffect283Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, address) => new(2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 999, 777, -123), Color44 = 0xA1B2C3D4 }, currentFrame =>
         {
             ContactReads++;
             NativeBattleActionPacketsState packets = OriginalPackets();
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 261, 283, null));
-            (packets, _) = packets.AppendContact(new(new((byte)Target, 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(Target), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(2);
             return packets;

@@ -308,7 +308,7 @@ public sealed class NativeBattleEffect69ParticleTests
     }
 
     private static NativeBattleEffect69Resources Resources(byte[]? sprite = null) => new(null!, [], null!, null!, 0, new(0, SpriteAddress, 0, 0, (sprite ?? new byte[12]).ToImmutableArray()));
-    private static NativeBattleEffect69Inputs Inputs(Func<NativeBattleEffect69Frame, NativeBattleEffect69Operation, NativeBattleEffect69Frame>? execute = null) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new NotSupportedException(), (_, _) => throw new NotSupportedException(), _ => 0, _ => 0, (_, _) => 0, execute ?? ((frame, _) => frame));
+    private static NativeBattleEffect69Inputs Inputs(Func<NativeBattleEffect69Frame, NativeBattleEffect69Operation, NativeBattleEffect69Frame>? execute = null) => new(OriginalAliases, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new NotSupportedException(), (_, _) => throw new NotSupportedException(), _ => 0, _ => 0, (_, _) => 0, execute ?? ((frame, _) => frame));
 
     private static short Word(NativeBattleEffect69Frame frame, int offset) => BinaryPrimitives.ReadInt16LittleEndian(frame.Memory.Arena!.Read(offset, 2));
 

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect76Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect76Lower;
@@ -25,7 +26,7 @@ public sealed class NativeBattleEffect76LowerTests
         NativeBattleEffect76Inputs inputs = Inputs((current, actor, actualSelector, actualDistance, retained) =>
         {
             queries++;
-            Assert.Equal(5, actor);
+            Assert.Equal(OriginalOwner(5), actor);
             Assert.Equal(selector, actualSelector);
             Assert.Equal(distance, actualDistance);
             Assert.Equal(allocatedBeforeQuery, current.Effect.Pools[0].Head is not null);
@@ -122,5 +123,5 @@ public sealed class NativeBattleEffect76LowerTests
         return WriteBytes(frame, 0x24C6658, Long(NativeBattleEffectArena.Clear(), 0, 5), 4);
     }
 
-    private static NativeBattleEffect76Inputs Inputs(Func<NativeBattleEffect76Frame, int, byte, short, NativeBattleEffectArena, NativeBattleEffect76PointStep> point, Func<NativeBattleEffect76Frame, NativeBattleEffect76Operation, NativeBattleEffect76Frame> execute) => new(Colors: NativeBattleGteColorInterpolation.CodeConstants45F270, ReadFlags: null!, ReadStep508500: null!, ReadPackets: null!, ReadModel: null!, ReadPoseSource: null!, ReadView: null!, ReadProjection: null!, ReadWorld: null!, ReadPosition8: null!, Point502170: point, ReadCameraPose: null!, ReadEyePadding: null!, ReadTargetPadding: null!, ReadVibrationPlaying4A2900: null!, ReadColor: null!, Execute: execute);
+    private static NativeBattleEffect76Inputs Inputs(Func<NativeBattleEffect76Frame, BattleModelOwner, byte, short, NativeBattleEffectArena, NativeBattleEffect76PointStep> point, Func<NativeBattleEffect76Frame, NativeBattleEffect76Operation, NativeBattleEffect76Frame> execute) => new(Colors: NativeBattleGteColorInterpolation.CodeConstants45F270, ReadFlags: null!, ReadStep508500: null!, ReadPackets: null!, ReadModel: null!, ReadPoseSource: null!, ReadView: null!, ReadProjection: null!, ReadWorld: null!, ReadPosition8: null!, Point502170: point, ReadCameraPose: null!, ReadEyePadding: null!, ReadTargetPadding: null!, ReadVibrationPlaying4A2900: null!, ReadColor: null!, Execute: execute);
 }

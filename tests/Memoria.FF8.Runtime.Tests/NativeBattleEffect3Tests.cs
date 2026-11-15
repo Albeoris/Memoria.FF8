@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect3Tests
         List<int> sounds = [];
         List<int> contacts = [];
         List<int> applied = [];
-        NativeBattleEffect3Inputs inputs = fixture.Inputs with { ApplyContact = applied.Add };
+        NativeBattleEffect3Inputs inputs = fixture.Inputs with { ApplyContact = occurrence => applied.Add(occurrence.Ordinal) };
         int callback = 0;
         while (effect.ReturnedDescriptor != 0 && callback < 100)
         {
@@ -38,10 +38,10 @@ public sealed class NativeBattleEffect3Tests
                 Assert.Equal(0x101u, sound.Flags);
                 sounds.Add(callback);
             }
-            contacts.AddRange(step.Contacts);
+            contacts.AddRange(step.Contacts.Select(occurrence => occurrence.Ordinal));
             int flashesThisCallback = step.Draws.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Flash);
             Assert.Equal((callback % 2 == 0 ? 0x8000 : 0) + 24 * flashesThisCallback, step.Effect.DrawArenaOffset);
-            effect = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Effect)))!);
+            effect = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(step.Effect));
             effect.Validate();
             callback++;
         }
@@ -61,15 +61,16 @@ public sealed class NativeBattleEffect3Tests
         for (int model = 4; model < 6; model++)
         {
             (children, int slot) = children.Append(0x700DE0);
-            byte[] payload = new byte[16];
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), checked(0x1D972C0u + 156u * (uint)model));
-            children = children.WriteSlot(slot, children.Slots[slot].WriteBytes(12, payload.ToImmutableArray().AsSpan()));
+            NativeBattleModulePoolTask task = children.Slots[slot].WriteBytes(12, new byte[16]);
+            BattleModelOwner owner = OriginalOwner(model);
+            task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(owner), OriginalAliases.EncodeAddress(owner));
+            children = children.WriteSlot(slot, task);
         }
         NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, children) };
         NativeBattleEffect3Step step = NativeBattleEffect3.Step(effect, fixture.Inputs);
         Assert.Equal(new int?[] { 0x8000, 0x8018 }, step.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Flash).Select(draw => draw.NativeEffectArenaOffset).ToArray());
         Assert.Equal(0x8030, step.Effect.DrawArenaOffset);
-        NativeBattleOriginalEffectState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Effect)))!);
+        NativeBattleOriginalEffectState restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(step.Effect));
         restored.Validate();
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect3.Step(step.Effect, fixture.Inputs))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect3.Step(restored, fixture.Inputs))));
     }
@@ -111,7 +112,7 @@ public sealed class NativeBattleEffect3Tests
                     Assert.Equal(address == 0x1523204 ? (short)-400 : (short)-600, draw.Anchor!.Y);
                 }
             }
-            contacts.AddRange(step.Contacts);
+            contacts.AddRange(step.Contacts.Select(occurrence => occurrence.Ordinal));
             effect = step.Effect;
             callbacks++;
         }
@@ -129,18 +130,22 @@ public sealed class NativeBattleEffect3Tests
 
     private static (NativeBattleOriginalEffectState Effect, NativeBattleEffect3Inputs Inputs) Fixture(byte[] targets)
     {
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
         foreach (byte target in targets)
         {
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 2, 11, -1, 2, 3, null));
-            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(target), 0, 0, 0, 0, 0, 0), null));
             (packets, _) = packets.Publish(1);
         }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), checked((byte)targets.Length));
         ImmutableArray<NativeBattleModuleResource> resources = new uint[] { 0x1522FB0, 0x1523204, 0x1523458, 0x1523578, 0x1523684, 0x15237A4, 0x1523928, 0x1523DE0 }.Select(Sprite).ToImmutableArray();
         NativeBattleEffectBinding binding = new(3, 0x700C10, 0x575610) { InitializerIsRet = true, Effect3Resources = new(new("texture", []), new("animation", []), resources, 0x493E6, 0x808080) };
         NativeBattleOriginalEffectState effect = NativeBattleEffect3.InitializePools(new(3, 2, binding, new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(4), OriginalOwner(5)]), new BattleActionHeaderReference(0), 0, 0), null));
-        return (effect, new(packets, model => new((short)(model * 100), -600, 200), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 35, 4096)));
+        return (effect, new(packets, model =>
+        {
+            Assert.True(OriginalAliases.TryEncodeExact(model, out byte slot));
+            return new((short)(slot * 100), -600, 200);
+        }, _ => new(new(0, 0, 0), new(0, 0, 0), 0, 35, 4096)));
     }
 
     private static NativeBattleModuleResource Sprite(uint address)

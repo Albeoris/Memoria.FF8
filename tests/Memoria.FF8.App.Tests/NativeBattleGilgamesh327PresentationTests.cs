@@ -334,7 +334,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     NativeBattleEffectTask previous = before.NativeGraphics!.Effects.Slots[slot];
                     if ((current.Flags0 & 1) != 0 && current.Kind == NativeBattleEffectKind.DamageText5069B0 && current.Frame == 1 && !((previous.Flags0 & 1) != 0 && previous.Kind == current.Kind && previous.Frame == 1))
                     {
-                        Assert.Equal((byte)3, current.ModelIndex);
+                        Assert.Equal(RequireOriginalModelOwner(after.NativeGraphics, 3), current.ModelOwner);
                         Assert.True(immune, "The successful status-only contact suppresses damage text through Flags2 bit0.");
                         Assert.Equal(new byte[] { 16, 0 }, current.Glyphs.ToArray());
                         Assert.Equal((short)8, current.HalfWidth);
@@ -351,7 +351,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     NativeBattleContactHalf half = formulaHalf ?? throw new InvalidDataException("Presentation contact preceded the actual formula packet.");
                     Assert.Equal(immune ? 1 : 0, createdText);
                     Assert.Equal(immune ? initialTargetHp : 0, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
-                    contactsPresented.Add(new { CounterBefore = contactTask.ReadWord(12), CounterAfter = advancedContact.ReadWord(12), half.ActorIndex, half.Sequence, half.Amount6, half.Flags2, half.HitFlags3, DamageTextPublications = createdText });
+                    contactsPresented.Add(new { CounterBefore = contactTask.ReadWord(12), CounterAfter = advancedContact.ReadWord(12), half.Recipient, half.Sequence, half.Amount6, half.Flags2, half.HitFlags, DamageTextPublications = createdText });
                     sawContactPresentation = true;
                 }
                 if (after.NativeEffectMemory?.Gilgamesh?.VibrationHandle is int currentHandle && currentHandle > 0 && after.NativeVibrationProcess!.IsPlaying(currentHandle))
@@ -529,10 +529,10 @@ public sealed class NativeBattleGilgamesh327PresentationTests
 
         void ObserveFormula(BattleSnapshot after)
         {
-            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
-            if (producedHeader?.FirstContactIndex is int contactIndex)
+            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
+            if (producedHeader?.FirstContact is BattleContactCursor contactIndex)
             {
-                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
+                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
                 if (!immune)
                 {
                     Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));

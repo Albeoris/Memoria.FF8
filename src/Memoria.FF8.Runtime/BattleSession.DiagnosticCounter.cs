@@ -117,7 +117,7 @@ public sealed partial class BattleSession
         }
         if (triggerRecomputed)
         {
-            DiagnosticCounterContactPublished?.Invoke(new(primary, index, true, nativeActionPackets.ExportRetained()));
+            DiagnosticCounterContactPublished?.Invoke(new(primary, index, true, nativeActionPackets.ExportRetained().DetachDiagnosticCopy()));
             return;
         }
         var key = (primary.HeaderIndex, primary.HeaderGeneration);
@@ -143,7 +143,7 @@ public sealed partial class BattleSession
             }
             foreach (var contact in appended)
             {
-                DiagnosticCounterContactPublished?.Invoke(new(contact.Primary, contact.Index, false, nativeActionPackets.ExportRetained()));
+                DiagnosticCounterContactPublished?.Invoke(new(contact.Primary, contact.Index, false, nativeActionPackets.ExportRetained().DetachDiagnosticCopy()));
             }
         }
     }

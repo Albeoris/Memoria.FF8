@@ -96,6 +96,6 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
                 BodyPaletteRows = model.BodyTextureSlots is { PaletteRows.IsDefault: false } binding ? binding.PaletteRows.ToArray() : null
             };
         }).ToArray() ?? [];
-        output.WriteLine(JsonSerializer.Serialize(new { Boundary = boundary, Eligible = observation?.IsEligible, GraphicsCallback = observation?.GraphicsCallback, ResidentFingerprint = observation?.ResidentFingerprint, graphics.Auxiliary.Head, graphics.Auxiliary.Tail, packets.ActionCount, packets.ContactCount, packets.ActiveHeaderIndex, packets.ActiveContactIndex, Rows = rows }));
+        output.WriteLine(JsonSerializer.Serialize(new { Boundary = boundary, Eligible = observation?.IsEligible, GraphicsCallback = observation?.GraphicsCallback, ResidentFingerprint = observation?.ResidentFingerprint, graphics.Auxiliary.Head, graphics.Auxiliary.Tail, packets.ActionCount, packets.ContactCount, packets.ActiveHeader, packets.ActiveContact, Rows = rows }));
     }
 }

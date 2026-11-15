@@ -17,7 +17,7 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
         BattleSession unobserved = BattleSession.Restore(battle.Capture());
         if (admitted)
         {
-            BattleActionPresentation command = new("party", "requested", BattleActionPhase.Recovery, 1, BattleAbility.GuardianForce, 0) { NativeHeader = new BattleActionHeaderReference(0) };
+            BattleActionPresentation command = new("party", "requested", BattleActionPhase.Recovery, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("requested")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.GuardianForce, 0) { NativeHeader = new BattleActionHeaderReference(0) };
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(battle, command);
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(unobserved, command);
         }

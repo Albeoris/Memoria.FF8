@@ -173,7 +173,7 @@ public sealed class NativeBattleEffect227ControllerTests
         NativeBattleEffect227Step result = AdvanceMain693A10(frame, Main, null!, harness.Inputs());
         Assert.Equal(2, result.Result);
         Assert.Equal(284, Read(result.Frame, Main).ReadWord(12));
-        Assert.Equal(new NativeBattleEffect227ModelFlags(ModelAddress(3), 1, 0xFF, 4), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect227ModelFlags(OriginalOwner(3), 1, 0xFF, 4), Assert.Single(harness.Operations));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 
@@ -198,7 +198,7 @@ public sealed class NativeBattleEffect227ControllerTests
                 pools = pools.Add(pool);
             }
         }
-        NativeBattleEffect227State state = NativeBattleEffect227State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
+        NativeBattleEffect227State state = NativeBattleEffect227State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(3), OriginalAliases);
         NativeBattleOriginalEffectState effect = new(227, 226, new(227, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);

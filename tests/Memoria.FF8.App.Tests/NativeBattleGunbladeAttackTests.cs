@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using System.Reflection;
 using System.Collections.Immutable;
@@ -32,13 +33,13 @@ public sealed class NativeBattleGunbladeAttackTests
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "Select a standalone pending gunblade shot.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.NotNull(snapshot.NativeGraphics!.PendingTriggerSoundActorIndex);
+        Assert.NotNull(snapshot.NativeGraphics!.PendingTriggerSoundActor);
         BattleSession battle = BattleSession.Restore(snapshot);
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         int before = battle.Events.Count;
         battle.Tick();
         clone.Tick();
-        Assert.Null(battle.NativeGraphics!.PendingTriggerSoundActorIndex);
+        Assert.Null(battle.NativeGraphics!.PendingTriggerSoundActor);
         Assert.Single(battle.Events.Skip(before), item => item.Kind == "NativeModuleSound" && item.ActorId == "party");
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
     }
@@ -106,9 +107,9 @@ public sealed class NativeBattleGunbladeAttackTests
                     continue;
                 }
             }
-            if (!restoredSound && battle.NativeGraphics.PendingTriggerSoundActorIndex is byte owner)
+            if (!restoredSound && battle.NativeGraphics.PendingTriggerSoundActor is BattleModelOwner owner)
             {
-                Assert.Equal((byte)0, owner);
+                Assert.Equal(RequireOriginalModelOwner(battle.NativeGraphics, 0), owner);
                 BattleSnapshot snapshot = battle.Capture();
                 string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_OUTPUT");
                 if (output is not null)
@@ -122,7 +123,7 @@ public sealed class NativeBattleGunbladeAttackTests
                 audio.Update(battle);
                 ObservePresentation();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Null(battle.NativeGraphics.PendingTriggerSoundActorIndex);
+                Assert.Null(battle.NativeGraphics.PendingTriggerSoundActor);
                 restoredSound = true;
                 continue;
             }

@@ -246,7 +246,7 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "active-texture")
         {
             NativeBattleGraphicsState graphics = session.NativeGraphics!;
-            Set(session, nameof(BattleSession.NativeGraphics), graphics with { Models = graphics.Models.SetItem(0, ReadOriginalModelCell(graphics, 0) with { Sequence = 12 }) });
+            Set(session, nameof(BattleSession.NativeGraphics), graphics with { ActorModels = graphics.ActorModels.Set(new BattlePartyActorModel(new("party")), ReadOriginalModelCell(graphics, 0) with { Sequence = 12 }) });
         }
         Call(session, "QueueNativeReaction", session.Combatants[0], fault == "wrong-stage" ? 3 : 2);
         Pump(session);
@@ -339,7 +339,7 @@ public sealed class DiagnosticInvocationAftercareTests
         }
         if (fault == "texture-changed")
         {
-            post = post with { Models = post.Models.SetItem(0, ReadOriginalModelCell(post, 0) with { Sequence = 12 }) };
+            post = post with { ActorModels = post.ActorModels.Set(new BattlePartyActorModel(new("party")), ReadOriginalModelCell(post, 0) with { Sequence = 12 }) };
         }
         if (fault == "texture-replaced")
         {
@@ -398,14 +398,14 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "header")
         {
             NativeBattleActionPacketsState packets = session.NativeActionPackets;
-            (packets, _) = packets.Prepare(new(OriginalOwner(0), 252, 0, 0, 1, 1, null));
+            (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 252, 0, 0, 1, 1, null));
             (packets, _) = packets.Publish(0);
             Field("nativeActionPackets").SetValue(session, packets);
         }
         if (fault == "contact")
         {
             NativeBattleActionPacketsState packets = session.NativeActionPackets;
-            (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
             Field("nativeActionPackets").SetValue(session, packets);
         }
         if (fault == "new-callback")
@@ -415,7 +415,7 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "action")
         {
             Queue<BattleAttackCommand> commands = (Queue<BattleAttackCommand>)Field("actions").GetValue(session)!;
-            commands.Enqueue(new("party", "enemy", BattleAbility.Attack, 0));
+            commands.Enqueue(new("party", "enemy", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0));
         }
         if (fault == "foreign-dispatch")
         {
@@ -461,12 +461,12 @@ public sealed class DiagnosticInvocationAftercareTests
         session.Combatants[0].LastNativeAction = new(0, 0, 2, 1, 0, 0);
         Call(session, "BeginNativeReactionBatch");
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), command, 0, 0, action, effect, null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), command, 0, 0, action, effect, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
-        Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, action) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = new(effect) });
+        Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, action) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = new(effect) });
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.Initialize());
         Set(session, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, SoundPublishedFlags = 0 });
@@ -474,9 +474,9 @@ public sealed class DiagnosticInvocationAftercareTests
         NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear();
         if (terminalTexture)
         {
-            auxiliary = auxiliary.AppendTextureAnimation(OriginalOwner(0), 11, new([255], 0), OriginalAliases);
+            auxiliary = auxiliary.AppendTextureAnimation(packets.ModelAliases.DecodeLiteral(0), 11, new([255], 0), packets.ModelAliases);
         }
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0)
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, packets.ModelAliases.DecodeLiteral(0), new(3) { ResourceFlags44 = 10, Sequence = 11 })]) with
         {
             EntryReady = prospectiveVictory,
             Auxiliary = auxiliary,
@@ -492,7 +492,7 @@ public sealed class DiagnosticInvocationAftercareTests
             };
             session.ConfigureDiagnosticInvocationCompletion(effect, "party", command, action);
             Field("diagnosticDispatchSerial").SetValue(session, 1L);
-            Call(session, "ObserveDiagnosticPreparedHeader", 0);
+            Call(session, "ObserveDiagnosticPreparedHeader", new BattleActionHeaderReference(0));
             Call(session, "PublishDiagnosticEffectDispatch", new Action<BattleDiagnosticEffectDispatch>(_ =>
             {
             }), new BattleDiagnosticEffectDispatch(1, 20, "party", BattleAbility.EnemyAbility, action, effect, effect, command) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1, NativeTargetMask = targetMask });

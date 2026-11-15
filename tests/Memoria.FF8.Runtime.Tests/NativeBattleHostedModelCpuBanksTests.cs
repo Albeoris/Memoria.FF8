@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -5,25 +6,34 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedModelCpuBanksTests
 {
+    private static readonly BattlePartyModelOwner NativeParty = (BattlePartyModelOwner)OriginalOwner(0);
+    private static readonly BattlePartyModelOwner FirstExtra = new BattlePartyActorModel(new("first"));
+    private static readonly BattlePartyModelOwner SecondExtra = new BattlePartyActorModel(new("second"));
+    private static readonly BattlePartyModelOwner ThirdExtra = new BattlePartyActorModel(new("third"));
+    private static readonly BattlePartyModelOwner Unbound = new BattlePartyActorModel(new("unbound"));
+    private static readonly BattleModelOwner Enemy = OriginalOwner(4);
+    private static readonly BattleModelRoster Roster = new([NativeParty, FirstExtra, Enemy, SecondExtra, ThirdExtra]);
+    private static readonly NativeBattleModelAliases Aliases = new(Roster, [(NativeBattleModelSlot.Decode(0), NativeParty), (NativeBattleModelSlot.Decode(4), Enemy)]);
+
     [Fact]
     public void Sparse_roster_maps_party_rows_without_aliasing_native_or_enemy_banks()
     {
         NativeBattleModelCpuBanks original = NativeBattleModelCpuBanks.Unknown().WithBank(0, NativeBattleModelCpuBank.Unknown().WriteGuest(0, [10]));
-        NativeBattleModelCpuBanks banks = original.WithPresentationRoster(Roster());
+        NativeBattleModelCpuBanks banks = original.WithPresentationRoster(Roster, Aliases);
         banks.Validate();
         Assert.Equal(3, banks.Banks.Length);
         Assert.Same(original.Banks[0], banks.GetBank(0));
-        Assert.Equal(0, banks.PartyBankIndex(0));
-        Assert.Equal(5, banks.PartyBankIndex(3));
-        Assert.Equal(9, banks.PartyBankIndex(7));
-        Assert.Equal(26, banks.PartyBankIndex(24));
-        Assert.Equal(new[] { 5, 9, 26 }, banks.PresentationBanks!.Keys.Order().ToArray());
-        Assert.Throws<InvalidDataException>(() => banks.PartyBankIndex(4));
-        Assert.Throws<InvalidDataException>(() => banks.PartyBankIndex(8));
+        Assert.Equal(0, banks.PartyBankIndex(NativeParty));
+        Assert.Equal(5, banks.PartyBankIndex(FirstExtra));
+        Assert.Equal(6, banks.PartyBankIndex(SecondExtra));
+        Assert.Equal(7, banks.PartyBankIndex(ThirdExtra));
+        Assert.Equal(new[] { 5, 6, 7 }, banks.PresentationBanks!.Keys.Order().ToArray());
+        Assert.Throws<InvalidDataException>(() => banks.PartyBankIndex(Unbound));
+        Assert.DoesNotContain(Enemy, banks.PartyBankOwners.Keys.Cast<BattleModelOwner>());
         Assert.Throws<InvalidDataException>(() => banks.GetBank(3));
         Assert.Throws<InvalidDataException>(() => banks.GetBank(4));
-        Assert.Throws<InvalidDataException>(() => banks.CopyBank50B2A0(0, 9));
-        Assert.Same(banks, banks.WithPresentationRoster(Roster()));
+        Assert.Throws<InvalidDataException>(() => banks.CopyBank50B2A0(0, checked((byte)banks.PartyBankIndex(SecondExtra))));
+        Assert.Same(banks.PartyBankOwners, banks.WithPresentationRoster(Roster, Aliases).PartyBankOwners);
     }
 
     [Fact]
@@ -32,26 +42,26 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         NativeBattleModelCpuResources cpu = Resources();
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         NativeBattleResourcePointer original = new(new(0, 12), null, 2);
-        NativeBattleResourcePointer row7 = Pointer(9, 12, 2);
-        NativeBattleResourcePointer row24 = Pointer(26, 12, 2);
+        NativeBattleResourcePointer second = Pointer(cpu.Cpu.PartyBankIndex(SecondExtra), 12, 2);
+        int bank = cpu.Cpu.PartyBankIndex(ThirdExtra);
+        NativeBattleResourcePointer third = Pointer(bank, 12, 2);
         cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, original, 0, [1, 2]);
-        cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, row7, 0, [3, 4]);
-        cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, row24, 0, [5, 6]);
-        NativeBattleResourcePointer pinned = row24.Pin(cpu);
-        NativeBattleModelResourceEditor edit = new(cpu, staging, row24);
+        cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, second, 0, [3, 4]);
+        cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, third, 0, [5, 6]);
+        NativeBattleResourcePointer pinned = third.Pin(cpu);
+        NativeBattleModelResourceEditor edit = new(cpu, staging, third);
         edit.Write(1, [99]);
         Assert.Equal(new byte[] { 5, 99 }, edit.Geometry.Read(0, 2));
         Assert.Equal(new byte[] { 5, 6 }, NativeBattleModelResourceView.Open(edit.Current, staging, pinned, 2).Read(0, 2));
         Assert.Equal(new byte[] { 1, 2 }, NativeBattleModelResourceView.Open(edit.Current, staging, original, 2).Read(0, 2));
-        Assert.Equal(new byte[] { 3, 4 }, NativeBattleModelResourceView.Open(edit.Current, staging, row7, 2).Read(0, 2));
+        Assert.Equal(new byte[] { 3, 4 }, NativeBattleModelResourceView.Open(edit.Current, staging, second, 2).Read(0, 2));
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.WritePartySection(edit.Current, staging, pinned, 0, [8]));
-        Assert.Throws<NotSupportedException>(() => edit.Current.Cpu.GetBank(26).ReadGuest(12, 2));
+        Assert.Throws<NotSupportedException>(() => edit.Current.Cpu.GetBank(bank).ReadGuest(12, 2));
 
-        string json = JsonSerializer.Serialize(edit.Current);
-        NativeBattleModelCpuResources restored = JsonSerializer.Deserialize<NativeBattleModelCpuResources>(json)!;
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.Independent(edit.Current);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(new byte[] { 5, 99 }, NativeBattleModelResourceView.Open(restored, staging, row24, 2).Read(0, 2));
+        Assert.Equal(bank, restored.Cpu.PartyBankIndex(ThirdExtra));
+        Assert.Equal(new byte[] { 5, 99 }, NativeBattleModelResourceView.Open(restored, staging, third, 2).Read(0, 2));
     }
 
     [Fact]
@@ -59,18 +69,19 @@ public sealed class NativeBattleHostedModelCpuBanksTests
     {
         NativeBattleModelCpuResources cpu = Resources();
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
-        NativeBattleResourcePointer pointer = Pointer(26, NativeBattleModelCpuBank.Length - 1, 1);
+        int bank = cpu.Cpu.PartyBankIndex(ThirdExtra);
+        NativeBattleResourcePointer pointer = Pointer(bank, NativeBattleModelCpuBank.Length - 1, 1);
         NativeBattleModelResourceView view = NativeBattleModelResourceView.Open(cpu, staging, pointer, 1);
         Assert.False(Assert.Single(view.ReadSnapshot(0, 1).Known));
         Assert.Throws<NotSupportedException>(() => view.Read(0, 1));
-        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, Pointer(26, NativeBattleModelCpuBank.Length, 1), 1));
-        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, Pointer(26, int.MaxValue, 2), 2));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, Pointer(bank, NativeBattleModelCpuBank.Length, 1), 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, Pointer(bank, int.MaxValue, 2), 2));
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, Pointer(10, 0, 1), 1));
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, pointer with { Cpu = pointer.Cpu! with { Layout = NativeBattlePartyCpuLayout.Remastered } }, 1));
 
         var row = cpu.Rows[0].Set(12, pointer.Cpu);
         (cpu with { Rows = cpu.Rows.SetItem(0, row) }).Validate();
-        Assert.Throws<InvalidDataException>((cpu with { Rows = cpu.Rows.SetItem(0, row.Set(12, Pointer(26, int.MaxValue, 1).Cpu)) }).Validate);
+        Assert.Throws<InvalidDataException>((cpu with { Rows = cpu.Rows.SetItem(0, row.Set(12, Pointer(bank, int.MaxValue, 1).Cpu)) }).Validate);
     }
 
     [Fact]
@@ -78,18 +89,19 @@ public sealed class NativeBattleHostedModelCpuBanksTests
     {
         NativeBattleModelCpuBanks banks = Resources().Cpu;
         ImmutableDictionary<int, NativeBattleModelCpuBank> extras = banks.PresentationBanks!;
-        NativeBattleModelCpuBank extension = extras[26];
-        Assert.Throws<InvalidDataException>((banks with { PresentationRoster = null }).Validate);
-        Assert.Throws<InvalidDataException>((banks with { PresentationBanks = extras.Remove(26) }).Validate);
-        foreach (int invalid in new[] { 0, 3, 4, 6, 10, 27 })
+        int bank = banks.PartyBankIndex(ThirdExtra);
+        NativeBattleModelCpuBank extension = extras[bank];
+        Assert.Throws<InvalidDataException>((banks with { PresentationBanks = extras.Remove(bank) }).Validate);
+        foreach (int invalid in new[] { 0, 3, 4, 10, 27 })
         {
-            Assert.Throws<InvalidDataException>((banks with { PresentationBanks = extras.Remove(26).Add(invalid, extension) }).Validate);
+            Assert.Throws<InvalidDataException>((banks with { PresentationBanks = extras.Remove(bank).Add(invalid, extension) }).Validate);
         }
-        BattleModelRoster different = new(banks.PresentationRoster!.Rows.SetItem(24, new("replacement", true)));
-        Assert.Throws<InvalidDataException>(() => banks.WithPresentationRoster(different));
-        Assert.Throws<InvalidDataException>(() => banks.WithBank(26, NativeBattleModelCpuBank.Unknown()));
-        Assert.Throws<InvalidDataException>(() => banks.WithBank(26, NativeBattleModelCpuBank.Unknown(1).PromoteResourceStorage()));
-        Assert.Throws<InvalidDataException>(() => banks.WithBank(26, extension.WriteGuest(0, [5])));
+        BattleModelRoster different = new(Roster.Owners.Select(owner => owner == ThirdExtra ? new BattlePartyActorModel(new("replacement")) : owner));
+        NativeBattleModelAliases differentAliases = new(different, [(NativeBattleModelSlot.Decode(0), NativeParty)]);
+        Assert.Throws<InvalidDataException>(() => banks.WithPresentationRoster(different, differentAliases));
+        Assert.Throws<InvalidDataException>(() => banks.WithBank(bank, NativeBattleModelCpuBank.Unknown()));
+        Assert.Throws<InvalidDataException>(() => banks.WithBank(bank, NativeBattleModelCpuBank.Unknown(1).PromoteResourceStorage()));
+        Assert.Throws<InvalidDataException>(() => banks.WithBank(bank, extension.WriteGuest(0, [5])));
     }
 
     [Fact]
@@ -120,8 +132,9 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         NativeBattleModelCpuBanks restored = JsonSerializer.Deserialize<NativeBattleModelCpuBanks>(json)!;
         restored.Validate();
         Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(2, restored.PartyBankIndex(2));
-        Assert.Throws<InvalidDataException>(() => restored.PartyBankIndex(3));
+        BattlePartyModelOwner native = (BattlePartyModelOwner)OriginalOwner(2);
+        Assert.Throws<InvalidDataException>(() => restored.PartyBankIndex(native));
+        Assert.Equal(2, restored.BindPartyOwner(native, NativeBattleModelSlot.Decode(2)).PartyBankIndex(native));
         Assert.Equal(0x0196B01Cu, new NativeBattleModelCpuReference(0, 4).PhysicalAddress);
         Assert.Equal(0x0193901Cu, new NativeBattleModelCpuReference(3, 4).PhysicalAddress);
         Assert.Equal(0x01D999C4u, new NativeBattleModelCpuReference(4, 4).PhysicalAddress);
@@ -132,9 +145,10 @@ public sealed class NativeBattleHostedModelCpuBanksTests
     {
         NativeBattlePartyCpuLayout layout = NativeBattlePartyCpuLayout.Remastered;
         NativeBattleModelCpuResources cold = NativeBattleModelCpuResources.FromColdProcess(layout.ExecutableHash);
-        NativeBattleModelCpuResources cpu = cold with { Cpu = cold.Cpu.WithPresentationRoster(Roster()) };
-        Assert.Equal(0x20000, cpu.Cpu.GetBank(26).Capacity);
-        NativeBattleModelCpuReference reference = new(26, 0x1FFFE) { Layout = layout, ResourceOnly = true };
+        NativeBattleModelCpuResources cpu = cold.WithPresentationRoster(Roster, Aliases);
+        int bank = cpu.Cpu.PartyBankIndex(ThirdExtra);
+        Assert.Equal(0x20000, cpu.Cpu.GetBank(bank).Capacity);
+        NativeBattleModelCpuReference reference = new(bank, 0x1FFFE) { Layout = layout, ResourceOnly = true };
         NativeBattleResourcePointer pointer = new NativeBattleResourcePointer(reference, null, 2).WithNativeAddressEncoding();
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, pointer, 0, [20, 24]);
@@ -147,19 +161,8 @@ public sealed class NativeBattleHostedModelCpuBanksTests
     private static NativeBattleModelCpuResources Resources()
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess();
-        return cpu with { Cpu = cpu.Cpu.WithPresentationRoster(Roster()) };
+        return cpu.WithPresentationRoster(Roster, Aliases);
     }
 
-    private static BattleModelRoster Roster()
-    {
-        BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[0] = new BattlePartyActorModel(new("native"));
-        rows[3] = new BattlePartyActorModel(new("party-3"));
-        rows[4] = new BattleEnemyActorModel(new("enemy"));
-        rows[7] = new BattlePartyActorModel(new("party-7"));
-        rows[24] = new BattlePartyActorModel(new("party-24"));
-        return new(rows.ToImmutableArray());
-    }
-
-    private static NativeBattleResourcePointer Pointer(byte bank, int offset, int length) => new(new NativeBattleModelCpuReference(bank, offset) { ResourceOnly = true }, null, length);
+    private static NativeBattleResourcePointer Pointer(int bank, int offset, int length) => new(new NativeBattleModelCpuReference(bank, offset) { ResourceOnly = true }, null, length);
 }

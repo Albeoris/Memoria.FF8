@@ -72,6 +72,7 @@ public sealed class NativeBattleEscapePresentationTests
 
         BattleSession restored = RoundTrip(battle);
         Assert.True(restored.Escape.PresentationHeld);
+        Assert.NotNull(battle.NativeGraphics);
         int frame = ReadOriginalModelCell(battle.NativeGraphics, 0).SequenceFrame;
         bool advanced = false;
         for (int callback = 0; callback < 8; callback++)

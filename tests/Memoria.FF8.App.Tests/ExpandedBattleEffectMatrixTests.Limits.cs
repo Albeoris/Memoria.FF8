@@ -54,7 +54,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleAttackCommand command = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleAbility.LimitBreak, command.Ability);
         Assert.Equal(target.Id, command.TargetId);
-        Assert.Equal(0, command.NativeTargetMask);
+        Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(command.TargetRequest.Selection);
         Assert.Equal(limit.Command, command.NativeQueuedCommand);
         Assert.Equal(limit.ActionId, command.NativeAction!.ActionId);
         NativeBattleEffectPresentation? presentation = null;

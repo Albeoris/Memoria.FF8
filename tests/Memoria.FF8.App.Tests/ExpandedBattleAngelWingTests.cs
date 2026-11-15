@@ -49,7 +49,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(caster.Id, Assert.Single(hud.Targets).Id);
         int before = battle.Events.Count;
         hud.Attack();
-        Assert.Contains(battle.QueuedActions, command => command.ActorId == caster.Id && command.TargetId == caster.Id && command.NativeTargetMask == 0);
+        Assert.Contains(battle.QueuedActions, command => command.ActorId == caster.Id && command.TargetId == caster.Id && command.TargetRequest.Selection is BattleTargetSelection.Explicit selected && selected.Actors.Select(actor => actor.ActorId).SequenceEqual([caster.Id]));
 
         for (int frame = 0; frame < 300 && caster.IsBusy; frame++)
         {

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -6,6 +7,9 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRinoaPhysicalHitTests
 {
+    private static readonly BattleModelOwner Source = OriginalOwner(2);
+    private static readonly BattleModelOwner Target = OriginalOwner(5);
+
     [Fact]
     public void RootCapturesAliasesAndBone21AndConsumesFortyCrtDraws()
     {
@@ -13,11 +17,11 @@ public sealed class NativeBattleRinoaPhysicalHitTests
         NativeBattleModuleState state = Task(0x56F9C0);
         state = Set(state, 16, 1234);
         NativeBattleModuleCallback next = NativeBattleRinoaPhysicalHit.AdvanceRoot(state, 0, fixture.Inputs());
-        Assert.Equal((byte)2, next.State.RinoaPhysicalHit!.Actor);
-        Assert.Equal((byte)5, next.State.RinoaPhysicalHit.Target);
-        Assert.Equal(new NativeBattleVector(10, -30, 30), next.State.RinoaPhysicalHit.Origin);
-        Assert.Equal(new[] { (2, (byte)21, (short)0) }, fixture.Bones);
-        Assert.Equal(new[] { 5 }, fixture.Anchors);
+        Assert.Equal(Source, ReadHit(next.State).Actor);
+        Assert.Equal(Target, ReadHit(next.State).Target);
+        Assert.Equal(new NativeBattleVector(10, -30, 30), ReadHit(next.State).Origin);
+        Assert.Equal(new[] { (Source, (byte)21, (short)0) }, fixture.Bones);
+        Assert.Equal(new[] { Target }, fixture.Anchors);
         Assert.Single(next.State.Slots.Where(task => task.Callback == 0x56FE10));
         Assert.Equal(8, next.State.Slots.Count(task => task.Callback == 0x56FCD0));
         int linked = 0;
@@ -61,7 +65,7 @@ public sealed class NativeBattleRinoaPhysicalHitTests
         Assert.Equal(count, fixture.Sounds.Count);
         Assert.Equal(1, fixture.Consumed);
         Assert.Equal(new uint[] { 0x100014, 0x100015 }.Take(count), next.State.Slots.Skip(1).Take(count).Select(task => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(16))));
-        Assert.All(fixture.Sounds, sound => Assert.Equal((byte)2, sound.Actor));
+        Assert.All(fixture.Sounds, sound => Assert.Equal(Source, sound.Actor));
         Assert.Equal(Enumerable.Range(1, count), fixture.Sounds.Select(sound => sound.Number));
         Assert.Equal(12, Word(next.State, 12));
     }
@@ -122,10 +126,10 @@ public sealed class NativeBattleRinoaPhysicalHitTests
         Fixture fixture = new();
         NativeBattleModuleState initial = Set(Retained(Task(0x56FE10)), 26, 3);
         NativeBattleModuleCallback first = Projectile(initial, fixture.Inputs());
-        Assert.Equal(5, first.State.RinoaPhysicalHit!.Controls.Length);
-        Assert.Equal(64, first.State.RinoaPhysicalHit.Curve.Length);
-        Assert.Equal(new NativeBattleVector(0, 0, 0), first.State.RinoaPhysicalHit.Curve[0]);
-        Assert.Equal(new NativeBattleVector(0, 0, 0), first.State.RinoaPhysicalHit.Curve[63]);
+        Assert.Equal(5, ReadHit(first.State).Controls.Length);
+        Assert.Equal(64, ReadHit(first.State).Curve.Length);
+        Assert.Equal(new NativeBattleVector(0, 0, 0), ReadHit(first.State).Curve[0]);
+        Assert.Equal(new NativeBattleVector(0, 0, 0), ReadHit(first.State).Curve[63]);
         Assert.Equal(3, Word(first.State, 24));
         NativeBattleModuleState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModuleState>(NativeBattleTestSnapshots.Json(first.State));
         Assert.Equal(NativeBattleTestSnapshots.Json(Projectile(first.State, fixture.Inputs())), NativeBattleTestSnapshots.Json(Projectile(restored, fixture.Inputs())));
@@ -140,7 +144,7 @@ public sealed class NativeBattleRinoaPhysicalHitTests
         NativeBattleModuleState prepared = Projectile(Set(Retained(Task(0x56FE10)), 26, 3), fixture.Inputs()).State;
         NativeBattleModuleState state = Set(prepared, 12, 15);
         NativeBattleModuleCallback next = Projectile(state, fixture.Inputs(flags));
-        Assert.Equal(new NativeBattleVector(10, -60, 30), next.State.RinoaPhysicalHit!.Origin);
+        Assert.Equal(new NativeBattleVector(10, -60, 30), ReadHit(next.State).Origin);
         Assert.Single(fixture.Bones);
         Assert.Equal(flags == 1 ? 15 : 16, Word(next.State, 12));
         if (flags == 1)
@@ -184,7 +188,7 @@ public sealed class NativeBattleRinoaPhysicalHitTests
         BinaryPrimitives.WriteUInt32LittleEndian(target, 5);
         state = state.WritePhysicalModuleBytes(0x209D780, target);
         Assert.Equal((ushort)5, state.Slots[50].Flags);
-        Assert.Equal((byte)5, state.RinoaPhysicalHit!.Target);
+        Assert.Equal(Target, ReadHit(state).Target);
         (NativeBattleModuleState allocated, int slot) = state.AppendCallback(0x56FCD0);
         Assert.Equal(51, slot);
         Assert.Equal((ushort)5, allocated.Slots[50].Flags);
@@ -204,9 +208,9 @@ public sealed class NativeBattleRinoaPhysicalHitTests
         BinaryPrimitives.WriteInt16LittleEndian(origin.AsSpan(4), -789);
         BinaryPrimitives.WriteUInt16LittleEndian(origin.AsSpan(6), 0xABCD);
         state = state.WritePhysicalModuleBytes(0x209D790, origin);
-        Assert.Equal((byte)2, state.RinoaPhysicalHit!.Actor);
-        Assert.Equal((byte)5, state.RinoaPhysicalHit.Target);
-        Assert.Equal(new NativeBattleVector(-123, 456, -789), state.RinoaPhysicalHit.Origin);
+        Assert.Equal(Source, ReadHit(state).Actor);
+        Assert.Equal(Target, ReadHit(state).Target);
+        Assert.Equal(new NativeBattleVector(-123, 456, -789), ReadHit(state).Origin);
         NativeBattleModuleState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModuleState>(NativeBattleTestSnapshots.Json(state));
         Assert.Equal(origin, restored.ReadPhysicalModuleBytes(0x209D790, 8).ToArray());
         Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
@@ -224,21 +228,18 @@ public sealed class NativeBattleRinoaPhysicalHitTests
             state = state.WritePhysicalModuleBytes(address, padding);
         }
         byte[] before = state.ReadPhysicalModuleBytes(0x209D798, 5 * 8 + 64 * 8).ToArray();
-        NativeBattleRinoaPhysicalHitState globals = state.RinoaPhysicalHit!;
-        state = state with
+        NativeBattleRinoaPhysicalHitState globals = ReadHit(state);
+        state = state.WriteRinoaPhysicalHit(BattleContactTaskStorageContract.OriginalArena, OriginalAliases, globals with
         {
-            RinoaPhysicalHit = globals with
-            {
-                Controls = Enumerable.Range(0, 5).Select(index => new NativeBattleVector((short)index, (short)-index, (short)(index * 2))).ToImmutableArray(),
-                Curve = Enumerable.Range(0, 64).Select(index => new NativeBattleVector((short)(index * 3), (short)-index, (short)(index * 5))).ToImmutableArray()
-            }
-        };
+            Controls = Enumerable.Range(0, 5).Select(index => new NativeBattleVector((short)index, (short)-index, (short)(index * 2))).ToImmutableArray(),
+            Curve = Enumerable.Range(0, 64).Select(index => new NativeBattleVector((short)(index * 3), (short)-index, (short)(index * 5))).ToImmutableArray()
+        });
         byte[] after = state.ReadPhysicalModuleBytes(0x209D798, before.Length).ToArray();
         for (int row = 0; row < 69; row++)
         {
             Assert.Equal(before.AsSpan(row * 8 + 6, 2).ToArray(), after.AsSpan(row * 8 + 6, 2).ToArray());
         }
-        Assert.Equal(new NativeBattleVector(189, -63, 315), state.RinoaPhysicalHit!.Curve[63]);
+        Assert.Equal(new NativeBattleVector(189, -63, 315), ReadHit(state).Curve[63]);
         NativeBattleModuleState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModuleState>(NativeBattleTestSnapshots.Json(state));
         Assert.Equal(after, restored.ReadPhysicalModuleBytes(0x209D798, after.Length).ToArray());
     }
@@ -258,7 +259,8 @@ public sealed class NativeBattleRinoaPhysicalHitTests
     private static NativeBattleActionMatrix Identity => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     private static NativeBattleModuleCallback Projectile(NativeBattleModuleState state, NativeBattleRinoaPhysicalHitInputs inputs) => NativeBattleRinoaPhysicalHit.AdvanceProjectile(state, 0, inputs, Identity, (current, _, _, _) => current);
     private static NativeBattleModuleState Task(uint callback) => NativeBattleModuleState.Clear().AppendCallback(callback).State;
-    private static NativeBattleModuleState Retained(NativeBattleModuleState state) => state with { RinoaPhysicalHit = new(2, 5, new(1000, 0, 0, 4096), new(0, 0, 0)) };
+    private static NativeBattleModuleState Retained(NativeBattleModuleState state) => state.WriteRinoaPhysicalHit(BattleContactTaskStorageContract.OriginalArena, OriginalAliases, new(Source, Target, new(1000, 0, 0, 4096), new(0, 0, 0)));
+    private static NativeBattleRinoaPhysicalHitState ReadHit(NativeBattleModuleState state) => state.ReadRinoaPhysicalHit(BattleContactTaskStorageContract.OriginalArena, OriginalAliases);
     private static short Word(NativeBattleModuleState state, int offset, int slot = 0) => BinaryPrimitives.ReadInt16LittleEndian(state.Slots[slot].Payload.AsSpan().Slice(offset - 12));
     private static NativeBattleModuleState Set(NativeBattleModuleState state, int offset, int value)
     {
@@ -269,15 +271,16 @@ public sealed class NativeBattleRinoaPhysicalHitTests
 
     private sealed class Fixture
     {
-        public List<(int Actor, byte Bone, short Fraction)> Bones { get; } = [];
-        public List<int> Anchors { get; } = [];
-        public List<(byte Actor, int Number)> Sounds { get; } = [];
+        public List<(BattleModelOwner Actor, byte Bone, short Fraction)> Bones { get; } = [];
+        public List<BattleModelOwner> Anchors { get; } = [];
+        public List<(BattleModelOwner Actor, int Number)> Sounds { get; } = [];
         public List<NativeBattleModuleDraw> Sprites { get; } = [];
         public int Consumed { get; private set; }
         public bool Secondary { get; init; }
         public NativeBattleRinoaPhysicalHitInputs Inputs(uint flags = 0) => new(new(flags)
         {
             CrtRandom = new(1),
+            ModelAliases = OriginalAliases,
             Resources = [Sprite(), new(20, 0xC70020, 0x570CC0, 0x5707A0, [0, 0, 0, 1]), new(21, 0xC70024, 0x570CC0, 0x5707A0, [0, 0, 0, 1])],
             ReadModelAnchor = model =>
             {
@@ -289,7 +292,7 @@ public sealed class NativeBattleRinoaPhysicalHitTests
                 Bones.Add((actor, bone, fraction));
                 return new(10, 20, 30);
             }
-        }, () => (2, 5), _ => 0x200, (actor, number, _) => Sounds.Add((actor, number)), () => Secondary, () => Consumed++, draw => Sprites.Add(draw));
+        }, BattleContactTaskStorageContract.OriginalArena, () => (Source, Target), _ => 0x200, (actor, number, _) => Sounds.Add((actor, number)), () => Secondary, () => Consumed++, draw => Sprites.Add(draw));
         private static NativeBattleModuleResource Sprite()
         {
             byte[] bytes = new byte[48];

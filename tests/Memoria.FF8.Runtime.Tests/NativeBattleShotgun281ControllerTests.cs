@@ -57,7 +57,7 @@ public sealed class NativeBattleShotgun281ControllerTests
             ReadCurrentBoneMatrix = (current, model, bone) =>
             {
                 Assert.Equal(new[] { "compose" }, order);
-                Assert.Equal(ModelAddressFor(3), model);
+                Assert.Equal(OriginalOwner(3), model);
                 Assert.Equal(23, bone);
                 order.Add("bone23");
                 return NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 321, Y = -654, Z = 987 }, null);
@@ -149,7 +149,7 @@ public sealed class NativeBattleShotgun281ControllerTests
         List<int> actualBones = [];
         var inputs = Inputs([]) with { ReadBoneParent = (_, model, bone) =>
         {
-            Assert.Equal(ModelAddressFor(0), model);
+            Assert.Equal(OriginalOwner(0), model);
             actualBones.Add(bone);
             return bone == 0 ? (short)-1 : (short)0;
         } };
@@ -193,11 +193,11 @@ public sealed class NativeBattleShotgun281ControllerTests
     {
         var frame = MainAt(13);
         List<NativeBattleShotgun281Operation> operations = [];
-        var packets = SetCount(Packets(2), 0);
+        var packets = Packets(2, publishedCount: 0);
         var actual = AdvanceTask(frame, Pools[3].Bank, Resources(), Inputs(operations, packets));
         Assert.Equal(2, actual.Result);
         Assert.Equal((ushort)14, Read(actual.Frame, Pools[3].Bank).ReadWord(12));
-        Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleShotgun281Contact506690>()).ContactIndex);
+        Assert.Equal(1, Assert.Single(operations.OfType<NativeBattleShotgun281Contact506690>()).Occurrence.Ordinal);
         Assert.Equal(frame.Random, actual.Frame.Random);
     }
 
@@ -271,15 +271,15 @@ public sealed class NativeBattleShotgun281ControllerTests
 
     private static NativeBattlePackedMatrix32 Identity() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
 
-    private static NativeBattleGraphicsModel Model(uint address)
+    private static NativeBattleGraphicsModel Model(BattleModelOwner owner)
     {
-        int actor = checked((int)((address - 0x1D972C0) / 156));
+        Assert.True(OriginalAliases.TryEncodeExact(owner, out byte actor));
         return new(2) { Rotation14 = 0, MinimumY146 = -100, Transform = new(new(0, 0, 0), new((short)(100 + actor * 100), (short)(200 + actor), (short)(1000 - actor * 1000)), (short)(444 + actor), 777, 4096) };
     }
 
     private static uint ModelAddressFor(int actor) => 0x1D972C0u + (uint)(actor * 156);
 
-    private static NativeBattleActionPacketsState Packets(int count)
+    private static NativeBattleActionPacketsState Packets(int count, int? publishedCount = null)
     {
         var packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 61, 281, null));
@@ -289,16 +289,10 @@ public sealed class NativeBattleShotgun281ControllerTests
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 61, 281, null));
         for (int index = 0; index < count; index++)
         {
-            (packets, _) = packets.AppendContact(new(new((byte)index, 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(index), 4, 0, 0, 0, 7, 0), null));
         }
-        (packets, _) = packets.Publish(checked((byte)count));
+        (packets, _) = packets.Publish(publishedCount ?? count);
         return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
-    }
-
-    private static NativeBattleActionPacketsState SetCount(NativeBattleActionPacketsState packets, byte count)
-    {
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(1));
-        return packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, count), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) }) };
     }
 
     private static NativeBattleShotgun281Resources Resources() => NativeBattleShotgun281StateTests.Resources();

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect64Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect64Profile;
@@ -30,7 +31,7 @@ internal static class NativeBattleEffect64LowerFixture
     }
 
     internal static NativeBattleEffect64Resources Resources() => new(new("texture", []), new("camera", []), new("vibration", []), 0, [], ImmutableDictionary<uint, NativeBattleModuleResource>.Empty, [], ImmutableDictionary<uint, ImmutableArray<byte>>.Empty);
-    internal static NativeBattleEffect64Inputs Inputs(List<string>? calls = null) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, null!, (frame, model, bone, distance, retained) =>
+    internal static NativeBattleEffect64Inputs Inputs(List<string>? calls = null) => new(OriginalAliases, NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, null!, (frame, model, bone, distance, retained) =>
     {
         calls?.Add($"bone:{bone}:{distance}");
         return new(frame, retained.Write(0, new byte[] { 10, 0, 20, 0, 30, 0 }));

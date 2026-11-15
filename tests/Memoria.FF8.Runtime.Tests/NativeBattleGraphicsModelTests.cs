@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -20,7 +21,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void LoadingInitializesByte145FromTheModelIdentityAndCompleteInformationByte(byte modelId, byte information246, byte expected)
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0), modelId, 0, ref random, information246);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0), modelId, 0, isParty: modelId < 16, ref random, information246);
         Assert.Equal(expected, model.SequenceByte145);
         Assert.Equal((short)0, model.MinimumY146);
         Assert.InRange(model.BlinkCountdown144!.Value, (byte)15, (byte)59);
@@ -31,9 +32,9 @@ public sealed class NativeBattleGraphicsModelTests
     {
         NativeGlobalRandomState random = new(0);
         NativeBattleGraphicsModel prior = new(3) { SequenceByte145 = 200 };
-        NativeBattleGraphicsModel enemy = NativeBattleGraphicsModels.CompleteLoad(prior, 77, 0, ref random, 2);
+        NativeBattleGraphicsModel enemy = NativeBattleGraphicsModels.CompleteLoad(prior, 77, 0, isParty: false, ref random, 2);
         Assert.Equal((byte)1, enemy.SequenceByte145);
-        NativeBattleGraphicsModel party = NativeBattleGraphicsModels.CompleteLoad(enemy with { SequenceByte145 = 90 }, 15, 0, ref random);
+        NativeBattleGraphicsModel party = NativeBattleGraphicsModels.CompleteLoad(enemy with { SequenceByte145 = 90 }, 15, 0, isParty: true, ref random);
         Assert.Equal((byte)0, party.SequenceByte145);
     }
 
@@ -43,7 +44,7 @@ public sealed class NativeBattleGraphicsModelTests
         NativeGlobalRandomState random = new(1234);
         NativeGlobalRandomState before = random;
         NativeBattleGraphicsModel model = new(3) { SequenceByte145 = 5 };
-        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.CompleteLoad(model, 77, 0, ref random));
+        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.CompleteLoad(model, 77, 0, isParty: false, ref random));
         Assert.Equal(before, random);
         Assert.Equal((byte)5, model.SequenceByte145);
     }
@@ -56,7 +57,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void Sequence1000OverrideBypassesTheStatusGateWithoutChangingStatusOrModelFlags(bool force, byte expected)
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0), 0, 0x18, ref random) with { Flags0 = 0x203 };
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0), 0, 0x18, isParty: true, ref random) with { Flags0 = 0x203 };
         NativeBattleGraphicsModel selected = NativeBattleGraphicsModels.SelectSequence(model, 3, force);
         Assert.Equal(expected, selected.Sequence);
         Assert.Equal(model.Flags0, selected.Flags0);
@@ -67,12 +68,12 @@ public sealed class NativeBattleGraphicsModelTests
     [Fact]
     public void ClearingAndLoadingPreserveTheNativeFieldInitializationBoundary()
     {
-        NativeBattleGraphicsModel[] bank = NativeBattleGraphicsModels.ClearBank();
+        var bank = ReadOriginalModelCells(OriginalGraphics([]));
         Assert.Equal(7, bank.Length);
         Assert.All(bank, model => Assert.Equal((ushort)0, model.Flags0));
         Assert.All(bank, model => Assert.Null(model.ResourceFlags44));
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(bank[3] with { ResourceMagicId = 160 }, 77, 0x80, ref random, 0);
+        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(bank[3] with { ResourceMagicId = 160 }, 77, 0x80, isParty: false, ref random, 0);
         Assert.Equal((ushort)3, loaded.Flags0);
         Assert.Equal((byte)8, loaded.Sequence);
         Assert.Equal((ushort)1, loaded.ResourceFlags44);
@@ -90,7 +91,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void BlockedKindFiveCleanupRetainsItsNativeFadeFallthroughAndCanRepeatTheIdempotentRelease()
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random, 0), 5);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(NativeBattleGraphicsModels.CompleteLoad(new(0), 77, 0, isParty: false, ref random, 0), 5);
         NativeBattleGraphicsRemoval first = AdvanceRemoval(model, false, true, 1);
         Assert.True(first.ReleaseParticipant);
         Assert.Equal((byte)2, first.Model.Phase6);
@@ -113,7 +114,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void NativeRemovalReleasesTheAllocationBeforeGraphicalCleanupAndOnlyOnce(byte kind)
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartRemoval(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random, 0), kind);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartRemoval(NativeBattleGraphicsModels.CompleteLoad(new(0), 77, 0, isParty: false, ref random, 0), kind);
         NativeBattleGraphicsModel paused = AdvanceRemoval(model, true, false, 0).Model;
         Assert.Equal((byte)0, paused.Phase6);
         for (int callback = 0; callback < 15; callback++)

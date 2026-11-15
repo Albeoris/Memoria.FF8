@@ -9,13 +9,13 @@ public sealed class NativeBattleGilgameshZantetsukenLifecycleTests
         frame = frame with { Memory = frame.Memory with { Gilgamesh = frame.Memory.Gilgamesh! with { ZantetsukenActors = null } } };
         NativeBattleGilgameshZantetsukenStep step = NativeBattleGilgameshZantetsukenLifecycle.AdvanceRotation(frame, ZantetsukenFixture.Address, ZantetsukenFixture.Inputs(default) with { GraphicsFlags = 1 });
         NativeBattleGilgameshZantetsukenActors actors = step.Frame.Memory.Gilgamesh!.ZantetsukenActors!;
-        Assert.Equal((short)0, actors.ReadWord(3, 0));
-        Assert.Equal((short)0, actors.ReadWord(3, 2));
-        Assert.Equal((short)0, actors.ReadWord(3, 4));
-        Assert.Equal(-300, actors.ReadMatrix(3).ReadMatrix().Y);
-        Assert.False(actors.ReadMatrix(3).Known[18]);
-        Assert.Throws<NotSupportedException>(() => actors.ReadWord(3, 6));
-        Assert.Throws<NotSupportedException>(() => actors.ReadWord(2, 0));
+        Assert.Equal((short)0, NativeBattleGilgameshZantetsukenActors.ReadWord(actors.ReadRow(3), 0));
+        Assert.Equal((short)0, NativeBattleGilgameshZantetsukenActors.ReadWord(actors.ReadRow(3), 2));
+        Assert.Equal((short)0, NativeBattleGilgameshZantetsukenActors.ReadWord(actors.ReadRow(3), 4));
+        Assert.Equal(-300, NativeBattleGilgameshZantetsukenActors.ReadMatrix(actors.ReadRow(3)).ReadMatrix().Y);
+        Assert.False(NativeBattleGilgameshZantetsukenActors.ReadMatrix(actors.ReadRow(3)).Known[18]);
+        Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshZantetsukenActors.ReadWord(actors.ReadRow(3), 6));
+        Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshZantetsukenActors.ReadWord(actors.ReadRow(2), 0));
         Assert.Equal((ushort)0, step.Frame.Effect.Pools[1].Slots[0].ReadWord(12));
     }
 
@@ -49,7 +49,7 @@ public sealed class NativeBattleGilgameshZantetsukenLifecycleTests
         }
         else
         {
-            Assert.Equal(2, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operations[0]).Ordinal);
+            Assert.Equal(2, Assert.IsType<NativeBattleGilgameshZantetsukenContact>(operations[0]).Occurrence.Ordinal);
         }
     }
 

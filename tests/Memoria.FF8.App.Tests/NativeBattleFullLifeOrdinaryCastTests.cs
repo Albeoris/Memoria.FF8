@@ -204,7 +204,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(after.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(after, 320, 224).ToArray());
             Publish("completed-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", RevivedHitPoints = revived.CurrentHp, changedRgbPixels, healingTransitions, completed.Frame, Callback = completed.NativeGraphics.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", RevivedHitPoints = revived.CurrentHp, changedRgbPixels, healingTransitions, completed.Frame, Callback = Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Callback }));
         }
         catch (Exception exception)
         {

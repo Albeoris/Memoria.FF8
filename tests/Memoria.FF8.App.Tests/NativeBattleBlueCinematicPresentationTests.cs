@@ -76,11 +76,11 @@ public sealed class NativeBattleBlueCinematicPresentationTests
         }
         Assert.Equal((byte)3, slot.Actor);
         NativeBattleOriginalEffectState effect = after.NativeGraphics!.OriginalEffect!;
-        int headerIndex = effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("The contact boundary requires its captured physical header.");
-        Assert.Equal(checked(0x1D280C4u + (uint)(headerIndex * 20)), current.HeaderAddress);
-        NativeBattleActionHeaderSlot header = after.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("The captured header requires its physical contact pointer.");
-        Assert.Equal(slot.Actor, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, after.NativeActionPackets.ReadContact(new BattleContactOccurrence(first)).Primary.Recipient));
+        BattleActionHeaderReference headerIndex = effect.Parameters?.Header ?? throw new NotSupportedException("The contact boundary requires its captured physical header.");
+        Assert.Equal(checked(0x1D280C4u + (uint)(headerIndex.Ordinal * 20)), current.HeaderAddress);
+        NativeBattleActionHeaderSlot header = after.NativeActionPackets!.ReadHeader(headerIndex);
+        BattleContactCursor first = header.FirstContact;
+        Assert.Equal(slot.Actor, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, after.NativeActionPackets.ReadContact(first).Primary.Recipient));
         NativeBattleEffectArena arena = after.NativeEffectMemory!.Arena!;
         int source = checked((int)(current.File0Address - 0x20DFAB8));
         if (current.Effect == 229)

@@ -44,6 +44,18 @@ internal static partial class NativeBattleTypedFixture
         return new(models, boundary, flags, callback, OriginalEffects());
     }
 
+    internal static NativeBattleGraphicsState OriginalUnboundGraphics(Func<NativeBattleModelSlot, NativeBattleGraphicsModel> createCell, uint flags = 0, long callback = 0)
+    {
+        BattleActorModels models = new([]);
+        NativeBattleModelBoundary boundary = NativeBattleModelBoundary.FromRetainedMemory(null);
+        for (byte index = 0; index < owners.Length; index++)
+        {
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(index);
+            boundary = boundary.WriteUnboundCell(slot, createCell(slot));
+        }
+        return new(models, boundary, flags, callback, OriginalEffects());
+    }
+
     internal static NativeBattleGraphicsModel ReadOriginalModelCell(NativeBattleGraphicsState graphics, int slot)
     {
         return graphics.NativeBindings.ReadOriginalCell(NativeBattleModelSlot.Decode(checked((byte)slot)), graphics.ActorModels);

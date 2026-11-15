@@ -74,7 +74,7 @@ public sealed class NativeBattleModelGroupMaterialTests
             NativeBattleRawPolygon textured = mesh.Polygons.First(polygon => polygon.Bytes.Length == (polygon.Quad ? 20 : 16) && (System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(polygon.Bytes.AsSpan().Slice(10)) >> 6) is >= 224 and < 240 && (polygon.Bytes[10] & 63) < 16);
             Assert.Throws<NotSupportedException>(() => NativeBattleRawGeometryPackets.Relocate507550(textured, binding));
         }
-        graphics = deformation ? Invoke<NativeBattleGraphicsState>(battle, "ScheduleNativeModelDeformation50F250", graphics, actor, group, new NativeBattleVector(0, 0, 0), (short)0) : graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(actor, group) };
+        graphics = deformation ? Invoke<NativeBattleGraphicsState>(battle, "ScheduleNativeModelDeformation50F250", graphics, RequireOriginalModelOwner(graphics, actor), group, new NativeBattleVector(0, 0, 0), (short)0) : graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(RequireOriginalModelOwner(graphics, actor), group, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) };
         graphics = graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         PublishGraphics(battle, graphics);
         battle = Restore(battle.Capture());
@@ -85,7 +85,7 @@ public sealed class NativeBattleModelGroupMaterialTests
             BattleSnapshot before = battle.Capture();
             NativeBattleGraphicsModel model = ReadOriginalModelCell(before.NativeGraphics!, actor);
             NativeBattleCameraProjection projection = before.NativeCamera!.Projection!;
-            NativeBattleAuxiliaryTask task = before.NativeGraphics.Auxiliary.Slots[slot];
+            NativeBattleAuxiliaryTask task = Assert.IsType<NativeBattleGraphicsState>(before.NativeGraphics).Auxiliary.Slots[slot];
             ImmutableArray<NativeBattleActionMatrix> matrices;
             if (deformation)
             {

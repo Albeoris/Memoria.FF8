@@ -1545,7 +1545,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.Equal(originalAction is not null, exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(action.MagicId, exported.Selection.ShellEffect);
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-            Assert.Equal(checked((byte)(header.FirstContactIndex!.Value + 1)), source.NativeActionPackets.ContactCount);
+            Assert.Equal(checked((byte)(header.FirstContact.Ordinal + 1)), source.NativeActionPackets.ContactCount);
             Assert.Equal(contactActor, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
             Assert.Equal(request.ControlledContactValue ?? (ushort)7, contact.Primary.Amount6);
             if (effectId == 297)
@@ -1583,11 +1583,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             if (request.ControlledDrainContact)
             {
-                Assert.Equal((byte)0, contact.Secondary.ActorIndex);
+                Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
                 byte[] resistances = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == contactActor).NativeStatus!.Resistances ?? throw new InvalidDataException("The controlled drain target requires its actual resistance owner.");
                 Assert.Equal(40, resistances.Length);
                 int percent = Math.Max(0, action.StatusAttack - resistances[23]);
-                Assert.Equal(checked((ushort)Math.Min(9999, contact.Primary.Amount6 * percent / 100)), contact.Secondary.Amount6);
+                Assert.Equal(checked((ushort)Math.Min(9999, contact.Primary.Amount6 * percent / 100)), Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Amount6);
                 Assert.Equal((byte)1, contact.Secondary!.HitFlags);
                 Assert.Null(contact.Secondary!.CoverSource);
             }
@@ -3764,7 +3764,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             }
                             ColdNext("blade12-private-bank-" + start.ToString("X"), current);
                         }
-                        foreach (var replayGroup in current.NativeGraphics.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "2546100" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).GroupBy(item => (item.Command.Packet, item.Command.WordOffset)))
+                        foreach (var replayGroup in Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "2546100" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).GroupBy(item => (item.Command.Packet, item.Command.WordOffset)))
                         {
                             NativeBattleLogicalCommand command = replayGroup.First().Command;
                             foreach (NativeBattleLogicalResolvedCommand replay in replayGroup)
@@ -4446,7 +4446,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         NativeBattleModelColorOverrides overrides = prior.NativeEffectMemory.ModelColorOverrides!;
                         Assert.All(overrides.Slots, slot => Assert.Equal((byte?)255, slot.Actor));
                         NativeBattleGraphicsModel afterFade = prior.NativeGraphics.Models[contactActor] with { Flags0 = flags, Color44 = normal.PackedRgb, Color40 = (shadow.PackedRgb & 0xFFFFFF) | 0x02000000, Alpha7 = unchecked((byte)((uint)(factor * 255) >> 12)) };
-                        NativeBattleModelColorStep afterModelColor = NativeBattleModelColors.Advance50A0A0(afterFade, prior.NativeGraphics.Flags, colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 }, overrides);
+                        NativeBattleModelColorStep afterModelColor = NativeBattleModelColors.Advance50A0A0(afterFade, Assert.IsType<NativeBattleGraphicsState>(prior.NativeGraphics).Flags, colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 }, overrides);
                         Assert.Equal(afterModelColor.Model.Color40, model.Color40);
                         if (fade.Next is null && (fade.Flags & 1) != 0)
                         {
@@ -7825,7 +7825,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     Assert.Equal(0, BitConverter.ToUInt16(completed.NativeEffectMemory.Arena.Read(arenaOffset + slot * 0x298, 2)) & 1);
                 }
-                Assert.DoesNotContain(completed.NativeGraphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
+                Assert.DoesNotContain(Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
                 File.WriteAllText(Path.Combine(output!, "sonic139-boundaries.json"), JsonSerializer.Serialize(new { Boundaries = sonic139Boundaries.Order().ToArray(), PacketBanks = sonic139PacketBanks.Order().ToArray(), Opcodes = sonic139Opcodes.Order().ToArray(), CompletionByte = 255 }));
             }
             if (effectId == 131)
@@ -8094,7 +8094,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(completed.NativeCamera!.CapturedPose!.Eye, completed.NativeCamera.CurrentPose!.Eye);
                 Assert.Equal(completed.NativeCamera.CapturedPose.Target, completed.NativeCamera.CurrentPose.Target);
                 Assert.Equal(completed.NativeCamera.CapturedPose.FocalLength, completed.NativeCamera.FocalLength);
-                Assert.DoesNotContain(completed.NativeGraphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
+                Assert.DoesNotContain(Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
             }
             if (effectId == 307)
             {
@@ -8113,7 +8113,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     Assert.Equal(0u, completed.NativeStage.Groups[group].ColorFlags & 0xFFFFFFu);
                     Assert.Equal(source.NativeStage!.Groups[group].ColorFlags & 0xFF000000u, completed.NativeStage.Groups[group].ColorFlags & 0xFF000000u);
                 }
-                Assert.DoesNotContain(completed.NativeGraphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
+                Assert.DoesNotContain(Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
             }
             if (effectId == 184)
             {
@@ -8158,7 +8158,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(electroFlashRestored, "Electrocute never exposed its actual actor color flash for cold continuation.");
                 Assert.True(electroScreenFlashRestored, "Electrocute never exposed its actual native screen flash for cold continuation.");
                 Assert.Equal(0, ReadOriginalModelCell(completed.NativeGraphics!, contactActor).Flags0 & 0x800);
-                Assert.DoesNotContain(completed.NativeGraphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
+                Assert.DoesNotContain(Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
             }
             if (effectId == 317)
             {
@@ -8167,7 +8167,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(acidActRestored);
                 Assert.True(acidBodyRestored, "Acid never exposed its actual hidden-target custom body COMMON packets for cold continuation.");
                 Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, contactActor).Flags0 & 4, ReadOriginalModelCell(completed.NativeGraphics!, contactActor).Flags0 & 4);
-                Assert.DoesNotContain(completed.NativeGraphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
+                Assert.DoesNotContain(Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
             }
             if (effectId == 305)
             {
@@ -8191,7 +8191,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     Assert.False(degeneratorBodyRestored);
                     Assert.False(degeneratorEmitterRestored);
                     Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, contactActor).Flags0 & 4, ReadOriginalModelCell(completed.NativeGraphics!, contactActor).Flags0 & 4);
-                    Assert.DoesNotContain(completed.NativeGraphics.OriginalEffect!.Pools[1].Slots, task => task.Callback is 0x5A47C0 or 0x5A5540 or 0x5A4D80);
+                    Assert.DoesNotContain(Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).OriginalEffect!.Pools[1].Slots, task => task.Callback is 0x5A47C0 or 0x5A5540 or 0x5A4D80);
                 }
                 Assert.DoesNotContain(completed.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ModelSequence505C70);
             }
@@ -10107,7 +10107,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.GeometryMatrices(producer, resource.PoseSource!, projection.View!, eye);
         ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0([meshes[7]], bones, projection, model.Color40!.Value, 1, null, 17, 4, null, prior.Definition.NativeGraphics!.Rules.SummonColors!, viewport: new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8));
         NativeBattlePrimitiveProcess process = current.NativeEffectMemory!.PrimitiveProcess!;
-        HashSet<string> actual = current.NativeGraphics.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == process.PacketBank && item.Command.WordOffset == 1).Select(item => Additional181Key(item.Command.Words, item.Command.VertexPayload4, item.Command.OrderingBucket)).ToHashSet();
+        HashSet<string> actual = Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == process.PacketBank && item.Command.WordOffset == 1).Select(item => Additional181Key(item.Command.Words, item.Command.VertexPayload4, item.Command.OrderingBucket)).ToHashSet();
         string[] expectedKeys = expected.Select(primitive => Additional181Key(primitive.Words.Skip(1), primitive.VertexPayload4, primitive.Bucket)).ToArray();
         int matches = expectedKeys.Count(actual.Contains);
         Assert.Equal(visible ? 0x80u : 0u, model.SequenceState!.MeshMask124 & 0x80);

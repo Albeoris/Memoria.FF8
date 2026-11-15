@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Reflection;
@@ -78,17 +79,17 @@ public sealed class NativeBattleRinoaProjectileResourceTests
     private static void AssertProjectileResources(BattleSnapshot snapshot, int slot)
     {
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
-        int actor = graphics.ModuleEffects.RinoaPhysicalHit!.Actor;
-        NativeBattleGraphicsModel before = ReadOriginalModelCell(graphics, actor);
+        BattleModelOwner actor = graphics.ModuleEffects.ReadRinoaPhysicalHit(graphics.Effects.StorageContract, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)).Actor;
+        NativeBattleGraphicsModel before = graphics.ActorModels.Get(actor);
         NativeBattleGraphicsState drawn = Draw(snapshot, graphics);
-        Assert.Same(before.CurrentBodyBoneMatrices, ReadOriginalModelCell(drawn, actor).CurrentBodyBoneMatrices);
-        NativeBattleBodyBoneMatrices linked = ReadOriginalModelCell(drawn, actor).CurrentLinkedBoneMatrices!;
+        Assert.Same(before.CurrentBodyBoneMatrices, drawn.ActorModels.Get(actor).CurrentBodyBoneMatrices);
+        NativeBattleBodyBoneMatrices linked = drawn.ActorModels.Get(actor).CurrentLinkedBoneMatrices!;
         Assert.Equal(before.CurrentLinkedBoneMatrices!.SkeletonSha256, linked.SkeletonSha256);
         Assert.NotEqual(before.CurrentBodyBoneMatrices!.SkeletonSha256, linked.SkeletonSha256);
         Assert.All(linked.Matrices, matrix => Assert.Equal(linked.Matrices[0], matrix));
         Assert.NotEqual(Ordering(graphics), Ordering(drawn));
         //A projectile callback has no dependency on the primary body's geometry row.
-        NativeBattleGraphicsState withoutBodyGeometry = graphics with { Models = graphics.Models.SetItem(actor, before with { ActiveResourceRow100 = null, ActiveStagedResourceRow100 = null }) };
+        NativeBattleGraphicsState withoutBodyGeometry = graphics with { ActorModels = graphics.ActorModels.Set(actor, before with { ActiveResourceRow100 = null, ActiveStagedResourceRow100 = null }) };
         NativeBattleGraphicsState linkedOnly = Draw(snapshot, withoutBodyGeometry);
         Assert.Equal(Ordering(drawn), Ordering(linkedOnly));
 

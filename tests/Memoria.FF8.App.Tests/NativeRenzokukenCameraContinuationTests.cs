@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -122,9 +123,9 @@ public sealed class NativeRenzokukenCameraContinuationTests
                 camera.BlendProgress,
                 ControlResource = camera.ControlResource is { } control ? new { control.Source.Identity, control.BaseOffset, control.StreamOffset, control.ModelTableOffset } : null,
                 Tasks = camera.Tasks.Select(task => task is null ? null : new { task.Channel, task.ProgramOffset, task.Elapsed, task.Duration }),
-                Active = snapshot.ActiveAction is { } action ? new { action.NativeHeaderIndex, action.NativeSequence, action.ActionId, action.NativeQueuedCommand } : null,
+                Active = snapshot.ActiveAction is { } action ? new { action.NativeHeader, action.NativeSequence, action.ActionId, action.NativeQueuedCommand } : null,
                 Effect = snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect,
-                Models = snapshot.NativeGraphics?.Models.Select(model => new { model.Index, model.Sequence, model.SequenceFrame, model.CameraSequence130, model.CameraAccumulator131 }),
+                Models = snapshot.NativeGraphics is { } graphics ? ReadOriginalModelCells(graphics).Select((model, slot) => new { Index = slot, model.Sequence, model.SequenceFrame, model.CameraSequence130, model.CameraAccumulator131 }) : null,
                 Bindings = snapshot.Definition.NativeGraphics?.Bindings.Select(binding => new { binding.ActorId, binding.Resource.HasActionCamera, HasBank = binding.Resource.ActionCameraBank is not null })
             });
             if (signature != previous)

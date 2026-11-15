@@ -73,12 +73,12 @@ public sealed class NativeBattleModule5707A0PresentationTests
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Transform);
         Assert.NotNull(model.CurrentBodyBoneMatrices);
-        Assert.Null(original.NativeGraphics.ModuleEffects.Head);
+        Assert.Null(Assert.IsType<NativeBattleGraphicsState>(original.NativeGraphics).ModuleEffects.Head);
         NativeBattleModuleResource resource = original.Definition.NativeModuleResources[resourceId];
         Assert.Equal(0x570CC0u, resource.WrapperCallback);
         Assert.Equal(0x5707A0u, resource.Callback);
         // This is a declared component append; it does not insert an opcode into the original Wedge sequence.
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(original with { NativeGraphics = original.NativeGraphics with { ModuleEffects = NativeBattleStorageSnapshots.Restore(original.NativeGraphics.ModuleEffects).AppendModelResource(actor, resource, 0x100000u | resourceId) } }));
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(original with { NativeGraphics = original.NativeGraphics with { ModuleEffects = NativeBattleStorageSnapshots.Restore(original.NativeGraphics.ModuleEffects).AppendModelResource(RequireOriginalModelOwner(original.NativeGraphics, actor), resource, 0x100000u | resourceId, original.NativeGraphics.NativeBindings.CaptureAliases(original.NativeGraphics.ActorModels)) } }));
         List<ushort> phases = [];
         List<object> receipts = [];
         int commands = 0;

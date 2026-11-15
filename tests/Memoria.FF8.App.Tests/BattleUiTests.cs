@@ -333,21 +333,21 @@ public sealed class BattleUiTests
         hud.SelectTarget("enemy-10", true);
 
         Assert.Equal(new[] { "enemy-10", "enemy-7", "enemy-10" }, submitted!.MagicTargets.ToArray());
-        Assert.Equal(submitted.MagicTargets.ToArray(), Assert.Single(battle.QueuedActions).ExpandedMagicTargets!.Value.ToArray());
+        Assert.Equal(submitted.MagicTargets.ToArray(), Assert.Single(battle.QueuedActions).MagicCasts.Select(cast => Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(cast.PreflightSelection).Actors).ActorId).ToArray());
     }
 
     [Fact]
     public void Attack_requires_target_confirmation_and_uses_host_command_callback()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        List<BattleAttackCommand> commands = [];
-        BattleHudController hud = new(session, (actor, target) => commands.Add(new(actor, target)), () => { }, () => { });
+        List<(string Actor, string Target)> commands = [];
+        BattleHudController hud = new(session, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         Assert.Empty(commands);
         hud.Navigate(MenuInput.Down);
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal(new BattleAttackCommand("party-0", "enemy-1"), Assert.Single(commands));
+        Assert.Equal(("party-0", "enemy-1"), Assert.Single(commands));
         Assert.False(hud.SelectingTarget);
         Assert.Empty(session.QueuedActions);
         Assert.Equal(BattleSession.AtbMaximum, session.Combatants[0].Atb);

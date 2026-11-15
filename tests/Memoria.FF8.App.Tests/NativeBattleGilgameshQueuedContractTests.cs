@@ -13,7 +13,7 @@ public sealed class NativeBattleGilgameshQueuedContractTests
     public void Contact_text_publication_oracle_preserves_native_suppression_and_its_explicit_override(ushort flags, int publications)
     {
         NativeBattleContactPacket contact = new(new(OriginalOwner(3), 4, unchecked((byte)flags), unchecked((byte)(flags >> 8)), 0, 7, 0), null);
-        NativeBattleEffectsState effects = OriginalEffects().PrependDamageText(3, flags, 7);
+        NativeBattleEffectsState effects = OriginalEffects().PrependDamageText(contact.Primary.Recipient, flags, 7, OriginalRoster);
         NativeBattleEffectTask[] text = effects.Slots.Where(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0).ToArray();
         Assert.Equal(publications, text.Length);
         NativeBattleGilgameshCaptureAssertions.AssertContactTextPublications(contact, publications);
@@ -21,7 +21,7 @@ public sealed class NativeBattleGilgameshQueuedContractTests
         Assert.Equal(flags, contact.Primary.ContactFlags);
         Assert.All(text, task =>
         {
-            Assert.Equal((byte)3, task.ModelIndex);
+            Assert.Equal(contact.Primary.Recipient, task.ModelOwner);
             Assert.Equal((flags & 0x1000) != 0 ? new byte[] { 69, 0 } : new byte[] { 63, 0 }, task.Glyphs);
             Assert.Equal(0x808080u, task.Color);
         });
@@ -36,15 +36,15 @@ public sealed class NativeBattleGilgameshQueuedContractTests
     {
         byte sequence = NativeBattleEffectFixtureExporter.SelectSequence([], 245, action);
         Assert.Equal((byte)0, sequence);
-        (NativeBattleActionPacketsState packets, BattleActionHeaderReference index) = OriginalPackets().Prepare(new(0, 245, sequence, -1, action, effect, null));
+        (NativeBattleActionPacketsState packets, BattleActionHeaderReference index) = OriginalPackets().Prepare(new(OriginalOwner(0), 245, sequence, -1, action, effect, null));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(index);
         NativeBattleContactPacket contact = new(new(OriginalOwner(3), 4, 1, 0, 0, 7, 0), null);
-        byte[] before = header.Payload.ToArray();
-        NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header, contact);
-        Assert.Equal(before, header.Payload);
-        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header with { Payload = header.Payload.SetItem(2, 9) }, contact));
-        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header, contact with { Primary = contact.Primary with { Flags2 = 0 } }));
-        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header with { Payload = header.Payload.SetItem(1, 2) }, contact));
-        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header with { Payload = header.Payload.SetItem(4, checked((byte)(action + 1))) }, contact));
+        byte[] before = packets.ExportRetained().Headers[index.Ordinal].Payload.ToArray();
+        NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header, contact, OriginalAliases);
+        Assert.Equal(before, packets.ExportRetained().Headers[index.Ordinal].Payload);
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header with { Sequence = 9 }, contact, OriginalAliases));
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header, contact with { Primary = contact.Primary with { Flags2 = 0 } }, OriginalAliases));
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header with { Command = 2 }, contact, OriginalAliases));
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertQueuedInvocation(effect, header with { Action = checked((ushort)(action + 1)) }, contact, OriginalAliases));
     }
 }

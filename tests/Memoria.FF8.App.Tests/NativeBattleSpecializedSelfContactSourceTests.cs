@@ -41,7 +41,7 @@ public sealed class NativeBattleSpecializedSelfContactSourceTests
             Assert.Equal(status.Presentation.Saved, contact.Primary.SavedStatuses4);
             Assert.Equal(status.Presentation.Battle, contact.Primary.BattleStatuses8);
             Assert.Null(contact.Secondary);
-            Assert.Equal((ushort)(1 << actorIndex), NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetMask);
+            Assert.True(NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetActors.IsSingle(packets.ModelAliases.DecodeLiteral(checked((byte)actorIndex))));
             if (effect == 64)
             {
                 Assert.NotEqual(status.Battle, status.Presentation.Battle);

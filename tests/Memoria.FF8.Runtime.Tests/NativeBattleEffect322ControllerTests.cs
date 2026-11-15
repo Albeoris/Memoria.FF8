@@ -176,7 +176,7 @@ public sealed class NativeBattleEffect322ControllerTests
                 pools = pools.Add(NativeBattleEffectTaskPool.Initialize(shape.Descriptor, Arena + shape.Bank, shape.Stride, shape.Capacity));
             }
         }
-        NativeBattleEffect322State state = NativeBattleEffect322State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(4));
+        NativeBattleEffect322State state = NativeBattleEffect322State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(4), OriginalAliases);
         NativeBattleOriginalEffectState effect = new(322, 321, new(322, Entry, Initializer), new(OriginalOwner(4), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

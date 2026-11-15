@@ -52,6 +52,6 @@ public sealed class EncounterCallbackRetirementTests
     private static NativeBattleCommandBanks Queue(NativeBattleCommandBanks banks, byte actor, string id, ushort stage)
     {
         (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(0, actor, stage);
-        return banks.BindCommand(location, 0, new(id, id, BattleAbility.EnemyAbility, 0) { NativeCallback = new(actor, stage) });
+        return banks.BindCommand(location, 0, new(id, id, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 0) { NativeCallback = new(actor, stage) });
     }
 }

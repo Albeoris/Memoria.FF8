@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect301Controller;
@@ -174,6 +175,6 @@ public sealed class NativeBattleEffect301LowerTests
         {
             Operations.Add(operation);
             return frame;
-        });
+        }, OriginalAliases);
     }
 }

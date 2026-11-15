@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -160,7 +161,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
         if (oldAge == 219)
         {
             contacts++;
-            Assert.Contains(graphics.Effects.Slots, task => task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == 0 && task.Glyphs.AsSpan().SequenceEqual(new byte[] { 63, 0 }));
+            Assert.Contains(graphics.Effects.Slots, task => task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && task.Glyphs.AsSpan().SequenceEqual(new byte[] { 63, 0 }));
             Mark("effect251-contact219-controlled-seven", current, cold);
         }
         NativeBattleLogicalCommand[] commands = CurrentCommands(current);

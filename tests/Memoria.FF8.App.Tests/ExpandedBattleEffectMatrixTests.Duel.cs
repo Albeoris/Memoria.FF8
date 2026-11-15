@@ -51,7 +51,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions, action => action.ActorId == caster.Id);
         Assert.Equal(invocation, queued.ActionId);
         Assert.Equal(target.Id, queued.TargetId);
-        Assert.Equal(0, queued.NativeTargetMask);
+        Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
 
         Until(() => battle.GetNativeDuel(caster.Id)?.Phase == BattleNativeDuelPhase.Ready);
         BattleEvent actualOpening = Assert.Single(battle.Events.Skip(first), entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id);
@@ -73,7 +73,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 BattleAttackCommand move = Assert.Single(battle.QueuedActions, action => action.ActorId == caster.Id);
                 Assert.Equal(choice.ActionId, move.NativeAction!.ActionId);
                 Assert.Equal(target.Id, move.TargetId);
-                Assert.Equal(0, move.NativeTargetMask);
+                Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(move.TargetRequest.Selection);
                 Until(() => battle.GetNativeDuel(caster.Id)?.Phase is BattleNativeDuelPhase.Ready or null);
             }
             expected = (selected.TargetFlags!.Value & 0x10) == 0 ? battle.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.Id).Order().ToArray() : [target.Id];

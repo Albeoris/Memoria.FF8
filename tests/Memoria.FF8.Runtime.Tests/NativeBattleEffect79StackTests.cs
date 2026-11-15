@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -19,8 +20,8 @@ public sealed class NativeBattleEffect79StackTests
         logical = NativeBattleTestSnapshots.RestoreJson<NativeBattleResourcePointer>(NativeBattleTestSnapshots.Json(logical));
         NativeBattleResourcePointer guest = logical with { Cpu = logical.Cpu! with { ResourceOnly = false } };
         var fixture = Fixture();
-        NativeBattleStackBytes expected = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), guest, 2), fixture.Pool, fixture.Address, fixture.Task, false);
-        NativeBattleStackBytes actual = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), logical, 2), fixture.Pool, fixture.Address, fixture.Task, false);
+        NativeBattleStackBytes expected = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), guest, 2), fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases);
+        NativeBattleStackBytes actual = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), logical, 2), fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases);
         Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal(NativeBattleEffect79Stack.ReadRotation(expected), NativeBattleEffect79Stack.ReadRotation(actual));
         Assert.Null(logical.Cpu!.TryPhysicalAddress());
@@ -36,7 +37,7 @@ public sealed class NativeBattleEffect79StackTests
     {
         var fixture = Fixture();
         NativeBattleStackBytes stack = NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(100), new(new(3, 0), null, 112), 2);
-        stack = NativeBattleEffect79Stack.ObserveBody(stack, fixture.Pool, fixture.Address, fixture.Task, false);
+        stack = NativeBattleEffect79Stack.ObserveBody(stack, fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases);
         Assert.Equal(0x1939068u, stack.ReadUInt32(-0x50));
         Assert.Equal(0x7BD921u, stack.ReadUInt32(-0x4C));
         Assert.Equal(2u, stack.ReadUInt32(-0x48));
@@ -52,7 +53,7 @@ public sealed class NativeBattleEffect79StackTests
     public void Body_draw_overwrites_all_twenty_bytes_with_current_saved_pointer_registers()
     {
         var fixture = Fixture();
-        NativeBattleStackBytes stack = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(100), fixture.Pool, fixture.Address, fixture.Task, true);
+        NativeBattleStackBytes stack = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(100), fixture.Pool, fixture.Address, fixture.Task, true, OriginalAliases);
         Assert.Equal(new uint[] { 0x1D97590, fixture.Address, 0x1D97530, 0x25E5100, 0 }, Enumerable.Range(0, 5).Select(index => stack.ReadUInt32(-0x50 + 4 * index)));
         Assert.Equal(20, stack.Known.Count(known => known));
         Assert.Equal(9, NativeBattleEffect79Stack.ReadRotation(stack).Length);
@@ -63,30 +64,30 @@ public sealed class NativeBattleEffect79StackTests
     public void Unobserved_bounds_unknown_pointer_and_actual_intervening_queue_writer_are_not_zero_filled()
     {
         var fixture = Fixture();
-        NativeBattleStackBytes unknown = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(1), fixture.Pool, fixture.Address, fixture.Task, false);
+        NativeBattleStackBytes unknown = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(1), fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(unknown));
         NativeBattleStackBytes bounds = NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), new(null, 0x2000000, 160), 3);
         Assert.Equal(0x2000080u, bounds.ReadUInt32(-0x50));
         NativeBattleStackBytes queued = NativeBattleEffect79Stack.Invalidate(bounds, 0x48D0A0, "Actual file queue call");
-        queued = NativeBattleEffect79Stack.ObserveBody(queued, fixture.Pool, fixture.Address, fixture.Task, false);
+        queued = NativeBattleEffect79Stack.ObserveBody(queued, fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(queued));
-        Assert.Equal(9, NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(queued, fixture.Pool, fixture.Address, fixture.Task, true)).Length);
+        Assert.Equal(9, NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(queued, fixture.Pool, fixture.Address, fixture.Task, true, OriginalAliases)).Length);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ObserveTargetBounds(bounds, new(null, null, 112) { CpuRow = 0 }, 2));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffect79Stack.ObserveTargetBounds(bounds, new(new(3, 0), null, 80), 2));
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(bounds, new(new(3, 0), null, 64), 1), fixture.Pool, fixture.Address, fixture.Task, false)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(bounds, new(new(3, 0), null, 64), 1), fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases)));
     }
 
     [Fact]
     public void A_different_frame_or_unproved_body_order_starts_unknown()
     {
         var fixture = Fixture();
-        NativeBattleStackBytes known = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(1), fixture.Pool, fixture.Address, fixture.Task, true);
+        NativeBattleStackBytes known = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(1), fixture.Pool, fixture.Address, fixture.Task, true, OriginalAliases);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.Begin(2)));
         NativeBattleEffectTaskPool changed = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Pool));
         changed.UpdateLinks(null, changed.Tail);
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(known, changed, fixture.Address, fixture.Task, true)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(known, changed, fixture.Address, fixture.Task, true, OriginalAliases)));
         NativeBattleModulePoolTask otherPhase = fixture.Task.WriteByte(0x29, 9);
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(known, fixture.Pool, fixture.Address, otherPhase, false)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(known, fixture.Pool, fixture.Address, otherPhase, false, OriginalAliases)));
     }
 
     [Fact]
@@ -116,7 +117,7 @@ public sealed class NativeBattleEffect79StackTests
         var fixture = Fixture();
         NativeBattleStackBytes stack = NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(99), new(new(3, 0), null, 112), 2);
         stack = NativeBattleEffect79Stack.ObserveNode(stack, 0x7B9250, 0x7B9255);
-        stack = NativeBattleEffect79Stack.ObserveBody(stack, fixture.Pool, fixture.Address, fixture.Task, false);
+        stack = NativeBattleEffect79Stack.ObserveBody(stack, fixture.Pool, fixture.Address, fixture.Task, false, OriginalAliases);
         Assert.Equal(0x7B9255u, stack.ReadUInt32(-0x50));
         Assert.Equal(new uint[] { 0x460865, 0x7B9250, 0x7BD900, 0x7BD907, 0x7BD90B, 0x7BD91C }, stack.Observations.Select(item => item.Instruction));
         Assert.All(stack.Observations, observation => Assert.Equal(4, observation.Length));
@@ -158,7 +159,9 @@ public sealed class NativeBattleEffect79StackTests
     private static (NativeBattleEffectTaskPool Pool, uint Address, NativeBattleModulePoolTask Task) Fixture()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x25E5100, 0x25E5110, 180, 2);
-        NativeBattleModulePoolTask task = pool.Slots[0].UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, pool.Slots[0].Next, 0x7BCF10).WriteByte(0x29, 1).WriteByte(0x2C, 4).WriteWord(0x24, 1);
+        NativeBattleModulePoolTask task = pool.Slots[0].UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, pool.Slots[0].Next, 0x7BCF10).WriteByte(0x29, 1);
+        task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(OriginalOwner(4)), OriginalAliases.EncodeOperand(OriginalOwner(4), 1));
+        task = task.WriteWord(0x24, 1);
         pool.WriteSlot(0, task);
         pool.UpdateLinks(0, 0);
         return (pool, pool.BankAddress, task);

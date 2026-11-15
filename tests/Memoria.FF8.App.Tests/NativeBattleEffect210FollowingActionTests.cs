@@ -143,7 +143,7 @@ public sealed class NativeBattleEffect210FollowingActionTests
             HeaderIndex = header.Ordinal,
             InitialActionCount = source.NativeActionPackets!.ActionCount,
             InitialContactCount = source.NativeActionPackets.ContactCount,
-            Packets = new { result.NativeActionPackets!.ActionCount, result.NativeActionPackets.ContactCount, result.NativeActionPackets.ActiveHeaderIndex, PreparedHeader = result.NativeActionPackets.ReadHeader(header) },
+            Packets = new { result.NativeActionPackets!.ActionCount, result.NativeActionPackets.ContactCount, result.NativeActionPackets.ActiveHeader, PreparedHeader = result.NativeActionPackets.ReadHeader(header) },
             lastGraphics.ActionGraphics,
             DescriptorQueue = lastGraphics.Descriptors.Queue,
             Effect = lastEffect is null ? null : new

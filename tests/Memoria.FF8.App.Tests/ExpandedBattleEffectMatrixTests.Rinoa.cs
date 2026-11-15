@@ -47,7 +47,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
             Assert.Equal(action.ActionId, queued.NativeAction!.ActionId);
             Assert.Contains(queued.TargetId, eligible);
-            Assert.Equal(0, queued.NativeTargetMask);
+            Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
 
             for (int frame = 0; frame < 300 && caster.IsBusy; frame++)
             {

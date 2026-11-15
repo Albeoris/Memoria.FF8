@@ -165,7 +165,7 @@ public sealed class DiagnosticTargetPreparationTests
                 AuxiliaryHead = graphics.Auxiliary.Head,
                 ModuleHead = graphics.ModuleEffects.Head,
                 OriginalEffect = graphics.OriginalEffect is { } effect ? new { effect.RequestedEffect, effect.SelectedIndex, effect.Binding.Effect } : null,
-                Models = ReadOriginalModelCells(graphics).Select(model => new { model.Index, Actor = ReadOriginalModelActorId(graphics, model.Index), model.ModelId4, model.Flags0, model.Phase6, model.Sequence, model.SequenceFrame, SequenceState = model.SequenceState is { } sequence ? new { sequence.Offset46, sequence.Wait1, sequence.Pending3, sequence.Callback42, sequence.Pose, sequence.PoseFrame114, sequence.PoseLimit115 } : null }).ToArray()
+                Models = ReadOriginalModelCells(graphics).Select((model, slot) => new { Index = slot, Actor = ReadOriginalModelActorId(graphics, slot), model.ModelId4, model.Flags0, model.Phase6, model.Sequence, model.SequenceFrame, SequenceState = model.SequenceState is { } sequence ? new { sequence.Offset46, sequence.Wait1, sequence.Pending3, sequence.Callback42, sequence.Pose, sequence.PoseFrame114, sequence.PoseLimit115 } : null }).ToArray()
             }
         };
         string summary = JsonSerializer.Serialize(observation, new JsonSerializerOptions { WriteIndented = true });

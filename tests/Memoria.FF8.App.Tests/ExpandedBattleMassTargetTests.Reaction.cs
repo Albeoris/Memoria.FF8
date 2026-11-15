@@ -48,7 +48,7 @@ public sealed partial class ExpandedBattleMassTargetTests
         Assert.NotNull(reaction);
         Assert.Equal(enemy.Id, reaction.ActorId);
         Assert.Equal(attacker.Id, reaction.TargetId);
-        Assert.Equal(new[] { attacker.Id }, Assert.IsType<BattleAiRecipients>(reaction.AiRecipients).ActorIds);
+        Assert.Equal(new[] { attacker.Id }, Assert.IsType<BattleTargetSelection.Explicit>(reaction.TargetRequest.Selection).Actors.Select(actor => actor.ActorId));
         Assert.Equal(ability.Command, reaction.NativeQueuedCommand);
         Assert.Equal(ability.Id, reaction.ActionId);
         Assert.Equal(ability.Sequence, reaction.NativeSequence);

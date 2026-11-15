@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Reflection;
@@ -58,7 +59,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
         Assert.NotNull(originalModel.GeometryWorldMatrix);
         if (disabled)
         {
-            warmGraphics = warmGraphics with { Models = warmGraphics.Models.SetItem(caster, originalModel with { Flags0 = (ushort)(originalModel.Flags0 & ~2) }) };
+            warmGraphics = warmGraphics with { ActorModels = warmGraphics.ActorModels.Set(RequireOriginalModelOwner(warmGraphics, caster), originalModel with { Flags0 = (ushort)(originalModel.Flags0 & ~2) }) };
             warm = warm with { NativeGraphics = warmGraphics };
         }
 

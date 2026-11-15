@@ -132,7 +132,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     hits++;
                 }
 
-                if (reaction is null && battle.ActiveAction is { Ability: BattleAbility.EnemyAbility, AiRecipients: not null } active && active.ActorId == enemy.Id)
+                if (reaction is null && battle.ActiveAction is { Ability: BattleAbility.EnemyAbility, TargetRequest.Selection: not BattleTargetSelection.None } active && active.ActorId == enemy.Id)
                 {
                     EnemyScenarioScriptedAction[] matched = scripts.Where(script => MatchesEnemyDispatch(active, script, effect)).ToArray();
                     if (matched.Length > 0)
@@ -147,7 +147,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                         if (matched.All(script => script.TargetSelector == 203))
                         {
                             Assert.Equal(attacker.Id, active.TargetId);
-                            Assert.Equal(new[] { attacker.Id }, active.AiRecipients.ActorIds);
+                            Assert.Equal(new[] { attacker.Id }, Assert.IsType<BattleTargetSelection.Explicit>(active.TargetRequest.Selection).Actors.Select(actor => actor.ActorId));
                         }
                         reaction = active;
                         reactionEventStart = previousEvents;

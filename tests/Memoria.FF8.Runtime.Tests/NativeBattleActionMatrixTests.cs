@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -14,7 +15,7 @@ public sealed class NativeBattleActionMatrixTests
         NativeBattleGraphicsModel recipient = new(3) { Transform = new(new(6000, 0, 0), new(6000, 0, 0), 0, 0, 4096) };
         BattleActorModels models = new([new(source, actor), new(target, recipient)]);
         BattleModelTargets targets = BattleModelTargets.From([target]);
-        NativeBattleGraphicsState stale = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0) { ActionContext = new(source, targets, false) { TargetActors = targets, Target = target } };
+        NativeBattleGraphicsState stale = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { ActionContext = new(source, targets, false) { TargetActors = targets, Target = target } };
         NativeBattleGraphicsState published = stale with { ActorModels = stale.ActorModels.Set(source, actor with { Transform = actor.Transform! with { Position28 = new(1000, 0, 0) } }) };
         List<BattleModelOwner> reads = [];
         NativeBattleGraphicsState actual = NativeBattleActionGeometryRules.PrepareMatrices50D300(published, (bank, owner, bone, fraction) =>

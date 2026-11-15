@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -22,7 +21,7 @@ public sealed class NativeBattleGuardianHeaderContactTests
         expectedRandom = expectedRandom.Draw(out byte second);
         int firstDamage = NativeBattleDamage.GuardianForce(5, 44, 12, 60, 0, 20, first, percent);
         int secondDamage = NativeBattleDamage.GuardianForce(35, 44, 12, 60, 0, 20, second, percent);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        BattleSession restored = BattleSession.Restore(before);
 
         Recompute(battle, percent);
         Recompute(restored, percent);
@@ -32,8 +31,8 @@ public sealed class NativeBattleGuardianHeaderContactTests
         Assert.Equal(JsonSerializer.Serialize(expectedRandom), JsonSerializer.Serialize(after.Random));
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal((byte)2, battle.NativeActionPackets.ContactCount);
-        Assert.Equal((byte)4, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient);
-        Assert.Equal((byte)3, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Recipient);
+        Assert.Equal(new BattleEnemyActorModel(new("target-first")), battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient);
+        Assert.Equal(new BattleEnemyActorModel(new("target-second")), battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Recipient);
         Assert.Equal((ushort)firstDamage, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.Equal((ushort)secondDamage, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Amount6);
         Assert.Equal(10000 - firstDamage, battle.Combatants.Single(item => item.Id == "target-first").CurrentHp);
@@ -52,45 +51,27 @@ public sealed class NativeBattleGuardianHeaderContactTests
     }
 
     [Theory]
-    [InlineData(1, 2)]
-    [InlineData(4, 63)]
-    [InlineData(4, 80)]
-    [InlineData(0, 7)]
-    public void InvalidHeaderCommandActionOrActorIsNotReplacedByPresentationState(int offset, byte value)
+    [InlineData(2, 64)]
+    [InlineData(254, 63)]
+    [InlineData(254, 80)]
+    public void InvalidHeaderCommandOrActionIsRejectedWithoutAnActiveAction(byte command, ushort action)
     {
-        BattleSession battle = Create(0, 14);
-        BattleSnapshot saved = battle.Capture();
-        NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
-        header = header with { Payload = header.Payload.SetItem(offset, value) };
-        battle = BattleSession.Restore(saved with { NativeActionPackets = packets with { Headers = packets.Headers.SetItem(0, header) } });
-        if (offset == 0)
-        {
-            Assert.Throws<NotSupportedException>(() => Recompute(battle, 100));
-        }
-        else
-        {
-            Assert.Throws<InvalidDataException>(() => Recompute(battle, 100));
-        }
+        BattleSession battle = Create(0, 14, command, action);
+        Assert.Throws<InvalidDataException>(() => Recompute(battle, 100));
         Assert.Null(battle.ActiveAction);
     }
 
     [Fact]
-    public void MissingCatalogAndUnknownRequiredActionOrSequenceBytesRemainStrict()
+    public void MissingCatalogAndUnpublishedHeaderRemainStrict()
     {
         BattleSession battle = Create(0, 14);
         BattleSnapshot saved = battle.Capture();
-        NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
         BattleSession missing = BattleSession.Restore(saved with { Definition = saved.Definition with { NativeActions = [] } });
         Assert.Throws<NotSupportedException>(() => Recompute(missing, 100));
-        foreach (int offset in new[] { 2, 4, 5 })
-        {
-            NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
-            header = header with { UnknownByteMask = header.UnknownByteMask | 1u << offset };
-            //A direct reached-header fault exercises ReadByte without weakening the snapshot's prepared-slot validation.
-            typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, packets with { Headers = packets.Headers.SetItem(0, header) });
-            Assert.Throws<NotSupportedException>(() => Recompute(battle, 100));
-        }
+        NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
+        NativeBattleActionPacketsState unprepared = NativeBattleActionPacketsState.Create(packets.Roster, packets.ExportRetained(), packets.ModelAliases);
+        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, unprepared);
+        Assert.Throws<InvalidDataException>(() => Recompute(battle, 100));
     }
 
     [Fact]
@@ -104,16 +85,16 @@ public sealed class NativeBattleGuardianHeaderContactTests
         Assert.Contains("48EB40 remaining-hit", exception.Message);
     }
 
-    private static BattleSession Create(byte actor, byte sequence)
+    private static BattleSession Create(byte actor, byte sequence, byte headerCommand = 254, ushort headerAction = 64)
     {
         BattleNativeAction native = new(254, 64, 2, 0) { MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 72, AttackFlags = 33, DamagePresentation = 5, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = 0, LevelModifier = 60, RawRecord = ImmutableArray.CreateRange(new byte[132]), SupplementalRecord = [] };
         BattleActionDefinition action = new(BattleAbility.GuardianForce, 0, "Synthetic kernel-layout GF", BattleActionEffect.Native, 44, false, Level: 12, DamagePercent: 20) { NativeAction = native, NativeGuardianBoostAvailable = false };
         BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party-0", Name = "First party actor", IsPlayer = true }, new() { Id = "party-1", Name = "Second party actor", IsPlayer = true }, new() { Id = "target-second", Name = "Second contact", MaximumHp = 10000, CurrentHp = 10000, Spirit = 35 }, new() { Id = "target-first", Name = "First contact", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
         BattleSnapshot saved = battle.Capture();
         NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
-        (packets, _) = packets.Prepare(new(actor, 254, sequence, -1, 64, 116, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(4), 5, 1, 0, 0, 0, 0), null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 5, 1, 0, 0, 0, 0), null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(actor), headerCommand, sequence, -1, headerAction, 116, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(4), 5, 1, 0, 0, 0, 0), null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(2);
         return BattleSession.Restore(saved with { NativeActionPackets = packets });
     }

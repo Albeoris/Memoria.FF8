@@ -26,7 +26,7 @@ public sealed class NativeBattleEffect331PresentationTests
         Assert.Equal(resource.PoseSource!.BoneCount, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(source.NativeGraphics!, 3), resource.PoseSource).Length);
         Assert.NotNull(ReadOriginalModelCell(source.NativeGraphics!, 3).GeometryWorldMatrix);
         Assert.NotNull(ReadOriginalModelCell(source.NativeGraphics!, 3).ActiveResourceRow100);
-        Assert.NotNull(source.NativeGraphics.UiServices);
+        Assert.NotNull(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).UiServices);
         Assert.Null(source.NativeGraphics.OriginalEffect);
         int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
         uint argument = source.NativeGraphics.Descriptors.Packets[descriptor].Argument;

@@ -33,7 +33,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         MethodInfo apply = typeof(BattleSession).GetMethod("ApplyNativeDescriptorStatus502380", BindingFlags.NonPublic | BindingFlags.Instance)!;
         MethodInfo address = typeof(BattleSession).GetMethod("NativeParticipantAddress", BindingFlags.NonPublic | BindingFlags.Static)!;
         int migratedCount = 0;
-        for (int index = 0; index < graphics.ActorIds.Length; index++)
+        for (int index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
             string? actorId = ReadOriginalModelActorId(graphics, index);
             BattleCombatantSnapshot? actor = original.Combatants.SingleOrDefault(actor => actor.Id == actorId);
@@ -151,7 +151,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         BattleSnapshot original = GameSession.Load(source!).Battle!;
         NativeBattleGraphicsState graphics = original.NativeGraphics!;
         uint sleepFlag = original.Definition.NativeGraphics!.Rules.Project(0, 1);
-        string[] targets = graphics.ActorIds.Where((id, index) => id is not null && (ReadOriginalModelCell(graphics, index).Flags8.GetValueOrDefault() & sleepFlag) != 0).Select(id => id!).ToArray();
+        string[] targets = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Where(index => ReadOriginalModelActorId(graphics, index) is not null && (ReadOriginalModelCell(graphics, index).Flags8.GetValueOrDefault() & sleepFlag) != 0).Select(index => ReadOriginalModelActorId(graphics, index)!).ToArray();
         Assert.NotEmpty(targets);
         NativeBattlePartyStatusMirrors mirrors = original.NativePartyStatusMirrors!;
         BattleCombatantSnapshot[] actors = original.Combatants.Select(actor =>
@@ -210,7 +210,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
     private static void AssertNoStaleSleep(BattleSnapshot snapshot, uint sleepFlag)
     {
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
-        for (int index = 0; index < graphics.ActorIds.Length; index++)
+        for (int index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
             BattleCombatantSnapshot? actor = snapshot.Combatants.SingleOrDefault(actor => actor.Id == ReadOriginalModelActorId(graphics, index));
             if (actor?.NativeStatus is { } status && (status.Battle & 1) == 0)

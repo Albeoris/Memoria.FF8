@@ -59,7 +59,7 @@ public sealed class NativeBattleEffect251ControllerTests
         Assert.Equal(2, done.Result);
         Assert.Equal((ushort)220, Read(done.Frame, MainAddress).ReadWord(12));
         NativeBattleEffect251WriteModelBytes restore = Assert.Single(operations.OfType<NativeBattleEffect251WriteModelBytes>());
-        Assert.Equal(ModelAddress(3), restore.ModelAddress);
+        Assert.Equal(OriginalOwner(3), restore.Model);
         Assert.Equal(0x1C, restore.Offset);
         Assert.Equal(8, restore.Length);
         Assert.Equal(origin, restore.Data.Read(0, 8));
@@ -109,7 +109,7 @@ public sealed class NativeBattleEffect251ControllerTests
 
     private static NativeBattleEffect251Frame Create(short phase)
     {
-        NativeBattleEffect251State state = NativeBattleEffect251State.FromColdProcess().WriteDword(ArenaGlobal, CommonAddress).WriteDword(CasterGlobal, ModelAddress(3)).WriteDword(TargetGlobal, ModelAddress(4));
+        NativeBattleEffect251State state = NativeBattleEffect251State.FromColdProcess().WriteDword(ArenaGlobal, CommonAddress).WriteModel(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteModel(TargetGlobal, OriginalOwner(4), OriginalAliases);
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainAddress, 0x5EC, 1);
         (main, _) = main.Append(MainCallback);
         main = main.WriteSlot(0, main.Slots[0].WriteWord(12, unchecked((ushort)phase)));
@@ -121,7 +121,7 @@ public sealed class NativeBattleEffect251ControllerTests
 
     private static NativeBattleEffect251Inputs Inputs(List<NativeBattleEffect251Operation> operations, bool busy, int viewY = 0)
     {
-        return new(NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _, _) => NativeBattleEffectArena.Clear(), (_, _) => NativeBattleEffectArena.Clear(), (frame, _, _, _, _) => new(frame, NativeBattleEffectArena.Clear()), (frame, _, retained) => new(frame, retained), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)) with { Y = viewY }, null), _ => new(null, 512, 160, 108), _ => 0, frame => new(frame, busy), (frame, operation) =>
+        return new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => OriginalPackets(), (_, _) => NativeBattleEffectArena.Clear(), (frame, _, _, _, _) => new(frame, NativeBattleEffectArena.Clear()), (frame, _, retained) => new(frame, retained), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Euler701310(new(0, 0, 0)) with { Y = viewY }, null), _ => new(null, 512, 160, 108), _ => 0, frame => new(frame, busy), (frame, operation) =>
         {
             operations.Add(operation);
             return frame;

@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -74,11 +76,11 @@ public sealed class JunctionBattleInstalledTests
             bool approach = false;
             bool contact = false;
             bool completed = false;
-            int modelIndex = battle.NativeGraphics.ActorIds.IndexOf(actor);
+            int modelIndex = FindOriginalModelSlot(battle.NativeGraphics, actor);
             for (int callback = 0; callback < 4096; callback++)
             {
                 battle.Tick();
-                NativeBattleSequenceState sequence = battle.NativeGraphics!.Models[modelIndex].SequenceState!;
+                NativeBattleSequenceState sequence = ReadOriginalModelCell(battle.NativeGraphics!, modelIndex).SequenceState!;
                 if (!approach && (sequence.Header36 != 0 || sequence.Header38 != 0 || sequence.Header40 != 0))
                 {
                     approach = true;

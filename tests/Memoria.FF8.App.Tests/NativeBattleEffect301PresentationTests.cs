@@ -212,7 +212,7 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.Equal((byte)16, header.Sequence);
         Assert.Equal((ushort)265, header.Action);
         Assert.Equal((byte)1, header.ReadContactCount());
-        Assert.Equal((ushort)(1 << casterIndex), NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetMask);
+        Assert.True(NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetActors.IsSingle(packets.ModelAliases.DecodeLiteral(checked((byte)casterIndex))));
         Assert.True(source.NativeEffectMemory!.Effect301!.ScriptSourcePending);
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Effect301), JsonSerializer.Serialize(source.NativeEffectMemory.Effect301));
         File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Original94 pending INIT produces command8/action265/sequence16 SELF graphics after authentic scene3 allocation/102/113; no manually queued duplicate invocation", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, HeaderIndex = headerIndex, Header = header, ContactCount = header.ReadContactCount(), InitPacket = init, AllocationCallback = graphics.Callback, SourceCallback = source.NativeGraphics!.Callback, SourceBoundary = "native-init-before-entry" }));

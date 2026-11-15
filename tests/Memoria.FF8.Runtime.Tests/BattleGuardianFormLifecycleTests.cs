@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
@@ -31,7 +30,13 @@ public sealed class BattleGuardianFormLifecycleTests
         {
             Actor(battle).Atb = BattleSession.AtbMaximum;
             battle.QueueGuardianFormAction("actor", "enemy-6", action);
-            Assert.Equal(0, Assert.Single(battle.QueuedActions).NativeTargetMask);
+            BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+            Assert.Equal("enemy-6", queued.TargetId);
+            if (action == BattleGuardianFormAction.Attack)
+            {
+                BattleTargetSelection.Explicit selected = Assert.IsType<BattleTargetSelection.Explicit>(queued.TargetRequest.Selection);
+                Assert.Equal(new BattleEnemyActorReference("enemy-6"), Assert.Single(selected.Actors));
+            }
             battle = RoundTrip(battle.Capture());
             int before = battle.Events.Count;
             for (int frame = 0; frame < 32 && Actor(battle).IsBusy; frame++)
@@ -367,17 +372,16 @@ public sealed class BattleGuardianFormLifecycleTests
         // The active form owns GF vitals rather than the human maximum-HP projection.
         snapshot.Combatants[0] = snapshot.Combatants[0] with { NativeParticipant = snapshot.Combatants[0].NativeParticipant! with { MaximumHitPoints = null } };
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
-        (packets, _) = packets.Prepare(new(OriginalOwner(0), 1, 12, -1, 0, 0, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 4, 0, 0, 0), null));
+        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 1, 12, -1, 0, 0, null));
+        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 4, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         BattleNativeAction counter = definition.GuardianFormResources[0].PhysicalAction with { Command = 1, DispatchCommand = 1, ActionId = 0, Name = "Attack" };
         // A factual Counter has already resolved its contact and now owns only its remaining recovery presentation.
-        BattleActionPresentation admitted = new("actor", "enemy", BattleActionPhase.Recovery, 2, BattleAbility.Attack, 0)
+        BattleActionPresentation admitted = new("actor", "enemy", BattleActionPhase.Recovery, 2, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0)
         {
             NativeHeader = new BattleActionHeaderReference(0),
             NativeQueuedCommand = 1,
             NativeSequence = 12,
-            NativeTargetMask = 8,
             NativeAction = counter,
             NativePlayerReaction = BattleNativePlayerReaction.Counter
         };
@@ -530,7 +534,7 @@ public sealed class BattleGuardianFormLifecycleTests
 
     private static BattleSession RoundTrip(BattleSnapshot snapshot)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        return BattleSession.Restore(snapshot);
     }
 
     private static void AssertCasterStatistics(BattleCombatant actor)

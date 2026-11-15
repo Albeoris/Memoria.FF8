@@ -24,10 +24,10 @@ public sealed class GameplayCombatTuningTests
     [InlineData(1)]
     [InlineData(9999)]
     [InlineData(100000)]
-    public void PositiveDamageUsesConfiguredCapAfterJsonRestoreAndHealingIsIndependent(int cap)
+    public void PositiveDamageUsesConfiguredCapAfterPrivateRestoreAndHealingIsIndependent(int cap)
     {
         BattleSession battle = Create(cap);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         BattleCombatant target = restored.Combatants[1];
         typeof(BattleSession).GetMethod("ApplyDamage", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(restored, [restored.Combatants[0], target, 120000, "Tuned attack", true, true, false, EncounterHpCause.Damage]);
         Assert.Equal(200000 - cap, target.CurrentHp);
@@ -47,29 +47,32 @@ public sealed class GameplayCombatTuningTests
         BattleCombatant actor = battle.Combatants[0];
         BattleCombatant target = battle.Combatants[1];
         BattleNativeAction native = new(0, 1, -1, -1) { Name = "Fixed damage", MagicId = 0, AttackType = 28, Power = 0, HitCount = 1, AttackFlags = flags, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
-        BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 0 };
+        BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([target.IsPlayer ? new BattlePartyActorReference(target.Id) : new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 0 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Fixed damage", BattleActionEffect.Native, 0, false) { NativeAction = native };
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, command, action, native, (byte)255, false, null])!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, command, action, native, null, false])!;
         Assert.Equal(200000 - expected, target.CurrentHp);
         Assert.Equal(expected, packet.Primary.PresentedAmount);
-        Assert.Equal(unchecked((ushort)expected), NativeBattleContactPacket.Decode(packet.Encode()).Primary.Amount6);
-        NativeBattleActionPacketsState bank = OriginalPackets().AppendContact(packet).State;
-        bank = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(bank))!;
-        NativeBattleContactHalf restored = bank.ReadContact(new BattleContactOccurrence(0)).Primary;
+        (NativeBattleActionPacketsState bank, BattleContactOccurrence occurrence) = battle.NativeActionPackets.AppendContact(packet);
+        NativeBattleRawContactPacket raw = Assert.IsType<NativeBattleRawContactPacket>(bank.ExportRetained().Contacts[0]);
+        Assert.Equal(unchecked((ushort)expected), NativeBattleContactPacketCodec.Decode(NativeBattleContactPacketCodec.Encode(raw)).Primary.Amount6);
+        NativeBattleContactPacket stored = bank.ReadContact(occurrence);
+        Assert.Equal(occurrence, stored.Occurrence);
+        NativeBattleContactHalf restored = stored.Primary;
+        Assert.Equal(new BattleEnemyActorModel(new(target.Id)), restored.Recipient);
         Assert.Equal(expected, restored.PresentedAmount);
-        NativeBattleEffectsState effects = NativeBattleEffectsState.Clear().PrependDamageText(restored.Recipient, restored.ContactFlags, restored.PresentedAmount);
-        effects = JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(effects))!;
-        effects = effects.Advance(NativeBattleGraphicsModels.ClearBank(), _ => new(160, 100)).State;
+        NativeBattleEffectsState effects = OriginalEffects().PrependDamageText(restored.Recipient, restored.ContactFlags, restored.PresentedAmount, bank.Roster);
+        BattleActorModels models = new([new(restored.Recipient, new NativeBattleGraphicsModel(0))]);
+        effects = effects.Advance(models, _ => new(160, 100)).State;
         Assert.Equal(expected.ToString().Select(digit => (byte)(56 + digit - '0')).Append((byte)0), Assert.Single(effects.TextDraws).Glyphs);
         if (expected > short.MaxValue)
         {
             NativeBattlePartyPresentedVital hp = new(9999, 9999, null, null);
             Assert.Equal((ushort)0, hp.Apply(restored).HitPoints);
             NativeBattlePartyPresentedVital gf = new(9999, 9999, 9999, 9999);
-            NativeBattlePartyPresentedVital gfHit = gf.Apply(restored with { HitFlags3 = 0x20 });
+            NativeBattlePartyPresentedVital gfHit = gf.Apply(restored with { HitFlags = 0x20 });
             Assert.Equal((ushort)9999, gfHit.HitPoints);
             Assert.Equal((ushort)0, gfHit.GuardianForceHitPoints);
-            Assert.Equal((ushort)0, gf.Apply(restored with { HitFlags3 = 0x20, SavedStatuses4 = 1 }).HitPoints);
+            Assert.Equal((ushort)0, gf.Apply(restored with { HitFlags = 0x20, SavedStatuses4 = 1 }).HitPoints);
         }
     }
 

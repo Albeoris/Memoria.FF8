@@ -32,7 +32,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeBattleGraphicsModel source = ReadSource(resource);
         BattleNativeAction action = Assert.Single(battle.NativeActions, action => action.Command == 254 && action.ActionId == ability);
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 0, slot => slot switch { 0 => OriginalOwner(0), 4 => OriginalOwner(3), _ => throw new ArgumentOutOfRangeException(nameof(slot)) });
         CrossoverNativeMagicPresentationState state = presentation.Begin(source, 4, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, new(0), arena);
         Assert.True(state.Cast.GuardianInvocation);
         Assert.Equal((byte)14, state.Cast.Model.Sequence);
@@ -85,7 +85,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         bool returned = false;
         for (int callback = 0; callback < 256 && !returned; callback++)
         {
-            var step = CrossoverNativeCastPresentation.AdvanceModel(state, resource, new(0, 0));
+            var step = CrossoverNativeCastPresentation.AdvanceModel(OriginalOwner(0), state, resource, new(0, 0));
             state = step.State;
             returned = step.Cues.Any(cue => cue.Kind == NativeBattleSequenceCueKind.RestoreStanding);
         }
@@ -97,7 +97,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         state = CrossoverNativeCastPresentation.Poll(state, false, true).State;
         for (int callback = 0; callback < 256 && !state.Complete; callback++)
         {
-            state = CrossoverNativeCastPresentation.AdvanceModel(state, resource, new(0, 0)).State;
+            state = CrossoverNativeCastPresentation.AdvanceModel(OriginalOwner(0), state, resource, new(0, 0)).State;
         }
         Assert.True(state.Complete);
         Assert.Equal((byte)1, state.Model.Sequence);
@@ -113,7 +113,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         (CrossoverNativeForeignTarget foreign, NativeBattleCameraProjection camera, NativeBattleArenaHost arena) = ReadHostTarget(hostRoot!, game.ReadNativeBattleGraphicsRules());
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         BattleNativeAction action = Assert.Single(battle.NativeActions, action => action.Command == 254 && action.ActionId == 64);
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 0, slot => slot switch { 0 => OriginalOwner(0), 4 => OriginalOwner(3), _ => throw new ArgumentOutOfRangeException(nameof(slot)) });
         CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 4, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, new(0), arena);
         NativeBattleGraphicsModel before = state.Cast.Model;
         NativeCrtRandomState random = state.Random;
@@ -128,7 +128,6 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         Assert.Null(state.Effect);
         Assert.Equal(0, state.PublishedContacts);
         Assert.Empty(state.PublishedContactOrdinals);
-        Assert.Equal((ushort)0, state.PublishedTargetMask);
         Assert.Equal((byte)3, state.Cast.Phase);
         output.WriteLine($"{action.Name}: host geometric-ribbon preflight completed without changing source, random, texture or published-contact owners.");
     }
@@ -157,15 +156,15 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
     private static NativeBattleGraphicsModel ReadSource(NativeBattleGraphicsResource resource)
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel source = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel source = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             FileSelector128 = 0,
             FileSelector129 = 0,
             Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref random);
-        source = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(source, 1), resource, new(0, 0)).Model;
+        }, 0, 0, true, ref random);
+        source = NativeBattleSequenceMachine.Advance(OriginalOwner(0), NativeBattleGraphicsModels.SelectSequence(source, 1), resource, new(0, 0)).Model;
         return source with { Flags2 = (ushort)(source.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(source, resource.PoseSource!) };
     }
 

@@ -84,7 +84,7 @@ public sealed class NativeBattlePosePresentationTests
         NativeBattleVector position = ReadOriginalModelCell(saved.NativeGraphics!, index).Transform!.Position28;
         byte pan = saved.NativeCamera!.Projection!.ReadPan(position);
         NativeBattleContactPacket contact = new(new(session.ReadPresentationModelOwner("ifrit"), 5, 0x40, 0, 0, 0, 0), null);
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics with { PendingContacts = [contact] } }));
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = Assert.IsType<NativeBattleGraphicsState>(saved.NativeGraphics) with { PendingContacts = [contact] } }));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);

@@ -211,7 +211,7 @@ public sealed class NativeBattleEffect69StageTests
             return new(memory, effect, new(1), NativeBattleEffect69State.FromColdProcess().WriteDword(ArenaGlobal, Arena)) { Staging = staging };
         }
 
-        public NativeBattleEffect69Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(Identity with { Z = 8000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new NotSupportedException(), (_, _) => throw new NotSupportedException(), _ => 0, _ => 0, (_, _) => 0, (frame, operation) =>
+        public NativeBattleEffect69Inputs Inputs() => new(OriginalAliases, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => NativeBattlePackedMatrix32.FromMatrix(Identity with { Z = 8000 }, null), _ => new(null, 100, 160, 108), (_, _) => throw new NotSupportedException(), (_, _) => throw new NotSupportedException(), _ => 0, _ => 0, (_, _) => 0, (frame, operation) =>
         {
             LastBatch = Assert.IsType<NativeBattleEffect69DeliverCommonBatch>(operation).Batch;
             return frame;

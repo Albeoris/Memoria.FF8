@@ -138,8 +138,8 @@ public sealed class EncounterNativeModelAllocationTests
         int partyHp = battle.Combatants.Where(actor => actor.IsPlayer).Sum(actor => actor.CurrentHp);
         battle.QueueNativePlayerCommand(player, fourth.Id, 1, 0);
         TickUntil(battle, () => battle.NativeActionPackets.ActionCount >= 2, "player header and fourth immediate-counter child");
-        NativeBattleActionHeaderSlot child = Assert.Single(battle.NativeActionPackets.Headers.Take(battle.NativeActionPackets.ActionCount), header => header.ReadByte(0) == 6 && header.ReadByte(1) == originalAi.Abilities[0].Command && System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(header.Payload.AsSpan().Slice(4)) == originalAi.Abilities[0].Id);
-        Assert.NotNull(child.FirstContactIndex);
+        var child = Assert.Single(battle.NativeActionPackets.PublishedHeaders(), header => header.Slot.Source == RequireOriginalModelOwner(battle.NativeGraphics!, 6) && header.Slot.Command == originalAi.Abilities[0].Command && header.Slot.Action == originalAi.Abilities[0].Id);
+        Assert.NotNull(battle.NativeActionPackets.ExportRetained().Headers[child.Reference.Ordinal].FirstContactIndex);
         Assert.Equal(1u, battle.Capture().Combatants.Single(actor => actor.Id == fourth.Id).NativeParticipant!.Variables[0]);
         BattleSnapshot accepted = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
         BattleSession restored = (BattleSession)typeof(GameWorld).GetMethod("AttachNativeEffectResources", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(world, [BattleSession.Restore(accepted)])!;
@@ -197,7 +197,7 @@ public sealed class EncounterNativeModelAllocationTests
         }
         if (!complete())
         {
-            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), battle.NativeGraphics.ActionActorId, Effect = battle.NativeGraphics.OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, Bound = battle.NativeCommandBanks.BoundCommands, DescriptorQueue = battle.NativeGraphics.Descriptors.Queue, Tasks = battle.NativeGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
+            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).ActionActorId, Effect = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, Bound = battle.NativeCommandBanks.BoundCommands, DescriptorQueue = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).Descriptors.Queue, Tasks = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
             Assert.Fail("Installed graphical integration did not complete: " + boundary + "; " + details);
         }
     }

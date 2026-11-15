@@ -233,7 +233,7 @@ internal sealed class NativeBattleEffect227PresentationObserver
             string text = original.ReadText91(index);
             if (oldAge == age)
             {
-                Assert.Contains(current.NativeGraphics.Descriptors.Packets, packet => packet.Message is { Kind: "NativeText" } message && message.ActorId == actorId && message.Message == text && packet.Index == duration && packet.Value == 3 && (packet.PriorityState & 0xF0) == 240);
+                Assert.Contains(Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).Descriptors.Packets, packet => packet.Message is { Kind: "NativeText" } message && message.ActorId == actorId && message.Message == text && packet.ScalarWord8 == duration && packet.Value == 3 && (packet.PriorityState & 0xF0) == 240);
                 Mark("effect227-native-text-" + index + "-queued-age-" + age, current, cold);
             }
             if (current.Events.Any(message => message.Kind == "NativeText" && message.ActorId == actorId && message.Message == text && message.Amount == duration && message.NativeMessageMode == 3) && texts.Add(index))

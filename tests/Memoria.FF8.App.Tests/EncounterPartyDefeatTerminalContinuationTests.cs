@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -32,7 +33,7 @@ public sealed class EncounterPartyDefeatTerminalContinuationTests
         FieldInfo clockOwner = typeof(BattleSession).GetField("nativeBattleClock", BindingFlags.Instance | BindingFlags.NonPublic)!;
         void CheckCompletionOwner(BattleSession current)
         {
-            if (current.ActiveAction is { NativeHeaderIndex: int header } active && header >= current.NativeActionPackets.ActionCount && clockOwner.GetValue(current) is NativeBattleClockState { ActionPause: 0 })
+            if (current.ActiveAction is { NativeHeader: BattleActionHeaderReference header } active && header.Ordinal >= current.NativeActionPackets.ActionCount && clockOwner.GetValue(current) is NativeBattleClockState { ActionPause: 0 })
             {
                 Assert.Fail(JsonSerializer.Serialize(new { current.Frame, active.ActorId, active.ActionId, Header = header, current.NativeActionPackets.ActionCount, Scratch = current.Capture().NativeActionScratch, current.EncounterPolicies }));
             }
@@ -60,11 +61,11 @@ public sealed class EncounterPartyDefeatTerminalContinuationTests
             battle.Frame,
             battle.Outcome,
             battle.EncounterPolicies,
-            Active = battle.ActiveAction is { } active ? new { active.ActorId, active.ActionId, active.NativeHeaderIndex } : null,
-            Queued = battle.QueuedActions.Select(action => new { action.ActorId, action.ActionId, action.NativeQueuedCommand, action.NativeAiCallbackStage, action.NativeHeaderIndex }),
+            Active = battle.ActiveAction is { } active ? new { active.ActorId, active.ActionId, active.NativeHeader } : null,
+            Queued = battle.QueuedActions.Select(action => new { action.ActorId, action.ActionId, action.NativeQueuedCommand, action.NativeAiCallbackStage, action.NativeHeader }),
             battle.NativeActionPackets.ActionCount,
             battle.NativeActionPackets.ContactCount,
-            Original = battle.NativeGraphics!.Models[battle.Combatants.Single(actor => actor.Id == source.Definition.EncounterMod.OriginalActorId).EncodeNativeSlot()].SequenceState,
+            Original = ReadOriginalModelCell(battle.NativeGraphics!, battle.Combatants.Single(actor => actor.Id == source.Definition.EncounterMod.OriginalActorId).EncodeNativeSlot()).SequenceState,
             Clock = battle.Capture().NativeClock,
             Scratch = battle.Capture().NativeActionScratch,
             Events = battle.Events.TakeLast(12).Select(entry => new { entry.Frame, entry.Kind, entry.ActorId, entry.Amount })

@@ -81,7 +81,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                 {
                     selected = true;
                     NativeBattleActionPacketsState packets = battle.Capture().NativeActionPackets!;
-                    NativeBattleActionHeaderSlot header = packets.Headers.Single(header => header.FirstContactIndex is not null && header.ReadByte(1) == 250);
+                    NativeBattleActionHeaderSlot header = packets.PublishedHeaders().Select(header => header.Slot).Single(header => header.Command == 250);
                     NativeBattleContactHalf contact = packets.ReadContact(header.FirstContact).Primary;
                     Assert.Equal((byte)3, contact.Sequence);
                     Assert.Equal(8, contact.Flags2 & 8);

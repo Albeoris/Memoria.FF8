@@ -1,3 +1,5 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -91,13 +93,13 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     Assert.Equal(0, canvas.ClipDepth);
                     if (windows.Any(window => window.Index == 0 && window.Lines.Any(line => line.Line.Runs.Any(run => run.Text.Length > 0))))
                     {
-                        int targetIndex = graphics.ActorIds.IndexOf(target.Id);
+                        int targetIndex = FindOriginalModelSlot(graphics, target.Id);
                         Assert.InRange(targetIndex, 3, 6);
                         Assert.Equal(61, target.ModelId);
-                        Assert.Equal((byte)77, graphics.Models[targetIndex].ModelId4);
+                        Assert.Equal((byte)77, ReadOriginalModelCell(graphics, targetIndex).ModelId4);
                         NativeBattleScanTextResources textResources = effect.Binding.ScanTextResources!;
                         uint originalDescription = textResources.DescriptionPointer(checked((byte)(target.ModelId + 16)));
-                        Assert.Equal(originalDescription, textResources.DescriptionPointer(graphics.Models[targetIndex].ModelId4!.Value));
+                        Assert.Equal(originalDescription, textResources.DescriptionPointer(ReadOriginalModelCell(graphics, targetIndex).ModelId4!.Value));
                         Assert.Equal(originalDescription, frame.Windows.Row(0).ReadDword(8));
                         description = true;
                         Assert.NotEmpty(canvas.Runs);

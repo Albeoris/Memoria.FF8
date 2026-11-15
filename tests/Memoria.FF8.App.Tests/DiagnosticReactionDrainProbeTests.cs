@@ -134,8 +134,8 @@ public sealed class DiagnosticReactionDrainProbeTests
                 shotProcesses = ((IDictionary)Read("nativeShotProcesses")!).Count,
                 duelProcesses = ((IDictionary)Read("nativeDuelProcesses")!).Count,
                 renzokukenProcesses = ((IDictionary)Read("nativeRenzokukenProcesses")!).Count,
-                action = battle.ActiveAction is { } action ? new { action.ActorId, action.TargetId, action.NativeHeaderIndex, action.NativeAiCallbackStage } : null,
-                queued = battle.QueuedActions.Select(command => new { command.ActorId, command.NativeCallback, command.NativeHeaderIndex }).ToArray(),
+                action = battle.ActiveAction is { } action ? new { action.ActorId, action.TargetId, action.NativeHeader, action.NativeAiCallbackStage } : null,
+                queued = battle.QueuedActions.Select(command => new { command.ActorId, command.NativeCallback, command.NativeHeader }).ToArray(),
                 actors = battle.Combatants.Where(actor => Actor("NativeIndex", actor) is int index && index is >= 0 and < 7).Select(actor => new
                 {
                     actor.Id, actor.IsPlayer, actor.CurrentHp, actor.MaximumHp, actor.IsActive, actor.IsAlive,

@@ -163,7 +163,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 {
                     Assert.Equal(revival ? (byte)2 : (byte)1, packets.ContactCount);
                     NativeBattleContactHalf[] contacts = Enumerable.Range(0, packets.ContactCount).Select(index => packets.ReadContact(new BattleContactOccurrence(index)).Primary).ToArray();
-                    NativeBattleContactHalf half = Assert.Single(contacts, item => item.ActorIndex == 1);
+                    NativeBattleContactHalf half = Assert.Single(contacts, item => item.Recipient == packets.ModelAliases.DecodeLiteral(1));
                     Assert.Equal(checked((ushort)formulaAmount), half.Amount6);
                     if (statusCure)
                     {
@@ -174,7 +174,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                     if (revival)
                     {
                         Assert.Equal(0, half.SavedStatuses4 & 1);
-                        NativeBattleContactHalf companion = Assert.Single(contacts, item => item.ActorIndex == 2);
+                        NativeBattleContactHalf companion = Assert.Single(contacts, item => item.Recipient == packets.ModelAliases.DecodeLiteral(2));
                         Assert.Equal(checked((ushort)formulaAmount), companion.Amount6);
                         Assert.Equal(0, companion.SavedStatuses4 & 1);
                     }

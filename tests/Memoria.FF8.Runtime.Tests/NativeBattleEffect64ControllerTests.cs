@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -59,7 +60,7 @@ public sealed class NativeBattleEffect64ControllerTests
         uint main = Common + MainOffset;
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 2).WriteByte(15, 1));
         frame = Write(frame, main, Read(frame, main).WriteWord(12, 170));
-        (frame, uint child) = SpawnScript6E5D80(frame, 0x1D975CC, main + 0x18, ScriptAddresses[0], resources);
+        (frame, uint child) = SpawnScript6E5D80(frame, OriginalOwner(5), main + 0x18, ScriptAddresses[0], resources, OriginalAliases);
         NativeBattleEffect64Frame result = Advance(frame, resources, Inputs());
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.Empty(result.Effect.Pools);
@@ -172,7 +173,7 @@ public sealed class NativeBattleEffect64ControllerTests
         return frame;
     }
 
-    private static NativeBattleEffect64Inputs Inputs(List<NativeBattleEffect64Operation>? operations = null) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, null!, null!, (frame, operation) =>
+    private static NativeBattleEffect64Inputs Inputs(List<NativeBattleEffect64Operation>? operations = null) => new(OriginalAliases, NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, null!, null!, (frame, operation) =>
     {
         operations?.Add(operation);
         return frame;

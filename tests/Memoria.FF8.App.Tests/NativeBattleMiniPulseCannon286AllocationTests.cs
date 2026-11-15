@@ -35,7 +35,7 @@ public sealed class NativeBattleMiniPulseCannon286AllocationTests
         BattleCombatantDefinition definition = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, actualActor) ?? throw new InvalidDataException("The actual activated allocation requires its actor identity."));
         Assert.Equal(110, definition.ModelId);
         Assert.Equal(0, definition.SceneSlot);
-        Assert.Equal(actualActor, ready.NativeLastAllocatedIndex);
+        Assert.Equal(actualActor, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(ready.NativeLastAllocatedTarget).Operand);
         NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualActor);
         Assert.Equal((byte)126, model.ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(definition).PoseSource ?? throw new InvalidDataException("The actual activated original model requires its skeleton.");

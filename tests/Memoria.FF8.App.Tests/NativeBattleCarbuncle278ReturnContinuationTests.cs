@@ -72,7 +72,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
                 Assert.Equal(new NativeGlobalSoundAllocation(4, 5, 29), sound.Allocation);
                 Assert.Equal((byte?)5, current.NativeGlobalSoundProcess!.Rotation);
                 Assert.Equal<uint?>(240063u, current.NativeGlobalSoundProcess.OriginalEffectIds[29]);
-                Assert.All(ReadOriginalModelCells(current.NativeGraphics!).Where(model => model.Index < 3), model => Assert.Equal(4, model.Flags0 & 4));
+                Assert.All(ReadOriginalModelCells(current.NativeGraphics!).Take(3), model => Assert.Equal(4, model.Flags0 & 4));
                 Assert.Equal(0u, Creature(current).ReadDword(0x78));
             }
             if (counter is 232 or 248 or 264 or 280 or 283)
@@ -84,10 +84,11 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         Assert.Equal((byte)255, finished.NativeEffectMemory!.Carbuncle278!.Done81D8);
         Assert.Equal(0u, finished.NativeEffectMemory.Carbuncle278.Flash81D4);
         Assert.All(finished.NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal(0, task.Flags & 1));
-        Assert.All(ReadOriginalModelCells(finished.NativeGraphics).Where(model => model.Index < 3), model => Assert.Equal(0, model.Flags0 & 4));
-        foreach (NativeBattleGraphicsModel prior in ReadOriginalModelCells(source.NativeGraphics!).Where(model => model.Index >= 3 && (model.Flags0 & 2) != 0))
+        Assert.All(ReadOriginalModelCells(finished.NativeGraphics).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
+        foreach (int slot in Enumerable.Range(3, NativeBattleGraphicsModelAddress.NativeRowCount - 3).Where(slot => (ReadOriginalModelCell(source.NativeGraphics!, slot).Flags0 & 2) != 0))
         {
-            Assert.Equal(unchecked((short)(prior.Transform!.Position28.Z - source.NativeEffectMemory!.Carbuncle278!.Lift81D0)), ReadOriginalModelCell(finished.NativeGraphics, prior.Index).Transform!.Position28.Z);
+            NativeBattleGraphicsModel prior = ReadOriginalModelCell(source.NativeGraphics!, slot);
+            Assert.Equal(unchecked((short)(prior.Transform!.Position28.Z - source.NativeEffectMemory!.Carbuncle278!.Lift81D0)), ReadOriginalModelCell(finished.NativeGraphics, slot).Transform!.Position28.Z);
         }
         NativeBattleRestorationPresentationTests.Publish(output, "root-released", finished, scene.Render(first, 320, 224).ToArray());
         for (int tick = 0; tick < 128 && !Released(first.Capture()); tick++)

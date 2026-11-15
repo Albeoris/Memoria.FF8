@@ -1,10 +1,13 @@
-using System.Collections.Immutable;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedTriggerWidgetTests
 {
+    private static readonly BattlePartyModelOwner Party = new BattlePartyActorModel(new("party"));
+    private static readonly BattleEnemyModelOwner Enemy = new BattleEnemyActorModel(new("enemy"));
+    private static readonly BattlePartyModelOwner Unbound = new BattlePartyActorModel(new("unbound"));
+
     [Fact]
     public void AdditionalOwnersRegisterAndPublishTheSameTimedReceipt()
     {
@@ -67,17 +70,18 @@ public sealed class NativeBattleHostedTriggerWidgetTests
     }
 
     [Theory]
-    [InlineData(7)]
-    [InlineData(24)]
-    public void SessionPreparationKeepsOriginalCueAndUiFieldsWithoutPublishingLogicalState(int row)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SessionPreparationKeepsOriginalCueAndUiFieldsWithoutPublishingLogicalState(bool party)
     {
+        BattleModelOwner model = party ? Party : Enemy;
         BattleSession owner = Session();
         BattleSnapshot before = owner.Capture();
         NativeBattleGraphicsState graphics = Graphics();
         var cue = new NativeBattleSequenceCue(NativeBattleSequenceCueKind.TriggerWindow, 12, 4) { TriggerWindow = Block() };
-        NativeBattleGraphicsState result = Prepare(owner, graphics, row, cue);
+        NativeBattleGraphicsState result = Prepare(owner, graphics, model, cue);
         NativeBattleTriggerWidget widget = Assert.IsType<NativeBattleTriggerWidget>(result.TriggerWidget);
-        Assert.Equal((byte)row, widget.ActorIndex);
+        Assert.Equal(model, widget.Actor);
         Assert.Equal((byte?)12, widget.SourceSequence);
         Assert.Equal(4, widget.SourceAbOffset);
         Assert.Equal((ushort?)159, widget.SourceMagicId);
@@ -86,28 +90,28 @@ public sealed class NativeBattleHostedTriggerWidgetTests
         Assert.True(widget.Visible);
         Assert.Equal((sbyte)6, result.UiServices!.Menu957);
         Assert.Equal((sbyte?)-2, result.UiServices.Menu955);
-        Assert.Null(result.PendingTriggerSoundActorIndex);
+        Assert.Null(result.PendingTriggerSoundActor);
         result.Validate();
-        (result with { PendingTrigger = new((byte)row, 1, 1, 25, 32) }).Validate();
-        Assert.Throws<InvalidDataException>(() => (result with { PendingTrigger = new(8, 1, 1, 25, 32) }).Validate());
+        (result with { PendingTrigger = new(model, 1, 1, 25, 32) }).Validate();
+        Assert.Throws<InvalidDataException>(() => (result with { PendingTrigger = new(Unbound, 1, 1, 25, 32) }).Validate());
         Assert.Null(graphics.TriggerWidget);
         Assert.Equal(NativeBattleTestSnapshots.Json(before), NativeBattleTestSnapshots.Json(owner.Capture()));
     }
 
     [Fact]
-    public void SessionPreparationRejectsHolesAndConcreteBankMismatchBeforePublishing()
+    public void SessionPreparationRejectsMissingRetiredAndWrongSideOwnersBeforePublishing()
     {
         BattleSession owner = Session();
         NativeBattleGraphicsState graphics = Graphics();
         var cue = new NativeBattleSequenceCue(NativeBattleSequenceCueKind.TriggerWindow) { TriggerWindow = Block() };
-        TargetInvocationException hole = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics, 8, cue));
+        TargetInvocationException hole = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics, Unbound, cue));
         Assert.IsType<InvalidDataException>(hole.InnerException);
-        TargetInvocationException extent = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { Models = graphics.Models[..8] }, 7, cue));
+        TargetInvocationException extent = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { ActorModels = graphics.ActorModels.Remove(Party) }, Party, cue));
         Assert.IsType<InvalidDataException>(extent.InnerException);
-        TargetInvocationException identity = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { ActorIds = graphics.ActorIds.SetItem(7, "retired-party") }, 7, cue));
+        TargetInvocationException identity = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { ActorModels = graphics.ActorModels.ReplaceOwner(Party, new BattlePartyActorModel(new("replacement")), graphics.ActorModels.Get(Party)) }, Party, cue));
         Assert.IsType<InvalidDataException>(identity.InnerException);
-        TargetInvocationException modelIndex = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { Models = graphics.Models.SetItem(24, graphics.Models[24] with { Index = 23 }) }, 24, cue));
-        Assert.IsType<InvalidDataException>(modelIndex.InnerException);
+        TargetInvocationException wrongSide = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { ActorModels = graphics.ActorModels.ReplaceOwner(Enemy, new BattlePartyActorModel(new("enemy")), graphics.ActorModels.Get(Enemy)) }, Enemy, cue));
+        Assert.IsType<InvalidDataException>(wrongSide.InnerException);
         Assert.Null(owner.NativeGraphics);
         Assert.Null(graphics.TriggerWidget);
     }
@@ -120,28 +124,19 @@ public sealed class NativeBattleHostedTriggerWidgetTests
         LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0]) { Options978 = 0 }
     }, BattleAtbMode.Normal);
 
-    private static BattleModelRoster Roster() => new(Enumerable.Range(0, 25).Select(row => row switch
-    {
-        7 => new BattlePartyActorModel(new("party")),
-        24 => new BattleEnemyActorModel(new("enemy")),
-        _ => null
-    }).ToImmutableArray());
-
     private static NativeBattleGraphicsState Graphics()
     {
-        BattleModelRoster roster = Roster();
-        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, roster.ActorCount).Select(row => new NativeBattleGraphicsModel(0) { ResourceMagicId = roster.ContainsRow(row) ? (ushort)159 : null }).ToImmutableArray();
-        return new(models, roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
+        BattleModelRoster roster = new([Party, Enemy]);
+        return NativeBattleHostedTestFixture.Graphics(roster, new(roster, []), _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ResourceMagicId = 159 }) with
         {
-            PresentationRoster = roster,
             UiServices = NativeBattleUiServices.Initialize() with { Menu957 = 2, Menu955 = -1 },
-            PendingTriggerSoundActorIndex = 7
+            PendingTriggerSoundActor = Party
         };
     }
 
-    private static NativeBattleGraphicsState Prepare(BattleSession owner, NativeBattleGraphicsState graphics, int row, NativeBattleSequenceCue cue)
+    private static NativeBattleGraphicsState Prepare(BattleSession owner, NativeBattleGraphicsState graphics, BattleModelOwner model, NativeBattleSequenceCue cue)
     {
         MethodInfo method = typeof(BattleSession).GetMethod("PrepareNativeTriggerWidget", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        return Assert.IsType<NativeBattleGraphicsState>(method.Invoke(owner, [graphics, row, cue]));
+        return Assert.IsType<NativeBattleGraphicsState>(method.Invoke(owner, [graphics, model, cue]));
     }
 }

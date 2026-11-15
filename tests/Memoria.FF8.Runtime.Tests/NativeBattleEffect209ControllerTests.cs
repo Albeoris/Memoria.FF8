@@ -121,7 +121,7 @@ public sealed class NativeBattleEffect209ControllerTests
         Assert.Equal(expected, step.Frame.Random);
         if (expectedBirth)
         {
-            Assert.Equal((3, 0xF1, 0), Assert.Single(harness.Points));
+            Assert.Equal((OriginalOwner(3), 0xF1, 0), Assert.Single(harness.Points));
             Assert.Equal(0xBEEF, step.Frame.Effect.Pools[1].Slots.Single(task => task.Callback == 0x638900).ReadWord(22));
         }
     }
@@ -201,7 +201,7 @@ public sealed class NativeBattleEffect209ControllerTests
         public int IoResult { get; set; }
         public int IoCalls { get; private set; }
         public List<NativeBattleEffect209Operation> Operations { get; } = [];
-        public List<(int Actor, int Selector, int Fraction)> Points { get; } = [];
+        public List<(BattleModelOwner Actor, int Selector, int Fraction)> Points { get; } = [];
         public bool Rebuilt { get; private set; }
         public NativeBattleEffect209Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, frame =>
         {
@@ -220,7 +220,7 @@ public sealed class NativeBattleEffect209ControllerTests
 
         private static NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 319, 209, null));
             (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 0, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);

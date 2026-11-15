@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -50,7 +51,7 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(queuedPath))!);
         Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(cold.Capture()));
         Assert.Null(cold.NativeGraphics!.OriginalEffect);
-        Assert.Equal((byte)caster, packets.ReadHeader(header).ReadByte(0));
+        Assert.Equal((byte)caster, ReadOriginalModelOperand(packets.ModelAliases, packets.ReadHeader(header).Source));
         Assert.Equal((byte)15, packets.ReadHeader(header).Sequence);
         Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
         File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "prepared", Effect = 269, Encounter = 436, Stage = 125, OriginalModel = 94, NativeModel = ReadOriginalModelCell(graphics, caster).ModelId4, ActualCaster = caster, allocation.SceneSlot, Command = action.Command, Action = action.ActionId, Sequence = sequence, HeaderIndex = header.Ordinal, header = packets.ReadHeader(header), Contact = packets.ReadContact(new BattleContactOccurrence(0)), DeclaredContactValue = 7, EffectCallbacks = 0, ready.Frame, NativeCallback = graphics.Callback, ReadyPath = readyPath, ReadySha256 = Hash(readyPath), QueuedPath = queuedPath, QueuedSha256 = Hash(queuedPath), Scope = "Actual existing native prototype allocation102/activation113; no death-callback or gameplay eligibility claim; no269 callback executed" }));

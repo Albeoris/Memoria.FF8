@@ -122,7 +122,7 @@ public sealed class NativeBattleRapture288PresentationTests
                     Assert.NotEqual(0u, projectedContact & 0x400000);
                     Assert.Equal(projectedContact & ~0x400000u, model.Flags8!.Value & projectedContact);
                     receipts++;
-                    File.WriteAllText(Path.Combine(output, "target63-contact-receipt.json"), JsonSerializer.Serialize(new { BeforeCallback = prior.NativeGraphics!.Callback, AfterCallback = current.NativeGraphics.Callback, SavedY = unchecked((short)previousTarget.ReadWord(14)), Model = model, Contact = contact, Observation = "Original target63 restores its exact saved WORD30, clears movement bit1000, executes matching506690 KO/Eject-status contact, consumes projected Eject into native removal service5 and removal flag10, then sets hidden bit4" }, new JsonSerializerOptions { WriteIndented = true }));
+                    File.WriteAllText(Path.Combine(output, "target63-contact-receipt.json"), JsonSerializer.Serialize(new { BeforeCallback = prior.NativeGraphics!.Callback, AfterCallback = Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).Callback, SavedY = unchecked((short)previousTarget.ReadWord(14)), Model = model, Contact = contact, Observation = "Original target63 restores its exact saved WORD30, clears movement bit1000, executes matching506690 KO/Eject-status contact, consumes projected Eject into native removal service5 and removal flag10, then sets hidden bit4" }, new JsonSerializerOptions { WriteIndented = true }));
                 }
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)
                 {

@@ -174,7 +174,7 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                     NativeBattleEffectTask previous = before.NativeGraphics!.Effects.Slots[slot];
                     if ((current.Flags0 & 1) != 0 && current.Kind == NativeBattleEffectKind.DamageText5069B0 && current.Frame == 1 && !((previous.Flags0 & 1) != 0 && previous.Kind == current.Kind && previous.Frame == 1))
                     {
-                        Assert.Equal((byte)3, current.ModelIndex);
+                        Assert.Equal(RequireOriginalModelOwner(after.NativeGraphics, 3), current.ModelOwner);
                         Assert.Equal(new byte[] { 57, 0 }, current.Glyphs.ToArray());
                         Assert.Equal((short)4, current.HalfWidth);
                         Assert.Equal(0x808080u, current.Color);
@@ -222,10 +222,10 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                 {
                     Assert.Equal((byte)10, invocation.Level);
                 }
-                NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.Headers.FirstOrDefault(header => header.ReadByte(1) == 245 && header.Action == 8 && header.Effect == 330);
-                if (producedHeader?.FirstContactIndex is int contactIndex)
+                NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == 8 && header.Effect == 330);
+                if (producedHeader?.FirstContact is BattleContactCursor contactIndex)
                 {
-                    NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(new BattleContactOccurrence(contactIndex));
+                    NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
                     Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                     Assert.Equal((ushort)1, contact.Primary.Amount6);
                     Assert.Null(contact.Secondary);

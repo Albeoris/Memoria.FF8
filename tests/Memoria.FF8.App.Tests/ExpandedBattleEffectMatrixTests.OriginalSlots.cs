@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.BattleEffects;
@@ -28,19 +29,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             battle.Tick();
             BattleSnapshot current = battle.Capture();
-            if (current.NativeActionPackets!.Headers.Any(header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && header.Action == 3))
+            if (current.NativeActionPackets!.PublishedHeaders().Any(header => header.Slot.Command == 0 && header.Slot.Action == 3))
             {
                 queued = current;
             }
         }
         Assert.NotNull(queued);
-        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.NativeActionPackets!.Headers, header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && header.Action == 3);
-        Assert.Equal((byte)3, entrance.ReadByte(0));
+        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.NativeActionPackets!.PublishedHeaders(), header => header.Slot.Command == 0 && header.Slot.Action == 3).Slot;
+        Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets!.ModelAliases, entrance.Source));
         Assert.Equal((byte)0, entrance.Sequence);
         Assert.Equal((ushort)0, entrance.Effect);
         Assert.Equal((byte)1, entrance.ReadContactCount());
-        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(entrance.FirstContact);
-        Assert.Equal((byte)4, contact.Primary.ActorIndex);
+        NativeBattleContactPacket contact = queued.NativeActionPackets!.ReadContact(entrance.FirstContact);
+        Assert.Equal((byte)4, ReadOriginalModelOperand(queued.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((byte)0, contact.Primary.Sequence);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         Assert.Equal((byte)1, contact.Primary.Flags2);
@@ -165,7 +166,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             if (effect.Parameters is { } parameters)
             {
                 invoked = true;
-                Assert.Equal((byte)5, parameters.Actor78);
+                Assert.Equal((byte)5, ReadOriginalModelOperand(battle.NativeActionPackets.ModelAliases, parameters.Source));
             }
             packets |= !effect.PresentationPackets.IsEmpty;
             if (invoked && effect.ReturnedDescriptor == 0)
@@ -229,7 +230,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal((byte)0, cast.NativeAiCallbackStage);
         Assert.Equal((byte)252, cast.NativeQueuedCommand);
         Assert.Equal(1, cast.ActionId);
-        Assert.Equal(caster.Id, Assert.Single(cast.AiRecipients!.ActorIds));
+        Assert.Equal(caster.Id, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(cast.TargetRequest.Selection).Actors).ActorId);
         Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == attacker.Id && entry.TargetId == owner.Id);
         Assert.Contains(battle.Events, entry => entry.Kind == "Activated" && entry.ActorId == caster.Id);
         int hp = caster.CurrentHp;
@@ -243,7 +244,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             restored.Tick();
             if (battle.ExpandedEffect is { } effect)
             {
-                Assert.Equal(caster.Slot!.Value.Position + 3, effect.Source.Index);
+                Assert.Equal(new BattleEnemyActorModel(new(caster.Id)), effect.Graphics.OriginalEffect!.Parameters!.Source);
                 Assert.NotNull(restored.ExpandedEffect);
                 if (!packets && !effect.Graphics.OriginalEffect!.PresentationPackets.IsEmpty)
                 {

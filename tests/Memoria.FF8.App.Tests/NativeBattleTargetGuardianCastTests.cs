@@ -334,8 +334,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     queuedNext.Tick();
                     audio.Update(battle);
                     BattleActionPresentation? active = battle.ActiveAction;
-                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.NativeGraphics!.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{active?.NativeHeaderIndex}");
-                    if (active is { ActorId: "party", NativeQueuedCommand: 1, NativeHeaderIndex: not null })
+                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.NativeGraphics!.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{active?.NativeHeader}");
+                    if (active is { ActorId: "party", NativeQueuedCommand: 1, NativeHeader: not null })
                     {
                         nextDispatched = true;
                         break;
@@ -354,7 +354,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(nextRestored, 320, 224).ToArray());
                 Publish("next-command-after", battle.Capture());
             }
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", guardian, effectId, completed.Frame, NativeCallback = completed.NativeGraphics.Callback, boundaries, visibleRgbChanges, SoundCount = sounds.Count }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", guardian, effectId, completed.Frame, NativeCallback = Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Callback, boundaries, visibleRgbChanges, SoundCount = sounds.Count }));
         }
         catch (Exception error)
         {

@@ -59,7 +59,7 @@ public sealed class NativeBattleEffect218ClosureTests
         (NativeBattleEffectTaskPool root, int slot) = pools[0].Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteWord(12, 0x1234));
         frame = frame with { Effect = frame.Effect with { Pools = pools.SetItem(0, root) } };
-        NativeBattleEffect218RuntimeInputs inputs = new(null!, null!, false, _ => 1, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+        NativeBattleEffect218RuntimeInputs inputs = new(null!, null!, false, _ => 1, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
         NativeBattleEffect218Frame actual = Advance(frame, null!, inputs);
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Empty(actual.Effect.Pools);

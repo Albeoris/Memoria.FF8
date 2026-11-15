@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -96,7 +97,7 @@ public sealed class DiagnosticGuardianForceChargeTests
         {
             battle.ConfigureDiagnosticScheduling(false, enabled);
         }
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0) { EntryReady = true });
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]) with { EntryReady = true });
         return battle;
     }
 

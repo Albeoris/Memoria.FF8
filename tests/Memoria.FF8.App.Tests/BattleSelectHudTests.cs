@@ -39,8 +39,8 @@ public sealed class BattleSelectHudTests
     public void Hidden_command_menu_ignores_keyboard_and_pointer_and_preserves_actor_selection()
     {
         BattleSession battle = CreateBattle();
-        List<BattleAttackCommand> commands = [];
-        BattleHudController hud = new(battle, (actor, target) => commands.Add(new(actor, target)), () => { }, () => { });
+        List<(string Actor, string Target)> commands = [];
+        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
         hud.SelectParty("party-1");
         int choice = hud.ChoiceIndex;
         UiView view = hud.BuildView();
@@ -62,15 +62,15 @@ public sealed class BattleSelectHudTests
         view.Key(UiKey.Confirm);
         Assert.True(hud.SelectingTarget);
         view.Key(UiKey.Confirm);
-        Assert.Equal(new BattleAttackCommand("party-1", "enemy-0"), Assert.Single(commands));
+        Assert.Equal(("party-1", "enemy-0"), Assert.Single(commands));
     }
 
     [Fact]
     public void Hidden_target_menu_ignores_confirm_cancel_hover_and_click_and_restores_the_selected_target()
     {
         BattleSession battle = CreateBattle();
-        List<BattleAttackCommand> commands = [];
-        BattleHudController hud = new(battle, (actor, target) => commands.Add(new(actor, target)), () => { }, () => { });
+        List<(string Actor, string Target)> commands = [];
+        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Down);
         Assert.Equal("enemy-1", hud.SelectedTarget!.Id);
@@ -96,7 +96,7 @@ public sealed class BattleSelectHudTests
         Assert.Contains("TARGET  < ENEMIES >", released.Texts);
         Assert.Contains("Bite Bug B", released.Texts);
         view.Key(UiKey.Confirm);
-        Assert.Equal(new BattleAttackCommand("party-0", "enemy-1"), Assert.Single(commands));
+        Assert.Equal(("party-0", "enemy-1"), Assert.Single(commands));
     }
 
     [Fact]

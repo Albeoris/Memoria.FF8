@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -71,7 +72,7 @@ public sealed class NativeBattleEffect238AnchorStateTests
         });
         NativeBattleCinematicActorAnchorServices services = new((current, actor, restore, linked) =>
         {
-            Assert.Equal(actor == 0x1D972C0 ? 0 : 1, publications);
+            Assert.Equal(actor == OriginalOwner(0) ? 0 : 1, publications);
             if (publications == 1)
             {
                 Assert.Equal(10, registers.Geometry.Translation[0]);
@@ -80,7 +81,7 @@ public sealed class NativeBattleEffect238AnchorStateTests
             byte[] skeleton = new byte[64];
             skeleton[0] = 1;
             BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
-            return new(current, skeleton.ToImmutableArray(), [Identity], Identity with { X = actor == 0x1D972C0 ? 10 : 20 });
+            return new(current, skeleton.ToImmutableArray(), [Identity], Identity with { X = actor == OriginalOwner(0) ? 10 : 20 });
         }, (current, _) =>
         {
             updates++;

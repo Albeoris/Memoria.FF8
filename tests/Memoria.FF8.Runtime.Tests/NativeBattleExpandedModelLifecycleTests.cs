@@ -12,7 +12,6 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     public void IdleDispatcherUsesTheAttachedRosterWithoutAnInvocationContactRoster()
     {
         BattleSession session = Fixture();
-        BattleModelRoster roster = session.ReadBattlePresentationRoster();
         NativeBattleGraphicsResource resource = new([0, 0])
         {
             AnimationFrames = [1],
@@ -42,8 +41,8 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         party.NativeCombatantFlags = 0x11;
         enemy.NativeCombatantFlags = 0x11;
         NativeBattleModelLifecycleServices services = new([]);
-        services.Emit(new NativeBattleModelParticipantReleased(14, roster[14].ActorId));
-        services.Emit(new NativeBattleModelParticipantSuspended(24, roster[24].ActorId, 5));
+        services.Emit(new NativeBattleModelParticipantReleased(session.ReadPresentationModelOwner(party.Id), party.Id));
+        services.Emit(new NativeBattleModelParticipantSuspended(session.ReadPresentationModelOwner(enemy.Id), enemy.Id, 5));
 
         typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", PrivateInstance)!.Invoke(session, [services, null]);
 
@@ -54,9 +53,9 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     }
 
     [Theory]
-    [InlineData("ally-10", 14, true, 0x50u)]
-    [InlineData("enemy-13", 24, false, 0x51u)]
-    public void ParentAppliesOnlyTheNativeLifecycleFlagsAtExtendedRows(string identity, int row, bool release, uint flags)
+    [InlineData("ally-10", true, 0x50u)]
+    [InlineData("enemy-13", false, 0x51u)]
+    public void ParentAppliesOnlyTheNativeLifecycleFlagsForExtendedOwners(string identity, bool release, uint flags)
     {
         BattleSession session = Fixture();
         BattleModelRoster roster = session.ReadBattlePresentationRoster();
@@ -67,11 +66,11 @@ public sealed class NativeBattleExpandedModelLifecycleTests
 
         if (release)
         {
-            Invoke(session, "AcknowledgeExpandedModelRelease", roster, new NativeBattleModelParticipantReleased(row, identity));
+            Invoke(session, "AcknowledgeExpandedModelRelease", roster, new NativeBattleModelParticipantReleased(session.ReadPresentationModelOwner(identity), identity));
         }
         else
         {
-            Invoke(session, "AcknowledgeExpandedModelSuspension", roster, new NativeBattleModelParticipantSuspended(row, identity, 5));
+            Invoke(session, "AcknowledgeExpandedModelSuspension", roster, new NativeBattleModelParticipantSuspended(session.ReadPresentationModelOwner(identity), identity, 5));
         }
 
         Assert.Equal(flags, actor.NativeCombatantFlags);
@@ -87,49 +86,47 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         BattleSession session = Fixture();
         BattleModelRoster roster = session.ReadBattlePresentationRoster();
         BattleCombatant actor = Actor(session, "ally-10");
+        BattleModelOwner owner = session.ReadPresentationModelOwner(actor.Id);
         var before = (actor.NativeCombatantFlags, actor.NativeStatus0);
-        AssertInvalid(() => Invoke(session, "AcknowledgeExpandedModelRelease", roster, new NativeBattleModelParticipantReleased(14, "ally-9")));
+        AssertInvalid(() => Invoke(session, "AcknowledgeExpandedModelRelease", roster, new NativeBattleModelParticipantReleased(owner, "ally-9")));
         actor.BindRosterSlot(null, bindNative: false);
-        AssertInvalid(() => Invoke(session, "AcknowledgeExpandedModelSuspension", roster, new NativeBattleModelParticipantSuspended(14, actor.Id, 5)));
+        AssertInvalid(() => Invoke(session, "AcknowledgeExpandedModelSuspension", roster, new NativeBattleModelParticipantSuspended(owner, actor.Id, 5)));
         Assert.Equal(before, (actor.NativeCombatantFlags, actor.NativeStatus0));
     }
 
     [Theory]
-    [InlineData(3, 3, 207, 15, 15, true, true, false)]
-    [InlineData(3, 3, 264, 17, 17, true, true, false)]
-    [InlineData(24, 24, 207, 15, 15, true, false, false)]
-    [InlineData(3, 24, 207, 15, 15, false, false, false)]
-    [InlineData(3, 3, 207, 15, 17, true, false, false)]
-    [InlineData(3, 3, 205, 15, 15, true, false, false)]
-    [InlineData(3, 3, 207, 15, 15, false, false, true)]
-    public void CueTimeHeaderSurvivesPacketReplacementAndOnlyOriginalMatchingWitnessCompletes(int row, byte headerActor, ushort actionId, byte headerSequence, byte cueSequence, bool captured, bool terminal, bool mismatchedIndex)
+    [InlineData("enemy-0", "enemy-0", 207, 15, 15, true, true, false)]
+    [InlineData("enemy-0", "enemy-0", 264, 17, 17, true, true, false)]
+    [InlineData("enemy-13", "enemy-13", 207, 15, 15, true, false, false)]
+    [InlineData("enemy-0", "enemy-13", 207, 15, 15, false, false, false)]
+    [InlineData("enemy-0", "enemy-0", 207, 15, 17, true, false, false)]
+    [InlineData("enemy-0", "enemy-0", 205, 15, 15, true, false, false)]
+    [InlineData("enemy-0", "enemy-0", 207, 15, 15, false, false, true)]
+    public void CueTimeHeaderSurvivesPacketReplacementAndOnlyOriginalMatchingWitnessCompletes(string actorId, string headerActorId, ushort actionId, byte headerSequence, byte cueSequence, bool captured, bool terminal, bool mismatchedIndex)
     {
         BattleSession session = Fixture(witness: true);
-        BattleModelRoster roster = session.ReadBattlePresentationRoster();
-        BattleModelOwner owner = roster[row];
-        NativeBattleActionPacketsState bank = NativeBattleActionPacketsState.FromPresentationStorage(roster);
-        (bank, int headerIndex) = bank.Prepare(new(headerActor, 8, headerSequence, -1, actionId, 0, null));
+        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
+        BattleModelOwner owner = session.ReadPresentationModelOwner(actorId);
+        BattleModelOwner headerActor = session.ReadPresentationModelOwner(headerActorId);
+        NativeBattleActionPacketsState bank = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        (bank, BattleActionHeaderReference header) = bank.Prepare(new(headerActor, 8, headerSequence, -1, actionId, 0, null));
         (bank, _) = bank.Publish(0);
-        bank = bank.ActivateHeader(headerIndex);
+        bank = bank.ActivateHeader(header);
         Field("nativeActionPackets").SetValue(session, bank);
-        NativeBattleActionGraphicsState action = new(mismatchedIndex ? headerIndex + 1 : headerIndex, headerActor, new BattleContactCursor(0), 0, 0, null, null, 0, null, 0);
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
-        {
-            PresentationRoster = roster,
-            ActionGraphics = action
-        };
+        NativeBattleActionGraphicsState action = new(mismatchedIndex ? header.Advance(1) : header, headerActor, new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, null, 0);
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null)) with { ActionGraphics = action };
         NativeBattleModelLifecycleServices services = new([]);
-        NativeBattleModelActorFacts facts = new(owner.ActorId, owner.IsParty, 0, 0, 0);
+        NativeBattleModelActorFacts facts = new(actorId, owner.Side == BattleSide.Allies, 0, 0, 0);
 
-        Invoke(session, "PublishHostedModelLifecycleCue", graphics, graphics.Models[row], facts, new NativeBattleSequenceCue(NativeBattleSequenceCueKind.SuspendParticipant, cueSequence), services);
+        Invoke(session, "PublishHostedModelLifecycleCue", graphics, owner, graphics.ActorModels.Get(owner), facts, new NativeBattleSequenceCue(NativeBattleSequenceCueKind.SuspendParticipant, cueSequence), services);
 
         NativeBattleModelParticipantSuspended receipt = Assert.IsType<NativeBattleModelParticipantSuspended>(Assert.Single(services.ReadOrderedReceipts()));
-        Assert.Same(captured ? bank.Headers[headerIndex] : null, receipt.ActiveHeader);
+        Assert.Same(captured ? bank.ReadHeader(header) : null, receipt.ActiveHeader);
         Field("nativeActionPackets").SetValue(session, OriginalPackets());
         Invoke(session, "AcknowledgeExpandedModelSuspension", roster, receipt);
         BattleEncounterPolicyState? state = (BattleEncounterPolicyState?)Field("encounterPolicies").GetValue(session);
         Assert.Equal(terminal, state?.TerminalReached == true);
-        Assert.Equal(100, Actor(session, owner.ActorId).CurrentHp);
+        Assert.Equal(100, Actor(session, actorId).CurrentHp);
     }
 
     private static BattleSession Fixture(bool witness = false)

@@ -51,11 +51,20 @@ public sealed class NativeBattleWater222PresentationTests
         resources.Validate();
         NativeBattleWaterIoResources ioResources = Assert.IsType<NativeBattleWaterIoResources>(resources.Io);
         ioResources.Validate();
-        NativeBattleActionHeaderSlot replaced = header with { Payload = header.Payload.SetItem(6, 222).SetItem(7, 0) };
+        NativeBattleActionPacketsState replacement = actionPackets.ResetCounts();
+        foreach (var (reference, slot) in actionPackets.PublishedHeaders())
+        {
+            Assert.Equal(slot.FirstContact.Ordinal, replacement.ContactCount);
+            ushort effect = reference.Ordinal == headerIndex ? (ushort)222 : slot.Effect;
+            (replacement, BattleActionHeaderReference prepared) = replacement.Prepare(new(slot.Source, slot.Command, slot.Sequence, slot.CameraChoice, slot.Action, effect, slot.Data));
+            Assert.Equal(reference, prepared);
+            replacement = replacement.AppendContacts(actionPackets.ReadHeaderContacts(reference));
+            (replacement, _) = replacement.Publish(slot.ReadContactCount());
+        }
         BattleSnapshot source = original with
         {
             Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(221, binding) },
-            NativeActionPackets = actionPackets with { Headers = actionPackets.Headers.SetItem(headerIndex, replaced) },
+            NativeActionPackets = replacement,
             NativeEffectMemory = inherited with { ScriptedEffects = NativeBattleScriptedEffectMemory.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() }
         };
         NativeBattleRestorationPresentationTests.Publish(output, "controlled-input", source, null);

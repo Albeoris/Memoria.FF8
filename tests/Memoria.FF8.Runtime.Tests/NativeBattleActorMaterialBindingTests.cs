@@ -8,15 +8,16 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleActorMaterialBindingTests
 {
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-    private static readonly BattleModelRoster Roster = new([new BattlePartyActorModel(new("first")), null, null, null, null, null, null, new BattleEnemyActorModel(new("second"))]);
+    private static readonly BattlePartyActorModel First = new(new("first"));
+    private static readonly BattleEnemyActorModel Second = new(new("second"));
     private static readonly NativeBattlePoseSource Pose = CreatePose();
 
     [Fact]
     public void Body_and_both_link_paths_publish_the_actor_material_and_leave_stage_and_shadow_global()
     {
         var (session, graphics) = Fixture();
-        graphics = Draw(session, graphics, 0, shared: true);
-        graphics = Draw(session, graphics, 7, shared: false);
+        graphics = Draw(session, graphics, First, shared: true);
+        graphics = Draw(session, graphics, Second, shared: false);
         NativeBattleStageState stage = NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 };
         stage = stage with { Groups = stage.Groups.SetItem(0, new(3, 0, 0x808080, 0, 0, 0, 1, Pose, [Identity])) };
         graphics = InvokeFrame(session, "SubmitNativeStagePackets", graphics, stage);
@@ -42,14 +43,14 @@ public sealed class NativeBattleActorMaterialBindingTests
 
     [Theory]
     [InlineData("legacy")]
-    [InlineData("native")]
+    [InlineData("original alias with declared texture")]
     [InlineData("staged")]
     [InlineData("magic")]
     [InlineData("target animation")]
     public void Material_selection_tracks_the_actual_draw_resource_path(string variant)
     {
-        var (session, graphics) = Fixture(declareMap: variant != "legacy", declareRoster: variant != "native");
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
+        var (session, graphics) = Fixture(declareMap: variant != "legacy", includeUnaliased: variant != "original alias with declared texture");
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(First);
         model = variant switch
         {
             "staged" => model with { ActiveStagedResourceRow100 = 0x100u },
@@ -57,16 +58,16 @@ public sealed class NativeBattleActorMaterialBindingTests
             "target animation" => model with { ResourceMagicId = 1, ResourceRenzokukenTargetBank = 0 },
             _ => model
         };
-        graphics = graphics with { Models = graphics.Models.SetItem(0, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(First, model) };
 
-        graphics = Draw(session, graphics, 0, shared: false);
+        graphics = Draw(session, graphics, First, shared: false);
 
         var draws = Commands(graphics).Where(command => command.Opcode == 0x24).ToArray();
         Assert.Equal(2, draws.Length);
         Assert.All(draws, command =>
         {
             Assert.Equal("first", command.PresentationActorId);
-            Assert.Equal(variant is "legacy" or "native" ? null : "first", command.ModelTextureOwner?.RequireActorId());
+            Assert.Equal(variant == "legacy" ? null : "first", command.ModelTextureOwner?.RequireActorId());
         });
     }
 
@@ -74,7 +75,7 @@ public sealed class NativeBattleActorMaterialBindingTests
     public void Declared_map_requires_the_selected_actors_bank_before_emission()
     {
         var (session, graphics) = Fixture(includeSecond: false);
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Draw(session, graphics, 7, shared: false));
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Draw(session, graphics, Second, shared: false));
         Assert.IsType<InvalidDataException>(error.InnerException);
         Assert.Equal(0, session.NativeEffectMemory!.PrimitiveProcess!.ByteCursor);
         Assert.Empty(Commands(graphics));
@@ -97,7 +98,7 @@ public sealed class NativeBattleActorMaterialBindingTests
         Assert.Single(commands.Where(command => command.ModuleDraw == 1));
     }
 
-    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(bool declareMap = true, bool declareRoster = true, bool includeSecond = true)
+    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(bool declareMap = true, bool includeUnaliased = true, bool includeSecond = true)
     {
         BattleDefinition definition = new()
         {
@@ -124,17 +125,18 @@ public sealed class NativeBattleActorMaterialBindingTests
         Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
-        var rows = declareRoster ? Roster.Rows : Roster.Rows.RemoveAt(7);
-        ImmutableArray<NativeBattleGraphicsModel> models = rows.Select((actor, index) => actor is null ? new NativeBattleGraphicsModel(0) : Model(index)).ToImmutableArray();
-        NativeBattleGraphicsState graphics = new(models, rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model())]) with
         {
-            PresentationRoster = declareRoster ? Roster : null,
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
         };
+        if (includeUnaliased)
+        {
+            graphics = graphics with { ActorModels = graphics.ActorModels.Add(Second, Model()) };
+        }
         return (session, graphics);
     }
 
-    private static NativeBattleGraphicsModel Model(int index)
+    private static NativeBattleGraphicsModel Model()
     {
         NativeBattleGraphicsModel model = new(2)
         {
@@ -152,9 +154,9 @@ public sealed class NativeBattleActorMaterialBindingTests
         return NativeBattleBodyBoneMatrices.Publish508C90(model, Pose);
     }
 
-    private static NativeBattleGraphicsState Draw(BattleSession session, NativeBattleGraphicsState graphics, int row, bool shared)
+    private static NativeBattleGraphicsState Draw(BattleSession session, NativeBattleGraphicsState graphics, BattleModelOwner owner, bool shared)
     {
-        NativeBattleGraphicsModel model = graphics.Models[row];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         NativeBattleGraphicsResource resource = new([0, 0])
         {
             PoseSource = Pose,
@@ -183,7 +185,7 @@ public sealed class NativeBattleActorMaterialBindingTests
             Assert.NotSame(resource.PoseSource, selected.PoseSource);
             resource = selected;
         }
-        return InvokeFrame(session, "SubmitNativeModelPackets502D40", graphics, model, resource);
+        return InvokeFrame(session, "SubmitNativeModelPackets502D40", graphics, owner, model, resource);
     }
 
     private static NativeBattlePoseSource CreatePose()

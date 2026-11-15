@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -53,7 +54,7 @@ public sealed class NativeScanCheckpointTests
         {
             if (presentation.Selection269A1BC.ReadDword(index * 4) == 1)
             {
-                Assert.Equal(0u, graphics.Models[index].ScaleVectorAddress48);
+                Assert.Equal(0u, ReadOriginalModelCell(graphics, index).ScaleVectorAddress48);
             }
         }
     }

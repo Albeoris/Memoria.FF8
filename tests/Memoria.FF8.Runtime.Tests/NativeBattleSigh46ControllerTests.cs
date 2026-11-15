@@ -1,6 +1,5 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleSigh46Controller;
 using static Memoria.FF8.Runtime.NativeBattleSigh46Profile;
 
@@ -132,13 +131,13 @@ public sealed class NativeBattleSigh46ControllerTests
     {
         var frame = Frame(1, 0x831FE0, 2);
         uint address = Pools[1].Bank;
-        frame = Write(frame, address, Read(frame, address).WriteWord(0x24, age).WriteByte(0x2B, 1));
+        frame = Write(frame, address, Read(frame, address).WriteWord(0x24, age).WriteTraversalPosition(0x2B, 1));
         List<NativeBattleSigh46Operation> operations = [];
-        var packets = Packets() with { ContactCount = 0 };
+        var packets = Packets().ResetCounts();
         var actual = AdvanceTask(frame, address, Resources(), Inputs(operations) with { ReadPackets = _ => packets });
         Assert.Equal(contact ? 2 : 0, actual.Result);
         var selected = operations.OfType<NativeBattleSigh46Contact506690>().ToArray();
-        Assert.Equal(contact ? new[] { 1, 2 } : Array.Empty<int>(), selected.Select(item => item.ContactIndex));
+        Assert.Equal(contact ? new[] { new BattleContactOccurrence(1), new BattleContactOccurrence(2) } : [], selected.Select(item => item.Occurrence));
         Assert.Equal(frame.Random, actual.Frame.Random);
     }
 
@@ -159,7 +158,7 @@ public sealed class NativeBattleSigh46ControllerTests
     }
 
     [Fact]
-    public void Cold_drain_detaches_exact_six_banks_and_survives_json_after_completed_handshake()
+    public void Cold_drain_detaches_exact_six_banks_and_survives_private_copy_after_completed_handshake()
     {
         var frame = Frame(0, RootCallback, 9);
         frame = Write(frame, RootBank, Read(frame, RootBank).MarkPayloadUnknown(0x27, 1));
@@ -167,7 +166,7 @@ public sealed class NativeBattleSigh46ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Empty(actual.Effect.Pools);
         Assert.All(actual.State.InactiveBanks, bank => Assert.NotNull(bank));
-        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSigh46Frame>(SnapshotJson(actual))!);
+        var restored = NativeBattleTestSnapshots.Independent(actual);
         Assert.Equal(actual.Random, restored.Random);
         Assert.Equal(actual.State.InactiveBanks[0]!.Read(0x29, 1), restored.State.InactiveBanks[0]!.Read(0x29, 1));
         Assert.Equal(restored, Advance(restored, Resources(), Inputs([])));
@@ -250,8 +249,8 @@ public sealed class NativeBattleSigh46ControllerTests
         var frame = Frame(1, 0x831FE0, 2);
         uint address = Pools[1].Bank;
         frame = Write(frame, address, Read(frame, address).WriteWord(0x24, 40));
-        NativeBattleActionPacketsState packets = Count(Packets(), firstCount);
-        List<int> contacts = [];
+        NativeBattleActionPacketsState packets = Packets(firstCount);
+        List<BattleContactOccurrence> contacts = [];
         var inputs = Inputs([]) with
         {
             ReadPackets = _ => packets,
@@ -259,26 +258,25 @@ public sealed class NativeBattleSigh46ControllerTests
             {
                 if (operation is NativeBattleSigh46Contact506690 contact)
                 {
-                    contacts.Add(contact.ContactIndex);
-                    packets = Count(packets, nextCount);
+                    contacts.Add(contact.Occurrence);
+                    packets = Packets(nextCount);
                 }
                 return current;
             }
         };
         var actual = AdvanceTask(frame, address, Resources(), inputs);
-        Assert.Equal(Enumerable.Range(1, calls), contacts);
+        Assert.Equal(Enumerable.Range(1, calls).Select(index => new BattleContactOccurrence(index)), contacts);
         Assert.Equal(2, actual.Result);
         Assert.Equal(frame.Random, actual.Frame.Random);
     }
 
     [Fact]
-    public void Zero_count_completes_without_reading_a_contact_pointer_or_slot()
+    public void Zero_count_completes_without_reading_the_unwritten_contact_slot()
     {
         var frame = Frame(1, 0x831FE0, 2);
         uint address = Pools[1].Bank;
         frame = Write(frame, address, Read(frame, address).WriteWord(0x24, 40));
-        var packets = Count(Packets(), 0);
-        packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { FirstContactIndex = null, UnknownByteMask = packets.Headers[1].UnknownByteMask | 0xF00 }) };
+        NativeBattleActionPacketsState packets = Packets(0, withContacts: false);
         List<NativeBattleSigh46Operation> operations = [];
         var actual = AdvanceTask(frame, address, Resources(), Inputs(operations) with { ReadPackets = _ => packets });
         Assert.Equal(2, actual.Result);
@@ -291,8 +289,7 @@ public sealed class NativeBattleSigh46ControllerTests
         var frame = Frame(1, 0x831FE0, 2);
         uint address = Pools[1].Bank;
         frame = Write(frame, address, Read(frame, address).WriteWord(0x24, 40));
-        var packets = Packets();
-        packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { UnknownByteMask = packets.Headers[1].UnknownByteMask | 1u << 16 }) };
+        NativeBattleActionPacketsState packets = Packets(null);
         Assert.Throws<NotSupportedException>(() => AdvanceTask(frame, address, Resources(), Inputs([]) with { ReadPackets = _ => packets }));
     }
 
@@ -302,7 +299,7 @@ public sealed class NativeBattleSigh46ControllerTests
         var frame = Frame(1, 0x831FE0, 2);
         uint address = Pools[1].Bank;
         frame = Write(frame, address, Read(frame, address).WriteWord(0x24, 40));
-        var packets = Count(Packets(), 3);
+        var packets = Packets(3);
         Assert.Throws<NotSupportedException>(() => AdvanceTask(frame, address, Resources(), Inputs([]) with { ReadPackets = _ => packets }));
     }
 
@@ -328,12 +325,6 @@ public sealed class NativeBattleSigh46ControllerTests
         Assert.Equal(frame.Random, completed.Random);
     }
 
-    private static NativeBattleActionPacketsState Count(NativeBattleActionPacketsState packets, byte count)
-    {
-        NativeBattleActionHeaderSlot header = packets.Headers[1];
-        return packets with { Headers = packets.Headers.SetItem(1, header with { Payload = header.Payload.SetItem(16, count), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) }) };
-    }
-
     private static NativeBattleSigh46Frame Frame(int pool, uint callback, byte phase)
     {
         var frame = Initialize(Inactive(1), Resources(), Inputs([]));
@@ -356,13 +347,13 @@ public sealed class NativeBattleSigh46ControllerTests
         return new(memory, effect, new(123), NativeBattleSigh46State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
-    private static NativeBattleSigh46Inputs Inputs(List<NativeBattleSigh46Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2), (frame, actor, selector, distance) => new(frame, PointView(new((short)actor, (short)selector, (short)distance))), _ => 0, _ => Packets(), (frame, operation) =>
+    private static NativeBattleSigh46Inputs Inputs(List<NativeBattleSigh46Operation> operations) => new(Packets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(2), (frame, actor, selector, distance) => new(frame, PointView(new((short)OriginalSlot(actor), (short)selector, (short)distance))), _ => 0, _ => Packets(), (frame, operation) =>
     {
         operations.Add(operation);
         return frame;
     });
 
-    private static NativeBattleActionPacketsState Packets()
+    private static NativeBattleActionPacketsState Packets(int? count = 2, bool withContacts = true)
     {
         var packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 85, 46, null));
@@ -370,13 +361,17 @@ public sealed class NativeBattleSigh46ControllerTests
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 85, 46, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
-        (packets, _) = packets.Publish(2);
+        if (withContacts)
+        {
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 4, 0, 0, 0, 7, 0), new(OriginalOwner(4), 4, 0, 0, 0, 3, 0)));
+        }
+        if (count is int knownCount)
+        {
+            (packets, _) = packets.Publish(knownCount);
+        }
         return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(1), 1);
     }
 
     private static NativeBattleSigh46Resources Resources() => NativeBattleSigh46StateTests.Resources();
-
-    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

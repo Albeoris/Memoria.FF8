@@ -74,7 +74,7 @@ public sealed class NativeBattleMeleeDisplacementContinuationTests
                 NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, index);
                 NativeBattleSequenceState state = model.SequenceState!;
                 minimumDistance = Math.Min(minimumDistance, Distance(model));
-                trace?.WriteLine(JsonSerializer.Serialize(new { battle.Frame, Callback = battle.NativeGraphics.Callback, model.Sequence, state.Header36, state.Header38, state.Header40, model.GeometryWorldMatrix, model.Transform, Effect = battle.NativeGraphics.OriginalEffect?.Binding.Effect }));
+                trace?.WriteLine(JsonSerializer.Serialize(new { battle.Frame, Callback = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).Callback, model.Sequence, state.Header36, state.Header38, state.Header40, model.GeometryWorldMatrix, model.Transform, Effect = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).OriginalEffect?.Binding.Effect }));
                 bool header = state.Header36 != 0 || state.Header38 != 0 || state.Header40 != 0;
                 if (header)
                 {
@@ -96,7 +96,7 @@ public sealed class NativeBattleMeleeDisplacementContinuationTests
                     }
                     CompareNext();
                 }
-                if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.GetNativeRenzokuken(actorId) is null && battle.NativeGraphics.OriginalEffect is not { ReturnedDescriptor: > 0 })
+                if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.GetNativeRenzokuken(actorId) is null && Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).OriginalEffect is not { ReturnedDescriptor: > 0 })
                 {
                     Assert.True(displaced, "The installed actor sequence must publish its displacement operands.");
                     Assert.True(hit);

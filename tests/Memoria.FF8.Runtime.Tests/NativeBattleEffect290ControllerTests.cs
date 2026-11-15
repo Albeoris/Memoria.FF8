@@ -200,7 +200,7 @@ public sealed class NativeBattleEffect290ControllerTests
         Assert.Equal(new short[] { 1, 3 }, select.BoneSelectors);
         Assert.Equal(-100, select.NormalSpeed);
         Assert.Equal(100, select.ChunkLimit);
-        Assert.Equal(new NativeBattleEffect290BirthTarget676340(ModelAddress(3), Arena + 0x1CF4, 2, 4096, 1024), harness.Operations[1]);
+        Assert.Equal(new NativeBattleEffect290BirthTarget676340(OriginalOwner(3), Arena + 0x1CF4, 2, 4096, 1024), harness.Operations[1]);
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public sealed class NativeBattleEffect290ControllerTests
             Assert.Equal(Arena + MorphOffset, Dword290(call.Caller, 0x34));
             Assert.All(call.Caller.ReadSnapshot(0x20, 12).Known, known => Assert.False(known));
         });
-        Assert.Equal((ModelAddress(3), 1, 1024), Assert.Single(harness.Points));
+        Assert.Equal((OriginalOwner(3), 1, 1024), Assert.Single(harness.Points));
         Assert.Equal(0x12345678u, Read(result, Main).ReadDword(0x64D8));
         Assert.Equal(31, Read(result, Main).ReadWord(12));
         Assert.Equal(new NativeBattleEffect290AdvanceFragments6774C0(Main), harness.Operations[^1]);
@@ -306,7 +306,7 @@ public sealed class NativeBattleEffect290ControllerTests
         {
             (frame, _) = Append(frame, SpriteDescriptor, 0x677550);
         }
-        NativeBattleEffect290Frame result = BirthSmallChildren290(frame, ModelAddress(3), NativeBattleEffectArena.Clear().MarkUnknown(0, 8), harness.Inputs());
+        NativeBattleEffect290Frame result = BirthSmallChildren290(frame, OriginalOwner(3), NativeBattleEffectArena.Clear().MarkUnknown(0, 8), harness.Inputs());
         Assert.Single(harness.Points);
         Assert.Equal(frame.Random, result.Random);
         Assert.Equal(321u, result.State.ReadDword(InitializerGlobal));
@@ -388,7 +388,7 @@ public sealed class NativeBattleEffect290ControllerTests
             }
             pools.Add(pool);
         }
-        NativeBattleEffect290State state = NativeBattleEffect290State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
+        NativeBattleEffect290State state = NativeBattleEffect290State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModel(CasterGlobal, OriginalOwner(3), OriginalAliases);
         NativeBattleOriginalEffectState effect = new(290, 289, new(290, Entry, Initializer), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutable() };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
         memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools.Skip(1).ToImmutableArray());
@@ -425,7 +425,7 @@ public sealed class NativeBattleEffect290ControllerTests
         public bool MutateMain;
         public NativeBattleVector Point = new(100, 200, 4000);
         public List<NativeBattleEffect290Operation> Operations = [];
-        public List<(uint, int, int)> Points = [];
+        public List<(BattleModelOwner, int, int)> Points = [];
         public List<(uint Workspace, NativeBattleEffectArena Caller)> Programmes = [];
 
         public NativeBattleEffect290Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _) => NativeBattleEffectArena.Clear(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, selector, fraction, retained) =>
@@ -436,7 +436,7 @@ public sealed class NativeBattleEffect290ControllerTests
         {
             Operations.Add(operation);
             return MutateMain && operation is NativeBattleEffect290DrawBody676B40 ? Write(frame, Main, Read(frame, Main).WriteDword(0x64D8, 0x12345678)) : frame;
-        })
+        }, OriginalAliases)
         {
             AdvanceLower = (frame, _, _, _) => new(frame, 0),
             AdvanceProgramme = (frame, workspace, _, caller, _, _) =>

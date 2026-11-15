@@ -28,15 +28,15 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(game.ReadNewGameCharacterVitals(), battle, 0);
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = kit.Weapon });
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref random);
-        model = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
+        }, 0, 0, true, ref random);
+        model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
         model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 0, slot => slot switch { 0 => OriginalOwner(0), 4 => OriginalOwner(3), _ => throw new ArgumentOutOfRangeException(nameof(slot)) });
         BattleNativeAction action = Assert.Single(kit.Spells, spell => spell.ActionId == ability);
         CrossoverNativeMagicPresentationState state = presentation.Begin(model, cure ? 0 : 4, NativeCrtRandomState.FromColdProcess(), cure ? new(OriginalOwner(0), 4, 0, 1, 0, 282, 0) : new(OriginalOwner(3), 4, 0, 0, 0, 83, 0), action, random);
         Assert.Equal(700, state.Cast.Model.Transform!.Scale38);

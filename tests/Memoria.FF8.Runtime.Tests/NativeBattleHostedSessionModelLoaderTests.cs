@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -6,15 +7,22 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedSessionModelLoaderTests
 {
+    private static readonly BattleEnemyModelOwner FirstEnemy = new BattleEnemyActorModel(new("first"));
+    private static readonly BattleEnemyModelOwner SecondEnemy = new BattleEnemyActorModel(new("second"));
+    private static readonly BattlePartyModelOwner FirstParty = new BattlePartyActorModel(new("first"));
+    private static readonly BattlePartyModelOwner SecondParty = new BattlePartyActorModel(new("second"));
+    private static readonly BattleModelOwner FirstOriginal = new BattleEnemyActorModel(new("first"));
+    private static readonly BattleModelOwner SecondOriginal = new BattleEnemyActorModel(new("second"));
+
     [Fact]
     public void HostedEnemyLoadsOfTheSameModelPublishIndependentTextureAndCpuOwners()
     {
         NativeBattleModelDatSource source = EnemySource(77);
         BattleSession session = Session([source], Roster(false, false));
-        Load(session, 77, 7);
+        Load(session, 77, FirstEnemy);
         NativeBattleEffectMemory first = Drain(session);
         Set(session, nameof(BattleSession.NativeEffectMemory), first);
-        Load(session, 77, 24);
+        Load(session, 77, SecondEnemy);
         NativeBattleEffectTextureState queued = session.NativeEffectMemory!.Textures!;
         Assert.Equal(0, queued.Count);
         Assert.Equal(0, queued.RequirePresentationTexture("first").Textures.Count);
@@ -26,38 +34,39 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
 
         NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
-        int firstAlias = graphics.Models[7].ActiveResourceRow100!.Value;
-        int secondAlias = graphics.Models[24].ActiveResourceRow100!.Value;
+        int firstAlias = graphics.ActorModels.Get(FirstEnemy).ActiveResourceRow100!.Value;
+        int secondAlias = graphics.ActorModels.Get(SecondEnemy).ActiveResourceRow100!.Value;
         Assert.NotEqual(firstAlias, secondAlias);
-        ImmutableDictionary<int, int> owners = session.NativeModelTextureCache!.PresentationActors!;
-        Assert.Equal(7, owners[firstAlias]);
-        Assert.Equal(24, owners[secondAlias]);
+        ImmutableDictionary<int, BattleModelOwner> owners = session.NativeModelTextureCache!.PresentationActors!;
+        Assert.Equal(FirstEnemy, owners[firstAlias]);
+        Assert.Equal(SecondEnemy, owners[secondAlias]);
         Assert.NotEqual(cpu.Rows[firstAlias].Require(16).EnemyResourceId, cpu.Rows[secondAlias].Require(16).EnemyResourceId);
     }
 
     [Theory]
-    [InlineData((byte)7)]
-    [InlineData((byte)24)]
-    public void HostedPartyBodyAndLinkedCompleteTheirOwnPlanAndSavedPalette(byte actor)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HostedPartyBodyAndLinkedCompleteTheirOwnPlanAndSavedPalette(bool first)
     {
+        BattlePartyModelOwner actor = first ? FirstParty : SecondParty;
         NativeBattleModelDatSource body = WithTim(NativeBattleModelResourceCapacityTests.Source(false, 8), 5);
         NativeBattleModelDatSource linked = WithTim(NativeBattleModelResourceCapacityTests.Source(true, 8), 6);
         BattleSession session = Session([body, linked], Roster(true, true));
         Load(session, 0, actor, restorePending: true);
         Load(session, 0x1000, actor);
-        NativeBattleGraphicsModel model = session.NativeGraphics!.Models[actor];
+        NativeBattleGraphicsModel model = session.NativeGraphics!.ActorModels.Get(actor);
         NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
         int bodyAlias = model.ActiveResourceRow100!.Value;
         int linkedAlias = model.LinkedTextureResourceIndex!.Value;
         Assert.NotEqual(bodyAlias, linkedAlias);
-        ImmutableDictionary<int, int> owners = session.NativeModelTextureCache!.PresentationActors!;
-        Assert.Equal((int)actor, owners[bodyAlias]);
-        Assert.Equal((int)actor, owners[linkedAlias]);
+        ImmutableDictionary<int, BattleModelOwner> owners = session.NativeModelTextureCache!.PresentationActors!;
+        Assert.Equal(actor, owners[bodyAlias]);
+        Assert.Equal(actor, owners[linkedAlias]);
         Assert.Equal(cpu.Cpu.PartyBankIndex(actor), (int)cpu.Rows[bodyAlias].Require(8).Bank);
         Assert.Equal(cpu.Cpu.PartyBankIndex(actor), (int)cpu.Rows[linkedAlias].Require(12).Bank);
         Assert.Equal((byte)0x1F, cpu.ReadPartyStatusPalette(actor)[2]);
 
-        string id = actor == 7 ? "first" : "second";
+        string id = first ? "first" : "second";
         NativeBattleEffectTextureState drained = Drain(session).Textures!;
         Assert.Equal((ushort)0, drained.ReadVramWord(1, 224));
         Assert.Equal((ushort)0x1F, drained.RequirePresentationTexture(id).Textures.ReadVramWord(1, 224));
@@ -68,7 +77,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
     public void NativeEnemyCloneSkipsFileIoAndKeepsTheExistingTextureBinding()
     {
         BattleSession session = Session([EnemySource(77)], null);
-        Load(session, 77, 3);
+        Load(session, 77, FirstOriginal);
         NativeBattleEffectMemory drained = Drain(session);
         Set(session, nameof(BattleSession.NativeEffectMemory), drained);
         string fileState = NativeBattleTestSnapshots.Json(session.NativeFileIo!);
@@ -76,7 +85,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         const int ioResult = 0x1234;
         Set(session, nameof(BattleSession.NativeEffectIoResult), ioResult);
 
-        Queue(session, 77, 4);
+        Queue(session, 77, SecondOriginal);
         Assert.Equal((byte)0, session.NativeModelLoader!.Task!.Phase);
         Invoke(session, "PumpNativeFileIo482590");
         Assert.Equal(fileState, NativeBattleTestSnapshots.Json(session.NativeFileIo!));
@@ -88,8 +97,8 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         Assert.Equal(staging, NativeBattleTestSnapshots.Json(session.NativeFileStaging!));
         Assert.Same(drained.Textures, session.NativeEffectMemory!.Textures);
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
-        NativeBattleGraphicsModel first = graphics.Models[3];
-        NativeBattleGraphicsModel second = graphics.Models[4];
+        NativeBattleGraphicsModel first = graphics.ActorModels.Get(FirstOriginal);
+        NativeBattleGraphicsModel second = graphics.ActorModels.Get(SecondOriginal);
         int firstAlias = Assert.IsType<int>(first.TextureResourceIndex);
         int secondAlias = Assert.IsType<int>(second.TextureResourceIndex);
         Assert.NotEqual(firstAlias, secondAlias);
@@ -111,17 +120,17 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
     {
         NativeBattleModelDatSource companion = new(143, false, 0, 293, "companion.dat", Dat([new byte[4], new byte[4]]));
         BattleSession session = Session([EnemySource(142), companion], Roster(false, false));
-        Load(session, 142, 7);
-        Load(session, 143, 24);
+        Load(session, 142, FirstEnemy);
+        Load(session, 143, SecondEnemy);
         NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
-        int donor = graphics.Models[7].TextureResourceIndex!.Value;
-        int destination = graphics.Models[24].TextureResourceIndex!.Value;
+        int donor = graphics.ActorModels.Get(FirstEnemy).TextureResourceIndex!.Value;
+        int destination = graphics.ActorModels.Get(SecondEnemy).TextureResourceIndex!.Value;
         Assert.Equal(donor, cpu.LastModel142Row);
         Assert.Equal(cpu.Rows[donor].Require(12), cpu.Rows[destination].Require(12));
         Assert.Equal(new NativeBattleModelCpuReference(4, 0), cpu.Rows[destination].Require(16));
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
-        Assert.Equal(24, cache.PresentationActors![destination]);
+        Assert.Equal(SecondEnemy, cache.PresentationActors![destination]);
         Assert.Equal((ushort?)0, cache.Rows[destination].TextureMask);
         NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
         Assert.Equal(1, textures.RequirePresentationTexture("first").Textures.Count);
@@ -134,16 +143,16 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         BattleModelRoster roster = Roster(false, false);
         BattleSession session = Session([EnemySource(77)], roster);
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
-        BattleModelRoster mismatch = new(roster.Rows.SetItem(24, new("different", false)));
+        BattleModelRoster mismatch = new([FirstEnemy, new BattleEnemyActorModel(new("different"))]);
         Set(session, nameof(BattleSession.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(mismatch));
         NativeBattleFileIoState file = session.NativeFileIo!;
         NativeBattleFileStaging staging = session.NativeFileStaging!;
-        TargetInvocationException queueFailure = Assert.Throws<TargetInvocationException>(() => Queue(session, 77, 7));
+        TargetInvocationException queueFailure = Assert.Throws<TargetInvocationException>(() => Queue(session, 77, FirstEnemy));
         Assert.IsType<InvalidDataException>(queueFailure.InnerException);
         Assert.Null(session.NativeModelLoader);
 
         Set(session, nameof(BattleSession.NativeModelTextureCache), cache);
-        Queue(session, 77, 7);
+        Queue(session, 77, FirstEnemy);
         NativeBattleEffectMemory memory = session.NativeEffectMemory!;
         Set(session, nameof(BattleSession.NativeEffectMemory), memory with { Textures = memory.Textures! with { PresentationTextures = memory.Textures!.PresentationTextures!.Remove("first") } });
         TargetInvocationException pollFailure = Assert.Throws<TargetInvocationException>(() => Poll(session));
@@ -157,9 +166,9 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
     public void FullHostedCacheRejectsNewAliasBeforeQueueButAllowsSameActorReload()
     {
         BattleSession session = Session([EnemySource(77)], Roster(false, false));
-        Load(session, 77, 7);
+        Load(session, 77, FirstEnemy);
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
-        int alias = session.NativeGraphics!.Models[7].TextureResourceIndex!.Value;
+        int alias = session.NativeGraphics!.ActorModels.Get(FirstEnemy).TextureResourceIndex!.Value;
         NativeBattleModelTextureCacheRow template = cache.Rows[alias];
         for (int row = 0; row < cache.Rows.Length; row++)
         {
@@ -168,7 +177,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
                 cache = cache with
                 {
                     Rows = cache.Rows.SetItem(row, template with { ModelId = checked((byte)(90 + row)) }),
-                    PresentationActors = cache.PresentationActors!.Add(row, 24)
+                    PresentationActors = cache.PresentationActors!.Add(row, SecondEnemy)
                 };
             }
         }
@@ -180,7 +189,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
         NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
 
-        TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Queue(session, 78, 7));
+        TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Queue(session, 78, FirstEnemy));
         Assert.IsType<NotSupportedException>(failure.InnerException);
         Assert.Same(loader, session.NativeModelLoader);
         Assert.Same(io, session.NativeFileIo);
@@ -189,8 +198,8 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         Assert.Same(cpu, session.NativeModelCpuResources);
         Assert.Same(cache, session.NativeModelTextureCache);
 
-        Load(session, 77, 7);
-        Assert.Equal(alias, session.NativeGraphics!.Models[7].TextureResourceIndex);
+        Load(session, 77, FirstEnemy);
+        Assert.Equal(alias, session.NativeGraphics!.ActorModels.Get(FirstEnemy).TextureResourceIndex);
         Assert.Equal(cache.Rows.Length, session.NativeModelTextureCache!.PresentationActors!.Count);
     }
 
@@ -205,16 +214,16 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         };
         BattleSession session = new(definition with { NativeGraphics = null }, BattleAtbMode.Normal);
         typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, definition);
-        ImmutableArray<NativeBattleGraphicsModel> models = roster is null ? [.. NativeBattleGraphicsModels.ClearBank()] : [.. NativeBattleGraphicsModels.ClearPresentationBank(roster)];
-        models = models.Select(model => model with { FileSelector128 = 0, FileSelector129 = 0 }).ToImmutableArray();
-        ImmutableArray<string?> ids = roster is null ? [null, null, null, "first", "second", null, null] : roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray();
-        NativeBattleGraphicsState graphics = new(models, ids, 0, 0) { PresentationRoster = roster };
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { FileSelector128 = 0, FileSelector129 = 0 };
+        NativeBattleGraphicsState graphics = roster is null
+            ? OriginalGraphics([(3, FirstOriginal, model), (4, SecondOriginal, model)])
+            : NativeBattleHostedTestFixture.Graphics(roster, new(roster, []), _ => model);
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, ScratchMaximum = 0, EnemyLinkedSlots = 0 };
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.Initialize508260(null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0);
         if (roster is not null)
         {
-            cpu = cpu.WithPresentationRoster(roster);
+            cpu = cpu.WithPresentationRoster(roster, new(roster, []));
             cache = cache.WithPresentationRoster(roster);
             NativeBattlePcTextureWindowCache imageCache = NativeBattlePcTextureWindowCache.Reset4647A0(null);
             NativeBattleEffectTextureState textures = memory.Textures!
@@ -232,17 +241,13 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         return session;
     }
 
-    private static BattleModelRoster Roster(bool firstParty, bool secondParty)
-    {
-        BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        rows[7] = new("first", firstParty);
-        rows[24] = new("second", secondParty);
-        return new(rows.ToImmutableArray());
-    }
+    private static BattleModelRoster Roster(bool firstParty, bool secondParty) => new([
+        firstParty ? (BattleModelOwner)FirstParty : FirstEnemy,
+        secondParty ? (BattleModelOwner)SecondParty : SecondEnemy]);
 
-    private static void Load(BattleSession session, ushort request, byte row, bool restorePending = false)
+    private static void Load(BattleSession session, ushort request, BattleModelOwner owner, bool restorePending = false)
     {
-        Queue(session, request, row);
+        Queue(session, request, owner);
         for (int callback = 0; session.NativeModelLoader!.Task is not null && callback < 24; callback++)
         {
             Invoke(session, "PumpNativeFileIo482590");
@@ -251,13 +256,15 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
             {
                 NativeBattleModelLoader pending = session.NativeModelLoader!;
                 Assert.NotNull(pending.Task);
-                Set(session, nameof(BattleSession.NativeModelLoader), NativeBattleTestSnapshots.RestoreJson<NativeBattleModelLoader>(NativeBattleTestSnapshots.Json(pending)));
+                NativeBattleModelLoader restored = NativeBattleTestSnapshots.Independent(pending);
+                Assert.Equal(owner, restored.Task!.Owner);
+                Set(session, nameof(BattleSession.NativeModelLoader), restored);
             }
         }
         Assert.Null(session.NativeModelLoader!.Task);
     }
 
-    private static void Queue(BattleSession session, ushort request, byte row) => Invoke(session, "QueueNativeModelResource507080", session.NativeGraphics!, request, row, 0u);
+    private static void Queue(BattleSession session, ushort request, BattleModelOwner owner) => Invoke(session, "QueueNativeModelResource507080", session.NativeGraphics!, request, owner, 0u);
 
     private static void Poll(BattleSession session)
     {

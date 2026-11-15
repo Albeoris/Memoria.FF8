@@ -1,70 +1,68 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Collections.Immutable;
+﻿using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedModelCompletionTests
 {
-    [Fact]
-    public void Sequence_busy_queries_include_bound_extras_and_preserve_ascending_first_hit()
-    {
-        BattleModelRoster roster = Roster();
-        ImmutableArray<NativeBattleGraphicsModel> models = Models()
-            .SetItem(7, new(2) { Kind5 = 1, Flags8 = 0 })
-            .SetItem(24, new(2));
-        Assert.Equal(1, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 0, roster));
-        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 7, roster));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 1, roster));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, OriginalOwner(0)));
-        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models[..7], 0, roster));
+    private static readonly BattleModelOwner Original = OriginalOwner(0);
+    private static readonly BattleModelOwner ExtraAlly = new BattlePartyActorModel(new("extra-ally"));
+    private static readonly BattleModelOwner ExtraEnemy = new BattleEnemyActorModel(new("extra-enemy"));
 
-        models = models.SetItem(7, new(0)).SetItem(24, new(2) { Kind5 = 1, Flags8 = 0 });
-        models = NativeBattleTestSnapshots.RestoreJson<ImmutableArray<NativeBattleGraphicsModel>>(NativeBattleTestSnapshots.Json(models));
-        Assert.Equal(1, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 0, roster));
-        Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 24, roster));
-        Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models[..7].SetItem(1, new(0)), OriginalOwner(0)));
+    [Fact]
+    public void Sequence_busy_queries_include_bound_extras_in_model_order()
+    {
+        BattleActorModels models = Graphics().ActorModels
+            .Set(ExtraAlly, new(2) { Kind5 = 1, Flags8 = 0 })
+            .Set(ExtraEnemy, new(2));
+        Assert.Equal(1, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, Original));
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, ExtraAlly));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, OriginalOwner(1)));
+
+        models = models.Set(ExtraAlly, new(0)).Set(ExtraEnemy, new(2) { Kind5 = 1, Flags8 = 0 });
+        models = NativeBattleTestSnapshots.Independent(models);
+        Assert.Equal(1, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, Original));
+        Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, ExtraEnemy));
+        Assert.Equal(0, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models.Remove(ExtraEnemy), Original));
     }
 
     [Fact]
     public void Barrier_waits_for_last_hosted_model_before_reading_the_camera()
     {
-        BattleModelRoster roster = Roster();
-        ImmutableArray<NativeBattleGraphicsModel> models = Models()
-            .SetItem(7, new(2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 })
-            .SetItem(24, new(2) { Kind5 = 1, Flags8 = 0 });
+        BattleActorModels models = Graphics().ActorModels
+            .Set(ExtraAlly, new(2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 })
+            .Set(ExtraEnemy, new(2) { Kind5 = 1, Flags8 = 0 });
         byte completion = 17;
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollHostedTask112(1, null, UnavailableCamera, ref completion, roster));
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollHostedTask112(0, models, UnavailableCamera, ref completion, roster));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(1, null, UnavailableCamera, ref completion));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, models, UnavailableCamera, ref completion));
         Assert.Equal((byte)17, completion);
-        models = models.SetItem(24, models[24] with { Kind5 = 0 });
-        Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsCompletion.PollHostedTask112(0, models, UnavailableCamera, ref completion, roster));
+        models = models.Set(ExtraEnemy, models.Get(ExtraEnemy) with { Kind5 = 0 });
+        Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsCompletion.PollTask112(0, models, UnavailableCamera, ref completion));
 
-        models = models.SetItem(24, models[24] with { ResourceFlags44 = 0x40 });
-        models = NativeBattleTestSnapshots.RestoreJson<ImmutableArray<NativeBattleGraphicsModel>>(NativeBattleTestSnapshots.Json(models));
-        Assert.Throws<InvalidOperationException>(() => NativeBattleGraphicsCompletion.PollHostedTask112(0, models, UnavailableCamera, ref completion, roster));
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollHostedTask112(0, models, () => 1, ref completion, roster));
+        models = models.Set(ExtraEnemy, models.Get(ExtraEnemy) with { ResourceFlags44 = 0x40 });
+        models = NativeBattleTestSnapshots.Independent(models);
+        Assert.Throws<InvalidOperationException>(() => NativeBattleGraphicsCompletion.PollTask112(0, models, UnavailableCamera, ref completion));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, models, () => 1, ref completion));
         Assert.Equal((byte)17, completion);
-        Assert.Equal(2, NativeBattleGraphicsCompletion.PollHostedTask112(0, models, () => 0, ref completion, roster));
+        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models, () => 0, ref completion));
         Assert.Equal((byte)255, completion);
     }
 
     [Fact]
-    public void Direct_barrier_requires_exactly_seven_native_rows_or_its_explicit_hosted_extent()
+    public void Direct_barrier_uses_all_current_models_and_does_not_require_original_cell_padding()
     {
-        BattleModelRoster roster = Roster();
-        NativeBattleGraphicsModelCompletion[] models = Enumerable.Repeat(new NativeBattleGraphicsModelCompletion(0, 0, 0, null), 25).ToArray();
-        models[1] = new(2, 0, 0, null);
-        models[24] = new(2, 0, 0, 0);
         byte completion = 0;
-        Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion));
-        Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsCompletion.PollTask112(0, models[..7], 0, ref completion, roster));
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion, roster));
-        models[24] = models[24] with { ResourceFlags44 = 0x40 };
-        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion, roster));
+        Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsCompletion.PollTask112(0, null, 0, ref completion));
+
+        NativeBattleGraphicsModel ready = new(2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 };
+        BattleActorModels models = new([new(Original, ready), new(ExtraEnemy, ready with { ResourceFlags44 = 0 })]);
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion));
+        Assert.Equal((byte)0, completion);
+        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models.Set(ExtraEnemy, ready), 0, ref completion));
         Assert.Equal((byte)255, completion);
 
-        models[1] = new(0, 0, 0, null);
-        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models[..7], 0, ref completion));
+        completion = 0;
+        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models.Remove(ExtraEnemy), 0, ref completion));
+        Assert.Equal((byte)255, completion);
     }
 
     [Theory]
@@ -73,26 +71,23 @@ public sealed class NativeBattleHostedModelCompletionTests
     [InlineData(50)]
     public void Hosted_graphics_accepts_symbolic_texture_aliases_beyond_the_native_rows(int alias)
     {
-        BattleModelRoster roster = Roster();
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray();
-        models = models.SetItem(24, models[24] with { TextureResourceIndex = alias });
-        NativeBattleGraphicsState graphics = new(models, roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
-        NativeBattleGraphicsState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGraphicsState>(NativeBattleTestSnapshots.Json(graphics));
+        NativeBattleGraphicsState graphics = Graphics();
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(ExtraEnemy) with { TextureResourceIndex = alias };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(ExtraEnemy, model) };
+        NativeBattleGraphicsState restored = NativeBattleTestSnapshots.Independent(graphics);
         restored.Validate();
-        Assert.Equal(alias, restored.Models[24].TextureResourceIndex);
+        Assert.Equal(alias, restored.ActorModels.Get(ExtraEnemy).TextureResourceIndex);
     }
 
     [Theory]
     [InlineData(true, -1)]
-    [InlineData(true, 51)]
-    [InlineData(false, 11)]
+    [InlineData(true, NativeBattleModelResourceRowAddress.MaximumEncodedRowCount)]
+    [InlineData(false, NativeBattleModelResourceRowAddress.MaximumEncodedRowCount)]
     public void Graphics_rejects_texture_alias_outside_its_symbolic_domain(bool hosted, int alias)
     {
-        BattleModelRoster? roster = hosted ? Roster() : null;
-        ImmutableArray<NativeBattleGraphicsModel> models = (roster is null ? NativeBattleGraphicsModels.ClearBank() : NativeBattleGraphicsModels.ClearPresentationBank(roster)).ToImmutableArray();
-        models = models.SetItem(0, models[0] with { TextureResourceIndex = alias });
-        ImmutableArray<string?> ids = roster?.Rows.Select(actor => actor?.ActorId).ToImmutableArray() ?? Enumerable.Repeat<string?>(null, models.Length).ToImmutableArray();
-        NativeBattleGraphicsState graphics = new(models, ids, 0, 0) { PresentationRoster = roster };
+        NativeBattleGraphicsState graphics = hosted ? Graphics() : OriginalGraphics([(0, Original, NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null))]);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(Original) with { TextureResourceIndex = alias };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(Original, model) };
         Assert.Throws<InvalidDataException>(graphics.Validate);
     }
 
@@ -101,17 +96,9 @@ public sealed class NativeBattleHostedModelCompletionTests
         throw new InvalidOperationException("The camera owner should not be read yet.");
     }
 
-    private static ImmutableArray<NativeBattleGraphicsModel> Models()
+    private static NativeBattleGraphicsState Graphics()
     {
-        return Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row == 1 ? (ushort)2 : (ushort)0)).ToImmutableArray();
-    }
-
-    private static BattleModelRoster Roster()
-    {
-        BattleModelOwner?[] actors = new BattleModelOwner?[25];
-        actors[0] = new BattlePartyActorModel(new("native"));
-        actors[7] = new BattlePartyActorModel(new("extra-ally"));
-        actors[24] = new BattleEnemyActorModel(new("extra-enemy"));
-        return new(actors.ToImmutableArray());
+        BattleModelRoster roster = new([Original, ExtraAlly, ExtraEnemy]);
+        return NativeBattleHostedTestFixture.Graphics(roster, new(roster, [(NativeBattleModelSlot.Decode(0), Original)]), _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
     }
 }

@@ -11,9 +11,9 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear();
         for (int row = 0; row < count; row++)
         {
-            auxiliary = auxiliary.AppendTextureAnimation(row % 7, 11, new([255], 0));
+            auxiliary = auxiliary.AppendTextureAnimation(OriginalOwner(row % 7), 11, new([255], 0), OriginalAliases);
         }
-        return new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0) { Auxiliary = auxiliary };
+        return OriginalGraphics(Enumerable.Range(0, 7).Select(slot => (slot, OriginalOwner(slot), new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }))) with { Auxiliary = auxiliary };
     }
 
     private static BattleDiagnosticTextureQuiescence Capture(NativeBattleGraphicsState graphics)
@@ -41,7 +41,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         int callbacks = 0;
         NativeBattleAuxiliaryStep advanced = graphics.Auxiliary.Advance(new()
         {
-            ReadModel = index => graphics.Models[index],
+            ReadModel = graphics.ActorModels.Get,
             ApplyTexture = (_, _, _) => throw new InvalidOperationException("Terminal native branch must not copy a texture."),
             RestoreTextureBlink = _ => throw new InvalidOperationException("Terminal native branch must not restore or release blink ownership.")
         }, _ => callbacks++);
@@ -74,7 +74,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
     [InlineData("sequence-changed")]
     [InlineData("sequence-unavailable")]
     [InlineData("model-unavailable")]
-    [InlineData("model-index-contradiction")]
+    [InlineData("model-owner-contradiction")]
     [InlineData("cycle")]
     [InlineData("orphan-active")]
     [InlineData("free-linked")]
@@ -89,6 +89,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         {
             "pointer-unknown" => task with { UnknownByteMask = task.UnknownByteMask | 1 },
             "sequence-unknown" => task with { UnknownByteMask = task.UnknownByteMask | 0x200 },
+            "model-owner-contradiction" => task with { ModelOwner = OriginalOwner(1) },
             "pointer-invalid" => task with { Payload = task.Payload.SetItem(0, 0).SetItem(1, 0).SetItem(2, 0).SetItem(3, 0) },
             "short-payload" => task with { Payload = task.Payload.Take(4).ToImmutableArray() },
             "program-missing" => task with { Program = null },
@@ -111,11 +112,10 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
             "sequence-unavailable" => model with { Sequence = null },
             _ => model
         };
-        graphics = graphics with { Models = graphics.Models.SetItem(0, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(OriginalOwner(0), model) };
         graphics = fault switch
         {
-            "model-unavailable" => graphics with { Models = [] },
-            "model-index-contradiction" => graphics with { Models = graphics.Models.SetItem(0, new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }) },
+            "model-unavailable" => graphics with { ActorModels = graphics.ActorModels.Remove(OriginalOwner(0)) },
             "orphan-active" => graphics with { Auxiliary = graphics.Auxiliary with { Slots = graphics.Auxiliary.Slots.SetItem(1, task) } },
             "wrong-tail" => graphics with { Auxiliary = graphics.Auxiliary with { Tail = 1 } },
             "missing-head" => graphics with { Auxiliary = graphics.Auxiliary with { Head = null } },

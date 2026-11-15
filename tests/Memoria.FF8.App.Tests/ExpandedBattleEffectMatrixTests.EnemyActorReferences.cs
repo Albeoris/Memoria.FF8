@@ -131,8 +131,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             }
             if (battle.ActiveAction is { ActorId: var actorId, Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 1 } active && actorId == owner.Id && active.NativeQueuedCommand == retaliation.Command && active.ActionId == retaliation.ActionId && active.NativeSequence == retaliation.Sequence)
             {
-                Assert.NotNull(active.AiRecipients);
-                Assert.Equal(storedAttacker, Assert.Single(active.AiRecipients.ActorIds));
+                Assert.IsType<BattleTargetSelection.Explicit>(active.TargetRequest.Selection);
+                Assert.Equal(storedAttacker, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(active.TargetRequest.Selection).Actors.Select(actor => actor.ActorId)));
                 retaliationQueued = true;
             }
 

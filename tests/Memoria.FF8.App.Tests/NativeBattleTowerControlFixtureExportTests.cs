@@ -161,7 +161,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             _ = NativeBattleEnemyResourceView.Resolve(cpu, snapshot.NativeFileStaging!, model.ActiveResourceRow100.Value, originalResource);
             Assert.Null(snapshot.ActiveAction);
             Assert.Empty(snapshot.QueuedActions);
-            Assert.Null(snapshot.NativeGraphics.OriginalEffect);
+            Assert.Null(Assert.IsType<NativeBattleGraphicsState>(snapshot.NativeGraphics).OriginalEffect);
             Assert.Equal(0, snapshot.NativeEffectMemory!.Active);
         }
 

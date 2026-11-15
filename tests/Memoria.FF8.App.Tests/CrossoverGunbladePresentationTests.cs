@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -25,10 +26,10 @@ public sealed class CrossoverGunbladePresentationTests
             Transform = new(origin, origin, 0, 0, scale),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
         };
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(unloaded, 0, 0, ref random);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(unloaded, 0, 0, true, ref random);
         model = NativeBattleGraphicsModels.SelectSequence(model, 1);
-        model = NativeBattleSequenceMachine.Advance(model, weapon, new(0, 0)).Model;
-        CrossoverGunbladePresentationState action = CrossoverGunbladePresentation.Begin(model, weapon, game.ReadNativeBattleCommandSequences(), new(0));
+        model = NativeBattleSequenceMachine.Advance(OriginalOwner(0), model, weapon, new(0, 0)).Model;
+        CrossoverGunbladePresentationState action = CrossoverGunbladePresentation.Begin((BattlePartyModelOwner)OriginalOwner(0), model, weapon, game.ReadNativeBattleCommandSequences(), new(0));
         Assert.Equal((byte)13, action.Model.Sequence);
         int distance = NativeBattleActionGeometryRules.ContactDistance(NativeBattleActionGeometryRules.DistanceScale(origin, target), scale, scale);
         Trace uninterrupted = Play(false, true, 0);
@@ -61,16 +62,16 @@ public sealed class CrossoverGunbladePresentationTests
             {
                 ReadModelExternal = (_, variable) => variable switch
                 {
-                    17 => distance,
-                    25 => contactFlags,
-                    46 => 0,
-                    18 or 19 => memory.ReadSequenceGlobal5044B0(variable),
+                    17 => NativeBattleScriptValue.Scalar(distance),
+                    25 => NativeBattleScriptValue.Scalar(contactFlags),
+                    46 => NativeBattleScriptValue.Scalar(0),
+                    18 or 19 => NativeBattleScriptValue.Scalar(memory.ReadSequenceGlobal5044B0(variable)),
                     _ => throw new NotSupportedException($"Unexpected sequence variable {variable}.")
                 },
                 WriteExternal = (variable, value) => memory = memory.WriteSequenceGlobal5048E0(variable, value),
                 ScheduleSoundParticle = (program, two, bone) =>
                 {
-                    (auxiliary, global, bool allocated) = auxiliary.AppendSoundParticle(0, two, bone, program, global);
+                    (auxiliary, global, bool allocated) = auxiliary.AppendSoundParticle(OriginalOwner(0), two, bone, program, global, OriginalAliases);
                     Assert.True(allocated);
                 },
                 ApplyActionContacts = current =>
@@ -104,7 +105,7 @@ public sealed class CrossoverGunbladePresentationTests
                     global = RoundTrip(global);
                     restoredSnapshot = true;
                 }
-                CrossoverGunbladePresentationStep step = CrossoverGunbladePresentation.Advance(state, weapon, inputs, 0, duration, press, receipt =>
+                CrossoverGunbladePresentationStep step = CrossoverGunbladePresentation.Advance(state, (BattlePartyModelOwner)OriginalOwner(0), OriginalRoster, weapon, inputs, 0, duration, press, receipt =>
                 {
                     Assert.Null(prepared);
                     prepared = receipt;

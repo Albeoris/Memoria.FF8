@@ -117,7 +117,7 @@ public sealed class NativeBattleEffect183ControllerTests
         {
             Execute = (current, operation) =>
             {
-                Assert.Equal(7, Assert.IsType<NativeBattleEffect183ContactFirst>(operation).HeaderIndex);
+                Assert.Equal(7, Assert.IsType<NativeBattleEffect183ContactFirst>(operation).Header.Ordinal);
                 Assert.Equal((ushort)30, Read(current, Director).ReadWord(12));
                 calls++;
                 return current;

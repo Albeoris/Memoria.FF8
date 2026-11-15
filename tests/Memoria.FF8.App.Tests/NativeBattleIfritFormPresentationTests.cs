@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -71,7 +72,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 NativeBattleGraphicsState graphics = active.NativeGraphics!;
                 NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
                 Assert.Equal((byte)1, model.SequenceState!.Default2);
-                battle = BattleSession.Restore(active with { NativeGraphics = graphics with { Models = graphics.Models.SetItem(0, model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } });
+                battle = BattleSession.Restore(active with { NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 0), model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } });
             }
             AssertVisibility();
             AssertCommonTexture();

@@ -25,7 +25,7 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeBattleGraphicsModel model = ReadSource(resource);
         BattleNativeAction action = battle.NativeActions.Single(action => action.Command == command && action.ActionId == ability);
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 0, slot => slot switch { 0 => OriginalOwner(0), 4 => OriginalOwner(3), _ => throw new ArgumentOutOfRangeException(nameof(slot)) });
         NativeBattleCameraProjection projection = Camera();
         Func<NativeBattleModuleAnchor> readAnchor = Anchor;
         Func<NativeBattleModelTransform> readTransform = Transform;
@@ -41,7 +41,7 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
             readTransform = () => foreign.Transform;
             readForeign = () => foreign;
         }
-        CrossoverNativeMagicPresentationState state = presentation.Begin(model, self ? 0 : 4, NativeCrtRandomState.FromColdProcess(), new(self ? (byte)0 : (byte)3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
+        CrossoverNativeMagicPresentationState state = presentation.Begin(model, self ? 0 : 4, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(self ? 0 : 3), 4, 0, 0, 0, 83, 0), action, new(0), arena);
         bool admitted = presentation.TryPreflight(state, readAnchor, readTransform, projection, readForeign, out string? reason);
         Assert.True(admitted, $"{action.Name}: {reason}");
         Assert.Null(state.Effect);
@@ -80,8 +80,8 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
         using BattleAssets battle = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         BattleNativeAction action = battle.NativeActions.Single(action => action.Command == 2 && action.ActionId == 21);
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 0, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 1, 0, 83, 0), action, new(0));
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 0, slot => slot switch { 0 => OriginalOwner(0), 4 => OriginalOwner(3), _ => throw new ArgumentOutOfRangeException(nameof(slot)) });
+        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 4, NativeCrtRandomState.FromColdProcess(), new(OriginalOwner(3), 4, 0, 1, 0, 83, 0), action, new(0));
         bool admitted = presentation.TryPreflight(state, Anchor, Transform, Camera(), null, out string? reason);
         Assert.False(admitted);
         Assert.False(string.IsNullOrWhiteSpace(reason));
@@ -94,13 +94,13 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
     private static NativeBattleGraphicsModel ReadSource(NativeBattleGraphicsResource resource)
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel source = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel source = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref random);
-        source = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(source, 1), resource, new(0, 0)).Model;
+        }, 0, 0, true, ref random);
+        source = NativeBattleSequenceMachine.Advance(OriginalOwner(0), NativeBattleGraphicsModels.SelectSequence(source, 1), resource, new(0, 0)).Model;
         return source with { Flags2 = (ushort)(source.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(source, resource.PoseSource!) };
     }
 

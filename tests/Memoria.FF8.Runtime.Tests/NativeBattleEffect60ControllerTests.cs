@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -32,9 +33,9 @@ public sealed class NativeBattleEffect60ControllerTests
     public void Shared_initialization_copies_actual_caster_and_target_positions_with_unknown_W()
     {
         Fixture fixture = new();
-        fixture.Positions[0] = Fixture.Packed(100, 200, 300, 0xABCD).MarkUnknown(6, 2);
-        fixture.Positions[3] = Fixture.Packed(-100, -200, -300, 0x1234);
-        NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[0].Slots[0].WriteByte(0x2C, 0).WriteByte(0x2D, 3);
+        fixture.Positions[OriginalOwner(0)] = Fixture.Packed(100, 200, 300, 0xABCD).MarkUnknown(6, 2);
+        fixture.Positions[OriginalOwner(3)] = Fixture.Packed(-100, -200, -300, 0x1234);
+        NativeBattleModulePoolTask task = OriginalTaskActors(0, 3).WriteTo(fixture.Frame.Effect.Pools[0].Slots[0]);
         NativeBattleEffect60State state = NativeBattleEffect60Controller.InitializeShared(fixture.Frame.State.WithWord(0x48, 1), task, fixture.Inputs);
         Assert.Equal((short)100, state.Word(0));
         Assert.Equal((short)-100, state.Word(8));
@@ -89,15 +90,15 @@ public sealed class NativeBattleEffect60ControllerTests
         public NativeBattleEffect60Resources Resources { get; }
         public NativeBattleEffect60Inputs Inputs { get; }
         public List<NativeBattleEffect60Operation> Operations { get; } = [];
-        public Dictionary<int, NativeBattleEffectArena> Positions { get; } = [];
-        public Dictionary<int, NativeBattleEffectArena> Rotations { get; } = [];
+        public Dictionary<BattleModelOwner, NativeBattleEffectArena> Positions { get; } = [];
+        public Dictionary<BattleModelOwner, NativeBattleEffectArena> Rotations { get; } = [];
         public Fixture()
         {
             var prior = NativeBattleRaldo19ControllerTests.Fixture();
             for (int actor = 0; actor < 7; actor++)
             {
-                Positions[actor] = Packed((short)(actor * 100), 0, (short)(actor * 300), 0xABCD);
-                Rotations[actor] = Packed(11, 22, 33, 0x1234).MarkUnknown(6, 2);
+                Positions[OriginalOwner(actor)] = Packed((short)(actor * 100), 0, (short)(actor * 300), 0xABCD);
+                Rotations[OriginalOwner(actor)] = Packed(11, 22, 33, 0x1234).MarkUnknown(6, 2);
             }
             byte[] camera = new byte[788];
             BinaryPrimitives.WriteUInt16LittleEndian(camera, 2);

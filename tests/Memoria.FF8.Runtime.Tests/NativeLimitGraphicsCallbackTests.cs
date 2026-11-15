@@ -98,7 +98,7 @@ public sealed class NativeLimitGraphicsCallbackTests
         BattleNativeDuelState duel = new(2, 8, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8] };
         shots.Add("party", shot);
         duels.Add("party", duel);
-        BattleActionPresentation presentation = new("party", "enemy", BattleActionPhase.Recovery, 0, BattleAbility.LimitBreak, 0);
+        BattleActionPresentation presentation = new("party", "enemy", BattleActionPhase.Recovery, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.LimitBreak, 0);
 
         Assert.True((bool)typeof(BattleSession).GetMethod("CompleteNativeShotAction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [presentation with { NativeLimitCallback = NativeLimitCallback.ShotEffect }])!);
         Assert.True((bool)typeof(BattleSession).GetMethod("CompleteNativeDuelAction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [presentation with { NativeLimitCallback = NativeLimitCallback.DuelEffect }])!);

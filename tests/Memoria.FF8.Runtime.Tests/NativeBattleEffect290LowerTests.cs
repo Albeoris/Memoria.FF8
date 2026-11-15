@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect290Controller;
@@ -416,6 +417,6 @@ public sealed class NativeBattleEffect290LowerTests
         {
             Deliveries.Add(Assert.IsType<NativeBattleEffect290DrawBatch>(operation));
             return frame;
-        });
+        }, OriginalAliases);
     }
 }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -24,7 +25,7 @@ public sealed class NativeBattleShotgun281CurrentBonesTests
         BattleCombatantDefinition definition = original.GetCombatantDefinition(ReadOriginalModelActorId(graphics, caster) ?? throw new InvalidDataException("The original caster requires its current allocation identity."));
         Assert.Equal(78, definition.ModelId);
         NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, caster);
-        Assert.Equal(caster, model.Index);
+        Assert.Equal(model, graphics.ActorModels.Get(RequireOriginalModelOwner(graphics, caster)));
         Assert.Equal((byte)94, model.ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(definition).PoseSource ?? throw new InvalidDataException("The selected original caster requires its actual skeleton.");
         Assert.Equal(24, pose.BoneCount);
@@ -64,7 +65,7 @@ public sealed class NativeBattleShotgun281CurrentBonesTests
             NativeBattleGraphicsState owner = current.NativeGraphics!;
             NativeBattleGraphicsModel actor = ReadOriginalModelCell(owner, caster);
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, actor.GeometryWorldMatrix ?? throw new InvalidDataException("The current world owner is missing."));
-            return current with { NativeGraphics = owner with { Models = owner.Models.SetItem(caster, actor) } };
+            return current with { NativeGraphics = owner with { ActorModels = owner.ActorModels.Set(RequireOriginalModelOwner(owner, caster), actor) } };
         }
 
         BattleSnapshot Restore(BattleSnapshot snapshot)
@@ -81,7 +82,7 @@ public sealed class NativeBattleShotgun281CurrentBonesTests
             Assert.Equal(prepared.Temporary58.ReadSnapshot(0, 88).Known, staging.ReadSnapshot(allocation.Address, 88).Known);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
             Assert.Equal(cursor, staging.Read(NativeBattleTemporaryMemory.Cursor, 4));
-            return current with { NativeGraphics = owner with { Models = owner.Models.SetItem(caster, prepared.Model) }, NativeFileStaging = staging };
+            return current with { NativeGraphics = owner with { ActorModels = owner.ActorModels.Set(RequireOriginalModelOwner(owner, caster), prepared.Model) }, NativeFileStaging = staging };
         }
 
         void Save(string name, BattleSnapshot snapshot)

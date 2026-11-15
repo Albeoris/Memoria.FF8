@@ -17,7 +17,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         Invoke(fixture.Session, "DispatchAction");
         BattleActionPresentation active = Assert.IsType<BattleActionPresentation>(fixture.Session.ActiveAction);
         Assert.Equal("enemy", active.ActorId);
-        Assert.Equal((int?)0, active.NativeHeaderIndex);
+        Assert.Equal(new BattleActionHeaderReference(0), active.NativeHeader);
         Assert.Same(command.NativeAction, active.NativeAction);
         Assert.Equal((byte?)1, active.NativeAiCallbackStage);
         Assert.Empty(fixture.Session.QueuedActions);
@@ -38,7 +38,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     public void PendingDescriptorsDoNotSearchPastUnproducedOrCallbackHead(bool callback)
     {
         var fixture = Fixture(3);
-        BattleAttackCommand first = callback ? new("enemy", "enemy", BattleAbility.EnemyAbility, 0) { NativeCallback = new(3, 1) } : Command("enemy", null);
+        BattleAttackCommand first = callback ? new("enemy", "enemy", Target("enemy"), BattleAbility.EnemyAbility, 0) { NativeCallback = new(3, 1) } : Command("enemy", null);
         Queue(fixture.Session).Enqueue(first);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
         string before = JsonSerializer.Serialize(fixture.Session.Capture());
@@ -56,7 +56,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         var fixture = Fixture(3);
         if (!pending)
         {
-            Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, new NativeBattleGraphicsState([], [], 0, 0));
+            Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { Descriptors = NativeBattleDescriptorState.Clear() });
         }
         Method("QueueNativeCallback").Invoke(fixture.Session, [fixture.Session.Combatants.Single(actor => actor.Id == "enemy"), (ushort)1, (byte)1]);
         Invoke(fixture.Session, "BeginNativeBattleActionPause");
@@ -75,7 +75,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         SetField(fixture.Session, "nativeActionPackets", fixture.Session.NativeActionPackets.ResetCounts());
         if (!pending)
         {
-            Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, new NativeBattleGraphicsState([], [], 0, 0));
+            Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { Descriptors = NativeBattleDescriptorState.Clear() });
         }
         BattleAttackCommand command = Command("enemy", 0);
         Queue(fixture.Session).Enqueue(command);
@@ -83,7 +83,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         string descriptors = JsonSerializer.Serialize(fixture.Session.NativeGraphics!.Descriptors);
         Invoke(fixture.Session, "DispatchAction");
         BattleActionPresentation active = Assert.IsType<BattleActionPresentation>(fixture.Session.ActiveAction);
-        Assert.Equal((int?)0, active.NativeHeaderIndex);
+        Assert.Equal(new BattleActionHeaderReference(0), active.NativeHeader);
         Assert.Same(command.NativeAction, active.NativeAction);
         Assert.Empty(Queue(fixture.Session));
         Assert.Equal(packets, JsonSerializer.Serialize(fixture.Session.NativeActionPackets));
@@ -93,7 +93,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     }
 
     [Fact]
-    public void WrongPhysicalActorAndOutOfRangeHeaderRemainStrictBeforePause()
+    public void WrongPhysicalActorAndUnpreparedHeaderRemainStrictBeforePause()
     {
         var fixture = Fixture(0);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
@@ -102,7 +102,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         Assert.Equal(0u, fixture.Session.Capture().NativeClock!.ActionPause);
 
         fixture = Fixture(3);
-        Queue(fixture.Session).Enqueue(Command("enemy", NativeBattleActionPacketsState.HeaderCapacity));
+        Queue(fixture.Session).Enqueue(Command("enemy", 7));
         error = Assert.Throws<TargetInvocationException>(() => Invoke(fixture.Session, "DispatchAction"));
         Assert.IsType<InvalidDataException>(error.InnerException);
         Assert.Equal(0u, fixture.Session.Capture().NativeClock!.ActionPause);
@@ -111,10 +111,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     [Fact]
     public void UnknownPublishedTargetByteCannotBeInferredFromQueuedMetadata()
     {
-        var fixture = Fixture(3);
-        NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets;
-        packets = packets with { Headers = packets.Headers.SetItem(0, packets.Headers[0] with { UnknownByteMask = packets.ExportRetained().Headers[0].UnknownByteMask | (1u << 16) }) };
-        SetField(fixture.Session, "nativeActionPackets", packets);
+        var fixture = Fixture([3], publishLast: false);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Invoke(fixture.Session, "DispatchAction"));
         Assert.IsType<NotSupportedException>(error.InnerException);
@@ -147,7 +144,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     {
         var fixture = Fixture(3, 0);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
-        BattleActionPresentation unrelated = new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = 1 };
+        BattleActionPresentation unrelated = new("party", "enemy", BattleActionPhase.Windup, 1, Target("enemy"), BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(1) };
         Property(nameof(BattleSession.ActiveAction)).SetValue(fixture.Session, unrelated);
         Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { ActionActorId = "party", ActionCallbackReady = true });
         Complete(fixture.Session);
@@ -211,7 +208,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     }
 
     [Fact]
-    public void JsonCurrentQueuedHeadersAdmitAndCompleteIdentically()
+    public void PrivatelyCopiedCurrentQueuedHeadersAdmitAndCompleteIdentically()
     {
         var first = Fixture(3, 3);
         var second = Fixture(3, 3);
@@ -220,8 +217,8 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
             Queue(fixture.Session).Enqueue(Command("enemy", 0));
             Queue(fixture.Session).Enqueue(Command("enemy", 1));
         }
-        SetField(second.Session, "nativeActionPackets", JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(second.Session.NativeActionPackets))!);
-        BattleAttackCommand[] restored = JsonSerializer.Deserialize<BattleAttackCommand[]>(JsonSerializer.Serialize(Queue(second.Session)))!;
+        SetField(second.Session, "nativeActionPackets", NativeBattleTestSnapshots.Independent(second.Session.NativeActionPackets));
+        BattleAttackCommand[] restored = NativeBattleTestSnapshots.Independent(Queue(second.Session).ToArray());
         Queue(second.Session).Clear();
         foreach (BattleAttackCommand command in restored)
         {
@@ -234,7 +231,9 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         Assert.Equal(JsonSerializer.Serialize(first.Session.Capture()), JsonSerializer.Serialize(second.Session.Capture()));
     }
 
-    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(params byte[] actors)
+    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(params byte[] actors) => Fixture(actors, publishLast: true);
+
+    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(byte[] actors, bool publishLast)
     {
         BattleDefinition definition = new()
         {
@@ -246,16 +245,23 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         };
         BattleSession session = new(definition, BattleAtbMode.Normal);
         Invoke(session, "BeginNativeReactionBatch");
-        NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        foreach (byte actor in actors)
+        BattleModelOwner party = session.ReadPresentationModelOwner("party");
+        BattleModelOwner enemy = session.ReadPresentationModelOwner("enemy");
+        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        for (int index = 0; index < actors.Length; index++)
         {
-            (packets, _) = packets.Prepare(new(actor, 2, 11, -1, 1, 2, null));
-            (packets, _) = packets.AppendContact(new(new(actor == 0 ? (byte)3 : (byte)0, 0, 0, 0, 0, 0, 0), null));
-            (packets, _) = packets.Publish(1);
+            bool partyCaster = actors[index] == 0;
+            (packets, _) = packets.Prepare(new(partyCaster ? party : enemy, 2, 11, -1, 1, 2, null));
+            (packets, _) = packets.AppendContact(new(new(partyCaster ? enemy : party, 0, 0, 0, 0, 0, 0), null));
+            if (publishLast || index < actors.Length - 1)
+            {
+                (packets, _) = packets.Publish(1);
+            }
         }
         SetField(session, "nativeActionPackets", packets);
         SetField(session, "nativeActionScratch", session.Capture().NativeActionScratch! with { EventActorB0F = 3, EventLane = 0, Command = 2 });
-        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects());
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null), BattleContactTaskStorageContract.OriginalArena);
         graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(104, 128, 0x1D280C4).State };
         graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DE70).State };
         Property(nameof(BattleSession.NativeGraphics)).SetValue(session, graphics);
@@ -265,7 +271,17 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     private static BattleAttackCommand Command(string actor, int? header)
     {
         BattleNativeAction native = new(2, 1, 1, 1) { Name = "Fire", MagicId = 2, AttackType = 2, Power = 18, HitCount = 1, TargetFlags = 84, AttackFlags = 49, DamagePresentation = 5, Element = 1, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
-        return new(actor, actor == "party" ? "enemy" : "party", BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = header, NativeAction = native, NativeAiCallbackStage = 1, NativeQueuedCommand = 2, NativeSequence = 11, NativeTargetMask = actor == "party" ? (ushort)8 : (ushort)1 };
+        string target = actor == "party" ? "enemy" : "party";
+        return new(actor, target, Target(target), BattleAbility.EnemyAbility, 1)
+        {
+            NativeHeader = header is int selected ? new BattleActionHeaderReference(selected) : null, NativeAction = native, NativeAiCallbackStage = 1, NativeQueuedCommand = 2, NativeSequence = 11
+        };
+    }
+
+    private static BattleTargetRequest Target(string id)
+    {
+        BattleActorReference actor = id == "party" ? new BattlePartyActorReference(id) : new BattleEnemyActorReference(id);
+        return new(new BattleTargetSelection.Explicit([actor]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
     }
 
     private static void Complete(BattleSession session) => Method("RunNativeDescriptorActionCallback").Invoke(session, [session.NativeGraphics!, 0x47DE70u]);

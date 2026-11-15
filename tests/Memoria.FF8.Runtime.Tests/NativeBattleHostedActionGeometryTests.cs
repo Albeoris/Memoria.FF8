@@ -76,18 +76,20 @@ public sealed class NativeBattleHostedActionGeometryTests
     }
 
     [Fact]
-    // The native script operand adapter is pending; this witness retains the original observed values.
     public void Hosted_camera_counts_the_explicit_party_and_all_selected_targets()
     {
         NativeBattleGraphicsState graphics = Prepare(CreateGraphics(), OriginalEnemy, BattleModelTargets.From([OriginalEnemy]), BattleModelTargets.From([OriginalEnemy, FirstAlly, LastAlly, ExtraEnemy]));
-        Assert.Equal(2, NativeBattleCameraGraphics.ReadVariable(graphics, 19));
-        Assert.Equal(1, NativeBattleCameraGraphics.ReadVariable(graphics, 27));
-        Assert.Equal(4, NativeBattleCameraGraphics.ReadVariable(graphics, 26));
-        Assert.Equal(24, NativeBattleCameraGraphics.ReadVariable(graphics, 25));
-        Assert.Equal(0x20, NativeBattleCameraGraphics.ReadVariable(graphics, 22));
+        Assert.Equal(2, NativeBattleCameraGraphics.ReadVariable(graphics, 19).RequireScalar());
+        Assert.Equal(1, NativeBattleCameraGraphics.ReadVariable(graphics, 27).RequireScalar());
+        Assert.Equal(4, NativeBattleCameraGraphics.ReadVariable(graphics, 26).RequireScalar());
+        NativeBattleScriptValue selected = NativeBattleCameraGraphics.ReadVariable(graphics, 25);
+        Assert.Equal(NativeBattleScriptValue.CaptureActor(ExtraEnemy, graphics.ActorModels, graphics.NativeBindings), selected);
+        Assert.Null(selected.WordProjection);
+        Assert.Throws<NotSupportedException>(() => selected.RequireScalar());
+        Assert.Equal(0x20, NativeBattleCameraGraphics.ReadVariable(graphics, 22).RequireScalar());
 
         graphics = Prepare(graphics, OriginalEnemy, BattleModelTargets.From([OriginalEnemy]), BattleModelTargets.From([LastAlly]));
-        Assert.Equal(0x21, NativeBattleCameraGraphics.ReadVariable(graphics, 22));
+        Assert.Equal(0x21, NativeBattleCameraGraphics.ReadVariable(graphics, 22).RequireScalar());
     }
 
     [Fact]
@@ -122,7 +124,7 @@ public sealed class NativeBattleHostedActionGeometryTests
             .Add(FirstAlly, State(Position(7), FirstAlly.Side))
             .Add(LastAlly, State(Position(16), LastAlly.Side))
             .Add(ExtraEnemy, State(Position(24), ExtraEnemy.Side));
-        return new(models, boundary, 0, 0);
+        return new(models, boundary, 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
     }
 
     private static NativeBattleGraphicsModel State(NativeBattleVector position, BattleSide side)

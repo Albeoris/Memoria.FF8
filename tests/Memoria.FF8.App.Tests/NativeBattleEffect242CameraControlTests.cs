@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect242CameraControlTests
             {
                 Assert.Equal((byte)22, variable);
                 externalReads++;
-                return external22;
+                return NativeBattleScriptValue.Scalar(external22);
             },
             GlobalRandom = () => throw new InvalidOperationException("The selected camera control has no random consumer."),
             ScheduleBlend = _ => throw new InvalidOperationException("The selected camera control has no blend producer.")
@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect242CameraControlTests
             ReadExternal = variable =>
             {
                 Assert.Equal((byte)22, variable);
-                return external22;
+                return NativeBattleScriptValue.Scalar(external22);
             }
         };
         Assert.Equal(JsonSerializer.Serialize(selected), JsonSerializer.Serialize(restoredRegistration.AdvanceControl(bank, program, restoredInputs)));

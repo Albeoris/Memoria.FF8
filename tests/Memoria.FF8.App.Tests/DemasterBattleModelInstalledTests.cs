@@ -30,7 +30,7 @@ public sealed class DemasterBattleModelInstalledTests
         BattleSnapshot snapshot = battle.Capture();
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics);
         List<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon)> materials = [];
-        for (int index = 0; index < graphics.ActorIds.Length; index++)
+        for (int index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
             if (ReadOriginalModelActorId(graphics, index) is not string actorId || ReadOriginalModelCell(graphics, index).BodyTextureSlots is not { } bodyBinding)
             {

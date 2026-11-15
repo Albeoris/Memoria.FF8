@@ -10,7 +10,7 @@ public sealed class CrossoverNativeSelectedModuleTests
     [Fact]
     public void Repeated_target_contacts_keep_seventeen_physical_occurrences_under_one_selected_header()
     {
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 250, 0, -1, ushort.MaxValue, 165, null));
         ImmutableArray<CrossoverNativeMagicTarget>.Builder contacts = ImmutableArray.CreateBuilder<CrossoverNativeMagicTarget>();
         for (int ordinal = 0; ordinal < 17; ordinal++)
@@ -25,9 +25,9 @@ public sealed class CrossoverNativeSelectedModuleTests
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)17, packets.ContactCount);
         Assert.Equal((byte)17, normalized.FirstHeaderTargetCount);
-        Assert.Equal((ushort)8, normalized.TargetMask);
+        Assert.True(normalized.TargetActors.IsSingle(OriginalOwner(3)));
         ImmutableArray<CrossoverNativeMagicTarget> bound = contacts.ToImmutable();
-        ImmutableArray<NativeBattleContactPacket> physical = Enumerable.Range(0, 17).Select(packets.ReadContact).ToImmutableArray();
+        ImmutableArray<NativeBattleContactPacket> physical = packets.ReadHeaderContacts(header);
         ImmutableArray<int> ordinals = CrossoverNativeMagicPresentation.ReadContactOrdinals(bound, [], physical);
         Assert.Equal(Enumerable.Range(0, 17), ordinals);
         Assert.Throws<InvalidDataException>(() => CrossoverNativeMagicPresentation.ReadContactOrdinals(bound, ordinals, [packets.ReadContact(new BattleContactOccurrence(16))]));
@@ -79,7 +79,7 @@ public sealed class CrossoverNativeSelectedModuleTests
             Assert.Equal((byte)250, invocation.Command);
             Assert.Equal(ushort.MaxValue, invocation.Argument);
             Assert.Equal((byte)0, invocation.SourceSequence);
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), OriginalAliases);
             (packets, BattleActionHeaderReference index) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), invocation.Command, invocation.SourceSequence!.Value, -1, invocation.Argument, action.MagicId, null));
             Assert.Equal(0x50BC20u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(index)).Callback);
             Assert.Equal(action.MagicId, packets.ReadHeader(index).Effect);

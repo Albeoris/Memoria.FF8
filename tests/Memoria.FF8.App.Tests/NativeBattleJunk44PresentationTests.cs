@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -84,7 +85,7 @@ public sealed class NativeBattleJunk44PresentationTests
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Rotation14);
         Assert.NotNull(model.ActiveResourceRow100);
-        Assert.Equal((byte)allocatedActor, packets.ReadHeader(header).ReadByte(0));
+        Assert.Equal((byte)allocatedActor, ReadOriginalModelOperand(packets.ModelAliases, packets.ReadHeader(header).Source));
         Assert.Equal((byte)15, packets.ReadHeader(header).Sequence);
         Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original Junk44 command8/action226/sequence15; originalformation236 prototype0 allocated and activated by current native producer; controlled preparation does not claim twenty ordinary AI deaths; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, header = packets.ReadHeader(header), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(236).Slots.Single(enemy => enemy.Slot == 0) }));

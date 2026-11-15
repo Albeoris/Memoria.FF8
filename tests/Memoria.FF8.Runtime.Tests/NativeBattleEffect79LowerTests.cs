@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -158,9 +159,9 @@ public sealed class NativeBattleEffect79LowerTests
         int calls = 0;
         NativeBattleEffectNodeInputs inputs = new(NativeBattleCuragaMatrices.Identity8DD770(), _ => throw new InvalidOperationException(), (_, _, _) => null, (_, _) => null)
         {
-            ActorAnchor = (int actor, ref NativeCrtRandomState current) =>
+            ActorAnchor = (BattleModelOwner actor, ref NativeCrtRandomState current) =>
             {
-                Assert.Equal(4, actor);
+                Assert.Equal(OriginalOwner(4), actor);
                 Assert.Equal(0u, memory.Dword(0x4C));
                 current = current.Draw(out ushort value);
                 Assert.InRange(value % 18, 0, 17);

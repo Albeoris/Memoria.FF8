@@ -143,7 +143,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                 for (int index = 0; index < current.NativeGraphics!.Effects.Slots.Length; index++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (prior.NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0)
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (Assert.IsType<NativeBattleGraphicsState>(prior.NativeGraphics).Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);

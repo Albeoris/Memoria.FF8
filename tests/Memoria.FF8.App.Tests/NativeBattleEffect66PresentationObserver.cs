@@ -206,11 +206,11 @@ internal sealed class NativeBattleEffect66PresentationObserver
         NativeBattleEnemyAllocation allocation = current.NativeAllocations.Single(item => item.Id == id);
         string prototype = current.Definition.Combatants.Single(item => item.SceneSlot == allocation.SceneSlot).Id;
         string expected = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == prototype).Resource.ReadText91(5);
-        foreach (NativeBattleDescriptorPacket packet in current.NativeGraphics.Descriptors.Packets.Where(packet => packet.Message is { Kind: "NativeText" } message && message.ActorId == id && message.Message == expected && packet.PriorityState != 0))
+        foreach (NativeBattleDescriptorPacket packet in Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).Descriptors.Packets.Where(packet => packet.Message is { Kind: "NativeText" } message && message.ActorId == id && message.Message == expected && packet.PriorityState != 0))
         {
             Assert.Equal(240, packet.PriorityState & 0xF0);
             Assert.Equal(0, packet.Value >> 8);
-            Assert.Equal((short)40, packet.Index);
+            Assert.Equal((short)40, packet.ScalarWord8);
             Assert.Equal((ushort)3, packet.Value);
             Mark("effect66-original-text5-descriptor", current, cold);
         }

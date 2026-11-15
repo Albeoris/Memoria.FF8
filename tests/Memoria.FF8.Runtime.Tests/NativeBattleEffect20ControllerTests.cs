@@ -42,7 +42,7 @@ public sealed class NativeBattleEffect20ControllerTests
         Assert.Equal((short)7, Assert.Single(fixture.Operations.OfType<NativeBattleEffect20VibrationStop>()).Handle);
         Assert.Equal(OriginalOwner(6), Assert.Single(fixture.Operations.OfType<NativeBattleEffect20Activate>()).Actor);
         NativeBattleEffect20RingSequence ring = Assert.Single(fixture.Operations.OfType<NativeBattleEffect20RingSequence>());
-        Assert.Equal(0x1D97668u, ring.Address);
+        Assert.Equal(OriginalOwner(6), ring.Actor);
         Assert.Equal(12, ring.Count);
         int activate = fixture.Operations.FindIndex(operation => operation is NativeBattleEffect20Activate);
         Assert.IsType<NativeBattleEffect20VibrationStop>(fixture.Operations[activate + 1]);

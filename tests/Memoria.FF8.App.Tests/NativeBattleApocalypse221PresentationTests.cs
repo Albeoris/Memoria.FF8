@@ -69,12 +69,12 @@ public sealed class NativeBattleApocalypse221PresentationTests
             Assert.Equal(action.ActionId, header.Action);
             Assert.Equal((ushort)221, header.Effect);
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[220]));
-            int first = header.FirstContactIndex ?? throw new InvalidDataException("Apocalypse's ordinary producer omitted its contact pointer.");
-            contacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => source.NativeActionPackets.ReadContact(first + index)).ToArray();
+            BattleContactCursor first = header.FirstContact;
+            contacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => source.NativeActionPackets.ReadContact(first.Advance(index))).ToArray();
             Assert.NotEmpty(contacts);
             Assert.All(contacts, contact =>
             {
-                Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
                 Assert.Null(contact.Secondary);
                 Assert.True(contact.Primary.Amount6 > 0);
             });
@@ -208,7 +208,7 @@ public sealed class NativeBattleApocalypse221PresentationTests
 
         void Report(string status, string? blocker)
         {
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, item.Id, Effect = 221, action.Command, action.ActionId, Ticks = ticks, DiagnosticMaximumTicks = item.MaximumTicks, ProducedContacts = contacts.Select(contact => new { contact.Primary.ActorIndex, contact.Primary.Amount6, contact.Primary.HitFlags3 }), DamageTextContacts = textCount, DamageTextCallbacks = textCallbacks, Completions = completions, VisibleChangedRgbPixels = peakChanged, MaximumObservedPendingTextures = maximumTextureQueue, RestoredBoundaries = restored, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), ManifestSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest!))), Pending = new[] { "Whole-entry native pixel differential", "Story-route continuation", "Other spell targets and stocks" } }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, item.Id, Effect = 221, action.Command, action.ActionId, Ticks = ticks, DiagnosticMaximumTicks = item.MaximumTicks, ProducedContacts = contacts.Select(contact => new { contact.Primary.Recipient, contact.Primary.Amount6, contact.Primary.HitFlags }), DamageTextContacts = textCount, DamageTextCallbacks = textCallbacks, Completions = completions, VisibleChangedRgbPixels = peakChanged, MaximumObservedPendingTextures = maximumTextureQueue, RestoredBoundaries = restored, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), ManifestSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest!))), Pending = new[] { "Whole-entry native pixel differential", "Story-route continuation", "Other spell targets and stocks" } }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 

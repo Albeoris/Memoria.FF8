@@ -9,14 +9,16 @@ public sealed class NativeBattleExpandedActionHeaderTests
     private static readonly BattleNativeAction Fire = Action(2, 1, 1, 2, "Fire", []);
 
     [Theory]
-    [InlineData(3, 7)]
-    [InlineData(10, 14)]
-    public void ExtraPartyRowsUseTheOriginalPlayerSequenceTable(int ally, byte row)
+    [InlineData(3)]
+    [InlineData(10)]
+    public void ExtraPartyOwnersUseTheOriginalPlayerSequenceTable(int ally)
     {
         BattleSession session = Fixture();
         BattleActionPresentation command = Magic(ally);
 
-        NativeBattleActionHeaderPreparation expected = new(row, 2, NativeBattleCommandSequenceFixture.Values[2], -1, 1, 2, new(0x47E970, 1, "Fire"));
+        BattleModelOwner owner = new BattlePartyActorModel(new($"ally-{ally}"));
+        Assert.False(session.ReadBattlePresentationPacketBindings().Aliases.TryEncodeExact(owner, out _));
+        NativeBattleActionHeaderPreparation expected = new(owner, 2, NativeBattleCommandSequenceFixture.Values[2], -1, 1, 2, new(0x47E970, 1, "Fire"));
         Assert.Equal(expected, session.BuildExpandedActionHeaderPreparation(command, Fire));
     }
 
@@ -28,10 +30,10 @@ public sealed class NativeBattleExpandedActionHeaderTests
         BattleSession session = Fixture();
         ImmutableArray<byte> raw = new byte[20].ToImmutableArray().SetItem(4, 0xFE).SetItem(9, showTitle ? (byte)0x80 : (byte)0x00);
         BattleNativeAction attack = Action(8, 9, 3, 44, "Enemy attack", raw);
-        BattleActionPresentation command = new("enemy-4", "ally-0", BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, 9) { NativeSequence = 17 };
+        BattleActionPresentation command = new("enemy-4", "ally-0", BattleActionPhase.Windup, 0, Request(new BattlePartyActorReference("ally-0")), BattleAbility.EnemyAbility, 9) { NativeSequence = 17 };
 
         NativeBattleActionDataReference? data = showTitle ? new(0x4950A0, 9, "Enemy attack") : null;
-        Assert.Equal(new NativeBattleActionHeaderPreparation(15, 8, 17, -2, 9, 44, data), session.BuildExpandedActionHeaderPreparation(command, attack));
+        Assert.Equal(new NativeBattleActionHeaderPreparation(new BattleEnemyActorModel(new("enemy-4")), 8, 17, -2, 9, 44, data), session.BuildExpandedActionHeaderPreparation(command, attack));
     }
 
     [Fact]
@@ -40,20 +42,20 @@ public sealed class NativeBattleExpandedActionHeaderTests
         BattleSession session = Fixture();
         BattleActionPresentation command = Magic(3) with { NativeQueuedCommand = 247, NativeSequence = 0 };
 
-        Assert.Equal(new NativeBattleActionHeaderPreparation(7, 247, 11, -1, 1, 2, null), session.BuildExpandedActionHeaderPreparation(command, Fire with { Command = 247 }));
+        Assert.Equal(new NativeBattleActionHeaderPreparation(new BattlePartyActorModel(new("ally-3")), 247, 11, -1, 1, 2, null), session.BuildExpandedActionHeaderPreparation(command, Fire with { Command = 247 }));
     }
 
     [Fact]
     public void Graphic252UsesItsOwnActionEffectAndNoTitle()
     {
         BattleSession session = Fixture();
-        BattleActionPresentation command = new("enemy-4", "ally-0", BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, 9)
+        BattleActionPresentation command = new("enemy-4", "ally-0", BattleActionPhase.Windup, 0, Request(new BattlePartyActorReference("ally-0")), BattleAbility.EnemyAbility, 9)
         {
             NativeSequence = 17,
             NativeGraphic = new(81)
         };
 
-        Assert.Equal(new NativeBattleActionHeaderPreparation(15, 252, 17, -1, 1, 81, null), session.BuildExpandedActionHeaderPreparation(command, Fire));
+        Assert.Equal(new NativeBattleActionHeaderPreparation(new BattleEnemyActorModel(new("enemy-4")), 252, 17, -1, 1, 81, null), session.BuildExpandedActionHeaderPreparation(command, Fire));
     }
 
     [Theory]
@@ -62,7 +64,7 @@ public sealed class NativeBattleExpandedActionHeaderTests
     public void PreparedDrawSelectsOriginalStockOrCastHeaderWithoutLogicalWrites(bool cast)
     {
         BattleSession session = Fixture();
-        BattleActionPresentation command = new("ally-3", "enemy-0", BattleActionPhase.Windup, 0, BattleAbility.Draw, 1, cast)
+        BattleActionPresentation command = new("ally-3", "enemy-0", BattleActionPhase.Windup, 0, Request(new BattleEnemyActorReference("enemy-0")), BattleAbility.Draw, 1, cast)
         {
             DrawCastTargetId = cast ? "enemy-1" : null,
             NativeDraw = new(1, 4, cast ? (byte)0 : (byte)4, false),
@@ -73,7 +75,7 @@ public sealed class NativeBattleExpandedActionHeaderTests
         NativeBattleActionHeaderPreparation header = session.BuildExpandedActionHeaderPreparation(command, Fire);
 
         NativeBattleActionDataReference data = cast ? new(0x495280, 0, "Cast Fire") : new(0x47EBD0, 6, "Draw");
-        NativeBattleActionHeaderPreparation expected = new(7, 6, NativeBattleCommandSequenceFixture.Values[cast ? 9 : 10], -1, 1, cast ? (ushort)2 : (ushort)15, data);
+        NativeBattleActionHeaderPreparation expected = new(new BattlePartyActorModel(new("ally-3")), 6, NativeBattleCommandSequenceFixture.Values[cast ? 9 : 10], -1, 1, cast ? (ushort)2 : (ushort)15, data);
         Assert.Equal(expected, header);
         Assert.Equal(before, NativeBattleTestSnapshots.Json(session.Capture()));
     }
@@ -90,13 +92,15 @@ public sealed class NativeBattleExpandedActionHeaderTests
         BattleCombatant actor = native.Combatants.Single(actor => actor.Id == command.ActorId);
         MethodInfo build = typeof(BattleSession).GetMethod("BuildNativeActionHeaderPreparation", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-        NativeBattleActionHeaderPreparation original = Assert.IsType<NativeBattleActionHeaderPreparation>(build.Invoke(native, [actor, command, Fire, false, null]));
+        NativeBattleActionHeaderPreparation original = Assert.IsType<NativeBattleActionHeaderPreparation>(build.Invoke(native, [actor, command, Fire, false, false]));
 
         Assert.Equal(original, expanded.BuildExpandedActionHeaderPreparation(command, Fire));
         Assert.Throws<InvalidOperationException>(() => native.BuildExpandedActionHeaderPreparation(command, Fire));
     }
 
-    private static BattleActionPresentation Magic(int ally) => new($"ally-{ally}", "enemy-0", BattleActionPhase.Windup, 0, BattleAbility.Magic, 1) { NativeSequence = 3 };
+    private static BattleActionPresentation Magic(int ally) => new($"ally-{ally}", "enemy-0", BattleActionPhase.Windup, 0, Request(new BattleEnemyActorReference("enemy-0")), BattleAbility.Magic, 1) { NativeSequence = 3 };
+
+    private static BattleTargetRequest Request(BattleActorReference actor) => new(new BattleTargetSelection.Explicit([actor]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
 
     private static BattleNativeAction Action(byte command, ushort action, int section, ushort effect, string name, ImmutableArray<byte> raw) => new(command, action, section, action)
     {

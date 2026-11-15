@@ -39,7 +39,7 @@ public sealed class NativeBattleDescriptorPoolTests
         Assert.Equal(0x1000000u, model.Flags8KnownMask);
         Assert.Equal(0u, model.Flags8KnownBits);
         NativeGlobalRandomState random = new(0);
-        model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0x400, ref random);
+        model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0x400, isParty: true, ref random);
         Assert.Equal((uint?)0x400, model.Flags8);
         Assert.Equal(0u, model.Flags8KnownMask);
         Assert.Equal(0u, model.Flags8KnownBits);
@@ -54,7 +54,7 @@ public sealed class NativeBattleDescriptorPoolTests
         state = state.RemoveFirst();
         (state, int second) = state.Enqueue(113, 128, 0x48AD10);
         Assert.Equal(first, second);
-        Assert.Equal((short)6, state.Packets[second].Index);
+        Assert.Equal((short)6, state.Packets[second].ScalarWord8);
         Assert.Equal((ushort)0x4321, state.Packets[second].Value);
         Assert.Equal(0x48AD10u, state.Packets[second].Argument);
         Assert.Equal((byte)1, state.Packets[second].Serial);
@@ -107,7 +107,7 @@ public sealed class NativeBattleDescriptorPoolTests
         List<short> dispatched = [];
         NativeBattleDescriptorDispatch Dispatch(NativeBattleDescriptorState current, int packet)
         {
-            dispatched.Add(current.Packets[packet].Index);
+            dispatched.Add(current.Packets[packet].ScalarWord8);
             return current.Packets[packet].Command == 113 ? new(current.AppendTask(NativeBattleDescriptorTaskKind.Callback502F30, packet).State, 8) : new(current, 15);
         }
         NativeBattleDescriptorCompletion Complete(NativeBattleDescriptorState current, int task)
@@ -132,7 +132,7 @@ public sealed class NativeBattleDescriptorPoolTests
     {
         BattleEvent message = new(7, "NativeText", "enemy", null, 0x1234, "Original text") { NativeMessageMode = 3 };
         (NativeBattleDescriptorState state, int slot) = NativeBattleDescriptorState.Clear().EnqueueMessage(message, 128, 86);
-        Assert.Equal((ushort)0x1234, unchecked((ushort)state.Packets[slot].Index));
+        Assert.Equal((ushort)0x1234, unchecked((ushort)state.Packets[slot].ScalarWord8));
         Assert.Equal((ushort)0x5603, state.Packets[slot].Value);
         Assert.Equal((ushort)0xF0, state.Packets[slot].UnknownByteMask);
         Assert.Throws<NotSupportedException>(() => state.Packets[slot].Argument);
@@ -142,7 +142,7 @@ public sealed class NativeBattleDescriptorPoolTests
         state = state.RemoveFirst();
         (state, int reused) = state.Enqueue(113, 128, 0x48AD10);
         Assert.Equal(slot, reused);
-        Assert.Equal((short)0x1234, state.Packets[reused].Index);
+        Assert.Equal((short)0x1234, state.Packets[reused].ScalarWord8);
         Assert.Equal((ushort)0, state.Packets[reused].UnknownByteMask);
         Assert.Equal(0x48AD10u, state.Packets[reused].Argument);
         Assert.Null(state.Packets[reused].Message);

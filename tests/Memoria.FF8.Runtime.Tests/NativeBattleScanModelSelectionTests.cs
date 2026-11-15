@@ -1,46 +1,56 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleScanModelSelectionTests
 {
+    private static readonly BattleModelOwner First = OriginalOwner(0);
+    private static readonly BattleModelOwner Second = OriginalOwner(2);
+    private static readonly BattleModelOwner Source = OriginalOwner(5);
+    private static readonly BattleModelOwner Tail = OriginalOwner(6);
+
     [Fact]
-    public void Minimum_ring_uses_physical_pointer_order_but_null_tail_returns_original_source()
+    public void Minimum_ring_uses_original_model_order_but_null_tail_returns_original_source()
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(5, models[5].WriteDword(0x8C, Address(2))).SetItem(2, models[2].WriteDword(0x8C, Address(6))).SetItem(6, models[6].WriteDword(0x8C, Address(5)));
-        Assert.Equal(Address(2), NativeBattleScanModelSelection.Minimum501FF0(models, Address(5)));
-        models = models.SetItem(6, models[6].WriteDword(0x8C, 0));
-        Assert.Equal(Address(5), NativeBattleScanModelSelection.Minimum501FF0(models, Address(5)));
-        Assert.Equal(Address(0), NativeBattleScanModelSelection.Minimum501FF0(models, Address(0)));
+        BattleActorModels models = Models();
+        models = models.Set(Source, models.Get(Source).WriteLinkedModel(Second)).Set(Second, models.Get(Second).WriteLinkedModel(Tail)).Set(Tail, models.Get(Tail).WriteLinkedModel(Source));
+        Assert.Equal(Second, NativeBattleScanModelSelection.Minimum501FF0(models, Source));
+        models = models.Set(Tail, models.Get(Tail).WriteLinkedModel(null));
+        Assert.Equal(Source, NativeBattleScanModelSelection.Minimum501FF0(models, Source));
+        Assert.Equal(First, NativeBattleScanModelSelection.Minimum501FF0(models, First));
     }
 
     [Fact]
-    public void Ordinary_selection_replaces_all_flags_from_actual_ring_and_requires_only_reached_bytes()
+    public void Ordinary_selection_replaces_all_flags_from_actual_ring_and_requires_only_reached_fields()
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(5, models[5].WriteByte(0, 2).WriteDword(0x8C, Address(2))).SetItem(2, models[2].WriteByte(0, 4).WriteDword(0x8C, Address(6))).SetItem(6, models[6].WriteByte(0, 2).WriteDword(0x8C, Address(5)));
-        string before = JsonSerializer.Serialize(models);
-        NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(models, OriginalOwner(5), _ => throw new InvalidDataException());
-        Assert.Equal(Address(2), selection.SelectedPhysicalModel);
-        Assert.Equal(new uint[] { 0, 0, 0, 0, 0, 1, 1 }, selection.SelectionFlags);
-        Assert.Equal(before, JsonSerializer.Serialize(models));
-        Assert.False(models[5].Known[0x38]);
-        Assert.False(models[5].Known[1]);
-        ImmutableArray<NativeBattleScanByteOwner> restored = JsonSerializer.Deserialize<ImmutableArray<NativeBattleScanByteOwner>>(before);
-        Assert.Equal(JsonSerializer.Serialize(selection), JsonSerializer.Serialize(NativeBattleScanModelSelection.Select84D320(restored, OriginalOwner(5), _ => throw new InvalidDataException())));
+        BattleActorModels models = Models().Set(Source, new NativeBattleGraphicsModel(2) { ModelId4 = 0 }.WriteLinkedModel(Second))
+            .Set(Second, new NativeBattleGraphicsModel(4) { ModelId4 = 0 }.WriteLinkedModel(Tail))
+            .Set(Tail, new NativeBattleGraphicsModel(2) { ModelId4 = 0 }.WriteLinkedModel(Source));
+        NativeBattleScanByteOwner before = NativeBattleScanPhysicalModels.Capture(models.Get(Source));
+        NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(models, Source, _ => throw new InvalidDataException());
+        Assert.Equal(Second, selection.Primary);
+        Assert.Equal(BattleModelTargets.From([Source, Tail]), selection.Targets);
+        Assert.Equal(before.Bytes.ToArray(), NativeBattleScanPhysicalModels.Capture(models.Get(Source)).Bytes.ToArray());
+        Assert.False(before.Known[0x38]);
+        Assert.False(before.Known[0x7C]);
+
+        BattleActorModels restored = NativeBattleTestSnapshots.Independent(models);
+        Assert.Equal(selection, NativeBattleScanModelSelection.Select84D320(restored, Source, _ => throw new InvalidDataException()));
     }
 
     [Fact]
-    public void Special_category_54_selects_54_60_61_in_physical_order_without_ring_flag_filter()
+    public void Special_category_54_selects_54_60_61_in_original_model_order_without_ring_flag_filter()
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(0, models[0].WriteByte(4, 0x60)).SetItem(2, models[2].WriteByte(4, 0x54)).SetItem(4, models[4].WriteByte(4, 0x61)).SetItem(6, models[6].WriteByte(4, 0x54));
-        NativeBattleScanModelSelectionResult result = NativeBattleScanModelSelection.Select84D320(models, OriginalOwner(2), _ => throw new InvalidDataException());
-        Assert.Equal(new uint[] { 1, 0, 1, 0, 1, 0, 1 }, result.SelectionFlags);
-        Assert.Equal(Address(2), result.SelectedPhysicalModel);
+        BattleActorModels models = Models();
+        BattleModelOwner fourth = OriginalOwner(4);
+        models = models.Set(First, models.Get(First) with { ModelId4 = 0x60 })
+            .Set(Second, models.Get(Second) with { ModelId4 = 0x54 })
+            .Set(fourth, models.Get(fourth) with { ModelId4 = 0x61 })
+            .Set(Tail, models.Get(Tail) with { ModelId4 = 0x54 });
+        NativeBattleScanModelSelectionResult result = NativeBattleScanModelSelection.Select84D320(models, Second, _ => throw new InvalidDataException());
+        Assert.Equal(BattleModelTargets.From([First, Second, fourth, Tail]), result.Targets);
+        Assert.Equal(Second, result.Primary);
     }
 
     [Theory]
@@ -50,9 +60,9 @@ public sealed class NativeBattleScanModelSelectionTests
     [InlineData(0x25, 0u, 0x25)]
     public void Category_24_and_25_use_exact_signed_minus_one_field(byte category, uint field, byte expected)
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(3, models[3].WriteByte(4, category).WriteDword(0x7C, field));
-        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, OriginalOwner(3), _ => throw new InvalidDataException()));
+        BattleModelOwner owner = OriginalOwner(3);
+        BattleActorModels models = Models().Set(owner, new(0) { ModelId4 = category, SequenceState = new() { MeshMask124 = field } });
+        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, owner, _ => throw new InvalidDataException()));
     }
 
     [Theory]
@@ -62,13 +72,13 @@ public sealed class NativeBattleScanModelSelectionTests
     [InlineData(0x77, 1, 0x77)]
     [InlineData(0x4B, 255, 0xA5)]
     [InlineData(0x4B, 1, 0x4B)]
-    public void Category_pointer_reads_actual_byte_at_74_pointee(byte category, byte value, byte expected)
+    public void Pointer_categories_read_the_selected_model_resource_sequence(byte category, byte value, byte expected)
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(3, models[3].WriteByte(4, category).WriteDword(0x74, 0x12345678));
-        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, 3, pointer =>
+        BattleModelOwner owner = OriginalOwner(3);
+        BattleActorModels models = Models().Set(owner, new(0) { ModelId4 = category });
+        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, owner, reached =>
         {
-            Assert.Equal(0x12345678u, pointer);
+            Assert.Equal(owner, reached);
             return value;
         }));
     }
@@ -79,22 +89,23 @@ public sealed class NativeBattleScanModelSelectionTests
     [InlineData(0x1801, 0x3B)]
     public void Category_3B_reads_actual_terminal_word(ushort value, byte expected)
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(3, models[3].WriteByte(4, 0x3B).WriteWord(0x9A, value));
-        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, OriginalOwner(3), _ => throw new InvalidDataException()));
+        BattleModelOwner owner = OriginalOwner(3);
+        BattleActorModels models = Models().Set(owner, new(0) { ModelId4 = 0x3B, Transform = new(default, default, 0, 0, 0) { Scale154 = unchecked((short)value) } });
+        Assert.Equal(expected, NativeBattleScanModelSelection.Category84D410(models, owner, _ => throw new InvalidDataException()));
     }
 
     [Fact]
-    public void Missing_physical_link_or_reached_unknown_byte_fails_instead_of_zero_replacement()
+    public void Missing_model_link_or_reached_unknown_field_fails_instead_of_zero_replacement()
     {
-        ImmutableArray<NativeBattleScanByteOwner> models = ScanPhysicalModelFixture.Models();
-        models = models.SetItem(0, models[0].WriteDword(0x8C, Address(0) + 1));
-        Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Minimum501FF0(models, Address(0)));
-        models = models.SetItem(0, models[0].WriteByte(4, 0x24));
-        Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Category84D410(models, OriginalOwner(0), _ => 0));
+        BattleActorModels models = Models().Set(First, new(0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Minimum501FF0(models, First));
+        models = models.Set(First, new NativeBattleGraphicsModel(0).WriteLinkedModel(new BattlePartyActorModel(new("retired"))));
+        Assert.Throws<KeyNotFoundException>(() => NativeBattleScanModelSelection.Minimum501FF0(models, First));
+        models = models.Set(First, new(0) { ModelId4 = 0x24 });
+        Assert.Throws<NotSupportedException>(() => NativeBattleScanModelSelection.Category84D410(models, First, _ => 0));
     }
 
-    private static uint Address(int index) => NativeBattleScanModelSelection.ModelBase + (uint)(index * NativeBattleScanModelSelection.ModelStride);
+    private static BattleActorModels Models() => new(OriginalRoster.Owners.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, new(0) { ModelId4 = 0, HasLinkedModelRing140 = false })));
 }
 
 internal static class ScanPhysicalModelFixture

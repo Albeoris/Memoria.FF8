@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect301ControllerTests
         Assert.Equal(next, Read(result.Frame, RootBank).ReadDword(16));
         Assert.Equal(1, Read(result.Frame, RootBank).ReadWord(12));
         Assert.Single(result.Frame.Effect.Pools);
-        Assert.Equal(new NativeBattleEffect301ModelFlags(ModelAddress(6), 1, 255, 12), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect301ModelFlags(OriginalOwner(6), 1, 255, 12), Assert.Single(harness.Operations));
         Assert.True(result.Frame.State.ScriptSourcePending);
     }
 
@@ -35,7 +35,7 @@ public sealed class NativeBattleEffect301ControllerTests
         NativeBattleEffect301Step result = AdvanceMain66DBD0(frame, Arena, null!, harness.Inputs());
         Assert.Equal(142, Read(result.Frame, Arena).ReadWord(12));
         Assert.Equal(2, result.Result);
-        Assert.Equal(new NativeBattleEffect301ModelFlags(ModelAddress(6), 2, 0xFFF3, 0), Assert.Single(harness.Operations));
+        Assert.Equal(new NativeBattleEffect301ModelFlags(OriginalOwner(6), 2, 0xFFF3, 0), Assert.Single(harness.Operations));
         Assert.Equal(frame.Random, result.Frame.Random);
         Assert.Equal(frame.Staging, result.Frame.Staging);
     }
@@ -67,7 +67,7 @@ public sealed class NativeBattleEffect301ControllerTests
         NativeBattleScriptedColorRegisters input = frame.Memory.ScriptedColorRegisters! with { Material = null, Rgb = [1u, 2u, 3u] };
         frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = input } };
         frame = WriteBytes(frame, Arena + 0xE13, NativeBattleEffectArena.Clear().MarkUnknown(0, 1), 1);
-        NativeBattleEffect301Frame result = FadeModelColor(frame, Arena, ModelAddress(6), 0, harness.Inputs());
+        NativeBattleEffect301Frame result = FadeModelColor(frame, Arena, OriginalOwner(6), 0, harness.Inputs());
         NativeBattleScriptedColorRegisters output = result.Memory.ScriptedColorRegisters!;
         Assert.Equal(geometry, result.Memory.GeometryRegisters);
         Assert.Null(output.Material);
@@ -89,7 +89,7 @@ public sealed class NativeBattleEffect301ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect301Frame frame = AddMain(Frame(10), 121);
-        frame = FadeModelColor(frame, Arena, ModelAddress(6), fraction, harness.Inputs());
+        frame = FadeModelColor(frame, Arena, OriginalOwner(6), fraction, harness.Inputs());
         int factor = 4096 - NativeBattleCameraMath.Sine(((20 - fraction) << 10) / 20);
         Assert.Equal(unchecked((uint)factor), frame.Memory.ScriptedColorRegisters!.Ir0);
         uint expected = 0x32000000;
@@ -153,7 +153,7 @@ public sealed class NativeBattleEffect301ControllerTests
     {
         NativeBattleEffect301Frame frame = AddMain(Frame(10), 121);
         frame = WriteBytes(frame, Arena + 0xE11, NativeBattleEffectArena.Clear().MarkUnknown(0, 1), 1);
-        Assert.Throws<NotSupportedException>(() => FadeModelColor(frame, Arena, ModelAddress(6), 1, new Harness().Inputs()));
+        Assert.Throws<NotSupportedException>(() => FadeModelColor(frame, Arena, OriginalOwner(6), 1, new Harness().Inputs()));
     }
 
     private static NativeBattleEffect301Frame AddMain(NativeBattleEffect301Frame frame, int age)
@@ -176,7 +176,7 @@ public sealed class NativeBattleEffect301ControllerTests
                 pools = pools.Add(NativeBattleEffectTaskPool.Initialize(shape.Descriptor, Arena + shape.Bank, shape.Stride, shape.Capacity));
             }
         }
-        NativeBattleEffect301State state = NativeBattleEffect301State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(6));
+        NativeBattleEffect301State state = NativeBattleEffect301State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModel(CasterGlobal, OriginalOwner(6), OriginalAliases);
         NativeBattleOriginalEffectState effect = new(301, 300, new(301, Entry, Initializer), new(OriginalOwner(6), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
@@ -188,18 +188,18 @@ public sealed class NativeBattleEffect301ControllerTests
         public uint[] Colors { get; } = Enumerable.Repeat(0xA0604020u, 7).ToArray();
         public List<NativeBattleEffect301Operation> Operations { get; } = [];
 
-        public NativeBattleEffect301Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, (_, model) => NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(Flags[(model - ModelAddress(0)) / 156])).Write(44, BitConverter.GetBytes(Colors[(model - ModelAddress(0)) / 156])), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, retained) => new(frame, retained), (frame, operation) =>
+        public NativeBattleEffect301Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, (_, model) => NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(Flags[OriginalSlot(model)])).Write(44, BitConverter.GetBytes(Colors[OriginalSlot(model)])), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, _, retained) => new(frame, retained), (frame, operation) =>
         {
             Operations.Add(operation);
             if (operation is NativeBattleEffect301ModelFlags flags)
             {
-                int actor = (int)((flags.ModelAddress - ModelAddress(0)) / 156);
+                int actor = OriginalSlot(flags.Model);
                 ushort current = Flags[actor];
                 Flags[actor] = flags.Width == 1 ? (ushort)((current & 0xFF00) | (((current & flags.AndMask) | flags.OrMask) & 255)) : (ushort)((current & flags.AndMask) | flags.OrMask);
             }
             if (operation is NativeBattleEffect301WriteModelBytes write)
             {
-                int actor = (int)((write.ModelAddress - ModelAddress(0)) / 156);
+                int actor = OriginalSlot(write.Model);
                 if (write.Offset == 0)
                 {
                     Flags[actor] = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(write.Data.Read(0, 2));
@@ -212,6 +212,12 @@ public sealed class NativeBattleEffect301ControllerTests
                 }
             }
             return frame;
-        });
+        }, OriginalAliases);
+
+        private static byte OriginalSlot(BattleModelOwner owner)
+        {
+            Assert.True(OriginalAliases.TryEncodeExact(owner, out byte slot));
+            return slot;
+        }
     }
 }

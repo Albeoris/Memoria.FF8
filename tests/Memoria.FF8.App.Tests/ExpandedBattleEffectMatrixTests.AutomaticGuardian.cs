@@ -59,7 +59,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
             Assert.Equal(action.MagicId, queued.NativeAction.MagicId);
             Assert.Equal("party-0", queued.ActorId);
-            Assert.Equal(0, queued.NativeTargetMask);
+            Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
             Assert.Null(queued.NativeCallback);
             Assert.True(battle.Capture().NativeSupport!.EntryInitialized);
             string[] targets = battle.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.Id).ToArray();

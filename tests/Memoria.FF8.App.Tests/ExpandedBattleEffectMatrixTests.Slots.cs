@@ -81,7 +81,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(BattleAbility.LimitBreak, command.Ability);
         Assert.Equal(action.ActionId, command.NativeAction?.ActionId);
         Assert.Equal(action.MagicId, command.NativeAction?.MagicId);
-        Assert.Equal(0, command.NativeTargetMask);
+        Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(command.TargetRequest.Selection);
         Assert.Equal(accepted, command.NativeSlots);
         Assert.Equal(0, battle.NativeScriptState.LimitSpecialSetMask);
 

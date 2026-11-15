@@ -116,7 +116,7 @@ public sealed class NativeBattleEffect69ControllerTests
         public int Io { get; init; }
         public List<NativeBattleEffect69Operation> Operations { get; } = [];
 
-        public NativeBattleEffect69Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor, 2), (frame, actor) => throw new NotSupportedException(), frame => Flags, frame => 0, (frame, source) => 0x32123456, (frame, operation) =>
+        public NativeBattleEffect69Inputs Inputs() => new(OriginalAliases, new(0x00808080, 0x32808080, 1, 0), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, _) => new(2), (frame, actor) => throw new NotSupportedException(), frame => Flags, frame => 0, (frame, source) => 0x32123456, (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;

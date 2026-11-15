@@ -20,7 +20,7 @@ public sealed class NativeBattleEffect218GuardianCameraTests
         frame = BeginGuardianCamera63E960(frame, resources);
         uint address = frame.Effect.Pools[0].BankAddress + (uint)(frame.Effect.Pools[0].Head!.Value * frame.Effect.Pools[0].Stride);
         NativeBattleCameraPose pose = new(new(100, 200, 300), new(-400, 500, -600), 320, 12);
-        NativeBattleEffect218RuntimeInputs inputs = new(null!, null!, false, _ => 0, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, _ => pose, (_, _) => throw new InvalidOperationException("Terminal program cannot publish a camera pose."));
+        NativeBattleEffect218RuntimeInputs inputs = new(null!, null!, false, _ => 0, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, _ => pose, (_, _) => throw new InvalidOperationException("Terminal program cannot publish a camera pose."));
         var actual = AdvanceGuardianCamera63E9C0(frame, address, resources, inputs);
         Assert.Equal(2, actual.Result);
         Assert.Equal(frame.Random, actual.Frame.Random);

@@ -110,9 +110,9 @@ public sealed class EncounterNativeDamageRoutingTests
     {
         BattleSession battle = Create(100);
         string copy = battle.EncounterAllocation!.ActorIds[0];
-        BattleAttackCommand copyCommand = new(copy, "party", BattleAbility.EnemyAbility, 1);
-        BattleAttackCommand originalTerminal = new("original", "original", BattleAbility.EnemyAbility, 207);
-        BattleAttackCommand unrelated = new("party", "original", BattleAbility.Attack, 0);
+        BattleAttackCommand copyCommand = new(copy, "party", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 1);
+        BattleAttackCommand originalTerminal = new("original", "original", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("original")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 207);
+        BattleAttackCommand unrelated = new("party", "original", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("original")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0);
         List<BattleAttackCommand> tail = [copyCommand, originalTerminal, unrelated];
         typeof(BattleSession).GetField("nativeCallbackTail", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, tail);
         Queue<BattleAttackCommand> actions = (Queue<BattleAttackCommand>)typeof(BattleSession).GetField("actions", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
@@ -350,7 +350,7 @@ public sealed class EncounterNativeDamageRoutingTests
         };
         NativeBattleCommandBanks banks = snapshot.NativeCommandBanks!;
         (banks, NativeBattleCommandLocation old) = banks.EnqueueCallback(0, 5, 1);
-        banks = banks.BindCommand(old, 0, new(oldCopy, oldCopy, BattleAbility.EnemyAbility, 0) { NativeCallback = new(5, 1) });
+        banks = banks.BindCommand(old, 0, new(oldCopy, oldCopy, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(oldCopy)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 0) { NativeCallback = new(5, 1) });
         BattleSession battle = BattleSession.Restore(snapshot with { NativeCommandBanks = banks });
         for (int frame = 0; frame < 12; frame++)
         {

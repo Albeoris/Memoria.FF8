@@ -112,7 +112,7 @@ public sealed class NativeBattleRush91PresentationTests
                     Assert.Equal(unchecked((ushort)(beforeTarget.ReadWord(0x24) + 1)), afterTarget.ReadWord(0x24));
                     contacts++;
                 }
-                Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == 3);
+                Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics, task.ModelOwner, 3));
                 Assert.Equal(targetPostFormulaHp, current.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                 Assert.Equal(JsonSerializer.Serialize(source.NativePartyPresentation), JsonSerializer.Serialize(current.NativePartyPresentation));
                 Assert.Equal(ReadOriginalModelCell(graphics, 3).ActiveStagedResourceRow100, ReadOriginalModelCell(current.NativeGraphics, 3).ActiveStagedResourceRow100);

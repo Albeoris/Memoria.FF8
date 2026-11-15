@@ -74,7 +74,7 @@ public sealed class DiagnosticEffectInvocationObservationTests
         Invoke(battle, "ObserveDiagnosticPreparedHeader", 0);
         NativeBattleOriginalEffectState entered = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 8, Parameter82 = 0 }, 0);
         NativeBattleOriginalEffectState published = entered with { Parameters = entered.Parameters! with { Parameter80 = 2, Parameter81 = 1 } };
-        NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(3)).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0) { OriginalEffect = published };
+        NativeBattleGraphicsState graphics = OriginalUnboundGraphics(_ => new(3)) with { OriginalEffect = published };
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
         BattleDiagnosticEffectDispatch dispatch = new(5, 485, "party", BattleAbility.NativeCommand, 65532, 274, 274, 241) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
         return (battle, dispatch, entered, published);

@@ -260,7 +260,7 @@ internal sealed class NativeBattleEffect232PresentationObserver(BattleSnapshot s
             {
                 Mark("programme-children", current, cold);
             }
-            int? cameraVariable22 = current.NativeGraphics!.ActionContext is not null ? NativeBattleCameraGraphics.ReadVariable(current.NativeGraphics, 22) : null;
+            int? cameraVariable22 = current.NativeGraphics!.ActionContext is not null ? NativeBattleCameraGraphics.ReadVariable(current.NativeGraphics, 22).RequireScalar() : null;
             observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, Returned = effect.ReturnedDescriptor, Manager = manager, ProgrammeBank = bank, ProgrammeCapacity = capacity, CurrentPixel0Start = checked(0x20DFAB8u + (uint)currentFile1 + 0x850), ProgrammeEnd = checked(bank + (uint)capacity * 0x100), Cursor = Dword(core, manager + 0x7C), ArenaCursorStart = Dword(core, manager + 0xD4), ArenaCursorEnd = Dword(core, manager + 0xD8), PacketBase = Dword(core, manager + 0x88), Header = Dword(core, manager + 0xCC), Slots = slots, Commands = commands.Length, IoActive = io.ActiveCount, SubmittedTextures = submittedTextures, CameraVariable0 = current.NativeCamera?.Variables[0], CameraVariable22 = cameraVariable22, CameraControlCursor = current.NativeCamera?.ControlCursor, CrtRandom = current.NativeCrtRandom, Hp = afterHp, RetainedTextureUploads = textures.Slots.Where(slot => slot is not null).Select(slot => new { slot!.Kind, slot.ArenaOffset, slot.Rectangle, slot.Copy }).ToArray() });
         }
         else

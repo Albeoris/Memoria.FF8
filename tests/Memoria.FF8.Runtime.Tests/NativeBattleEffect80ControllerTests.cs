@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect80Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect80Profile;
@@ -38,7 +39,7 @@ public sealed class NativeBattleEffect80ControllerTests
     {
         NativeBattleEffect80Frame frame = Frame();
         frame = frame with { State = frame.State.Write(DescriptorAddress, Enumerable.Repeat((byte)0xA5, DescriptorLength).ToArray()) };
-        NativeBattleEffect80Frame result = InitializeBody7B4480(frame, PhysicalModelAddress(5), 5);
+        NativeBattleEffect80Frame result = InitializeBody7B4480(frame, OriginalOwner(5), OriginalAliases);
         Assert.Equal(DescriptorAddress, result.State.ReadDword(BodyContextAddress + 0x60));
         Assert.Equal(RowsAddress, result.State.ReadDword(DescriptorAddress + 4));
         Assert.Equal(0x1D8E054u, result.State.ReadDword(BodyContextAddress + 0x68));

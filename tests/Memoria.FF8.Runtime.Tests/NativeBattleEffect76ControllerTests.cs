@@ -214,7 +214,7 @@ public sealed class NativeBattleEffect76ControllerTests
 
         private static NativeBattleActionPacketsState Packets()
         {
-            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[NativeBattleRetainedActionPackets.HeaderCapacity * 20], new byte[NativeBattleRetainedActionPackets.ContactCapacity * 24]), OriginalAliases);
             (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 14, -1, 355, 76, null));
             (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 3, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);

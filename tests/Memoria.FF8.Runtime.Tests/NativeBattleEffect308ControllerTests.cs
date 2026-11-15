@@ -72,7 +72,7 @@ public sealed class NativeBattleEffect308ControllerTests
         }
         (frame, uint particle) = Append(frame, ParticleDescriptor, 0x668A50);
         frame = Write(frame, particle, Read(frame, particle).WriteWord(12, 0xBEEF));
-        frame = BirthScript667940(frame, 0x1D97494, NativeBattleEffect308TestFrame.Main + 0x20, ScriptRanges[0].Address);
+        frame = BirthScript667940(frame, OriginalOwner(3), NativeBattleEffect308TestFrame.Main + 0x20, ScriptRanges[0].Address, OriginalAliases);
         Assert.Equal((ushort)0, Read(frame, particle).Flags);
         Assert.Null(Read(frame, particle).Next);
         Assert.Equal((ushort)0xBEEF, Read(frame, particle).ReadWord(12));
@@ -122,6 +122,6 @@ internal static class NativeBattleEffect308TestFrame
         {
             operations?.Add(operation);
             return frame;
-        });
+        }, (owner, _) => owner);
     }
 }

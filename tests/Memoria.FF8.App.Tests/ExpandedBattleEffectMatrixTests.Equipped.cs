@@ -70,7 +70,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(BattleAbility.NativeCommand, queued.Ability);
         Assert.Equal((action.Command << 16) | action.ActionId, queued.ActionId);
         Assert.Equal(action.Command, queued.NativeQueuedCommand);
-        Assert.Equal(0, queued.NativeTargetMask);
+        Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
 
         NativeBattleEffectPresentation? presentation = null;
         for (int frame = 0; frame < 1000 && caster.IsBusy; frame++)

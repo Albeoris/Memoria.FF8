@@ -60,7 +60,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions, action => action.ActorId == caster.Id);
         Assert.Equal(commandKey, queued.ActionId);
         Assert.Equal(dance.MagicId, queued.NativeAction!.MagicId);
-        Assert.Equal(0, queued.NativeTargetMask);
+        Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
         BattleSnapshot before = battle.Capture();
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
         for (int frame = 0; frame < 300 && caster.IsBusy; frame++)

@@ -44,7 +44,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         Assert.True(source.ActiveAction is { NativeQueuedCommand: 254, GuardianFormInvocation: null });
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.NativeGraphics.ActionGraphics!.Header.Ordinal));
         Assert.Equal((byte)254, header.Command);
-        int guardian = (header.ReadByte(4) | header.ReadByte(5) << 8) - 64;
+        int guardian = header.Action - 64;
         Assert.InRange(guardian, 0, 15);
         ushort effectId = checked((ushort)source.NativeGraphics.OriginalEffect!.Binding.Effect);
         Run(guardian, effectId, source);

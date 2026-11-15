@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect285Controller;
@@ -53,7 +54,7 @@ public sealed class NativeBattleEffect285LowerTests
         {
             int actor = 6 - index;
             NativeBattleEffect285ModelFlags operation = Assert.IsType<NativeBattleEffect285ModelFlags>(fixture.Operations[index + 1]);
-            Assert.Equal(0x1D972C0u + (uint)(actor * 0x9C), operation.ModelAddress);
+            Assert.Equal(OriginalOwner(actor), operation.Actor);
             Assert.Equal(width, operation.Width);
             Assert.Equal(argument == 0 ? (ushort)0xFF : (ushort)0xFFFB, operation.AndMask);
             Assert.Equal(argument == 0 ? (ushort)4 : (ushort)((actor & 1) * 4), operation.OrMask);
@@ -65,7 +66,7 @@ public sealed class NativeBattleEffect285LowerTests
     {
         Fixture fixture = new();
         NativeBattleEffect285PointStep result = BonePoint67B560(fixture.Frame, Point(1, 2, 3).Write(6, BitConverter.GetBytes((short)10)), Point(4, 5, 6).Write(6, BitConverter.GetBytes((ushort)0xCAFE)), fixture.Inputs());
-        Assert.Equal(0x1D97494u, fixture.LastBoneModel);
+        Assert.Equal(OriginalOwner(3), fixture.LastBoneModel);
         Assert.Equal(777u, result.Frame.State.ReadDword(0x2507D64));
         Assert.Equal((ushort)0xCAFE, BinaryPrimitives.ReadUInt16LittleEndian(result.Output8.Read(6, 2)));
         Assert.Equal((short)321, Word285(result.Output8, 0));
@@ -151,7 +152,7 @@ public sealed class NativeBattleEffect285LowerTests
         public NativeBattleEffectArena Eye = Point(1000, 2000, 3000);
         public NativeBattleEffectArena Target = Point(0, 0, 0);
         public List<NativeBattleEffect285Operation> Operations = [];
-        public uint LastBoneModel;
+        public BattleModelOwner? LastBoneModel;
         public NativeBattlePackedMatrix32 View = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
 
         public Fixture()

@@ -1,3 +1,4 @@
+using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -75,7 +76,7 @@ public sealed class NativeBattleEvilEye282PresentationTests
         NativeBattlePackedMatrix32 selected = NativeBattlePackedMatrix32.FromMatrix(NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource)[13], null);
         Assert.False(selected.Known[18]);
         Assert.False(selected.Known[19]);
-        Assert.Equal((byte)allocatedActor, packets.ReadHeader(header).ReadByte(0));
+        Assert.Equal((byte)allocatedActor, ReadOriginalModelOperand(packets.ModelAliases, packets.ReadHeader(header).Source));
         Assert.Equal((byte)12, packets.ReadHeader(header).Sequence);
         Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original EvilEye282 command8/action152/sequence12; originalformation436 prototype3 allocated and activated by current native producer; controlled preparation does not claim three ordinary AI deaths; declared seven-HP physical party0 contact with logical HP/status retained", allocatedActor, header = packets.ReadHeader(header), Contact = packets.ReadContact(new BattleContactOccurrence(0)), OriginalPrototype = assets.LoadEncounter(436).Slots.Single(enemy => enemy.Slot == 3) }));

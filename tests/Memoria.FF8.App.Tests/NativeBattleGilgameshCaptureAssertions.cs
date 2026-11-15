@@ -22,21 +22,21 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         this.source = source;
         this.effect = effect;
         this.contact = contact;
-        AssertQueuedInvocation(effect, header, contact);
+        AssertQueuedInvocation(effect, header, contact, source.NativeActionPackets!.ModelAliases);
         Assert.IsType<NativeBattleGilgameshProcess>(source.NativeEffectMemory!.Gilgamesh).Validate();
         Assert.IsType<NativeBattlePcRenderRequest>(source.NativeEffectMemory!.PcRenderRequest);
         Assert.NotNull(source.NativeStage);
         Assert.True(source.NativeStage!.Groups.Length >= 4);
     }
 
-    internal static void AssertQueuedInvocation(ushort effect, NativeBattleActionHeaderSlot header, NativeBattleContactPacket contact)
+    internal static void AssertQueuedInvocation(ushort effect, NativeBattleActionHeaderSlot header, NativeBattleContactPacket contact, NativeBattleModelAliases aliases)
     {
         Assert.InRange(effect, (ushort)327, (ushort)330);
-        Assert.Equal((byte)0, header.ReadByte(0));
+        Assert.Equal((byte)0, ReadOriginalModelOperand(aliases, header.Source));
         Assert.Equal((byte)245, header.Command);
         Assert.Equal((byte)0, header.Sequence);
         Assert.Equal(effect switch { 327 => (ushort)10, 328 => (ushort)9, 329 => (ushort)7, _ => (ushort)8 }, header.Action);
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(aliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)1, contact.Primary.Flags2);
         Assert.Equal((byte)0, contact.Primary.HitFlags);
@@ -124,7 +124,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
             NativeBattleEffectTask before = prior.NativeGraphics!.Effects.Slots[slot];
             if ((now.Flags0 & 1) != 0 && now.Kind == NativeBattleEffectKind.DamageText5069B0 && now.Frame == 1 && !((before.Flags0 & 1) != 0 && before.Kind == now.Kind && before.Frame == 1))
             {
-                Assert.Equal(contact.Primary.ActorIndex, now.ModelIndex);
+                Assert.Equal(contact.Primary.Recipient, now.ModelOwner);
                 Assert.Equal(contact.Primary.Amount6.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(character => (byte)(character - '0' + 56)).Append((byte)0), now.Glyphs);
                 Assert.Equal(0x808080u, now.Color);
                 textPublications++;

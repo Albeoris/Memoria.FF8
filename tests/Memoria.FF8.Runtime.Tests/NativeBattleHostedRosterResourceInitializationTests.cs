@@ -6,6 +6,9 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedRosterResourceInitializationTests
 {
+    private static readonly BattlePartyModelOwner Source = new BattlePartyActorModel(new("actor-7"));
+    private static readonly BattleEnemyModelOwner Target = new BattleEnemyActorModel(new("actor-24"));
+
     [Theory]
     [InlineData(2, 2)]
     [InlineData(11, 14)]
@@ -18,44 +21,45 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
         NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
-        BattleModelRoster roster = graphics.PresentationRoster!;
-        Assert.Equal(roster.Rows, cpu.Cpu.PresentationRoster!.Rows);
-        Assert.Equal(roster.Rows, cache.PresentationRoster!.Rows);
+        BattleModelRoster roster = graphics.ActorModels.Roster;
+        Assert.Equal(roster.Owners, cpu.Cpu.PresentationRoster!.Owners);
+        Assert.Equal(roster.Owners, cache.PresentationRoster!.Owners);
         Assert.Equal(partyCount * 2 + enemyCount, cache.PresentationActors!.Count);
         Assert.Equal(partyCount + enemyCount, textures.PresentationTextures!.Count);
         Assert.Equal((ushort)0x61, textures.ReadVramWord(640, 0));
         Assert.Equal(inputs.Random, session.ReadEffectPresentationRandom());
         Assert.Null(session.NativeModelLoader!.Task);
 
-        foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
+        foreach (BattleModelOwner owner in roster.Owners)
         {
-            bool party = roster[row].IsParty;
-            NativeBattleGraphicsModel other = row == inputs.Source.Index ? inputs.Source : inputs.NativeTargets.Single(target => target.Model.Index == row).Model;
-            NativeBattleGraphicsModel model = graphics.Models[row];
+            bool party = owner is BattlePartyModelOwner;
+            int originalSlot = graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte operand) ? operand : 0;
+            NativeBattleGraphicsModel other = owner == Source ? inputs.Source : inputs.NativeTargets.Single(target => target.Owner == owner).Model;
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
             Assert.Equal(other.Flags0, model.Flags0);
             Assert.Equal(other.SequenceState, model.SequenceState);
             Assert.Equal(other.Transform, model.Transform);
             int body = Assert.IsType<int>(model.ActiveResourceRow100);
             Assert.Equal<int?>(body, model.OriginalResourceRow104);
-            Assert.Equal(row, cache.PresentationActors[body]);
+            Assert.Equal(owner, cache.PresentationActors[body]);
             Assert.NotNull(cpu.Rows[body].Require(16));
-            NativeBattleEffectTextureState actor = textures.RequirePresentationTexture(roster[row].ActorId).Textures;
+            NativeBattleEffectTextureState actor = textures.RequirePresentationTexture(ActorId(owner)).Textures;
             Assert.Equal(0, actor.Count);
-            int bodySlot = party ? (row < 3 ? 2 * row : 0) : 6;
+            int bodySlot = party ? 2 * originalSlot : 6;
             Assert.Equal(party ? (ushort)0x13 : (ushort)0x39, actor.ReadVramWord((bodySlot / 2 + 10) * 64, 0));
-            if (party)
+            if (owner is BattlePartyModelOwner partyOwner)
             {
                 int linked = Assert.IsType<int>(model.LinkedTextureResourceIndex);
-                Assert.Equal(row, cache.PresentationActors[linked]);
-                Assert.Equal(cpu.Cpu.PartyBankIndex(row), cpu.Rows[body].Require(16).Bank);
-                Assert.Equal(cpu.Cpu.PartyBankIndex(row), cpu.Rows[linked].Require(16).Bank);
-                Assert.Equal((ushort)0x27, actor.ReadVramWord((10 + (row < 3 ? row : 0)) * 64, 128));
-                Assert.Equal(new byte[] { 1, 0, 0, 0 }, cpu.ReadAnimationHeader(row * 32 + 8, 0, 4));
-                Assert.Equal(new byte[] { 1, 0, 0, 0 }, cpu.ReadAnimationHeader(row * 32 + 24, 0, 4));
+                Assert.Equal(owner, cache.PresentationActors[linked]);
+                Assert.Equal(cpu.Cpu.PartyBankIndex(partyOwner), cpu.Rows[body].Require(16).Bank);
+                Assert.Equal(cpu.Cpu.PartyBankIndex(partyOwner), cpu.Rows[linked].Require(16).Bank);
+                Assert.Equal((ushort)0x27, actor.ReadVramWord((10 + originalSlot) * 64, 128));
+                Assert.Equal(new byte[] { 1, 0, 0, 0 }, cpu.ReadAnimationSection(partyOwner, 8, 0, 4));
+                Assert.Equal(new byte[] { 1, 0, 0, 0 }, cpu.ReadAnimationSection(partyOwner, 24, 0, 4));
             }
             else
             {
-                NativeBattleGraphicsResource selected = Pose(session, graphics, row);
+                NativeBattleGraphicsResource selected = Pose(session, graphics, owner);
                 Assert.True(selected.GeometryRelocated507550);
                 Assert.Single(selected.Geometry!.Value);
                 Assert.Equal((ushort)0x39, actor.ReadVramWord(832, 0));
@@ -76,7 +80,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleModelCpuBanks banks = session.NativeModelCpuResources!.Cpu;
         Assert.Equal(NativeBattlePartyCpuLayout.Remastered, banks.EffectiveLayout);
         Assert.Equal(0x20000, banks.GetBank(0).Capacity);
-        Assert.Equal(0x20000, banks.GetBank(banks.PartyBankIndex(7)).Capacity);
+        Assert.Equal(0x20000, banks.GetBank(banks.PartyBankIndex(Source)).Capacity);
         Assert.Equal(NativeBattleFileStaging.FromColdProcess(hash).LoaderZeroRanges.ToArray(), session.NativeFileStaging!.LoaderZeroRanges.ToArray());
         Assert.Equal(NativeBattleTemporaryMemory.Address, session.NativeFileStaging.ReadUInt32(NativeBattleTemporaryMemory.Cursor));
     }
@@ -138,25 +142,19 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         input = input with { NativeTargets = input.NativeTargets.SetItem(input.NativeTargets.Length - 1, enemy with { Model = enemy.Model with { ActiveResourceRow100 = 3 } }) };
         BattleSession session = BattleSession.CreateEffectPresentation(input);
 
-        Assert.Same(enemy.Resource, Pose(session, session.NativeGraphics!, enemy.Model.Index));
+        Assert.Same(enemy.Resource, Pose(session, session.NativeGraphics!, enemy.Owner));
     }
 
     private static NativeBattleEffectPresentationInputs Inputs(int partyCount, int enemyCount, NativeBattleEffectTextureState textures, bool loadSources = true)
     {
         int[] parties = partyCount == 11 ? [0, 1, 2, 7, 8, 9, 10, 11, 12, 13, 14] : [7, 8];
         int[] enemies = enemyCount == 14 ? [3, 4, 5, 6, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] : [15, 24];
-        byte source = 7;
-        byte target = 24;
-        BattleModelOwner?[] rows = new BattleModelOwner?[25];
-        foreach (int row in parties)
-        {
-            rows[row] = new BattlePartyActorModel(new($"actor-{row}"));
-        }
-        foreach (int row in enemies)
-        {
-            rows[row] = new BattleEnemyActorModel(new($"actor-{row}"));
-        }
-        BattleModelRoster roster = new([.. rows]);
+        Dictionary<int, BattleModelOwner> owners = parties.ToDictionary(row => row, row => row == 7 ? Source : new BattlePartyActorModel(new($"actor-{row}")))
+            .Select(pair => (pair.Key, Owner: (BattleModelOwner)pair.Value))
+            .Concat(enemies.Select(row => (Key: row, Owner: row == 24 ? (BattleModelOwner)Target : new BattleEnemyActorModel(new($"actor-{row}")))))
+            .ToDictionary(pair => pair.Key, pair => pair.Owner);
+        BattleModelRoster roster = new(owners.OrderBy(pair => pair.Key).Select(pair => pair.Value));
+        NativeBattleModelAliases aliases = new(roster, owners.Where(pair => pair.Key < NativeBattleModelBoundary.CellCount).Select(pair => (NativeBattleModelSlot.Decode((byte)pair.Key), pair.Value)));
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
         NativeBattleModelDatSource enemyBody = NativeBattleEnemyOwnedHeapTests.Source(72);
@@ -175,9 +173,11 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
             party = party with { ModelLoadSources = [WithTexture(body, 5, 0x13), WithTexture(linked, 6, 0x27)] };
             enemy = enemy with { ModelLoadSources = [WithTexture(enemyBody, 10, 0x39)] };
         }
-        NativeBattleEffectContactBridge<string> bridge = new([(roster[target].ActorId, new NativeBattleContactPacket(new(target, 0, 0, 0, 0, 0, 0), null))], roster);
-        (NativeBattleActionPacketsState packets, BattleModelTargets selected) = bridge.PrepareHosted(8, 0, 1, 1, source);
-        NativeBattleEffectParameters parameters = new(source, 0, selected.NativePhysicalBits, 0, 0, 0) { PresentationTargets = selected };
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(Source, 8, 0, -1, 1, 1, null));
+        (packets, _) = packets.AppendContact(new(new(Target, 0, 0, 0, 0, 0, 0), null));
+        (packets, _) = packets.Publish(1);
+        NativeBattleEffectParameters parameters = new(Source, 0, BattleModelTargets.From([Target]), header, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         BattleDefinition definition = new()
         {
@@ -185,13 +185,21 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
             NativeEffectCatalog = [.. Enumerable.Range(1, 400).Select(effect => new NativeBattleEffectBinding((ushort)effect, effect == 1 ? 1u : 0u, 0))],
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { EffectMemory = memory with { PrimitiveProcess = memory.PrimitiveProcess!.Initialize500400() } }
         };
-        return new(definition, Model(source, true, bodyPose, linkedPose), party, packets, parameters, 1, textures, new(21), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
+        return new(definition, Model(7, true, bodyPose, linkedPose), party, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, textures, new(21), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
         {
-            SourceIsParty = true,
-            NativeTargets = [.. parties.Concat(enemies).Where(row => row != source).Select(row => new NativeBattleEffectModelBinding(roster[row].ActorId, roster[row].IsParty ? Model(row, true, bodyPose, linkedPose) : Model(row, false, enemyPose), roster[row].IsParty ? party : enemy) { IsParty = roster[row].IsParty })],
+            NativeTargets = [.. owners.Where(pair => pair.Value != Source).Select(pair => pair.Value is BattlePartyModelOwner
+                ? new NativeBattleEffectModelBinding(pair.Value, Model(pair.Key, true, bodyPose, linkedPose), party)
+                : new NativeBattleEffectModelBinding(pair.Value, Model(pair.Key, false, enemyPose), enemy))],
             DeferInvocation = true
         };
     }
+
+    private static string ActorId(BattleModelOwner owner) => owner switch
+    {
+        BattlePartyActorModel party => party.Actor.ActorId,
+        BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+        _ => throw new InvalidDataException("The fixture requires a canonical model owner.")
+    };
 
     private static NativeBattleGraphicsModel Model(int row, bool party, NativeBattlePoseSource body, NativeBattlePoseSource? linked = null)
     {
@@ -242,5 +250,5 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
     }
 
     private static NativeBattleEffectTextureState Accept(BattleSession session, NativeBattleEffectTextureState incoming) => (NativeBattleEffectTextureState)typeof(BattleSession).GetMethod("AcceptHostedPresentationTextures", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [incoming])!;
-    private static NativeBattleGraphicsResource Pose(BattleSession session, NativeBattleGraphicsState graphics, int index) => (NativeBattleGraphicsResource)typeof(BattleSession).GetMethod("NativeGraphicsPoseResource", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, index])!;
+    private static NativeBattleGraphicsResource Pose(BattleSession session, NativeBattleGraphicsState graphics, BattleModelOwner owner) => (NativeBattleGraphicsResource)typeof(BattleSession).GetMethod("NativeGraphicsPoseResource", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, owner])!;
 }

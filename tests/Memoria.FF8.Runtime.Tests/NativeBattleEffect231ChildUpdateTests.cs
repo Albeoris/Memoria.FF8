@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -74,7 +75,7 @@ public sealed class NativeBattleEffect231ChildUpdateTests
         }
 
         NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame input) => contact
-            ? NativeBattleWaterChildCommands.Execute5D(input, new(0x1000, 4, Pc), Bank, 0x12345678, Update)
+            ? NativeBattleWaterChildCommands.Execute5D(input, new(0x1000, 4, Pc), Bank, 0x12345678, Update, OriginalAliases)
             : NativeBattleWaterChildCommands.Execute9C(input, new(0x1000, 4, Pc), Bank, 0x12345678, Update);
 
         NativeBattleWaterExecutionFrame Update(NativeBattleWaterExecutionFrame child, byte kind)

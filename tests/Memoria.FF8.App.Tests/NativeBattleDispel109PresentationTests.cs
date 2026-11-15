@@ -36,7 +36,7 @@ public sealed class NativeBattleDispel109PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint relative = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
@@ -85,7 +85,7 @@ public sealed class NativeBattleDispel109PresentationTests
                 BattleSnapshot current = battle.Capture();
                 Assert.Equal(1, Stock(current));
                 Assert.Equal(hp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
-                if (!prior.NativeGraphics!.Effects.Slots.Any(ContactText) && current.NativeGraphics!.Effects.Slots.Any(ContactText))
+                if (!prior.NativeGraphics!.Effects.Slots.Any(task => ContactText(prior.NativeGraphics, task)) && current.NativeGraphics!.Effects.Slots.Any(task => ContactText(current.NativeGraphics, task)))
                 {
                     Assert.InRange(67 - age, 0L, Math.Max(0L, current.NativeGraphics.Callback - prior.NativeGraphics.Callback - 1));
                     contacts++;
@@ -159,7 +159,7 @@ public sealed class NativeBattleDispel109PresentationTests
             throw;
         }
 
-        bool ContactText(NativeBattleEffectTask task) => (task.Flags0 & 1) != 0 && task.ModelIndex == 3 && task.Kind == NativeBattleEffectKind.DamageText5069B0;
+        bool ContactText(NativeBattleGraphicsState graphics, NativeBattleEffectTask task) => (task.Flags0 & 1) != 0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 3) && task.Kind == NativeBattleEffectKind.DamageText5069B0;
         int Stock(BattleSnapshot snapshot) => snapshot.Combatants.Single(actor => actor.Id == caster).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count;
         static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 109 } effect ? effect : null;
         static int TargetAge(BattleSnapshot snapshot) => Selected(snapshot)?.Pools is { Length: > 1 } pools && pools[1].Slots.FirstOrDefault(task => (task.Flags & 1) != 0) is { } target ? unchecked((short)target.ReadWord(12)) : -1;

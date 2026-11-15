@@ -16,7 +16,7 @@ public sealed class NativeBattleEffect289ControllerTests
         NativeBattleEffect289Frame frame = Initialize(Inactive(), Resources(), harness.Inputs());
         Assert.Single(frame.Effect.Pools);
         Assert.Null(frame.State.RootBankStorage);
-        Assert.Equal(ModelAddress(4), frame.State.ReadDword(CasterGlobal));
+        Assert.Equal(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(checked((byte)4))), frame.State.ReadDword(CasterGlobal));
         Assert.Equal(new byte[] { 0xA5 }, frame.Memory.Arena!.Read(0, 1));
         Assert.Equal(new byte[] { 0x5A }, frame.Memory.Arena.Read(ScratchOffset, 1));
         Assert.Equal(0, harness.ContactReads);
@@ -51,7 +51,7 @@ public sealed class NativeBattleEffect289ControllerTests
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 1));
         frame = AdvanceTask(frame, RootBank, resources, harness.Inputs()).Frame;
         NativeBattleModulePoolTask main = Read(frame, ArenaAddress + MainOffset);
-        Assert.Equal(ModelAddress(target), main.ReadDword(0x10));
+        Assert.Equal(NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(checked((byte)target))), main.ReadDword(0x10));
         Assert.Equal((ushort)500, main.ReadWord(0x14));
         Assert.Equal((ushort)100, main.ReadWord(0x16));
         Assert.Equal((ushort)1000, main.ReadWord(0x18));
@@ -282,12 +282,12 @@ public sealed class NativeBattleEffect289ControllerTests
         public List<NativeBattleEffect289Operation> Operations { get; } = [];
         public List<(uint Source, NativeBattleEffectArena Caller)> Programmes { get; } = [];
 
-        public NativeBattleEffect289Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), frame => new(null, 100, 160, 108), (frame, address) => new((int)((address - ModelAddress(0)) / 156), 2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 999, 777, -123), MinimumY146 = -3000 }, frame =>
+        public NativeBattleEffect289Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), frame => new(null, 100, 160, 108), (frame, address) => new(2) { Transform = new(new(0, 0, 0), new(100, 200, 300), 999, 777, -123), MinimumY146 = -3000 }, frame =>
         {
             ContactReads++;
             NativeBattleActionPacketsState packets = OriginalPackets();
             (packets, _) = packets.Prepare(new(OriginalOwner(4), 8, 13, -1, 153, 289, null));
-            (packets, _) = packets.AppendContact(new(new((byte)Target, 4, 0, 0, 0, 7, 0), null));
+            (packets, _) = packets.AppendContact(new(new(OriginalOwner(Target), 4, 0, 0, 0, 7, 0), null));
             (packets, _) = packets.Publish(1);
             return packets;
         }, (frame, address) => new(frame, PointView(new(500, 100, 1000), 777)), (frame, source, retained) =>

@@ -37,7 +37,7 @@ public sealed class NativeBattleDrain39PresentationTests
         BattleScenePresentation scene = new(assets, source.Definition, true);
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int descriptor = Assert.Single(source.NativeGraphics.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
@@ -47,9 +47,9 @@ public sealed class NativeBattleDrain39PresentationTests
         NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.True(contact.Primary.Amount6 > 0);
-        Assert.Equal((byte)0, contact.Secondary.ActorIndex);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
         Assert.Equal((byte)200, action.StatusAttack);
-        Assert.Equal(Math.Min(9999, contact.Primary.Amount6 * action.StatusAttack / 100), contact.Secondary.Amount6);
+        Assert.Equal(Math.Min(9999, contact.Primary.Amount6 * action.StatusAttack / 100), Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Amount6);
         Assert.Equal(Math.Min(beforeInput.Definition.Combatants.Single(actor => actor.Id == caster).MaximumHp, beforeInput.Combatants.Single(actor => actor.Id == caster).CurrentHp + contact.Secondary.Amount6), source.Combatants.Single(actor => actor.Id == caster).CurrentHp);
         int expectedCasterHp = source.Combatants.Single(actor => actor.Id == caster).CurrentHp;
         Assert.Equal(2, Stock(beforeInput));

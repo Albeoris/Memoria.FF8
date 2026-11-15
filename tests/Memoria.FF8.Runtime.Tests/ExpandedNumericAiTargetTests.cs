@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -57,7 +58,18 @@ public sealed class ExpandedNumericAiTargetTests
         BattleSnapshot snapshot = battle.Capture();
         BattleAttackCommand queued = Assert.Single(snapshot.QueuedActions);
         Assert.Equal("enemy-0", queued.TargetId);
-        Assert.Equal(unchecked((ushort)(1u << value)), queued.AiRecipients!.NativeSelectionMask);
+        switch (value)
+        {
+            case 13:
+                Assert.Equal(BattleSide.Allies, Assert.IsType<BattleTargetSelection.RandomOnSide>(queued.TargetRequest.Selection).Side);
+                break;
+            case 15:
+                Assert.Equal(BattleTargetSide.Allies, Assert.IsType<BattleTargetSelection.SideGroup>(queued.TargetRequest.Selection).Side);
+                break;
+            default:
+                Assert.Equal(unchecked((ushort)(1u << value)), NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, _ => null));
+                break;
+        }
         BattleSession restored = Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot.Random), JsonSerializer.Serialize(restored.Capture().Random));
         for (int frame = 0; frame < 40 && !battle.Events.Any(item => item.Kind == "ActionComplete"); frame++)
@@ -69,7 +81,7 @@ public sealed class ExpandedNumericAiTargetTests
         Assert.Equal(singleTarget is null ? ["party-0", "party-1", "party-2", "party-3"] : new[] { singleTarget }, targets);
         NativeBattleRandomState expectedRandom = value == 13 ? snapshot.Random!.Draw(out _) : snapshot.Random!;
         Assert.Equal(JsonSerializer.Serialize(expectedRandom), JsonSerializer.Serialize(battle.Capture().Random));
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(targets, restored.Events.Where(item => item.Kind == "EffectContact").Select(item => item.TargetId));
     }
 
     [Fact]
@@ -92,11 +104,12 @@ public sealed class ExpandedNumericAiTargetTests
         restored.Tick();
         Assert.Equal(9u, Enemy(restored.Capture()).NativeParticipant!.Variables[1]);
         Assert.Equal("party-3", restored.ActiveAction?.TargetId);
-        Assert.Null(restored.ActiveAction!.AiRecipients!.NativeSelectionMask);
+        BattleTargetSelection.Explicit selected = Assert.IsType<BattleTargetSelection.Explicit>(restored.ActiveAction!.TargetRequest.Selection);
+        Assert.Equal(new BattlePartyActorReference("party-3"), Assert.Single(selected.Actors));
     }
 
     [Fact]
-    public void AdmissionRequiresOriginalSlotsAndRestoreRejectsContradictoryNativeMaskPayloads()
+    public void AdmissionRequiresOriginalSlotsAndPrivateRestoreRejectsUnknownCanonicalTarget()
     {
         BattleNativeAction action = Action();
         NativeBattleAiDefinition numeric = Program([4, 220, 2, 7, 220, 0, 7, 0, 0, 0, 0]);
@@ -105,20 +118,8 @@ public sealed class ExpandedNumericAiTargetTests
 
         BattleSnapshot saved = Create([4, 220, 7, 1, 6, 0]).Capture();
         BattleAttackCommand queued = Assert.Single(saved.QueuedActions);
-        BattleAiRecipients recipients = queued.AiRecipients!;
-        BattleAiRecipients[] invalid =
-        [
-            recipients with { NativeSelectionMask = null },
-            recipients with { Selection = BattleAiSelection.Selected },
-            recipients with { ActorIds = ["party-0"] },
-            recipients with { TargetPolicy = BattleAiTargetPolicy.DrawnMagic },
-            recipients with { RandomSide = BattleSide.Allies },
-            recipients with { DeathSelfTargetId = queued.ActorId }
-        ];
-        foreach (BattleAiRecipients candidate in invalid)
-        {
-            Assert.Throws<InvalidDataException>(() => Restore(saved with { QueuedActions = [queued with { AiRecipients = candidate }] }));
-        }
+        BattleTargetRequest missing = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("retired")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+        Assert.Throws<InvalidDataException>(() => Restore(saved with { QueuedActions = [queued with { TargetRequest = missing }] }));
     }
 
     [Fact]
@@ -136,17 +137,43 @@ public sealed class ExpandedNumericAiTargetTests
         BattleSession battle = Create([0], originalEnemySlots: false);
         Assert.Empty(Targets(battle, 0));
         Assert.Equal(new[] { "party-0", "party-1", "party-2", "party-3" }, Targets(battle, 0, Action() with { Command = 2, TargetFlags = 2 }));
-        Assert.Throws<InvalidDataException>(() => Targets(battle, 1));
+        Assert.Throws<InvalidDataException>(() => Create([14, 220, 0, 4, 220, 7, 1, 6, 0], originalEnemySlots: false));
 
         BattleSnapshot saved = Create([14, 220, 255, 4, 220, 7, 1, 6, 0], originalEnemySlots: false).Capture();
         BattleAttackCommand queued = Assert.Single(saved.QueuedActions);
-        Assert.Equal((ushort)0, queued.AiRecipients!.NativeSelectionMask);
-        Assert.Throws<InvalidDataException>(() => Restore(saved with { QueuedActions = [queued with { AiRecipients = queued.AiRecipients with { NativeSelectionMask = 1 } }] }));
+        Assert.Equal((ushort)0, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, _ => null));
+        Assert.Empty(Resolve(Restore(saved), queued.TargetRequest));
     }
 
     private static string[] Targets(BattleSession battle, ushort word, BattleNativeAction? action = null)
     {
-        return battle.CurrentExpandedAiTargets(new([]) { Selection = BattleAiSelection.NativeMask, NativeSelectionMask = word }, action).Select(actor => actor.Id).ToArray();
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(word, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: false);
+        bool allowsKnockedOutAllies = request.AllowsKnockedOutAllies || action is { Command: 8 or 252 } && (action.AttackFlags & 0x80) != 0;
+        BattleTargetSelection selection = request.Selection;
+        if (action is { Command: 2 or 4 })
+        {
+            byte flags = action.TargetFlags.GetValueOrDefault();
+            allowsKnockedOutAllies |= (flags & 1) != 0;
+            if ((flags & 2) != 0)
+            {
+                selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: false);
+            }
+        }
+        return Resolve(battle, new(selection, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies, request.Replacement));
+    }
+
+    private static string[] Resolve(BattleSession battle, BattleTargetRequest request)
+    {
+        MethodInfo resolve = typeof(BattleSession).GetMethod("ResolveBattleTargets", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        try
+        {
+            return ((BattleCombatant[])resolve.Invoke(battle, [request, false])!).Select(actor => actor.Id).ToArray();
+        }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(error.InnerException);
+            throw;
+        }
     }
 
     private static BattleCombatantSnapshot Enemy(BattleSnapshot snapshot)
@@ -195,6 +222,6 @@ public sealed class ExpandedNumericAiTargetTests
 
     private static BattleSession Restore(BattleSnapshot snapshot)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        return BattleSession.Restore(snapshot);
     }
 }

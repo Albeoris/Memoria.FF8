@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.App.Tests.NativeBattleOriginalModelAssertions;
 using System.Text.Json;
 using Memoria.FF7.Formats;
@@ -24,18 +25,18 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         using BattleAssets battle = new(root!);
         NativeBattleGraphicsResource original = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeGlobalRandomState global = game.ReadNewGameGlobalRandom();
-        NativeBattleGraphicsModel caster = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel caster = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(new(0, 0, 2200), new(0, 0, 2200), 0, 0, 4096),
             LinkedTransform = new(default, default),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-        }, 0, 0, ref global);
+        }, 0, 0, true, ref global);
         caster = NativeBattleGraphicsModels.SelectSequence(caster, 1);
-        caster = NativeBattleSequenceMachine.Advance(caster, original, new(0, 0)).Model;
+        caster = NativeBattleSequenceMachine.Advance(OriginalOwner(0), caster, original, new(0, 0)).Model;
         caster = caster with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(caster, original.PoseSource!) };
         NativeBattleRenzokuken160WeaponTip standingTip = NativeBattleRenzokuken160Controller.ReadWeaponTip5FFEE0(caster, original);
         NativeCrtRandomState random = NativeCrtRandomState.FromColdProcess();
-        CrossoverNativeRenzokukenEntryState state = CrossoverNativeRenzokukenEntry.Begin(game, 4, variant, finisherPending, random);
+        CrossoverNativeRenzokukenEntryState state = CrossoverNativeRenzokukenEntry.Begin(game, 4, OriginalOwner(0), OriginalOwner(3), variant, finisherPending, random);
         Assert.Equal(variant, state.Frame.Effect.Binding.Effect);
         Assert.Equal(4, state.HostTarget);
         Assert.Equal((byte)3, ReadOriginalModelOperand(state.Packets.ModelAliases, state.Packets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient));
@@ -43,7 +44,7 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         Assert.Equal(contacts, state.Resources.ActorResource.Timeline.InputThresholds.Length);
         NativeBattleRenzokuken160State native = variant == 141 ? NativeBattleRenzokukenVariantController.ReadState(state.Frame).Core : state.Frame.Memory.Renzokuken160!;
         Assert.Equal(finisherPending, native.InitialControl);
-        Assert.Equal(3, native.FirstTarget);
+        Assert.Equal(OriginalOwner(3), state.Frame.Effect.EntryFirstRecipient);
         Assert.Equal(random, state.Frame.Random);
         CrossoverNativeRenzokukenPrelude first = CrossoverNativeRenzokukenEntry.AdvancePrelude(state, caster);
         NativeBattleRenzokuken160ActorFlags flags = Assert.Single(first.Operations.OfType<NativeBattleRenzokuken160ActorFlags>());
@@ -84,7 +85,7 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         CrossoverNativeRenzokukenProgram program = new(game, original, rules);
         ushort options = game.ReadNewGameLimitProgress().Options978 ?? throw new InvalidDataException("The original limit options are missing.");
-        CrossoverNativeRenzokukenProgramState live = program.Begin(caster with { Flags0 = (ushort)(caster.Flags0 & ~0x800) }, restored.State.HostTarget, variant, finisherPending, distance, yaw, random, options, null);
+        CrossoverNativeRenzokukenProgramState live = program.Begin(caster with { Flags0 = (ushort)(caster.Flags0 & ~0x800) }, restored.State.HostTarget, OriginalOwner(0), OriginalOwner(3), variant, finisherPending, distance, yaw, random, options, null);
         List<NativeBattleTriggerReceipt> timings = [];
         List<int> contactsAt = [];
         List<int> timingAt = [];

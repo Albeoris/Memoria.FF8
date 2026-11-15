@@ -342,7 +342,7 @@ public sealed class NativeBattleEffect308LowerTests
                     Operations.Add(operation);
                 }
                 return frame;
-            });
+            }, (owner, _) => owner);
         }
     }
 

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -42,7 +43,7 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
         NativeBattlePoseSource source = new((logical ? resource : guest).ToImmutableArray(), [1]);
         NativeBattleGraphicsModel model = new(3) { ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [NativeBattleCuragaMatrices.Identity8DD770()]), SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
-        NativeBattleGraphicsState graphics = new([model], ["party"], 0, 0);
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, new BattlePartyActorModel(new("party")), model)]);
         NativeBattleEffect251Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), new(251, 250, new(251, 1, 1), null, null), new(42), NativeBattleEffect251State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[128]) };
         MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeEffect251BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.Equal(unknown ? null : (short?)(logical ? 0x2222 : 0x1111), (short?)read.Invoke(session, [graphics, frame, 0, 0]));

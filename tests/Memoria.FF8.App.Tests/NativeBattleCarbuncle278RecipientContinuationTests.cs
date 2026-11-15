@@ -53,7 +53,7 @@ public sealed class NativeBattleCarbuncle278RecipientContinuationTests
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
             ushort counter = Creature(current).ReadWord(0xC);
             NativeBattleRestorationPresentationTests.Publish(output, "before-check-" + callbacks, current, null);
-            Assert.All(ReadOriginalModelCells(current.NativeGraphics!).Where(model => model.Index < 3), model => Assert.Equal(0, model.Flags0 & 4));
+            Assert.All(ReadOriginalModelCells(current.NativeGraphics!).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
             if (counter == 146)
             {
                 hiddenPose = JsonSerializer.Serialize(current.NativeEffectMemory!.CarbuncleExecutableMemory);
@@ -64,7 +64,7 @@ public sealed class NativeBattleCarbuncle278RecipientContinuationTests
             }
             Assert.Equal(0x10C5C8Cu, Creature(current).ReadDword(0xCC));
             Assert.Equal((uint)(counter - 145), Creature(current).ReadDword(0xD0));
-            NativeBattleEffectTaskPool recipients = current.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508158);
+            NativeBattleEffectTaskPool recipients = Assert.IsType<NativeBattleGraphicsState>(current.NativeGraphics).OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508158);
             Assert.InRange(recipients.Slots.Count(task => (task.Flags & 1) != 0), 1, 3);
             foreach (var indexed in recipients.Slots.Select((task, index) => (Task: task, Index: index)).Where(item => (item.Task.Flags & 1) != 0 && item.Task.ReadWord(0xC) != 0))
             {
@@ -73,7 +73,7 @@ public sealed class NativeBattleCarbuncle278RecipientContinuationTests
                 Assert.Equal(indexed.Task.Payload.AsSpan().Slice(0x48 - 12, 12).ToArray(), current.NativeEffectMemory!.Arena!.Read(offset + 0x48, 12));
             }
             NativeBattlePrimitiveFrame primitive = current.NativeGraphics.PrimitiveFrame!;
-            uint primary = current.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
+            uint primary = current.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
             int cursor = checked((int)primary);
             foreach (int address in primitive.LastCommands.Select(command => command.Command.Packet).Where(packet => packet.Bank == "20DFAB8").Distinct().Select(packet => packet.ByteOffset).Order())
             {

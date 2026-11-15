@@ -36,7 +36,7 @@ public sealed class PartialMagicTargetTests
         hud.Navigate(MenuInput.Alternate);
 
         Assert.Equal(new[] { "caster", "ally" }, Assert.Single(inputs).MagicTargets);
-        Assert.Equal(new ushort[] { 1, 2 }, Assert.Single(session.QueuedActions).NativeMagicTargets);
+        Assert.Equal(new ushort[] { 1, 2 }, Assert.Single(session.QueuedActions).MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
         for (int frame = 0; frame <= BattleSession.AttackWindupFrames + 2; frame++)
         {
             session.Tick();
@@ -72,7 +72,7 @@ public sealed class PartialMagicTargetTests
         Assert.Equal("enemy-a", input.TargetId);
         Assert.Equal(Enumerable.Repeat("enemy-a", count), input.MagicTargets);
         BattleAttackCommand queued = Assert.Single(session.QueuedActions);
-        Assert.Equal(Enumerable.Repeat((ushort)8, count), queued.NativeMagicTargets);
+        Assert.Equal(Enumerable.Repeat((ushort)8, count), queued.MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
         Assert.Equal(count == 2 && status == 0x40000 ? 3 : 0, queued.NativeMagicCastMode);
         Assert.False(hud.SelectingTarget);
         Assert.False(hud.CanConfirmMagicTargets);
@@ -128,7 +128,7 @@ public sealed class PartialMagicTargetTests
         hud.Navigate(MenuInput.Alternate);
         BattleInput input = Assert.Single(inputs);
         Assert.Equal(new[] { "enemy-a" }, input.MagicTargets);
-        Assert.Equal(new ushort[] { 8 }, Assert.Single(session.QueuedActions).NativeMagicTargets);
+        Assert.Equal(new ushort[] { 8 }, Assert.Single(session.QueuedActions).MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
     }
 
     [Fact]
