@@ -56,6 +56,36 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return result;
     }
 
+    internal NativeBattleModelTextureCache RebindPresentationEnemies(BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleEnemyModelOwner> retired)
+    {
+        Validate();
+        HashSet<BattleEnemyModelOwner> retiredOwners = NativeBattleModelCpuBanks.ValidatePresentationEnemyRebind(PresentationRoster, expected, replacement, retired);
+        ImmutableDictionary<int, BattleModelOwner> currentOwners = PresentationActors!;
+        var owners = currentOwners.ToBuilder();
+        var rows = Rows.ToBuilder();
+        foreach ((int index, BattleModelOwner owner) in currentOwners)
+        {
+            if (owner is BattleEnemyModelOwner enemy && retiredOwners.Contains(enemy))
+            {
+                rows[index] = rows[index] with { Kind = 0 };
+                owners.Remove(index);
+            }
+        }
+        int required = NativeBattleModelResourceRowAddress.CapacityForRoster(replacement);
+        if (rows.Count < required)
+        {
+            rows.AddRange(Enumerable.Repeat(new NativeBattleModelTextureCacheRow(0, null, null, null), required - rows.Count));
+        }
+        NativeBattleModelTextureCache result = this with
+        {
+            Rows = rows.ToImmutable(),
+            PresentationRoster = replacement,
+            PresentationActors = owners.ToImmutable()
+        };
+        result.Validate();
+        return result;
+    }
+
     public void Validate()
     {
         if (EnemyTextureMotion is null || EnemyTextureMotion.Values.Any(table => table.IsDefault) || Rows.IsDefault || Rows.Length < NativeBattleModelResourceRowAddress.NativeRowCount || Rows.Length > NativeBattleModelResourceRowAddress.MaximumEncodedRowCount || Rows.Any(row => row is null || row.Kind > 3 || row.Kind != 0 && (row.ModelId is null || row.Binding is null) || row.Kind is 1 or 3 && row.TextureMask is null || row.Binding is { } binding && (binding.PaletteRows.IsDefault || binding.PaletteRows.Length != 16 || binding.PaletteRows.Any(value => value is >= 15))))

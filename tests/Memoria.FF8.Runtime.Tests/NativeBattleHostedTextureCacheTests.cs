@@ -160,6 +160,77 @@ public sealed class NativeBattleHostedTextureCacheTests
         Assert.Throws<InvalidDataException>((cache with { PresentationActors = null }).Validate);
     }
 
+    [Fact]
+    public void EnemyRebindRetiresOnlyDeclaredResourceRowsAndReusesTheirAddresses()
+    {
+        BattleModelRoster roster = FullRoster();
+        NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.Initialize508260(null).WithPresentationRoster(roster);
+        NativeBattleEffectHeapAllocation pack = TimPack(1);
+        cache = cache.LoadPlayer(1, 0, pack, roster.Party.First()).Cache;
+        BattleEnemyModelOwner[] enemies = roster.Enemies.Take(12).ToArray();
+        foreach (BattleEnemyModelOwner owner in enemies)
+        {
+            cache = cache.LoadEnemy(77, pack, owner).Cache;
+        }
+        BattleEnemyModelOwner retired = enemies[10];
+        BattleEnemyModelOwner survivor = enemies[11];
+        int retiredRow = cache.PresentationActors!.Single(pair => pair.Value == retired).Key;
+        int survivorRow = cache.PresentationActors!.Single(pair => pair.Value == survivor).Key;
+        uint survivorAddress = NativeBattleModelResourceRowAddress.Encode(survivorRow, cache.Rows.Length);
+        BattleEnemyActorModel next = new(new("next-generation"));
+        BattleEnemyActorModel extra = new(new("additional-enemy"));
+        BattleModelRoster replacement = new(roster.Owners.Select(owner => owner == retired ? next : owner).Append(extra));
+        NativeBattleModelTextureCache rebound = cache.RebindPresentationEnemies(roster, replacement, [retired]);
+
+        Assert.Same(replacement, rebound.PresentationRoster);
+        Assert.Equal(cache.Rows.Length + 1, rebound.Rows.Length);
+        Assert.Equal((byte)0, rebound.Rows[^1].Kind);
+        Assert.Equal(cache.BlockedSlots, rebound.BlockedSlots);
+        Assert.Same(cache.EnemyTextureMotion, rebound.EnemyTextureMotion);
+        Assert.Equal(cache.Rows[retiredRow] with { Kind = 0 }, rebound.Rows[retiredRow]);
+        Assert.DoesNotContain(retiredRow, rebound.PresentationActors!.Keys);
+        foreach ((int index, BattleModelOwner owner) in cache.PresentationActors!)
+        {
+            if (index != retiredRow)
+            {
+                Assert.Equal(owner, rebound.PresentationActors![index]);
+                Assert.Same(cache.Rows[index], rebound.Rows[index]);
+            }
+        }
+        Assert.Equal(survivorAddress, NativeBattleModelResourceRowAddress.Encode(survivorRow, rebound.Rows.Length));
+        Assert.Throws<InvalidDataException>(() => rebound.LoadEnemy(77, pack, retired));
+
+        NativeBattleModelTextureCache copy = NativeBattleTestSnapshots.Independent(rebound);
+        NativeBattleModelTextureCacheLoad load = copy.LoadEnemy(77, TimPack(1, 0x3E0), next);
+        Assert.Equal(retiredRow, load.ResourceIndex);
+        Assert.Equal(next, load.Cache.PresentationActors![retiredRow]);
+        Assert.Equal(survivor, load.Cache.PresentationActors![survivorRow]);
+        Assert.Equal((ushort)0x3E0, PaletteColor(Assert.IsType<NativeBattleModelTextureLoad>(load.Upload)));
+        Assert.Equal((byte)0, rebound.Rows[retiredRow].Kind);
+        Assert.Equal((byte)3, cache.Rows[retiredRow].Kind);
+        Assert.Equal(retired, cache.PresentationActors![retiredRow]);
+    }
+
+    [Fact]
+    public void EnemyRebindRejectsStaleRosterAndNonmatchingRetirementBeforeChangingRows()
+    {
+        BattleModelRoster roster = FullRoster();
+        BattleEnemyModelOwner retired = roster.Enemies.First();
+        BattleEnemyActorModel next = new(new("next-generation"));
+        BattleModelRoster replacement = new(roster.Owners.Select(owner => owner == retired ? next : owner));
+        NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.Initialize508260(null).WithPresentationRoster(roster).LoadEnemy(77, TimPack(1), retired).Cache;
+
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(replacement, replacement, []));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, replacement, []));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, replacement, [next]));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, roster, [retired]));
+        BattleModelRoster reorderedParty = new(roster.Party.Reverse().Cast<BattleModelOwner>().Concat(roster.Enemies));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, reorderedParty, []));
+        Assert.Same(roster, cache.PresentationRoster);
+        Assert.Equal(retired, cache.PresentationActors![0]);
+        Assert.Equal((byte)3, cache.Rows[0].Kind);
+    }
+
     private static BattleModelRoster FullRoster() => new(Owners);
 
     private static ushort PaletteColor(NativeBattleModelTextureLoad upload)

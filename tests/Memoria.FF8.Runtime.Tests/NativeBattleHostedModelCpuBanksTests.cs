@@ -158,6 +158,60 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         Assert.Null(pointer.NativeByteValue);
     }
 
+    [Fact]
+    public void EnemyRebindPreservesOriginalAndExtensionPartyBanksAndPrivateCopies()
+    {
+        NativeBattleModelCpuBanks banks = Resources().Cpu;
+        int extension = banks.PartyBankIndex(ThirdExtra);
+        banks = banks.WithBank(0, banks.GetBank(0).WriteGuest(12, [41])).WithBank(extension, banks.GetBank(extension).Write(12, [42]));
+        BattleEnemyActorModel next = new(new("next-generation"));
+        BattleModelRoster replacement = new(Roster.Owners.Select(owner => owner == Enemy ? next : owner));
+        NativeBattleModelAliases aliases = new(replacement, [(NativeBattleModelSlot.Decode(0), NativeParty), (NativeBattleModelSlot.Decode(4), next)]);
+        NativeBattleModelCpuBanks rebound = banks.RebindPresentationEnemies(Roster, replacement, [(BattleEnemyModelOwner)Enemy], aliases);
+
+        Assert.Same(replacement, rebound.PresentationRoster);
+        Assert.Same(Roster, banks.PresentationRoster);
+        Assert.Same(banks.PartyBankOwners, rebound.PartyBankOwners);
+        Assert.Same(banks.PresentationBanks, rebound.PresentationBanks);
+        Assert.Same(banks.GetBank(0), rebound.GetBank(0));
+        Assert.Equal(extension, rebound.PartyBankIndex(ThirdExtra));
+        Assert.Equal(new byte[] { 41 }, rebound.GetBank(0).ReadGuest(12, 1));
+        Assert.Equal(new byte[] { 42 }, rebound.GetBank(extension).Read(12, 1));
+
+        NativeBattleModelCpuBanks copy = NativeBattleTestSnapshots.Independent(rebound);
+        copy.Validate();
+        Assert.Equal(replacement.Owners, copy.PresentationRoster!.Owners);
+        copy = copy.WithBank(extension, copy.GetBank(extension).Write(12, [43]));
+        Assert.Equal(new byte[] { 43 }, copy.GetBank(extension).Read(12, 1));
+        Assert.Equal(new byte[] { 42 }, rebound.GetBank(extension).Read(12, 1));
+    }
+
+    [Fact]
+    public void EnemyRebindRejectsStaleRosterPartyChangesAndWrongAliases()
+    {
+        NativeBattleModelCpuBanks banks = Resources().Cpu;
+        BattleEnemyModelOwner retired = (BattleEnemyModelOwner)Enemy;
+        BattleEnemyActorModel next = new(new("next-generation"));
+        BattleModelRoster replacement = new(Roster.Owners.Select(owner => owner == retired ? next : owner));
+        NativeBattleModelAliases aliases = new(replacement, [(NativeBattleModelSlot.Decode(0), NativeParty), (NativeBattleModelSlot.Decode(4), next)]);
+
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(replacement, replacement, [], aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [], aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [next], aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [retired], Aliases));
+        Assert.Throws<ArgumentException>(() => new NativeBattleModelAliases(replacement, [(NativeBattleModelSlot.Decode(4), NativeParty)]));
+        NativeBattleModelAliases shiftedParty = new(replacement, [(NativeBattleModelSlot.Decode(1), NativeParty)]);
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [retired], shiftedParty));
+        NativeBattleModelAliases missingParty = new(replacement, [(NativeBattleModelSlot.Decode(4), next)]);
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [retired], missingParty));
+
+        BattlePartyActorModel newParty = new(new("replacement-party"));
+        BattleModelRoster partyReplacement = new(replacement.Owners.Select(owner => owner == ThirdExtra ? newParty : owner));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, partyReplacement, [retired], new(partyReplacement, [(NativeBattleModelSlot.Decode(0), NativeParty)])));
+        Assert.Same(Roster, banks.PresentationRoster);
+        Assert.Equal(0, banks.PartyBankIndex(NativeParty));
+    }
+
     private static NativeBattleModelCpuResources Resources()
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess();
