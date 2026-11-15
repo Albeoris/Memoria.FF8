@@ -27,6 +27,11 @@ public sealed partial class BattleSession
 
     public BattleTimedInputUi? GetShotUi(string actorId) => GetNativeShot(actorId) is { } state ? ShotUi(state) : null;
 
+    public IReadOnlyList<BattleCombatant> GetNativeShotTargets(string actorId)
+    {
+        return GetNativeShot(actorId) is { } state ? Combatants.Where(target => target.IsActive && (state.TargetMask & (1 << target.NativeIndex)) != 0).ToArray() : [];
+    }
+
     private static BattleTimedInputUi ShotUi(BattleNativeShotState state) => state.Ui ?? new(state.Phase == BattleNativeShotPhase.Ending ? BattleTimedInputUiPhase.Closing : state.Phase == BattleNativeShotPhase.Opening ? BattleTimedInputUiPhase.Opening : BattleTimedInputUiPhase.Active);
 
     private IEnumerable<BattleNativeAction> GetNativeShotChoices()

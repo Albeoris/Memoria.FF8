@@ -83,6 +83,11 @@ internal sealed partial class BattleHudElement : UiElement
             }
             return;
         }
+        if (controller.NativeShotState is { } shot)
+        {
+            DrawNativeShot(canvas, theme, shot);
+            return;
+        }
         if (controller.NativeDuelState is { } duel)
         {
             DrawNativeDuel(canvas, theme, duel);
@@ -406,6 +411,18 @@ internal sealed partial class BattleHudElement : UiElement
         if (controller.CardSlotsOwnsInput)
         {
             controller.SlotsPointer(x, y, Bounds, true);
+            return;
+        }
+        if (controller.NativeShotState is not null)
+        {
+            if (Rect(36, 570, 354, 70).Contains(x, y))
+            {
+                controller.FireNativeShot();
+            }
+            else if (Rect(408, 570, 354, 70).Contains(x, y))
+            {
+                controller.Navigate(MenuInput.Cancel);
+            }
             return;
         }
         if (controller.CommandMenuHidden)

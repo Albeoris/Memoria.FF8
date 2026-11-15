@@ -120,6 +120,25 @@ public sealed partial class BattleHudController
     }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetShotUi(actor.Id) is { OwnsInput: true });
+    public BattleNativeShotState? NativeShotState => NativeShotActor is { } actor ? session.GetNativeShot(actor.Id) : null;
+    internal BattleTimedInputUi? ShotUi => NativeShotActor is { } actor ? session.GetShotUi(actor.Id) : null;
+    internal IReadOnlyList<BattleCombatant> ShotTargets => NativeShotActor is { } actor ? session.GetNativeShotTargets(actor.Id) : [];
+
+    public void FireNativeShot()
+    {
+        if (NativeShotActor is not { } actor || session.GetNativeShot(actor.Id) is not { Phase: BattleNativeShotPhase.Ready, RemainingTimer: > 0, RemainingAmmo: > 0 })
+        {
+            return;
+        }
+        if (execute is not null)
+        {
+            execute(new BattleInput(BattleInputKind.ShotTrigger, ActorId: actor.Id));
+        }
+        else
+        {
+            session.TriggerNativeShot(actor.Id);
+        }
+    }
     private BattleCombatant? NativeDuelActor => session.Combatants.FirstOrDefault(actor => session.GetDuelUi(actor.Id) is { OwnsInput: true });
     public BattleNativeDuelState? NativeDuelState => NativeDuelActor is { } actor ? session.GetNativeDuel(actor.Id) : null;
     internal BattleTimedInputUi? DuelUi => NativeDuelActor is { } actor ? session.GetDuelUi(actor.Id) : null;
