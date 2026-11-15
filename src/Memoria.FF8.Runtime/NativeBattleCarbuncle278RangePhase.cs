@@ -31,11 +31,11 @@ public static class NativeBattleCarbuncle278RangeSetup
             return frame;
         }
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2508148);
-        if (pool.Stride != 0x1C || pool.Slots.Length != 9)
+        if (pool.Stride != 0x1C || !frame.ExpandedStorage && pool.Slots.Length != 9)
         {
             throw new InvalidDataException("Native Carbuncle rings require their actual physical task bank.");
         }
-        if (pool.Slots.All(task => (task.Flags & 1) != 0))
+        if (!NativeBattleCarbuncle278Banks.CanAppend(frame, pool))
         {
             return frame;
         }
@@ -44,8 +44,8 @@ public static class NativeBattleCarbuncle278RangeSetup
         NativeBattleModulePoolTask task = pool.Slots[index].ClearPayload(16);
         task = task.WriteDword(0x18, parentAddress).WriteWord(0xE, unchecked((ushort)(phase.Maximum * scale >> 12))).WriteWord(0x10, 2048).WriteWord(0x12, 256).WriteWord(0x14, unchecked((ushort)-8));
         pool = pool.WriteSlot(index, task);
-        int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        frame = NativeBattleCarbuncle278Banks.MirrorPayload(frame, pool, index, task);
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 
     public static NativeBattleCarbuncle278ChildStep Finish6831D0(NativeBattleModulePoolTask task, bool paused)

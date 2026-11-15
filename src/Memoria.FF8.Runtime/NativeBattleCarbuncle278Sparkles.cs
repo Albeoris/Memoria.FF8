@@ -10,13 +10,13 @@ public static class NativeBattleCarbuncle278Sparkles
     public static NativeBattleCarbuncle278Frame Spawn681B3F(NativeBattleCarbuncle278Frame frame, NativeBattleModulePoolTask creature)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2508178);
-        if (pool.Stride != 0x14 || pool.Slots.Length != 64)
+        if (pool.Stride != 0x14 || !frame.ExpandedStorage && pool.Slots.Length != 64)
         {
             throw new InvalidDataException("Native Carbuncle sparkles require their actual physical task bank.");
         }
         for (int spawn = 0; spawn < 4; spawn++)
         {
-            if (pool.Slots.All(task => (task.Flags & 1) != 0))
+            if (!NativeBattleCarbuncle278Banks.CanAppend(frame, pool))
             {
                 continue;
             }
@@ -27,8 +27,7 @@ public static class NativeBattleCarbuncle278Sparkles
             NativeBattleVector point = NativeBattleCarbuncle278Anchors.ReadBone502170(creature, executable, random * count >> 15, 0);
             NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, unchecked((ushort)point.X)).WriteWord(0xE, unchecked((ushort)point.Y)).WriteWord(0x10, unchecked((ushort)point.Z)).WriteWord(0x12, 0);
             pool = pool.WriteSlot(index, task);
-            int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-            frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) } };
+            frame = NativeBattleCarbuncle278Banks.MirrorPayload(frame, pool, index, task);
         }
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }

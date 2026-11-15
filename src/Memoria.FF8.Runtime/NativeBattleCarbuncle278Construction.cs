@@ -33,19 +33,17 @@ public static class NativeBattleCarbuncle278Construction
         NativeBattleCarbuncle278Resources resources = frame.Effect.Binding.Carbuncle278Resources ?? throw new NotSupportedException("Native Carbuncle6D6070 requires its original model resources.");
         NativeBattleEffectOwnedModelResource model = resources.CreatureModel ?? throw new NotSupportedException("Native Carbuncle requires its current original creature model.");
         NativeBattleStaticMeshResource secondBounds = resources.CreatureBoundsMesh ?? throw new NotSupportedException("Native Carbuncle requires its second original bounds model.");
-        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Carbuncle requires its current effect arena.");
-        ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools;
-        AddPool(0x2508128, 4, 0x1C, 0x100);
-        AddPool(0x2508138, 0x1C04, 0x1C, 0x18);
-        AddPool(0x2508148, 0x1EA4, 0x1C, 9);
-        AddPool(0x2508158, 0x1FA0, 0x10C, 3);
-        AddPool(0x2508168, 0x22C4, 0x1C, 8);
-        AddPool(0x2508178, 0x23A4, 0x14, 0x40);
-        AddPool(0x2508188, 0x28A4, 0x5E0, 1);
+        NativeBattleActionHeaderSlot? expandedHeader = null;
+        if (frame.ExpandedStorage)
+        {
+            NativeBattleEffectParameters expandedParameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle requires its current action header.");
+            expandedHeader = inputs.Packets.ReadHeader(expandedParameters.Header);
+        }
+        frame = NativeBattleCarbuncle278Banks.Initialize(frame, inputs.Packets.Roster, expandedHeader?.ReadContactCount() ?? 0);
         NativeBattleVector plane = new(0, 0, unchecked((short)(state.Base81CC - 200)));
         NativeBattleEffectLocalBounds bounds = NativeBattleStaticMeshBounds.Read6D6070(resources.MirrorBoundsMesh.Bytes.AsSpan());
         state = state with { MirrorPlane81F0 = plane, Bounds81E0 = bounds };
-        frame = frame with { Memory = frame.Memory with { Arena = arena, Carbuncle278 = state }, Effect = frame.Effect with { Pools = pools } };
+        frame = frame with { Memory = frame.Memory with { Carbuncle278 = state } };
         frame = inputs.Mirror(frame, plane, bounds);
         NativeBattleEffectTaskPool creature = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2508188);
         (creature, int slot) = creature.Append(0x681630);
@@ -66,7 +64,7 @@ public static class NativeBattleCarbuncle278Construction
         }
         task = task.WriteWord(0x72, 0).WriteDword(0x74, 0).WriteWord(0x3C, 0).WriteDword(0x78, unchecked((uint)-20)).WriteWord(0x3E, unchecked((ushort)-20)).WriteDword(0x7C, unchecked((uint)state.Base81CC)).WriteWord(0x40, unchecked((ushort)state.Base81CC));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle requires its current action header.");
-        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
+        NativeBattleActionHeaderSlot header = expandedHeader ?? inputs.Packets.ReadHeader(parameters.Header);
         int count = header.ReadContactCount();
         task = task.WriteContactCount(0xE, count);
         var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
@@ -90,7 +88,7 @@ public static class NativeBattleCarbuncle278Construction
         task.WriteExecutionReference(0x14, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), originalFirst);
         bounds = NativeBattleStaticMeshBounds.Read6D6070(secondBounds.Bytes.AsSpan());
         state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory) with { Bounds81E0 = bounds };
-        arena = frame.Memory.Arena!;
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
         short delta = unchecked((short)(bounds.Maximum.Z - bounds.Minimum.Z));
         byte[] dimensions = new byte[4];
         BinaryPrimitives.WriteInt16LittleEndian(dimensions, bounds.Minimum.Z);
@@ -101,10 +99,5 @@ public static class NativeBattleCarbuncle278Construction
         frame = frame with { Memory = frame.Memory with { Arena = arena, Carbuncle278 = state, CarbuncleExecutableMemory = pose.Executable }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == creature.DescriptorAddress ? creature : pool).ToImmutableArray() } };
         return frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x3E84) };
 
-        void AddPool(uint descriptor, int offset, ushort stride, ushort count)
-        {
-            pools = pools.Where(pool => pool.DescriptorAddress != descriptor).Append(NativeBattleEffectTaskPool.Initialize(descriptor, unchecked(state.ModelBuffer81F8 + (uint)offset), stride, count)).ToImmutableArray();
-            arena = arena.Write(offset, new byte[stride * count]);
-        }
     }
 }

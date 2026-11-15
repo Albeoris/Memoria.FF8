@@ -12,13 +12,13 @@ public static partial class NativeBattleReflectBeam135Controller
         {
             if ((age & 1) == 0)
             {
-                frame = SpawnTargetParticle(frame, task, ParticleBCallback, 255, 127, 255);
+                frame = SpawnTargetParticle(frame, task, ParticleBCallback, 255, 127, 255, inputs.StorageContract);
             }
             return TargetTail(frame, address, inputs);
         }
         if (age < 32 && (age & 3) == 0)
         {
-            frame = SpawnTargetParticle(frame, task, ParticleACallback, 511, 511, 511);
+            frame = SpawnTargetParticle(frame, task, ParticleACallback, 511, 511, 511, inputs.StorageContract);
         }
         if (age < 20)
         {
@@ -27,6 +27,7 @@ public static partial class NativeBattleReflectBeam135Controller
                 (frame, uint childAddress) = Append(frame, 4, ParticleCCallback);
                 if (childAddress == 0)
                 {
+                    RequireParticleCapacity(inputs.StorageContract);
                     continue;
                 }
                 NativeBattleModulePoolTask child = Vector(Read(frame, childAddress), 12, Vector(task, 20)).WriteWord(18, 0);
@@ -50,11 +51,12 @@ public static partial class NativeBattleReflectBeam135Controller
         return TargetTail(advanced.Frame, address, inputs);
     }
 
-    private static NativeBattleReflectBeam135Frame SpawnTargetParticle(NativeBattleReflectBeam135Frame frame, NativeBattleModulePoolTask target, uint callback, int xMask, int yMask, int zMask)
+    private static NativeBattleReflectBeam135Frame SpawnTargetParticle(NativeBattleReflectBeam135Frame frame, NativeBattleModulePoolTask target, uint callback, int xMask, int yMask, int zMask, BattleContactTaskStorageContract storage)
     {
         (frame, uint address) = Append(frame, 4, callback);
         if (address == 0)
         {
+            RequireParticleCapacity(storage);
             return frame;
         }
         NativeBattleModulePoolTask child = Read(frame, address).WriteWord(18, 0);
@@ -70,20 +72,41 @@ public static partial class NativeBattleReflectBeam135Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         if (Signed(task, 12) == 25)
         {
-            BattleModelOwner actor = ReadModelOwner(task, 16);
+            bool expanded = inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena;
+            BattleModelOwner? originalActor = expanded ? null : ReadModelOwner(task, 16);
             BattleContactCursor first = FirstContact(frame, inputs);
             int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
-            for (int index = 0; index < count; index++)
+            if (expanded)
             {
-                NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
-                if (packet.Primary.Recipient == actor)
+                (BattleModelOwner owner, BattleContactOccurrence occurrence) = task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients.Single();
+                if ((uint)(occurrence.Ordinal - first.Ordinal) >= (uint)count || inputs.Packets.ReadContact(occurrence).Primary.Recipient != owner)
                 {
-                    BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("Reflect Beam contact has no occurrence reference.");
-                    frame = inputs.Execute(frame, new NativeBattleReflectBeam135Contact(occurrence));
+                    throw new InvalidDataException("Reflect Beam target occurrence left its selected header or model owner.");
+                }
+                frame = inputs.Execute(frame, new NativeBattleReflectBeam135Contact(occurrence));
+            }
+            else
+            {
+                for (int index = 0; index < count; index++)
+                {
+                    NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
+                    if (packet.Primary.Recipient == originalActor)
+                    {
+                        BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("Reflect Beam contact has no occurrence reference.");
+                        frame = inputs.Execute(frame, new NativeBattleReflectBeam135Contact(occurrence));
+                    }
                 }
             }
         }
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)))), 0);
+    }
+
+    private static void RequireParticleCapacity(BattleContactTaskStorageContract storage)
+    {
+        if (storage == BattleContactTaskStorageContract.ExpandableArena)
+        {
+            throw new InvalidDataException("Reflect Beam exhausted its reserved particle bank.");
+        }
     }
 
     public static (NativeBattleReflectBeam135Frame Frame, int Result) AdvanceParticle(NativeBattleReflectBeam135Frame frame, uint address, NativeBattleReflectBeam135Resources resources, NativeBattleReflectBeam135Inputs inputs)

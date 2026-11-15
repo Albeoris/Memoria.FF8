@@ -27,14 +27,14 @@ public static class NativeBattleCarbuncle278ChildDrawing
         return NativeBattleGfMatrices.Multiply56C090(scaled, x) with { X = translation.X, Y = translation.Y, Z = translation.Z };
     }
 
-    public static NativeBattleCarbuncle278ChildDraw Draw683760(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleCarbuncle278Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleCarbuncle278ChildDraw Draw683760(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleCarbuncle278Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hostedParent = false)
     {
         NativeBattleStaticMeshResource mesh = resources.RecipientRayMesh ?? throw new NotSupportedException("Native Carbuncle rays require their original mesh.");
         if (mesh.Address != 0x10BF3A8)
         {
             throw new InvalidDataException("Native Carbuncle ray mesh changed its original address.");
         }
-        NativeBattleActionMatrix matrix = Prepare683760(task, parent, ReadCached(memory, task.ReadDword(0x18)), resources.RecipientPolarTable);
+        NativeBattleActionMatrix matrix = Prepare683760(task, parent, hostedParent ? ReadCached(parent) : ReadCached(memory, task.ReadDword(0x18)), resources.RecipientPolarTable);
         short age = unchecked((short)task.ReadWord(0xC));
         int fade = age <= 10 ? 2048 : 2048 + (((age - 10) * 4096 / 6) >> 1);
         NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, mesh.Bytes.Slice(8, mesh.Bytes.Length - 8), matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(278, task));
@@ -44,7 +44,7 @@ public static class NativeBattleCarbuncle278ChildDrawing
         return new(memory, task, packets);
     }
 
-    public static NativeBattleCarbuncle278ChildDraw Draw683330(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleCarbuncle278Resources resources, NativeBattleCameraProjection projection)
+    public static NativeBattleCarbuncle278ChildDraw Draw683330(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleCarbuncle278Resources resources, NativeBattleCameraProjection projection, bool hostedParent = false)
     {
         NativeBattleVector vector = Vector(parent, 0x54);
         if (unchecked((short)parent.ReadWord(0xC)) >= 35)
@@ -67,7 +67,7 @@ public static class NativeBattleCarbuncle278ChildDrawing
             task = task.WriteWord(0x12, unchecked((ushort)vector.Z));
         }
         NativeBattleVector point = NativeBattleCarbuncle278RecipientChildren.Polar6836F0(vector, unchecked((short)task.ReadWord(0xE)), resources.RecipientPolarTable);
-        NativeBattleActionMatrix cached = ReadCached(memory, task.ReadDword(0x18));
+        NativeBattleActionMatrix cached = hostedParent ? ReadCached(parent) : ReadCached(memory, task.ReadDword(0x18));
         NativeBattleFullMacVertex position = NativeBattleGfMatrices.TransformMac460840(cached, point);
         short scale = unchecked((short)task.ReadWord(0x10));
         NativeBattleActionMatrix main = NativeBattleGfMatrices.Multiply56C090(cached, new([scale, 0, 0, 0, scale, 0, 0, 0, scale], 0, 0, 0, 4096)) with { X = position.X, Y = position.Y, Z = position.Z };
@@ -80,14 +80,14 @@ public static class NativeBattleCarbuncle278ChildDrawing
         return new(memory, task, packets);
     }
 
-    public static NativeBattleCarbuncle278ChildDraw Draw6831D0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleCarbuncle278Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleCarbuncle278ChildDraw Draw6831D0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleCarbuncle278Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleModulePoolTask? hostedParent = null)
     {
         NativeBattleStaticMeshResource mesh = resources.RecipientRingMesh ?? throw new NotSupportedException("Native Carbuncle rings require their original mesh.");
         if (mesh.Address != 0x10BF480)
         {
             throw new InvalidDataException("Native Carbuncle ring mesh changed its original address.");
         }
-        NativeBattleActionMatrix cached = ReadCached(memory, task.ReadDword(0x18));
+        NativeBattleActionMatrix cached = hostedParent is null ? ReadCached(memory, task.ReadDword(0x18)) : ReadCached(hostedParent);
         NativeBattleFullMacVertex point = NativeBattleGfMatrices.TransformMac460840(cached, new(0, 0, unchecked((short)task.ReadWord(0xE))));
         short scale = unchecked((short)task.ReadWord(0x10));
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Multiply56C090(cached, new([scale, 0, 0, 0, scale, 0, 0, 0, scale], 0, 0, 0, 4096)) with { X = point.X, Y = point.Y, Z = point.Z };
@@ -104,8 +104,13 @@ public static class NativeBattleCarbuncle278ChildDrawing
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Carbuncle children require their current physical parent cache.");
         int offset = checked((int)(parentAddress - NativeBattleEffectNodeMemory.ArenaAddress));
-        byte[] rotation = arena.Read(offset + 0x34, 18);
-        byte[] translation = arena.Read(offset + 0x48, 12);
+        return ReadCached(arena.Read(offset + 0x34, 18), arena.Read(offset + 0x48, 12));
+    }
+
+    internal static NativeBattleActionMatrix ReadCached(NativeBattleModulePoolTask parent) => ReadCached(parent.ReadBytes(0x34, 18), parent.ReadBytes(0x48, 12));
+
+    private static NativeBattleActionMatrix ReadCached(byte[] rotation, byte[] translation)
+    {
         ImmutableArray<short> words = Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(index * 2, 2))).ToImmutableArray();
         return new(words, BinaryPrimitives.ReadInt32LittleEndian(translation), BinaryPrimitives.ReadInt32LittleEndian(translation.AsSpan(4)), BinaryPrimitives.ReadInt32LittleEndian(translation.AsSpan(8)), 4096);
     }

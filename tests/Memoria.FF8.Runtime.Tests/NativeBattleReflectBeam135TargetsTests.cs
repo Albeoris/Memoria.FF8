@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using static Memoria.FF8.Runtime.NativeBattleReflectBeam135Profile;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -126,7 +127,9 @@ public sealed class NativeBattleReflectBeam135TargetsTests
     private static (NativeBattleReflectBeam135Frame Frame, uint Address) Target(NativeBattleReflectBeam135ControllerTests.Fixture f, ushort age)
     {
         (NativeBattleReflectBeam135Frame frame, uint address) = NativeBattleReflectBeam135Controller.Append(f.Frame, 3, TargetCallback);
-        NativeBattleModulePoolTask task = NativeBattleReflectBeam135Controller.Read(frame, address).WriteBytes(12, new byte[TargetStride - 12]).WriteWord(12, age).WriteDword(16, NativeBattleReflectBeam135ControllerTests.Fixture.ModelAddress(3)).WriteWord(20, 10).WriteWord(22, 20).WriteWord(24, 30).MarkPayloadUnknown(26, 2);
+        NativeBattleModulePoolTask task = NativeBattleReflectBeam135Controller.Read(frame, address).WriteBytes(12, new byte[TargetStride - 12]).WriteWord(12, age).WriteWord(20, 10).WriteWord(22, 20).WriteWord(24, 30).MarkPayloadUnknown(26, 2);
+        BattleModelOwner owner = OriginalOwner(3);
+        task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(owner), OriginalAliases.EncodeAddress(owner));
         return (NativeBattleReflectBeam135Controller.Write(frame, address, task), address);
     }
 }

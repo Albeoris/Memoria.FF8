@@ -22,7 +22,10 @@ public sealed record NativeBattleCarbuncle278State([property: JsonRequired] uint
     }
 }
 
-public sealed record NativeBattleCarbuncle278Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
+public sealed record NativeBattleCarbuncle278Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random)
+{
+    internal bool ExpandedStorage { get; init; }
+}
 
 public sealed partial record NativeBattleEffectMemory
 {

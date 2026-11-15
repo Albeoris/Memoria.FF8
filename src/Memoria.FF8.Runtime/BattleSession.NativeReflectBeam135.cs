@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Reflect Beam requires its actual process memory.");
         NativeBattleReflectBeam135Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Reflect Beam requires its CRT stream."), memory.ReflectBeam135 ?? throw new NotSupportedException("Reflect Beam requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Reflect Beam requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Reflect Beam requires its original interpolation constants.");
-        NativeBattleReflectBeam135Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, ReadCurrentBone, AdvanceAct, Execute);
+        NativeBattleReflectBeam135Inputs inputs = new(nativeActionPackets, colors, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, ReadCurrentBone, AdvanceAct, Execute) { StorageContract = graphics.Effects.StorageContract };
         frame = initialize ? NativeBattleReflectBeam135Controller.Initialize(frame, resources, inputs) : NativeBattleReflectBeam135Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {

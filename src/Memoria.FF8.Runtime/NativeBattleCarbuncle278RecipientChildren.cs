@@ -22,7 +22,7 @@ public static class NativeBattleCarbuncle278RecipientChildren
             for (int child = 0; child < 8; child++)
             {
                 NativeBattleEffectTaskPool pool = Pool(frame, 0x2508138, 0x18);
-                if (pool.Slots.All(task => (task.Flags & 1) != 0))
+                if (!NativeBattleCarbuncle278Banks.CanAppend(frame, pool))
                 {
                     continue;
                 }
@@ -61,7 +61,7 @@ public static class NativeBattleCarbuncle278RecipientChildren
             for (int child = 0; child < 8; child++)
             {
                 NativeBattleEffectTaskPool pool = Pool(frame, 0x2508128, 0x100);
-                if (pool.Slots.All(task => (task.Flags & 1) != 0))
+                if (!NativeBattleCarbuncle278Banks.CanAppend(frame, pool))
                 {
                     continue;
                 }
@@ -118,7 +118,7 @@ public static class NativeBattleCarbuncle278RecipientChildren
     private static NativeBattleEffectTaskPool Pool(NativeBattleCarbuncle278Frame frame, uint descriptor, int count)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == descriptor);
-        if (pool.Stride != 0x1C || pool.Slots.Length != count)
+        if (pool.Stride != 0x1C || !frame.ExpandedStorage && pool.Slots.Length != count)
         {
             throw new InvalidDataException("Native Carbuncle recipient children require their actual physical task banks.");
         }
@@ -128,7 +128,7 @@ public static class NativeBattleCarbuncle278RecipientChildren
     private static NativeBattleCarbuncle278Frame Store(NativeBattleCarbuncle278Frame frame, NativeBattleEffectTaskPool pool, int index, NativeBattleModulePoolTask task)
     {
         pool = pool.WriteSlot(index, task);
-        int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        frame = NativeBattleCarbuncle278Banks.MirrorPayload(frame, pool, index, task);
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 }

@@ -14,6 +14,7 @@ public static partial class NativeBattleReflectBeam135Controller
             frame = inputs.Execute(frame, new NativeBattleReflectBeam135Stage(unchecked((short)depth), 0));
         }
         int phase = age - 15;
+        bool expanded = inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena;
         if ((uint)phase < 20)
         {
             NativeBattleReflectBeam135PointStep bone = inputs.ReadBone(frame, frame.State.ReadModelOwner(CasterGlobal), 31, 4096);
@@ -30,33 +31,48 @@ public static partial class NativeBattleReflectBeam135Controller
                 }
                 int factor = elapsed * 4096 / 10;
                 NativeBattleModulePoolTask task = Read(frame, address);
-                short endpointX = unchecked((short)(Signed(task, 0x20) - (factor * 5000 >> 12) + 2500));
+                ImmutableArray<NativeBattleReflectBeam135Recipient> recipients = expanded
+                    ? task.ReadExecutionReference<BattleExecutionReference.ReflectBeam135Sweep>(0x14, 4).Recipients
+                    : [];
+                int endpointX;
+                if (expanded)
+                {
+                    int start = recipients[0].X + 500;
+                    int end = recipients[^1].X - 500;
+                    endpointX = checked((int)(start - (long)(start - end) * elapsed / 9));
+                }
+                else
+                {
+                    endpointX = unchecked((short)(Signed(task, 0x20) - (factor * 5000 >> 12) + 2500));
+                }
                 short endpointY = Signed(task, 0x22);
                 short endpointZ = Signed(task, 0x24);
                 NativeBattleEffectArena temporary = Context(frame, temporaryAddress, 88);
                 if (pass == 0)
                 {
                     temporary = temporary.Write(0x1C, BitConverter.GetBytes(0x30u));
-                    int selected = task.ReadByte(0x13);
-                    if (selected < Signed(task, 14))
+                    if (expanded)
                     {
-                        BattleModelOwner actor = ReadModelOwner(task, 0x14 + selected * 4);
-                        if (endpointX < Transform(inputs.ReadModel(actor)).Position28.X)
+                        int selected = task.ReadTraversalPosition(0x13);
+                        while (selected < recipients.Length && endpointX < recipients[selected].X)
                         {
-                            (frame, uint targetAddress) = Append(frame, 3, TargetCallback);
-                            if (targetAddress != 0)
+                            NativeBattleReflectBeam135Recipient recipient = recipients[selected];
+                            frame = SpawnTarget(frame, resources, inputs, recipient.Owner, recipient.Order, recipient.Occurrence, null);
+                            selected++;
+                            frame = Write(frame, address, Read(frame, address).WriteTraversalPosition(0x13, selected));
+                        }
+                    }
+                    else
+                    {
+                        int selected = task.ReadByte(0x13);
+                        if (selected < Signed(task, 14))
+                        {
+                            BattleModelOwner actor = ReadModelOwner(task, 0x14 + selected * 4);
+                            if (endpointX < Transform(inputs.ReadModel(actor)).Position28.X)
                             {
-                                NativeBattleModulePoolTask target = Read(frame, targetAddress).WriteWord(12, 0).WriteWord(14, task.ReadByte(0x10 + selected));
-                                WriteModelOwner(target, 16, actor, inputs.Packets.ModelAliases);
-                                frame = Write(frame, targetAddress, target);
-                                NativeBattleReflectBeam135PointStep anchor = inputs.ReadBone(frame, actor, 0xF1, 0);
-                                frame = anchor.Frame;
-                                target = Vector(Read(frame, targetAddress), 0x14, anchor.Position);
-                                target = target.WriteWord(0x16, unchecked((ushort)(target.ReadWord(0x16) + 128)));
-                                target = InitializeWorkspace(target, 0x1C, 0x310, resources.TargetAct);
-                                frame = Write(frame, targetAddress, target);
+                                frame = SpawnTarget(frame, resources, inputs, actor, selected, null, task);
+                                frame = Write(frame, address, Read(frame, address).WriteByte(0x13, unchecked((byte)(selected + 1))));
                             }
-                            frame = Write(frame, address, Read(frame, address).WriteByte(0x13, unchecked((byte)(selected + 1))));
                         }
                     }
                 }
@@ -104,5 +120,30 @@ public static partial class NativeBattleReflectBeam135Controller
             return (frame, 2);
         }
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)))), 0);
+    }
+
+    private static NativeBattleReflectBeam135Frame SpawnTarget(NativeBattleReflectBeam135Frame frame, NativeBattleReflectBeam135Resources resources, NativeBattleReflectBeam135Inputs inputs, BattleModelOwner actor, int index, BattleContactOccurrence? occurrence, NativeBattleModulePoolTask? originalMain)
+    {
+        (frame, uint address) = Append(frame, 3, TargetCallback);
+        if (address == 0)
+        {
+            return occurrence is null ? frame : throw new InvalidDataException("Reflect Beam exhausted its reserved target bank.");
+        }
+        ushort order = originalMain is null ? checked((ushort)index) : originalMain.ReadByte(0x10 + index);
+        NativeBattleModulePoolTask target = Read(frame, address).WriteWord(12, 0).WriteWord(14, order);
+        if (occurrence is { } captured)
+        {
+            target.WriteExecutionReference(16, 4, new BattleExecutionReference.OrderedContactRecipients([(actor, captured)]), inputs.Packets.ModelAliases.EncodeAddress(actor));
+        }
+        else
+        {
+            WriteModelOwner(target, 16, actor, inputs.Packets.ModelAliases);
+        }
+        frame = Write(frame, address, target);
+        NativeBattleReflectBeam135PointStep anchor = inputs.ReadBone(frame, actor, 0xF1, 0);
+        target = Vector(Read(anchor.Frame, address), 0x14, anchor.Position);
+        target = target.WriteWord(0x16, unchecked((ushort)(target.ReadWord(0x16) + 128)));
+        target = InitializeWorkspace(target, 0x1C, 0x310, resources.TargetAct);
+        return Write(anchor.Frame, address, target);
     }
 }

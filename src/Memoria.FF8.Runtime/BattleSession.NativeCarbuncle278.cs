@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeCarbuncle278(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleCarbuncle278Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Carbuncle requires its retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Carbuncle lost its selected effect."), nativeCrtRandom ?? throw new NotSupportedException("Native Carbuncle requires its actual CRT random owner."));
+        NativeBattleCarbuncle278Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Carbuncle requires its retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Carbuncle lost its selected effect."), nativeCrtRandom ?? throw new NotSupportedException("Native Carbuncle requires its actual CRT random owner.")) { ExpandedStorage = graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena };
         if (initialize)
         {
             NativeBattleEffectSceneContext sceneContext = ReadRequiredEffectSceneContext();
@@ -165,9 +165,9 @@ public sealed partial class BattleSession
                     NativeBattleCarbuncle278ProgrammeDraw drawn = NativeBattleCarbuncle278Programme.AdvanceRecipient6822F0(current.Memory, task, source, CurrentProjection(), CurrentColors());
                     current = AppendProgramme(current, drawn);
                     task = drawn.Task;
-                    current = NativeBattleCarbuncle278Recipients.SpawnSparkle6822F0(current, task.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner, owner => ReadNativeGraphicsBoneCount(graphics, owner), (owner, bone) => ReadNativeGraphicsBone(graphics, owner, checked((byte)bone), 0));
+                    current = NativeBattleCarbuncle278Recipients.SpawnSparkle6822F0(current, NativeBattleCarbuncle278Recipients.ReadOwner(current, task), owner => ReadNativeGraphicsBoneCount(graphics, owner), (owner, bone) => ReadNativeGraphicsBone(graphics, owner, checked((byte)bone), 0));
                 }
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
+                BattleModelOwner actor = NativeBattleCarbuncle278Recipients.ReadOwner(current, task);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle recipient cache requires its current actor scale.");
                 short yaw = model.Rotation14 ?? throw new NotSupportedException("Native Carbuncle recipient cache requires its current actor yaw.");
@@ -178,12 +178,14 @@ public sealed partial class BattleSession
             NativeBattleCarbuncle278ModelStep DrawRecipientChild(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
             {
                 NativeBattleCarbuncle278Resources resources = current.Effect.Binding.Carbuncle278Resources ?? throw new NotSupportedException("Native Carbuncle children require their original current resources.");
-                NativeBattleModulePoolTask parent = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(task.ReadDword(0x18));
+                uint address = task.ReadDword(0x18);
+                bool hostedParent = NativeBattleCarbuncle278Banks.IsHostedRecipient(current, address);
+                NativeBattleModulePoolTask parent = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
                 NativeBattleCarbuncle278ChildDraw draw = task.Callback switch
                 {
-                    0x683760 => NativeBattleCarbuncle278ChildDrawing.Draw683760(current.Memory, task, parent, resources, CurrentProjection(), CurrentColors()),
-                    0x6831D0 => NativeBattleCarbuncle278ChildDrawing.Draw6831D0(current.Memory, task, resources, CurrentProjection(), CurrentColors()),
-                    _ => NativeBattleCarbuncle278ChildDrawing.Draw683330(current.Memory, task, parent, resources, CurrentProjection())
+                    0x683760 => NativeBattleCarbuncle278ChildDrawing.Draw683760(current.Memory, task, parent, resources, CurrentProjection(), CurrentColors(), hostedParent),
+                    0x6831D0 => NativeBattleCarbuncle278ChildDrawing.Draw6831D0(current.Memory, task, resources, CurrentProjection(), CurrentColors(), hostedParent ? parent : null),
+                    _ => NativeBattleCarbuncle278ChildDrawing.Draw683330(current.Memory, task, parent, resources, CurrentProjection(), hostedParent)
                 };
                 NativeBattleCarbuncle278ProgrammeDraw packets = new(draw.Memory, draw.Task, draw.Packets, 0);
                 return new(AppendProgramme(current, packets), draw.Task);
@@ -193,7 +195,8 @@ public sealed partial class BattleSession
             {
                 NativeBattleCarbuncle278RangePhase phase = NativeBattleCarbuncle278RangeSetup.Read6825A5(current.Memory, unchecked((short)task.ReadWord(0xC)));
                 NativeBattleStaticMeshResource mesh = current.Effect.Binding.Carbuncle278Resources?.CreatureBoundsMesh ?? throw new NotSupportedException("Native Carbuncle range requires its original source mesh.");
-                NativeBattleCarbuncle278RangeDraw draw = NativeBattleCarbuncle278RangeMesh.Emit682760(mesh, NativeBattleCarbuncle278ChildDrawing.ReadCached(current.Memory, address), CurrentProjection(), phase.Minimum, phase.Maximum, phase.Fade, phase.VOffset, CurrentColors(), NativeBattlePilotVisualLifetimes.Identity(278, task));
+                NativeBattleActionMatrix cache = NativeBattleCarbuncle278Banks.IsHostedRecipient(current, address) ? NativeBattleCarbuncle278ChildDrawing.ReadCached(task) : NativeBattleCarbuncle278ChildDrawing.ReadCached(current.Memory, address);
+                NativeBattleCarbuncle278RangeDraw draw = NativeBattleCarbuncle278RangeMesh.Emit682760(mesh, cache, CurrentProjection(), phase.Minimum, phase.Maximum, phase.Fade, phase.VOffset, CurrentColors(), NativeBattlePilotVisualLifetimes.Identity(278, task));
                 if (draw.FarColorWritten)
                 {
                     NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Carbuncle range requires its current far-color controls.");
@@ -201,7 +204,7 @@ public sealed partial class BattleSession
                     current = current with { Memory = current.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers.PublishModelColor(0) } } };
                 }
                 current = AppendProgramme(current, new(current.Memory, task, draw.Packets, 0));
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
+                BattleModelOwner actor = NativeBattleCarbuncle278Recipients.ReadOwner(current, task);
                 short scale = graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native Carbuncle rings require the current actor scale WORD.");
                 current = NativeBattleCarbuncle278RangeSetup.Spawn6826B7(current, address, phase, scale);
                 return new(current, task);
@@ -209,8 +212,26 @@ public sealed partial class BattleSession
 
             NativeBattleCarbuncle278Frame ApplyRecipientContact(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
             {
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
+                BattleModelOwner actor = NativeBattleCarbuncle278Recipients.ReadOwner(current, task);
                 BattleActionHeaderReference header = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Native Carbuncle contact requires its current header pointer.");
+                if (current.ExpandedStorage)
+                {
+                    BattleContactOccurrence occurrence = NativeBattleCarbuncle278Recipients.ReadOccurrence(task).Occurrence;
+                    NativeBattleActionHeaderSlot selected = nativeActionPackets.ReadHeader(header);
+                    if ((uint)(occurrence.Ordinal - selected.FirstContact.Ordinal) >= (uint)selected.ReadContactCount())
+                    {
+                        throw new InvalidDataException("Carbuncle target occurrence left its selected header.");
+                    }
+                    NativeBattleContactPacket packet = nativeActionPackets.ReadContact(occurrence);
+                    if (packet.Primary.Recipient != actor)
+                    {
+                        throw new InvalidDataException("Carbuncle target occurrence lost its captured model owner.");
+                    }
+                    var pending = graphics.PendingContacts;
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [packet] });
+                    graphics = graphics with { PendingContacts = pending };
+                    return current;
+                }
                 foreach (NativeBattleContactPacket packet in nativeActionPackets.ReadHeaderContacts(header))
                 {
                     if (packet.Primary.Recipient == actor)

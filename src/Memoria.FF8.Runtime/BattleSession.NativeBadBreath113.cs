@@ -35,8 +35,12 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Bad Breath lost its original task descriptor.");
         }
-        effect = effect with { DrawArenaOffset = root.ReadDword(16) != 0 ? 0x14C8 : 0x114C8 };
-        root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
+        bool expanded = graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena;
+        if (!expanded)
+        {
+            effect = effect with { DrawArenaOffset = root.ReadDword(16) != 0 ? 0x14C8 : 0x114C8 };
+            root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
+        }
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
@@ -44,10 +48,61 @@ public sealed partial class BattleSession
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         BattleModelTargets targets = effect.Parameters.TargetActors;
         ushort? originalTargetWord = aliases.EncodeTargetMask(targets);
+        uint targetBank = BadBreath113Arena;
+        uint particleBank = BadBreath113Arena + 0x2F4;
+        ushort targetCapacity = 3;
+        ushort particleCapacity = 80;
+        BattleExecutionReference.OrderedContactRecipients? captured = null;
+        if (expanded)
+        {
+            int programmes = graphics.ActorModels.Roster.Party.Count(targets.Contains);
+            targetCapacity = checked((ushort)Math.Max(3, programmes));
+            // The caster's three particle streams occupy at most 20 + 2*14 + 14 slots.
+            // Each programmed recipient adds at most eleven births during its entire window.
+            particleCapacity = checked((ushort)Math.Max(80, checked(62 + 11 * programmes)));
+            if (BadWord(root, 12) == 1)
+            {
+                var recipients = nativeActionPackets.ReadHeaderContacts(effect.Parameters.Header)
+                    .Where(packet => packet.Primary.Recipient.Side == BattleSide.Allies && targets.Contains(packet.Primary.Recipient))
+                    .Select(packet => (packet.Primary.Recipient, packet.Occurrence ?? throw new InvalidDataException("Bad Breath requires a captured contact occurrence.")))
+                    .ToImmutableArray();
+                captured = new(recipients);
+                NativeBattleEffectMemory memory = NativeEffectMemory!;
+                if (targetCapacity > 3)
+                {
+                    (memory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, nativeActionPackets.Roster, 0xFC, targetCapacity);
+                }
+                if (particleCapacity > 80)
+                {
+                    (memory, particleBank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, nativeActionPackets.Roster, 0x2C, particleCapacity);
+                }
+                NativeEffectMemory = memory;
+            }
+            else if (root.ReadByte(15) != 0)
+            {
+                if (pools.Length != 4)
+                {
+                    throw new InvalidDataException("Bad Breath requires its actual root and hosted child banks.");
+                }
+                ValidateBadBreath113Bank(pools[1], 0x25218B8, BadBreath113Arena + 0x10B4, 0x104, 1, 1);
+                ValidateBadBreath113Bank(pools[2], 0x25218A8, particleBank, 0x2C, 80, particleCapacity);
+                ValidateBadBreath113Bank(pools[3], 0x2521898, targetBank, 0xFC, 3, targetCapacity);
+                if (pools[2].BankAddress < pools[3].BankAddress + (ulong)0xFC * targetCapacity && pools[3].BankAddress < pools[2].BankAddress + (ulong)0x2C * particleCapacity)
+                {
+                    throw new InvalidDataException("Bad Breath target and particle banks overlap.");
+                }
+                captured = pools[1].Slots[0].ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(14, 1);
+            }
+        }
+        if (expanded)
+        {
+            effect = effect with { DrawArenaOffset = root.ReadDword(16) != 0 ? 0x14C8 : 0x114C8 };
+            root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
+        }
         if (BadWord(root, 12) == 1)
         {
             root = root.WriteByte(15, 1);
-            pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25218B8, BadBreath113Arena + 0x10B4, 0x104, 1), NativeBattleEffectTaskPool.Initialize(0x25218A8, BadBreath113Arena + 0x2F4, 0x2C, 80), NativeBattleEffectTaskPool.Initialize(0x2521898, BadBreath113Arena, 0xFC, 3)];
+            pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25218B8, BadBreath113Arena + 0x10B4, 0x104, 1), NativeBattleEffectTaskPool.Initialize(0x25218A8, particleBank, 0x2C, particleCapacity), NativeBattleEffectTaskPool.Initialize(0x2521898, targetBank, 0xFC, targetCapacity)];
             if (Allocate(1, 0x6CAE10, out int slot))
             {
                 NativeBattleModulePoolTask main = Clear(1, slot);
@@ -90,6 +145,10 @@ public sealed partial class BattleSession
         if (survivors == 0)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
+            if (expanded)
+            {
+                pools = pools.Where(pool => !NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, pool.Stride, pool.Slots.Length)).ToArray();
+            }
         }
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = survivors == 0 ? 0u : 0x25218C8u } };
@@ -102,19 +161,29 @@ public sealed partial class BattleSession
             {
                 if (frame == 0)
                 {
-                    NativeBattleVector total = default;
+                    long x = 0;
+                    long y = 0;
+                    long z = 0;
                     int count = 0;
                     foreach (BattleModelOwner actor in graphics.ActorModels.Roster.Party.Where(targets.Contains))
                     {
                         NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
-                        total = new(unchecked((short)(total.X + anchor.X)), unchecked((short)(total.Y + anchor.Y)), unchecked((short)(total.Z + anchor.Z)));
+                        x += anchor.X;
+                        y += anchor.Y;
+                        z += anchor.Z;
+                        if (!expanded)
+                        {
+                            x = unchecked((short)x);
+                            y = unchecked((short)y);
+                            z = unchecked((short)z);
+                        }
                         count++;
                     }
                     if (count == 0)
                     {
                         throw new InvalidDataException("Native Bad Breath requires at least one selected party model.");
                     }
-                    task = BadStore(task, 16, new((short)(total.X / count), (short)(total.Y / count), unchecked((short)(total.Z / count + 2000)))).WriteWord(22, 0xF000);
+                    task = BadStore(task, 16, new((short)(x / count), (short)(y / count), unchecked((short)(z / count + 2000)))).WriteWord(22, 0xF000);
                 }
                 else if (frame is 10 or 16 or 26)
                 {
@@ -122,6 +191,13 @@ public sealed partial class BattleSession
                     if (graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(role), graphics.ActorModels) is { } actor && targets.Contains(actor))
                     {
                         SpawnTarget(actor);
+                    }
+                    if (expanded && frame == 26)
+                    {
+                        foreach (BattleModelOwner extra in graphics.ActorModels.Roster.Party.Where(owner => targets.Contains(owner) && !aliases.TryEncodeExact(owner, out _)))
+                        {
+                            SpawnTarget(extra);
+                        }
                     }
                     task = MirrorTargetByte(task, role + 1).WriteByte(15, (byte)(role + 1));
                 }
@@ -175,6 +251,11 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask MirrorTargetByte(NativeBattleModulePoolTask task, int shift)
         {
+            if (captured is not null)
+            {
+                task.WriteExecutionReference(14, 1, captured, originalTargetWord is ushort original ? [(byte)((byte)original >> shift)] : null);
+                return task;
+            }
             return originalTargetWord is ushort word ? task.WriteByte(14, (byte)((byte)word >> shift)) : task.MarkPayloadUnknown(14, 1);
         }
 
@@ -247,11 +328,34 @@ public sealed partial class BattleSession
             }
             if (frame == 27)
             {
-                for (int index = 0; index < header.ReadContactCount(); index++)
+                if (expanded)
                 {
-                    if (nativeActionPackets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient == actor)
+                    foreach ((BattleModelOwner owner, BattleContactOccurrence occurrence) in captured!.Recipients)
                     {
-                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(header.FirstContact.Advance(index))] });
+                        if (owner == actor)
+                        {
+                            int relative = occurrence.Ordinal - header.FirstContact.Ordinal;
+                            if ((uint)relative >= (uint)header.ReadContactCount())
+                            {
+                                throw new InvalidDataException("Bad Breath target occurrence left its selected header.");
+                            }
+                            NativeBattleContactPacket packet = nativeActionPackets.ReadContact(occurrence);
+                            if (packet.Primary.Recipient != actor)
+                            {
+                                throw new InvalidDataException("Bad Breath target occurrence lost its captured model owner.");
+                            }
+                            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [packet] });
+                        }
+                    }
+                }
+                else
+                {
+                    for (int index = 0; index < header.ReadContactCount(); index++)
+                    {
+                        if (nativeActionPackets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient == actor)
+                        {
+                            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(header.FirstContact.Advance(index))] });
+                        }
                     }
                 }
             }
@@ -374,6 +478,10 @@ public sealed partial class BattleSession
         {
             if (pools[bank].Slots.All(task => (task.Flags & 1) != 0))
             {
+                if (expanded)
+                {
+                    throw new InvalidDataException("Bad Breath exhausted its reserved task bank.");
+                }
                 slot = -1;
                 return false;
             }
@@ -398,6 +506,15 @@ public sealed partial class BattleSession
             return value;
         }
         static NativeBattleVector Decelerate(NativeBattleVector velocity, int shift) => new((short)(-velocity.X >> shift), (short)(-velocity.Y >> shift), (short)(-velocity.Z >> shift));
+    }
+
+    private static void ValidateBadBreath113Bank(NativeBattleEffectTaskPool pool, uint descriptor, uint originalAddress, ushort stride, ushort originalCapacity, ushort capacity)
+    {
+        bool located = capacity == originalCapacity ? pool.BankAddress == originalAddress : NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, stride, capacity);
+        if (!located || pool.DescriptorAddress != descriptor || pool.Stride != stride || pool.Slots.Length != capacity)
+        {
+            throw new InvalidDataException("Bad Breath task bank lost its actual physical descriptor.");
+        }
     }
 
     private static short BadWord(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

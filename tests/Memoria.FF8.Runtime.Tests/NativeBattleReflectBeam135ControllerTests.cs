@@ -56,6 +56,80 @@ public sealed class NativeBattleReflectBeam135ControllerTests
         Assert.Contains(f.Operations.Skip(compose + 1).Take(restore - compose - 1), value => value is NativeBattleReflectBeam135DrawStatic88);
     }
 
+    [Fact]
+    public void Expanded_sweep_captures_extrema_and_crosses_every_ordered_occurrence()
+    {
+        Fixture fixture = new();
+        BattleModelOwner extra = new BattlePartyActorModel(new("extra"));
+        BattleModelOwner high = OriginalOwner(3);
+        BattleModelOwner low = OriginalOwner(4);
+        BattleModelOwner[] owners = [high, low, extra, high, extra, extra, extra, extra, extra, extra, extra, extra];
+        BattleModelRoster roster = new(OriginalRoster.Owners.Append(extra));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, 7).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        var packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(0), 8, 177, 0, 15, 135, null));
+        foreach (BattleModelOwner owner in owners)
+        {
+            (packets, _) = packets.AppendContact(new(new(owner, 1, 0, 0, 0, 7, 0), null));
+        }
+        (packets, _) = packets.Publish(owners.Length);
+        List<BattleModelOwner> births = [];
+        var inputs = fixture.Inputs with
+        {
+            Packets = packets,
+            StorageContract = BattleContactTaskStorageContract.ExpandableArena,
+            ReadModel = owner => new(2) { Transform = new(new(0, 0, 0), new(owner == high ? short.MaxValue : owner == low ? short.MinValue : (short)1000, 0, 0), 0, 0, 4096) },
+            ReadAnchor = (current, _) => new(current, new(30000, 20, 30, 0)),
+            ReadBone = (current, owner, selector, _) =>
+            {
+                if (selector == 0xF1)
+                {
+                    births.Add(owner);
+                }
+                return new(current, new(100, 200, 300));
+            },
+            AdvanceAct = (current, address, source, _, _, _) => new(current, source.Address == TargetActAddress && NativeBattleReflectBeam135Controller.Read(current, address).ReadWord(12) < 32 ? 1 : 0)
+        };
+        var frame = fixture.Frame with
+        {
+            Effect = fixture.Frame.Effect with { Pools = [fixture.Frame.Effect.Pools[0]], Parameters = fixture.Frame.Effect.Parameters! with { TargetActors = BattleModelTargets.From(owners) } }
+        };
+        frame.Memory.Arena!.Write(MorphOffset, [0x81]);
+        frame = NativeBattleReflectBeam135Controller.Advance(frame, fixture.Resources, inputs);
+        frame = NativeBattleReflectBeam135Controller.Advance(frame, fixture.Resources, inputs);
+        NativeBattleEffectTaskPool targets = frame.Effect.Pools[3];
+        NativeBattleEffectTaskPool particles = frame.Effect.Pools[4];
+        Assert.True(NativeBattlePresentationTaskStorage.IsHostedBank(targets.BankAddress, TargetStride, owners.Length));
+        Assert.True(NativeBattlePresentationTaskStorage.IsHostedBank(particles.BankAddress, ParticleStride, 96 + 28 * (owners.Length - 3)));
+        Assert.True(targets.BankAddress + (uint)(TargetStride * targets.Slots.Length) <= particles.BankAddress);
+        NativeBattleModulePoolTask main = NativeBattleReflectBeam135Controller.Read(frame, Fixture.MainAddress);
+        Assert.Equal((ushort)30000, main.ReadWord(0x20));
+        int[] order = [0, 3, 2, 4, 5, 6, 7, 8, 9, 10, 11, 1];
+        Assert.Equal(order, main.ReadExecutionReference<BattleExecutionReference.ReflectBeam135Sweep>(0x14, 4).Recipients.Select(target => target.Order));
+        Assert.Equal(new byte[] { 0, 3, 2 }, main.ReadBytes(0x10, 3));
+        Assert.All(main.BorrowPayloadArena(0x1C, 4).ReadSnapshot(0, 4).Known, known => Assert.False(known));
+        var original = frame;
+        frame = NativeBattleTestSnapshots.Independent(original);
+        Assert.NotSame(targets.RequireOwner(), frame.Effect.Pools[3].RequireOwner());
+        var later = inputs with { ReadModel = _ => throw new InvalidOperationException("The expanded sweep must use its captured X.") };
+        int maximumSameFrame = 0;
+        for (int callback = 0; callback < 100 && frame.Effect.ReturnedDescriptor != 0; callback++)
+        {
+            int before = births.Count;
+            frame = NativeBattleReflectBeam135Controller.Advance(frame, fixture.Resources, later);
+            maximumSameFrame = Math.Max(maximumSameFrame, births.Count - before);
+        }
+        Assert.Equal(order.Select(index => owners[index]), births);
+        Assert.Equal(9, maximumSameFrame);
+        Assert.Equal(order.Select(index => packets.ResolveContact(header, index)), fixture.Operations.OfType<NativeBattleReflectBeam135Contact>().Select(contact => contact.Occurrence));
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Equal(new[] { RootDescriptor, MainDescriptor, SecondaryDescriptor }, frame.Effect.Pools.Select(pool => pool.DescriptorAddress));
+        Assert.Null(targets.Head);
+        Assert.Equal(new byte[] { 0x81 }, frame.Memory.Arena!.Read(MorphOffset, 1));
+        Assert.Equal(Fixture.ModelAddress(3), BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(TargetOffset + 16, 4)));
+        Assert.All(frame.Memory.Arena!.ReadSnapshot(TargetOffset + 2 * TargetStride + 16, 4).Known, known => Assert.False(known));
+    }
+
     [Theory]
     [InlineData(14, -1)]
     [InlineData(15, 0)]
@@ -157,7 +231,7 @@ public sealed class NativeBattleReflectBeam135ControllerTests
             NativeBattleOriginalEffectState effect = new(135, 134, new(135, Entry, Initializer), new(OriginalOwner(0), 0, BattleModelTargets.Empty, new BattleActionHeaderReference(0), 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
-            Frame = new(memory, effect, new(55), NativeBattleReflectBeam135State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, ModelAddress(0))) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(memory, effect, new(55), NativeBattleReflectBeam135State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteModelOwner(CasterGlobal, OriginalOwner(0), OriginalAliases)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             NativeBattleActionPacketsState packets = OriginalPackets();
             (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 177, 0, 15, 135, null));
             foreach (byte actor in new byte[] { 3, 4, 3 })
