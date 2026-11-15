@@ -36,17 +36,66 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool? directors = effect.Pools.Length > 1 ? effect.Pools[1] : null;
         NativeBattleEffectTaskPool? targets = effect.Pools.Length > 2 ? effect.Pools[2] : null;
         NativeBattleEffectTaskPool? sparks = effect.Pools.Length > 3 ? effect.Pools[3] : null;
+        bool expanded = graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena;
+        uint originalTargets = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 320));
+        uint originalSparks = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer);
+        uint directorBank = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 7124));
+        if (expanded)
+        {
+            ValidateFullCure280Bank(roots, 0x2508018, 0x2508028, 20, 1, 1);
+            if (effect.Pools.Length == 4)
+            {
+                NativeBattleEffectTaskPool directorPool = effect.Pools[1];
+                NativeBattleEffectTaskPool targetPool = effect.Pools[2];
+                NativeBattleEffectTaskPool sparkPool = effect.Pools[3];
+                ValidateFullCure280Bank(directorPool, 0x2508008, directorBank, 28, 1, 1);
+                (ushort requiredTargets, ushort requiredSparks) = FullCure280Capacities(directorPool.Slots[0].ReadContactCount(14));
+                ValidateFullCure280Bank(targetPool, 0x2507FF8, originalTargets, 2268, 3, requiredTargets);
+                ValidateFullCure280Bank(sparkPool, 0x2507FE8, originalSparks, 20, 16, requiredSparks);
+                ulong targetEnd = targetPool.BankAddress + (ulong)targetPool.Stride * requiredTargets;
+                ulong sparkEnd = sparkPool.BankAddress + (ulong)sparkPool.Stride * requiredSparks;
+                if (targetPool.BankAddress < sparkEnd && sparkPool.BankAddress < targetEnd)
+                {
+                    throw new InvalidDataException("Full-cure reserved target and spark banks overlap.");
+                }
+            }
+            else if (effect.Pools.Length != 1)
+            {
+                throw new InvalidDataException("Full-cure requires its actual root and three child banks.");
+            }
+        }
+        uint targetBank = originalTargets;
+        uint sparkBank = originalSparks;
+        ushort targetCapacity = 3;
+        ushort sparkCapacity = 16;
+        NativeBattleEffectMemory? allocatedMemory = null;
+        NativeBattleActionHeaderSlot? expandedHeader = null;
+        if (expanded && root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
+        {
+            expandedHeader = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
+            (targetCapacity, sparkCapacity) = FullCure280Capacities(expandedHeader.ReadContactCount());
+            NativeBattleEffectMemory memory = NativeEffectMemory!;
+            if (targetCapacity > 3)
+            {
+                (memory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, nativeActionPackets.Roster, 2268, targetCapacity);
+            }
+            if (sparkCapacity > 16)
+            {
+                (memory, sparkBank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, nativeActionPackets.Roster, 20, sparkCapacity);
+            }
+            allocatedMemory = memory;
+        }
         effect = effect with { DrawArenaOffset = checked(buffer + (root.ReadDword(16) != 0 ? 7664 : 73200)) };
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
         int flash = 0;
         if (root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
         {
             root = root.WriteByte(15, 1);
-            directors = NativeBattleEffectTaskPool.Initialize(0x2508008, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 7124)), 28, 1);
-            targets = NativeBattleEffectTaskPool.Initialize(0x2507FF8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 320)), 2268, 3);
-            sparks = NativeBattleEffectTaskPool.Initialize(0x2507FE8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 20, 16);
+            directors = NativeBattleEffectTaskPool.Initialize(0x2508008, directorBank, 28, 1);
+            targets = NativeBattleEffectTaskPool.Initialize(0x2507FF8, targetBank, 2268, targetCapacity);
+            sparks = NativeBattleEffectTaskPool.Initialize(0x2507FE8, sparkBank, 20, sparkCapacity);
             (directors, int slot) = directors.Append(0x67E980);
-            NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
+            NativeBattleActionHeaderSlot header = expandedHeader ?? nativeActionPackets.ReadHeader(effect.Parameters!.Header);
             int count = header.ReadContactCount();
             NativeBattleModulePoolTask director = directors.Slots[slot].WriteDword(12, 0).WriteDword(16, 0).WriteDword(20, 0).WriteDword(24, 0).WriteContactCount(14, count);
             var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
@@ -69,8 +118,13 @@ public sealed partial class BattleSession
             }
             director.WriteExecutionReference(16, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), originalFirst);
             directors = directors.WriteSlot(slot, director);
+            if (allocatedMemory is not null)
+            {
+                NativeEffectMemory = allocatedMemory;
+            }
         }
         int directorSurvivors = 1;
+        int targetSurvivors = 1;
         int sparkSurvivors = 1;
         if (root.ReadByte(15) != 0)
         {
@@ -79,19 +133,26 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 int age = WindWord(task, 12);
                 flash = NativeBattleFullCure280Geometry.Flash((short)age);
-                int index = age / 20;
-                if ((uint)age < 63 && age % 20 == 0 && index < task.ReadContactCount(14))
+                bool birth = expanded ? age is 0 or 20 or 40 : (uint)age < 63 && age % 20 == 0;
+                if (birth)
                 {
-                    (targets, int targetSlot) = targets!.Append(0x67EA80);
-                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients[index].Owner;
-                    NativeBattleModulePoolTask target = targets.Slots[targetSlot];
-                    target.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
-                    target = WindStore(target, 16, ReadNativeGraphicsBone(graphics, actor, 0xF1, 0)).WriteWord(22, 0);
-                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 2244);
-                    workspace = workspace.Initialize7016B0(resources.Layout, 2244);
-                    target = StoreWorkspace(target, workspace);
-                    targets = targets.WriteSlot(targetSlot, target);
-                    PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
+                    int first = age / 20;
+                    int count = task.ReadContactCount(14);
+                    int end = expanded && age == 40 ? count : Math.Min(count, first + 1);
+                    for (int index = first; index < end; index++)
+                    {
+                        (targets, int targetSlot) = targets!.Append(0x67EA80);
+                        var recipient = task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients[index];
+                        BattleModelOwner actor = recipient.Owner;
+                        NativeBattleModulePoolTask target = targets.Slots[targetSlot];
+                        target.WriteExecutionReference(12, 4, new BattleExecutionReference.OrderedContactRecipients([recipient]), nativeActionPackets.ModelAliases.EncodeAddress(actor));
+                        target = WindStore(target, 16, ReadNativeGraphicsBone(graphics, actor, 0xF1, 0)).WriteWord(22, 0);
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 2244);
+                        workspace = workspace.Initialize7016B0(resources.Layout, 2244);
+                        target = StoreWorkspace(target, workspace);
+                        targets = targets.WriteSlot(targetSlot, target);
+                        PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
+                    }
                 }
                 task = task.WriteWord(12, unchecked((ushort)(age + 1)));
                 bool complete = age + 1 >= 65;
@@ -103,7 +164,7 @@ public sealed partial class BattleSession
             });
             directors = directorStep.Pool;
             directorSurvivors = directorStep.Survivors;
-            targets = targets!.Advance((pool, slot) =>
+            NativeBattleEffectTaskStep targetStep = targets!.Advance((pool, slot) =>
             {
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (12), 2244);
@@ -115,11 +176,11 @@ public sealed partial class BattleSession
                     return current;
                 });
                 task = StoreWorkspace(task, played.Workspace);
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
+                (BattleModelOwner actor, BattleContactOccurrence occurrence) = task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(12, 4).Recipients.Single();
                 int age = WindWord(task, 22);
-                if (age >= 19 && (age & 1) == 0 && sparks!.Slots.Any(candidate => (candidate.Flags & 1) == 0))
+                if (age >= 19 && (age & 1) == 0 && (expanded || sparks!.Slots.Any(candidate => (candidate.Flags & 1) == 0)))
                 {
-                    (sparks, int sparkSlot) = sparks.Append(0x67EF50);
+                    (sparks, int sparkSlot) = sparks!.Append(0x67EF50);
                     int boneCount = ReadNativeGraphicsBoneCount(graphics, actor);
                     NativeBattleModulePoolTask spark = WindStore(sparks.Slots[sparkSlot], 12, ReadNativeGraphicsBone(graphics, actor, checked((byte)(age % boneCount)), 0)).WriteWord(18, 0);
                     sparks = sparks.WriteSlot(sparkSlot, spark);
@@ -128,20 +189,39 @@ public sealed partial class BattleSession
                 if (age + 1 >= 30)
                 {
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-                    BattleContactCursor first = header.FirstContact;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    for (int index = 0; index < header.ReadContactCount(); index++)
+                    if (expanded)
                     {
-                        NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first.Advance(index));
-                        if (contact.Primary.Recipient == actor)
+                        int relative = occurrence.Ordinal - header.FirstContact.Ordinal;
+                        if ((uint)relative >= (uint)header.ReadContactCount())
                         {
-                            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] });
+                            throw new InvalidDataException("Full-cure target occurrence left its selected header.");
+                        }
+                        NativeBattleContactPacket contact = nativeActionPackets.ReadContact(occurrence);
+                        if (contact.Primary.Recipient != actor)
+                        {
+                            throw new InvalidDataException("Full-cure target occurrence lost its captured model owner.");
+                        }
+                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] });
+                    }
+                    else
+                    {
+                        BattleContactCursor first = header.FirstContact;
+                        for (int index = 0; index < header.ReadContactCount(); index++)
+                        {
+                            NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first.Advance(index));
+                            if (contact.Primary.Recipient == actor)
+                            {
+                                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] });
+                            }
                         }
                     }
                     graphics = graphics with { PendingContacts = pending };
                 }
                 return new(pool.WriteSlot(slot, task), age + 1 >= 30 ? 2 : 0);
-            }).Pool;
+            });
+            targets = targetStep.Pool;
+            targetSurvivors = targetStep.Survivors;
             NativeBattleEffectTaskStep sparkStep = sparks!.Advance((pool, slot) =>
             {
                 NativeBattleModulePoolTask task = pool.Slots[slot];
@@ -164,7 +244,7 @@ public sealed partial class BattleSession
         }
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Full-cure requires its current stage.");
         NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)flash), ColorFlags = 0 }).ToImmutableArray() };
-        bool released = root.ReadByte(15) != 0 && directorSurvivors == 0 && sparkSurvivors == 0;
+        bool released = root.ReadByte(15) != 0 && directorSurvivors == 0 && sparkSurvivors == 0 && (!expanded || targetSurvivors == 0);
         if (!released)
         {
             root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
@@ -174,7 +254,17 @@ public sealed partial class BattleSession
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
         }
-        return graphics with { OriginalEffect = effect with { Pools = directors is null ? [roots] : [roots, directors, targets!, sparks!], ReturnedDescriptor = released ? 0u : 0x2508018u } };
+        ImmutableArray<NativeBattleEffectTaskPool> pools = directors is null ? [roots] : [roots, directors, targets!, sparks!];
+        if (released && expanded)
+        {
+            pools = pools.Where(pool => pool.DescriptorAddress switch
+            {
+                0x2507FF8 => pool.BankAddress == originalTargets,
+                0x2507FE8 => pool.BankAddress == originalSparks,
+                _ => true
+            }).ToImmutableArray();
+        }
+        return graphics with { OriginalEffect = effect with { Pools = pools, ReturnedDescriptor = released ? 0u : 0x2508018u } };
 
         NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
@@ -193,6 +283,22 @@ public sealed partial class BattleSession
             NativeEffectMemory = written.Memory;
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
+        }
+    }
+
+    private static (ushort Targets, ushort Sparks) FullCure280Capacities(int count)
+    {
+        // Targets emit every other callback and each spark survives eight callbacks.
+        // The first two windows and the final cohort's window do not overlap.
+        return (checked((ushort)Math.Max(3, count)), checked((ushort)Math.Max(16, checked(4 * Math.Max(1, count - 2)))));
+    }
+
+    private static void ValidateFullCure280Bank(NativeBattleEffectTaskPool pool, uint descriptor, uint originalAddress, ushort stride, ushort originalCapacity, ushort capacity)
+    {
+        bool located = capacity == originalCapacity ? pool.BankAddress == originalAddress : NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, stride, capacity);
+        if (!located || pool.DescriptorAddress != descriptor || pool.Stride != stride || pool.Slots.Length != capacity)
+        {
+            throw new InvalidDataException("Full-cure task bank leaves its physical descriptor contract.");
         }
     }
 }

@@ -19,13 +19,6 @@ public sealed partial class BattleSession
         {
             return;
         }
-        bool skipAnimation = (ResolvedNativeFlags & 2) != 0;
-        NativeBattleOutcomeState state = graphics.NativeOutcome ?? new();
-        graphics = graphics with { NativeOutcome = state with { ResultByte6E7 = 4, VictoryQueuedDFE = 1, FadeStyleE01 = skipAnimation ? (byte)1 : (byte)0 } };
-        graphics = QueueNativeDescriptor(graphics, 112, 0);
-        graphics = QueueNativeDescriptor(graphics, 10, 0x47DF60);
-        //TODO(TD-009): Physical494D40 result banks remain unowned. The proved reward projection consumes these frozen combat facts once at host return.
-        graphics = QueueNativeDescriptor(graphics, skipAnimation ? (ushort)109 : (ushort)115, 0);
-        NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DFC0);
+        NativeGraphics = BuildNativeTerminalGraphics(graphics, BattleOutcome.Victory);
     }
 }

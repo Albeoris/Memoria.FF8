@@ -35,6 +35,10 @@ public sealed partial class BattleSession
     private void DispatchExpandedPresentationFrame(ExpandedBattlePresentationProcess process)
     {
         RequireExpandedPresentationDispatchIdle();
+        if (process.TerminalFinished && Outcome != BattleOutcome.Active)
+        {
+            return;
+        }
         process.RequireCompletionAcknowledged();
         dispatchingExpandedPresentation = true;
         try
@@ -59,7 +63,7 @@ public sealed partial class BattleSession
                         AdvanceExpandedPresentedVitals4B0500();
                     }
                 }
-                if (process.EntryReady && Outcome == BattleOutcome.Active)
+                if (process.EntryReady && Outcome == BattleOutcome.Active && !HasPendingExpandedTerminal)
                 {
                     DispatchTurnBasedFrameCore();
                 }

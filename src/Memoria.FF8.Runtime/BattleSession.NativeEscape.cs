@@ -46,15 +46,15 @@ public sealed partial class BattleSession
     public NativeBattleEscapeState Escape => nativeEscape;
     private ushort EscapeFlags => definition.ExpandedFormationFlags is byte formationFlags ? NativeBattleEntryRules.MergeFlags(definition.NativeFlags, formationFlags) : ResolvedNativeFlags;
     public bool EscapeDisabled => nativeScriptState.EscapeDisabled ?? (EscapeFlags & 1) != 0;
-    public bool IsExpandedEscapeRunning => UsesExpandedRoster && !HasPendingExpandedEscape && Outcome == BattleOutcome.Active && nativeEscape.PresentationHeld;
-    public bool IsExpandedEscapeFinishing => HasPendingExpandedEscape || UsesExpandedRoster && Outcome == BattleOutcome.Escaped;
+    public bool IsExpandedEscapeRunning => UsesExpandedRoster && expandedPresentationProcess is null && !HasPendingExpandedEscape && Outcome == BattleOutcome.Active && nativeEscape.PresentationHeld;
+    public bool IsExpandedEscapeFinishing => HasPendingExpandedEscape || expandedHostedTerminal?.Outcome == BattleOutcome.Escaped || UsesExpandedRoster && Outcome == BattleOutcome.Escaped;
     public byte? ExpandedEscapeScreenFade
     {
         get
         {
             byte remaining = nativeEscape.ExpandedOutcomeFrames;
             const short duration = NativeBattleOutcomeCallbacks.OutcomeFadeDuration501E10;
-            if (!IsExpandedEscapeFinishing || remaining > duration)
+            if (expandedPresentationProcess is not null || !IsExpandedEscapeFinishing || remaining > duration)
             {
                 return null;
             }
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
 
     private bool HasPendingExpandedEscape => nativeEscape.ExpandedOutcomeFrames > 0;
 
-    private bool EscapeAdvancesBattleTime => nativeEscape.Held && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && PendingSlotsDeal is null && NativeGraphics?.UiServices?.PauseDE9 != true;
+    private bool EscapeAdvancesBattleTime => nativeEscape.Held && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedTerminal && NativeEntryReady && PendingSlotsDeal is null && BattleClockUi?.PauseDE9 != true;
     private bool UsesRealTimeBattleClock => Mode != BattleAtbMode.TurnBased || EscapeAdvancesBattleTime;
 
     public void PublishNativeEscapeButtons(ushort buttons)
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || !NativeEntryReady || NativeGraphics?.UiServices?.PauseDE9 == true)
+        if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || HasPendingExpandedTerminal || !NativeEntryReady || BattleClockUi?.PauseDE9 == true)
         {
             return;
         }
@@ -102,6 +102,10 @@ public sealed partial class BattleSession
             if (NativeGraphics is { } graphics)
             {
                 NativeGraphics = QueueNativeDescriptor(graphics, nativeEscape.Held ? (ushort)108 : (ushort)109, 0, priority: 240);
+            }
+            else if (expandedPresentationProcess is { } process)
+            {
+                process.SetEscapePresentationHeld(this, nativeEscape.Held);
             }
             nativeEscape = nativeEscape with { PresentationHeld = nativeEscape.Held };
         }
@@ -166,6 +170,12 @@ public sealed partial class BattleSession
     private void BeginNativeEscape4862A0()
     {
         StopTurnAdvance();
+        if (expandedPresentationProcess is not null)
+        {
+            AdmitExpandedHostedTerminal(BattleOutcome.Escaped);
+            nativeEscape = nativeEscape with { Requested = false };
+            return;
+        }
         if (UsesExpandedRoster)
         {
             if (definition.NativeGlobalMessages.Length > 1 && definition.NativeGlobalMessages[1] is { } text && definition.NativeMessageSpeed is byte speed)
@@ -181,17 +191,6 @@ public sealed partial class BattleSession
             CompleteBattleIfNeeded();
             return;
         }
-        if (definition.NativeGlobalMessages.Length <= 1 || definition.NativeGlobalMessages[1] is not { } message)
-        {
-            throw new NotSupportedException("Native4862A0 requires its original miscellaneous text1 binding.");
-        }
-        int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native4862A0 requires its saved message-speed BYTE.")) + 8;
-        NativeBattleOutcomeState state = graphics.NativeOutcome ?? new();
-        graphics = graphics with { NativeOutcome = state with { ResultByte6E7 = 2, VictoryQueuedDFE = 1, FadeStyleE01 = 2 } };
-        graphics = QueueNativeDescriptor(graphics, 112, 0);
-        graphics = QueueNativeDescriptor(graphics, 10, 0x47DF60);
-        graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(1) }, 86);
-        graphics = QueueNativeDescriptor(graphics, 116, 0);
-        NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DFC0);
+        NativeGraphics = BuildNativeTerminalGraphics(graphics, BattleOutcome.Escaped);
     }
 }

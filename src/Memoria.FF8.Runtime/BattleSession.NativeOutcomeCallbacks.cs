@@ -20,6 +20,50 @@ public sealed partial record NativeBattleGraphicsState
 
 public sealed partial class BattleSession
 {
+    private NativeBattleGraphicsState BuildNativeTerminalGraphics(NativeBattleGraphicsState graphics, BattleOutcome outcome)
+    {
+        bool skipVictory = outcome == BattleOutcome.Victory && ((hostedBattlePresentation ? EscapeFlags : ResolvedNativeFlags) & 2) != 0;
+        (byte Result, byte Style, ushort? Animation, int? TextId) terminal = outcome switch
+        {
+            // TODO(TD-009): Physical494D40 result banks remain unowned. Rewards consume the frozen logical facts at host return.
+            BattleOutcome.Victory => ((byte)4, skipVictory ? (byte)1 : (byte)0, skipVictory ? (ushort)109 : (ushort)115, null),
+            BattleOutcome.Defeat => ((byte)1, (byte)3, null, 0),
+            BattleOutcome.Escaped => ((byte)2, (byte)2, (ushort)116, 1),
+            BattleOutcome.ScriptedExit => ((byte)1, (byte)3, null, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome))
+        };
+        BattleEvent? message = null;
+        if (terminal.TextId is int id)
+        {
+            if (definition.NativeGlobalMessages.Length <= id || definition.NativeGlobalMessages[id] is not { } text)
+            {
+                throw new NotSupportedException("Native terminal presentation requires its original miscellaneous text binding.");
+            }
+            int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native terminal presentation requires its saved message-speed BYTE.")) + 8;
+            message = new BattleEvent(Frame, "NativeText", null, null, duration, text) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(id) };
+        }
+        NativeBattleOutcomeState state = graphics.NativeOutcome ?? new();
+        graphics = graphics with { NativeOutcome = state with { ResultByte6E7 = terminal.Result, VictoryQueuedDFE = 1, FadeStyleE01 = terminal.Style } };
+        graphics = Queue(graphics, 112, 0);
+        graphics = Queue(graphics, 10, 0x47DF60);
+        if (message is not null)
+        {
+            graphics = QueueNativeDescriptorMessage(graphics, message, 86);
+        }
+        if (terminal.Animation is ushort command)
+        {
+            graphics = Queue(graphics, command, 0);
+        }
+        return Queue(graphics, 10, 0x47DFC0);
+
+        NativeBattleGraphicsState Queue(NativeBattleGraphicsState current, ushort command, uint argument)
+        {
+            return hostedBattlePresentation
+                ? current with { Descriptors = current.Descriptors.Enqueue(command, 128, argument).State }
+                : QueueNativeDescriptor(current, command, argument);
+        }
+    }
+
     private NativeBattleGraphicsState BeginNativeOutcome47DF60(NativeBattleGraphicsState graphics)
     {
         NativeBattleOutcomeState outcome = graphics.NativeOutcome ?? throw new NotSupportedException("Native47DF60 requires its established outcome byte owners.");
@@ -36,7 +80,14 @@ public sealed partial class BattleSession
         }
         commands = commands.Enqueue(0, 65);
         nativeActionPackets = nativeActionPackets.RestartContactPublication();
-        SetNativeBattleClockActive(false);
+        if (hostedBattlePresentation)
+        {
+            ReachHostedTerminalEntry();
+        }
+        else
+        {
+            SetNativeBattleClockActive(false);
+        }
         NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native47DF60 requires its retained action-phase process byte.")) with { ActionPhaseDEA = 0 };
         return graphics with { NativeOutcome = outcome with { ActionOwnerB0D = 0, ExitModeDE8 = 2, AdmissionDFD = 1 }, UiServices = ui with { Commands = commands } };
     }
@@ -82,7 +133,12 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native501D10 requires its retained primitive process.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native501D10 requires its retained packet and publication bytes.");
         NativeEffectMemory = memory with { PrimitiveProcess = process with { ScreenFadeEB8 = fade, PublicationState03A = complete ? (byte)2 : process.PublicationState03A } };
-        return AppendNativePrimitivePackets(graphics, NativeBattleOutcomeCallbacks.FadePackets501D10(fade));
+        graphics = AppendNativePrimitivePackets(graphics, NativeBattleOutcomeCallbacks.FadePackets501D10(fade));
+        if (hostedTerminal is not null && complete)
+        {
+            hostedTerminalFadePublished = true;
+        }
+        return graphics;
     }
 
     private NativeBattleGraphicsState BeginNativeOutcomeFade501E10(NativeBattleGraphicsState graphics)

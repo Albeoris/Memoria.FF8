@@ -92,8 +92,17 @@ public sealed partial class BattleSession
                     clockReady?.Invoke();
                 }
 
+                if (hostedTerminal is not null)
+                {
+                    DispatchNativeScriptTasks();
+                }
                 PumpNativeFileIo482590();
                 AdvanceNativeGraphicsFrameCore(services);
+                if (hostedTerminal is not null)
+                {
+                    AdvanceNativeOutcomeCountdown47CCB0();
+                    ObserveHostedTerminalDrain(services);
+                }
                 if (afterGraphics is not null)
                 {
                     hostedFrameServices = null;

@@ -109,7 +109,8 @@ public sealed class NativeBattleWhiteWind297ControllerTests
                 }
             };
         }
-        NativeBattleWhiteWind297Frame current = Frame(0) with { State = Frame(0).State.WriteDword(CasterGlobal, 0x1D972C0) };
+        NativeBattleWhiteWind297Frame current = Frame(0);
+        current = current with { State = current.State.WriteModelOwner(CasterGlobal, OriginalOwner(0), OriginalAliases) };
         NativeBattleWhiteWind297Resources resources = new(Source(22), Source(26), Source(26), new("fixture", []), 0x5578A, new("fixture", []));
         int callbacks = 0;
         while (current.Effect.ReturnedDescriptor != 0 && callbacks++ < 64)
@@ -137,6 +138,84 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         }
         Assert.Equal((uint)emits, current.State.ReadDword(0x2507914));
         Assert.All(current.Effect.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
+    }
+
+    [Fact]
+    public void Expanded_target_bank_keeps_occurrence_order_through_copy_and_retirement()
+    {
+        BattleModelOwner extra = new BattlePartyActorModel(new("extra"));
+        BattleModelRoster roster = new(OriginalRoster.Owners.Append(extra));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, 7).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        BattleModelOwner[] recipients = [extra, OriginalOwner(3), extra, OriginalOwner(4), OriginalOwner(5)];
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(0), 2, 4, 0, 0, 297, null));
+        foreach (BattleModelOwner recipient in recipients)
+        {
+            (packets, _) = packets.AppendContact(new(new(recipient, 1, 0, 0, 0, 7, 0), null));
+        }
+        (packets, _) = packets.Publish(recipients.Length);
+        List<(int Age, BattleModelOwner Owner)> births = [];
+        List<BattleContactOccurrence> contacts = [];
+        NativeBattleWhiteWind297Inputs inputs = new(packets, _ => new(0) { MinimumY146 = -7, Transform = new(new(0, 0, 0), new(0, 0, 100), 0, 100, 8192) },
+            _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (frame, owner) =>
+            {
+                if (owner != OriginalOwner(0))
+                {
+                    births.Add((frame.Effect.Pools[1].Slots[0].ReadWord(12), owner));
+                }
+                return new(frame, new(10, -123, 100, 100));
+            }, (frame, operation) =>
+            {
+                if (operation is NativeBattleWhiteWind297Contact contact)
+                {
+                    contacts.Add(contact.Occurrence);
+                }
+                return frame;
+            }, (frame, _, _, _) => frame) { StorageContract = BattleContactTaskStorageContract.ExpandableArena };
+        NativeBattleWhiteWind297Resources resources = new(Source(22), Source(26), Source(26), new("fixture", []), 0x5578A, new("fixture", []));
+        NativeBattleWhiteWind297Frame current = Frame(0);
+        current = current with
+        {
+            State = current.State.WriteModelOwner(CasterGlobal, OriginalOwner(0), aliases),
+            Effect = current.Effect with { Parameters = current.Effect.Parameters! with { TargetActors = BattleModelTargets.From(recipients) } }
+        };
+        current.Memory.Arena!.Write(MorphOffset, [0x81]);
+        for (int callback = 0; callback <= 28; callback++)
+        {
+            current = NativeBattleWhiteWind297Controller.Advance(current, resources, inputs);
+        }
+        Assert.Equal(new[] { 19, 23, 27, 27, 27 }, births.Select(birth => birth.Age));
+        Assert.Equal(recipients, births.Select(birth => birth.Owner));
+        Assert.Empty(contacts);
+        NativeBattleEffectTaskPool originalTargets = current.Effect.Pools[2];
+        Assert.Equal(TargetDescriptor, originalTargets.DescriptorAddress);
+        Assert.Equal(recipients.Length, originalTargets.Slots.Length);
+        Assert.True(NativeBattlePresentationTaskStorage.IsHostedBank(originalTargets.BankAddress, 0x290, recipients.Length));
+        uint oldAge = originalTargets.Slots[0].ReadDword(0x1C);
+        current = NativeBattleTestSnapshots.Independent(current);
+        NativeBattleEffectTaskPool copied = current.Effect.Pools[2];
+        Assert.NotSame(originalTargets.RequireOwner(), copied.RequireOwner());
+        Assert.Equal(originalTargets.BankAddress, copied.BankAddress);
+        for (int index = 0; index < recipients.Length; index++)
+        {
+            var captured = Assert.Single(copied.Slots[index].ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(12, 4).Recipients);
+            Assert.Equal(recipients[index], captured.Owner);
+            Assert.Equal(packets.ResolveContact(header, index), captured.Occurrence);
+        }
+        current = NativeBattleWhiteWind297Controller.Advance(current, resources, inputs);
+        Assert.Equal(oldAge + 1, copied.Slots[0].ReadDword(0x1C));
+        Assert.Equal(oldAge, originalTargets.Slots[0].ReadDword(0x1C));
+        for (int callback = 0; callback < 64 && current.Effect.ReturnedDescriptor != 0; callback++)
+        {
+            current = NativeBattleWhiteWind297Controller.Advance(current, resources, inputs);
+        }
+        Assert.Equal(Enumerable.Range(0, recipients.Length).Select(index => packets.ResolveContact(header, index)), contacts);
+        Assert.Equal(0u, current.Effect.ReturnedDescriptor);
+        Assert.Equal(new[] { RootDescriptor, SceneDescriptor }, current.Effect.Pools.Select(pool => pool.DescriptorAddress));
+        NativeBattleEffectArena arena = current.Memory.Arena!;
+        Assert.All(arena.ReadSnapshot(12, 4).Known, known => Assert.False(known));
+        Assert.Equal(aliases.EncodeAddress(OriginalOwner(3))!.Value.ToArray(), arena.Read(0x290 + 12, 4));
+        Assert.Equal(new byte[] { 0x81 }, arena.Read(MorphOffset, 1));
     }
 
     private static NativeBattleGfAnimationSource Source(int duration)

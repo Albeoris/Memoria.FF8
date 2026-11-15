@@ -32,6 +32,10 @@ public sealed partial class BattleSession
 
     private void RequireNativeEntryReady()
     {
+        if (HasPendingExpandedTerminal)
+        {
+            throw new InvalidOperationException("The admitted battle result owns the remaining presentation callbacks.");
+        }
         if (!NativeEntryReady)
         {
             throw new InvalidOperationException("Native battle commands wait for the original entry112 completion callback.");

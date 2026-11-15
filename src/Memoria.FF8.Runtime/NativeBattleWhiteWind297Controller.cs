@@ -44,6 +44,18 @@ public static class NativeBattleWhiteWind297Controller
         {
             throw new InvalidDataException("Blue Magic White Wind lost its actual root and child task descriptors.");
         }
+        if (inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena && frame.Effect.Pools.Length == 3)
+        {
+            NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
+            NativeBattleEffectTaskPool scene = frame.Effect.Pools[1];
+            int capacity = Math.Max(3, Header(frame, inputs).ReadContactCount());
+            bool validAddress = capacity == 3 ? targets.BankAddress == Working(frame) : NativeBattlePresentationTaskStorage.IsHostedBank(targets.BankAddress, 0x290, capacity);
+            if (!validAddress || targets.DescriptorAddress != TargetDescriptor || targets.Stride != 0x290 || targets.Slots.Length != capacity ||
+                scene.DescriptorAddress != SceneDescriptor || scene.BankAddress != Working(frame) + SceneOffset || scene.Stride != 0x33C || scene.Slots.Length != 1)
+            {
+                throw new InvalidDataException("Blue Magic White Wind lost its reserved target or scene task owner.");
+            }
+        }
         NativeBattleWhiteWind297Frame current = frame;
         NativeBattleEffectTaskStep advanced = current.Effect.Pools[0].Advance((pool, slot) =>
         {
@@ -52,6 +64,18 @@ public static class NativeBattleWhiteWind297Controller
             return new(current.Effect.Pools[0], result);
         });
         current = WithPool(current, 0, advanced.Pool);
+        if (advanced.Survivors == 0 && inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena && current.Effect.Pools.Length == 3 &&
+            NativeBattlePresentationTaskStorage.IsHostedBank(current.Effect.Pools[2].BankAddress, current.Effect.Pools[2].Stride, current.Effect.Pools[2].Slots.Length))
+        {
+            NativeBattleEffectTaskPool targets = current.Effect.Pools[2];
+            NativeBattleTaskBankOwner owner = targets.RequireOwner();
+            const int prefix = 3 * 0x290;
+            NativeBattleEffectArena source = NativeBattleEffectArena.BorrowWorking(owner.Storage, owner.StorageOffset, prefix);
+            NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Blue Magic White Wind requires its original target bank destination.");
+            int destination = checked((int)(Working(current) - ArenaAddress));
+            arena = NativeBattleEffectNodeContextMemory.Copy(source, 0, arena, destination, prefix);
+            current = current with { Memory = current.Memory with { Arena = arena }, Effect = current.Effect with { Pools = current.Effect.Pools.RemoveAt(2) } };
+        }
         return current with { Effect = current.Effect with { ReturnedDescriptor = advanced.Survivors == 0 ? 0u : RootDescriptor } };
     }
 
@@ -64,6 +88,17 @@ public static class NativeBattleWhiteWind297Controller
         }
         uint working = Working(frame);
         bool first = root.ReadDword(16) != 0;
+        uint targetBank = working;
+        ushort capacity = 3;
+        if (inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena && root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
+        {
+            capacity = checked((ushort)Math.Max(3, Header(frame, inputs).ReadContactCount()));
+            if (capacity > 3)
+            {
+                (NativeBattleEffectMemory memory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(frame.Memory, frame.Effect, inputs.Packets.Roster, 0x290, capacity);
+                frame = frame with { Memory = memory };
+            }
+        }
         frame = frame with { State = frame.State.WriteDword(CursorGlobal, checked(working + (uint)(first ? FirstPacketOffset : SecondPacketOffset))) };
         frame = Put(frame, 0, slot, root.WriteDword(16, first ? 0u : 1u));
         root = Task(frame, 0, slot);
@@ -71,7 +106,7 @@ public static class NativeBattleWhiteWind297Controller
         {
             frame = Put(frame, 0, slot, root.WriteByte(15, 1));
             NativeBattleEffectTaskPool scene = NativeBattleEffectTaskPool.Initialize(SceneDescriptor, working + SceneOffset, 0x33C, 1);
-            NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, working, 0x290, 3);
+            NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, targetBank, 0x290, capacity);
             (scene, int index) = scene.Append(SceneCallback);
             scene = scene.WriteSlot(index, scene.Slots[index].WriteWord(12, 0));
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], scene, targets] } };
@@ -156,17 +191,30 @@ public static class NativeBattleWhiteWind297Controller
         }
         int target = age - 19;
         NativeBattleActionHeaderSlot captured = Header(frame, inputs);
-        if ((uint)target < 12 && (target & 3) == 0 && target / 4 < captured.ReadContactCount() && frame.Effect.Pools[2].Slots.Any(task => (task.Flags & 1) == 0))
+        bool expanded = inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena;
+        if ((uint)target < 12 && (target & 3) == 0)
         {
-            NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
-            (targets, int child) = targets.Append(TargetCallback);
-            frame = WithPool(frame, 2, targets);
-            BattleModelOwner actor = inputs.Packets.ReadContact(captured.FirstContact.Advance(target / 4)).Primary.Recipient;
-            NativeBattleModulePoolTask targetTask = Task(frame, 2, child);
-            targetTask.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
-            frame = Put(frame, 2, child, targetTask);
-            frame = Anchor(frame, 2, child, 16, actor, inputs);
-            frame = InitializeAct(frame, 2, child, 0x18, 0x278, resources.Target);
+            int start = target / 4;
+            int count = captured.ReadContactCount();
+            int end = expanded && age == 27 ? count : Math.Min(count, start + 1);
+            for (int index = start; index < end; index++)
+            {
+                NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
+                if (!expanded && !targets.Slots.Any(task => (task.Flags & 1) == 0))
+                {
+                    break;
+                }
+                (targets, int child) = targets.Append(TargetCallback);
+                frame = WithPool(frame, 2, targets);
+                NativeBattleContactPacket packet = inputs.Packets.ReadContact(captured.FirstContact.Advance(index));
+                BattleModelOwner actor = packet.Primary.Recipient;
+                BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("White Wind contact has no occurrence reference.");
+                NativeBattleModulePoolTask targetTask = Task(frame, 2, child);
+                targetTask.WriteExecutionReference(12, 4, new BattleExecutionReference.OrderedContactRecipients([(actor, occurrence)]), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                frame = Put(frame, 2, child, targetTask);
+                frame = Anchor(frame, 2, child, 16, actor, inputs);
+                frame = InitializeAct(frame, 2, child, 0x18, 0x278, resources.Target);
+            }
         }
         short nextAge = unchecked((short)(age + 1));
         frame = Put(frame, pool, slot, Task(frame, pool, slot).WriteWord(12, unchecked((ushort)nextAge)));
@@ -176,13 +224,26 @@ public static class NativeBattleWhiteWind297Controller
     private static (NativeBattleWhiteWind297Frame Frame, int Result) AdvanceTarget(NativeBattleWhiteWind297Frame frame, int pool, int slot, NativeBattleWhiteWind297Resources resources, NativeBattleWhiteWind297Inputs inputs)
     {
         NativeBattleModulePoolTask task = Task(frame, pool, slot);
-        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
+        (BattleModelOwner actor, BattleContactOccurrence captured) = task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(12, 4).Recipients.Single();
         (frame, int remaining) = Play(frame, pool, slot, 0x18, 0x278, resources.Target, BillboardContext(frame, Point(task, 16), inputs), inputs);
         if (remaining != 10)
         {
             return (frame, 0);
         }
         NativeBattleActionHeaderSlot header = Header(frame, inputs);
+        if (inputs.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
+        {
+            int relative = captured.Ordinal - header.FirstContact.Ordinal;
+            if ((uint)relative >= (uint)header.ReadContactCount())
+            {
+                throw new InvalidDataException("White Wind target occurrence left its selected header.");
+            }
+            if (inputs.Packets.ReadContact(captured).Primary.Recipient != actor)
+            {
+                throw new InvalidDataException("White Wind target occurrence lost its captured model owner.");
+            }
+            return (inputs.Execute(frame, new NativeBattleWhiteWind297Contact(captured)), 2);
+        }
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
             NativeBattleContactPacket packet = inputs.Packets.ReadContact(header.FirstContact.Advance(index));

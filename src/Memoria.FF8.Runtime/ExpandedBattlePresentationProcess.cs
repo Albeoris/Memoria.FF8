@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Owns the native presentation process for one expanded battle.</summary>
-public sealed class ExpandedBattlePresentationProcess
+public sealed partial class ExpandedBattlePresentationProcess
 {
     private readonly BattleSession logicalOwner;
     private readonly BattleSession presentation;

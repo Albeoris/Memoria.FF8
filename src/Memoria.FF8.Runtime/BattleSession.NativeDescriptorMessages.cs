@@ -25,7 +25,15 @@ public sealed partial class BattleSession
         byte duration = unchecked((byte)packet.ScalarWord8);
         if (duration != 0)
         {
-            events.Add(message with { Frame = Frame, Amount = duration, NativeMessageMode = (byte)packet.Value });
+            BattleEvent published = message with { Frame = Frame, Amount = duration, NativeMessageMode = (byte)packet.Value };
+            if (hostedTerminal is not null)
+            {
+                (hostedFrameServices ?? throw new InvalidOperationException("Hosted native text requires the active frame receipt owner.")).EmitDescriptorText(published);
+            }
+            else
+            {
+                events.Add(published);
+            }
         }
         return graphics;
     }

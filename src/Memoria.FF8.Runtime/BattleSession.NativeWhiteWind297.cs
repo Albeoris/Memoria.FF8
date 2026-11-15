@@ -16,6 +16,7 @@ public sealed partial class BattleSession
         NativeBattleWhiteWind297Inputs inputs = new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleWhiteWind297Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Blue Magic White Wind requires its published projection."), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Blue Magic White Wind requires its original interpolation constants."), Deliver));
         inputs = inputs with
         {
+            StorageContract = graphics.Effects.StorageContract,
             ReadMinimumY = actor => ReadNativeGraphicsForeignTarget(graphics, actor)?.LocalBounds.Minimum.Y ?? graphics.ActorModels.Get(actor).MinimumY146 ?? throw new NotSupportedException("Blue Magic White Wind requires the actor's actual minimum posed height."),
             EmitNodePresentation = (current, source, context, node, identity) => NativeBattleWhiteWind297Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Blue Magic White Wind requires its published projection."), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Blue Magic White Wind requires its original interpolation constants."), Deliver, pilotIdentity: identity)
         };

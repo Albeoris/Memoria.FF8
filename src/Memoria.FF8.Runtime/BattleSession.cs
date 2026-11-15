@@ -267,9 +267,9 @@ public sealed partial class BattleSession
 
     private bool ExpandedTimedLimitOwnsInput => nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0 || nativeDuelProcesses.Count != 0;
 
-    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && expandedGuardianFormEntry is null && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
+    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && !HasPendingExpandedTerminal && deferredExpandedTerminalOutcome is null && expandedGuardianFormEntry is null && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
 
-    private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
+    private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedTerminal && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
 
     private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && CanAdvanceTurnBasedTime && nativeShotProcesses.Count == 0 && nativeDuelProcesses.Count == 0 && nativeRenzokukenProcesses.Count == 0 && HasAutomaticTurnWaiter;
 
@@ -293,7 +293,7 @@ public sealed partial class BattleSession
         }
         bool advancingExpandedEscape = HasPendingExpandedEscape;
         AdvanceNativeEscapeFrame();
-        if (advancingExpandedEscape || HasPendingExpandedEscape)
+        if (advancingExpandedEscape || HasPendingExpandedEscape || HasPendingExpandedTerminal)
         {
             return;
         }
@@ -344,13 +344,23 @@ public sealed partial class BattleSession
         {
             throw new ArgumentOutOfRangeException(nameof(maxFrames));
         }
+        if (expandedEffect is not null || expandedHostedEvent is not null || !CanExplicitlyAdvanceTurn)
+        {
+            return 0;
+        }
+        if (expandedPresentationProcess is not null && DetermineOutcome() != BattleOutcome.Active)
+        {
+            CompleteBattleIfNeeded();
+            return 0;
+        }
         HashSet<string> waiting = combatants.Where(actor => IsNativeBattleCapable(actor) && !actor.Suspended && (!actor.IsBusy || guardianForceCasts.ContainsKey(actor.Id) && (actor.NativeCombatantFlags & 0x400) == 0) && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
-        if (expandedEffect is not null || expandedHostedEvent is not null || !CanExplicitlyAdvanceTurn || waiting.Count == 0)
+        if (waiting.Count == 0)
         {
             return 0;
         }
         // Logical time runs on owned state so a bounded failure cannot publish partially advanced gauges or effects.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
+        candidate.deferExpandedHostedTerminal = expandedPresentationProcess is not null;
         if (nativeBattleClock is not null && expandedPresentationProcess is not null)
         {
             candidate.expandedTurnClockObservation = ExpandedClockUi ?? throw new InvalidDataException("Hosted turn advance requires its initialized UI services.");
@@ -366,6 +376,13 @@ public sealed partial class BattleSession
             (next, count) =>
             {
                 next.AwaitAdvancedEnemyTurn(waiting, maxFrames - count);
+                if (next.deferredExpandedTerminalOutcome is BattleOutcome outcome)
+                {
+                    ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("The prepared terminal result lost its attached presentation owner.");
+                    ExpandedBattlePresentationProcess.PreparedTerminal preparation = process.PrepareTerminal(this, outcome);
+                    PublishAdvanceTurnCandidateWithTerminal(next, process, preparation);
+                    return;
+                }
                 PublishCandidate(next);
             },
             $"No living unready combatant became ready within {maxFrames} dispatched battle frames.");
@@ -393,7 +410,7 @@ public sealed partial class BattleSession
     public void InstantVictory()
     {
         RequireNoPendingSlotsDeal();
-        if (Outcome != BattleOutcome.Active)
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal)
         {
             throw new InvalidOperationException("Debug victory requires an active battle.");
         }
@@ -411,7 +428,7 @@ public sealed partial class BattleSession
     public void InstantDefeat()
     {
         RequireNoPendingSlotsDeal();
-        if (Outcome != BattleOutcome.Active)
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal)
         {
             throw new InvalidOperationException("Debug defeat requires an active battle.");
         }
@@ -525,6 +542,11 @@ public sealed partial class BattleSession
 
     public static BattleSession Restore(BattleSnapshot snapshot, IEnumerable<IBattleStatusEffectHandler>? additionalHandlers = null)
     {
+        return RestoreSnapshot(snapshot, additionalHandlers, null);
+    }
+
+    private static BattleSession RestoreSnapshot(BattleSnapshot snapshot, IEnumerable<IBattleStatusEffectHandler>? additionalHandlers, HostedBattleTerminal? preparedTerminal)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
         try
         {
@@ -541,7 +563,7 @@ public sealed partial class BattleSession
             session.originalParticipantSlotsInitialized = snapshot.OriginalParticipantSlotsInitialized;
             session.RestoreNativeEntry(snapshot);
             session.RestoreNativeCamera(snapshot);
-            session.RestoreValidated(snapshot);
+            session.RestoreValidated(snapshot, preparedTerminal);
             session.ValidateBattleMagicSnapshot();
             session.RefreshPreparedPresentation();
             return session;
@@ -567,6 +589,10 @@ public sealed partial class BattleSession
     private HashSet<string> DispatchFrameCore(bool advanceGraphics, bool advanceFrame)
     {
         HashSet<string> becameReady = [];
+        if (HasPendingExpandedTerminal)
+        {
+            return becameReady;
+        }
         if (advanceGraphics)
         {
             AdvanceNativeGraphicsFrame();
@@ -609,7 +635,7 @@ public sealed partial class BattleSession
         }
         CancelDeadActions();
         CompleteBattleIfNeeded();
-        if (Outcome != BattleOutcome.Active || HasPendingNativeOutcome)
+        if (Outcome != BattleOutcome.Active || HasPendingNativeOutcome || HasPendingExpandedTerminal)
         {
             return becameReady;
         }
@@ -1177,6 +1203,10 @@ public sealed partial class BattleSession
 
     private void CompleteBattleIfNeeded()
     {
+        if (HasPendingExpandedTerminal || deferredExpandedTerminalOutcome is not null)
+        {
+            return;
+        }
         if (UsesExpandedRoster)
         {
             CompleteExpandedAiRemovals();
@@ -1232,6 +1262,16 @@ public sealed partial class BattleSession
                 return;
             }
         }
+        if (DebugOutcome is null && OwnsExpandedTerminal)
+        {
+            AdmitExpandedHostedTerminal(outcome);
+            return;
+        }
+        FinalizeBattleOutcome(outcome);
+    }
+
+    private void FinalizeBattleOutcome(BattleOutcome outcome)
+    {
         if (UsesExpandedRoster)
         {
             ReleaseExpandedActionPresentation();
@@ -1477,7 +1517,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RestoreValidated(BattleSnapshot snapshot)
+    private void RestoreValidated(BattleSnapshot snapshot, HostedBattleTerminal? preparedTerminal)
     {
         DiagnosticRestoreCount++;
         ResetDiagnosticCounterOwners();
@@ -1673,7 +1713,9 @@ public sealed partial class BattleSession
         bool awaitingDiagnosticRearm = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held } heldOutcome && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == heldOutcome.Declaration.Candidate;
         bool awaitingExpandedShotEnding = UsesExpandedRoster && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == BattleOutcome.Victory && snapshot.NativeLimits?.Any(limit => limit?.Shot is { Phase: BattleNativeShotPhase.Ready } shot && ReadExpandedShotTarget(shot) is not null) == true;
         bool awaitingExpandedDuelEnding = UsesExpandedRoster && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == BattleOutcome.Victory && snapshot.NativeLimits?.Any(limit => limit?.Duel is { } duel && ReadExpandedDuelTarget(duel) is not null) == true;
-        if ((!awaitingNativeOutcomeAdmission && !awaitingDiagnosticRearm && !awaitingExpandedShotEnding && !awaitingExpandedDuelEnding && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
+        // The privately validated Advance Turn candidate can reach a terminal roster before the hosted graphics run.
+        bool awaitingPreparedHostedTerminal = preparedTerminal is { } terminal && UsesExpandedRoster && NativeGraphics is null && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == terminal.Outcome;
+        if ((!awaitingNativeOutcomeAdmission && !awaitingDiagnosticRearm && !awaitingExpandedShotEnding && !awaitingExpandedDuelEnding && !awaitingPreparedHostedTerminal && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
             throw new InvalidDataException("Battle outcome contradicts living actors or outstanding actions.");
         }
@@ -1892,10 +1934,26 @@ public sealed partial class BattleSession
         return actor.IsPlayer && actor.NativeCommandSlots.Length == 4 && !actor.NativeCommandSlots.Contains(command) && actor.MagicRecordId is int row && definition.MagicVitals is { } vitals && (uint)row < vitals.Records.Length && vitals.GetReservedBattleCommand(row) == command;
     }
 
+    private void PublishAdvanceTurnCandidateWithTerminal(BattleSession candidate, ExpandedBattlePresentationProcess process, ExpandedBattlePresentationProcess.PreparedTerminal preparation)
+    {
+        if (!ReferenceEquals(expandedPresentationProcess, process) || candidate.deferredExpandedTerminalOutcome != preparation.Terminal.Outcome)
+        {
+            throw new InvalidOperationException("The prepared terminal result differs from its logical candidate.");
+        }
+        process.ValidateTerminal(preparation);
+        PublishValidatedCandidate(candidate, preparation.Terminal);
+        PublishExpandedHostedTerminal(process, preparation);
+    }
+
     private void PublishCandidate(BattleSession candidate)
     {
+        PublishValidatedCandidate(candidate, null);
+    }
+
+    private void PublishValidatedCandidate(BattleSession candidate, HostedBattleTerminal? terminal)
+    {
         BattleSnapshot candidateSnapshot = candidate.Capture();
-        candidate = Restore(candidateSnapshot);
+        candidate = RestoreSnapshot(candidateSnapshot, null, terminal);
         DiagnosticResetCount++;
         ResetDiagnosticCounterOwners();
         CopyCandidateState(candidate, candidateSnapshot);

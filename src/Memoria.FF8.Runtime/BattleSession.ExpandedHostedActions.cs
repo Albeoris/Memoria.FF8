@@ -194,6 +194,9 @@ public sealed partial class BattleSession
                 case NativeBattleModelTextPublished text:
                     events.Add(new BattleEvent(Frame, "NativeText", text.ActorId, null, text.Value, text.Text) { NativeMessageMode = 3, NativeTextIdentity = text.TextIdentity });
                     break;
+                case NativeBattlePresentationDescriptorText descriptorText:
+                    events.Add(descriptorText.Message with { Frame = Frame });
+                    break;
                 case NativeBattleModelParticipantReleased released:
                     AcknowledgeExpandedModelRelease(RequireExpandedLifecycleRoster(), released);
                     break;
@@ -205,6 +208,12 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattlePresentationCompletionRequested completion:
                     CompleteExpandedHostedEvent(completion, actionToken);
+                    break;
+                case NativeBattleTerminalEntered entered:
+                    AcknowledgeHostedTerminalEntry(entered);
+                    break;
+                case NativeBattleTerminalFinished finished:
+                    AcknowledgeHostedTerminalFinish(finished);
                     break;
                 default:
                     // TODO(TD-009): Finish the remaining hosted lifecycle acknowledgements before App attachment.
