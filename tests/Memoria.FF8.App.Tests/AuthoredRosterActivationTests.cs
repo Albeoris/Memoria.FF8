@@ -78,6 +78,16 @@ public sealed class AuthoredRosterActivationTests
             Assert.Equal(2, replacement.SceneSlot);
             Assert.NotNull(replacement.ResolvedNativeLevel);
             Assert.Single(battle.Events, entry => entry.Kind == "NativeSpawn" && entry.ActorId == predecessor.Id && entry.TargetId == replacement.Id);
+            Assert.Contains(battle.Events, entry => entry.Kind == "NativeText" && entry.ActorId == predecessor.Id);
+
+            BattleSnapshot checkpoint = battle.Capture();
+            BattleSession restored = BattleSession.Restore(checkpoint);
+            BattleCombatant restoredReplacement = restored.Combatants.Single(actor => actor.Id == replacement.Id);
+            Assert.Equal(replacement.NativeActorIndex, restoredReplacement.NativeActorIndex);
+            Assert.Equal(replacement.ResolvedNativeLevel, restoredReplacement.ResolvedNativeLevel);
+            Assert.Equal(replacement.AiTurnCount, restoredReplacement.AiTurnCount);
+            Assert.Equal(replacement.CurrentHp, restoredReplacement.CurrentHp);
+            Assert.Equal(checkpoint.Random!.Indexes.ToArray(), restored.Capture().Random!.Indexes.ToArray());
             world.Dispose();
         }
         catch

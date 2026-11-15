@@ -29,6 +29,12 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(effect, world => BlueMagicScenario(world, effect), contacts);
     }
 
+    [Fact]
+    public void Installed_level_death_publishes_all_enemy_blue_magic_contacts()
+    {
+        VerifyScenario(74, world => BlueMagicScenario(world, 74), 5);
+    }
+
     private static void VerifyScenario(ushort effect, Func<GameWorld, DiagnosticBattleRequest> createScenario, int expectedContacts = 11)
     {
         string directory = TestResources.GameDirectory;
@@ -188,6 +194,7 @@ public sealed class ExpandedNativePresentationTests
             71 => (25, 2, 14, 1, 0, [(825, 2), (40, 3), (574, 1), (183, 1)]),
             72 => (605, 114, 33, 0, 5, [(391, 0), (666, 0), (679, 0), (834, 1)]),
             73 => (59, 12, 15, 1, 13, [(535, 0), (281, 0), (538, 0), (527, 1)]),
+            74 => (655, 128, 6, 0, 3, [(657, 0), (570, 0), (529, 0), (112, 0)]),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
         };
         var (formation, stage, model, slot, action, donorSlots) = scenario;
