@@ -5,6 +5,47 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattlePacketBatchWordsTests
 {
+    [Theory]
+    [InlineData(0x64000000u)]
+    [InlineData(0x66000000u)]
+    public void Rectangle_CLUT_is_ignored_only_with_an_explicit_direct_color_draw_mode(uint command)
+    {
+        const int cursor = 16;
+        uint[] words = [0x04000000, command, 0, 0xBBAAFFFF, 0x00200020];
+        byte[] bytes = new byte[20];
+        for (int word = 0; word < words.Length; word++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(word * 4), words[word]);
+        }
+        var mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray()
+            .SetItem(14, NativeBattleGfPacketByteState.Untouched).SetItem(15, NativeBattleGfPacketByteState.Untouched);
+        NativeBattleGeometryPrimitive primitive = new(17, words.ToImmutableArray(), []) { PacketReadDrawMode = 0xE1000100 };
+        NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), mask, primitive);
+        NativeBattleGfGeometryBatch source = new([attempt], 20);
+        NativeBattleGfGeometryBatch direct = NativeBattlePacketBatchWords.ResolveWithKnownness(source, cursor, 128, _ => throw new InvalidOperationException());
+        Assert.Equal(0x0000FFFFu, direct.Attempts[0].Primitive!.Words[3]);
+        Assert.Equal(attempt.Data, direct.Attempts[0].Data);
+        Assert.Equal(mask, direct.Attempts[0].WriteMask);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(cursor + 14, [0xA1, 0xB2]).MarkUnknown(cursor + 14, 2);
+        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, cursor, NativeBattleLogicalOrdering.Clear(), direct);
+        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(written.Memory.Arena!));
+        (byte[] retained, bool[] known) = restored.ReadSnapshot(cursor + 14, 2);
+        Assert.Equal(new byte[] { 0xA1, 0xB2 }, retained);
+        Assert.DoesNotContain(true, known);
+
+        NativeBattleGfGeometryBatch paletted = WithMode(0xE1000080);
+        Assert.Throws<NotSupportedException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(paletted, cursor, 128, _ => (0, false)));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(WithMode(null), cursor, 128, _ => (0, false)));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(WithMode(0xE2000100), cursor, 128, _ => (0, false)));
+        NativeBattleGfGeometryBatch indexed = NativeBattlePacketBatchWords.ResolveWithKnownness(paletted, cursor, 128, address => (address == cursor + 14 ? (byte)0x3C : (byte)0x4D, true));
+        Assert.Equal(0x4D3CFFFFu, indexed.Attempts[0].Primitive!.Words[3]);
+
+        NativeBattleGfGeometryBatch WithMode(uint? mode)
+        {
+            return source with { Attempts = [attempt with { Primitive = primitive with { PacketReadDrawMode = mode } }] };
+        }
+    }
+
     [Fact]
     public void Unchanged_logical_words_reuse_the_original_batch_attempt_and_primitive_after_retained_reads()
     {

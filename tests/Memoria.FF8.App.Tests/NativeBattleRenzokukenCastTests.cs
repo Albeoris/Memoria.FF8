@@ -1,5 +1,4 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -14,7 +13,7 @@ public sealed class NativeBattleRenzokukenCastTests
     }
 
     [Fact]
-    public void Installed_original160_completes_four_authored_contacts_and_standalones()
+    public void Installed_original160_completes_four_authored_contacts_and_private_continuation()
     {
         Installed_selected_Renzokuken_completes_original_effect_and_standalones(160, 4, 1);
     }
@@ -50,118 +49,132 @@ public sealed class NativeBattleRenzokukenCastTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId);
-        BattleDefinition definition = source with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), Combatants = [source.Combatants[0], source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) }] };
+        BattleCombatantDefinition ifrit = source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) };
+        BattleDefinition definition = source with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeCommandNames = assets.ReadNativeCommandNames(), Combatants = [source.Combatants[0], ifrit] };
+        if (effectId == 160)
+        {
+            BattleCombatantDefinition zell = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effectId).Combatants[0] with { Id = "party-1", InitialAtb = 0 };
+            BattleCombatantDefinition irvine = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, effectId).Combatants[0] with { Id = "party-2", InitialAtb = 0 };
+            BattleCombatantDefinition[] actors = [definition.Combatants[0], zell, irvine, ifrit];
+            definition = definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)) };
+        }
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition, true);
-        string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "renzokuken-" + effectId + "-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(output);
-        Console.WriteLine("Renzokuken evidence: " + output);
-        BattleSnapshot before = battle.Capture();
         int capturedFrames = 0;
-        try
+        for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {
-            for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
+            battle.Tick();
+        }
+        Assert.True(battle.CanChoosePlayerCommand("party"));
+        if (effectId == 160)
+        {
+            Assert.False(battle.UsesExpandedRoster);
+            Assert.Equal(new[] { 0, 1, 2 }, battle.Combatants.Where(ally => ally.IsPlayer).Select(ally => ally.ModelId));
+            string[] partyIds = ["party", "party-1", "party-2"];
+            for (byte slot = 0; slot < partyIds.Length; slot++)
             {
-                before = battle.Capture();
-                battle.Tick();
+                BattleModelOwner owner = battle.ReadPresentationModelOwner(partyIds[slot]);
+                Assert.Same(battle.NativeGraphics!.ActorModels.Get(owner), ReadOriginalModelCell(battle.NativeGraphics, slot));
+                Assert.True(battle.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte alias));
+                Assert.Equal(slot, alias);
             }
-            Assert.True(battle.CanChoosePlayerCommand("party"));
-            //A declared component seed selects the selected original contact resource and no optional finisher.
-            NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
-            {
-                candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
-                return definition.Combatants[1].NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
-            });
-            BattleSnapshot ready = battle.Capture();
-            const uint transitionColor = 0x00312617;
-            battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
-            const int actorIndex = 0;
-            uint? shadowColor = ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44;
-            Assert.NotNull(shadowColor);
-            uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
-            bool interpolatedCurrentStageColor = false;
-            Publish("before-command");
-            battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
-            CompareNext("queued");
-            Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
-            bool selected = false;
+        }
+        //A declared component seed selects the selected original contact resource and no optional finisher.
+        NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
+        {
+            candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
+            return ifrit.NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
+        });
+        BattleSnapshot ready = battle.Capture();
+        const uint transitionColor = 0x00312617;
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } }));
+        const int actorIndex = 0;
+        uint? shadowColor = ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44;
+        Assert.NotNull(shadowColor);
+        uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
+        bool interpolatedCurrentStageColor = false;
+        battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
+        CompareNext();
+        Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
+        bool selected = false;
 
-            bool registeredCamera = false;
-            bool capturedMidpoint = false;
-            for (int callback = 0; callback < 4096; callback++)
+        bool registeredCamera = false;
+        bool capturedMidpoint = false;
+        for (int callback = 0; callback < 4096; callback++)
+        {
+            battle.Tick();
+            Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
+            interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color40 == interpolatedColor;
+            selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+            if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
             {
-                before = battle.Capture();
-                battle.Tick();
-                Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
-                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color40 == interpolatedColor;
-                selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
-                if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
-                {
-                    capturedFrames++;
-                }
-                if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
-                {
-                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
-                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
-                    Assert.Null(battle.NativeCamera.ControlStagingSource);
-                    registeredCamera = true;
-                }
-                if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
-                {
-                    CompareNext("midpoint");
-                    capturedMidpoint = true;
-                }
-                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
-                {
-                    if (effectId is 141 or 160 or 259 or 332 or 333)
-                    {
-                        Assert.True(capturedFrames > 1);
-                    }
-                    Assert.True(capturedMidpoint);
-                    Assert.True(registeredCamera);
-                    Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
-                    Assert.Equal(contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
-                    Assert.Null(battle.Capture().NativeTimedAction);
-                    Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
-                    CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, NativeCallback = battle.NativeGraphics.Callback }));
-                    return;
-                }
+                capturedFrames++;
             }
-            Assert.Fail("Renzokuken did not release its original task and timed command owners within the diagnostic bound.");
+            if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
+            {
+                NativeBattleEffectAnimationRegisters registers = Assert.IsType<NativeBattleEffectAnimationRegisters>(battle.NativeEffectMemory!.Textures!.Animation);
+                NativeBattleEffectAnimationRegisters camera = Assert.IsType<NativeBattleEffectAnimationRegisters>(battle.NativeCamera!.ControlResource);
+                Assert.Equal((registers.BaseOffset, registers.StreamOffset, registers.ModelTableOffset), (camera.BaseOffset, camera.StreamOffset, camera.ModelTableOffset));
+                Assert.Equal(registers.Source.Identity, camera.Source.Identity);
+                Assert.Equal(registers.Source.Data, camera.Source.Data);
+                Assert.Null(battle.NativeCamera.ControlStagingSource);
+                registeredCamera = true;
+            }
+            if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
+            {
+                CompareNext();
+                capturedMidpoint = true;
+            }
+            if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
+            {
+                if (effectId is 141 or 160 or 259 or 332 or 333)
+                {
+                    Assert.True(capturedFrames > 1);
+                }
+                Assert.True(capturedMidpoint);
+                Assert.True(registeredCamera);
+                Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
+                Assert.Equal(contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
+                Assert.Null(battle.Capture().NativeTimedAction);
+                Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
+                CompareNext();
+                return;
+            }
         }
-        catch (Exception error)
-        {
-            NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
-            NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
-            throw;
-        }
+        Assert.Fail("Renzokuken did not release its original task and timed command owners within the diagnostic bound.");
 
-        void Publish(string name)
+        void CompareNext()
         {
-            NativeBattleRestorationPresentationTests.Publish(output, name, battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-        }
-
-        void CompareNext(string name)
-        {
-            Publish(name);
-            BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!);
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            before = battle.Capture();
+            BattleSnapshot snapshot = battle.Capture();
+            BattleSession clone = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot));
+            CompareState(battle, clone);
             battle.Tick();
             clone.Tick();
-            if (effectId is 141 or 160 or 259 or 332 or 333)
+            if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
             {
-                if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
-                {
-                    capturedFrames++;
-                }
-                _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+                capturedFrames++;
             }
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
-            Publish(name + "-next");
+            _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            CompareState(battle, clone);
+            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224));
+        }
+
+        static void CompareState(BattleSession actual, BattleSession copy)
+        {
+            BattleSnapshot expected = actual.Capture();
+            BattleSnapshot observed = copy.Capture();
+            Assert.Equal(expected.Frame, observed.Frame);
+            Assert.Equal(expected.Outcome, observed.Outcome);
+            Assert.Equal(expected.NativeGraphics!.Callback, observed.NativeGraphics!.Callback);
+            Assert.Equal(expected.NativeTimedAction, observed.NativeTimedAction);
+            Assert.Equal(expected.NativeLimits.Select(limit => limit.Renzokuken), observed.NativeLimits.Select(limit => limit.Renzokuken));
+            Assert.Equal(expected.NativeBattleUiRandom, observed.NativeBattleUiRandom);
+            NativeBattleRandomState expectedRandom = Assert.IsType<NativeBattleRandomState>(expected.Random);
+            NativeBattleRandomState observedRandom = Assert.IsType<NativeBattleRandomState>(observed.Random);
+            Assert.Equal(expectedRandom.Lane, observedRandom.Lane);
+            Assert.Equal(expectedRandom.Indexes, observedRandom.Indexes);
+            Assert.Equal(actual.Events, copy.Events);
+            Assert.Equal(actual.NativeActionPackets.PublishedHeaders(), copy.NativeActionPackets.PublishedHeaders());
         }
     }
 }

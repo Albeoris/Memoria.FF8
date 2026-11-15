@@ -6,6 +6,7 @@ public sealed partial class BattleSession
 
     private BattleOutcome PendingNativeOutcome => NativeGraphics?.NativeOutcome?.ResultByte6E7 switch
     {
+        1 when nativeScriptState.ScriptedExitRequested => BattleOutcome.ScriptedExit,
         1 => BattleOutcome.Defeat,
         2 => BattleOutcome.Escaped,
         4 => BattleOutcome.Victory,

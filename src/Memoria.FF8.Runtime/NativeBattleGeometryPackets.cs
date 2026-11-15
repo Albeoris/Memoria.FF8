@@ -6,6 +6,9 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleGeometryPacket(int Bucket, NativeBattlePrimitivePacket Packet, ImmutableArray<int> VertexPayload4);
 public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal uint? PacketReadDrawMode { get; init; }
+
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsesModelMaterial { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

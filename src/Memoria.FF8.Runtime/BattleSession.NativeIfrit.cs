@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     private BattleModelOwner? GuardianFormEntryCaster(NativeBattleGraphicsState graphics)
     {
         return hostedGuardianFormMode == GuardianFormInvocationMode.EntryOnly ? presentationSourceOwner :
-            graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } form ? form.Actor : null;
+            graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly, Phase: < 3 } form && graphics.OriginalEffect?.Binding.Effect == 201 ? form.Actor : null;
     }
 
     private NativeBattleGraphicsState EnterNativeCinematic(NativeBattleGraphicsState graphics)
@@ -91,8 +91,10 @@ public sealed partial class BattleSession
         NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
         NativeBattleGuardianFormPresentation? continuation = graphics.GuardianFormPresentation;
         bool nativeContinuation = continuation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } && ActiveAction is { GuardianFormInvocation: { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation } currentAction && currentAction.ActorId == continuation.ActorId && invocation.Id == continuation.InvocationId;
+        bool attachedContinuation = continuation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } &&
+            hostedFrameServices?.GuardianForm is { Finishing: true, Form: { } form } && form.Actor == continuation.Actor && form.InvocationId == continuation.InvocationId;
         bool hostedContinuation = hostedGuardianFormMode == GuardianFormInvocationMode.FinisherWithoutEntry && !hostedGuardianFormContinued;
-        if (effect.Binding.Effect == 201 && (nativeContinuation || hostedContinuation))
+        if (effect.Binding.Effect == 201 && (nativeContinuation || attachedContinuation || hostedContinuation))
         {
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleWaterTemporaryFrame temporary = NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress);
@@ -105,7 +107,7 @@ public sealed partial class BattleSession
             NativeCamera = NativeCamera!.PublishProjection(graphics.Flags, EncounterCameraElevation);
             input = input with { ViewMatrix = MatrixBytes(NativeCamera.Projection!.View!) };
             hostedGuardianFormContinued |= hostedContinuation;
-            if (nativeContinuation)
+            if (nativeContinuation || attachedContinuation)
             {
                 graphics = graphics with { GuardianFormPresentation = continuation! with { Phase = 5 } };
             }

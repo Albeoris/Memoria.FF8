@@ -109,17 +109,13 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = loadedModels };
                     return current;
                 case NativeBattleEffect76WaveRequest46CBB0 wave:
-                    NativeBattleFileAudioRequest request = NativeBattleFileAudioRequest.Create46CBB0(NativeGlobalSoundProcess ?? throw new NotSupportedException("Effect76 requires its current sound process."), wave.Channel, wave.ResourceName, wave.Gain);
-                    events.Add(new(Frame, "NativeFileAudio", null, null, 0, string.Empty) { NativeFileAudio = request });
+                    PublishNativeEffect76WaveRequest(wave);
                     return current;
                 case NativeBattleEffect76Sequence505C00 sequence:
                     graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleEffect76Text4876F0 text:
-                    BattleCombatant actor = GraphicsActor(graphics, text.Actor);
-                    string message = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new NotSupportedException("Effect76 requires its original actor text resource.")).Resource.ReadText91(text.Index);
-                    StopTurnAdvance();
-                    graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", actor.Id, null, text.Duration, message) { NativeMessageMode = 3 }, 0, 240);
+                    graphics = QueueNativeEffect76Text(graphics, text);
                     return current;
                 case NativeBattleEffect76Sound501330 sound:
                     if (sound.SourceAddress != SoundAddress)
@@ -195,5 +191,40 @@ public sealed partial class BattleSession
                     throw new NotSupportedException($"Effect76 emitted unsupported service {operation.GetType().Name}.");
             }
         }
+    }
+
+    private void PublishNativeEffect76WaveRequest(NativeBattleEffect76WaveRequest46CBB0 wave)
+    {
+        NativeBattleFileAudioRequest request = NativeBattleFileAudioRequest.Create46CBB0(NativeGlobalSoundProcess ?? throw new NotSupportedException("Effect76 requires its current sound process."), wave.Channel, wave.ResourceName, wave.Gain);
+        if (hostedBattlePresentation)
+        {
+            (hostedFrameServices ?? throw new InvalidOperationException("Hosted Effect76 audio requires its current frame receipt owner.")).EmitFileAudio(request);
+        }
+        else
+        {
+            events.Add(new(Frame, "NativeFileAudio", null, null, 0, string.Empty) { NativeFileAudio = request });
+        }
+    }
+
+    private NativeBattleGraphicsState QueueNativeEffect76Text(NativeBattleGraphicsState graphics, NativeBattleEffect76Text4876F0 text)
+    {
+        if (hostedBattlePresentation)
+        {
+            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted Effect76 text requires its current frame facts.");
+            NativeBattleModelActorFacts facts = RequireHostedContactActorFacts(graphics, services, text.Actor);
+            NativeBattleGraphicsResource resource = ReadOriginalPresentationModelResource(text.Actor) ?? throw new NotSupportedException("Effect76 requires its original actor text resource.");
+            BattleEvent message = new(Frame, "NativeText", facts.ActorId, null, text.Duration, resource.ReadText91(text.Index)) { NativeMessageMode = 3 };
+            if (!facts.IsParty)
+            {
+                message = message with { NativeTextIdentity = BattleTextIdentity.Enemy(facts.OriginalModelId, text.Index) };
+            }
+            NativeBattleGraphicsState queued = QueueNativeDescriptorMessage(graphics, message, 0, 240);
+            services.Emit(new NativeBattleModelTurnAdvanceStopRequested(text.Actor, facts.ActorId));
+            return queued;
+        }
+        BattleCombatant actor = GraphicsActor(graphics, text.Actor);
+        string original = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new NotSupportedException("Effect76 requires its original actor text resource.")).Resource.ReadText91(text.Index);
+        StopTurnAdvance();
+        return QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", actor.Id, null, text.Duration, original) { NativeMessageMode = 3 }, 0, 240);
     }
 }

@@ -27,6 +27,7 @@ public sealed partial class BattleSession
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.nativeAffinityAction = nativeAffinityAction;
         candidate.preparingExpandedHostedAction = true;
+        candidate.stagingExpandedHostedGuardianForms = true;
         candidate.producingExpandedAiCallback = true;
         ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
         candidate.producingExpandedAiInvocation = reservation;
@@ -52,7 +53,8 @@ public sealed partial class BattleSession
         candidate.ValidateExpandedHostedInvocations(planned);
         ImmutableArray<ExpandedHostedOperation> suffix = candidate.expandedHostedOperations.RemoveAt(0);
         ImmutableArray<HostedDispatchHeader> headers = suffix.OfType<ExpandedHostedInvocation>().Select(write => new HostedDispatchHeader(write.Header, write.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();
-        PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian, allocations);
+        PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
+        PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian, allocations, form);
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
         ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, replacement.ReplacementPackets.Roster);
 
@@ -79,6 +81,7 @@ public sealed partial class BattleSession
             expandedPresentedOccurrences.Clear();
         }
         process.CommitRecomputedContacts(replacement);
+        PublishHostedGuardianFormAudio(form);
     }
 
     private static ImmutableArray<ExpandedHostedOperation> BindExpandedRecomputeSuffix(ImmutableArray<ExpandedHostedOperation> operations, ImmutableArray<ExpandedHostedOperation> suffix, PreparedHostedContactReplacement prepared, BattleModelRoster roster)

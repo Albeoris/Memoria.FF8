@@ -66,6 +66,10 @@ public sealed partial class BattleSession
         try
         {
             BeginNativeHostPause();
+            if (services.GuardianForm is { Finishing: true } && NativeGraphics?.GuardianFormPresentation is { SkipRequested: true } && HostedGuardianBoost is { Phase: not 6 })
+            {
+                SettleGuardianFormSkipBoost();
+            }
             if (beforeCore is null)
             {
                 hostedFrameServices = services;

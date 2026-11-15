@@ -33,8 +33,9 @@ public sealed partial class BattleSession
     private ImmutableArray<HostedControlPacket> hostedControlPackets = [];
     internal sealed record HostedDispatchAction(HostedPresentationInvocation Invocation, BattleModelOwner SourceOwner, NativeBattleGraphicsResource Source, byte? ModelId, bool IsParty, int PartyActorCount);
 
-    internal sealed class PreparedHostedDispatch(BattleSession owner, NativeBattleGraphicsState graphics, NativeBattleActionPacketsState originalPackets, long epoch, long nextEpoch, long issuedAction, long issuedCompletion, NativeBattleGraphicsState admitted, NativeBattleActionPacketsState packets, HostedDispatchAction? action, HostedCompletionInvocation? completion, PreparedHostedCompletionAck? acknowledgment, ImmutableArray<BattleActionHeaderReference> appendedHeaders, ImmutableArray<HostedControlPacket> controls, PreparedHostedModelRegistry? registry, NativeBattleDuelSelectionReached? duelSelection, NativeBattleRenzokukenFinisherReached? renzokukenFinisher)
+    internal sealed class PreparedHostedDispatch(BattleSession owner, NativeBattleGraphicsState graphics, NativeBattleActionPacketsState originalPackets, long epoch, long nextEpoch, long issuedAction, long issuedCompletion, NativeBattleGraphicsState admitted, NativeBattleActionPacketsState packets, HostedDispatchAction? action, HostedCompletionInvocation? completion, PreparedHostedCompletionAck? acknowledgment, ImmutableArray<BattleActionHeaderReference> appendedHeaders, ImmutableArray<HostedControlPacket> controls, PreparedHostedModelRegistry? registry, NativeBattleDuelSelectionReached? duelSelection, NativeBattleRenzokukenFinisherReached? renzokukenFinisher, PreparedHostedGuardianFormChange? guardianForm)
     {
+        internal PreparedHostedGuardianFormChange? GuardianForm { get; } = guardianForm;
         internal BattleSession Owner { get; } = owner;
         internal NativeBattleGraphicsState Graphics { get; } = graphics;
         internal NativeBattleActionPacketsState OriginalPackets { get; } = originalPackets;
@@ -54,7 +55,7 @@ public sealed partial class BattleSession
         internal NativeBattleRenzokukenFinisherReached? RenzokukenFinisher { get; } = renzokukenFinisher;
     }
 
-    internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, HostedRenzokukenFinisherReplacement? renzokukenFinisher = null)
+    internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, HostedRenzokukenFinisherReplacement? renzokukenFinisher = null, PreparedHostedGuardianFormChange? guardianForm = null)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null && acknowledgment is null ||
@@ -70,7 +71,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted dispatch requires explicit headers and a dispatch or acknowledgement.");
         }
-        PreparedHostedModelRegistry? allocationRegistry = PrepareHostedModelRegistry(graphics, allocations);
+        NativeBattleGraphicsState originalGraphics = graphics;
+        if (guardianForm is not null)
+        {
+            ValidatePreparedHostedGuardianFormChange(guardianForm);
+            graphics = guardianForm.Staged.RequireNativeGraphics();
+        }
+        BattleSession native = guardianForm?.Staged ?? this;
+        PreparedHostedModelRegistry? allocationRegistry = native.PrepareHostedModelRegistry(graphics, allocations);
         HostedModelRegistry? registry = allocationRegistry?.Replacement ?? hostedModelRegistry;
         BattleModelRoster roster = registry?.Roster ?? graphics.ActorModels.Roster;
         if (acknowledgment is not null)
@@ -104,7 +112,7 @@ public sealed partial class BattleSession
         {
             packets = packets.WithRoster(roster, aliases);
         }
-        (packets, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, packets, append, publishEventHeaders, registry);
+        (packets, ImmutableArray<BattleActionHeaderReference> appended) = native.AppendHostedHeaders(graphics, packets, append, publishEventHeaders, registry);
         if (dispatchAppended)
         {
             headerReference = appended[0];
@@ -120,7 +128,7 @@ public sealed partial class BattleSession
         HostedDispatchAction? action = null;
         if (headerReference is BattleActionHeaderReference selected)
         {
-            (BattleModelOwner owner, NativeBattleGraphicsResource source) = ReadHostedDispatchSource(graphics, packets, selected, registry);
+            (BattleModelOwner owner, NativeBattleGraphicsResource source) = native.ReadHostedDispatchSource(graphics, packets, selected, registry);
             (descriptors, int slot) = descriptors.EnqueueAction(128, selected);
             HostedPresentationInvocation invocation = new(checked(lastHostedActionIssued + 1), slot, descriptors.Packets[slot].Serial, selected);
             byte? modelId = graphics.ActorModels.TryGet(owner, out NativeBattleGraphicsModel? model) ? model.ModelId4 : FindHostedAllocationBinding(registry, owner)?.ModelId;
@@ -136,7 +144,7 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsState admitted = ReferenceEquals(graphics.Descriptors, descriptors) ? graphics : graphics with { Descriptors = descriptors };
         ImmutableArray<HostedControlPacket> prefix = HostedControlPrefixRetired ? queuedControls.ToImmutable() : hostedControlPackets;
-        return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection, renzokukenFinisher?.Receipt);
+        return new(this, originalGraphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection, renzokukenFinisher?.Receipt, guardianForm);
 
         void EnqueueControls(ImmutableArray<HostedDispatchControl> operations)
         {
@@ -270,7 +278,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                (FindHostedAllocationBinding(registry, write.Header.Source)?.Resource ?? ReadOriginalPresentationModelResource(write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its original source resource.")).Validate();
+                (FindHostedAllocationBinding(registry, write.Header.Source)?.Resource ?? ReadStandingPresentationModelResource(graphics, write.Header.Source) ?? throw new InvalidDataException("Hosted action header requires its standing source resource.")).Validate();
             }
             appended.Add(reference);
         }
@@ -303,6 +311,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("The prepared dispatch no longer belongs to this idle hosted process.");
         }
+        if (prepared.GuardianForm is { } form)
+        {
+            ValidatePreparedHostedGuardianFormChange(form);
+        }
         if (prepared.Acknowledgment is { } ack)
         {
             ValidatePreparedHostedCompletionAck(ack);
@@ -311,6 +323,10 @@ public sealed partial class BattleSession
 
     internal void CommitHostedDispatch(PreparedHostedDispatch prepared)
     {
+        if (prepared.GuardianForm is { } form)
+        {
+            CommitHostedGuardianFormChange(form);
+        }
         PublishHostedModelRegistry(prepared.Registry);
         nativeActionPackets = prepared.Packets;
         NativeGraphics = prepared.Admitted;

@@ -19,6 +19,7 @@ internal sealed record NativeBattlePresentationContactReceived(NativeBattleConta
 internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationSoundCommitted(NativeBattleModuleSound Sound, string? ActorId, NativeBattleSequenceSound? Sequence) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationStopAllSoundsRequested(string Message) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationFileAudioRequested(NativeBattleFileAudioRequest Request) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattleMusicCommandReceipt Command) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationDescriptorText(BattleEvent Message) : NativeBattlePresentationReceipt;
 internal abstract record NativeBattleModelLifecycleReceipt(BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
@@ -37,6 +38,7 @@ internal sealed record NativeBattleModelTextPublished(BattleModelOwner Owner, st
 internal sealed record NativeBattleModelTurnAdvanceStopRequested(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 internal sealed record NativeBattleShotReadinessReached(HostedShotFrameOwner Shot) : NativeBattleModelLifecycleReceipt(Shot.Owner, Shot.ActorId);
 internal sealed record NativeBattleModelTriggerRegistered(BattleModelOwner Owner, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleGuardianFormLanded(BattleSession.HostedGuardianFormVisualOwner Form) : NativeBattleModelLifecycleReceipt(Form.Actor, Form.ActorId);
 
 internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)
 {
@@ -44,6 +46,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
     internal HostedNativeAllocationFrame? Allocation { get; init; }
+    internal BattleSession.HostedGuardianFormFrameFacts? GuardianForm { get; init; }
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
     internal HostedShotFrameOwner? Shot { get; init; }
     internal HostedDuelFrameOwner? Duel { get; init; }
@@ -63,6 +66,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);
     internal void EmitSound(NativeBattleModuleSound sound, string? actorId, NativeBattleSequenceSound? sequence) => receipts.Add(new NativeBattlePresentationSoundCommitted(sound, actorId, sequence));
     internal void EmitStopAllSounds(string message) => receipts.Add(new NativeBattlePresentationStopAllSoundsRequested(message));
+    internal void EmitFileAudio(NativeBattleFileAudioRequest request) => receipts.Add(new NativeBattlePresentationFileAudioRequested(request));
     internal void EmitMusicCommand(NativeBattleMusicCommandReceipt command) => receipts.Add(new NativeBattlePresentationMusicCommandCommitted(command));
     internal void EmitDescriptorText(BattleEvent message) => receipts.Add(new NativeBattlePresentationDescriptorText(message));
     internal void EmitTerminal(NativeBattleTerminalEntered receipt) => receipts.Add(receipt);

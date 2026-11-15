@@ -76,13 +76,18 @@ public sealed partial class BattleSession
         expandedHostedTerminal = null;
     }
 
-    internal NativeBattleGraphicsState PrepareHostedTerminalGraphics(HostedBattleTerminal terminal)
+    internal NativeBattleGraphicsState PrepareHostedTerminalGraphics(HostedBattleTerminal terminal, PreparedHostedGuardianFormChange? guardianForm = null)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         if (!hostedBattlePresentation || !graphics.EntryReady || hostedFrameServices is not null || hostedTerminal is not null ||
             HostedActiveActionToken is not null || hostedCompletionInvocation is not null || graphics.NativeOutcome?.ResultByte6E7 is > 0)
         {
             throw new InvalidOperationException("Hosted terminal admission requires its entered graphics owner and a drained action.");
+        }
+        if (guardianForm is not null)
+        {
+            ValidatePreparedHostedGuardianFormChange(guardianForm);
+            graphics = guardianForm.Staged.RequireNativeGraphics();
         }
         return BuildNativeTerminalGraphics(graphics, terminal.Outcome);
     }

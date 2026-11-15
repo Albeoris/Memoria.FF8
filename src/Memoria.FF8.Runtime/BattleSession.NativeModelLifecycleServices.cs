@@ -66,6 +66,7 @@ public sealed partial class BattleSession
         return new(facts.ToImmutable())
         {
             Allocation = allocation,
+            GuardianForm = CaptureExpandedHostedGuardianFormFacts(),
             Shot = CaptureExpandedHostedShotOwner(roster),
             Duel = CaptureExpandedHostedDuelOwner(),
             Renzokuken = CaptureExpandedHostedRenzokukenFrame(),
@@ -80,7 +81,7 @@ public sealed partial class BattleSession
         switch (cue.Kind)
         {
             case NativeBattleSequenceCueKind.Text:
-                NativeBattleGraphicsResource resource = ReadOriginalPresentationModelResource(owner) ?? throw new InvalidDataException("Hosted Native91 lost its original actor resource binding.");
+                NativeBattleGraphicsResource resource = ReadStandingPresentationModelResource(graphics, owner) ?? throw new InvalidDataException("Hosted Native91 lost its standing actor resource binding.");
                 services.Emit(new NativeBattleModelTextPublished(owner, actor.ActorId, resource.ReadText91(cue.First), cue.Second, actor.IsParty ? null : BattleTextIdentity.Enemy(actor.OriginalModelId, cue.First)));
                 break;
             case NativeBattleSequenceCueKind.SuspendParticipant:

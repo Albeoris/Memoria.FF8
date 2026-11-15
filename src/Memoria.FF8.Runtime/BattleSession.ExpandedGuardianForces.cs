@@ -181,8 +181,15 @@ public sealed partial class BattleSession
             {
                 if (ActiveAction is null && expandedGuardianFormEntry is null && !ExpandedTimedLimitOwnsInput && actions.Count == 0)
                 {
-                    ReleaseGuardianForceCharge(actor);
-                    BeginCompletedGuardianFormCharge(actor, cast);
+                    if (expandedPresentationProcess is { } process)
+                    {
+                        BeginExpandedHostedGuardianFormEntry(process, actor, cast);
+                    }
+                    else
+                    {
+                        ReleaseGuardianForceCharge(actor);
+                        BeginCompletedGuardianFormCharge(actor, cast);
+                    }
                 }
                 continue;
             }

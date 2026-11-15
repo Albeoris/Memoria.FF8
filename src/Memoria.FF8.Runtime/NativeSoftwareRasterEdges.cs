@@ -23,7 +23,6 @@ public sealed record NativeSoftwareReciprocalTable([property: JsonRequired] Immu
         {
             throw new NotSupportedException($"Native software edge requires its initialized3000-float reciprocal owner and a physical height index0..2999; requested {height}.");
         }
-        float value;
         if (height < 0)
         {
             if (physicalOwners is null || height < -28)
@@ -50,12 +49,10 @@ public sealed record NativeSoftwareReciprocalTable([property: JsonRequired] Immu
             {
                 throw new NotSupportedException("Native software reciprocal prefix requires its complete physical edge field.");
             }
-            value = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(owner.AsSpan().Slice(offset, 4)));
+            // The signed index can reach retained edge fields. The native x87 load consumes their exact bits.
+            return BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(owner.AsSpan().Slice(offset, 4)));
         }
-        else
-        {
-            value = Values[height];
-        }
+        float value = Values[height];
         if (!float.IsFinite(value))
         {
             throw new NotSupportedException("Native software edge reciprocal has an unsupported exceptional floating-point value.");

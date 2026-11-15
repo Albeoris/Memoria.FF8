@@ -4,8 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest, PreparedHostedModelRegistry? registry, NativeBattleRenzokukenWidgetStepped? renzokuken)
+    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest, PreparedHostedModelRegistry? registry, NativeBattleRenzokukenWidgetStepped? renzokuken, PreparedHostedGuardianFormChange? guardianForm)
     {
+        internal PreparedHostedGuardianFormChange? GuardianForm { get; } = guardianForm;
         internal BattleSession Owner { get; } = owner;
         internal HostedPresentationInvocation Invocation { get; } = invocation;
         internal NativeBattleGraphicsState Graphics { get; } = graphics;
@@ -19,13 +20,20 @@ public sealed partial class BattleSession
         internal NativeBattleRenzokukenWidgetStepped? Renzokuken { get; } = renzokuken;
     }
 
-    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null, ImmutableArray<HostedModelLoadAdmission> allocations = default)
+    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null, ImmutableArray<HostedModelLoadAdmission> allocations = default, PreparedHostedGuardianFormChange? guardianForm = null)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation || token != invocation.Token)
         {
             throw new InvalidOperationException("Contact replacement requires the active entry-ready hosted invocation outside graphics services.");
         }
+        NativeBattleGraphicsState originalGraphics = graphics;
+        if (guardianForm is not null)
+        {
+            ValidatePreparedHostedGuardianFormChange(guardianForm);
+            graphics = guardianForm.Staged.RequireNativeGraphics();
+        }
+        BattleSession native = guardianForm?.Staged ?? this;
         BattleModelRoster roster = HostedPlannedModelRoster;
         NativeBattleActionPacketsState packets = nativeActionPackets;
         if (!packets.Roster.Owners.SequenceEqual(roster.Owners) ||
@@ -62,7 +70,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Contact replacement does not acknowledge this invocation's pending ordinary Gunblade receipt.");
             }
-            if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.Actor != caster || original.Length != 1)
+            if (!ReferenceEquals(originalGraphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.Actor != caster || original.Length != 1)
             {
                 throw new InvalidDataException("Contact replacement requires the active caster's exact pending trigger and single physical contact.");
             }
@@ -84,14 +92,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted contact append requires live packet counts beyond the current header and its contacts.");
         }
-        PreparedHostedModelRegistry? admission = PrepareHostedModelRegistry(graphics, allocations);
+        PreparedHostedModelRegistry? admission = native.PrepareHostedModelRegistry(graphics, allocations);
         NativeBattleActionPacketsState replacement = packets.ReplaceHeaderContacts(invocation.Header, replacements);
         if (admission is { Replacement.Roster: { } planned })
         {
             replacement = replacement.WithRoster(planned, graphics.NativeBindings.CaptureAliases(graphics.ActorModels, planned));
         }
-        (replacement, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true, admission?.Replacement ?? hostedModelRegistry);
-        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian, admission, renzokuken);
+        (replacement, ImmutableArray<BattleActionHeaderReference> appended) = native.AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true, admission?.Replacement ?? hostedModelRegistry);
+        return new(this, invocation, originalGraphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian, admission, renzokuken, guardianForm);
     }
 
     internal void ValidatePreparedHostedContactReplacement(PreparedHostedContactReplacement prepared)
@@ -103,6 +111,10 @@ public sealed partial class BattleSession
             hostedFrameServices is not null || prepared.Renzokuken is { } step && !ReferenceEquals(step, hostedRenzokukenPendingStep))
         {
             throw new InvalidOperationException("The prepared contact replacement no longer belongs to this active hosted invocation.");
+        }
+        if (prepared.GuardianForm is { } form)
+        {
+            ValidatePreparedHostedGuardianFormChange(form);
         }
         if (prepared.GuardianRequest is { } guardian)
         {
@@ -118,6 +130,10 @@ public sealed partial class BattleSession
 
     internal void CommitHostedContactReplacement(PreparedHostedContactReplacement prepared)
     {
+        if (prepared.GuardianForm is { } form)
+        {
+            CommitHostedGuardianFormChange(form);
+        }
         PublishHostedModelRegistry(prepared.Registry);
         nativeActionPackets = prepared.ReplacementPackets;
         if (prepared.ReplacementGraphics is { } graphics)

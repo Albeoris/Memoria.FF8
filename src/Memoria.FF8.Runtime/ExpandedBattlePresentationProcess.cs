@@ -5,6 +5,36 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Owns the native presentation process for one expanded battle.</summary>
 public sealed partial class ExpandedBattlePresentationProcess
 {
+    internal void ValidateGuardianFormEntryResources(BattleSession.HostedGuardianFormVisualOwner owner)
+    {
+        RequireAdmissionWindow();
+        presentation.ValidateHostedGuardianFormEntryResources(owner);
+    }
+
+    internal BattleSession.PreparedHostedGuardianFormChange PrepareGuardianFormChange(BattleSession.HostedGuardianFormVisualChange change)
+    {
+        RequireAdmissionWindow();
+        return presentation.PrepareHostedGuardianFormChange(change);
+    }
+
+    internal void ValidatePreparedGuardianFormChange(BattleSession.PreparedHostedGuardianFormChange prepared)
+    {
+        RequireAdmissionWindow();
+        presentation.ValidatePreparedHostedGuardianFormChange(prepared);
+    }
+
+    internal void CommitGuardianFormChange(BattleSession.PreparedHostedGuardianFormChange prepared)
+    {
+        presentation.CommitHostedGuardianFormChange(prepared);
+    }
+    internal bool CanSkipAttachedGuardianFormFinisher => presentation.CanSkipAttachedGuardianFormFinisher;
+    internal bool SkippingAttachedGuardianFormFinisher => presentation.SkippingAttachedGuardianFormFinisher;
+
+    internal bool RequestAttachedGuardianFormSkip(BattleSession.HostedGuardianFormFrameFacts facts)
+    {
+        RequireIdle();
+        return presentation.RequestAttachedGuardianFormSkip(facts);
+    }
     private readonly BattleSession logicalOwner;
     private readonly BattleSession presentation;
     private bool entryMusicPublished;
@@ -106,10 +136,10 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, BattleSession.HostedRenzokukenFinisherReplacement? renzokukenFinisher = null)
+    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, BattleSession.HostedRenzokukenFinisherReplacement? renzokukenFinisher = null, BattleSession.PreparedHostedGuardianFormChange? guardianForm = null)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher);
+        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher, guardianForm: guardianForm);
     }
 
     internal BattleModelRoster PlannedModelRoster => presentation.HostedPlannedModelRoster;
@@ -188,10 +218,10 @@ public sealed partial class ExpandedBattlePresentationProcess
         presentation.PressHostedGunblade(token, actor, widget);
     }
 
-    internal BattleSession.PreparedHostedContactReplacement PrepareRecomputedContacts(long token, ImmutableArray<NativeBattleContactPacket> contacts, ImmutableArray<BattleSession.HostedDispatchHeader> append, NativeBattleTriggerReceipt? trigger = null, BattleSession.HostedGuardianBoostRequest? guardian = null, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default)
+    internal BattleSession.PreparedHostedContactReplacement PrepareRecomputedContacts(long token, ImmutableArray<NativeBattleContactPacket> contacts, ImmutableArray<BattleSession.HostedDispatchHeader> append, NativeBattleTriggerReceipt? trigger = null, BattleSession.HostedGuardianBoostRequest? guardian = null, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default, BattleSession.PreparedHostedGuardianFormChange? guardianForm = null)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedContactReplacement(token, contacts, trigger, append, guardian, allocations);
+        return presentation.PrepareHostedContactReplacement(token, contacts, trigger, append, guardian, allocations, guardianForm);
     }
 
     internal void ValidatePreparedRecomputedContacts(BattleSession.PreparedHostedContactReplacement prepared)

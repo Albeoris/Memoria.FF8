@@ -7,22 +7,30 @@ public sealed partial class BattleSession
     private sealed record GuardianFormCameraEnvelopeKey(long InvocationId, NativeBattleCameraPoint Eye, NativeBattleCameraPoint Target, short Roll, NativeBattleModelTransform Transform, NativeBattleVector Rotation, NativeBattleModelScaleVector? PointedScale, byte Animation, byte PoseFlags, ushort Maximum);
     private (GuardianFormCameraEnvelopeKey Key, ushort Focal)? guardianFormCameraEnvelope;
 
-    private NativeBattleGraphicsState FrameGuardianFormIdleCamera(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState FrameGuardianFormIdleCamera(NativeBattleGraphicsState graphics, HostedGuardianFormFrameFacts? facts = null)
     {
         if (!GuardianFormsEnabled)
         {
             return graphics;
         }
-        if (graphics.GuardianFormHumanFocalToRestore is short humanFocal && ActiveAction is null && NativeCamera is { CurrentPose: { } humanPose } humanCamera && !humanCamera.Tasks.Any(task => task is not null) && !NativeOriginalEffectBusy(graphics))
+        bool hasAction = facts?.HasAction ?? ActiveAction is not null;
+        if (graphics.GuardianFormHumanFocalToRestore is short humanFocal && !hasAction && NativeCamera is { CurrentPose: { } humanPose } humanCamera && !humanCamera.Tasks.Any(task => task is not null) && !NativeOriginalEffectBusy(graphics))
         {
             NativeCamera = humanCamera.WriteEffectGlobals(humanPose with { FocalLength = humanFocal }).PublishProjection(graphics.Flags, EncounterCameraElevation);
             graphics = graphics with { GuardianFormHumanFocalToRestore = null };
         }
-        if (graphics.GuardianFormPresentation is not { Phase: 3, Mode: GuardianFormInvocationMode.EntryOnly } presentation || GetGuardianForm(presentation.ActorId) is not { Phase: BattleGuardianFormPhase.Active })
+        if (graphics.GuardianFormPresentation is not { Phase: 3, Mode: GuardianFormInvocationMode.EntryOnly } presentation)
         {
             return graphics;
         }
-        if (ActiveAction is not null)
+        bool active = facts is null
+            ? GetGuardianForm(presentation.ActorId) is { Phase: BattleGuardianFormPhase.Active }
+            : facts is { Phase: BattleGuardianFormPhase.Active, Form: { } owner } && owner.Actor == presentation.Actor && owner.InvocationId == presentation.InvocationId;
+        if (!active)
+        {
+            return graphics;
+        }
+        if (hasAction)
         {
             return graphics with { GuardianFormPresentation = presentation with { IdleCameraRestorePending = true } };
         }

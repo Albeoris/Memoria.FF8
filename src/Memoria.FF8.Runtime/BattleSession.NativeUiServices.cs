@@ -31,7 +31,7 @@ public sealed partial class BattleSession
                 {
                     ready.UnionWith(DispatchFrame(advanceGraphics: false, advanceFrame: advanceFrame));
                 }
-                if ((Outcome is BattleOutcome.Victory or BattleOutcome.Defeat) && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
+                if ((Outcome is BattleOutcome.Victory or BattleOutcome.Defeat or BattleOutcome.ScriptedExit) && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
                 {
                     PublishNativePcUiFrame();
                     RefreshPreparedPresentation();

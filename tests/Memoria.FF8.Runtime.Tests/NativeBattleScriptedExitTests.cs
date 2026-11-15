@@ -1,9 +1,67 @@
+using System.Reflection;
 using System.Text.Json;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleScriptedExitTests
 {
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0x200, true)]
+    public void NativeScriptedExitWaitsForItsOwnersAndPublishesKindThreeBeforeFinalizing(ushort mode, bool canReturn)
+    {
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        FieldInfo scriptState = typeof(BattleSession).GetField("nativeScriptState", privateInstance)!;
+        PropertyInfo graphicsState = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
+        PropertyInfo activeAction = typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!;
+        MethodInfo considerOutcome = typeof(BattleSession).GetMethod("CompleteBattleIfNeeded", privateInstance)!;
+        MethodInfo dispatch = typeof(BattleSession).GetMethod("DispatchFrameCore", privateInstance)!;
+        BattleSession battle = new(new()
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            NativeFieldBattleMode = mode,
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, NativeCombatantFlags = 1 }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+        NativeBattleGraphicsState graphics = OriginalGraphics([
+            (0, battle.ReadPresentationModelOwner("party"), new(0)),
+            (3, battle.ReadPresentationModelOwner("enemy"), new(0))
+        ]) with { EntryReady = true, EntryLifecycle = 4 };
+        graphicsState.SetValue(battle, graphics);
+
+        considerOutcome.Invoke(battle, null);
+        Assert.Null(battle.NativeGraphics!.NativeOutcome);
+        scriptState.SetValue(battle, battle.NativeScriptState with { ScriptedExitRequested = true, AllocationControl = new(0, true, false) });
+        considerOutcome.Invoke(battle, null);
+        Assert.Null(battle.NativeGraphics!.NativeOutcome);
+        scriptState.SetValue(battle, battle.NativeScriptState with { AllocationControl = new(0, false, false) });
+        activeAction.SetValue(battle, new BattleActionPresentation("party", "enemy", BattleActionPhase.Recovery, 1, BattleTargetRequest.None));
+        considerOutcome.Invoke(battle, null);
+        Assert.Null(battle.NativeGraphics!.NativeOutcome);
+        Assert.Empty(battle.NativeGraphics.Descriptors.Queue);
+
+        activeAction.SetValue(battle, null);
+        considerOutcome.Invoke(battle, null);
+        NativeBattleGraphicsState pending = battle.NativeGraphics!;
+        NativeBattleOutcomeState outcome = Assert.IsType<NativeBattleOutcomeState>(pending.NativeOutcome);
+        Assert.Equal((byte)1, outcome.ResultByte6E7);
+        Assert.Equal((byte)3, outcome.FadeStyleE01);
+        Assert.Null(outcome.FadeDurationB0C);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal(new (ushort, uint)[] { (112, 0), (10, 0x47DF60), (10, 0x47DFC0) }, pending.Descriptors.Queue.Select(slot => (pending.Descriptors.Packets[slot].Command, pending.Descriptors.Packets[slot].Argument)));
+        considerOutcome.Invoke(battle, null);
+        Assert.Same(pending, battle.NativeGraphics);
+
+        // The installed field test drives the real descriptor and fade callbacks. Here, publish only their final byte.
+        graphicsState.SetValue(battle, pending with { NativeOutcome = outcome with { FadeDurationB0C = 0 } });
+        dispatch.Invoke(battle, [false, false]);
+        Assert.Equal(BattleOutcome.ScriptedExit, battle.Outcome);
+        Assert.Equal((byte)1, battle.NativeResult);
+        Assert.Equal(canReturn, battle.CanReturnToField);
+        Assert.Empty(battle.EnemyDefeats);
+        Assert.Single(battle.Events, entry => entry.Kind == "Outcome");
+    }
+
     [Fact]
     public void HitCallbackExitWaitsForTheCurrentActionAndRestoresItsPendingRequest()
     {

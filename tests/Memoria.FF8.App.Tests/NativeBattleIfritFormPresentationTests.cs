@@ -245,7 +245,7 @@ public sealed class NativeBattleIfritFormPresentationTests
 
         void RoundTripNext()
         {
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
             if (skip)
             {
                 TimeSpan elapsed = TimeSpan.FromTicks((2 * TimeSpan.TicksPerSecond + 30) / 31);
@@ -253,7 +253,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 battle.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
                 restored.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
                 Assert.Equal(before + 1, battle.NativeGraphics!.Callback);
-                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                AssertSameContinuation(battle.Capture(), restored.Capture());
                 for (int callback = 0; callback < 1200 && battle.GuardianAnimationSkipPending; callback++)
                 {
                     Assert.True(restored.GuardianAnimationSkipPending);
@@ -271,7 +271,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 battle.Tick();
                 restored.Tick();
             }
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            AssertSameContinuation(battle.Capture(), restored.Capture());
         }
 
         void AssertCommonTexture()
@@ -359,7 +359,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             if (!restoredEmergence && battle.NativeGraphics?.GuardianFormPresentation is { Phase: 1 } && ++emergenceCallbacks == 30)
             {
                 BattleSnapshot emerging = battle.Capture();
-                BattleSession emergingRestored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(emerging))!);
+                BattleSession emergingRestored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(emerging));
                 battle.Tick();
                 emergingRestored.Tick();
                 BattleSnapshot originalNext = battle.Capture();
@@ -367,7 +367,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 string? emergenceOutput = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
                 NativeBattleRestorationPresentationTests.Publish(emergenceOutput, "emergence-original-next", originalNext, null);
                 NativeBattleRestorationPresentationTests.Publish(emergenceOutput, "emergence-restored-next", restoredNext, null);
-                Assert.Equal(JsonSerializer.Serialize(originalNext), JsonSerializer.Serialize(restoredNext));
+                AssertSameContinuation(originalNext, restoredNext);
                 restoredEmergence = true;
             }
         }
@@ -381,10 +381,24 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics!, 0));
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         NativeBattleRestorationPresentationTests.Publish(output, "landed", landed, output is null ? null : scene.Render(battle, 320, 224).ToArray());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(landed))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(landed));
         battle.Tick();
         restored.Tick();
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        AssertSameContinuation(battle.Capture(), restored.Capture());
+    }
+
+    private static void AssertSameContinuation(BattleSnapshot original, BattleSnapshot restored)
+    {
+        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(restored));
+        Assert.Equal(original.Random!.Lane, restored.Random!.Lane);
+        Assert.Equal(original.Random.Indexes.ToArray(), restored.Random.Indexes.ToArray());
+        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState resumedPackets = restored.NativeActionPackets!;
+        Assert.Equal(packets.PublishedHeaders().ToArray(), resumedPackets.PublishedHeaders().ToArray());
+        foreach (var (reference, _) in packets.PublishedHeaders())
+        {
+            Assert.Equal(packets.ReadHeaderContacts(reference).ToArray(), resumedPackets.ReadHeaderContacts(reference).ToArray());
+        }
     }
 
     [Fact]

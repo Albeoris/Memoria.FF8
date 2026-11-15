@@ -197,7 +197,9 @@ internal sealed partial class GameWorld
         {
             return;
         }
-        if (battle is { Outcome: BattleOutcome.Defeat, NativeResult: 1 } active && (active.UsesExpandedRoster || active.NativeGraphics?.NativeOutcome?.FadeDurationB0C == 0))
+        if (battle is { NativeResult: 1 } active &&
+            (active.Outcome == BattleOutcome.Defeat || active.Outcome == BattleOutcome.ScriptedExit && !active.CanReturnToField) &&
+            (active.UsesExpandedRoster || active.NativeGraphics?.NativeOutcome?.FadeDurationB0C == 0))
         {
             CompleteBattle(active);
             battle = null;

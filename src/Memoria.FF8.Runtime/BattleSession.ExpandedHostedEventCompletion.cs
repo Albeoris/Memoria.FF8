@@ -43,6 +43,7 @@ public sealed partial class BattleSession
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = RestoreSnapshot(seed, customHandlers, proof);
         candidate.preparingExpandedHostedAction = true;
+        candidate.stagingExpandedHostedGuardianForms = true;
         if (hostedEvent.Command.NativeDuel is not null || hostedEvent.Renzokuken is not null)
         {
             // A timed Limit retains this exact owner while the native aftercare suffix is pending.
@@ -95,8 +96,9 @@ public sealed partial class BattleSession
                 candidate.ActiveAction = hostedEvent.ActivePresentation;
             }
         }
+        PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, ack,
-            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedHostedNextOperation == candidate.expandedHostedOperations.Length);
+            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedHostedNextOperation == candidate.expandedHostedOperations.Length, guardianForm: form);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };
@@ -112,6 +114,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = nextEvent;
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
+        PublishHostedGuardianFormAudio(form);
     }
 
     private void PrepareExpandedHostedAftercare(BattleCombatant actor, BattleActionPresentation original)

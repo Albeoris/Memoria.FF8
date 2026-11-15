@@ -23,7 +23,15 @@ public sealed class StoryBattleRosterTests
         world.EnsureField();
         session.SetFullBattlePlaythrough(true);
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = party }).WithGuestBattleRecords();
-        session.SetCharacterVitals((vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1) }).ToArray() }).Rest());
+        NativeCharacterVital[] records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1) }).ToArray();
+        if (formation == 796)
+        {
+            // Keep the installed enemy HP and death script. A strong party Attack bounds the fixture's combat turns.
+            NativeCharacterVital attacker = records[0];
+            NativeStatBonusSources sources = attacker.BonusSources ?? NativeStatBonusSources.FromInitial(attacker.HitPointBonus, attacker.StatBonuses);
+            records[0] = attacker.WithBonusSources(sources.Add(NativeStatBonusSources.Items, 0, [255, 0, 0, 0, 0, 0], vitals.LevelBasedStatBonuses));
+        }
+        session.SetCharacterVitals((vitals with { Records = records }).Rest());
         session.RequestField(new FieldTransition(fieldId, x, y, triangle, direction));
         world.EnsureField();
         world.Events.Step();
@@ -91,6 +99,113 @@ public sealed class StoryBattleRosterTests
         ExpandedBattleEntryAdmissionTests.ReachReady(expandedWorld, expanded);
         Assert.Equal(request.Frame, world.Events.Frame);
         Assert.Equal(request.Frame, expandedWorld.Events.Frame);
+        if (formation == 796)
+        {
+            AssertAdelRinoaDeathUsesOriginalResult(world, session, original, request);
+            AssertAdelRinoaDeathUsesOriginalResult(expandedWorld, expandedSession, expanded, request);
+        }
+    }
+
+    private static void AssertAdelRinoaDeathUsesOriginalResult(GameWorld world, GameSession session, BattleSession battle, NativeBattleCompletion request)
+    {
+        BattleEncounterOccurrence encounter = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
+        NativeBattleDefeatReturnBranch branch = world.Events.ReadNativeDefeatReturnBranch4706B0();
+        Assert.Equal(branch.PersistentFlags182, battle.ReadDefinition().NativeFieldBattleMode);
+        int appliedResults = session.State.AppliedBattleResultIds.Length;
+        int abandonments = session.State.AbandonedNativeBattles?.Length ?? 0;
+        uint victories = session.State.BattleStatistics!.Victories;
+        BattleCombatant partyRinoa = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.MagicRecordId == 5);
+        BattleCombatant enemyRinoa = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 113);
+        BattleCombatant adel = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 112);
+        BattlePartyModelOwner partyOwner = Assert.IsAssignableFrom<BattlePartyModelOwner>(battle.ReadPresentationModelOwner(partyRinoa.Id));
+        BattleEnemyModelOwner enemyOwner = Assert.IsAssignableFrom<BattleEnemyModelOwner>(battle.ReadPresentationModelOwner(enemyRinoa.Id));
+        Assert.NotEqual(partyRinoa.Id, enemyRinoa.Id);
+        var (_, aliases) = battle.ReadBattlePresentationPacketBindings();
+        Assert.Equal(partyOwner, aliases.DecodeLiteral(0));
+        Assert.Equal(enemyOwner, aliases.DecodeLiteral(4));
+        Assert.Equal(1, enemyRinoa.SceneSlot);
+        NativeBattleAiDefinition rinoaAi = Assert.IsType<NativeBattleAiDefinition>(battle.ReadDefinition().Combatants.Single(actor => actor.Id == enemyRinoa.Id).NativeAi);
+        Assert.Equal(new byte[] { 24, 1, 57, 0 }, rinoaAi.Scripts[3].Take(4));
+
+        ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
+        bool EntryReady() => process?.EntryReady ?? battle.NativeGraphics!.EntryReady;
+        for (int callback = 0; callback < 1200 && !EntryReady(); callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.True(EntryReady());
+        BattleCombatant squall = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.MagicRecordId == 0);
+        int eventStart = battle.Events.Count;
+        int issuedAttacks = 0;
+        bool comparedPrivateCallback = false;
+        for (int callback = 0; callback < 4800 && world.Battle is not null && (battle.Outcome == BattleOutcome.Active || battle.NativeGraphics is { } terminal && terminal.NativeOutcome?.FadeDurationB0C != 0); callback++)
+        {
+            if (battle.Outcome == BattleOutcome.Active && !battle.NativeScriptState.ScriptedExitRequested && enemyRinoa is { IsAlive: true, CurrentHp: > 0 } && !squall.IsBusy && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
+            {
+                squall.Atb = BattleSession.AtbMaximum;
+                world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: squall.Id, TargetId: enemyRinoa.Id) { ForcePhysical = true });
+                issuedAttacks++;
+            }
+            if (!comparedPrivateCallback && battle is { Outcome: BattleOutcome.Active, NativeGraphics.NativeOutcome.ResultByte6E7: 1 })
+            {
+                BattleSession copy = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                copy.Tick();
+                Assert.Equal(copy.NativeGraphics!.NativeOutcome, battle.NativeGraphics!.NativeOutcome);
+                Assert.Equal(copy.NativeGraphics.Descriptors.Queue.ToArray(), battle.NativeGraphics.Descriptors.Queue.ToArray());
+                Assert.Equal(copy.NativeHostCallbacks, battle.NativeHostCallbacks);
+                Assert.Equal(copy.Capture().Random, battle.Capture().Random);
+                comparedPrivateCallback = true;
+                continue;
+            }
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Same(process, battle.ExpandedPresentationProcess);
+        }
+
+        Assert.True(enemyRinoa.CurrentHp == 0, $"Expanded={battle.UsesExpandedRoster}, frame={battle.Frame}, callbacks={battle.NativeHostCallbacks}, outcome={battle.Outcome}, Squall HP={squall.CurrentHp}, busy={squall.IsBusy}, Rinoa HP={enemyRinoa.CurrentHp}/{enemyRinoa.MaximumHp}, attacks={issuedAttacks}, pending={battle.QueuedActions.Count}/{battle.ActiveAction?.ActionId}, events={string.Join(", ", battle.Events.Skip(eventStart).TakeLast(8).Select(item => $"{item.Kind}:{item.ActorId}>{item.TargetId}({item.Amount})"))}.");
+        Assert.Single(battle.Events.Skip(eventStart), item => item.Kind == "Defeated" && item.TargetId == enemyRinoa.Id);
+        Assert.True(partyRinoa.IsAlive);
+        Assert.True(adel.IsAlive);
+        Assert.True(battle.NativeScriptState.ScriptedExitRequested);
+        Assert.Contains(battle.Events.Skip(eventStart), item => item.ActorId == enemyRinoa.Id && item.NativeTextIdentity == BattleTextIdentity.Enemy(113, 1));
+        Assert.Equal(BattleOutcome.ScriptedExit, battle.Outcome);
+        Assert.Equal((byte)1, battle.NativeResult);
+        NativeBattleOutcomeState terminalOutcome = Assert.IsType<NativeBattleOutcomeState>((process?.Graphics ?? battle.NativeGraphics)!.NativeOutcome);
+        Assert.Equal((byte)1, terminalOutcome.ResultByte6E7);
+        Assert.Equal((byte)3, terminalOutcome.FadeStyleE01);
+        Assert.Equal((byte)0, terminalOutcome.FadeDurationB0C);
+        Assert.Equal(process is null, comparedPrivateCallback);
+        Assert.Equal(branch.ResumePreviousScene, battle.CanReturnToField);
+        if (branch.ResumePreviousScene)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Return));
+            NativeBattleCompletion returned = Assert.Single(world.Events.Scene.NativeBattleCompletions!, entry => entry.Frame == request.Frame && entry.Operation == request.Operation);
+            Assert.Equal((byte)1, returned.Result);
+            Assert.NotNull(returned.ReturnFrame);
+            Assert.Null(returned.Abandonment);
+            Assert.Equal(abandonments, session.State.AbandonedNativeBattles?.Length ?? 0);
+        }
+        else
+        {
+            Assert.True(world.Battle is null, $"Scripted result1 with saved mode 0x{branch.PersistentFlags182:X4} must settle through native field75 abandonment (expanded={battle.UsesExpandedRoster}, original fade={battle.NativeGraphics?.NativeOutcome?.FadeDurationB0C}).");
+            Assert.Equal(75, session.State.FieldId);
+            NativeBattleAbandonment abandoned = Assert.Single(session.State.AbandonedNativeBattles!, entry => entry.Encounter.OccurrenceId == encounter.OccurrenceId);
+            Assert.Equal(abandonments + 1, session.State.AbandonedNativeBattles!.Length);
+            Assert.Equal(branch, abandoned.Branch);
+            Assert.Equal(encounter.ScriptedOwner, abandoned.Encounter.ScriptedOwner);
+            Assert.Equal(request.Operation + 1, abandoned.ScriptWait?.NextOperation);
+        }
+        Assert.Null(world.Battle);
+        Assert.Null(session.State.PendingBattleEncounter);
+        Assert.Equal(appliedResults + 1, session.State.AppliedBattleResultIds.Length);
+        Assert.Single(session.State.AppliedBattleResultIds, id => id == encounter.OccurrenceId);
+        Assert.Equal(victories, session.State.BattleStatistics!.Victories);
+        BattleRewardSummary rewards = Assert.IsType<BattleRewardSummary>(world.LastBattleRewards);
+        Assert.Empty(rewards.CharacterExperience);
+        Assert.Empty(rewards.GuardianForceExperience);
+        Assert.Empty(rewards.GuardianForceAbilityPoints);
+        Assert.Empty(rewards.Items);
+        Assert.Empty(rewards.Cards);
     }
 
     [Theory]

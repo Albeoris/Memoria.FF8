@@ -42,13 +42,37 @@ public sealed class NativeSoftwareReciprocalPrefixTests
     }
 
     [Theory]
-    [InlineData(0x7F800000)]
-    [InlineData(unchecked((int)0xFF800000))]
-    [InlineData(0x7FC00001)]
-    public void Nonfinite_float_bits_in_the_physical_prefix_fail_at_consumption(int bits)
+    [InlineData(0x7F800000u, 0x80000000u)]
+    [InlineData(0xFF800000u, 0x80000000u)]
+    [InlineData(0x7FC00001u, 0xA0000000u)]
+    [InlineData(0x7F800002u, 0xC0000000u)]
+    [InlineData(0xFFC00003u, 0xE0000000u)]
+    public void Physical_nonfinite_reciprocal_bits_flow_into_native_edge_slopes(uint bits, uint slopeBits)
     {
-        NativeSoftwareScanlineEdges owners = Store(Owners(), 2, 28, BitConverter.Int32BitsToSingle(bits));
-        Assert.Throws<NotSupportedException>(() => NativeSoftwareReciprocalTable.Initialize463280().AtHeight(-1, owners));
+        NativeSoftwareScanlineEdges owners = StoreBits(Owners(), 2, 28, unchecked((int)bits));
+        NativeSoftwareReciprocalTable table = NativeSoftwareReciprocalTable.Initialize463280();
+        NativeSoftwareRasterVertex start = new(10, 7, 20, 30);
+        NativeSoftwareRasterVertex end = new(18, 6, 20, 10);
+
+        Assert.Equal(bits, unchecked((uint)BitConverter.SingleToInt32Bits(table.AtHeight(-1, owners))));
+        NativeSoftwareEdgeBuffers textured = NativeSoftwareRasterEdges.SetupTextured4632C0(owners.Left, start, end, table, owners);
+        Assert.Equal(slopeBits, unchecked((uint)Read(textured.Step, 0)));
+        Assert.Equal(slopeBits, unchecked((uint)Read(textured.Step, 12)));
+        Assert.Equal(slopeBits, unchecked((uint)Read(textured.Step, 16)));
+        Assert.Equal(new[] { 10, 20, 30 }, new[] { Read(textured.Current, 0), Read(textured.Current, 12), Read(textured.Current, 16) });
+
+        NativeSoftwareEdgeBuffers untextured = NativeSoftwareRasterEdges.SetupUntextured463370(owners.Left, start, end, table, owners);
+        Assert.Equal(slopeBits, unchecked((uint)Read(untextured.Step, 0)));
+        Assert.Equal(10, Read(untextured.Current, 0));
+        Assert.Equal(bits, unchecked((uint)Read(owners.Right.Step, 28)));
+    }
+
+    [Fact]
+    public void Nonfinite_reciprocal_in_the_initialized_table_is_invalid()
+    {
+        NativeSoftwareReciprocalTable initialized = NativeSoftwareReciprocalTable.Initialize463280();
+        NativeSoftwareReciprocalTable corrupt = initialized with { Values = initialized.Values.SetItem(1, float.PositiveInfinity) };
+        Assert.Throws<NotSupportedException>(() => corrupt.AtHeight(1, Owners()));
     }
 
     [Fact]
@@ -106,6 +130,11 @@ public sealed class NativeSoftwareReciprocalPrefixTests
 
     private static NativeSoftwareScanlineEdges Store(NativeSoftwareScanlineEdges owners, int record, int offset, float value)
     {
+        return StoreBits(owners, record, offset, BitConverter.SingleToInt32Bits(value));
+    }
+
+    private static NativeSoftwareScanlineEdges StoreBits(NativeSoftwareScanlineEdges owners, int record, int offset, int bits)
+    {
         ImmutableArray<byte> original = record switch
         {
             0 => owners.Left.Current,
@@ -114,7 +143,7 @@ public sealed class NativeSoftwareReciprocalPrefixTests
             _ => throw new ArgumentOutOfRangeException(nameof(record))
         };
         byte[] bytes = original.ToArray();
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, 4), BitConverter.SingleToInt32Bits(value));
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, 4), bits);
         ImmutableArray<byte> updated = bytes.ToImmutableArray();
         return record switch
         {

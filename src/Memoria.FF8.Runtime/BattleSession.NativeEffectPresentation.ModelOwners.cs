@@ -81,6 +81,15 @@ public sealed partial class BattleSession
         return presentationForeignActors?.GetValueOrDefault(owner)?.NativeResource ?? (owner is BattlePartyActorModel or BattleEnemyActorModel ? FindNativeGraphicsBinding(RequireCanonicalGraphicsActorId(owner))?.Resource : null);
     }
 
+    private NativeBattleGraphicsResource? ReadStandingPresentationModelResource(NativeBattleGraphicsState graphics, BattleModelOwner owner)
+    {
+        if (graphics.GuardianFormPresentation is { Actor: var caster } && caster == owner && graphics.ActorModels.Get(owner).ModelId4 == 77)
+        {
+            return GuardianFormResources(2).VisualResource;
+        }
+        return ReadOriginalPresentationModelResource(owner);
+    }
+
     private static NativeBattleGraphicsBinding? FindHostedAllocationBinding(HostedModelRegistry? registry, BattleModelOwner owner)
     {
         return owner is BattleEnemyActorModel enemy && registry?.Loads.TryGetValue(enemy, out HostedModelLoadAdmission? admission) == true ? admission.Binding : null;

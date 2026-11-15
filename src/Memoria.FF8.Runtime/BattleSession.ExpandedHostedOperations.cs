@@ -27,7 +27,7 @@ public sealed partial class BattleSession
 
     private ExpandedHostedPrefix PrepareExpandedHostedPrefix(ExpandedBattlePresentationProcess process,
         PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null,
-        HostedRenzokukenFinisherReplacement? renzokukenFinisher = null)
+        HostedRenzokukenFinisherReplacement? renzokukenFinisher = null, PreparedHostedGuardianFormChange? guardianForm = null)
     {
         var headers = ImmutableArray.CreateBuilder<HostedDispatchHeader>();
         int firstUnpublished = -1;
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         }
         HostedDispatchControls? controls = acknowledgeOnly ? null : new(before.ToImmutable(), after.ToImmutable());
         PreparedHostedDispatch dispatch = process.PrepareDispatch(headers.ToImmutable(), headerReference: reference, dispatchAppended: dispatchAppended,
-            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher);
+            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher, guardianForm: guardianForm);
         ImmutableArray<ExpandedHostedOperation> operations = expandedHostedOperations;
         int appended = 0;
         for (int i = 0; i < expandedHostedOperations.Length; i++)

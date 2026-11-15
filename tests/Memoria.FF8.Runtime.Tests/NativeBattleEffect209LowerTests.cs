@@ -78,6 +78,37 @@ public sealed class NativeBattleEffect209LowerTests
     }
 
     [Fact]
+    public void Screen_tiling_pairs_each_of_its_seventy_direct_color_tiles_with_the_actual_column_draw_mode()
+    {
+        Fixture fixture = new();
+        _ = NativeBattleEffect209Lower.DrawTiling83B0(fixture.Frame, 0x64808080, fixture.Inputs());
+        Assert.Equal(20, fixture.Batches.Count);
+        for (int column = 0; column < 10; column++)
+        {
+            NativeBattleEffect209DrawBatch sprites = fixture.Batches[column * 2];
+            NativeBattleEffect209DrawBatch mode = fixture.Batches[column * 2 + 1];
+            uint expected = 0xE1000200u | (uint)((column / 2 + 313) & 0x9FF);
+            Assert.Equal(expected, Assert.Single(mode.Batch.Attempts).Primitive!.Words[1]);
+            Assert.Equal(7, sprites.Batch.Attempts.Length);
+            Assert.Equal(140, sprites.Batch.AllocationBytes);
+            Assert.Equal(8, mode.Batch.AllocationBytes);
+            Assert.Equal((ushort)1, sprites.Flags);
+            Assert.Equal((ushort)0, mode.Flags);
+            NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.ResolveWithKnownness(sprites.Batch, 0, 140, _ => (0, false));
+            for (int row = 0; row < resolved.Attempts.Length; row++)
+            {
+                NativeBattleGfGeometryAttempt tile = resolved.Attempts[row];
+                NativeBattleGeometryPrimitive primitive = Assert.IsType<NativeBattleGeometryPrimitive>(tile.Primitive);
+                Assert.Equal(expected, primitive.PacketReadDrawMode);
+                Assert.Equal(row * 20, tile.ByteOffsetRelative);
+                Assert.Equal(0u, primitive.Words[3] >> 16);
+                Assert.Equal(NativeBattleGfPacketByteState.Untouched, tile.WriteMask[14]);
+                Assert.Equal(NativeBattleGfPacketByteState.Untouched, tile.WriteMask[15]);
+            }
+        }
+    }
+
+    [Fact]
     public void Screen_age100_retires_after_restoring_stage_visibility_without_another_capture()
     {
         Fixture fixture = new(0x637A40);

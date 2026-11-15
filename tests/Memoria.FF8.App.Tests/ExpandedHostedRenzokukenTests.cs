@@ -11,6 +11,123 @@ public sealed class ExpandedHostedRenzokukenTests
     private const int CrisisSelectionBudget = 64;
 
     [Theory]
+    [InlineData(159, 92, 9)]
+    [InlineData(161, 131, 738)]
+    [InlineData(335, 77, 63)]
+    [InlineData(337, 117, 813)]
+    [InlineData(339, 112, 796)]
+    [InlineData(340, 126, 982)]
+    public void Installed_special_target_Renzokuken_rebinds_and_releases_its_actual_models(ushort magic, int targetModel, ushort formation)
+    {
+        RunWorld(false, ExpandedBattleInstalledEntry.Seed, (world, battle, process, caster, target) =>
+        {
+            BattleModelOwner source = battle.ReadPresentationModelOwner(caster.Id);
+            BattleModelOwner recipient = battle.ReadPresentationModelOwner(target.Id);
+            BattleModelOwner? companion = null;
+            if (magic == 339)
+            {
+                Assert.True(process.ActionPackets.ModelAliases.TryEncodeExact(recipient, out byte original));
+                companion = process.ActionPackets.ModelAliases.DecodeLiteral(checked((byte)(original + 1)));
+                Assert.NotEqual(recipient, companion);
+                Assert.Contains(battle.ReadDefinition().Combatants, actor => actor.Id == ((BattleEnemyActorModel)companion).Actor.ActorId && actor.InitialActive);
+            }
+            if (magic == 337)
+            {
+                NativeBattleEnemyAllocation generation = Assert.Single(battle.Capture().NativeAllocations, allocation => allocation.Id == target.Id);
+                Assert.Equal(target.SceneSlot, generation.SceneSlot);
+                Assert.Equal(recipient, new BattleEnemyActorModel(new(generation.Id)));
+            }
+            (int? Source, int? Target) originalResources = (process.Graphics.ActorModels.Get(source).OriginalResourceRow104, process.Graphics.ActorModels.Get(recipient).OriginalResourceRow104);
+            Assert.Equal(magic, PrepareSelection(battle, caster, target, null, magic));
+            int initialEvent = battle.Events.Count;
+            bool boundSource = false;
+            bool boundTarget = false;
+            bool boundCompanion = false;
+            bool targetSelectedBeforeBinding = false;
+            long observedCallback = process.Graphics.Callback;
+            List<NativeBattlePresentationContactReceived> contacts = [];
+            List<NativeBattlePresentationCompletionRequested> completions = [];
+            Queue(world, target);
+            for (int tick = 0; tick < CallbackBudget; tick++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                Assert.Same(process, battle.ExpandedPresentationProcess);
+                NativeBattleGraphicsModel targetGraphics = process.Graphics.ActorModels.Get(recipient);
+                boundSource |= process.Graphics.ActorModels.Get(source) is { ResourceRenzokukenTargetBank: null } actor && actor.ResourceMagicId == magic;
+                if (targetGraphics.ResourceMagicId == magic)
+                {
+                    Assert.Equal((byte?)0, targetGraphics.ResourceRenzokukenTargetBank);
+                    boundTarget |= targetGraphics is { Sequence: 1, SequenceState: not null };
+                }
+                else if (magic is 339 or 340 && !boundTarget && targetGraphics.Sequence == 1 &&
+                    process.Graphics.OriginalEffect is { Parameters: { } parameters } selected && selected.Binding.Effect == magic &&
+                    parameters.Source == source && selected.EntryFirstRecipient == recipient &&
+                    process.ActionPackets.ReadHeader(parameters.Header) is { Command: 5 } admitted && admitted.Effect == magic)
+                {
+                    uint controller = magic == 339 ? NativeBattleRenzokukenSpecialProfiles.Renzokuken339.ControllerCallback : NativeBattleRenzokukenSpecialProfiles.Renzokuken340.ControllerCallback;
+                    targetSelectedBeforeBinding |= selected.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == controller && task.ReadWord(12) == 2);
+                }
+                if (companion is not null && process.Graphics.ActorModels.Get(companion) is { } other && other.ResourceMagicId == magic)
+                {
+                    Assert.Equal((byte?)1, other.ResourceRenzokukenTargetBank);
+                    boundCompanion = true;
+                }
+                if (process.Graphics.Callback != observedCallback && process.LastFrameServices is { } frame)
+                {
+                    observedCallback = process.Graphics.Callback;
+                    contacts.AddRange(frame.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>());
+                    completions.AddRange(frame.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>());
+                }
+                if (battle.GetNativeRenzokuken(caster.Id) is { } widget)
+                {
+                    Assert.Equal(magic, widget.MagicId);
+                    Assert.Null(widget.FinisherActionId);
+                }
+                if (boundSource && IsIdle(battle, process))
+                {
+                    break;
+                }
+            }
+            Assert.True(boundSource && boundTarget && IsIdle(battle, process), $"Renzokuken {magic} did not bind and retire both owners at callback {process.Graphics.Callback}.");
+            if (magic is 339 or 340)
+            {
+                Assert.True(targetSelectedBeforeBinding);
+            }
+            Assert.Equal(companion is not null, boundCompanion);
+            int count = battle.ReadDefinition().NativeRenzokukenResources.Single(resource => resource.MagicId == magic).Timeline.InputThresholds.Length;
+            NativeBattlePresentationContactReceived[] triggers = contacts.Where(contact => contact.Renzokuken is not null).ToArray();
+            Assert.Equal(Enumerable.Range(1, count), triggers.Select(contact => (int)contact.Renzokuken!.Index));
+            Assert.All(triggers, contact =>
+            {
+                Assert.Equal(source, contact.Renzokuken!.Owner.Actor);
+                Assert.Equal(recipient, contact.Packet.Primary.Recipient);
+            });
+            Assert.Single(completions, receipt => receipt.Callback == 0x47DE70 && receipt.Owner == source);
+            Assert.Single(battle.Events.Skip(initialEvent), entry => entry is { Kind: "ActionComplete", ActorId: Squall });
+            Assert.Null(battle.Capture().NativeTimedAction);
+            Assert.Null(battle.GetNativeRenzokuken(caster.Id));
+            Assert.Null(process.TriggerWidget);
+            VerifyRestoredModel(source, originalResources.Source);
+            VerifyRestoredModel(recipient, originalResources.Target);
+            if (companion is not null)
+            {
+                Assert.Null(process.Graphics.ActorModels.Get(companion).ResourceRenzokukenTargetBank);
+            }
+            BattleCombatant next = battle.Combatants.First(IsAvailableEnemy);
+            AttackAndDrain(world, battle, process, caster, next);
+            Assert.Same(process, battle.ExpandedPresentationProcess);
+
+            void VerifyRestoredModel(BattleModelOwner owner, int? original)
+            {
+                NativeBattleGraphicsModel actual = process.Graphics.ActorModels.Get(owner);
+                Assert.Null(actual.ResourceMagicId);
+                Assert.Null(actual.ResourceRenzokukenTargetBank);
+                Assert.Equal(original, actual.ActiveResourceRow100);
+            }
+        }, formation: formation, targetModel: targetModel);
+    }
+
+    [Theory]
     [InlineData(false, -1, true)]
     [InlineData(true, 0, false)]
     [InlineData(false, 1, false)]
@@ -239,7 +356,7 @@ public sealed class ExpandedHostedRenzokukenTests
         return crisis;
     }
 
-    private static ushort PrepareSelection(BattleSession battle, BattleCombatant caster, BattleCombatant target, byte? requiredFinisher)
+    private static ushort PrepareSelection(BattleSession battle, BattleCombatant caster, BattleCombatant target, byte? requiredFinisher, ushort? requiredMagic = null)
     {
         caster.Atb = BattleSession.AtbMaximum;
         for (int attempt = 0; attempt < CrisisSelectionBudget; attempt++)
@@ -257,13 +374,14 @@ public sealed class ExpandedHostedRenzokukenTests
                 _ = forecast.Draw(out byte selection);
                 finisher = NativeBattleRenzokukenRules.Finisher(caster.NativePlayerStatRules!.WeaponRecord[2], selection);
             }
-            if (finisher == requiredFinisher)
+            ushort selected = target.NativeRenzokukenMagicIds[crisis + magic % 2 + 1];
+            if (finisher == requiredFinisher && (requiredMagic is null || selected == requiredMagic))
             {
                 caster.CurrentHp = caster.MaximumHp;
-                return target.NativeRenzokukenMagicIds[crisis + magic % 2 + 1];
+                return selected;
             }
         }
-        throw new InvalidDataException($"The installed weapon {caster.WeaponId} did not select finisher {requiredFinisher?.ToString() ?? "none"} within {CrisisSelectionBudget} native Limit selections.");
+        throw new InvalidDataException($"The installed weapon {caster.WeaponId} did not select resource {requiredMagic?.ToString() ?? "any"} with finisher {requiredFinisher?.ToString() ?? "none"} within {CrisisSelectionBudget} native Limit selections.");
     }
 
     private static void AssertFinisher(BattleSession battle, ExpandedBattlePresentationProcess process, List<NativeBattlePresentationReceipt> ordered,
@@ -378,7 +496,51 @@ public sealed class ExpandedHostedRenzokukenTests
 
     private static bool IsAvailableEnemy(BattleCombatant actor) => actor is { IsPlayer: false, IsActive: true, IsAlive: true, Untargetable: false };
 
-    private static void RunWorld(bool automatic, byte seed, Action<GameWorld, BattleSession, ExpandedBattlePresentationProcess, BattleCombatant, BattleCombatant> run, byte? finisher = null)
+    private static bool IsIdle(BattleSession battle, ExpandedBattlePresentationProcess process)
+    {
+        return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && process.ActiveActionToken is null && process.IsControlPrefixRetired;
+    }
+
+    private static void AttackAndDrain(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleCombatant target)
+    {
+        caster.Atb = BattleSession.AtbMaximum;
+        int first = battle.Events.Count;
+        world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: caster.Id, TargetId: target.Id));
+        for (int callback = 0; callback < CallbackBudget && !IsIdle(battle, process); callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.True(IsIdle(battle, process));
+        Assert.Single(battle.Events.Skip(first), entry => entry is { Kind: "ActionComplete", ActorId: Squall });
+    }
+
+    private static BattleCombatant SelectSpecialTarget(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, ushort formation, int targetModel)
+    {
+        if (formation == 63)
+        {
+            BattleCombatant carrier = Assert.Single(battle.Combatants, actor => IsAvailableEnemy(actor) && actor.ModelId == 68);
+            carrier.CurrentHp = 1;
+            AttackAndDrain(world, battle, process, caster, carrier);
+        }
+        else if (formation == 813)
+        {
+            HashSet<string> defeated = [];
+            for (int allocation = 0; allocation < 10; allocation++)
+            {
+                BattleCombatant current = Assert.Single(battle.Combatants, actor => IsAvailableEnemy(actor) && actor.ModelId != targetModel &&
+                    process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(actor.Id), out _));
+                Assert.True(defeated.Add(current.Id));
+                current.CurrentHp = 1;
+                AttackAndDrain(world, battle, process, caster, current);
+                Assert.False(current.IsAlive);
+            }
+        }
+        return Assert.Single(battle.Combatants, actor => IsAvailableEnemy(actor) && actor.ModelId == targetModel &&
+            process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(actor.Id), out _));
+    }
+
+    private static void RunWorld(bool automatic, byte seed, Action<GameWorld, BattleSession, ExpandedBattlePresentationProcess, BattleCombatant, BattleCombatant> run, byte? finisher = null,
+        ushort formation = ExpandedBattleInstalledEntry.Formation, int? targetModel = null)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
@@ -411,7 +573,7 @@ public sealed class ExpandedHostedRenzokukenTests
                 NativeLimitProgress limits = current.State.LimitProgress!;
                 ushort options = Assert.IsType<ushort>(limits.Options978);
                 current.SetLimitProgress(limits with { Options978 = (ushort)((options & ~0x8001) | (automatic ? 1 : 0)) });
-            });
+            }, formation: formation, additionalEnemies: targetModel is null ? 4 : 1);
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { LimitOncePerTurn = false });
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: seed));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -424,9 +586,19 @@ public sealed class ExpandedHostedRenzokukenTests
             Assert.Null(battle.ActiveAction);
             Assert.Empty(battle.QueuedActions);
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == Squall);
-            BattleCombatant target = battle.Combatants.Last(actor => IsAvailableEnemy(actor) && actor.Slot is { Position: >= 4 });
             Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(caster.Id), out _));
-            Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(target.Id), out _));
+            BattleCombatant target;
+            if (targetModel is int model)
+            {
+                caster.CurrentHp = caster.MaximumHp;
+                target = SelectSpecialTarget(world, battle, process, caster, formation, model);
+                caster.CurrentHp = 1;
+            }
+            else
+            {
+                target = battle.Combatants.Last(actor => IsAvailableEnemy(actor) && actor.Slot is { Position: >= 4 });
+                Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(target.Id), out _));
+            }
             run(world, battle, process, caster, target);
         }
         catch (Exception failure)

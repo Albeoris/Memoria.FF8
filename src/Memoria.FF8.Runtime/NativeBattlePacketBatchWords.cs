@@ -55,6 +55,11 @@ public static class NativeBattlePacketBatchWords
             {
                 continue;
             }
+            if (primitive.PacketReadDrawMode is uint drawMode && (drawMode & 0xFF000000u) != 0xE1000000u)
+            {
+                throw new InvalidDataException("Native packet read draw mode requires its full GP0 E1 command.");
+            }
+            bool directColor = primitive.PacketReadDrawMode is uint readMode && ((readMode >> 7) & 3) == 2;
             if (primitive.Words.IsDefaultOrEmpty || primitive.Words.Length * 4 > attempt.PacketLength)
             {
                 throw new InvalidDataException("Native logical packet leaves its physical stores.");
@@ -85,9 +90,10 @@ public static class NativeBattlePacketBatchWords
                     bool colorPadding = polygon && gouraud && word > 0 && word % stride == 0 && offset % 4 == 3;
                     int uv = word - 2;
                     bool uvPadding = polygon && textured && uv >= 2 * stride && uv % stride == 0 && offset % 4 >= 2;
+                    bool unusedRectangleClut = directColor && (opcode is 0x64 or 0x66) && (offset is 10 or 11);
                     // Logical words project consumed fields only. Ignored bytes are canonical;
                     // ordered physical stores and their unknownness remain in the receipt.
-                    bytes[command + offset] = colorPadding || uvPadding ? (byte)0 : offset == 3 ? opcode : ReadByte(command + offset);
+                    bytes[command + offset] = colorPadding || uvPadding || unusedRectangleClut ? (byte)0 : offset == 3 ? opcode : ReadByte(command + offset);
                 }
                 command += length;
             }

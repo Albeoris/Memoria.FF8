@@ -36,7 +36,16 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState QueueEffectPresentationActivation(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        if (presentationNativeTargets is not null && (!presentationNativeTargets.TryGetValue(owner, out NativeBattleEffectModelBinding? target) || !target.CanActivate))
+        if (hostedBattlePresentation)
+        {
+            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted activation requires its current frame facts.");
+            if (!HostedPlannedModelRoster.Contains(owner))
+            {
+                throw new InvalidDataException("Hosted activation requires its currently admitted model owner.");
+            }
+            _ = RequireHostedContactActorFacts(graphics, services, owner);
+        }
+        else if (presentationNativeTargets is not null && (!presentationNativeTargets.TryGetValue(owner, out NativeBattleEffectModelBinding? target) || !target.CanActivate))
         {
             throw new NotSupportedException("Native activation requires its currently allocated host participant.");
         }

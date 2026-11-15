@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                     NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Effect20 requires its retained vibration process.")).Stop4A2940(vibration.Handle);
                     return current;
                 case NativeBattleEffect20RingSequence ring:
-                    if (presentationNativeTargets is not null)
+                    if (!hostedBattlePresentation && presentationNativeTargets is not null)
                     {
                         presentationActivationSequences.Add(ring.Actor);
                     }

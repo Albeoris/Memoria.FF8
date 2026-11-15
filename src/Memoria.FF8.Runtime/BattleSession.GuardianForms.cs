@@ -75,7 +75,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidOperationException("GF transformation requires a free charge task slot.");
             }
-            PrepareGuardianFormPresentation(actor, guardianForceId);
+            PrepareGuardianFormPresentation(GuardianFormVisualOwner(actor, invocation, guardianForceId).Actor, guardianForceId);
+        }
+        else if (expandedPresentationProcess is { } process)
+        {
+            process.ValidateGuardianFormEntryResources(GuardianFormVisualOwner(actor, invocation, guardianForceId));
         }
         if (nativePartyPresentation is not null)
         {
@@ -185,7 +189,8 @@ public sealed partial class BattleSession
             }
             else
             {
-                BeginGuardianFormEntry(actor, form.GuardianForceId, invocation.Id);
+                BeginGuardianFormEntry(GuardianFormVisualOwner(actor, invocation.Id, form.GuardianForceId));
+                BeginNativeBattleActionPause();
             }
         }
         return true;
@@ -193,15 +198,35 @@ public sealed partial class BattleSession
 
     private void CompleteGuardianFormEntry(string actorId, long invocationId)
     {
-        if (GetGuardianForm(actorId) is not { Phase: BattleGuardianFormPhase.Entering } form || form.InvocationId != invocationId)
+        if (!ActivateGuardianFormEntry(actorId, invocationId))
         {
             return;
+        }
+        BattleCombatant actor = GetActor(actorId);
+        if (NativeGraphics is not null)
+        {
+            SetNativeActionEvent(actor, 1);
+            nativeActionScratch = nativeActionScratch with { Command = 254, Action = checked((ushort)(64 + GetGuardianForm(actorId)!.GuardianForceId)), ActorIndex = checked((byte)actor.EncodeNativeSlot()) };
+            QueueNativeActionClockCompletion(0x47DE70);
+        }
+        else
+        {
+            CompleteNativeActionStatuses(actor);
+        }
+        Log("GuardianFormActive", actorId, actorId, GetGuardianForm(actorId)!.GuardianForceId, "GF form entrance completed.");
+    }
+
+    private bool ActivateGuardianFormEntry(string actorId, long invocationId)
+    {
+        if (GetGuardianForm(actorId) is not { Phase: BattleGuardianFormPhase.Entering } form || form.InvocationId != invocationId)
+        {
+            return false;
         }
         BattleCombatant actor = GetActor(actorId);
         if (!actor.IsAlive || Outcome != BattleOutcome.Active || guardianForces[form.GuardianForceId].HitPoints == 0)
         {
             ReturnGuardianForm(actor, true);
-            return;
+            return false;
         }
         guardianForms![actorId] = form with { Phase = BattleGuardianFormPhase.Active, EntryCompleted = true, RemainingTicks = BattleGuardianFormProfiles.Find(form.GuardianForceId)!.LifetimeTicks };
         BindGuardianFormVitals(actor, form.GuardianForceId);
@@ -217,17 +242,7 @@ public sealed partial class BattleSession
         }
         actor.Atb = 0;
         actor.IsBusy = false;
-        if (NativeGraphics is not null)
-        {
-            SetNativeActionEvent(actor, 1);
-            nativeActionScratch = nativeActionScratch with { Command = 254, Action = checked((ushort)(64 + form.GuardianForceId)), ActorIndex = checked((byte)actor.EncodeNativeSlot()) };
-            QueueNativeActionClockCompletion(0x47DE70);
-        }
-        else
-        {
-            CompleteNativeActionStatuses(actor);
-        }
-        Log("GuardianFormActive", actorId, actorId, form.GuardianForceId, "GF form entrance completed.");
+        return true;
     }
 
     private void BindGuardianFormVitals(BattleCombatant actor, int id)
@@ -315,6 +330,11 @@ public sealed partial class BattleSession
         {
             return;
         }
+        if (expandedPresentationProcess is { } process && form.Phase != BattleGuardianFormPhase.Charging)
+        {
+            ReturnExpandedHostedGuardianForm(process, actor, terminal);
+            return;
+        }
         guardianForms![actor.Id] = form with { Phase = BattleGuardianFormPhase.Returning };
         actor.GuardianFormVitals = null;
         if (terminal)
@@ -336,7 +356,14 @@ public sealed partial class BattleSession
             EndExpandedGuardianFormEntry(entry);
             actor.IsBusy = false;
         }
-        ReturnGuardianFormPresentation(actor, form);
+        if (stagingExpandedHostedGuardianForms && form.Phase != BattleGuardianFormPhase.Charging)
+        {
+            StageExpandedHostedGuardianFormReturn(actor, form);
+        }
+        else
+        {
+            ReturnGuardianFormPresentation(GuardianFormVisualOwner(actor, form.InvocationId, form.GuardianForceId));
+        }
         if (guardianForceCasts.TryGetValue(actor.Id, out BattleGuardianForceCast? cast))
         {
             guardianForceCasts[actor.Id] = cast with { Command = cast.Command with { GuardianFormInvocation = null } };
@@ -490,7 +517,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ValidateGuardianFormCommand(BattleAttackCommand command)
+    private void ValidateGuardianFormCommand(BattleAttackCommand command, bool completingEntry = false)
     {
         if (command.GuardianFormAction is null && command.GuardianFormInvocation is null)
         {
@@ -507,7 +534,7 @@ public sealed partial class BattleSession
         }
         if (command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly })
         {
-            if (form.Phase != BattleGuardianFormPhase.Charging || command.GuardianFormAction is not null || command.ActorId != command.TargetId || command.Ability != BattleAbility.GuardianForce || command.ActionId != form.GuardianForceId || command.FreeNativeMagic)
+            if ((completingEntry ? form.Phase != BattleGuardianFormPhase.Active : form.Phase != BattleGuardianFormPhase.Charging) || command.GuardianFormAction is not null || command.ActorId != command.TargetId || command.Ability != BattleAbility.GuardianForce || command.ActionId != form.GuardianForceId || command.FreeNativeMagic)
             {
                 throw new InvalidDataException("Saved GF entrance request is invalid.");
             }
@@ -534,7 +561,7 @@ public sealed partial class BattleSession
             NativeAction = action.NativeAction,
             NativePlayerReaction = action.NativePlayerReaction,
             FreeNativeMagic = action.FreeNativeMagic
-        });
+        }, completingEntry: UsesExpandedRoster && action is { Phase: BattleActionPhase.Recovery, NativeQueuedCommand: 254, GuardianFormInvocation.Mode: GuardianFormInvocationMode.EntryOnly, NativeHeader: null });
     }
 
     private void ValidateGuardianFormOwners()

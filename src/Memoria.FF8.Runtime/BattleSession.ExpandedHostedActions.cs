@@ -38,11 +38,16 @@ public sealed partial class BattleSession
     private ExpandedHostedInvocation? CurrentExpandedHostedInvocation => expandedHostedCurrentOperation is int current ? (ExpandedHostedInvocation)expandedHostedOperations[current] : null;
     private bool HasStagedExpandedHostedOperations => !expandedHostedOperations.IsEmpty;
 
-    private static void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
+    private void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
     {
         // TODO(TD-009): Finish nonordinary invocation ownership before enabling the attached host in App.
         bool shot = IsShotCallback(command.NativeLimitCallback);
-        if (command.Ability == BattleAbility.LimitBreak && !shot || command.Ability == BattleAbility.GuardianForce && command.NativeQueuedCommand != 254 || command.GuardianFormAction is not null ||
+        if (command.GuardianFormAction is not null)
+        {
+            ValidateGuardianFormPresentation(command);
+            return;
+        }
+        if (command.Ability == BattleAbility.LimitBreak && !shot || command.Ability == BattleAbility.GuardianForce && command.NativeQueuedCommand != 254 ||
             command.GuardianFormInvocation is not null || command.NativeLimitCallback is not null && !shot)
         {
             throw new NotSupportedException("Hosted presentation has no admission for this nonordinary invocation.");
@@ -246,6 +251,9 @@ public sealed partial class BattleSession
                 case NativeBattlePresentationMusicCommandCommitted music:
                     events.Add(new BattleEvent(Frame, "NativeMusicCommand", null, null, 0, $"Native501B60 consumed singleton command{music.Command.Command}.") { NativeMusicCommand = music.Command });
                     break;
+                case NativeBattlePresentationFileAudioRequested audio:
+                    events.Add(new BattleEvent(Frame, "NativeFileAudio", null, null, 0, string.Empty) { NativeFileAudio = audio.Request });
+                    break;
                 case NativeBattleModelTextPublished text:
                     events.Add(new BattleEvent(Frame, "NativeText", text.ActorId, null, text.Value, text.Text) { NativeMessageMode = 3, NativeTextIdentity = text.TextIdentity });
                     break;
@@ -273,6 +281,10 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattleModelTriggerRegistered trigger:
                     AcknowledgeExpandedGunbladeRegistration(trigger, actionToken);
+                    break;
+                case NativeBattleGuardianFormLanded landing:
+                    _ = RequireEmittingHostedActor(services, landing);
+                    ApplyExpandedHostedGuardianFormLanding(expandedPresentationProcess!, landing);
                     break;
                 case NativeBattleShotReadinessReached shot:
                     ApplyExpandedHostedShotReadiness(services, shot, actionToken);

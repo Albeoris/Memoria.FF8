@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         bool sharedMaterial = NativeModelTextureCache?.PresentationActors is null;
-        NativeBattleGraphicsResource? presented = ReadOriginalPresentationModelResource(owner);
+        NativeBattleGraphicsResource? presented = ReadStandingPresentationModelResource(graphics, owner);
         NativeBattleForeignActor? foreign = presentationForeignActors?.GetValueOrDefault(owner);
         if (foreign is { NativeResource: null })
         {

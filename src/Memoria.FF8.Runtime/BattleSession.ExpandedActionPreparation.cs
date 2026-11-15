@@ -11,6 +11,7 @@ public sealed partial class BattleSession
         BattleSession candidate = Restore(before, customHandlers);
         ExpandedBattlePresentationProcess? process = expandedPresentationProcess;
         candidate.preparingExpandedHostedAction = process is not null;
+        candidate.stagingExpandedHostedGuardianForms = process is not null;
         candidate.expandedPresentationHost = process is null ? expandedPresentationHost : null;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.nativeAffinityAction = nativeAffinityAction;
@@ -31,6 +32,7 @@ public sealed partial class BattleSession
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;
+        PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
         if (process is not null && (candidate.HasStagedExpandedHostedOperations || command.ExpandedAiCallback is not null))
         {
             BattleModelRoster roster = process.PlannedModelRoster;
@@ -42,7 +44,7 @@ public sealed partial class BattleSession
             ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
             BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
             candidate.ValidateExpandedHostedInvocations(admittedRoster);
-            ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations);
+            ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form);
             admission = prefix.Dispatch;
             candidate.BindExpandedHostedPrefix(prefix, admission.Packets.Roster);
             hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token, CompletionOwner: completionOwner);
@@ -56,6 +58,10 @@ public sealed partial class BattleSession
         {
             process!.ValidatePreparedDispatch(admission);
         }
+        else if (form is not null)
+        {
+            process!.ValidatePreparedGuardianFormChange(form);
+        }
         CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
         TakeExpandedActionPresentation(candidate);
         if (admission is not null)
@@ -64,6 +70,11 @@ public sealed partial class BattleSession
             expandedHostedActionToken = admission.Action?.Invocation.Token;
             process!.CommitDispatch(admission);
         }
+        else if (form is not null)
+        {
+            process!.CommitGuardianFormChange(form);
+        }
+        PublishHostedGuardianFormAudio(form);
     }
 
     private void ValidatePreparedExpandedPresentation(BattleSession candidate)

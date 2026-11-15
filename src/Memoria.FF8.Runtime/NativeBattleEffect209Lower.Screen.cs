@@ -80,6 +80,7 @@ public static partial class NativeBattleEffect209Lower
         using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Image, 576, 256);
         for (int column = 0; column < 10; column++)
         {
+            uint drawMode = 0xE1000200u | unchecked((uint)((column / 2 + 313) & 0x9FF));
             ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
             for (int row = 0; row < 7; row++)
             {
@@ -92,13 +93,13 @@ public static partial class NativeBattleEffect209Lower
                 packet.Byte(13, (byte)(row * 32));
                 packet.Word16(16, 32);
                 packet.Word16(18, 32);
-                attempts.Add(packet.Attempt(new(0x101A, packet.Words(), [])));
+                attempts.Add(packet.Attempt(new(0x101A, packet.Words(), []) { PacketReadDrawMode = drawMode }));
             }
             NativeBattleGfGeometryBatch tiles = NativeBattleCinematicCapturePresentation.Discrete(new(attempts.ToImmutable(), 140), frame.PresentationIdentity);
             frame = inputs.Execute(frame, new NativeBattleEffect209DrawBatch(tiles, CommonCursor, 1));
             SkinWrites mode = new(8, 0);
             mode.Word(0, 0x01000000);
-            mode.Word(4, 0xE1000200 | unchecked((uint)((column / 2 + 313) & 0x9FF)));
+            mode.Word(4, drawMode);
             frame = inputs.Execute(frame, new NativeBattleEffect209DrawBatch(new([mode.Attempt(new(0x101A, mode.Words(), [0, 0, 0, 0]))], 8), CommonCursor));
         }
         return frame;

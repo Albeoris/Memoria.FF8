@@ -123,10 +123,7 @@ public sealed partial class BattleSession
             graphics = AdvanceNativeAuxiliary(graphics);
             graphics = AdvanceNativeModuleEffects(graphics);
             graphics = AdvanceNativeOriginalEffect(graphics);
-            if (services is null)
-            {
-                graphics = AdvanceGuardianFormPresentation(graphics);
-            }
+            graphics = AdvanceGuardianFormPresentation(graphics, services);
         }
         catch when (services is null && GuardianFormOwnsCurrentPresentation())
         {
@@ -142,10 +139,7 @@ public sealed partial class BattleSession
             graphics = ApplyNativeGraphicsStatus509CD0(graphics, owner, 16);
         }
         graphics = graphics with { Effects = effects.State };
-        if (services is null)
-        {
-            graphics = FrameGuardianFormIdleCamera(graphics);
-        }
+        graphics = FrameGuardianFormIdleCamera(graphics, services?.GuardianForm);
         using NativeBattleLogicalOrderingTransaction? ordering = definition.NativeGraphics?.PrimitiveTables is not null && graphics.PrimitiveFrame is { } primitiveFrame ? new(primitiveFrame.Pending) : null;
         using NativeBattleCommonPacketTransaction? common = ordering is not null ? new(NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native model producers require their retained common packet process.")) : null;
         if (ordering is not null)
