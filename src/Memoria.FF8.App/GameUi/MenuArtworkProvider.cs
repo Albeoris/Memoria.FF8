@@ -20,6 +20,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
     private CardFaceComposer? cardComposer;
     private string? cardFontFamily;
     private PixelImage? silverCrest;
+    private readonly Dictionary<int, PixelImage> timerDigits = [];
     private readonly Dictionary<(int Id, int Owner, int Modifier, bool Grayscale), PixelImage> cardFaces = [];
 
     private long artworkGeneration = -1;
@@ -79,6 +80,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
         {
             UiImageKind.ControllerButton => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetControllerButtonIcon(source.Id),
             UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
+            UiImageKind.SystemTimerDigit => ReadTimerDigit(source.Id),
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id),
             UiImageKind.CharacterPortraitGrayscale => ToGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id)),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id),
@@ -115,6 +117,16 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
                 int index = (y * image.Width + x) * 4;
                 image[x, y] = new Rgba32(pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]);
             }
+        }
+        return image;
+    }
+
+    private PixelImage ReadTimerDigit(int digit)
+    {
+        if (!timerDigits.TryGetValue(digit, out PixelImage? image))
+        {
+            image = SystemTimerDigitArtwork.Render(digit);
+            timerDigits.Add(digit, image);
         }
         return image;
     }

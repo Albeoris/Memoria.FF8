@@ -24,7 +24,8 @@ public enum UiImageKind
     HostArtwork,
     ChocoboPortrait,
     GrieverPortrait,
-    BookCover
+    BookCover,
+    SystemTimerDigit
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

@@ -47,11 +47,11 @@ internal sealed partial class BattleHudElement
         int seconds = timer / 60;
         int hundredths = 100 * (timer % 60) / 60;
         byte modulation = seconds < 3 && ((int)(controller.BattlePresentationSeconds * 4) & 1) != 0 ? (byte)64 : (byte)128;
-        // Icon111 has a +4 X sprite offset; the digit sprites are 8x16 with zero offsets.
+        // Icon111 has a +4 X sprite offset. Digit cells retain their size with 25% narrower gaps.
         canvas.Image(new UiImageSource(UiImageKind.Icon, 111), Rect(777, 525, 72, 24));
-        canvas.ImageStretched(new UiImageSource(UiImageKind.Icon, 56 + seconds / 10) { RgbModulation = modulation }, Rect(777, 558, 45, 96));
-        canvas.ImageStretched(new UiImageSource(UiImageKind.Icon, 56 + seconds % 10) { RgbModulation = modulation }, Rect(825, 558, 45, 96));
-        canvas.Image(new UiImageSource(UiImageKind.Icon, 56 + hundredths / 10) { RgbModulation = modulation }, Rect(876, 588, 24, 48));
-        canvas.Image(new UiImageSource(UiImageKind.Icon, 56 + hundredths % 10) { RgbModulation = modulation }, Rect(900, 588, 24, 48));
+        canvas.ImageStretched(new UiImageSource(UiImageKind.SystemTimerDigit, seconds / 10) { RgbModulation = modulation }, Rect(777, 558, 45, 96));
+        canvas.ImageStretched(new UiImageSource(UiImageKind.SystemTimerDigit, seconds % 10) { RgbModulation = modulation }, Rect(824.25f, 558, 45, 96));
+        canvas.Image(new UiImageSource(UiImageKind.SystemTimerDigit, hundredths / 10) { RgbModulation = modulation }, Rect(873.75f, 588, 24, 48));
+        canvas.Image(new UiImageSource(UiImageKind.SystemTimerDigit, hundredths % 10) { RgbModulation = modulation }, Rect(897.75f, 588, 24, 48));
     }
 }

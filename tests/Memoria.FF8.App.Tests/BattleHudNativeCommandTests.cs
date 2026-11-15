@@ -163,10 +163,10 @@ public sealed class BattleHudNativeCommandTests
         (UiImageSource Source, UiRect Bounds)[] expected =
         [
             (new(UiImageKind.Icon, 111), new(777, 525, 72, 24)),
-            (new(UiImageKind.Icon, 56 + seconds / 10), new(777, 558, 45, 96)),
-            (new(UiImageKind.Icon, 56 + seconds % 10), new(825, 558, 45, 96)),
-            (new(UiImageKind.Icon, 56 + hundredths / 10), new(876, 588, 24, 48)),
-            (new(UiImageKind.Icon, 56 + hundredths % 10), new(900, 588, 24, 48))
+            (new(UiImageKind.SystemTimerDigit, seconds / 10), new(777, 558, 45, 96)),
+            (new(UiImageKind.SystemTimerDigit, seconds % 10), new(824.25f, 558, 45, 96)),
+            (new(UiImageKind.SystemTimerDigit, hundredths / 10), new(873.75f, 588, 24, 48)),
+            (new(UiImageKind.SystemTimerDigit, hundredths % 10), new(897.75f, 588, 24, 48))
         ];
         Assert.Equal(expected, canvas.Images);
     }
