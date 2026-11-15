@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -139,6 +140,38 @@ public sealed class Ff7GuestCommandMenuCacheTests
         Assert.Equal(1, fixture.Guest.AbilityReads);
     }
 
+    [Fact]
+    public void RecoveryDescriptionsPreserveNativeSnapshotRngAndGuestStockWithoutPreparingCommands()
+    {
+        using Fixture fixture = new();
+        Ff7BattleCommandOption nativeItem = Assert.Single(fixture.Battle.Commands(0), option => option.Command == Ff7BattleCommand.Item && option.Argument == 0);
+        byte[] nativeBefore = JsonSerializer.SerializeToUtf8Bytes(fixture.Battle.Capture());
+        Assert.Equal(Ff7BattleRecoveryKind.HitPoints, fixture.Battle.DescribeRecovery(0, nativeItem, 0));
+        Assert.Equal(nativeBefore, JsonSerializer.SerializeToUtf8Bytes(fixture.Battle.Capture()));
+
+        fixture.Guest.Recovery = true;
+        fixture.Guest.OriginItems = true;
+        fixture.Guest.StateToken = new();
+        IReadOnlyList<Ff7BattleCommandOption> commands = fixture.Battle.Commands(0);
+        Ff7BattleCommandOption magic = Assert.Single(commands, option => option.Command == Ff7BattleCommand.Magic);
+        Ff7BattleCommandOption item = Assert.Single(commands, option => option.Command == Ff7BattleCommand.Item);
+        Ff7BattleSnapshot before = fixture.Battle.Capture();
+        byte[] saved = JsonSerializer.SerializeToUtf8Bytes(before);
+        int magicStock = fixture.Guest.MagicStock(magic.Argument);
+        int itemStock = fixture.Guest.ItemStock(item.Argument);
+        for (int query = 0; query < 3; query++)
+        {
+            Assert.Equal(Ff7BattleRecoveryKind.HitPoints, fixture.Battle.DescribeRecovery(0, magic, 0));
+            Assert.Equal(Ff7BattleRecoveryKind.HitPoints, fixture.Battle.DescribeRecovery(0, item, 0));
+            Assert.Equal(Ff7BattleRecoveryKind.None, fixture.Battle.DescribeRecovery(0, magic with { Argument = 100 }, 0));
+        }
+        Ff7BattleSnapshot after = fixture.Battle.Capture();
+        Assert.Equal(saved, JsonSerializer.SerializeToUtf8Bytes(after));
+        Assert.Equal(JsonSerializer.SerializeToUtf8Bytes(before.Random), JsonSerializer.SerializeToUtf8Bytes(after.Random));
+        Assert.Equal(magicStock, fixture.Guest.MagicStock(magic.Argument));
+        Assert.Equal(itemStock, fixture.Guest.ItemStock(item.Argument));
+    }
+
     private static Ff7BattleCommandOption Ability(IReadOnlyList<Ff7BattleCommandOption> options) => Assert.Single(options, option => option.Command == Ff7BattleCommand.Magic);
 
     private sealed class Fixture : IDisposable
@@ -200,8 +233,10 @@ public sealed class Ff7GuestCommandMenuCacheTests
         }
     }
 
-    private sealed class Probe(Guid encounter) : IFf7BattleGuestAttack, IFf7BattleGuestAbilities
+    private sealed class Probe(Guid encounter) : IFf7BattleGuestAttack, IFf7BattleGuestAbilities, IFf7BattleGuestMagic, IFf7BattleGuestItems
     {
+        public bool Recovery { get; set; }
+        public bool OriginItems { get; set; }
         public object? StateToken { get; set; } = new();
         public bool AllowTarget { get; set; } = true;
         public bool RefreshTokenOnSupport { get; set; }
@@ -218,7 +253,7 @@ public sealed class Ff7GuestCommandMenuCacheTests
             get
             {
                 AbilityReads++;
-                return [new(Ff7BattleCommand.Magic, 1, "Ability", 0x12, 4)];
+                return [new(Ff7BattleCommand.Magic, 1, "Ability", Recovery ? (byte)0x10 : (byte)0x12, 4)];
             }
         }
 
@@ -231,8 +266,21 @@ public sealed class Ff7GuestCommandMenuCacheTests
             {
                 StateToken = new();
             }
-            return AllowTarget && target.Slot == 4 && target.Actor.MagicPoints > 0;
+            return AllowTarget && (Recovery ? target.Slot == 0 && target.Actor.HitPoints > 0 : target.Slot == 4 && target.Actor.MagicPoints > 0);
         }
+
+        public int MagicStock(ushort ability) => 4;
+        public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => SupportsAbility(Ff7BattleCommand.Magic, ability, target);
+        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(default, new(0x22, 8, 255, Healing: Recovery), 0);
+        public void PrepareMagic(Ff7BattleGuestPhysicalHit prepared) => throw new InvalidOperationException("A recovery description must not prepare magic.");
+        public bool HasOriginItems => OriginItems;
+        public IReadOnlyList<ushort> ItemIds => [73];
+        public int ItemStock(ushort item) => 2;
+        public bool SupportsItem(ushort item, Ff7BattleGuestAttackTarget target) => target.Slot == 0;
+        public Ff7BattleGuestItemEffect DescribeItem(ushort item) => new(100);
+        public void ReserveItem(Ff7BattleGuestItemSelection selection) => throw new InvalidOperationException("A recovery description must not reserve an item.");
+        public void CancelItem(int target, ushort item) => throw new InvalidOperationException("A recovery description must not cancel an item.");
+        public void PrepareItem(Ff7BattleGuestPhysicalHit prepared) => throw new InvalidOperationException("A recovery description must not prepare an item.");
 
         public void Begin(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target) => throw new InvalidOperationException("The menu must not start an action.");
         public Ff7BattleGuestAttackUpdate Advance(long hostTick) => new(null, true);

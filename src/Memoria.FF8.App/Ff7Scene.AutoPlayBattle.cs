@@ -69,7 +69,7 @@ internal sealed partial class Ff7Scene
         }
         if (battle.ReadyPlayer is int owner)
         {
-            var choice = PlanAutoPlayBattleCommand(battle.Commands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null);
+            var choice = PlanAutoPlayBattleCommand(battle.Commands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null, (command, target) => battle.DescribeRecovery(owner, command, target));
             if (choice is { } action)
             {
                 selectedBattleCommand = null;
@@ -89,8 +89,43 @@ internal sealed partial class Ff7Scene
         return true;
     }
 
-    internal static (Ff7BattleCommandOption Command, int TargetSlot)? PlanAutoPlayBattleCommand(IReadOnlyList<Ff7BattleCommandOption> commands, IReadOnlyList<Ff7BattleActorState> actors, Func<Ff7BattleCommandOption, int, bool>? targetSupported = null)
+    internal static (Ff7BattleCommandOption Command, int TargetSlot)? PlanAutoPlayBattleCommand(IReadOnlyList<Ff7BattleCommandOption> commands, IReadOnlyList<Ff7BattleActorState> actors, Func<Ff7BattleCommandOption, int, bool>? targetSupported = null, Func<Ff7BattleCommandOption, int, Ff7BattleRecoveryKind>? recoveryKind = null)
     {
+        if (recoveryKind is not null)
+        {
+            List<AutoPlayBattleRecoveryOption> options = [];
+            for (int commandIndex = 0; commandIndex < commands.Count; commandIndex++)
+            {
+                Ff7BattleCommandOption candidate = commands[commandIndex];
+                if (candidate.UnsupportedReason is not null || candidate.Command is not (Ff7BattleCommand.Item or Ff7BattleCommand.Magic))
+                {
+                    continue;
+                }
+                for (int targetIndex = 0; targetIndex < actors.Count; targetIndex++)
+                {
+                    int slot = actors[targetIndex].Actor.Slot;
+                    if (slot is < 0 or >= 3 || (candidate.ValidTargets & 1 << slot) == 0)
+                    {
+                        continue;
+                    }
+                    ushort targets = AutoPlayBattleTargetMask(candidate, slot);
+                    if ((targets & 0x3F0) != 0 || targetSupported is not null && actors.Any(actor => (targets & 1 << actor.Actor.Slot) != 0 && !targetSupported(candidate, actor.Actor.Slot)))
+                    {
+                        continue;
+                    }
+                    Ff7BattleRecoveryKind kind = recoveryKind(candidate, slot);
+                    if (kind != Ff7BattleRecoveryKind.None)
+                    {
+                        options.Add(new(commandIndex, targetIndex, kind == Ff7BattleRecoveryKind.Revive));
+                    }
+                }
+            }
+            AutoPlayBattleRecoveryTarget[] vitals = actors.Select(actor => new AutoPlayBattleRecoveryTarget(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.HitPoints == 0 || (actor.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0)).ToArray();
+            if (AutoPlayBattlePolicy.ChooseRecovery(vitals, options) is { } recovery)
+            {
+                return (commands[recovery.CommandIndex], actors[recovery.TargetIndex].Actor.Slot);
+            }
+        }
         Ff7BattleCommandOption? command = commands.FirstOrDefault(option => option.Command == Ff7BattleCommand.Attack && option.UnsupportedReason is null)
             ?? commands.FirstOrDefault(option => option.Command == Ff7BattleCommand.Limit && option.UnsupportedReason is null);
         if (command is null)
