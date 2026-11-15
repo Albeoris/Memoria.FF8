@@ -30,31 +30,101 @@ public sealed class ModelMods : IModelOverrideSource
     public static bool TryPrepare(ModCatalogSnapshot catalog, out ModelMods result, out IReadOnlyList<ModDiagnostic> diagnostics)
     {
         List<(ModelModVariant Variant, ModFile File)> files = [];
-        List<ModDiagnostic> errors = [];
-        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.StartsWith("models/", StringComparison.OrdinalIgnoreCase) && file.RelativePath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase)))
+        List<ModDiagnostic> notices = [];
+        bool valid = true;
+        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase)))
         {
             try
             {
-                ModelModVariant variant = Parse(file);
-                EditableModel model = ModelExchange.ImportGlb(file.ReadBytes(), allowBoneCountChange: true).Model;
-                if (variant.ClipSlot is not null && (model.Meshes.Count != 0 || model.Animations.Count != 1))
+                byte[] bytes = file.ReadBytes();
+                EditableModel model = ModelExchange.ImportGlb(bytes, allowBoneCountChange: true).Model;
+                if (model.ImportTarget is null && model.ExchangeManifest is not null)
                 {
-                    throw new InvalidDataException("A selective clip file must contain exactly one animation and no geometry.");
+                    foreach (ModelModOutput output in PrepareLinked(bytes))
+                    {
+                        ModFile component = new(file.PackageId, file.Format, file.RelativePath, file.Revision, () => output.Content);
+                        Add(component, ModelExchange.ImportGlb(output.Content, allowBoneCountChange: true).Model);
+                    }
                 }
-                files.Add((variant, file));
+                else
+                {
+                    Add(file, model);
+                }
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or ArgumentException or OverflowException or System.Text.Json.JsonException)
             {
-                errors.Add(new("Memoria.InvalidModel", exception.Message, file.PackageId, file.RelativePath));
+                valid = false;
+                notices.Add(new("Memoria.InvalidModel", exception.Message, file.PackageId, file.RelativePath));
             }
         }
-        result = errors.Count == 0 ? new(Array.AsReadOnly(files.ToArray())) : Empty;
-        diagnostics = Array.AsReadOnly(errors.ToArray());
-        return errors.Count == 0;
+        result = valid ? new(Array.AsReadOnly(files.ToArray())) : Empty;
+        diagnostics = Array.AsReadOnly(notices.ToArray());
+        return valid;
+
+        void Add(ModFile file, EditableModel model)
+        {
+            ModelModVariant variant;
+            if (model.ImportTarget is { } target)
+            {
+                target.Validate();
+                variant = new(target.ModelId.ToLowerInvariant(), file.PackageId, file.RelativePath) { Bank = target.Bank.ToLowerInvariant(), ClipSlot = target.ClipSlot, GeometryOnly = target.Mode == "geometry" };
+            }
+            else
+            {
+                variant = Parse(file);
+                notices.Add(new("Memoria.LegacyModelPath", "Missing memoria_import metadata; using the legacy model path. Reimport or add metadata before moving this GLB.", file.PackageId, file.RelativePath));
+            }
+            if (variant.ClipSlot is not null && (model.Meshes.Count != 0 || model.Animations.Count != 1))
+            {
+                throw new InvalidDataException("A selective clip file must contain exactly one animation and no geometry.");
+            }
+            if (variant.GeometryOnly && model.Animations.Count != 0)
+            {
+                throw new InvalidDataException("A geometry replacement must not contain animations.");
+            }
+            if (files.Any(item => item.File.PackageId.Equals(file.PackageId, StringComparison.OrdinalIgnoreCase) && item.Variant.ModelId == variant.ModelId && item.Variant.Bank == variant.Bank && item.Variant.ClipSlot == variant.ClipSlot))
+            {
+                throw new InvalidDataException("Multiple GLBs in one package replace the same model geometry or clip slot.");
+            }
+            files.Add((variant, file));
+        }
+    }
+
+    private static IReadOnlyList<ModelModOutput> PrepareLinked(byte[] bytes)
+    {
+        ModelAssetImportInventory inventory = ModelAssetExchange.InspectGlb(bytes);
+        List<ModelModReplacement> replacements = [];
+        foreach (ModelAssetObject item in inventory.Objects)
+        {
+            ModelModClipReplacement[] clips = inventory.Clips.Where(clip => clip.ModelTarget == item.Target).Select(clip =>
+            {
+                string prefix = item.Target + "/clips/";
+                string[] suffix = clip.Target.StartsWith(prefix, StringComparison.Ordinal) ? clip.Target[prefix.Length..].Split('/') : [];
+                if (suffix.Length != 2 || !IsBank(suffix[0]) || !int.TryParse(suffix[1], out int slot) || slot is < 0 or > 65535)
+                {
+                    throw new InvalidDataException("The linked manifest has an invalid clip target.");
+                }
+                return new ModelModClipReplacement(suffix[0], slot, clip.Animation);
+            }).ToArray();
+            if (item.GeometrySelected || clips.Length != 0)
+            {
+                int[] preserved = inventory.Objects.Where(other => other.Target != item.Target && other.RigId == item.RigId && other.GeometrySelected && other.ReplacedPart?.StartsWith("mesh/", StringComparison.Ordinal) == true).Select(other => int.TryParse(other.ReplacedPart![5..], out int part) && part is >= 0 and < 256 ? part : throw new InvalidDataException("Invalid native replacement part.")).Distinct().ToArray();
+                replacements.Add(new(item.Target, item.Model, item.GeometrySelected, clips) { PreserveNativeParts = preserved });
+            }
+        }
+        if (replacements.Count == 0)
+        {
+            throw new InvalidDataException("The linked GLB contains no importable model geometry or clips.");
+        }
+        return ModelModInstaller.Plan(replacements).Files;
     }
 
     private static ModelModVariant Parse(ModFile file)
     {
+        if (!file.RelativePath.StartsWith("models/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Missing memoria_import metadata and the GLB is outside a recognized legacy models/ path; the mod cannot be loaded.");
+        }
         string address = file.RelativePath[7..^4].ToLowerInvariant();
         string bank = "embedded";
         int? slot = null;
@@ -82,7 +152,7 @@ public sealed class ModelMods : IModelOverrideSource
         return new(address, file.PackageId, file.RelativePath) { Bank = bank, ClipSlot = slot, GeometryOnly = geometry };
     }
 
-    public static bool IsBank(string bank) => bank.Length is > 0 and < 128 && bank.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
+    public static bool IsBank(string bank) => ModelImportTarget.IsBank(bank);
 
     public EditableModel Resolve(string modelId, EditableModel original, string? packageId = null, string bank = "embedded")
     {
@@ -312,16 +382,5 @@ public sealed class ModelMods : IModelOverrideSource
 
         float Map(float joint, float weight) => weight == 0 ? 0 : map.TryGetValue((int)joint, out int target) ? target : throw new NotSupportedException("A weighted joint is absent from the retained rig.");
     }
-    public static bool IsModelId(string id)
-    {
-        string[] parts = id.Split('/');
-        if (parts.Any(part => part.Length == 0 || part is "." or ".." || part.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-' and not '.')))
-        {
-            return false;
-        }
-        return parts.Length == 3 && parts[0] == "field" && int.TryParse(parts[2], out int fieldIndex) && fieldIndex >= 0
-            || parts.Length == 2 && parts[0] == "battle" && (parts[1].EndsWith(".dat", StringComparison.OrdinalIgnoreCase) || parts[1].EndsWith(".x", StringComparison.OrdinalIgnoreCase))
-            || parts.Length == 2 && parts[0] == "world" && int.TryParse(parts[1], out int shape) && shape is >= 0 and < 64
-            || parts.Length == 3 && parts[0] == "world" && parts[1] == "static" && int.TryParse(parts[2], out int staticShape) && staticShape is >= 64 and <= 255;
-    }
+    public static bool IsModelId(string id) => ModelImportTarget.IsModelId(id);
 }

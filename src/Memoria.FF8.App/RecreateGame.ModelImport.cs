@@ -23,12 +23,8 @@ internal sealed partial class RecreateGame
                 throw new InvalidDataException("The GLB must be no larger than 256 MiB.");
             }
             byte[] bytes = File.ReadAllBytes(path);
-            ModelAssetImportInventory inventory = ModelAssetExchange.InspectGlb(bytes);
+            ModelAssetImportInventory inventory = InspectBrowserModelImport(bytes);
             string edition = resourceHost!.Resources.Source.Edition.ToString();
-            if (inventory.Edition != "unspecified" && inventory.Edition != edition)
-            {
-                throw new InvalidDataException($"This GLB targets {inventory.Edition}; the selected installation is {edition}.");
-            }
             if (inventory.Objects.Count == 0)
             {
                 ValidateSingleUnidentifiedModelMapping(bytes);
@@ -81,6 +77,16 @@ internal sealed partial class RecreateGame
             keyboard.SuppressHeldNameInput();
             modelBrowserDialogInputDrain = true;
         }
+    }
+
+    internal static ModelAssetImportInventory InspectBrowserModelImport(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length > 256 * 1024 * 1024)
+        {
+            throw new InvalidDataException("The GLB must be no larger than 256 MiB.");
+        }
+        // Export edition records the provider; each selected target validates its retained rig and native clip contract.
+        return ModelAssetExchange.InspectGlb(bytes);
     }
 
     internal static void ValidateSingleUnidentifiedModelMapping(ReadOnlySpan<byte> bytes)

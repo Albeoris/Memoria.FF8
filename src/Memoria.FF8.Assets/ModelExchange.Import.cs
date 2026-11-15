@@ -63,8 +63,43 @@ public static partial class ModelExchange
         }
     }
 
+    private static ModelImportTarget? ReadImportTarget(JsonElement owner, ModelImportTarget? previous)
+    {
+        string? text = ReadMetadataString(owner, "memoria_import", null);
+        if (text is null)
+        {
+            return previous;
+        }
+        ModelImportTarget target = JsonSerializer.Deserialize<ModelImportTarget>(text) ?? throw new InvalidDataException("Model import metadata must contain a destination object.");
+        target.Validate();
+        if (previous is not null && target != previous)
+        {
+            throw new InvalidDataException("The GLB contains conflicting model import destinations.");
+        }
+        return target;
+    }
+
+    private static string? ReadMetadataString(JsonElement owner, string property, string? previous)
+    {
+        if (!owner.TryGetProperty("extras", out JsonElement extras) || !extras.TryGetProperty(property, out JsonElement value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return previous;
+        }
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidDataException($"The GLB {property} custom property must be a JSON string.");
+        }
+        string text = value.GetString()!;
+        if (previous is not null && text != previous)
+        {
+            throw new InvalidDataException($"The GLB contains conflicting {property} custom properties.");
+        }
+        return text;
+    }
+
     public static void Validate(EditableModel model)
     {
+        model.ImportTarget?.Validate();
         if (!float.IsFinite(model.NativeFramesPerSecond) || model.NativeFramesPerSecond <= 0)
         {
             throw new InvalidDataException("Native clip sample rate must be finite and positive.");
@@ -515,8 +550,14 @@ public static partial class ModelExchange
             {
                 _warnings.Add("Animation names no longer identify the original game animation slots. Preserve animation_<index> names to keep gameplay animation identifiers compatible.");
             }
-            string? manifest = nodes.EnumerateArray().Select(node => Property(node, "memoria_ff8")).FirstOrDefault(value => value is not null);
-            EditableModel result = new(name, kind, bones, meshes, textures, animations, metadata) { ExchangeManifest = manifest, NativeFramesPerSecond = nativeFramesPerSecond };
+            string? manifest = ReadMetadataString(root.GetProperty("asset"), "memoria_ff8", null);
+            ModelImportTarget? importTarget = ReadImportTarget(root.GetProperty("asset"), null);
+            foreach (JsonElement node in nodes.EnumerateArray())
+            {
+                manifest = ReadMetadataString(node, "memoria_ff8", manifest);
+                importTarget = ReadImportTarget(node, importTarget);
+            }
+            EditableModel result = new(name, kind, bones, meshes, textures, animations, metadata) { ExchangeManifest = manifest, ImportTarget = importTarget, NativeFramesPerSecond = nativeFramesPerSecond };
             if (authoringBasis == 2)
             {
                 result = ChangeAuthoringBasis(result, importing: true);

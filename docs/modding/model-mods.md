@@ -40,11 +40,11 @@ To create entirely new motion, author new keys in an exported slot's action or r
 
 ## Import as a mod
 
-**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB from any folder. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A single-object GLB without preserved identities requires explicit confirmation of the selected catalog target. Unidentified multi-object or multi-rig files require restored identities before import; this workflow does not merge them into one replacement. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
+**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB from any folder. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A single-object GLB without preserved identities requires explicit confirmation of the selected catalog target. Unidentified multi-object or multi-rig files require restored identities before import; this workflow does not merge them into one replacement. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Classic and Remastered exports can be imported into either edition; the importer validates the selected model rig and clip contracts instead of blocking by the source edition. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
 
 The package folder picker creates the default `Mods/Memoria` directory if needed and opens there. You can navigate freely and choose or create any package folder, including an external or nested folder. To use a package saved elsewhere, place it directly inside a discovered mod root such as `Mods/Memoria`. Existing replacements require overwrite confirmation. All dialogs use the current monitor's DPI context.
 
-Selected geometry and clip slots are normalized into independent native mod outputs, for example:
+Selected geometry and clip slots are normalized into independent native mod outputs with embedded destination metadata. These paths also preserve compatibility with older Memoria versions, for example:
 
 ```text
 Mods/Memoria/<Package>/models/battle/<original-filename>.geometry.glb
@@ -53,6 +53,28 @@ Mods/Memoria/<Package>/models/battle/<original-filename>.clips/<external-bank>/<
 Mods/Memoria/<Package>/models/field/<field-name>/<entry>.geometry.glb
 Mods/Memoria/<Package>/models/field/<field-name>/<entry>.clips/embedded/<slot>.glb
 ```
+
+Each mod is a package folder directly below `Mods/Memoria`, with `mod.ini` and its `models` directory **beside each other**. Do not place `mod.ini` inside `models`: that would make the discovered addresses `field/...` instead of `models/field/...` in older versions.
+
+New versions find every `.glb` anywhere within a Memoria package, including renamed files. Exported linked GLBs retain their `memoria_ff8` manifest and can be placed directly in the package. Installed single-model GLBs retain `memoria_import` metadata. Embedded destinations take precedence over filenames. Multiple files in one package targeting the same geometry or clip slot are rejected. Files without destination metadata load from recognized legacy paths with a warning; an unidentified GLB at any other path rejects mod publication with a diagnostic naming the package and file. Invalid metadata is rejected even at a legacy path.
+
+### Create or edit a destination manually
+
+In Blender, keep **Custom Properties** enabled during import and export. On the exported metadata root, create or edit a string custom property named `memoria_import`. Its value is JSON, for example:
+
+```json
+{"Version":1,"ModelId":"field/bghoke_2/1","Mode":"geometry","Bank":"embedded","ClipSlot":null}
+```
+
+For an animation-only replacement of slot 3:
+
+```json
+{"Version":1,"ModelId":"field/bghoke_2/1","Mode":"clip","Bank":"embedded","ClipSlot":3}
+```
+
+`ModelId` is the logical model address, excluding `models/` and the filename suffix. `Mode` is `geometry` (no animations), `clip` (exactly one animation and no meshes), or `model` (legacy complete model replacement). `Bank` defaults to `embedded`; another supported bank can be named for clips. Clip slots range from 0 to 65535 and must already exist in the target bank. Geometry and complete models use the embedded bank and no clip slot. Native rig, material and coordinate metadata remain necessary for the corresponding native conversions; a destination property does not bypass those checks.
+
+When editing GLB JSON directly, store that JSON **as a string** in `asset.extras.memoria_import` or a node's `extras.memoria_import`. Exports write both copies for editor compatibility. If both survive, update both to the same destination or remove one; conflicting destinations are rejected. Preserve the rest of the GLB and its binary chunk. The linked `memoria_ff8` manifest follows the [linked GLB schema](../developers/model-linked-glb.md); use it for multiple objects or clips instead of attaching a single-model destination to an assembly.
 
 World targets use `models/world/<shape-id>` or `models/world/static/<shape-id>` with the same suffixes. Legacy full-model `<target>.glb` replacements remain supported. Geometry-only replacements retain the target rig and clips; per-slot replacements retain all other clips. Changing rigs, adding gameplay slots, cross-character retargeting and action/script export are outside this selection workflow. Battle stages can be exported, but stage replacement is blocked until its native stage geometry binding is supported.
 

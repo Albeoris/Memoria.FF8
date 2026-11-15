@@ -343,7 +343,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);

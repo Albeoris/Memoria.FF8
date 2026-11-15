@@ -102,6 +102,18 @@ public static class ModelAssetExchange
     {
         ModelExchangeImportResult imported = ModelExchange.ImportGlb(bytes);
         EditableModel combined = imported.Model;
+        if (combined.ImportTarget is { } target)
+        {
+            target.Validate();
+            bool geometry = target.Mode != "clip" && combined.Meshes.Count != 0;
+            if (target.Mode == "clip" && (combined.Meshes.Count != 0 || combined.Animations.Count != 1) || target.Mode == "geometry" && combined.Animations.Count != 0)
+            {
+                throw new InvalidDataException("The GLB content does not match its import mode.");
+            }
+            ModelAssetObject owner = new(target.ModelId, "imported", "", target.ModelId, combined with { Animations = [] }, geometry);
+            ModelAssetClip[] singleClips = combined.Animations.Select((animation, index) => new ModelAssetClip(ModelAssetDiscoveryBindings.ClipTarget(target.ModelId, target.Bank, target.ClipSlot ?? index), target.ModelId, target.ModelId, "imported/" + index, "imported", "", animation, checked((int)MathF.Round(animation.Duration * combined.NativeFramesPerSecond) + 1), 1f / combined.NativeFramesPerSecond)).ToArray();
+            return new([owner], singleClips, imported.Warnings);
+        }
         if (combined.ExchangeManifest is null)
         {
             return new ModelAssetImportInventory([], [], imported.Warnings.Concat(["Missing memoria_ff8 manifest; explicit model and clip mapping is required."]).ToArray());

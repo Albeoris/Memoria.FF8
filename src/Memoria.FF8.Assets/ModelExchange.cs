@@ -12,6 +12,7 @@ public sealed record EditableModel(string Name, string Kind, IReadOnlyList<Edita
     public float NativeFramesPerSecond { get; init; } = FramesPerSecondDefault;
     private const float FramesPerSecondDefault = 30;
     public string? ExchangeManifest { get; init; }
+    public ModelImportTarget? ImportTarget { get; init; }
 }
 public sealed record EditableBone(string Name, int Parent, Vector3 Translation, Quaternion Rotation, Vector3 Scale, bool IsJoint = true)
 {

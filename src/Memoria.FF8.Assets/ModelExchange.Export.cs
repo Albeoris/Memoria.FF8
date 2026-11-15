@@ -189,7 +189,8 @@ public static partial class ModelExchange
         // A string custom property survives Blender's import/export custom-property option.
         string metadata = model.NativeMetadata.ValueKind == JsonValueKind.Undefined ? "{}" : model.NativeMetadata.GetRawText();
         int metadataNode = nodes.Count;
-        nodes.Add(new JsonObject { ["name"] = model.Name, ["extras"] = new JsonObject { ["FF8_kind"] = model.Kind, ["FF8_native"] = metadata, ["FF8_schema"] = 1, ["memoria_basis"] = 2, ["memoria_fps"] = model.NativeFramesPerSecond, ["memoria_ff8"] = model.ExchangeManifest } });
+        string? importTarget = model.ImportTarget is null ? null : JsonSerializer.Serialize(model.ImportTarget);
+        nodes.Add(new JsonObject { ["name"] = model.Name, ["extras"] = new JsonObject { ["FF8_kind"] = model.Kind, ["FF8_native"] = metadata, ["FF8_schema"] = 1, ["memoria_basis"] = 2, ["memoria_fps"] = model.NativeFramesPerSecond, ["memoria_ff8"] = model.ExchangeManifest, ["memoria_import"] = importTarget } });
         roots.Add(metadataNode);
         while (binary.Position % 4 != 0)
         {
@@ -197,7 +198,7 @@ public static partial class ModelExchange
         }
         JsonObject document = new()
         {
-            ["asset"] = new JsonObject { ["version"] = "2.0", ["generator"] = "Memoria FF8 model exchange", ["extras"] = new JsonObject { ["memoria_ff8"] = model.ExchangeManifest } },
+            ["asset"] = new JsonObject { ["version"] = "2.0", ["generator"] = "Memoria FF8 model exchange", ["extras"] = new JsonObject { ["memoria_ff8"] = model.ExchangeManifest, ["memoria_import"] = importTarget } },
             ["scene"] = 0,
             ["scenes"] = new JsonArray(new JsonObject { ["name"] = model.Name, ["nodes"] = JsonSerializer.SerializeToNode(roots) }),
             ["nodes"] = nodes,

@@ -41,7 +41,8 @@ public sealed class ModelModsTests
         ModFile first = File("Memoria/first", ModelExchange.ExportGlb(Model("first", 2)));
         ModFile second = File("Memoria/second", ModelExchange.ExportGlb(Model("second", 3)));
         Assert.True(ModelMods.TryPrepare(new(1, [], [first, second]), out ModelMods result, out var diagnostics));
-        Assert.Empty(diagnostics);
+        Assert.All(diagnostics, diagnostic => Assert.Equal("Memoria.LegacyModelPath", diagnostic.Code));
+        Assert.Equal(2, diagnostics.Count);
         Assert.Equal(new[] { "Memoria/first", "Memoria/second" }, result.Variants.Select(variant => variant.PackageId));
         EditableModel selected = result.Load(result.Variants[1], original);
         Assert.Equal(3, selected.Meshes[0].Vertices[1].Position.X);

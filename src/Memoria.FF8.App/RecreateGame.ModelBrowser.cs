@@ -96,7 +96,8 @@ internal sealed partial class RecreateGame
             modelBrowserModGeneration = resourceHost.Mods.Catalog.Generation;
             browserDiscoveryCache.Clear();
             ModCatalogSnapshot installed = new(modelBrowserModGeneration, resourceHost.Mods.Catalog.Packages, resourceHost.Mods.ReadInstalledFiles(ModFormat.Memoria));
-            if (!ModelMods.TryPrepare(installed, out browserInstalledModelMods, out IReadOnlyList<ModDiagnostic> diagnostics))
+            ModelMods.TryPrepare(installed, out browserInstalledModelMods, out IReadOnlyList<ModDiagnostic> diagnostics);
+            if (diagnostics.Count != 0)
             {
                 modelBrowser.SetMessage(string.Join(" · ", diagnostics.Select(item => item.Message)));
             }

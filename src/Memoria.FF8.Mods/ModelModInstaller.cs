@@ -35,7 +35,7 @@ public static class ModelModInstaller
                 }
                 System.Text.Json.Nodes.JsonObject metadata = System.Text.Json.Nodes.JsonNode.Parse(replacement.Model.NativeMetadata.GetRawText()) as System.Text.Json.Nodes.JsonObject ?? new();
                 metadata["memoria_preserve_native_parts"] = System.Text.Json.JsonSerializer.SerializeToNode(replacement.PreserveNativeParts);
-                Add($"models/{id}.geometry.glb", replacement.Model with { Animations = [], NativeMetadata = System.Text.Json.JsonSerializer.SerializeToElement(metadata) });
+                Add($"models/{id}.geometry.glb", replacement.Model with { Animations = [], NativeMetadata = System.Text.Json.JsonSerializer.SerializeToElement(metadata), ImportTarget = new(1, id, "geometry") });
             }
             foreach (ModelModClipReplacement clip in replacement.Clips)
             {
@@ -43,7 +43,7 @@ public static class ModelModInstaller
                 {
                     throw new InvalidDataException("The replacement has an unsupported clip bank or slot.");
                 }
-                Add($"models/{id}.clips/{clip.Bank.ToLowerInvariant()}/{clip.Slot}.glb", replacement.Model with { Meshes = [], Textures = [], Animations = [clip.Animation] });
+                Add($"models/{id}.clips/{clip.Bank.ToLowerInvariant()}/{clip.Slot}.glb", replacement.Model with { Meshes = [], Textures = [], Animations = [clip.Animation], ImportTarget = new(1, id, "clip", clip.Bank.ToLowerInvariant(), clip.Slot) });
             }
         }
         return new(Array.AsReadOnly(outputs.ToArray()));
