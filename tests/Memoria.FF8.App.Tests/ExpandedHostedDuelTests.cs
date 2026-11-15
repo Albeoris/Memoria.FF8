@@ -146,6 +146,8 @@ public sealed class ExpandedHostedDuelTests
         else
         {
             BattleNativeDuelChoice move = battle.GetNativeDuelChoices(ZellId).First(choice => !choice.Finisher);
+            // The widget may answer after 104 retired on an earlier frame.
+            AdvanceUntil(() => process.ActiveActionToken is null);
             PostChoice(move);
             AdvanceUntil(ReadyForChoice);
             Assert.Same(mirror, battle.ActiveAction);

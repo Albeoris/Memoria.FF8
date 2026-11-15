@@ -11,7 +11,7 @@ internal sealed class HostedDuelPoll(BattleModelOwner owner, string actorId, uin
 
 internal sealed record HostedDuelFrameOwner(HostedDuelPoll Poll, BattleNativeDuelState Widget);
 internal sealed record NativeBattleDuelReadinessReached(HostedDuelFrameOwner Frame, uint Callback) : NativeBattleModelLifecycleReceipt(Frame.Poll.Owner, Frame.Poll.ActorId);
-internal sealed record NativeBattleDuelSelectionReached(HostedDuelFrameOwner Frame, int Slot, byte Serial) : NativeBattleModelLifecycleReceipt(Frame.Poll.Owner, Frame.Poll.ActorId);
+internal sealed record NativeBattleDuelSelectionReached(HostedDuelFrameOwner Frame, int Slot, byte Serial, long RetiredActionToken) : NativeBattleModelLifecycleReceipt(Frame.Poll.Owner, Frame.Poll.ActorId);
 
 public sealed partial class BattleSession
 {
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             hostedControlPackets = hostedControlPackets.SetItem(tracked, new(next, descriptors.Packets[next].Serial, 10, 0x4852B0) { DuelPoll = frame.Poll });
             return graphics with { Descriptors = descriptors };
         }
-        NativeBattleDuelSelectionReached receipt = new(frame, slot, packet.Serial);
+        NativeBattleDuelSelectionReached receipt = new(frame, slot, packet.Serial, lastHostedActionCompleted);
         pendingHostedDuelSelection = receipt;
         services.Emit(receipt);
         return graphics;
@@ -274,7 +274,8 @@ public sealed partial class BattleSession
             !ReferenceEquals(services.Duel, receipt.Frame) || !ReferenceEquals(poll, receipt.Frame.Poll) || !ReferenceEquals(process.PendingDuelSelection, receipt) ||
             !nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? widget) || !ReferenceEquals(widget, receipt.Frame.Widget) ||
             widget.Selection1D28DEF is not byte selection || selection == 254 || !process.IsControlPrefixRetired ||
-            expandedHostedActionToken is long token && (frameToken != token || !process.IsActionComplete(token)))
+            expandedHostedActionToken is not long token || token != receipt.RetiredActionToken || !process.IsActionComplete(token) ||
+            frameToken is long frameAction && frameAction != token)
         {
             throw new InvalidDataException("Native Duel poll does not identify the current selected input after its retired move.");
         }
